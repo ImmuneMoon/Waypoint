@@ -435,6 +435,7 @@ function applySnapshot(msg) {
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
+    net.targets = cleanTargets(msg.targets);
     if (msg.stage) {
         applyStage(msg.stage);
     } else {
@@ -664,6 +665,47 @@ function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster }, n
 // Is this player currently on the given map? (self is always present to itself)
 net.sanitizeAppState = sanitizeAppState;   // the stream window shows exactly what players may see
 net.applyStage = applyStage;
+/* ---------- targeting ----------
+   net.targets: playerId -> { id, mapId, name }. Clients send { type:'target' }; the host keeps
+   the table's map of targets and broadcasts { type:'targets' } to everyone after each change,
+   and hands the current map to late joiners in the snapshot. A target is a pointer, nothing
+   more: it never changes the token it points at. */
+net.targets = {};
+function targetersOf(itemId, mapId) {
+    return Object.keys(net.targets).filter(function(pid) { var t = net.targets[pid]; return t && t.id === itemId && t.mapId === mapId; })
+        .map(function(pid) { return { id: pid, name: net.targets[pid].name || 'Player', hue: playerHue(pid) }; });
+}
+net.targetersOf = targetersOf;
+function cleanTargets(raw) {
+    var out = {};
+    if (raw && typeof raw === 'object') Object.keys(raw).slice(0, 64).forEach(function(pid) {
+        var t = raw[pid];
+        if (t && typeof t.id === 'string' && t.id.length <= 80 && typeof t.mapId === 'string' && t.mapId.length <= 80 && typeof pid === 'string' && pid.length <= 80) {
+            out[pid] = { id: t.id, mapId: t.mapId, name: String(t.name || 'Player').slice(0, 40) };
+        }
+    });
+    return out;
+}
+function applyTarget(pid, name, t) {
+    if (t) net.targets[pid] = { id: t.id, mapId: t.mapId, name: name }; else delete net.targets[pid];
+    render();
+}
+// Toggle my own target (client or host). itemName is only for the toast.
+net.setTarget = function(itemId, mapId, itemName) {
+    if (!net.active) return;
+    var me = net.myId, cur = net.targets[me];
+    var next = (cur && cur.id === itemId) ? null : { id: itemId, mapId: mapId };
+    if (net.role === 'client') {
+        var c0 = net.conns[0];
+        if (c0 && c0.open) { try { c0.send({ type: 'target', id: next ? itemId : null, mapId: mapId }); } catch (e) {} }
+        applyTarget(me, getProfile().name, next);   // show it at once; the host's broadcast confirms
+    } else if (net.role === 'host') {
+        applyTarget(me, getProfile().name || 'GM', next);
+        broadcast({ type: 'targets', targets: net.targets }, null);
+    }
+    toast(next ? 'Targeting ' + (itemName || 'that token') + '. Click it again (or press Esc) to clear.' : 'Target cleared.');
+};
+net.clearMyTarget = function() { var t = net.targets[net.myId]; if (t) net.setTarget(t.id, t.mapId); };
 net.isPresent = function(ownerId, mapId) {
     if (!net.active || net.stream) return true;                    // solo, or the stream window: everything shows
     if (net.role === 'client' && ownerId === net.myId) return true;
@@ -764,7 +806,7 @@ function admitPlayer(conn, prof) {
     var stage = currentStage();
     net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, targets: net.targets }); } catch (e) {}
     broadcastRoster();
 }
 
@@ -905,6 +947,15 @@ function handleMessage(msg, conn) {
         if (!fromMap || fromMap.type !== 'map') return;
         var portal = (fromMap.whiteboard || []).find(function(w) { return w.id === msg.viaItemId; });
         hostTravel(conn, traveler, portal, fromMap);
+    } else if (msg.type === 'target' && net.role === 'host') {
+        var tp = net.roster[conn.peer]; if (!tp) return;
+        var okId = msg.id === null || (typeof msg.id === 'string' && msg.id.length <= 80);
+        if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
+        applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
+        broadcast({ type: 'targets', targets: net.targets }, null);
+    } else if (msg.type === 'targets' && net.role === 'client') {
+        net.targets = cleanTargets(msg.targets);
+        render();
     } else if (msg.type === 'pos') {
         handlePos(msg, conn);
     } else if (msg.type === 'end' && net.role === 'client') {
@@ -993,6 +1044,7 @@ function wireConn(conn) {
         renderRoster();
         if (net.role === 'host') {
             toast((p && p.name ? p.name : 'A player') + ' left.');
+            if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcast({ type: 'targets', targets: net.targets }, null); }
             broadcast({ type: 'roster', roster: net.roster }, null);
         } else if (net.leaving) {
             // deliberate teardown: 'end' from the GM (still active) or our own Leave (already torn down)
@@ -1245,6 +1297,7 @@ function leaveSession(silent) {
     if (!silent) cancelReconnect();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
     net.peer = null; net.conns = []; net.roster = {}; net.active = false; net.role = null; net.code = null; net.lastStage = null;
+    net.targets = {};
     stopHeartbeat();
     if (!silent) setIndicator(null);
     setPausedLocal(false);

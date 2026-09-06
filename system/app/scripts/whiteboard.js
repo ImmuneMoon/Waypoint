@@ -541,6 +541,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var clientV = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
               fw.classList.toggle('turnable', clientV ? (item.ownerId === window.wpNet.myId && !window.wpNet.paused) : (state.selWbId === item.id));
           } else if (fw) fw.remove();
+          // Target rings: whoever at the table is targeting this token, in their colour
+          var tgs = (item.isChar && window.wpNet && window.wpNet.active && window.wpNet.targetersOf) ? window.wpNet.targetersOf(item.id, activeMap.id) : [];
+          var ringEl = el.querySelector(':scope > .target-ring');
+          if (tgs.length) {
+              if (!ringEl) { ringEl = document.createElement('div'); ringEl.className = 'target-ring'; el.appendChild(ringEl); }
+              var tsig = tgs.map(function(t) { return t.id; }).join(',');
+              if (ringEl.dataset.sig !== tsig) {
+                  ringEl.dataset.sig = tsig;
+                  ringEl.style.boxShadow = tgs.slice(0, 3).map(function(t, i) { return '0 0 0 ' + (3 + i * 3) + 'px hsl(' + t.hue + ',75%,55%)'; }).join(', ');
+                  ringEl.title = 'Targeted by ' + tgs.map(function(t) { return t.name; }).join(', ');
+                  ringEl.innerHTML = tgs.slice(0, 3).map(function(t) {
+                      var ini = String(t.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
+                      return '<span class="target-tag" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>';
+                  }).join('');
+              }
+              el.classList.toggle('targeted-by-me', tgs.some(function(t) { return t.id === window.wpNet.myId; }));
+          } else if (ringEl) { ringEl.remove(); el.classList.remove('targeted-by-me'); }
           // Condition overlay: 'down' = red X over the token, 'dead' = skull + darkened art
           var stv = item.isChar && (item.status === 'down' || item.status === 'dead') ? item.status : '';
           var stEl = el.querySelector(':scope > .token-status');
@@ -1542,6 +1559,35 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
   }
 
+  /* ---- targeting (players) ----
+     A click — not a drag — on a character token that isn't yours marks it as your target;
+     the table sees a ring in your colour. Same token again, or Esc, clears it. */
+  (function wireTargeting() {
+      var down = null;
+      document.addEventListener('pointerdown', function(e) {
+          down = null;
+          if (e.button !== 0 || !e.target || !e.target.closest) return;
+          if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) return;
+          if (window.isDrawingMode || window.isEraserMode || window.isMeasureMode || window.isPanMode) return;
+          var el = e.target.closest('#whiteboard .wb-item'); if (!el) return;
+          var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
+          var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
+          if (!item || !item.isChar || item.hidden || item.ownerId === window.wpNet.myId) return;
+          down = { id: item.id, name: item.charName || item.name || 'that token', x: e.clientX, y: e.clientY, mapId: am.id };
+      }, true);
+      document.addEventListener('pointerup', function(e) {
+          if (!down) return;
+          var d = down; down = null;
+          if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;   // a drag (of your own token underneath), not a click
+          var el = e.target && e.target.closest && e.target.closest('#whiteboard .wb-item');
+          if (!el || el.dataset.id !== d.id) return;
+          window.wpNet.setTarget(d.id, d.mapId, d.name);
+      }, true);
+      document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Escape') return;
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget();
+      });
+  })();
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the

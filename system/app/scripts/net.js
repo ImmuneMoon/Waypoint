@@ -964,8 +964,8 @@ function scheduleReconnect() {
     reconn.tries++;
     setIndicator('warn', 'reconnecting to the GM (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')');
     setStatus('Connection lost — reconnecting (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')… If the GM restarts Waypoint and hosts again, you will reattach automatically.');
-    if (reconn.tries === 1) toast('Connection lost — reconnecting… (keeps trying for ~2 minutes)');
-    reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, reconn.tries === 1 ? 1200 : 4000);
+    if (reconn.tries === 1) toast('Connection lost — reconnecting… (keeps trying for a few minutes)');
+    reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, reconn.tries === 1 ? 1200 : 2500);
 }
 
 function wireConn(conn) {
@@ -1085,8 +1085,15 @@ function recentHostCode() {
 }
 net.recentHostCode = recentHostCode;   // sandbox testing hook
 
+/* A room's id on the signaling server is waypoint-<code>, or waypoint-<code>-r<n> after a crash:
+   the dead session's registration can linger for minutes, so a resuming GM takes the next
+   generation of the SAME code at once, and players try each generation in turn. */
+var ROOM_GENS = 4;
+function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase() + (gen ? '-r' + gen : ''); }
+net._hostGen = 0;
 function startHosting(forceFresh) {
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
+    if (forceFresh) net._hostGen = 0;
     cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table
     if (net.foreign) {
         // the campaign on screen is a GM's: hand it back before anything can be hosted from it
@@ -1099,11 +1106,13 @@ function startHosting(forceFresh) {
     leaveSession(true);
     var resumed = !forceFresh ? recentHostCode() : null;
     var code = resumed || makeCode();
-    var peer = new Peer('waypoint-' + code, peerOpts());
+    var gen = resumed ? net._hostGen : 0;
+    var peer = new Peer(roomPeerId(code, gen), peerOpts());
     net.peer = peer; net.role = 'host'; net.code = code;
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;
+        net._hostGen = gen;   // a later crash resumes under the generation after this one
         startHeartbeat();
         rememberHostCode(code);
         setStatus('Hosting — room code: ' + code.toUpperCase());
@@ -1123,12 +1132,16 @@ function startHosting(forceFresh) {
     peer.on('disconnected', function() { if (net.active) { try { peer.reconnect(); } catch (e) {} } });
     peer.on('error', function(err) {
         if (err.type === 'unavailable-id') {
-            // The old code is still registered (the dead session hasn't timed out
-            // on the signaling server yet) or someone else has it: take a fresh one.
-            forgetHostCode();
-            if (resumed) { toast('Your last room code is still held by the old session — starting with a new code.'); }
-            else toast('Code collision — trying another code.');
             try { peer.destroy(); } catch (e) {}
+            if (resumed && gen + 1 < ROOM_GENS) {
+                // The crashed session still holds this generation: take the next one, same code.
+                net._hostGen = gen + 1;
+                setTimeout(function() { startHosting(false); }, 200);
+                return;
+            }
+            forgetHostCode();
+            if (resumed) toast('Your last room code could not be resumed — starting with a new code. Players will need the new one.');
+            else toast('Code collision — trying another code.');
             setTimeout(function() { startHosting(true); }, 300);
             return;
         }
@@ -1136,9 +1149,11 @@ function startHosting(forceFresh) {
     });
 }
 
-function joinSession(code, name, isRetry) {
+var JOIN_ATTEMPT_MS = 7000;   // per generation; a dead generation's registration answers nothing
+function joinSession(code, name, isRetry, probe) {
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
-    if (!isRetry) cancelReconnect();
+    probe = probe || 0;                       // which generation this attempt targets
+    if (!isRetry && !probe) cancelReconnect();
     leaveSession(true);
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;
@@ -1151,13 +1166,22 @@ function joinSession(code, name, isRetry) {
         net.active = true;
         renderRoster(); syncSessionButtons();
     }
-    if (!isRetry) setStatus('Connecting to ' + code.toUpperCase() + '...');
+    if (!isRetry && !probe) setStatus('Connecting to ' + code.toUpperCase() + '...');
+    var gen = isRetry ? (reconn.tries % ROOM_GENS) : probe;
     peer.on('open', function() {
-        var conn = peer.connect('waypoint-' + code.toLowerCase(), { reliable: true });
+        var conn = peer.connect(roomPeerId(code, gen), { reliable: true });
         net.conns = [conn];
-        // No path within 25 s (or ICE gives up sooner): say so. This is what a player behind
-        // carrier-grade NAT sees when the GM has no relay configured.
-        var joinTimer = setTimeout(function() { if (!conn.open && net.peer === peer && !reconn.pending) joinFailed('No route to the GM\'s table after 25 s.'); }, 25000);
+        // Nothing within a few seconds: this generation is dead or unreachable. A first join
+        // moves on to the next generation (a resumed room lives under one), then gives up with
+        // a clear message — that is what a player behind carrier-grade NAT sees when the GM
+        // has no relay. A reconnect attempt just schedules the next one.
+        var joinTimer = setTimeout(function() {
+            if (conn.open || net.peer !== peer) return;
+            try { peer.destroy(); } catch (e) {}
+            if (reconn.pending) { scheduleReconnect(); return; }
+            if (probe + 1 < ROOM_GENS) { joinSession(code, name, false, probe + 1); return; }
+            joinFailed('No route to the GM\'s table.');
+        }, JOIN_ATTEMPT_MS);
         conn.on('iceStateChanged', function(s) { if ((s === 'failed' || s === 'closed') && !conn.open && net.peer === peer && !reconn.pending) joinFailed('Your network and the GM\'s could not reach each other (ICE ' + s + ').'); });
         conn.on('open', function() { clearTimeout(joinTimer); });
         function joinFailed(why) {
@@ -1479,7 +1503,7 @@ if (_netBtn) _netBtn.addEventListener('click', function() {
 var _netClose = ui('netCloseBtn');
 if (_netClose) _netClose.addEventListener('click', function() { ui('netModal').style.display = 'none'; });
 var _hostBtn = ui('netHostBtn');
-if (_hostBtn) _hostBtn.addEventListener('click', startHosting);
+if (_hostBtn) _hostBtn.addEventListener('click', function() { startHosting(false); });   // (passing the event made every host "force fresh": the old code was never resumed)
 var _joinBtn = ui('netJoinBtn');
 if (_joinBtn) _joinBtn.addEventListener('click', function() {
     var code = (ui('netCodeInput').value || '').trim();

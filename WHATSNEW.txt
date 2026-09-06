@@ -10,6 +10,13 @@ Fixes
   and tokens could be moved (never saved, but still wrong). A reconnecting
   player now stays a spectator until they reattach or get their own
   campaign back.
+- Reattaching after the GM's app crashed rarely worked: the Host button never
+  resumed the old room code (it always took a fresh one), and a player's
+  retry could hang forever on the dead session's leftover registration. A
+  resumed room now keeps its code (under a new generation the players'
+  retries cycle through), the GM gets the same code back at once, and
+  players reattach within a few attempts. A first join to a resumed room
+  can take a few seconds longer while it finds the live generation.
 
 WAYPOINT 1.1.5 — What's New
 ============================

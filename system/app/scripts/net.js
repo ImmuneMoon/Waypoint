@@ -730,6 +730,7 @@ function handleMessage(msg, conn) {
     // an old build, a hand-rolled client, a probe — is dropped without a reply and the
     // connection closed. Nothing is ever sent to, or applied from, an unadmitted peer.
     if (net.role === 'host' && msg.type !== 'hello' && !net.roster[conn.peer]) {
+        if (msg.type === 'hb') return;   // a waiting player's heartbeat: harmless, and expected while the GM decides
         try { conn.close(); } catch (e) {}
         return;
     }
@@ -1027,10 +1028,10 @@ function joinSession(code, name, isRetry) {
             var wasRetry = reconn.pending;
             cancelReconnect();
             net.active = true;
+            var pwIn = ui('netJoinPassInput');
+            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION });   // before the first heartbeat: the host admits nothing that speaks first
             startHeartbeat();
             renderRoster();
-            var pwIn = ui('netJoinPassInput');
-            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION });
             setStatus('Connected — waiting for campaign snapshot...');
             if (wasRetry) toast('Reconnected ✓');
         });

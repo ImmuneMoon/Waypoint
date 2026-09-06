@@ -1,0 +1,314 @@
+WAYPOINT 1.1.2 — What's New
+============================
+
+Updates from inside the app
+- Settings ▸ Check for Updates looks at Waypoint's releases page. When a new
+  version only changes the app itself, Update Now downloads it, swaps it in
+  and reloads — a few seconds, no installer, nothing lost. When a release
+  changes the app's core, the same button offers the installer instead.
+- A quiet check runs shortly after launch and mentions a new version in a
+  toast; nothing installs without you pressing Update Now.
+- The release notes stop popping up after an update. Click the version
+  number in Settings or About to read them whenever you like.
+
+Settings that stay put
+- Every preference now survives restarts AND follows your saves folder: the
+  app mirrors its settings into saves/preferences.json and reads that file
+  first on launch, so a different install (or a cleared browser profile)
+  opens with the same units, snap, pen, eraser, opacities, minimap, rulers
+  and panel layout you last used.
+- The pen's colour, width and Freehand/Line choice are remembered now (they
+  reset every launch before).
+- The data map's Snap button remembers its state and agrees with the play
+  map's Snap.
+- Settings ▸ Reset Local Preferences now clears everything it says it does —
+  including eraser, shape sizing, pen and folded sections — here and in the
+  saves folder's preferences.json. Your name, picture and multiplayer
+  identity are never touched.
+
+Multiplayer
+- The GM gets a clear "End Session for Everyone" button while hosting (with
+  a confirmation). Players keep "Leave Session". Ending tells every player
+  the session ended, returns them to their own campaigns and retires the
+  room code — same teardown as before, now impossible to mistake for a
+  personal exit.
+- Players on an older Waypoint than the GM are turned away at the door with
+  an "update Waypoint, then rejoin" message instead of joining a table that
+  may not understand their build. The GM sees who was turned away.
+- The other way round too: if a player joins on a newer Waypoint than the
+  GM's, they are let in and the GM gets a prompt to update after the session.
+- Host-side guard: a connection that was never admitted (wrong version, wrong
+  password, not yet approved, or not a real Waypoint client) can only say
+  hello. Anything else is dropped silently and the connection closed; nothing
+  is sent to or accepted from it.
+
+WAYPOINT 1.1.1 — What's New
+============================
+
+Fixes from the first round of table testing
+- Eraser now rubs out only the part of a stroke you touch; the rest of the
+  drawing stays (it splits into pieces around the gap).
+- Hex grid: tokens seat exactly into cells everywhere on the map. The grid
+  tile is now a whole 52 px wide — the old 51.96 px tile drifted a hair per
+  column, which is why tokens looked slightly off far from the origin.
+- Data map: Select/Move and Pan tools join Link Mode, the map never starts
+  in Link Mode, Link Mode lights gold while active, and a Clear-the-board
+  button (with confirmation) wipes every room and link.
+- The properties panel no longer goes blank on older maps missing categories.
+- Typing a node's name or a character's name no longer rebuilds the panel
+  under your cursor — it used to jump to the top and drop focus, so the next
+  keys hit the board (Delete removed the node, arrows nudged it). The panel
+  now keeps your scroll position and caret through every refresh.
+- Fixed a crash ("m.toast is not a function") when linking rooms.
+- Camera starts at the true canvas center on maps without a saved home.
+- Minimap no longer drifts while you drag across it.
+
+Multiplayer crash recovery
+- If Waypoint closes unexpectedly while you're hosting, relaunch it and press
+  Host again: you get the SAME room code back (for 15 minutes), and players
+  still reconnecting reattach on their own. Players now keep trying for about
+  two minutes instead of thirty seconds. Ending a session on purpose retires
+  the code as before.
+- Tokens never straddle hex cells any more: every token in a multi-drag,
+  arrow-key nudges (which now hop cell to cell on hex maps), pasted copies,
+  spawned player tokens, and player drops arriving over the network are all
+  seated into a cell — the GM's copy is the authority.
+- Players can grab their token even when a text box, note card, or trigger
+  zone is drawn over it.
+- Portals work by dropping: a player who drops their token on a door, stairs,
+  or any portal-linked item travels through it — no double-click needed. The
+  GM can push a player through by dropping that player's token on a portal.
+- Clicking away from a selection (anywhere but the board, the Properties
+  panel, menus, or dialogs) clears it, so the floating toolbar never lingers.
+- A connection dot on the 🌐 button shows the table's real health at all
+  times: green = live, amber = the other side has gone quiet or you're
+  reconnecting, red = lost. Hover it for details. Both sides now exchange a
+  heartbeat every few seconds, so a GM whose app died is noticed within about
+  half a minute (players start reconnecting; the GM sees ⏳ on a silent player
+  and drops them if the silence continues) instead of looking "connected".
+- The installer refuses to close a running Waypoint silently, and asks first
+  when run by hand — an update can no longer kill a live table.
+
+Play Map
+- Shapes and text are placed where you click — or drag to draw the exact box
+  they should fill. Esc cancels.
+- Text color: the color swatch (toolbar or Properties) now colors the text,
+  with a custom color picker, and text boxes get their own tooltip.
+- Lock proportions while resizing (toolbar button, Properties checkbox, or
+  hold Shift while dragging).
+- Player visibility is front and center: a Visible/Hidden box at the top of
+  the Properties panel explains what players see, and the toolbar eye turns
+  red when an item is hidden.
+- Drawings with Snap on now ride the grid LINES: a fast swipe walks from
+  vertex to vertex along cell edges instead of cutting across cells (square
+  and hex grids).
+- Fixed snapped drawings (straight lines especially) rendering ~6px below
+  their true position — the stroke's SVG sat on a text baseline.
+- Every color row in Properties (fill, pen, text, box background) ends in a
+  custom color wheel; the current color is outlined.
+- Text wraps inside its box (long words too), and multi-line text stacks
+  properly instead of laying paragraphs side by side.
+- Text boxes can be styled: font (the standard Windows families), text size,
+  horizontal and vertical alignment, and a box background (tints, solids,
+  shade/frost, or any custom color) — all in Properties.
+- The selection toolbar's color swatch opens a palette that matches what you
+  selected — inks for text and drawings, fills plus inks for shapes, and a
+  custom picker on all of them. Click the swatch again (or anywhere else) to
+  close it.
+- Every tool has its own pointer: a pen for Draw, a crosshair-ruler for
+  Measure, a crosshair-plus while placing a shape, a hand for Pan, a link
+  arrow in the data map's Link Mode — and the eraser hides the pointer so
+  only its reach circle shows. Items no longer flash the grab hand under
+  a tool that isn't Move.
+- Eraser: a circle around the pointer shows its reach (solid while pressed),
+  its size is adjustable (click the eraser again), and it has two modes —
+  Precise trims strokes exactly to the circle's edge (erase just what you
+  pass over), Segments removes each point-to-point piece the circle touches.
+- Hover tooltips can no longer be highlighted or left behind; any click,
+  Esc, or moving off the item hides them.
+- Click any placed measuring ruler to remove it.
+- Center menu gains "Center on Character" — your own token as a player.
+- Tokens follow rooms: drop a character token onto a shape linked to a room
+  and the character moves into that room's list on the data map.
+- The mouse wheel zooms on its own now (no Ctrl needed), 5% a tick toward
+  the pointer; Shift + wheel scrolls the board.
+- Hexagons resize like every other shape. A "New shape size" switch in the
+  Shapes menu picks Free (click = default, drag = exact box) or Grid cell
+  (every new shape arrives one cell in size and seats into the cell).
+- Drawings' Properties now match the pen: the pen's color palette plus a
+  custom color, and a pen-size slider.
+- The lock button shows the item's state (closed padlock = locked), and the
+  proportion lock has its own icon (dashed box + diagonal arrow, padlock when on).
+- The hex grid is flat-top now: a flat side faces up, so "forward" on a token
+  is a face of its cell. Cells are 60 wide × 52 tall (they were 52 × 60,
+  point-up). Saved hex maps re-seat their tokens and hex shapes onto the new
+  cells the first time they load.
+- Tokens turn in cell-side steps while a grid is on: four facings on a
+  square grid, six on a hex grid (one per face). Hold
+  Shift while turning for free 15° steps. The Rotation slider and number in
+  Properties land on the same facings. Turn a token from its own arrow:
+  click it for the next facing (Shift-click goes the other way), drag it to
+  aim. Properties → Turning picks whether the art turns with the arrow or
+  only the arrow moves around an upright picture. With no grid they turn
+  freely; applying a grid turns every token to its nearest facing. A small
+  gold arrow marks each token's front and always points across a cell face
+  at a neighbouring cell; pick which side of the art is the front under
+  Properties → Front Side. Players can now turn the token assigned to
+  them, and the whole table sees it turn live.
+- The hover card over an item sits a little further from the pointer so the
+  cursor never covers it.
+- The Properties sidebar stays closed until you select something (a room on
+  the data map, an item on the play map) and closes again when the selection
+  clears. Open or close it by hand with the ▶ button and it stays that way
+  until you select something else.
+- The floating toolbar over a selection keeps one screen size at every zoom
+  level (it used to scale with the board and jump while you zoomed), and it
+  sits higher so it no longer covers the blue rotate dot.
+- Token condition: right-click a token (or Properties → Condition) to mark it
+  Alive, Incapacitated (red X over the token) or Dead (skull, art darkened).
+  The whole table sees it.
+- Size matching while resizing is unmistakable now: when your item pauses
+  at a neighbour's width or height, that neighbour lights up gold, a bright
+  bar runs along the matched edge of both items, and a badge names the axis
+  and the neighbour ("↔ WIDTH 300 = Scene art"). Works with Snap off and with
+  proportions locked — the other side follows the ratio. The blue guide lines that snaps
+  draw were invisible because of a typo; they show again.
+- Snap has a mode now: click the Snap button again for Snap To — Grid (cells
+  only, the most predictable), Items (neighbours only, for tidy rows), or
+  Both (the old behaviour: neighbours first, grid for open-space drops).
+  Default is Grid. Remembered per computer; the menu also turns snapping off.
+- Fit to Grid: the ⊞ button in the selection toolbar (and in Properties)
+  sizes the selection to whole grid cells and seats it — tokens and hex
+  shapes become exactly one hex cell; other items round to whole cells.
+- The selection toolbar and the resize (gold) and rotate (blue) dots follow
+  the item live while you drag, resize, rotate, or zoom, instead of catching
+  up when you let go — and the dots stay the same size on screen at any zoom.
+- Groups and multi-selections resize together: a single corner handle sits on
+  the selection's corner; drag it and everything scales from the top-left
+  (Shift keeps proportions).
+- An image's frame is the picture: the box takes the image's real proportions
+  when it loads, so the selection outline and handles hug the art with no
+  invisible margins, and images keep their proportions when resized unless
+  you unlock them.
+- Duplicate any item — ⧉ in the selection toolbar, the right-click menu,
+  a Duplicate button in Properties, or Ctrl+D. The copy carries every
+  setting and everything attached (character sheet, stats, portal target,
+  styling, layer, lock); groups copy as a new group; a copied player token
+  is GM-controlled until you assign it. Hex tokens land one cell over.
+- Elements panel: rename any element (✎ or double-click; also a Name field in
+  Properties), rows are grouped by layer in stacking order — front at the top,
+  back at the bottom — and ▲/▼ move an element a layer at a time.
+- The T (text) button lights up while you're placing text, switches the board
+  out of draw/erase/measure/pan first, and a selected text box's toolbar
+  swatch shows an "A" over a color bar so it reads as text color.
+
+Portals & triggers
+- Warps land you on the right ROOM, not just the right map: a node that
+  leads to a map arrives at the room there with the same id or name (or the
+  Landing Room you pick in Properties), with the camera on it and the room
+  selected. Players sent through a portal arrive — and their token spawns —
+  on that room's play map item. (This is the "Belas's office goes to the
+  prison block" fix: the office is a room inside that map.)
+- Any play map item can be a portal on its own: Properties → Portal to Map.
+  On a nested map the parent is offered first ("Back to …"), so a way home
+  is one click — no helper node needed. Pick a marker (door, stairs, gate…).
+- Trigger zones come in any shape — square, circle, diamond, hexagon — via
+  Properties → Trigger Shape, and the Trigger button picks the shape that
+  fits the grid: hex zones on hex maps, square zones on square grids.
+
+Category library
+- Categories can be saved once and reused on any map in the campaign: press
+  ☆ on a category (or Save all to library), then on another map pick it from
+  Category Library → Add, or Add all missing. Same names and colors across
+  every map, no retyping. Manage the library from the same panel.
+
+Roster characters become tokens
+- Press + Add under a node's Characters and a token appears on the board at
+  once — a stand-in circle showing the character's initials, placed on the
+  shape linked to that room (or at the map's home point). Rename the
+  character and the token follows; set a portrait and the token wears it;
+  remove the character and its stand-in goes too (player-owned tokens and
+  tokens with a sheet attached are left alone). Hovering the token shows the
+  roster notes to the GM only.
+
+Faster map building
+- Set a room image on a data-map node and Waypoint builds a child map from
+  it: the picture becomes the scene on that map's play map (locked, at the
+  back), and the node links to it as a portal — double-click to visit.
+- Double-click a map or planner name in the sidebar to rename it.
+
+Help where you're looking
+- Hover any section heading or field label — Categories, Characters, Linked
+  Map, Layer, the Host and Join panels, Settings sections, the pen and eraser
+  menus, and more — for a one-line explanation of what it's for.
+
+Settings
+- Coordinate rulers can be hidden (Settings → Table).
+- Grid opacity slider — a personal setting: in multiplayer each player fades
+  the grid to taste without affecting anyone else.
+
+============================
+WAYPOINT 1.1.0
+============================
+
+Multiplayer (new)
+- Host your campaign as the GM and have players join with a room code —
+  direct peer-to-peer between your computers, no accounts, no server.
+- Players follow your map, move only the tokens you assign to them, and
+  talk in table chat (with private GM whispers).
+- Hide any item behind a grey cloud until you choose to reveal it. Your
+  planners, room notes, and character dossiers are never sent to players.
+- Split the party through doors and stairs; Summon All brings everyone back.
+- Pause the Table freezes players completely while chat stays open.
+- The Host panel shows exactly which campaign and map players will join —
+  and lets you change both.
+- Set a display name and table picture in Settings; they show in the roster.
+- If two networks can't connect directly, traffic falls back to an encrypted
+  public relay automatically — most "it won't connect" cases just work now.
+- Table security: first-time joiners need the GM's approval, an optional
+  session password can back up the room code, and the GM can kick a player
+  (kicked or denied players stay out for the rest of the session).
+
+Play Map
+- Copy, cut, and paste items (Ctrl+C / X / V) — and paste images straight
+  from your clipboard onto the board.
+- A floating toolbar over your selection: color, layer, lock, hide, delete.
+- Align and distribute buttons for multi-selections; arrow-key nudging.
+- Per-item opacity, plus a default opacity for newly added items.
+- Square and hex grids per map with grid-aware snapping; text stays legible
+  above the grid, and any item can join it via right-click.
+- Measure tool with Imperial/Metric units and adjustable per-map scale.
+- Image Library: browse every image in your install and place it in a click.
+
+Getting around
+- Minimap in the top-left corner — click anywhere on it to fly there.
+- Ctrl+K quick-jump to any map, planner, or room by name.
+- Resizable side panels, and a rebuilt Help full of step-by-step tutorials.
+
+Exports & data safety
+- Export This Map / All Maps / All Play Maps / All Planners / Everything —
+  images come bundled in a .zip, and Import accepts those bundles whole.
+- Saves are written atomically, and every launch snapshots your save into
+  saves\backups (newest 10 kept).
+- Saves from ANY older Waypoint version are upgraded automatically on first
+  launch — the original is backed up first and never silently overwritten.
+
+Character sheets (shadow-base.com)
+- Exports follow the site's published contract: the languages line is the
+  bracket-free projection of the entries (no more double-billed tongues or
+  the "languages are structured rows now" notice on every load), familiarity
+  and literacy lists use semicolons, and Size Modifier is always written.
+- Import Character (toolbar) turns a ShadowBase character JSON into a ready
+  token: the sheet's portrait becomes the token art, name and a stats line
+  fill in, and the full sheet rides attached.
+- View (inspector) opens the attached sheet read-only — attributes,
+  characteristics, traits, skills, Force powers, and inventory at the table.
+- Export JSON writes a site-ready file back out with the sharpest available
+  portrait embedded — upload it on the site with Import Character. Tokens
+  without a sheet export a starter file the site fills with defaults.
+
+Also in this version
+- A Settings panel (profile, measurement units, minimap, advanced resets).
+- Updated Terms of Use & Privacy Policy covering multiplayer — readable any
+  time from the About panel.
+- Questions or bugs: fulllioncreativeworks@gmail.com

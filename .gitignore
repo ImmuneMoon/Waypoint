@@ -1,0 +1,29 @@
+# --- Electron runtime (shipped via GitHub Releases, not source) ---
+system/*
+!system/app/
+!system/resources/
+system/resources/*
+!system/resources/app/
+
+# --- per-install state ---
+system/userdata/
+system/app/.deploy-bak-*/
+
+# --- the campaign itself: saves, images, preferences.json — private to the table ---
+saves/
+
+# --- build outputs (attach to Releases instead) ---
+Waypoint_Setup.exe
+*_Drive_Package.zip
+*.zip
+
+# --- local clutter ---
+scratch/
+log.txt
+Waypoint.lnk
+*.bak
+*.tmp
+Thumbs.db
+desktop.ini
+dev-saves/
+dist/

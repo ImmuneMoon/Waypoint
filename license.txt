@@ -1,0 +1,87 @@
+Terms of Use & Privacy Policy
+Last Updated: September 4, 2026
+
+==================================================
+TERMS OF USE
+==================================================
+
+1. Introduction
+Welcome to Waypoint ("Service", "App"), created by Nucleus Games and developed by Fulllion Creative Works ("us", "we", or "our"). These Terms of Use ("Terms") govern your use of the Waypoint desktop application. Please read these Terms of Use carefully before using the App.
+
+2. Acceptance of Terms
+By downloading, installing, or using the App, you agree to be bound by these Terms. If you disagree with any part of the Terms, then you may not install or use the App.
+
+3. Use of the App
+Waypoint provides interactive tools for campaign planning and mapping. You agree to use the App only for lawful purposes and in accordance with these Terms. You are responsible for the data, campaigns, and maps you create and save using the App.
+
+4. Multiplayer Sessions
+Waypoint includes an optional peer-to-peer multiplayer mode in which one user hosts a session as Game Master ("GM") and other users join with a room code.
+- The GM controls the session. Hosting a session shares the campaign content the App is designed to show players (maps, boards, images, and chat) directly with everyone who joins.
+- You are solely responsible for the content you share, display, or send in a session, including chat messages and images. Do not share content that is unlawful, or that you do not have the right to share.
+- Room codes function as the key to a session. Share them only with the people you intend to invite; anyone with an active session's code may join it.
+- Sessions are transient. We do not host, moderate, monitor, or record multiplayer sessions, and we are not responsible for content exchanged between participants.
+
+5. Intellectual Property
+The App and its original content, features, and functionality are and will remain the exclusive property of Nucleus Games, Fulllion Creative Works, and their licensors. The App is protected by copyright, trademark, and other laws. This App is a fan-made, non-profit project where applicable to third-party IPs. Content you create or import into the App remains yours.
+
+6. Disclaimers
+Your use of the App is at your sole risk. The App is provided on an "AS IS" and "AS AVAILABLE" basis. The App is provided without warranties of any kind, whether express or implied, including, but not limited to, implied warranties of merchantability, fitness for a particular purpose, non-infringement, or course of performance.
+
+7. Limitation of Liability
+In no event shall Nucleus Games or Fulllion Creative Works, nor their directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from your access to or use of or inability to access or use the App, including any content exchanged in multiplayer sessions.
+
+8. Changes to Terms
+We reserve the right, at our sole discretion, to modify or replace these Terms at any time. The current version is always viewable in the App's About panel.
+
+9. Governing Law
+These Terms shall be governed and construed in accordance with the laws of the State of California, USA, without regard to its conflict of law provisions.
+
+
+==================================================
+PRIVACY POLICY
+==================================================
+
+1. Introduction
+Nucleus Games and Fulllion Creative Works ("us", "we", or "our") operate the Waypoint desktop application. This Privacy Policy informs you of our policies regarding the collection, use, and disclosure of personal data when you use our App.
+
+2. Information Collection, Use, and Local Storage
+Waypoint is designed primarily as a local desktop application.
+- Local Data (Campaigns and Maps): The data you enter into Waypoint (including campaign plans, nodes, and map data) is stored locally on your device in the App's installation directory (specifically the "saves" folder). We do not collect, transmit, or store this local data on our servers. You have full control over this data.
+- Multiplayer Profile: If you use multiplayer, the display name you choose is stored locally on your device alongside a randomly generated identifier. No account is created, and neither is sent to us.
+- Contact Information: If you contact us via email (fulllioncreativeworks@gmail.com), we will use your email address and any information you provide solely to respond to your inquiries.
+- Usage Data: As a standalone desktop application, we do not inherently collect telemetry or usage analytics.
+
+3. Multiplayer Data Transmission
+Multiplayer sessions are peer-to-peer: data travels directly between the participants' devices, not through servers we operate.
+- What is shared: When you host a session, the campaign content the App presents to players (maps, whiteboards, images, token positions) and any chat messages are transmitted directly to the devices of users who join with your room code. GM-only material (planner documents, room notes, character dossiers, hidden items, and GM note cards) is filtered out before transmission and is not sent to players.
+- Connection brokering: To establish the peer-to-peer connection, the App uses the public PeerJS signaling service. That service handles connection setup metadata (such as session identifiers and IP addresses, as is inherent to establishing any direct connection) but does not receive your campaign content. Participants in a session may be able to observe each other's IP addresses, as with any peer-to-peer technology.
+- Relay fallback: When two networks cannot establish a direct connection, session traffic may be carried through a public TURN relay service (Open Relay). Relayed traffic remains encrypted in transit (DTLS); the relay operator cannot read your campaign content, and we still receive nothing.
+- No retention by us: We do not receive, store, or have access to anything transmitted in a session. Content received from a session exists only in the participant's running App and is not written to their disk by the App.
+
+4. Data Deletion
+Since your campaign and save data is stored locally on your machine, you can delete this data at any time by uninstalling the application and choosing the option to wipe local save data, or by manually deleting the "saves" folder within the installation directory. Your multiplayer profile can be cleared by clearing the App's local storage (the "system/userdata" folder).
+
+5. Disclosure of Data
+Nucleus Games and Fulllion Creative Works will not sell or rent any Personal Data. We may disclose personal information you provide via email if required to comply with a legal obligation, protect our rights, or protect against legal liability.
+
+6. Security of Data
+The security of your locally stored campaign data is dependent on the security of your own device. Multiplayer traffic is carried over WebRTC data channels, which are encrypted in transit (DTLS) by design. We take reasonable precautions to protect any information you transmit to us via email.
+
+7. Children's Privacy
+Our App does not address anyone under the age of 13 ("Children").
+
+8. Changes to This Privacy Policy
+We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy within the App or on our official channels. The current version is always viewable in the App's About panel.
+
+
+==================================================
+CONTACT & BUG REPORTS
+==================================================
+
+Questions about these Terms or this Privacy Policy, and bug reports, are welcome by email:
+
+  fulllioncreativeworks@gmail.com
+
+When reporting a bug, it helps to include: what you were doing, what you expected, what happened instead, and (if relevant) whether you were in a multiplayer session as GM or player. Screenshots are welcome. Please do not include your save data unless we ask for it.
+
+Waypoint is created by Nucleus Games and developed by Fulllion Creative Works.

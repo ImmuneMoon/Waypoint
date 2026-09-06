@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waypoint</title>
+  <link rel="icon" type="image/x-icon" href="icon.ico">
+  <link rel="stylesheet" href="style.css">
+<script>
+function showErrorBanner(text, color, top) {
+    var errDiv = document.createElement('div');
+    errDiv.style.position = 'absolute';
+    errDiv.style.top = top;
+    errDiv.style.left = '0';
+    errDiv.style.backgroundColor = color;
+    errDiv.style.color = 'white';
+    errDiv.style.zIndex = '999999';
+    errDiv.style.padding = '12px 20px';
+    errDiv.style.cursor = 'pointer';
+    errDiv.style.fontSize = '13px';
+    errDiv.textContent = text + '  (click to dismiss)';
+    errDiv.addEventListener('click', function() { errDiv.remove(); });
+    setTimeout(function() { errDiv.remove(); }, 12000);
+    document.body.appendChild(errDiv);
+}
+window.addEventListener('error', function(e) {
+    showErrorBanner("ERROR: " + e.message + " in " + e.filename + ":" + e.lineno, '#c0392b', '0');
+});
+window.addEventListener('unhandledrejection', function(e) {
+    showErrorBanner("PROMISE REJECTION: " + (e.reason && e.reason.message ? e.reason.message : e.reason), '#d68910', '50px');
+});
+</script>
+<script src="/api/prefs.js"></script>
+<script>
+/* Shared preferences (1.1.2): every wp_* setting in localStorage is mirrored to
+   saves/preferences.json through the shell, and a newer file wins on launch — so
+   settings follow the saves folder instead of one install's browser profile.
+   Nothing here runs when the file endpoint is absent (a plain browser client). */
+(function() {
+    var f = window.wpFilePrefs;
+    var stamp = 0; try { stamp = parseInt(localStorage.getItem('wp_prefsStamp'), 10) || 0; } catch (e) {}
+    if (f && f.prefs && typeof f.prefs === 'object' && (f.updated || 0) > stamp) {
+        try {
+            var local = []; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp') local.push(k); }
+            local.forEach(function(k) { if (!(k in f.prefs)) localStorage.removeItem(k); });
+            Object.keys(f.prefs).forEach(function(k) { if (k.indexOf('wp_') === 0) localStorage.setItem(k, String(f.prefs[k])); });
+            localStorage.setItem('wp_prefsStamp', String(f.updated));
+        } catch (e) {}
+    }
+    var timer = null;
+    function push() {
+        timer = null;
+        try {
+            var prefs = {}; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp') prefs[k] = localStorage.getItem(k); }
+            var updated = Date.now();
+            localStorage.setItem('wp_prefsStamp', String(updated));
+            fetch('/api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updated: updated, prefs: prefs }) }).catch(function() {});
+        } catch (e) {}
+    }
+    function schedule() { if (timer) clearTimeout(timer); timer = setTimeout(push, 400); }
+    var isPref = function(store, k) { return store === localStorage && typeof k === 'string' && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp'; };
+    var S = Storage.prototype, set = S.setItem, rem = S.removeItem;
+    S.setItem = function(k, v) { set.call(this, k, v); if (isPref(this, k)) schedule(); };
+    S.removeItem = function(k) { rem.call(this, k); if (isPref(this, k)) schedule(); };
+    window.wpPrefsPush = push;
+})();
+</script>
+<script type="module" src="scripts/main.js"></script>
+<script type="module" src="scripts/net.js"></script>
+<script type="module" src="scripts/settings.js"></script>
+<script type="module" src="scripts/tips.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+      if (window.mermaid) {
+          mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', flowchart: { curve: 'basis', useMaxWidth: true } });
+      }
+  });
+</script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="header-brand">
+      <img src="icon.ico" alt="" class="brand-icon">
+      <h1>Waypoint</h1>
+    </div>
+    <div class="header-sep"></div>
+    <div class="header-group">
+      <select id="campaignSelect" class="map-select" aria-label="Select Campaign"></select>
+      <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns">&#128269;</button>
+      <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign">&#65291;</button>
+      <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign">&#9998;</button>
+      <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign">&#128465;&#65039;</button>
+    </div>
+    <div class="header-sep"></div>
+    <div class="seg-control" id="viewModeSelect" role="group" aria-label="Select View Mode">
+      <button class="seg-btn active" data-mode="data">&#128423;&#65039; Data Map</button>
+      <button class="seg-btn" data-mode="visual">&#127912; Play Map</button>
+    </div>
+    <span id="plannerTools" style="display:none;">
+      <button class="tool" id="renderPlannerBtn">&#9654; Render Preview</button>
+    </span>
+    <div id="mapBreadcrumb"></div>
+    <div class="spacer"></div>
+    <div class="header-group">
+      <span id="visualTools" style="display:none;"><input type="file" id="imgFileIn" accept="image/*" hidden></span>
+      <input type="file" id="sheetFileIn" accept=".json,application/json" hidden>
+      <div class="dropdown-wrap" id="saveAsDropdownWrap">
+        <button class="tool ghost" id="saveAsBtn">&#128190; Export As <span class="caret-down">&#9662;</span></button>
+        <div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">
+          <div class="menu-item" id="exportImgBtn" title="Export current view as PNG">&#128444;&#65039; Save as Image</div>
+          <div class="menu-item" id="exportPdfBtn" title="Export as PDF / Print">&#128196; Save PDF</div>
+          <div class="menu-item" id="exportHtmlBtn" title="Export as HTML">&#127760; Save HTML</div>
+          <div class="menu-divider"></div>
+          <div class="menu-item" id="exportItemBtn" title="Just the open map or planner (its images come along in a .zip)">&#128190; Export This Map</div>
+          <div class="menu-item" id="exportMapsBtn" title="Every map in this campaign, data + play map, with images">&#128506;&#65039; Export All Maps</div>
+          <div class="menu-item" id="exportWbsBtn" title="Play Map-only copies of this campaign's maps, with images">&#127912; Export All Play Maps</div>
+          <div class="menu-item" id="exportPlannersBtn" title="Every planner in this campaign">&#128209; Export All Planners</div>
+          <div class="menu-divider"></div>
+          <div class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled">&#128230; Export Everything</div>
+        </div>
+      </div>
+      <button class="tool ghost" id="importBtn">&#128194; Import</button>
+      <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed" hidden>
+      <div class="header-sep"></div>
+      <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;">&#127760;<span id="netDot" aria-hidden="true"></span></button>
+      <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;">&#128172;<span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
+      <button class="tool ghost icon" id="settingsBtn" title="Settings">&#9881;&#65039;</button>
+      <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts">&#10067;</button>
+      <button class="tool ghost icon" id="aboutBtn" title="About Waypoint">&#8505;&#65039;</button>
+    </div>
+    <div class="save-note" id="saveNote"></div>
+  </header>
+
+
+  <div id="aboutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+      <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 440px; max-height:85vh; overflow-y:auto; text-align: center;">
+          <h2 style="margin-top:0; margin-bottom:2px; color:var(--gold);">Waypoint</h2>
+          <div id="aboutVersion" style="color:var(--dim); font-size:11px; margin-bottom:10px;">&nbsp;</div>
+          <p style="color:var(--ink); margin-bottom: 18px;">A lightweight tool for mapping campaigns, managing data, and play map planning.</p>
+
+          <div style="display:flex; justify-content:center; gap:28px; margin-bottom:16px;">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                  <img src="assets/nucleus_icon.ico" alt="Nucleus Games" style="width:56px; height:56px; object-fit:contain;">
+                  <div style="font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.08em;">Created by</div>
+                  <div style="font-size:13px; color:var(--ink); font-weight:600;">Nucleus Games</div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                  <a href="https://fulllioncreativeworks.com/" target="_blank" rel="noopener" title="fulllioncreativeworks.com"><img src="assets/fcw_icon.ico" alt="Fulllion Creative Works" style="width:56px; height:56px; object-fit:contain;"></a>
+                  <div style="font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.08em;">Developed by</div>
+                  <a href="https://fulllioncreativeworks.com/" target="_blank" rel="noopener" style="font-size:13px; color:var(--blue); font-weight:600; text-decoration:none;" title="fulllioncreativeworks.com">Fulllion Creative Works</a>
+              </div>
+          </div>
+
+          <div style="border-top:1px solid var(--edge); padding-top:14px; margin-bottom:14px; text-align:left;">
+              <div style="font-size:12px; color:var(--ink-dim); margin-bottom:4px;">Contact &amp; bug reports</div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                  <code id="aboutEmail" style="font-size:12px; color:var(--blue); user-select:all;">fulllioncreativeworks@gmail.com</code>
+                  <button class="tool ghost" id="aboutEmailCopy" style="padding:2px 8px; font-size:11px;">Copy</button>
+              </div>
+              <div style="font-size:11px; color:var(--ink-dim); margin-top:6px; line-height:1.5;">Found a bug? Email us what you were doing, what you expected, and what happened instead &mdash; screenshots welcome.</div>
+          </div>
+
+          <div style="display:flex; justify-content:center; gap: 10px; flex-wrap:wrap;">
+              <button class="tool ghost" id="aboutNotesBtn">What's New</button>
+              <button class="tool ghost" id="aboutTermsBtn">Terms of Use</button>
+              <button class="tool ghost" id="aboutPrivacyBtn">Privacy Policy</button>
+              <button class="tool ghost" id="aboutCloseBtn">Close</button>
+          </div>
+      </div>
+  </div>
+
+  <div id="legalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+      <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 620px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column;">
+          <h2 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="legalTitle">Terms of Use</span> <button id="legalCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h2>
+          <div id="legalBody" style="overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.6; color:var(--ink); text-align:left; padding-right:8px;">Loading&hellip;</div>
+      </div>
+  </div>
+
+  <div id="helpModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+      <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 780px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
+          <h2 style="margin-top:0; margin-bottom:14px; color:var(--gold); display:flex; justify-content:space-between;">Help & Tutorials <button id="helpCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h2>
+          <div style="display:flex; gap:16px; flex:1; min-height:0;">
+              <div id="helpNav">
+                  <button data-help="start" class="active">&#128640; Getting Started</button>
+                  <button data-help="datamap">&#128506;&#65039; Data Maps</button>
+                  <button data-help="whiteboard">&#127912; Play Map</button>
+                  <button data-help="grids">&#11041; Grids &amp; Measuring</button>
+                  <button data-help="planners">&#128209; Planners</button>
+                  <button data-help="mp-gm">&#127760; Multiplayer: Hosting</button>
+                  <button data-help="mp-player">&#127918; Multiplayer: Joining</button>
+                  <button data-help="keys">&#9000;&#65039; Shortcuts</button>
+              </div>
+              <div style="flex:1; overflow-y:auto; min-width:0; padding-right:8px;">
+
+                  <div class="help-pane" data-pane="start">
+                      <h4>What Waypoint is</h4>
+                      <p>Waypoint organizes a tabletop campaign into <b>Maps</b> (locations with two faces: a node-based <b>Data Map</b> for your notes and a freeform <b>Play Map</b> for the battle map) and <b>Planners</b> (document pages for session plans). Everything lives in the left sidebar.</p>
+                      <h4>Your first map</h4>
+                      <ol>
+                          <li>Press <b>+</b> next to <b>Maps</b> in the left sidebar and name it.</li>
+                          <li>The <b>Properties</b> sidebar on the right opens when you select a room or an item and closes when the selection clears; the &#9654; button on its edge opens or closes it by hand.</li>
+                          <li>Use the <b>Data Map / Play Map</b> switch at the top to flip between the two faces of the same location.</li>
+                          <li>Drag one map onto another in the sidebar to nest it inside (world &rarr; city &rarr; building). A breadcrumb appears up top so you always know where you are.</li>
+                      </ol>
+                      <h4>Getting around fast</h4>
+                      <ul>
+                          <li><kbd>Ctrl + K</kbd> opens quick-jump: type any map, planner, or room name and hit Enter to go straight there.</li>
+                          <li>The <b>minimap</b> (bottom-right corner) shows where your content is &mdash; click anywhere on it to fly the camera there.</li>
+                          <li>Drag the thin gutters beside either sidebar to resize the panels.</li>
+                      </ul>
+                      <h4>Saving &amp; backups</h4>
+                      <ul>
+                          <li>Everything autosaves to <b>saves/data.json</b> a moment after each change &mdash; there is no save button to forget.</li>
+                          <li>To back up or move your campaign, copy the <b>saves</b> folder. That's the whole thing.</li>
+                          <li><b>Export As</b> makes shareable files at any scope: just the open map or planner, all maps / play maps / planners in the campaign, or everything. Exports that use images arrive as a <b>.zip</b> with the pictures bundled in; <b>Import</b> accepts those zips (or plain .json) and merges by id or replaces.</li>
+                      </ul>
+                      <div class="help-tip">Waypoint works fully offline. Internet is only needed for Multiplayer and for diagram blocks in Planners.</div>
+                  </div>
+
+                  <div class="help-pane" data-pane="datamap" style="display:none;">
+                      <h4>Tools</h4>
+                      <ul>
+                          <li><b>&#10138; Select / Move</b> (default) &mdash; click rooms to edit them, drag to move, drag a box to select several.</li>
+                          <li><b>&#9995; Pan</b> &mdash; drag anywhere to move the map itself; rooms never move while it's active. (Middle-click drag pans in any tool.)</li>
+                          <li><b>&#8596; Link Mode</b> &mdash; lit gold while active; click two rooms to connect them. Pick another tool to leave it.</li>
+                          <li><b>&#128465; Clear the board</b> &mdash; removes every room and link on this map after a confirmation (Undo brings them back).</li>
+                      </ul>
+                      <h4>Rooms (nodes)</h4>
+                      <ol>
+                          <li>Click <b>&#10133; Add Room</b>, then drag the node where you want it.</li>
+                          <li>Select it and fill in the right sidebar: name, category color, notes, and the characters found there.</li>
+                          <li><b>Set Room Image</b> does double duty: the picture shows on hover, and Waypoint builds a <b>child map</b> with that image as the scene, linking the node to it as a portal. (Nodes that already lead somewhere just get the picture.)</li>
+                          <li><kbd>Double Click</kbd> a map or planner name in the sidebar to rename it.</li>
+                          <li>Categories are per-map &mdash; add your own under <b>Categories</b>. Press &#9734; on one (or <b>Save all to library</b>) and any other map can add it from the <b>Category Library</b> with the same name and color.</li>
+                          <li><b>+ Add</b> under <b>Characters</b> also drops a stand-in token on the play map (initials in a circle); set a portrait and the token wears it, rename the character and the token follows.</li>
+                      </ol>
+                      <h4>Connections</h4>
+                      <ol>
+                          <li>Click <b>&#8596; Link Mode</b>, then click two rooms one after the other to connect them.</li>
+                          <li>Still in Link Mode, click the small <span style="color:var(--red)">&times;</span> on a line to remove it.</li>
+                      </ol>
+                      <h4>Linked maps (doors, stairs, warps)</h4>
+                      <ol>
+                          <li>Select a room and set its <b>Linked Map</b> to another map, plus an icon (door, stairs, gate&hellip;).</li>
+                          <li><kbd>Double Click</kbd> the room &mdash; or any play map item tied to it &mdash; to travel to that map. Use the breadcrumb to climb back out. In multiplayer, a player travels by <b>dropping their token</b> on the portal item (double-click works too), and the GM can send a player through by dropping that player's token there.</li>
+                      </ol>
+                      <h4>GM notes on the play map</h4>
+                      <p>Select a play map item, link it to a room in the right sidebar, and press <b>Generate GM Notes</b> to build a styled note card from that room's notes and characters. Hover a linked item to preview the room's info.</p>
+                  </div>
+
+                  <div class="help-pane" data-pane="whiteboard" style="display:none;">
+                      <h4>Placing things</h4>
+                      <ul>
+                          <li>Pick a shape or <b>T</b> text from the <b>Shapes</b> menu, then <b>click</b> the board to drop it there &mdash; or <b>drag</b> to draw exactly the box it should fill (hexagons resize like any other shape). <kbd>Esc</kbd> cancels. The <b>New shape size</b> switch in that menu picks <b>Free</b> (default size on click, exact box on drag) or <b>Grid cell</b> (every new shape arrives exactly one cell in size and seats into the cell &mdash; handy for hex tokens and tiles). <b>&#128444;&#65039;</b> adds an image, or just drag an image file from your computer onto the board.</li>
+                          <li>Text boxes: <kbd>Double Click</kbd> to edit the words; the color swatch (toolbar or Properties) sets the <b>text color</b>.</li>
+                          <li><b>&#128452;&#65039; Image Library</b> shows every image already saved in this install &mdash; click one to place it.</li>
+                          <li><kbd>Ctrl + C</kbd> / <kbd>Ctrl + X</kbd> / <kbd>Ctrl + V</kbd> copy, cut, and paste selected items; pasting a screenshot or copied image from outside the app drops it at your cursor.</li>
+                          <li>The <b>New item opacity</b> slider in the Shapes and Pen menus sets the transparency new items are created with.</li>
+                          <li>Click to select; drag the corner handle to resize (hold <kbd>Shift</kbd> &mdash; or turn on <b>Lock proportions</b> in the selection toolbar &mdash; to keep the width/height ratio; resizing one member of a <b>group</b> scales the whole group); drag the blue dot to rotate. Arrow keys nudge the selection (<kbd>Shift</kbd> for bigger steps).</li>
+                          <li><b>&#9999;&#65039; Draw</b> sketches freehand (click it again for color, stroke size, straight-line mode, and opacity). <b>&#129533; Eraser</b> rubs out only what its circle passes over &mdash; the rest of the stroke stays. Click the eraser again for its size and mode: <b>Precise</b> trims strokes exactly to the circle, <b>Segments</b> removes whole point-to-point pieces.</li>
+                          <li><b>&#127919; Center</b> menu: jump to the canvas center, to all items, or <b>Center on Character</b> &mdash; your own token in multiplayer, or the selected one as GM.</li>
+                          <li>Drop a <b>&#9889; Trigger Zone</b> and give it an Event Message &mdash; it fires when a character token is dragged inside. The button picks a shape to fit the grid (hex on hex maps, square on square grids); change it any time under <b>Trigger Shape</b>.</li>
+                          <li>Any item can be a <b>portal</b>: Properties &rarr; <b>Portal to Map</b>. On a nested map the parent is offered first (&#11014; Back to&hellip;), so a way home takes one click &mdash; no node needed.</li>
+                      </ul>
+                      <h4>The selection toolbar</h4>
+                      <p>A small toolbar floats above whatever you select: color, layer up/down, <b>group/ungroup</b> (&#128279; &mdash; lit gold when the selection is a group), <b>lock proportions</b> (the dashed box with a diagonal arrow &mdash; a padlock appears on it when on), lock (the padlock shows the current state: closed = locked), <b>player visibility</b>, <b>duplicate</b> (&#10697; &mdash; a full copy with every setting and attached data; also <kbd>Ctrl + D</kbd>, the right-click menu, and Properties), delete. Select several items and right-click for <b>Align</b> and <b>Space</b> (distribute) buttons.</p>
+                      <div class="help-tip"><b>Who can see this?</b> Every item is either <b>&#128065; Visible to players</b> or <b>&#128683; Hidden from players</b>. The big box at the top of the Properties panel shows which, and the toolbar's eye turns red when hidden. Hidden items show to you dimmed; players at your table see nothing at all. Use it for secret doors, unrevealed enemies, and GM-only notes.</div>
+                      <h4>The right-click menu</h4>
+                      <ul>
+                          <li><b>Lock / Unlock</b> &mdash; locked items can't be moved or resized (they dim slightly).</li>
+                          <li><b>Hide from Players / Show to Players</b> &mdash; in multiplayer, hidden items appear to players as a grey cloud; you see a ghost with an eye.</li>
+                          <li><b>Show Above Grid</b> &mdash; lifts an item above the grid lines (text does this automatically).</li>
+                          <li><b>Bring to Front / Forward / Backward / Send to Back</b> &mdash; five stacking layers for building scenes.</li>
+                          <li><b>Opacity</b> slider &mdash; adjust transparency of anything already on the board.</li>
+                          <li>Select several items (drag a box around them) to <b>Group</b> them or <b>Merge Drawings</b>.</li>
+                      </ul>
+                      <div class="help-tip">Character tokens: any shape or image with <b>Is Character</b> set in the right sidebar becomes a token with a name and stats tooltip &mdash; and can be handed to a player in multiplayer. Tokens pair with <b>shadow-base.com character sheets</b>: the <b>&#129333; Import Character</b> toolbar button turns a site JSON into a ready token (portrait as art, sheet attached), the inspector's <b>View</b> opens the full read-only sheet (stats, traits, skills, inventory), and <b>Export JSON</b> writes a site-ready file back out &mdash; no sheet attached still exports a starter file.</div>
+                  </div>
+
+                  <div class="help-pane" data-pane="grids" style="display:none;">
+                      <h4>Grids</h4>
+                      <ol>
+                          <li>Click the grid button in the play map toolbar to cycle <b>Off &rarr; Square &rarr; Hex</b>. Hex cells are flat-top (a flat side faces up). The choice is remembered per map.</li>
+                          <li>Grids draw on top of your art so cells stay visible; text lifts above the grid automatically, and any other item can via right-click &rarr; <b>Show Above Grid</b>.</li>
+                          <li>Turn on <b>&#129522; Snap</b> and tokens seat themselves into cells as you drop them. On hex maps, character tokens always center into cells, and freehand strokes follow cell corners even on fast swipes.</li>
+                          <li><b>Tokens follow rooms:</b> link a floor shape to a room (Properties &rarr; Link Node) and any character token dropped onto it moves into that room's character list automatically &mdash; the data map always knows who is where.</li>
+                          <li><b>Snap To</b> (click the Snap button again) picks what a drag aligns to: <b>Grid</b> &mdash; cells only, the most predictable; <b>Items</b> &mdash; neighbours only, for tidy rows; <b>Both</b> &mdash; neighbours first, grid for open-space drops. Remembered per computer.</li>
+                          <li>Tokens <b>turn in cell-side steps</b> while a grid is on: 4 facings on a square grid, 6 on a hex grid (one per face &mdash; hex cells are flat-top, so straight up is a face). <b>Click a selected token's arrow</b> to turn it one facing clockwise (Shift-click = counter-clockwise), or <b>drag the arrow</b> to aim it; the blue rotate dot works too. Hold <b>Shift</b> while turning for free 15&deg; steps. Properties &rarr; <b>Turning</b> chooses whether the art turns with the arrow or the arrow alone moves around an upright picture. With no grid they turn freely; applying a grid turns every token to its nearest facing. A small gold arrow marks each token's <b>front</b> and always points across a cell face at a neighbouring cell &mdash; pick which side of the art that is under Properties &rarr; Front Side. Players can turn their own token.</li>
+                          <li>Token <b>condition</b>: right-click a token (or use Properties &rarr; Condition) for <b>Alive</b>, <b>Incapacitated</b> (red X over the token) or <b>Dead</b> (skull, art darkened). Players see it too.</li>
+                          <li>In Items or Both mode, Snap makes item edges <b>magnetic</b>: drag an image next to another and it glues flush and falls into line automatically &mdash; rows and columns without pixel-hunting. Item-to-item snaps win over the grid; drop something in open space and the grid takes it.</li>
+                          <li><b>Resizing matches sizes</b> too (Snap on or off): pull a corner near another item's width or height and it pauses there with a <b>&#8596; / &#8597;</b> badge &mdash; ease past to break free, release to keep the match. With proportions locked, the other side follows.</li>
+                          <li><b>&#8862; Fit to Grid</b> (selection toolbar or Properties) sizes the selection to whole cells and seats it &mdash; tokens and hex shapes become exactly one hex cell.</li>
+                      </ol>
+                      <h4>Measuring</h4>
+                      <ol>
+                          <li>Pick the <b>&#128207; Measure</b> tool and drag across the map to place a ruler; click the tool again for options.</li>
+                          <li>Choose <b>Imperial</b> or <b>Metric</b>. By default a hex cell is 1 yard across and a square is 5 feet.</li>
+                          <li>For huge maps (space battles!), set <b>Map Scale</b> in the measure options &mdash; e.g. one cell = 100 yd or 2 km. Each map keeps its own scale.</li>
+                          <li><b>Click any placed ruler to remove it</b> (it turns red on hover); <b>Clear rulers</b> in the measure options removes them all.</li>
+                      </ol>
+                      <h4>Coordinate rulers &amp; minimap</h4>
+                      <p>The number strips along the top and left edges are coordinate rulers. Turn them off (or back on) in <b>&#9881; Settings &rarr; Table</b>, alongside the minimap toggle and a <b>Grid opacity</b> slider &mdash; that slider is yours alone, so in multiplayer every player can fade the grid to taste without changing anyone else's view. Zoom steps are 5% per click or <kbd>Mouse Wheel</kbd> tick (the wheel zooms toward the pointer; hold <kbd>Shift</kbd> to scroll instead).</p>
+                  </div>
+
+                  <div class="help-pane" data-pane="planners" style="display:none;">
+                      <h4>Building pages</h4>
+                      <ol>
+                          <li>Press <b>+</b> next to <b>Planners</b> and open your new page.</li>
+                          <li>Use the planner toolbar to add blocks: headings, prose, callouts, tables, and flowcharts. Blocks can be reordered and edited in place.</li>
+                          <li>Planners nest under planners just like maps &mdash; keep one parent per module with a child page per scene.</li>
+                      </ol>
+                      <div class="help-tip">Diagram blocks render with an internet connection. In multiplayer, planners are never sent to players &mdash; they are yours alone.</div>
+                  </div>
+
+                  <div class="help-pane" data-pane="mp-gm" style="display:none;">
+                      <h4>How it works</h4>
+                      <p>Multiplayer is <b>peer-to-peer</b>: your app is the table, and your players' apps connect directly to yours. No accounts, no server, nothing to set up &mdash; everyone just needs Waypoint and an internet connection, and you keep the app open while playing.</p>
+                      <h4>Host a session</h4>
+                      <ol>
+                          <li>Click <b>&#127760;</b> in the header and enter your display name.</li>
+                          <li><b>Players arrive at</b> shows where joiners will land &mdash; leave it on <b>Follow me</b> or pick a specific map to pin the table there (handy for a staging area while you prep elsewhere).</li>
+                          <li>Press <b>Host Session</b>. A short <b>room code</b> appears &mdash; send it to your players however you like, then <b>close the window</b>: the session keeps running while you work, and the &#127760; button reopens it whenever you need the roster, pause, or summon.</li>
+                          <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Your planners, room notes, and character dossiers are <b>never sent</b> to them.</li>
+                      </ol>
+                      <h4>Give each player a token</h4>
+                      <ol>
+                          <li>Select a character token on the play map.</li>
+                          <li>In the right sidebar, set <b>Player Owner</b> to that player (they must have joined at least once).</li>
+                          <li>From then on it's theirs: they can drag it, and when they join a session it's placed on your map automatically if it isn't already there.</li>
+                      </ol>
+                      <h4>Running the table</h4>
+                      <ul>
+                          <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
+                          <li><b>Split party:</b> a player can double-click a door/stairs portal to move to that map alone. The roster shows where everyone is; <b>Summon All</b> pulls the whole party back to you.</li>
+                          <li><b>Chat:</b> click <b>&#128172;</b> to message everyone, or pick one player to send a private whisper.</li>
+                          <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
+                          <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
+                      </ul>
+                      <h4>Who gets in</h4>
+                      <ul>
+                          <li><b>First-time joiners need your approval</b> &mdash; a prompt asks "let them in?" before they see anything. Players you've hosted before walk straight in.</li>
+                          <li>Optional <b>session password</b>: set one in the Host panel and the code alone isn't enough.</li>
+                          <li><b>Kick</b>: the &times; on a roster chip removes a player and keeps them out for the rest of the session. Denying an approval does the same.</li>
+                      </ul>
+                      <div class="help-tip"><b>If Waypoint crashes mid-session:</b> relaunch it and press <b>Host</b> again within 15 minutes &mdash; you get the same room code back, players still reconnecting (they keep trying for about two minutes) reattach on their own, and anyone else rejoins with the code they already have.</div>
+                      <div class="help-tip">The room code changes every session you end on purpose, so share it privately and yesterday's leak can't reach today's table. To end the session, open <b>&#127760;</b> and press <b>Leave</b> &mdash; players get a clear "session ended" notice.</div>
+                      <h4>If someone can't connect</h4>
+                      <p>Connections are direct between computers; when a strict network blocks that, Waypoint automatically falls back to an encrypted public relay, which covers most of the remaining cases. If a player still can't connect (some campus, hotel, or corporate networks), have them try a different network or a phone hotspot. If a player drops out mid-session, their app retries automatically for about half a minute &mdash; and rejoining with the same code always works.</p>
+                  </div>
+
+                  <div class="help-pane" data-pane="mp-player" style="display:none;">
+                      <h4>Join your GM's table</h4>
+                      <ol>
+                          <li>Get the <b>room code</b> from your GM (it looks like <b>AB12CD</b>), plus the session password if they set one.</li>
+                          <li>Click <b>&#127760;</b> in the header, type your name, enter the code (and password), and press <b>Join</b>.</li>
+                          <li>Your first time at a table, the GM gets a prompt to let you in &mdash; you'll see "waiting for the GM" for a moment. After that you're recognized and go straight in.</li>
+                          <li>You'll land on whatever map the GM is showing, and follow along as they move the party.</li>
+                      </ol>
+                      <h4>What you can do</h4>
+                      <ul>
+                          <li>Pan (<kbd>Middle Click + Drag</kbd>), zoom (<kbd>Mouse Wheel</kbd>), and use the <b>&#128207; Measure</b> tool freely &mdash; your camera is your own.</li>
+                          <li><b>Your token:</b> if the GM assigned you one, just drag it. It snaps to the grid on hex maps. You can't move anyone else's.</li>
+                          <li><b>Doors &amp; stairs:</b> double-click a portal marker to travel through on your own &mdash; the GM can summon the party back together.</li>
+                          <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
+                      </ul>
+                      <h4>What you'll see</h4>
+                      <ul>
+                          <li>Grey cloud boxes are things the GM hasn't revealed yet.</li>
+                          <li>If a banner says the GM <b>paused the table</b>, tokens and doors are frozen until they resume &mdash; chat stays open.</li>
+                          <li>Other players' tokens only show on the map they're actually on.</li>
+                          <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
+                      </ul>
+                      <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
+                  </div>
+
+                  <div class="help-pane" data-pane="keys" style="display:none;">
+                      <h4>Mouse</h4>
+                      <ul>
+                          <li><kbd>Middle Click + Drag</kbd> &nbsp; Pan</li>
+                          <li><kbd>Mouse Wheel</kbd> &nbsp; Zoom toward the pointer, 5% a tick (<kbd>Shift + Wheel</kbd> scrolls; click the zoom % to type one)</li>
+                          <li><kbd>Double Click</kbd> &nbsp; Edit a text block / travel through a portal</li>
+                          <li><kbd>Right Click</kbd> &nbsp; Item menu (lock, hide, layers, opacity, above-grid)</li>
+                          <li><kbd>Click + Drag</kbd> on empty board &nbsp; Box-select multiple items</li>
+                      </ul>
+                      <h4>Keyboard</h4>
+                      <ul>
+                          <li><kbd>Ctrl + Z</kbd> / <kbd>Ctrl + Y</kbd> &nbsp; Undo / Redo</li>
+                          <li><kbd>Ctrl + C</kbd> / <kbd>Ctrl + X</kbd> / <kbd>Ctrl + V</kbd> &nbsp; Copy / cut / paste play map items (or paste an image from outside)</li>
+                          <li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room</li>
+                          <li><kbd>Arrow Keys</kbd> &nbsp; Nudge the selection 1px (<kbd>Shift</kbd> = 10px)</li>
+                          <li><kbd>Delete</kbd> or <kbd>Backspace</kbd> &nbsp; Delete the selected item</li>
+                      </ul>
+                      <h4>Toolbar</h4>
+                      <ul>
+                          <li><b>&#127919; Center</b> &nbsp; Reset the camera (to the canvas, or to fit your items)</li>
+                          <li><b>&#129522; Snap</b> &nbsp; Toggle grid snapping (remembered between launches)</li>
+                      </ul>
+                  </div>
+
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <div class="layout-wrapper">
+    <div id="campaignSidebar">
+        <div class="sidebar-section">
+            <h3><span class="section-title" data-section="planners" data-label="Planners" title="Collapse/expand this section">&#9662; Planners</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllPlannersBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested planners">&#8862;</button><button class="tool ghost" id="searchPlannersBtn" style="padding:2px 6px; margin:0;" title="Search Planners">&#128269;</button><button class="tool ghost" id="newPlannerBtn" style="padding:2px 6px; margin:0;" title="Create new Planner" aria-label="Create new Planner">+</button></div></h3>
+            <div id="plannerNavList"></div>
+        </div>
+        <div class="sidebar-section">
+            <h3><span class="section-title" data-section="maps" data-label="Maps" title="Collapse/expand this section">&#9662; Maps</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllMapsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested maps">&#8862;</button><button class="tool ghost" id="searchMapsSidebarBtn" style="padding:2px 6px; margin:0;" title="Search Maps">&#128269;</button><button class="tool ghost" id="newMapSidebarBtn" style="padding:2px 6px; margin:0;" title="Create new Map" aria-label="Create new Map">+</button></div></h3>
+            <div id="mapNavList"></div>
+        </div>
+    </div>
+    <div id="leftGrip" title="Drag to resize the panel"></div>
+
+    <div id="main" class="main">
+      <div id="dataFloatingToolbar" class="floating-toolbar">
+            <div style="position:relative; display:inline-block;">
+                <button class="wb-tool-btn" id="dataCenterBtn" title="Center Data Map">&#127919;</button>
+                <div class="shape-menu" id="dataCenterMenu" style="bottom:100%; top:auto; flex-direction:column; min-width: 130px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
+                    <button class="wb-tool-btn" id="dataCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Canvas</button>
+                    <button class="wb-tool-btn" id="dataCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Items</button>
+                </div>
+            </div>
+            <button class="wb-tool-btn" id="dataUndoBtn" title="Undo" style="opacity:0.5; pointer-events:none;">&#8617;</button>
+            <button class="wb-tool-btn" id="dataRedoBtn" title="Redo" style="opacity:0.5; pointer-events:none;">&#8618;</button>
+            <div class="wb-tool-sep"></div>
+            <button class="wb-tool-btn active" id="dataMoveBtn" title="Select / Move (drag rooms, box-select)">&#10138;</button>
+            <button class="wb-tool-btn" id="dataPanBtn" title="Pan (drag the map around; rooms never move)">&#9995;</button>
+            <button class="wb-tool-btn" id="linkBtn" title="Link Mode (click two rooms to connect them)">&#8596;</button>
+            <div class="wb-tool-sep"></div>
+            <button class="wb-tool-btn" id="addBtn" title="Add Room">&#10133;</button>
+              <button class="wb-tool-btn" id="snapBtn" title="Snap to Grid">&#129522;</button>
+            <div class="wb-tool-sep"></div>
+            <button class="wb-tool-btn" id="dataClearBtn" title="Clear the board (remove every room and link)" style="color:var(--red);">&#128465;</button>
+        </div>
+        <div id="wbFloatingToolbar" class="floating-toolbar">
+            <div style="position:relative; display:inline-block;">
+                <button class="wb-tool-btn" id="wbCenterBtn" title="Center Play Map">&#127919;</button>
+                <div class="shape-menu" id="wbCenterMenu" style="bottom:100%; top:auto; flex-direction:column; min-width: 130px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
+                    <button class="wb-tool-btn" id="wbCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Canvas</button>
+                    <button class="wb-tool-btn" id="wbCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Items</button>
+                    <button class="wb-tool-btn" id="wbCenterCharBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Jump the camera to your character token">Center on Character</button>
+                </div>
+            </div>
+            <button class="wb-tool-btn" id="wbUndoBtn" title="Undo" style="opacity:0.5; pointer-events:none;">&#8617;</button>
+            <button class="wb-tool-btn" id="wbRedoBtn" title="Redo" style="opacity:0.5; pointer-events:none;">&#8618;</button>
+            <div class="wb-tool-sep"></div>
+          <div style="position:relative;">
+              <button class="wb-tool-btn" id="wbGridBtn" title="Grid Options">&#8862;</button>
+              <div class="shape-menu" id="gridMenu">
+                  <button class="wb-tool-btn" id="gridOffBtn" title="Off" style="font-size:12px;">Off</button>
+                  <button class="wb-tool-btn" id="gridSqBtn" title="Square">&#8862;</button>
+                  <button class="wb-tool-btn" id="gridHexBtn" title="Hex">&#11042;</button>
+              </div>
+          </div>
+            <div style="position:relative; display:inline-block;">
+                <button class="wb-tool-btn" id="wbSnapBtn" title="Snap — click for options">&#129522;</button>
+                <div class="shape-menu draw-menu" id="snapMenu">
+                    <div class="draw-menu-label">Snap To</div>
+                    <div class="draw-menu-row">
+                        <button class="draw-style-btn snap-mode-btn" data-mode="grid" title="Grid cells only — drops seat to the lattice; neighbours don't pull">&#9638; Grid</button>
+                        <button class="draw-style-btn snap-mode-btn" data-mode="items" title="Other items only — edges glue and align to neighbours; no grid seating">&#9707; Items</button>
+                        <button class="draw-style-btn snap-mode-btn" data-mode="both" title="Both — neighbours first, the grid takes open-space drops">&#9635; Both</button>
+                    </div>
+                    <div style="font-size:10.5px; color:var(--dim); max-width:210px; line-height:1.4; margin-top:4px;">Grid = predictable cell placement. Items = tidy rows of images. Both = the old behaviour.</div>
+                    <div class="draw-menu-row" style="margin-top:8px;"><button class="draw-style-btn" id="snapOffBtn" style="flex:1;">&#9211; Turn snapping off</button></div>
+                </div>
+            </div>
+            <div class="wb-tool-sep"></div>
+            <button class="wb-tool-btn active" id="moveModeBtn" title="Select / Move">&#129045;</button>
+          <button class="wb-tool-btn" id="panModeBtn" title="Pan">&#9995;</button>
+          <div style="position:relative;">
+              <button class="wb-tool-btn draw-tool-btn" id="drawModeBtn" title="Draw (click again for pen options)">&#9999;&#65039;<span class="draw-color-indicator" id="drawColorIndicator"></span></button>
+              <div class="shape-menu draw-menu" id="drawMenu">
+                  <div class="draw-menu-label">Pen Style</div>
+                  <div class="draw-menu-row" id="drawStyleRow">
+                      <button class="draw-style-btn active" data-straight="false" title="Freehand sketching">&#9999;&#65039; Freehand</button>
+                      <button class="draw-style-btn" data-straight="true" title="Straight lines &mdash; turn Snap on to trace the grid">&#128208; Line</button>
+                  </div>
+                  <div class="draw-menu-label">Pen Color</div>
+                  <div class="draw-menu-row" id="drawColorRow">
+                      <button class="draw-swatch" data-color="#e9e9f0" title="White" style="background:#e9e9f0;"></button>
+                      <button class="draw-swatch" data-color="#1a1a1a" title="Black" style="background:#1a1a1a;"></button>
+                      <button class="draw-swatch" data-color="#d9534f" title="Red" style="background:#d9534f;"></button>
+                      <button class="draw-swatch" data-color="#e0a54f" title="Gold" style="background:#e0a54f;"></button>
+                      <button class="draw-swatch" data-color="#5cb87a" title="Green" style="background:#5cb87a;"></button>
+                      <button class="draw-swatch" data-color="#4db3d3" title="Blue" style="background:#4db3d3;"></button>
+                      <button class="draw-swatch" data-color="#b98cff" title="Violet" style="background:#b98cff;"></button>
+                      <label class="draw-swatch custom" title="Custom Color"><input type="color" id="drawColorInput" value="#e9e9f0"></label>
+                  </div>
+                  <div class="draw-menu-label">Stroke Size</div>
+                  <div class="draw-menu-row" id="drawSizeRow">
+                      <button class="draw-size-btn" data-size="2" title="Thin"><span class="draw-size-dot" style="width:5px; height:5px;"></span></button>
+                      <button class="draw-size-btn" data-size="3" title="Normal"><span class="draw-size-dot" style="width:8px; height:8px;"></span></button>
+                      <button class="draw-size-btn" data-size="6" title="Thick"><span class="draw-size-dot" style="width:12px; height:12px;"></span></button>
+                      <button class="draw-size-btn" data-size="10" title="Heavy"><span class="draw-size-dot" style="width:16px; height:16px;"></span></button>
+                      <button class="draw-size-btn" data-size="16" title="Marker"><span class="draw-size-dot" style="width:20px; height:20px;"></span></button>
+                  </div>
+                  <div class="draw-menu-label">Opacity <span id="drawOpacityVal">100%</span></div>
+                  <div class="draw-menu-row">
+                      <input type="range" class="new-opacity-slider" id="drawOpacity" min="10" max="100" value="100" style="width:100%;">
+                  </div>
+              </div>
+          </div>
+          <div style="position:relative;">
+              <button class="wb-tool-btn" id="eraserModeBtn" title="Eraser &mdash; click or drag over strokes to erase (click again for size)">&#129533;</button>
+              <div class="shape-menu draw-menu" id="eraserMenu">
+                  <div class="draw-menu-label">Eraser Size <span id="eraserSizeVal" style="color:var(--dim);"></span></div>
+                  <div class="draw-menu-row" title="Radius of the eraser in board pixels — the circle around your pointer shows it">
+                      <input type="range" id="eraserSize" min="2" max="40" value="6" style="width:150px;">
+                  </div>
+                  <div class="draw-menu-label" style="margin-top:8px;">Eraser Mode</div>
+                  <div class="draw-menu-row">
+                      <button class="draw-style-btn eraser-mode-btn active" data-emode="precise" title="Erase exactly what the circle passes over — strokes are cut at the circle's edge">&#9711; Precise</button>
+                      <button class="draw-style-btn eraser-mode-btn" data-emode="segment" title="Remove whole stroke segments the circle touches">&#9473; Segments</button>
+                  </div>
+                  <div style="font-size:10.5px; color:var(--dim); max-width:190px; line-height:1.4;">Precise trims strokes to the circle; Segments removes each point-to-point piece it touches.</div>
+              </div>
+          </div>
+          <div style="position:relative;">
+              <button class="wb-tool-btn" id="measureModeBtn" title="Measure &mdash; drag to place a ruler (click again for units)">&#128207;</button>
+              <div class="shape-menu draw-menu" id="measureMenu">
+                  <div class="draw-menu-label">Measurement System</div>
+                  <div class="draw-menu-row" id="measureUnitRow">
+                      <button class="draw-style-btn" data-unit="imperial" title="Hex cells measure 1 yard across; squares 5 feet">Imperial</button>
+                      <button class="draw-style-btn" data-unit="metric" title="Hex cells measure 0.91 m across; squares 1.52 m">Metric</button>
+                  </div>
+                  <div class="draw-menu-label gm-only">Map Scale (per grid cell)</div>
+                  <div class="draw-menu-row gm-only">
+                      <input type="number" id="measureCellValue" min="0.01" step="any" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                      <select id="measureCellUnit" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                          <option value="yd">yards</option>
+                          <option value="ft">feet</option>
+                          <option value="m">meters</option>
+                          <option value="km">kilometers</option>
+                          <option value="mi">miles</option>
+                      </select>
+                  </div>
+                  <div class="draw-menu-row">
+                      <button class="draw-style-btn" id="measureClearBtn" title="Remove all placed rulers">Clear rulers</button>
+                  </div>
+              </div>
+          </div>
+
+          <div class="wb-tool-sep"></div>
+
+          <button class="wb-tool-btn" id="shapeTextBtn" title="Add Text">T</button>
+
+          <div style="position:relative;">
+              <button class="wb-tool-btn" id="shapeMenuBtn" title="Shapes">&#9744;</button>
+              <div class="shape-menu" id="shapeMenu">
+                  <button class="wb-tool-btn" id="shapeRectBtn" title="Rectangle">&#9645;</button>
+                  <button class="wb-tool-btn" id="shapeCircBtn" title="Circle">&#9711;</button>
+                  <button class="wb-tool-btn" id="shapeDiaBtn" title="Diamond">&#9671;</button>
+                  <button class="wb-tool-btn" id="shapeHexBtn" title="Hexagon &mdash; resizes like any shape; centers onto hex grid cells">&#11041;</button>
+                  <div class="wb-tool-sep"></div>
+                  <button class="wb-tool-btn" id="shapeTriggerBtn" title="Trigger Zone &mdash; fires its Event Message when a character token is dropped inside">&#9889;</button>
+                  <button class="wb-tool-btn" id="shapeHexTriggerBtn" title="Hex Trigger &mdash; a hex-shaped trigger zone" style="font-size:13px;">&#11041;&#9889;</button>
+                  <div class="wb-tool-sep"></div>
+                  <div style="display:flex; flex-direction:column; gap:3px; padding:0 6px;" title="How new shapes are sized">
+                      <div style="font-size:10px; color:var(--dim); white-space:nowrap;">New shape size</div>
+                      <div class="draw-menu-row">
+                          <button class="draw-style-btn shape-size-btn active" data-shapesize="free" title="Click places the default size; drag draws the exact box (hexagons too)">&#10530; Free</button>
+                          <button class="draw-style-btn shape-size-btn" data-shapesize="cell" title="Every new shape arrives exactly one grid cell in size and seats into the cell">&#11042; Grid cell</button>
+                      </div>
+                  </div>
+                  <div class="wb-tool-sep"></div>
+                  <div style="display:flex; flex-direction:column; gap:2px; padding:0 6px;" title="Opacity for newly added items (shapes, drawings, images)">
+                      <div style="font-size:10px; color:var(--dim); white-space:nowrap;">New item opacity <span id="shapeOpacityVal">100%</span></div>
+                      <input type="range" class="new-opacity-slider" id="shapeOpacity" min="10" max="100" value="100" style="width:110px;">
+                  </div>
+              </div>
+          </div>
+
+          <button class="wb-tool-btn" id="addImageBtn" title="Add Image">&#128444;&#65039;</button>
+
+          <button class="wb-tool-btn" id="imgLibBtn" title="Image Library &mdash; every image saved in this install">&#128452;&#65039;</button>
+
+          <button class="wb-tool-btn" id="importCharBtn" title="Import Character &mdash; drop a shadow-base.com character JSON as a ready token">&#129333;</button>
+
+          <div class="wb-tool-sep"></div>
+
+          <button class="wb-tool-btn" style="color:var(--red);" id="clearWbBtn" title="Clear Board">&#128465;&#65039;</button>
+      </div>
+      <canvas id="rulerTop" height="18"></canvas>
+      <canvas id="rulerLeft" width="36"></canvas>
+      <div id="rulerCursorX"></div>
+      <div id="rulerCursorY"></div>
+      <div id="zoomBox">
+          <span id="cursorPos" title="Cursor position (world coordinates)">&ndash;</span>
+          <div class="zoom-sep"></div>
+          <button class="tool" id="zoomOutBtn" title="Zoom Out" style="padding: 2px 6px; min-width: 24px;">&#8722;</button>
+          <input id="zoomLbl" title="Click to type a zoom level" value="100%" aria-label="Zoom level" />
+          <button class="tool" id="zoomInBtn" title="Zoom In" style="padding: 2px 6px; min-width: 24px;">&#43;</button>
+      </div>
+
+      <div id="toggleLeftBtn" class="pane-toggle left" title="Toggle Campaign Sidebar">&#9664;</div>
+      <div id="toggleRightBtn" class="pane-toggle right" title="Toggle Properties Sidebar">&#9654;</div>
+
+      <div id="minimap">
+          <canvas id="minimapCanvas" width="170" height="170"></canvas>
+          <button id="minimapToggle" title="Collapse / expand the minimap">&#9662;</button>
+      </div>
+
+      <div id="canvasWrap">
+        <div id="canvas">
+          <svg id="edges"></svg>
+        </div>
+      </div>
+
+      <div id="whiteboardWrap">
+
+        <div id="whiteboard">
+            <div id="gridOverlay"></div>
+            <div id="selToolbar">
+                <button data-st="color" class="st-color" title="Color"><span class="st-color-chip"></span></button>
+                <div class="st-color-pop" hidden></div>
+                <div class="st-sep"></div>
+                <button data-st="down" title="Send backward">&#9660;</button>
+                <button data-st="up" title="Bring forward">&#9650;</button>
+                <div class="st-sep"></div>
+                <button data-st="group" class="st-group" title="Group">&#128279;</button>
+                <button data-st="fit" class="st-fit" title="Fit to grid cells">&#8862;</button>
+                <button data-st="ratio" class="st-ratio" title="Lock proportions while resizing"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke-dasharray="2.2 1.6"/><path d="M4.5 11.5 L11.5 4.5"/><path d="M11.5 8 V4.5 H8"/><path d="M4.5 8 V11.5 H8"/><g class="ratio-lock"><rect x="8.4" y="9.6" width="6.4" height="4.8" rx="0.9" fill="currentColor" stroke="none"/><path d="M9.8 9.6 V8.3 a1.8 1.8 0 0 1 3.6 0 V9.6" stroke-width="1.3"/></g></svg></button>
+                <button data-st="lock" class="st-lock" title="Unlocked — click to lock">&#128275;</button>
+                <button data-st="vis" class="st-vis" title="Visible to players — click to hide">&#128065;</button>
+                <div class="st-sep"></div>
+                <button data-st="dup" class="st-dup" title="Duplicate — a full copy, settings and data included (Ctrl+D)">&#10697;</button>
+                <button data-st="del" title="Delete" style="color:var(--red);">&#128465;</button>
+            </div>
+            <svg id="measureLayer"></svg>
+            <div id="snapGuides"></div>
+            <div id="globalResizeHandle"></div>
+            <div id="globalRotateHandle"></div>
+        </div>
+        <div id="wbTooltip"></div>
+    <div id="contextMenu" class="dropdown" style="display:none; position:absolute; z-index:20000; flex-direction:column; background:var(--surface); border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:150px;">
+    </div>
+      </div>
+
+      <div id="plannerWrap">
+        <div id="plannerEditorWrap" style="width: 50%; border-right: 1px solid var(--edge); display: flex; flex-direction: column; overflow-y: auto; background: var(--bg2); padding: 15px;">
+          <div id="plannerBlocks"></div>
+          <div style="margin-top: 15px; display: flex; gap: 8px;">
+              <select id="addBlockSelect" class="tool">
+                  <option value="" disabled selected>+ Add Block...</option>
+                  <option value="h1">Header (H1)</option>
+                  <option value="h2">Section (H2)</option>
+                  <option value="lede">Lead Text</option>
+                  <option value="oneline">One-line Summary</option>
+                  <option value="node">Node Box (Tables & Paths)</option>
+                  <option value="flare">Flare / Callout</option>
+                  <option value="flowchart">Flowchart Builder</option>
+                  <option value="diagram">Mermaid Diagram (Code)</option>
+                  <option value="text">Standard Text</option>
+                  <option value="raw">Raw HTML</option>
+              </select>
+          </div>
+        </div>
+        <div id="plannerPreviewWrap">
+          <div id="plannerPreview"></div>
+        </div>
+      </div>
+
+      </div>
+      <div id="rightGrip" title="Drag to resize the panel"></div>
+      <aside id="sidebar">
+          <div class="sidebar-tabs">
+              <div id="tabProps" class="sidebar-tab active">Properties</div>
+              <div id="tabList" class="sidebar-tab">Elements</div>
+          </div>
+          <div id="inspector"></div>
+          <div id="elementList"></div>
+      </aside>
+    </div>
+  </div>
+
+<div id="customPrompt" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 300px;">
+        <h3 id="customPromptTitle" style="margin-top:0; color:var(--gold);">Prompt</h3>
+        <input type="text" id="customPromptInput" style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="tool ghost" id="customPromptCancel">Cancel</button>
+            <button class="tool" id="customPromptOk">OK</button>
+        </div>
+    </div>
+</div>
+
+<div id="customConfirm" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 300px;">
+        <h3 id="customConfirmTitle" style="margin-top:0; margin-bottom:15px; color:var(--gold);">Confirm</h3>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="tool ghost" id="customConfirmCancel">Cancel</button>
+            <button class="tool danger" id="customConfirmOk">OK</button>
+        </div>
+    </div>
+</div>
+
+<div id="campSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3 style="margin-top:0; color:var(--gold);">Search Campaigns</h3>
+        <input type="text" id="campSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
+        <div id="campSearchResults" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:5px; max-height: 50vh;"></div>
+        <div style="display:flex; justify-content:flex-end; margin-top:15px;">
+            <button class="tool ghost" id="campSearchClose">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="plannerSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3 style="margin-top:0; color:var(--gold);">Search Planners</h3>
+        <input type="text" id="plannerSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
+        <div id="plannerSearchResults" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:5px; max-height: 50vh;"></div>
+        <div style="display:flex; justify-content:flex-end; margin-top:15px;">
+            <button class="tool ghost" id="plannerSearchClose">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="mapSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3 style="margin-top:0; color:var(--gold);">Search Maps</h3>
+        <input type="text" id="mapSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
+        <div id="mapSearchResults" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:5px; max-height: 50vh;"></div>
+        <div style="display:flex; justify-content:flex-end; margin-top:15px;">
+            <button class="tool ghost" id="mapSearchClose">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="netModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width: 420px; max-width:92vw; max-height:88vh; overflow-y:auto; box-sizing:border-box;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between;">Multiplayer <button id="netCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <p id="netStatus" style="color:var(--dim); font-size:13px; margin:4px 0 14px;">Not in a session.</p>
+        <div style="border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
+            <div class="net-section-label" style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Host (be the GM)</div>
+            <div style="margin-bottom:10px;">
+                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Campaign being hosted</div>
+                <select id="netCampSelect" style="width:100%; box-sizing:border-box;" title="The campaign players join. Changing it switches your app to that campaign."></select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players arrive at</div>
+                <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Follow me' keeps the table on whatever map you're viewing; picking a map pins the table there until you switch back."></select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>
+                <input type="text" id="netPassInput" placeholder="Leave empty for code-only entry" style="width:100%; box-sizing:border-box;" title="If set, players must enter this along with the room code. An extra lock in case the code leaks.">
+            </div>
+            <button class="tool" id="netHostBtn" style="width:100%;">Start Hosting This Campaign</button>
+            <div id="netHostInfo" style="display:none; margin-top:10px; text-align:center;">
+                <div style="color:var(--dim); font-size:12px;">Room code</div>
+                <div style="display:flex; gap:8px; align-items:center; justify-content:center;">
+                    <span id="netCode" style="font-family:monospace; font-size:24px; font-weight:bold; color:var(--gold); letter-spacing:3px;"></span>
+                    <button class="tool ghost" id="netCopyBtn" title="Copy code" style="padding:2px 8px;">&#128203;</button>
+                </div>
+                <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;">&#128161; Send this code to your players, then <b>close this window</b> &mdash; the session keeps running while you work. Reopen it any time with the &#127760; button to see who's here, pause, or summon.</div>
+                <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map">&#128227; Summon All Players</button>
+                <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
+            </div>
+        </div>
+        <div style="border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
+            <div class="net-section-label" style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Join (be a player)</div>
+            <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+                <div id="netJoinAvatar" title="Your table picture — click to change it">?</div>
+                <input type="text" id="netNameInput" placeholder="Your name" style="flex:1; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <input type="text" id="netCodeInput" placeholder="Room code" style="flex:1; box-sizing:border-box; font-family:monospace; text-transform:uppercase;">
+                <button class="tool" id="netJoinBtn">Join</button>
+            </div>
+            <input type="text" id="netJoinPassInput" placeholder="Password (only if the GM set one)" style="width:100%; box-sizing:border-box;">
+        </div>
+        <div id="netRoster" style="color:var(--dim); font-size:12px; margin-bottom:12px;">No players connected yet.</div>
+        <button class="tool ghost" id="netPlayersBtn" style="width:100%; margin-bottom:8px;" title="Everyone who has ever joined this campaign, and who's banned from it">&#128101; Player History &amp; Bans</button>
+        <button class="tool ghost danger" id="netEndBtn" style="width:100%; display:none;" title="End the session for everyone: players get a clean &quot;session ended&quot;, return to their own campaigns, and the room code is retired.">&#9209; End Session for Everyone</button>
+        <button class="tool ghost danger" id="netLeaveBtn" style="width:100%;">Leave Session</button>
+    </div>
+</div>
+
+<div id="pauseBanner">&#9208;&#65039; The GM has paused the table &mdash; chat is still open</div>
+
+<div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+
+        <div class="set-section-label">Profile</div>
+        <div style="display:flex; gap:14px; align-items:center; margin-bottom:12px;">
+            <div id="setAvatarPreview" title="Your table picture">?</div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; gap:6px;">
+                    <button class="tool ghost" id="setAvatarBtn" style="flex:1;">Choose Picture</button>
+                    <button class="tool ghost" id="setAvatarClearBtn" style="padding:4px 10px;" title="Remove picture">&times;</button>
+                </div>
+                <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Shown next to your name at multiplayer tables. Stored only on this computer; images are shrunk to a small square automatically.</div>
+            </div>
+            <input type="file" id="setAvatarFile" accept="image/*" hidden>
+        </div>
+        <div style="margin-bottom:14px;">
+            <div class="set-field-label">Display name</div>
+            <input type="text" id="setNameInput" placeholder="How players see you" style="width:100%; box-sizing:border-box;">
+        </div>
+
+        <div class="set-section-label">Table</div>
+        <div style="margin-bottom:6px;">
+            <div class="set-field-label">Measurement system</div>
+            <div style="display:flex; gap:6px;">
+                <button class="tool ghost set-unit-btn" data-unit="imperial" style="flex:1;">Imperial (yd / ft / mi)</button>
+                <button class="tool ghost set-unit-btn" data-unit="metric" style="flex:1;">Metric (m / km)</button>
+            </div>
+        </div>
+        <div style="margin-bottom:8px;">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Minimap <span id="setMinimapState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setMinimapBtn" style="width:100%;">Toggle Minimap</button>
+        </div>
+        <div style="margin-bottom:8px;">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Coordinate rulers <span id="setRulersState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setRulersBtn" style="width:100%;">Toggle Rulers</button>
+        </div>
+        <div style="margin-bottom:14px;">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Grid opacity <span id="setGridOpacityVal" style="color:var(--dim);"></span></div>
+            <input type="range" id="setGridOpacity" min="10" max="100" style="width:100%;" title="How strongly the square/hex grid lines draw over the map">
+            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Only on this computer &mdash; in multiplayer every player picks their own.</div>
+        </div>
+
+        <div class="set-section-label" style="margin-top:18px;">Advanced</div>
+        <div style="margin-bottom:12px;">
+            <div class="set-field-label">Default opacity for new items <span id="setOpacityVal" style="color:var(--dim);"></span></div>
+            <input type="range" id="setOpacity" min="10" max="100" style="width:100%;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
+            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you.">Reset Multiplayer Identity</button>
+            <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Updates <span id="setUpdateState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setUpdateCheckBtn" style="width:100%;" title="Look for a newer Waypoint on the releases page">Check for Updates</button>
+            <div id="setUpdateRow" style="display:none; margin-top:8px; gap:8px;">
+                <button class="tool" id="setUpdateNowBtn" style="flex:1;" title="Download the new version and switch to it — takes a few seconds, then Waypoint reloads">Update Now</button>
+                <button class="tool ghost" id="setUpdateInstallerBtn" style="flex:1;" title="This update changes the app's core: download the installer and run it over your copy">Get Installer</button>
+                <button class="tool ghost" id="setUpdateNotesBtn" style="padding:4px 10px;" title="Release notes for the new version">Notes</button>
+            </div>
+            <div style="text-align:center; margin-top:14px;"><button id="setVersionBtn" class="tool ghost" style="font-size:11px; color:var(--dim); padding:2px 10px;" title="Click to read what's new">Waypoint</button></div>
+        </div>
+        <div style="font-size:10.5px; color:var(--dim); margin-top:10px; line-height:1.5;">Campaign data lives in the <b>saves</b> folder and is snapshotted to <b>saves/backups</b> on every launch.</div>
+    </div>
+</div>
+
+<div id="sheetViewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:92vw; max-height:84vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="sheetViewTitle">Character</span> <button id="sheetViewCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div id="sheetViewBody" style="overflow-y:auto; flex:1; padding-right:6px;"></div>
+        <div style="color:var(--dim); font-size:10.5px; margin-top:10px;">Read-only view of the attached ShadowBase sheet. Edit on shadow-base.com, re-export, and re-attach.</div>
+    </div>
+</div>
+
+<div id="cmdkModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:100001; align-items:flex-start; justify-content:center; padding-top:12vh; box-sizing:border-box;">
+    <div style="background:var(--bg2); border:1px solid var(--gold); border-radius:10px; width:560px; max-width:92vw; box-shadow:0 12px 40px rgba(0,0,0,0.6); overflow:hidden;">
+        <input type="text" id="cmdkInput" placeholder="Jump to a map, planner, or room&hellip;  (Esc to close)" autocomplete="off"
+               style="width:100%; box-sizing:border-box; padding:14px 16px; background:var(--panel2); border:none; border-bottom:1px solid var(--edge); color:var(--ink); font-size:15px; outline:none;">
+        <div id="cmdkList" style="max-height:46vh; overflow-y:auto;"></div>
+    </div>
+</div>
+
+<div id="imgLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:78vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <input type="text" id="imgLibSearch" placeholder="Filter by name or map&hellip;" style="width:100%; box-sizing:border-box; margin-bottom:12px;">
+        <div id="imgLibGrid" style="overflow-y:auto; flex:1;"></div>
+        <div style="color:var(--dim); font-size:11px; margin-top:10px;">Click an image to place it on the current play map.</div>
+    </div>
+</div>
+
+<div id="playersModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Player History &amp; Bans <button id="playersCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div id="playersList" style="overflow-y:auto; flex:1;"></div>
+        <div style="color:var(--dim); font-size:10.5px; margin-top:10px; line-height:1.5;">History and bans belong to this campaign and are saved with it. Banned players are refused before any approval prompt; Forget makes a player go through first-time approval again.</div>
+    </div>
+</div>
+
+<div id="importChoiceModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 380px;">
+        <h3 style="margin-top:0; color:var(--gold);">Import Data</h3>
+        <p id="importChoiceSummary" style="color:var(--ink); font-size:13px; margin-bottom:16px;"></p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <button class="tool" id="importMergeBtn">Merge into existing campaigns (recommended)</button>
+            <button class="tool ghost danger" id="importReplaceBtn">Replace everything</button>
+            <button class="tool ghost" id="importCancelBtn">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="chatPanel" style="display:none; position:fixed; bottom:20px; right:20px; width:320px; max-height:420px; z-index:90000; background:var(--panel2); border:1px solid var(--gold); border-radius:10px; box-shadow:var(--shadow); flex-direction:column;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--edge);">
+        <span style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Table Chat</span>
+        <button class="tool ghost" id="chatCloseBtn" style="padding:0 6px;">&times;</button>
+    </div>
+    <div id="chatLog" style="flex:1; overflow-y:auto; padding:10px 12px; font-size:13px; min-height:120px; max-height:280px;"></div>
+    <div style="padding:8px; border-top:1px solid var(--edge); display:flex; flex-direction:column; gap:6px;">
+        <select id="chatTo" style="display:none; width:100%; box-sizing:border-box;"><option value="">Everyone</option></select>
+        <div style="display:flex; gap:6px;">
+            <input type="text" id="chatInput" placeholder="Message..." style="flex:1; box-sizing:border-box;">
+            <button class="tool" id="chatSendBtn">Send</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"><span id="toastMsg"></span><button id="toastBtn" hidden>Undo</button></div>
+
+<div id="sidebarContextMenu" class="dropdown" style="display:none; position:fixed; z-index:100000; flex-direction:column; background:var(--panel2); border:1px solid var(--gold); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:120px;">
+    <div class="menu-item" id="ctxNewChildItem" style="padding:8px 16px; cursor:pointer; color:#fff;">+ New Child Map</div>
+    <div class="menu-item" id="ctxRenameItem" style="padding:8px 16px; cursor:pointer; color:#fff;">Rename</div>
+    <div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
+    <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
+</div>
+</body>
+</html>

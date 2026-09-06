@@ -1,0 +1,40 @@
+WAYPOINT — INSTALL INSTRUCTIONS
+================================
+
+Waypoint is a desktop app for tabletop campaigns: maps, whiteboards, and
+online multiplayer where you join your GM's table with a room code.
+
+INSTALLING
+----------
+1. Download Waypoint_Setup.exe from this folder and run it.
+2. Windows will likely show a blue "Windows protected your PC" screen.
+   That's Microsoft SmartScreen being cautious about independent apps that
+   aren't code-signed with a paid certificate — Waypoint is safe, just small.
+   Click "More info", then "Run anyway".
+   (Google Drive may also say it "can't scan this file for viruses" because
+   of its size — that's normal for a 110 MB download; choose Download anyway.)
+3. Follow the installer. It puts Waypoint in your user folder — no admin
+   rights needed — and offers a Start Menu / desktop shortcut.
+
+REQUIREMENTS
+------------
+- Windows 10 or 11.
+- An internet connection for multiplayer (the app itself works offline).
+
+JOINING YOUR GM'S TABLE
+-----------------------
+1. Get the 6-character room code from your GM.
+2. Open Waypoint and click the globe button (top right).
+3. Type your name, enter the code, press Join. That's it — no account.
+4. Optional: click the gear (Settings) to set a profile picture for the table.
+
+The in-app Help (question-mark button) has a full "Multiplayer: Joining"
+tutorial with what you can and can't do at the table.
+
+UPDATING LATER
+--------------
+New versions install right over old ones — just run the newer setup file.
+Your saves and settings are always kept, and old saves are upgraded
+automatically (with a backup made first).
+
+Questions or problems: fulllioncreativeworks@gmail.com

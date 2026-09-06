@@ -90,7 +90,7 @@ function setStatus(msg) { var el = ui('netStatus'); if (el) el.textContent = msg
    HB_STALE turns the header dot amber; past HB_DEAD the connection is torn
    down deliberately — a client starts its reconnect loop, a host drops the
    player. The dot is the always-visible truth about the table's health. */
-var HB_EVERY = 4000, HB_STALE = 12000, HB_DEAD = 30000;
+var HB_EVERY = 4000, HB_STALE = 8000, HB_DEAD = 20000;   // silence → "not responding" at 8 s, dropped at 20 s
 var hbTimer = null, lastSeen = {}, hostLastSeen = 0;
 function noteSeen(peerId) { var now = Date.now(); lastSeen[peerId] = now; if (net.role === 'client') hostLastSeen = now; }
 function setIndicator(level, text) {
@@ -970,6 +970,22 @@ function scheduleReconnect() {
 
 function wireConn(conn) {
     conn.on('data', function(d) { handleMessage(d, conn); });
+    // The transport knows first: when the other side vanishes (app closed, cable pulled, Wi-Fi
+    // gone) ICE goes 'disconnected' within seconds and 'failed' soon after, long before the
+    // channel's own close event. Show it at once; treat 'failed' as the drop it is.
+    conn.on('iceStateChanged', function(st) {
+        if (!net.active || !conn.open) return;
+        if (st === 'disconnected') {
+            if (net.role === 'client') { setIndicator('warn', 'link to the GM interrupted'); setStatus('Link to the GM interrupted — waiting for it to recover…'); }
+            else { var pd = net.roster[conn.peer]; if (pd && !pd.stale) { pd.stale = true; renderRoster(); } }
+        } else if (st === 'failed' || st === 'closed') {
+            if (net.role === 'client') { setIndicator('bad', 'lost the GM — reconnecting'); }
+            try { conn.close(); } catch (e) {}   // the close handler drops them (host) or starts the reconnect loop (client)
+        } else if (st === 'connected' || st === 'completed') {
+            if (net.role === 'client') setIndicator('ok', 'connected to the GM');
+            else { var pc = net.roster[conn.peer]; if (pc && pc.stale) { delete pc.stale; renderRoster(); } }
+        }
+    });
     conn.on('close', function() {
         net.conns = net.conns.filter(function(c) { return c !== conn; });
         var p = net.roster[conn.peer];

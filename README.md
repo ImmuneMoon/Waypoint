@@ -72,7 +72,7 @@ To cut a release:
    node tools/release.js
    ```
 
-   This zips `system/app` as `waypoint-app-<version>.zip` with a `.sha256`, writes `manifest.json`, compiles the installer with [Inno Setup 6](https://jrsoftware.org/isinfo.php), and collects everything under `dist/<version>/` with the release notes. The notes are the top section of `WHATSNEW.txt` rendered as markdown with update instructions appended; `--notes-only` regenerates just that file.
+   This zips `system/app` as `waypoint-app-<version>.zip` with a `.sha256`, writes `manifest.json`, compiles the installer with [Inno Setup 6](https://jrsoftware.org/isinfo.php), and collects everything under `dist/<version>/` with the release notes. The notes are the top section of `WHATSNEW.txt` rendered as markdown; `--notes-only` regenerates just that file.
 3. Publish: create a GitHub Release tagged with the version and attach the four files, or run `node tools/release.js --publish` with a `GITHUB_TOKEN` that can write releases.
 
 The repository the app checks is the `UPDATE_REPO` constant at the top of `system/resources/app/main.js`.

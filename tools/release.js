@@ -61,8 +61,8 @@ execSync(`"${ISCC}" "${path.join(ROOT, 'installer.iss')}"`, { stdio: 'inherit' }
 fs.copyFileSync(path.join(ROOT, 'Waypoint_Setup.exe'), path.join(dist, 'Waypoint_Setup.exe'));
 }
 
-// 4. notes: the top section of WHATSNEW.txt, turned into markdown for the GitHub Release body
-//    (the app shows the same body as plain text under Notes, so the markdown stays light).
+// 4. notes: the top section of WHATSNEW.txt, turned into markdown for the GitHub Release body.
+//    Just this version's notes — installing and updating are documented once, in the README.
 function buildNotes() {
     const all = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n');
     const top = (all.split(/\n(?=WAYPOINT \d)/)[0] || '').trim().split('\n');
@@ -77,17 +77,6 @@ function buildNotes() {
         flush(); out.push('', '### ' + line.trim(), '');
     }
     flush();
-    const hot = MIN_SHELL !== VERSION;   // app-only release: older shells can swap it in place
-    out.push('', '### Updating', '',
-        hot ? '- **From inside Waypoint:** press the gold **Update** button in the top bar when it appears (1.1.4 and newer), or Settings ▸ Check for Updates ▸ Update Now (1.1.2 and 1.1.3). It downloads this release, swaps it in and reloads in a few seconds. Saves and settings are kept.'
-            : "- **From inside Waypoint:** this release changes the app's core, so the Update button (or Settings ▸ Check for Updates) offers the installer instead. Run Waypoint_Setup.exe over your copy; saves and settings are kept.",
-        '- **Fresh install, or older than 1.1.2:** download **Waypoint_Setup.exe** and run it. Windows SmartScreen may warn because the installer is not code-signed: choose *More info*, then *Run anyway*. No admin rights are needed.',
-        '', '### Files in this release', '',
-        '- **Waypoint_Setup.exe** — the full installer, for new installs and for updates that change the core.',
-        '- **' + zipName + '** — the app itself, fetched by the in-app Update button.',
-        '- **' + zipName + '.sha256** — checksum the app verifies before installing that zip.',
-        '- **manifest.json** — tells older versions whether they can update in place or need the installer.',
-        '', 'A GM on a newer version turns away players on older ones until they update, so update before session day.');
     return out.join('\n') + '\n';
 }
 const notes = buildNotes();

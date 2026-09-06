@@ -2466,6 +2466,16 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
       if (gm && gm.classList.contains('show') && !e.target.closest('#gridMenu') && !e.target.closest('#wbGridBtn')) gm.classList.remove('show');
   });
 
+  // Open Help on a topic, optionally scrolled to a heading (Settings links here)
+  window.wpOpenHelp = function(pane, anchorId) {
+      var modal = document.getElementById('helpModal'); if (!modal) return;
+      modal.style.display = 'flex';
+      var nav = document.getElementById('helpNav');
+      if (nav) nav.querySelectorAll('[data-help]').forEach(function(b) { b.classList.toggle('active', b.dataset.help === pane); });
+      document.querySelectorAll('#helpModal .help-pane').forEach(function(p) { p.style.display = (p.dataset.pane === pane) ? 'block' : 'none'; });
+      var a = anchorId && document.getElementById(anchorId);
+      if (a) setTimeout(function() { a.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 50);
+  };
   // Help tutorials — topic rail switches the visible pane
   var _el_helpNav = document.getElementById('helpNav');
   if (_el_helpNav) _el_helpNav.addEventListener('click', function(e) {

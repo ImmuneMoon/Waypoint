@@ -1,3 +1,14 @@
+WAYPOINT 1.1.9 — What's New
+============================
+
+Relay setup instructions
+- Help ▸ Multiplayer: Hosting has a new section, "Setting up a relay server":
+  where to get one (a free metered.ca account, expressturn.com, or your own
+  coturn), which three values to copy, what Test Relay's answers mean, and
+  that only the GM does this, once. The Relay server box in Settings has a
+  "How do I set this up?" link that opens straight to it. The old help text,
+  which still promised an automatic public relay, is corrected.
+
 WAYPOINT 1.1.8 — What's New
 ============================
 

@@ -209,6 +209,12 @@ if (_turnTest) _turnTest.addEventListener('click', function() {
         toast(r.ok ? 'Relay works: ' + r.detail : r.detail);
     });
 });
+var _turnHelp = ui('setTurnHelpLink');
+if (_turnHelp) _turnHelp.addEventListener('click', function(e) {
+    e.preventDefault();
+    var sm = ui('settingsModal'); if (sm) sm.style.display = 'none';
+    if (window.wpOpenHelp) window.wpOpenHelp('mp-gm', 'helpRelay');
+});
 var _turnClear = ui('setTurnClearBtn');
 if (_turnClear) _turnClear.addEventListener('click', function() {
     ['setTurnUrls', 'setTurnUser', 'setTurnPass'].forEach(function(id) { var el = ui(id); if (el) el.value = ''; });

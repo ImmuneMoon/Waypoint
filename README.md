@@ -1,6 +1,6 @@
 # Waypoint
 
-Current release: **1.1.8** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
+Current release: **1.1.9** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
 
 A portable desktop companion for tabletop RPG campaigns: linked data maps for the GM, hex-grid play maps with tokens and scene art for the table, planners for notes, and peer-to-peer multiplayer so a GM can host a session and players can join with a room code. Built on Electron. Every campaign lives in a plain `saves` folder beside the app, so backups and hand-offs are file copies.
 
@@ -12,7 +12,7 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 **Planners.** Document pages with headed blocks and tables for session notes, run scripts, and reference material, kept in the same campaign tree.
 
-**Multiplayer.** The GM hosts a campaign over the internet with a six-character room code. Players join from their own copy of Waypoint or a browser, land on the map the GM chooses, see only what the GM shares (GM notes and hidden items never leave the host), move the tokens they own, draw on the map, chat, and receive images on demand. The GM can pause the table, summon everyone or a single player, approve or ban players, and end the session for all. A dropped connection reconnects on its own; a crashed host can resume with the same code. Connections are direct where the networks allow it; for players behind carrier-grade NAT the GM configures a TURN relay of their own under **Settings ▸ Relay server** (the app ships with none). A **Stream window** (Settings) shows only the play map as players see it, for screen-sharing to a spectator without the app.
+**Multiplayer.** The GM hosts a campaign over the internet with a six-character room code. Players join from their own copy of Waypoint or a browser, land on the map the GM chooses, see only what the GM shares (GM notes and hidden items never leave the host), move the tokens they own, draw on the map, chat, and receive images on demand. The GM can pause the table, summon everyone or a single player, approve or ban players, and end the session for all. A dropped connection reconnects on its own; a crashed host can resume with the same code. Connections are direct where the networks allow it; for players behind carrier-grade NAT the GM configures a TURN relay of their own under **Settings ▸ Relay server** (the app ships with none). Step-by-step instructions are in the app under Help ▸ Multiplayer: Hosting ▸ *Setting up a relay server*, and the Relay server box links straight to them. A **Stream window** (Settings) shows only the play map as players see it, for screen-sharing to a spectator without the app.
 
 **Character sheets.** Tokens can carry a character JSON from the ShadowBase character-sheet site: attach one to a token, view it in the inspector, export it back with the token's art as the portrait, or import a sheet as a ready-made token.
 

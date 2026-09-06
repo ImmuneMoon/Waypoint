@@ -1,3 +1,11 @@
+WAYPOINT 1.1.6 — What's New
+============================
+
+Fixes
+- After a one-click update the version shown in Settings and About stayed
+  at the old number (the update check already knew better). Both now show
+  the version of the app files actually running.
+
 WAYPOINT 1.1.5 — What's New
 ============================
 

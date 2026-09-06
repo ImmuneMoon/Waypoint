@@ -296,9 +296,19 @@ renderAvatarPreview();   // the join panel's avatar shows from first open
 
 // First launch after an update: pop the release notes once. A fresh install
 // just records its version quietly; the same version never re-prompts.
+function appVersionPromise() {   // the newer of the shell's version and the app folder's (a hot update moves only the latter)
+    if (window.wpVersionReady) return window.wpVersionReady;
+    var cmp = function(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; };
+    return Promise.all([
+        fetch('/api/version').then(function(r) { return r.json(); }).catch(function() { return null; }),
+        fetch('version.json', { cache: 'no-store' }).then(function(r) { return r.json(); }).catch(function() { return null; }),
+    ]).then(function(vs) {
+        var a = vs[0] && vs[0].version ? String(vs[0].version) : null, b = vs[1] && vs[1].version ? String(vs[1].version) : null;
+        return (a && b) ? (cmp(b, a) > 0 ? b : a) : (a || b);
+    });
+}
 (function versionNotes() {
-    fetch('/api/version').then(function(r) { return r.json(); }).then(function(v) {
-        var cur = v && v.version;
+    appVersionPromise().then(function(cur) {
         if (!cur) return;
         var last = null;
         try { last = localStorage.getItem('wp_version'); } catch (e) {}

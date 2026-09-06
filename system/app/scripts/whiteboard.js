@@ -2489,8 +2489,9 @@ if(_el_aboutBtn) _el_aboutBtn.addEventListener('click', function() {
           vEl.addEventListener('click', function() { window.wpShowWhatsNew(vEl.textContent.replace('Version ', '').trim()); });
       }
       if (vEl && !vEl.dataset.loaded) {
-          fetch('/api/version').then(function(r) { return r.json(); }).then(function(v) {
-              vEl.textContent = 'Version ' + v.version;
+          // The app folder's version wins over the shell's: a one-click update replaces only the app folder
+          (window.wpVersionReady || fetch('/api/version').then(function(r) { return r.json(); }).then(function(v) { return v.version; })).then(function(ver) {
+              vEl.textContent = 'Version ' + ver;
               vEl.dataset.loaded = '1';
           }).catch(function() { vEl.textContent = ''; });
       }

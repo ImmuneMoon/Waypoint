@@ -25,7 +25,7 @@ var APP_VERSION = null;
 var newerSeen = {};   // player versions newer than ours that the GM has already been told about this session
 // The shell's /api/version (older shells report only their own package.json) and the app folder's
 // own version.json: the newer wins. After a hot update on an old shell only version.json moved.
-Promise.all([
+window.wpVersionReady = Promise.all([
     fetch('/api/version').then(function(r) { return r.json(); }).catch(function() { return null; }),
     fetch('version.json', { cache: 'no-store' }).then(function(r) { return r.json(); }).catch(function() { return null; }),
 ]).then(function(vs) {
@@ -34,6 +34,7 @@ Promise.all([
     APP_VERSION = (a && b) ? (versionCmp(b, a) > 0 ? b : a) : (a || b);
     window.wpAppVersion = APP_VERSION;
     document.dispatchEvent(new CustomEvent('wp-version', { detail: APP_VERSION }));
+    return APP_VERSION;
 });
 function versionCmp(a, b) {   // numeric major.minor.patch; anything after a '-' is ignored
     var pa = String(a || '0').split('-')[0].split('.').map(function(x) { return parseInt(x, 10) || 0; });

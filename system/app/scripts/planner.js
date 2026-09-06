@@ -373,14 +373,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // line break. Content that already uses block HTML (<p>, <br>, lists, headings…) is left as is.
   function nl(content, para) {
       var c = String(content || '');
-      if (!/
-/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)/i.test(c)) return c;
-      c = c.replace(//g, '');
-      if (para) return c.split(/
-{2,}/).map(function(x) { return x.replace(/
-/g, '<br>'); }).join('</p><p>');
-      return c.replace(/
-/g, '<br>');
+      if (!/\n/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;
+      c = c.replace(/\r/g, '');
+      if (para) return c.split(/\n{2,}/).map(function(x) { return x.replace(/\n/g, '<br>'); }).join('</p><p>');
+      return c.replace(/\n/g, '<br>');
   }
   function renderPlannerPreview() {
 

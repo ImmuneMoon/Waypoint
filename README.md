@@ -1,5 +1,7 @@
 # Waypoint
 
+Current release: **1.1.8** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
+
 A portable desktop companion for tabletop RPG campaigns: linked data maps for the GM, hex-grid play maps with tokens and scene art for the table, planners for notes, and peer-to-peer multiplayer so a GM can host a session and players can join with a room code. Built on Electron. Every campaign lives in a plain `saves` folder beside the app, so backups and hand-offs are file copies.
 
 ## What it does
@@ -63,7 +65,7 @@ Players update from inside the app: **Settings ▸ Check for Updates** looks at 
 
 To cut a release:
 
-1. Bump the version in `system/resources/app/package.json` and `installer.iss`, and add a section at the top of `WHATSNEW.txt` and `system/app/assets/whatsnew.txt`. The release script writes `system/app/version.json` from `package.json`; that file ships inside the app zip and is what an updated copy reports as its version. If `main.js` or `updater.js` changed, set `MIN_SHELL` in `tools/release.js` to the new version so older shells are steered to the installer.
+1. Bump the version in `system/resources/app/package.json` and `installer.iss`, and add a section at the top of `WHATSNEW.txt` and `system/app/assets/whatsnew.txt`. The release script writes `system/app/version.json` from `package.json` and the "Current release" line at the top of this README; that file ships inside the app zip and is what an updated copy reports as its version. If `main.js` or `updater.js` changed, set `MIN_SHELL` in `tools/release.js` to the new version so older shells are steered to the installer.
 2. Build:
 
    ```bash

@@ -1,3 +1,13 @@
+WAYPOINT 1.1.8 — What's New
+============================
+
+Fixes
+- The multiplayer indicator could keep saying "connected to the GM" for up to
+  half a minute after the link had actually died. It now reacts to the
+  connection's own state within seconds ("link interrupted", then
+  reconnecting), and heartbeat silence counts as "not responding" after 8
+  seconds and as dropped after 20 instead of 12 and 30.
+
 WAYPOINT 1.1.7 — What's New
 ============================
 
@@ -14,11 +24,6 @@ Fixes
   retries cycle through), the GM gets the same code back at once, and
   players reattach within a few attempts. A first join to a resumed room
   can take a few seconds longer while it finds the live generation.
-- The multiplayer indicator could keep saying "connected to the GM" for up to
-  half a minute after the link had actually died. It now reacts to the
-  connection's own state within seconds ("link interrupted", then
-  reconnecting), and heartbeat silence counts as "not responding" after 8
-  seconds and as dropped after 20 instead of 12 and 30.
 
 WAYPOINT 1.1.6 — What's New
 ============================

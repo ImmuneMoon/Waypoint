@@ -34,6 +34,14 @@ const zipName = 'waypoint-app-' + VERSION + '.zip';
 const zipPath = path.join(dist, zipName);
 
 if (!NOTES_ONLY) {
+// 0a. README names the current release
+{
+    const readmePath = path.join(ROOT, 'README.md');
+    const readme = fs.readFileSync(readmePath, 'utf8');
+    const updated = readme.replace(/Current release: \*\*[^*]+\*\*/, 'Current release: **' + VERSION + '**');
+    if (updated !== readme) fs.writeFileSync(readmePath, updated);
+}
+
 // 0. the app folder carries its version (a hot update swaps system/app only, so this is what moves the number)
 fs.writeFileSync(path.join(SYSTEM, 'app', 'version.json'), JSON.stringify({ version: VERSION }) + '\n');
 

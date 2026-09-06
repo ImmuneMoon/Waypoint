@@ -59,7 +59,7 @@ To run the real thing from source, unpack the latest release and replace its `sy
 
 ## Releases and updates
 
-Players update from inside the app: **Settings ▸ Check for Updates** looks at this repository's latest GitHub Release. If only the front end changed, **Update Now** downloads the app zip, verifies its checksum, swaps `system/app` in place and reloads. If the release changed the Electron shell, the same panel offers the installer instead. A quiet check runs shortly after launch; nothing installs without the user pressing the button.
+Players update from inside the app: **Settings ▸ Check for Updates** looks at this repository's latest GitHub Release. If only the front end changed, **Update Now** downloads the app zip, verifies its checksum, swaps `system/app` in place and reloads. If the release changed the Electron shell, the same panel offers the installer instead. A quiet check runs shortly after launch; when it finds a newer version a gold **Update** button appears in the top bar and stays until the update is applied, and a dismissable notice appears once per launch. Nothing installs without the user pressing the button.
 
 To cut a release:
 

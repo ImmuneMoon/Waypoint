@@ -1,3 +1,13 @@
+WAYPOINT 1.1.3 — What's New
+============================
+
+The Update button
+- When a newer Waypoint is out, a gold Update button appears in the top bar
+  and stays there until you update — one click updates in place (or fetches
+  the installer when a release changes the app's core). A notice with Update,
+  Notes and Later also appears once per launch; Later hides just the notice.
+  Nothing installs without you pressing Update.
+
 WAYPOINT 1.1.2 — What's New
 ============================
 

@@ -248,7 +248,7 @@ renderAvatarPreview();   // the join panel's avatar shows from first open
    /api/update-check asks the shell to look at the newest GitHub Release. If the front end alone
    changed, Update Now downloads it, the shell swaps system/app in place and we reload. If the
    release needs a newer shell, the button becomes Get Installer instead. A quiet check runs a
-   few seconds after launch and only ever shows a toast. */
+   few seconds after launch; a newer version raises the header Update button and a notice. */
 var _upd = { info: null };
 function updateUI() {
     var st = ui('setUpdateState'), row = ui('setUpdateRow'), now = ui('setUpdateNowBtn'), inst = ui('setUpdateInstallerBtn');
@@ -266,28 +266,71 @@ function checkUpdates(force, quiet) {
     var st = ui('setUpdateState'); if (st && !quiet) st.textContent = 'checking…';
     return fetch('/api/update-check' + (force ? '?force=1' : ''), { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(i) {
         _upd.info = i; updateUI();
+        showUpdateButton(i);
+        if (i && i.newer) showUpdateBanner(i); else hideUpdateBanner();
         if (i && i.newer && !quiet) toast('Waypoint ' + i.latest + ' is available.');
-        if (i && i.newer && quiet) toast('Waypoint ' + i.latest + ' is available — Settings ▸ Check for Updates.');
         return i;
     }).catch(function(e) { _upd.info = { error: String(e) }; updateUI(); });
 }
 var _updChk = ui('setUpdateCheckBtn');
 if (_updChk) _updChk.addEventListener('click', function() { checkUpdates(true, false); });
-var _updNow = ui('setUpdateNowBtn');
-if (_updNow) _updNow.addEventListener('click', function() {
+function runHotUpdate() {
     var i = _upd.info; if (!i || !i.canHotUpdate) return;
     if (window.wpNet && window.wpNet.active) { toast('Leave or end the multiplayer session first.'); return; }
     import('./dialogs.js').then(function(d) {
         d.showConfirm('Update Waypoint from ' + i.current + ' to ' + i.latest + '? The new version downloads (a couple of MB), replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.', function() {
             toast('Downloading Waypoint ' + i.latest + '…');
-            _updNow.disabled = true;
+            var btns = [ui('setUpdateNowBtn'), ui('updateBannerGo'), ui('updateBtn')];
+            btns.forEach(function(b) { if (b) b.disabled = true; });
             fetch('/api/update-apply', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
                 if (!r.ok) throw new Error(r.error || 'update failed');
                 toast('Updated to ' + r.version + ' — reloading…');
                 setTimeout(function() { location.reload(); }, 900);
-            }).catch(function(e) { _updNow.disabled = false; toast('Update failed: ' + (e.message || e)); });
+            }).catch(function(e) { btns.forEach(function(b) { if (b) b.disabled = false; }); toast('Update failed: ' + (e.message || e)); });
         });
     });
+}
+var _updNow = ui('setUpdateNowBtn');
+if (_updNow) _updNow.addEventListener('click', runHotUpdate);
+
+/* ---------- the update notice and the header Update button ----------
+   A check that finds a newer version does two things: the header grows a gold Update button
+   that stays until the update is actually applied, and a notice bar appears once under the
+   header (Later just hides the bar for this run). Update runs the one-click update, or fetches
+   the installer when the release changed the app's core. */
+var _bannerSeen = null;   // version the notice has already been shown for, this run
+function showUpdateButton(i) {
+    var b = ui('updateBtn'); if (!b) return;
+    if (!i || !i.newer) { b.style.display = 'none'; return; }
+    b.textContent = '⬆️ Update to ' + i.latest;
+    b.title = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : ' — click to get the installer');
+    b.style.display = 'inline-block';
+}
+function showUpdateBanner(i) {
+    var bar = ui('updateBanner'); if (!bar || !i || !i.newer) return;
+    if (_bannerSeen === i.latest) return;
+    _bannerSeen = i.latest;
+    var txt = ui('updateBannerText');
+    if (txt) txt.textContent = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — one click to update.' : ' — this one needs the installer.');
+    var go = ui('updateBannerGo'); if (go) go.textContent = i.canHotUpdate ? 'Update' : 'Get Installer';
+    var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
+    bar.style.display = 'flex';
+}
+function hideUpdateBanner() { var bar = ui('updateBanner'); if (bar) bar.style.display = 'none'; }
+var _bGo = ui('updateBannerGo');
+if (_bGo) _bGo.addEventListener('click', function() {
+    var i = _upd.info; if (!i) return;
+    if (i.canHotUpdate) runHotUpdate();
+    else { hideUpdateBanner(); var b = ui('setUpdateInstallerBtn'); if (b) b.click(); }
+});
+var _hdrUpd = ui('updateBtn');
+if (_hdrUpd) _hdrUpd.addEventListener('click', function() { hideUpdateBanner(); if (_bGo) _bGo.click(); });
+var _bNotes = ui('updateBannerNotes');
+if (_bNotes) _bNotes.addEventListener('click', function() { var n = ui('setUpdateNotesBtn'); if (n) n.click(); });
+var _bLater = ui('updateBannerLater');
+if (_bLater) _bLater.addEventListener('click', function() {
+    hideUpdateBanner();
+    toast('The Update button stays in the top bar until you update.');
 });
 var _updInst = ui('setUpdateInstallerBtn');
 if (_updInst) _updInst.addEventListener('click', function() {

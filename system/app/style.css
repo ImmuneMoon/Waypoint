@@ -796,6 +796,16 @@
   #mapBreadcrumb .crumb-sep { color: var(--faint); }
   #mapBreadcrumb .crumb-current { color: var(--ink); font-weight: 600; padding: 2px 4px; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #mapBreadcrumb .crumb-sep { flex: 0 0 auto; }
+  #updateBanner {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 99990;
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 14px;
+    background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45); font-size: 13px; color: var(--ink); max-width: min(92vw, 640px);
+  }
+  #updateBanner .tool { padding: 4px 12px; font-size: 12px; }
+  #updateBtn { background: var(--gold); color: #1a1408; border-color: var(--gold); font-weight: 600; white-space: nowrap; animation: updGlow 2.4s ease-in-out infinite; }
+  #updateBtn:hover { filter: brightness(1.1); }
+  @keyframes updGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,55,0.0); } 50% { box-shadow: 0 0 10px 2px rgba(212,175,55,0.55); } }
   #mapBreadcrumb .crumb-more { max-width: none; padding: 2px 6px; letter-spacing: 1px; }
   #crumbMoreMenu { position: fixed; min-width: 180px; max-width: 320px; }
   #crumbMoreMenu button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

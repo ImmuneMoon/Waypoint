@@ -126,6 +126,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <button class="tool ghost" id="importBtn">&#128194; Import</button>
       <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed" hidden>
       <div class="header-sep"></div>
+      <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update">&#11014;&#65039; Update</button>
       <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;">&#127760;<span id="netDot" aria-hidden="true"></span></button>
       <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;">&#128172;<span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
       <button class="tool ghost icon" id="settingsBtn" title="Settings">&#9881;&#65039;</button>
@@ -787,6 +788,12 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <div id="pauseBanner">&#9208;&#65039; The GM has paused the table &mdash; chat is still open</div>
 
+<div id="updateBanner" role="status" style="display:none;">
+    <span id="updateBannerText">A new version of Waypoint is available.</span>
+    <button class="tool" id="updateBannerGo" title="Update now">Update</button>
+    <button class="tool ghost" id="updateBannerNotes" title="Release notes">Notes</button>
+    <button class="tool ghost" id="updateBannerLater" title="Hide this until the next version">Later</button>
+</div>
 <div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>

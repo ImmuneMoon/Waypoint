@@ -698,6 +698,11 @@
     padding: 0 2px; margin-left: 2px; line-height: 1; border-radius: 3px;
   }
   .roster-kick:hover { color: var(--red); }
+  .roster-summon {
+    background: none; border: none; color: var(--dim); cursor: pointer; font-size: 11px;
+    padding: 0 2px; margin-left: 4px; line-height: 1; border-radius: 3px;
+  }
+  .roster-summon:hover { color: var(--gold); }
 
   /* ShadowBase sheet viewer */
   .shv-head { font-size: 12.5px; color: var(--ink); margin-bottom: 6px; }

@@ -10,7 +10,7 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 **Planners.** Document pages with headed blocks and tables for session notes, run scripts, and reference material, kept in the same campaign tree.
 
-**Multiplayer.** The GM hosts a campaign over the internet with a six-character room code. Players join from their own copy of Waypoint or a browser, land on the map the GM chooses, see only what the GM shares (GM notes and hidden items never leave the host), move the tokens they own, chat, and receive images on demand. The GM can pause the table, summon everyone, approve or ban players, and end the session for all. A dropped connection reconnects on its own; a crashed host can resume with the same code.
+**Multiplayer.** The GM hosts a campaign over the internet with a six-character room code. Players join from their own copy of Waypoint or a browser, land on the map the GM chooses, see only what the GM shares (GM notes and hidden items never leave the host), move the tokens they own, chat, and receive images on demand. The GM can pause the table, summon everyone or a single player, approve or ban players, and end the session for all. A dropped connection reconnects on its own; a crashed host can resume with the same code.
 
 **Character sheets.** Tokens can carry a character JSON from the ShadowBase character-sheet site: attach one to a token, view it in the inspector, export it back with the token's art as the portrait, or import a sheet as a ready-made token.
 

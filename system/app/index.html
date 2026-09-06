@@ -336,7 +336,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Running the table</h4>
                       <ul>
                           <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
-                          <li><b>Split party:</b> a player can double-click a door/stairs portal to move to that map alone. The roster shows where everyone is; <b>Summon All</b> pulls the whole party back to you.</li>
+                          <li><b>Split party:</b> a player can double-click a door/stairs portal to move to that map alone. The roster shows where everyone is; <b>Summon All</b> pulls the whole party back to you, and the &#128227; beside a name fetches just that player.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to message everyone, or pick one player to send a private whisper.</li>
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
@@ -763,7 +763,7 @@ window.addEventListener('unhandledrejection', function(e) {
                     <button class="tool ghost" id="netCopyBtn" title="Copy code" style="padding:2px 8px;">&#128203;</button>
                 </div>
                 <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;">&#128161; Send this code to your players, then <b>close this window</b> &mdash; the session keeps running while you work. Reopen it any time with the &#127760; button to see who's here, pause, or summon.</div>
-                <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map">&#128227; Summon All Players</button>
+                <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the &#128227; on their name in the player list above.">&#128227; Summon All Players</button>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
             </div>
         </div>

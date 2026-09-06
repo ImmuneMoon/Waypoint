@@ -163,8 +163,10 @@ function renderRoster() {
                 var face = avOk
                     ? '<img class="roster-avatar" src="' + p.avatar + '" alt="">'
                     : '<span class="roster-dot" style="background:hsl(' + playerHue(p.id) + ',55%,60%);">' + initials + '</span>';
+                var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
-                    ? '<button class="roster-kick" data-kick="' + Object.keys(net.roster).find(function(k) { return net.roster[k] === p; }) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
+                    ? '<button class="roster-summon" data-summon="' + peerKey + '" title="Summon this player to the map you are on">&#128227;</button>' +
+                      '<button class="roster-kick" data-kick="' + peerKey + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
                     : '';
                 var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues">&#9203;</span>' : '';
                 return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + '"' + jump + '>' + face +
@@ -185,6 +187,12 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
     if (kickBtn && net.role === 'host') {
         e.stopPropagation();
         net.kickPlayer(kickBtn.dataset.kick);
+        return;
+    }
+    var summonBtn = e.target.closest('[data-summon]');
+    if (summonBtn && net.role === 'host') {
+        e.stopPropagation();
+        net.summonPlayer(summonBtn.dataset.summon);
         return;
     }
     var chip = e.target.closest('[data-jump]');
@@ -1375,16 +1383,29 @@ if (_endBtn) _endBtn.addEventListener('click', function() {
     });
 });
 syncSessionButtons();
+// Bring one connection's player to the GM's current map (the table's stage).
+function summonConn(c, stage) {
+    var p = net.roster[c.peer];
+    if (p) { p.detached = false; p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId); }
+    if (c.open) { try { c.send({ type: 'stage', stage: stage, personal: true }); } catch (e) {} }
+    return p;
+}
+net.summonPlayer = function(peerKey) {
+    if (!net.active || net.role !== 'host') return;
+    var stage = currentStage();
+    var c = net.conns.find(function(x) { return x.peer === peerKey; });
+    if (!stage || !c) return;
+    var p = summonConn(c, stage);
+    renderRoster();
+    broadcastRoster();
+    toast((p && p.name ? p.name : 'Player') + ' summoned to your map.');
+};
 var _summonBtn = ui('netSummonBtn');
 if (_summonBtn) _summonBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;
     var stage = currentStage();
     if (!stage) return;
-    net.conns.forEach(function(c) {
-        var p = net.roster[c.peer];
-        if (p) { p.detached = false; p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId); }
-        if (c.open) { try { c.send({ type: 'stage', stage: stage }); } catch (e) {} }
-    });
+    net.conns.forEach(function(c) { summonConn(c, stage); });
     renderRoster();
     broadcastRoster();
     toast('All players summoned to your map.');

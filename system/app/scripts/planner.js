@@ -369,6 +369,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
+  // Typed text keeps its line breaks: a blank line starts a new paragraph, a single Enter a
+  // line break. Content that already uses block HTML (<p>, <br>, lists, headings…) is left as is.
+  function nl(content, para) {
+      var c = String(content || '');
+      if (!/
+/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)/i.test(c)) return c;
+      c = c.replace(//g, '');
+      if (para) return c.split(/
+{2,}/).map(function(x) { return x.replace(/
+/g, '<br>'); }).join('</p><p>');
+      return c.replace(/
+/g, '<br>');
+  }
   function renderPlannerPreview() {
 
       var activeMap = getActiveMap();
@@ -401,23 +414,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'lede') {
 
-              html += '<p class="lede">' + (b.content||'') + '</p>';
+              html += '<p class="lede">' + nl(b.content) + '</p>';
 
           } else if (b.type === 'oneline') {
 
-              html += '<div class="oneline">' + (b.content||'') + '</div>';
+              html += '<div class="oneline">' + nl(b.content) + '</div>';
 
           } else if (b.type === 'text') {
 
-              html += '<p>' + (b.content||'') + '</p>';
+              html += '<p>' + nl(b.content, true) + '</p>';
 
           } else if (b.type === 'flare') {
 
-              html += '<div class="flare">' + (b.content||'') + '</div>';
+              html += '<div class="flare">' + nl(b.content) + '</div>';
 
           } else if (b.type === 'callout') {
 
-              html += '<div class="callout">' + (b.content||'') + '</div>';
+              html += '<div class="callout">' + nl(b.content) + '</div>';
 
           } else if (b.type === 'diagram') {
 

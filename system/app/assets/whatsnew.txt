@@ -9,6 +9,12 @@ Relay setup instructions
   "How do I set this up?" link that opens straight to it. The old help text,
   which still promised an automatic public relay, is corrected.
 
+Planners
+- Pressing Enter in a text block now shows as a line break in the page, and a
+  blank line starts a new paragraph, so one block can hold several
+  paragraphs. Blocks written with their own HTML tags are left exactly as
+  written.
+
 WAYPOINT 1.1.8 — What's New
 ============================
 

@@ -1,3 +1,22 @@
+WAYPOINT 1.1.5 — What's New
+============================
+
+Relay server for far-away players
+- A player who sits at "Connecting\u2026" forever is almost always behind
+  carrier-grade NAT (mobile data, many providers outside the US and EU): no
+  direct path can be punched to them. The free public relay Waypoint used to
+  fall back on has shut down, so Settings \u25B8 Relay server now takes a TURN
+  relay of your own (address, username, credential) with a Test button. Only
+  the GM needs it; the settings stay on your machine. A join that finds no
+  path now fails after 25 seconds with a message saying so, instead of
+  spinning forever.
+
+Fixes
+- The stream window showed labels but no map art or tokens: it asked for
+  images the way a remote player does instead of reading them from disk.
+- The stream window opens without the File/Edit/View menu bar (this one
+  needs the installer; a one-click update keeps the old shell).
+
 WAYPOINT 1.1.4 — What's New
 ============================
 

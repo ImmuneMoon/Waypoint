@@ -170,6 +170,52 @@ if (_streamBtn) _streamBtn.addEventListener('click', function() {
     toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
 });
 
+/* Relay server (TURN): the GM's own relay for players who cannot connect directly.
+   turn_* keys deliberately sit outside the wp_ prefix so they never mirror into preferences.json. */
+function loadTurnFields() {
+    var u = ui('setTurnUrls'), n = ui('setTurnUser'), p = ui('setTurnPass');
+    try {
+        if (u) u.value = localStorage.getItem('turn_urls') || '';
+        if (n) n.value = localStorage.getItem('turn_user') || '';
+        if (p) p.value = localStorage.getItem('turn_pass') || '';
+    } catch (e) {}
+    var st = ui('setTurnState');
+    if (st) st.textContent = (window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()) ? 'configured' : 'none \u2014 direct connections only';
+    var rb = ui('setRelayBlock');
+    if (rb) rb.style.display = (window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()) ? 'block' : 'none';
+}
+function saveTurnFields() {
+    var u = ui('setTurnUrls'), n = ui('setTurnUser'), p = ui('setTurnPass');
+    try {
+        localStorage.setItem('turn_urls', u ? u.value.trim() : '');
+        localStorage.setItem('turn_user', n ? n.value.trim() : '');
+        localStorage.setItem('turn_pass', p ? p.value : '');
+    } catch (e) {}
+    loadTurnFields();
+}
+['setTurnUrls', 'setTurnUser', 'setTurnPass'].forEach(function(id) {
+    var el = ui(id); if (!el) return;
+    el.addEventListener('change', function() { saveTurnFields(); if (window.wpNet && window.wpNet.active) toast('Relay saved \u2014 applies the next time you host or join.'); });
+    el.addEventListener('keydown', function(e) { e.stopPropagation(); });
+});
+var _turnTest = ui('setTurnTestBtn');
+if (_turnTest) _turnTest.addEventListener('click', function() {
+    saveTurnFields();
+    var st = ui('setTurnState'); if (st) st.textContent = 'testing\u2026';
+    _turnTest.disabled = true;
+    window.wpNet.testRelay().then(function(r) {
+        _turnTest.disabled = false;
+        if (st) st.textContent = r.ok ? 'working \u2713' : 'not working';
+        toast(r.ok ? 'Relay works: ' + r.detail : r.detail);
+    });
+});
+var _turnClear = ui('setTurnClearBtn');
+if (_turnClear) _turnClear.addEventListener('click', function() {
+    ['setTurnUrls', 'setTurnUser', 'setTurnPass'].forEach(function(id) { var el = ui(id); if (el) el.value = ''; });
+    saveTurnFields(); toast('Relay removed \u2014 direct connections only.');
+});
+loadTurnFields();
+
 /* Relay-only connections: a per-machine preference read by net.js when a Peer is created */
 var _relayBtn = ui('setRelayBtn');
 if (_relayBtn) _relayBtn.addEventListener('click', function() {

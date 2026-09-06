@@ -859,6 +859,17 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows what players see and updates as you play.</div>
             <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you.">Reset Multiplayer Identity</button>
             <!-- Relay-only connections: hidden until Waypoint has a working TURN relay again (openrelay.metered.ca stopped allocating, Sept 2026). The code path in net.js/peerOpts() is complete. -->
+            <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Relay server <span id="setTurnState" style="color:var(--dim);"></span></div>
+            <div style="font-size:11px; color:var(--dim); line-height:1.45; margin-bottom:6px;">For players who sit at "Connecting\u2026" forever (carrier-grade NAT, common on mobile and outside the US/EU). Only the GM needs this: paste a TURN relay's address and credentials from your provider. Kept on this machine only.</div>
+            <input type="text" id="setTurnUrls" placeholder="turn:relay.example.com:443?transport=tcp  (one or more, space-separated)" style="width:100%; box-sizing:border-box; margin-bottom:6px;" autocomplete="off" spellcheck="false">
+            <div style="display:flex; gap:6px; margin-bottom:6px;">
+                <input type="text" id="setTurnUser" placeholder="username" style="flex:1; box-sizing:border-box;" autocomplete="off" spellcheck="false">
+                <input type="password" id="setTurnPass" placeholder="credential" style="flex:1; box-sizing:border-box;" autocomplete="off">
+            </div>
+            <div style="display:flex; gap:6px;">
+                <button class="tool ghost" id="setTurnTestBtn" style="flex:1;" title="Ask the relay for an address. Works = it will carry your table for players who can't connect directly.">Test Relay</button>
+                <button class="tool ghost" id="setTurnClearBtn" style="padding:4px 10px;" title="Forget the relay">Clear</button>
+            </div>
             <div id="setRelayBlock" style="display:none;">
             <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Firewall-friendly connections <span id="setRelayState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setRelayBtn" style="width:100%;" title="Send all multiplayer traffic through the relay server instead of connecting machine to machine. Stops firewalls (Avira, Norton, some routers) from reading a player's join as a port scan and blocking them. A touch more latency. Takes effect the next time you host or join.">Toggle Relay-Only Connections</button>

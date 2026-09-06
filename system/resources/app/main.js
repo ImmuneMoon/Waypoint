@@ -299,7 +299,10 @@ waitForInstanceLock(8000, function() {
             // External links (target=_blank, e.g. the About panel) open in the
             // user's default browser instead of a new Electron window.
             win.webContents.setWindowOpenHandler(({ url }) => {
-                if (url.startsWith('http://localhost')) return { action: 'allow' };
+                if (url.startsWith('http://localhost')) {
+                    // Waypoint's own child windows (the stream window): same look as the main one, no menu bar
+                    return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico'), width: 1280, height: 720, backgroundColor: '#15151c' } };
+                }
                 require('electron').shell.openExternal(url);
                 return { action: 'deny' };
             });

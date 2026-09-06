@@ -1012,22 +1012,58 @@ function makeCode() {
 // relay carries only DTLS-encrypted WebRTC traffic and can't read any of it.
 // Open Relay (metered.ca) is a long-running free public TURN service; dead or
 // unreachable entries are simply skipped by ICE.
-var ICE_SERVERS = [
+/* ICE servers. STUN finds each side's public address; a direct path then works for most
+   home networks. Players behind carrier-grade NAT (many mobile and some fibre providers,
+   common outside the US/EU) can only connect through a relay (TURN). The free public relay
+   Waypoint once used has shut down, so the GM configures their own in Settings ▸ Relay server
+   (stored under turn_* keys, which stay on this machine — never mirrored to the saves folder).
+   One side with a relay is enough: the host's relayed address is reachable from anywhere. */
+var STUN_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    { urls: 'stun:stun1.l.google.com:19302' }
 ];
+function turnConfig() {
+    var urls = [], user = '', pass = '';
+    try {
+        urls = String(localStorage.getItem('turn_urls') || '').split(/[\s,]+/).filter(function(u) { return /^turns?:/i.test(u); });
+        user = localStorage.getItem('turn_user') || ''; pass = localStorage.getItem('turn_pass') || '';
+    } catch (e) {}
+    if (!urls.length) return null;
+    return { urls: urls, username: user, credential: pass };
+}
+net.turnConfig = turnConfig;
+function iceServers() {
+    var t = turnConfig();
+    return t ? STUN_SERVERS.concat([t]) : STUN_SERVERS.slice();
+}
 // Settings ▸ Firewall-friendly connections (wp_relayOnly): force every path through the relay.
 // A direct connection attempt probes many ports in a burst, which some firewalls (Avira, Norton,
 // some routers) flag as a port scan and block for minutes — dropping the player mid-join.
 // With relay-only ICE the only traffic the firewall sees is one relay endpoint.
 function relayOnly() { try { return localStorage.getItem('wp_relayOnly') === '1'; } catch (e) { return false; } }
 function peerOpts() {
-    var cfg = { iceServers: ICE_SERVERS };
-    if (relayOnly()) cfg.iceTransportPolicy = 'relay';
+    var cfg = { iceServers: iceServers() };
+    if (relayOnly() && turnConfig()) cfg.iceTransportPolicy = 'relay';   // relay-only means nothing without a relay
     return { config: cfg };
 }
+/* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
+   arrives. Resolves { ok, detail }. Used by the Test button in Settings. */
+net.testRelay = function() {
+    var t = turnConfig();
+    if (!t) return Promise.resolve({ ok: false, detail: 'No relay configured.' });
+    return new Promise(function(resolve) {
+        var pc, done = false, errs = [];
+        var finish = function(ok, detail) { if (done) return; done = true; try { pc.close(); } catch (e) {} resolve({ ok: ok, detail: detail }); };
+        try { pc = new RTCPeerConnection({ iceServers: [t], iceTransportPolicy: 'relay' }); }
+        catch (e) { return resolve({ ok: false, detail: 'Bad relay settings: ' + (e.message || e) }); }
+        pc.createDataChannel('probe');
+        pc.onicecandidate = function(e) { if (e.candidate && e.candidate.type === 'relay') finish(true, 'Relay answered (' + e.candidate.protocol + ' ' + e.candidate.address + ').'); };
+        pc.onicecandidateerror = function(e) { errs.push((e.errorCode || '') + ' ' + (e.errorText || '')); };
+        pc.onicegatheringstatechange = function() { if (pc.iceGatheringState === 'complete') finish(false, errs.length ? 'Relay refused: ' + errs[errs.length - 1].trim() : 'No answer from the relay.'); };
+        pc.createOffer().then(function(o) { return pc.setLocalDescription(o); }).catch(function(e) { finish(false, String(e.message || e)); });
+        setTimeout(function() { finish(false, errs.length ? 'Relay refused: ' + errs[errs.length - 1].trim() : 'No answer from the relay (10 s). Check the address, port and credentials.'); }, 10000);
+    });
+};
 
 /* Crash recovery: the last room code is remembered for a while, so a GM whose
    app died mid-session can relaunch, press Host again, and get the SAME code —
@@ -1110,6 +1146,20 @@ function joinSession(code, name, isRetry) {
     peer.on('open', function() {
         var conn = peer.connect('waypoint-' + code.toLowerCase(), { reliable: true });
         net.conns = [conn];
+        // No path within 25 s (or ICE gives up sooner): say so. This is what a player behind
+        // carrier-grade NAT sees when the GM has no relay configured.
+        var joinTimer = setTimeout(function() { if (!conn.open && net.peer === peer && !reconn.pending) joinFailed('No route to the GM\'s table after 25 s.'); }, 25000);
+        conn.on('iceStateChanged', function(s) { if ((s === 'failed' || s === 'closed') && !conn.open && net.peer === peer && !reconn.pending) joinFailed('Your network and the GM\'s could not reach each other (ICE ' + s + ').'); });
+        conn.on('open', function() { clearTimeout(joinTimer); });
+        function joinFailed(why) {
+            clearTimeout(joinTimer);
+            try { peer.destroy(); } catch (e) {}
+            net.peer = null; net.conns = []; net.active = false; net.role = null; net.code = null;
+            setIndicator(null);
+            setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
+            toast('Could not reach the GM\'s table \u2014 see the Multiplayer panel.');
+            var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex';
+        }
         conn.on('open', function() {
             var wasRetry = reconn.pending;
             cancelReconnect();
@@ -1175,7 +1225,7 @@ function assetMime(path) {
 // Resolve an image path for display. Host/solo: the path itself.
 // Client in a session: cached blob URL, requesting it from the host if new.
 net.assetSrc = function(path) {
-    if (!path || !net.active || net.role !== 'client') return path;
+    if (!path || !net.active || net.role !== 'client' || net.stream) return path;   // the stream window reads images straight from the local server
     if (/^(data:|blob:)/.test(path)) return path;   // already self-contained
     if (assetCache[path]) return assetCache[path];
     if (!assetPending[path] && net.conns[0] && net.conns[0].open) {

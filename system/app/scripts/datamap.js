@@ -562,6 +562,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function attachDrag(el, modeStr){
       var startX,startY,moved,dragging=false,item;
       var multiDrag = [];
+      var lastPX = 0, lastPY = 0;   // where the pointer last was, for a drag that ends without a pointerup
 
       el.addEventListener('pointerdown',function(e){
         if(e.button!==undefined && e.button!==0) return;
@@ -690,6 +691,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       el.addEventListener('pointermove',function(e){
         if(!dragging) return;
+        lastPX = e.clientX; lastPY = e.clientY;
         var dx = (e.clientX - startX) / state.zoomLevel;
         var dy = (e.clientY - startY) / state.zoomLevel;
         if(Math.abs(dx)>3||Math.abs(dy)>3) moved=true;
@@ -722,6 +724,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         if (modeStr === 'visual' && window.wpUpdateHandles) window.wpUpdateHandles();   // dots follow the drag (single or multi)
       });
 
+      // A drag can lose its pointer without a pointerup: the cursor leaves the window, the
+      // window loses focus, the OS cancels the gesture. The item then stayed "held" and jumped
+      // to the pointer whenever it passed by. End the drag where the pointer last was instead.
+      function abortDrag(e) {
+          if (!dragging) return;
+          el.dispatchEvent(new PointerEvent('pointerup', { pointerId: (e && e.pointerId) || 1, clientX: lastPX, clientY: lastPY, button: 0 }));
+      }
+      el.addEventListener('pointercancel', abortDrag);
+      el.addEventListener('lostpointercapture', function(e) { if (dragging) abortDrag(e); });
+      window.addEventListener('blur', function() { abortDrag(null); });
       el.addEventListener('pointerup',function(e){
         if(!dragging) return;
         dragging=false; el.classList.remove('dragging');
@@ -895,8 +907,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               currentDrawItem = document.createElement('div');
 
               currentDrawItem.className = 'wb-item path';
-
               currentDrawItem.style.pointerEvents = 'none';
+              currentDrawItem.style.zIndex = '35';
 
               currentDrawItem.style.zIndex = 40;
 
@@ -1153,7 +1165,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               
 
               var item = Object.assign({ id: 'wb'+uid(), type: 'path', x: drawMinX, y: drawMinY, w: w, h: h, baseW: w, baseH: h, z: 10, pts: normalized, color: (state.drawColor || 'var(--ink)'), strokeWidth: (state.drawStrokeWidth || 3) }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
-
+              if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
+                  // a player's drawing: signed with their id so the host accepts it and only they (or the GM) can erase it
+                  item.ownerId = window.wpNet.myId; item.byPlayer = true;
+              }
               getActiveMap().whiteboard.push(item);
 
               currentDrawItem.remove();

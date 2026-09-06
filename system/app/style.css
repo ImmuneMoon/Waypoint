@@ -61,7 +61,7 @@
   body.net-client #searchCampBtn, body.net-client #newCampBtn, body.net-client #renameCampBtn, body.net-client #delCampBtn,
   body.net-client #campaignSelect, body.net-client #plannerTools,
   body.net-client #wbUndoBtn, body.net-client #wbRedoBtn, body.net-client #wbGridBtn, body.net-client #wbSnapBtn,
-  body.net-client #drawModeBtn, body.net-client #eraserModeBtn, body.net-client #shapeTextBtn,
+  body.net-client #shapeTextBtn,
   body.net-client #shapeMenuBtn, body.net-client #addImageBtn, body.net-client #clearWbBtn,
   body.net-client .wb-tool-sep {
       display: none !important;
@@ -351,6 +351,31 @@
   #eraserCursor.pressed { border-color: var(--red); background: rgba(217,83,79,0.28); }
   .wb-item.path { line-height: 0; }
   .wb-item.path svg { display: block; }
+  /* A drawing's box lets clicks through to whatever is under it (a token under an arrow
+     stays grabbable); only the stroke itself is clickable, so the GM can still pick one up.
+     Players never pick drawings up at all — they erase their own with the eraser. */
+  .wb-item.path { pointer-events: none; }
+  .wb-item.path svg path { pointer-events: stroke; }
+  .wb-item.path.sel { pointer-events: auto; }
+  body.net-client .wb-item.path svg path { pointer-events: none; }
+  /* ---- stream window: only the play map ---- */
+  body.stream-mode header, body.stream-mode #campaignSidebar, body.stream-mode #leftGrip, body.stream-mode #rightGrip,
+  body.stream-mode #sidebar, body.stream-mode #wbFloatingToolbar, body.stream-mode #selToolbar, body.stream-mode #minimap,
+  body.stream-mode #saveNote, body.stream-mode #toast, body.stream-mode #updateBanner, body.stream-mode #updateBtn,
+  body.stream-mode #pauseBanner, body.stream-mode #rulerTop, body.stream-mode #rulerLeft, body.stream-mode #wbTooltip,
+  body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox, body.stream-mode [id$="Modal"] { display: none !important; }
+  body.stream-mode #whiteboardWrap, body.stream-mode #whiteboardWrap * { cursor: grab !important; }
+  body.stream-mode .wb-item.wb-absent { opacity: 1 !important; filter: none !important; }
+  #streamBar {
+    position: fixed; top: 8px; left: 8px; z-index: 100000; display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px 6px 10px; background: rgba(21,21,28,0.88); border: 1px solid var(--edge); border-radius: 8px;
+    font-size: 12px; color: var(--ink); backdrop-filter: blur(4px); transition: opacity .25s;
+  }
+  #streamBar.hidden { opacity: 0; pointer-events: none; }
+  #streamBar label { color: var(--dim); }
+  #streamBar select { font-size: 12px; max-width: 320px; }
+  #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
+  #streamBar .tool { padding: 2px 7px; font-size: 11px; }
   
   #globalResizeHandle {
       position: absolute; width: 14px; height: 14px; background: var(--gold);

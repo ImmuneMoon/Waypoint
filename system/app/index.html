@@ -69,6 +69,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/settings.js"></script>
 <script type="module" src="scripts/tips.js"></script>
+<script type="module" src="scripts/stream.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -337,6 +338,8 @@ window.addEventListener('unhandledrejection', function(e) {
                       <ul>
                           <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
                           <li><b>Split party:</b> a player can double-click a door/stairs portal to move to that map alone. The roster shows where everyone is; <b>Summon All</b> pulls the whole party back to you, and the &#128227; beside a name fetches just that player.</li>
+                          <li><b>Stream window:</b> Settings &#9654; Open Stream Window gives you a second window with only the play map, as players see it. Screen-share it for someone watching without the app; its corner menu follows your map or focuses one.</li>
+                          <li><b>Player drawings:</b> players have the pen and eraser too. Their marks ride above tokens without blocking them, and they can only erase their own.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to message everyone, or pick one player to send a private whisper.</li>
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
@@ -786,6 +789,12 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 </div>
 
+<div id="streamBar" style="display:none;">
+    <span class="stream-dot" title="Live: this window mirrors your table as players see it"></span>
+    <label for="streamFocus">Showing</label>
+    <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select>
+    <button class="tool ghost" id="streamHideBtn" title="Hide this bar (move the mouse to the top-left corner to bring it back)">&#10005;</button>
+</div>
 <div id="pauseBanner">&#9208;&#65039; The GM has paused the table &mdash; chat is still open</div>
 
 <div id="updateBanner" role="status" style="display:none;">
@@ -845,6 +854,9 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <div class="set-field-label" style="margin-top:14px;">Stream window</div>
+            <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, exactly as players see it (no GM notes, hidden items stay hidden). Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map to focus in its corner menu.">&#128250; Open Stream Window</button>
+            <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows what players see and updates as you play.</div>
             <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you.">Reset Multiplayer Identity</button>
             <!-- Relay-only connections: hidden until Waypoint has a working TURN relay again (openrelay.metered.ca stopped allocating, Sept 2026). The code path in net.js/peerOpts() is complete. -->
             <div id="setRelayBlock" style="display:none;">

@@ -162,6 +162,14 @@ if (_mmBtn) _mmBtn.addEventListener('click', function() {
     syncPanel();
 });
 
+/* Stream window: a second window showing only the play map, as players see it, for screen-sharing */
+var _streamBtn = ui('setStreamBtn');
+if (_streamBtn) _streamBtn.addEventListener('click', function() {
+    var w = window.open(location.origin + '/?stream=1', 'waypointStream', 'width=1280,height=720');
+    if (!w) { toast('Could not open the window — allow pop-ups for Waypoint.'); return; }
+    toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
+});
+
 /* Relay-only connections: a per-machine preference read by net.js when a Peer is created */
 var _relayBtn = ui('setRelayBtn');
 if (_relayBtn) _relayBtn.addEventListener('click', function() {

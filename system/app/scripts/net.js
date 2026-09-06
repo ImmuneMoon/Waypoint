@@ -371,15 +371,49 @@ function applyClientItemFiltered(msg, profile) {
     var changed = false;
     var liveById = {};
     (liveItem.whiteboard || []).forEach(function(w) { liveById[w.id] = w; });
+    var sentIds = {};
+    var ownStrokes = 0;
     msg.item.whiteboard.forEach(function(w) {
+        if (!w || typeof w.id !== 'string') return;
+        sentIds[w.id] = true;
         var lw = liveById[w.id];
-        if (!lw || lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
+        if (!lw) {
+            // New item: only a drawing signed with this player's id, in a sane shape
+            var stroke = playerStroke(w, profile.id);
+            if (stroke && ownStrokes++ < 400) { liveItem.whiteboard.push(stroke); changed = true; }
+            return;
+        }
+        if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
+        if (lw.type === 'path' && lw.byPlayer) {
+            var re = playerStroke(w, profile.id);
+            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; }
+            return;
+        }
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
         }
     });
+    // A player's own drawing missing from their copy was erased by them
+    var before = liveItem.whiteboard.length;
+    liveItem.whiteboard = liveItem.whiteboard.filter(function(w) { return !(w.type === 'path' && w.byPlayer && w.ownerId === profile.id && !sentIds[w.id]); });
+    if (liveItem.whiteboard.length !== before) changed = true;
     return changed;
+}
+
+// A drawing a player may hand the host: a freehand path signed with their id, whitelisted fields only.
+function playerStroke(w, pid) {
+    if (!w || w.type !== 'path' || w.ownerId !== pid || !Array.isArray(w.pts)) return null;
+    if (w.pts.length < 2 || w.pts.length > 4000) return null;
+    var num = function(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; };
+    var pts = [];
+    for (var i = 0; i < w.pts.length; i++) { var p = w.pts[i]; if (!Array.isArray(p) || p.length < 2) return null; pts.push([num(p[0], 0), num(p[1], 0)]); }
+    var color = (typeof w.color === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d.,\s%]+\)|var\(--[a-z0-9-]+\)|[a-z]{3,20})$/i.test(w.color)) ? w.color : '#e9e9f0';
+    var out = { id: w.id, type: 'path', x: num(w.x, 0), y: num(w.y, 0), w: Math.max(1, num(w.w, 10)), h: Math.max(1, num(w.h, 10)),
+                baseW: Math.max(1, num(w.baseW, num(w.w, 10))), baseH: Math.max(1, num(w.baseH, num(w.h, 10))), z: 35, pts: pts,
+                color: color, strokeWidth: Math.min(40, Math.max(1, num(w.strokeWidth, 3))), ownerId: pid, byPlayer: true };
+    if (typeof w.opacity === 'number' && w.opacity >= 0 && w.opacity <= 1) out.opacity = w.opacity;
+    return out;
 }
 
 function applySnapshot(msg) {
@@ -430,23 +464,42 @@ net.onLocalSave = function() {
         else _lastPatchHash[patch.itemId] = hs;
     }
     if (patch) broadcast(patch, null);
-    if (net.role === 'host') {
-        var stage = currentStage();
-        var key = stage ? stage.campId + '/' + stage.itemId : '';
-        if (key && key !== net.lastStage) {
-            net.lastStage = key;
-            // only players still following the GM are moved; detached wanderers stay put
-            net.conns.forEach(function(c) {
-                var p = net.roster[c.peer];
-                if (p && p.detached) return;
-                if (p) { p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId); }
-                if (c.open) { try { c.send({ type: 'stage', stage: stage }); } catch (e) {} }
-            });
-            renderRoster();
-            broadcastRoster();
-        }
-    }
+    if (net.role === 'host') scheduleStageFollow();
 };
+
+/* The table follows the GM's map, but only once they have stayed on it for a moment:
+   a quick detour to another map (to fetch a stray token, check a note) no longer drags
+   the whole party along and back. Pinning a map in the Host panel bypasses this entirely. */
+var STAGE_GRACE_MS = 3000;
+var _stageTimer = null, _stageHintShown = false;
+function scheduleStageFollow() {
+    var stage = currentStage();
+    var key = stage ? stage.campId + '/' + stage.itemId : '';
+    if (!key || key === net.lastStage) return;
+    if (_stageTimer) clearTimeout(_stageTimer);
+    _stageTimer = setTimeout(function() {
+        _stageTimer = null;
+        if (!net.active || net.role !== 'host') return;
+        var s2 = currentStage();
+        var k2 = s2 ? s2.campId + '/' + s2.itemId : '';
+        if (!k2 || k2 === net.lastStage) return;
+        net.lastStage = k2;
+        var moved = 0;
+        // only players still following the GM are moved; detached wanderers stay put
+        net.conns.forEach(function(c) {
+            var p = net.roster[c.peer];
+            if (p && p.detached) return;
+            if (p) { p.location = s2.itemId; ensurePlayerToken(p.id, s2.itemId); moved++; }
+            if (c.open) { try { c.send({ type: 'stage', stage: s2 }); } catch (e) {} }
+        });
+        renderRoster();
+        broadcastRoster();
+        if (moved && !net.stageOverride && !_stageHintShown) {
+            _stageHintShown = true;
+            toast('The table followed you here (' + moved + ' player' + (moved > 1 ? 's' : '') + '). To browse maps without moving them, pin a map under Players arrive at.');
+        }
+    }, STAGE_GRACE_MS);
+}
 
 /* ---------- table pause ---------- */
 // Applies the pause state locally (banner, dimming, button label). Only the
@@ -596,8 +649,10 @@ net.requestTravel = function(viaItemId) {
 function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster }, null); }
 
 // Is this player currently on the given map? (self is always present to itself)
+net.sanitizeAppState = sanitizeAppState;   // the stream window shows exactly what players may see
+net.applyStage = applyStage;
 net.isPresent = function(ownerId, mapId) {
-    if (!net.active) return true;                                  // solo: everything shows
+    if (!net.active || net.stream) return true;                    // solo, or the stream window: everything shows
     if (net.role === 'client' && ownerId === net.myId) return true;
     return Object.values(net.roster).some(function(p) { return p && p.id === ownerId && p.location === mapId; });
 };

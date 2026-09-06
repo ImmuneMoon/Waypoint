@@ -22,6 +22,28 @@ Fixes
 - On a player's screen, a token the GM revealed drew its picture at full
   pixel size (the grey placeholder's frame was reused without the image
   styling). Revealed items now rebuild their frame for their real kind.
+- A token dragged off the window edge could stay "held" and leap to the
+  pointer whenever it came near. A drag that loses its pointer (cursor left
+  the window, focus changed) now ends where the pointer last was.
+
+Drawing for players
+- Players now have the pen and the eraser. Their strokes show on everyone's
+  map, ride above tokens, and never get in the way: a drawing's box lets
+  clicks through, so a token under an arrow is still grabbable. Players can
+  erase only their own marks; the GM can erase anything.
+
+Stream window
+- Settings ▸ Open Stream Window opens a second window with only the play
+  map, exactly as players see it (no GM notes, hidden items stay hidden),
+  updating as you play. Screen-share it in Discord or OBS for someone
+  watching without the app. Its corner menu follows your current map or
+  focuses one map until you change it.
+
+Table follows you, but not on a quick detour
+- When "Players arrive at" is Follow me, the table now waits three seconds
+  after you switch maps before moving the party, so a hop to another map to
+  grab a stray token no longer drags everyone along. A one-time toast reminds
+  you that pinning a map keeps the party put while you browse.
 
 Summon one player
 - Each name in the host panel's player list now has a 📣 button that brings

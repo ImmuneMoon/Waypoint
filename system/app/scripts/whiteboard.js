@@ -336,6 +336,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var layerZ = { 'back': 10, 'back-mid': 15, 'middle': 20, 'front-mid': 25, 'front': 30 };
 
           if (item.layer && layerZ[item.layer]) z = layerZ[item.layer];
+          // Drawings ride above tokens (a GM's arrows and a player's marks must stay readable),
+          // and their box passes clicks through — only the stroke itself is clickable (CSS).
+          if (item.type === 'path' && !item.layer) z = Math.max(z, 35);
 
           // Per-item exception: render above the grid overlay (z 15000)
           if (item.aboveGrid) z += 15020;
@@ -1613,8 +1616,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if(!m || !m.whiteboard) return;
       var changed = false;
       var out = [];
+      var eraserClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
       m.whiteboard.forEach(function(item) {
           if (item.type !== 'path' || !item.pts || item.locked) { out.push(item); return; }
+          if (eraserClient && item.ownerId !== window.wpNet.myId) { out.push(item); return; }   // players erase only their own marks
           var sx = item.w / (item.baseW || item.w || 1);
           var sy = item.h / (item.baseH || item.h || 1);
           var reach = (state.eraserSize || 6) + (item.strokeWidth || 3) / 2;

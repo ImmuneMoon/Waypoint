@@ -171,7 +171,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             migrated = migrateAppState(data);
             state.appState = migrated.data;
         }
-        if (window.wpNet) window.wpNet.foreign = false;   // this is our own campaign again
+        if (window.wpStream && window.wpNet && window.wpNet.sanitizeAppState) state.appState = window.wpNet.sanitizeAppState(state.appState);   // stream window: players' view only
+        if (window.wpNet) window.wpNet.foreign = !!window.wpStream;   // our own campaign again (the stream window never owns one)
 
         
 

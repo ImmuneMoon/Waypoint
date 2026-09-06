@@ -26,12 +26,14 @@ const mainSrc = fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'main.js')
 const REPO = (mainSrc.match(/const UPDATE_REPO = '([^']+)'/) || [])[1];
 const ISCC = process.env.ISCC || 'D:\\Files\\Programs\\Inno Setup 6\\ISCC.exe';
 const PUBLISH = process.argv.includes('--publish');
+const NOTES_ONLY = process.argv.includes('--notes-only');   // just regenerate RELEASE_NOTES.md
 
 const dist = path.join(ROOT, 'dist', VERSION);
 fs.mkdirSync(dist, { recursive: true });
 const zipName = 'waypoint-app-' + VERSION + '.zip';
 const zipPath = path.join(dist, zipName);
 
+if (!NOTES_ONLY) {
 // 1. app zip (PowerShell's Compress-Archive: deflate entries, which updater.js reads)
 console.log('Zipping system/app ->', zipName);
 if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
@@ -46,12 +48,39 @@ fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify({ version: VER
 console.log('Compiling installer with Inno Setup...');
 execSync(`"${ISCC}" "${path.join(ROOT, 'installer.iss')}"`, { stdio: 'inherit' });
 fs.copyFileSync(path.join(ROOT, 'Waypoint_Setup.exe'), path.join(dist, 'Waypoint_Setup.exe'));
+}
 
-// 4. notes: the top section of WHATSNEW.txt
-const notesAll = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8');
-const sections = notesAll.split(/\n(?=WAYPOINT \d)/);
-const notes = (sections[0] || '').trim();
-fs.writeFileSync(path.join(dist, 'RELEASE_NOTES.md'), notes + '\n');
+// 4. notes: the top section of WHATSNEW.txt, turned into markdown for the GitHub Release body
+//    (the app shows the same body as plain text under Notes, so the markdown stays light).
+function buildNotes() {
+    const all = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n');
+    const top = (all.split(/\n(?=WAYPOINT \d)/)[0] || '').trim().split('\n');
+    const out = ['# Waypoint ' + VERSION];
+    let bullet = null;
+    const flush = () => { if (bullet) { out.push('- ' + bullet); bullet = null; } };
+    for (const raw of top.slice(2)) {                       // skip the title and its ==== underline
+        const line = raw.replace(/\s+$/, '');
+        if (!line) { flush(); continue; }
+        if (/^- /.test(line)) { flush(); bullet = line.slice(2).trim(); continue; }
+        if (/^\s/.test(line) && bullet) { bullet += ' ' + line.trim(); continue; }   // wrapped bullet line
+        flush(); out.push('', '### ' + line.trim(), '');
+    }
+    flush();
+    const hot = MIN_SHELL !== VERSION;   // app-only release: older shells can swap it in place
+    out.push('', '### Updating', '',
+        hot ? '- **From inside Waypoint:** press the gold **Update** button in the top bar when it appears (1.1.3 and newer), or Settings ▸ Check for Updates ▸ Update Now (1.1.2). It downloads this release, swaps it in and reloads in a few seconds. Saves and settings are kept.'
+            : "- **From inside Waypoint:** this release changes the app's core, so the Update button (or Settings ▸ Check for Updates) offers the installer instead. Run Waypoint_Setup.exe over your copy; saves and settings are kept.",
+        '- **Fresh install, or older than 1.1.2:** download **Waypoint_Setup.exe** and run it. Windows SmartScreen may warn because the installer is not code-signed: choose *More info*, then *Run anyway*. No admin rights are needed.',
+        '', '### Files in this release', '',
+        '- **Waypoint_Setup.exe** — the full installer, for new installs and for updates that change the core.',
+        '- **' + zipName + '** — the app itself, fetched by the in-app Update button.',
+        '- **' + zipName + '.sha256** — checksum the app verifies before installing that zip.',
+        '- **manifest.json** — tells older versions whether they can update in place or need the installer.',
+        '', 'A GM on a newer version turns away players on older ones until they update, so update before session day.');
+    return out.join('\n') + '\n';
+}
+const notes = buildNotes();
+fs.writeFileSync(path.join(dist, 'RELEASE_NOTES.md'), notes);
 
 console.log('\nBuilt', dist);
 console.log('  ' + fs.readdirSync(dist).join('\n  '));

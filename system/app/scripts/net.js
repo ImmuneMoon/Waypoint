@@ -188,7 +188,8 @@ function renderRoster() {
     }
     var badge = ui('netBtn');
     if (badge) badge.classList.toggle('net-live', net.active);
-    document.body.classList.toggle('net-client', net.active && net.role === 'client');
+    // Spectator chrome stays while a host's campaign is on screen, connected or not (net.foreign)
+    document.body.classList.toggle('net-client', (net.active && net.role === 'client') || !!net.foreign);
 }
 function escTextRoster(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1143,6 +1144,13 @@ function joinSession(code, name, isRetry) {
     net.myId = profile.id;
     var peer = new Peer(peerOpts());
     net.peer = peer; net.role = 'client'; net.code = code;
+    if (isRetry) {
+        // Still at the GM's table as far as the player is concerned: the GM's campaign is on
+        // screen, so the spectator rules (no sidebars, no editing, no planners) must hold
+        // through every retry, not lapse between attempts.
+        net.active = true;
+        renderRoster(); syncSessionButtons();
+    }
     if (!isRetry) setStatus('Connecting to ' + code.toUpperCase() + '...');
     peer.on('open', function() {
         var conn = peer.connect('waypoint-' + code.toLowerCase(), { reliable: true });

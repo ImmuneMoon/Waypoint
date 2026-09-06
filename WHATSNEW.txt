@@ -5,6 +5,11 @@ Fixes
 - After a one-click update the version shown in Settings and About stayed
   at the old number (the update check already knew better). Both now show
   the version of the app files actually running.
+- While a player was reconnecting after a dropped link, the spectator rules
+  lapsed between attempts: the sidebars, planners and editing tools appeared
+  and tokens could be moved (never saved, but still wrong). A reconnecting
+  player now stays a spectator until they reattach or get their own
+  campaign back.
 
 WAYPOINT 1.1.5 — What's New
 ============================

@@ -1,4 +1,4 @@
-WAYPOINT 1.1.3 — What's New
+WAYPOINT 1.2.0 — What's New
 ============================
 
 Fixes
@@ -8,8 +8,8 @@ Fixes
   while the GM was deciding). The player saw "Connection lost — reconnecting",
   looped through 30 attempts, and some firewalls reported the burst of retries
   as a port scan. The host now ignores heartbeats from players it hasn't
-  admitted yet, and the player says hello first. Only the GM needs 1.1.3 for
-  this — players on 1.1.2 join a 1.1.3 host fine.
+  admitted yet, and the player says hello first. Only the GM needs this version
+  for the fix — players on 1.1.2 join a 1.2.0 host fine.
 - A player's own campaign could be overwritten by the GM's: while a player
   was reconnecting, the app briefly counted them as "not in a session" and a
   routine save wrote the GM's table (the player-visible parts of it) to their
@@ -25,6 +25,9 @@ Fixes
 - A token dragged off the window edge could stay "held" and leap to the
   pointer whenever it came near. A drag that loses its pointer (cursor left
   the window, focus changed) now ends where the pointer last was.
+- The version Waypoint reports now travels with the app files, so after a
+  one-click update the app knows it is on the new version (before, an
+  updated copy could keep offering the same release).
 
 Drawing for players
 - Players now have the pen and the eraser. Their strokes show on everyone's

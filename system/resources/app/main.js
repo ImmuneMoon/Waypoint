@@ -52,12 +52,24 @@ function backupOnLaunch() {
 }
 backupOnLaunch();
 
-const updateHandler = updater.makeHandler({
+// The version Waypoint reports is the newer of the shell's package.json and system/app/version.json.
+// A hot update replaces system/app only, so version.json is what moves the number forward;
+// it is read on every request so a freshly swapped app is reported right after its reload.
+function appVersion() {
+    let v = SHELL_VERSION;
+    try {
+        const j = JSON.parse(fs.readFileSync(path.join(rootDir, 'system', 'app', 'version.json'), 'utf8'));
+        if (j && j.version && updater.cmpVersion(j.version, v) > 0) v = String(j.version);
+    } catch (e) { /* no version.json: the shell's own version stands */ }
+    return v;
+}
+const updateCfg = {
     repo: UPDATE_REPO,
-    currentVersion: SHELL_VERSION,
     shellVersion: SHELL_VERSION,
     systemDir: path.join(rootDir, 'system'),
-});
+};
+Object.defineProperty(updateCfg, 'currentVersion', { get: appVersion, enumerable: true });
+const updateHandler = updater.makeHandler(updateCfg);
 
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -92,7 +104,7 @@ const server = http.createServer((req, res) => {
 
     if (url.pathname === '/api/version') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ version: require('./package.json').version }));
+        return res.end(JSON.stringify({ version: appVersion(), shell: SHELL_VERSION }));
     }
     
 

@@ -63,7 +63,7 @@ Players update from inside the app: **Settings ▸ Check for Updates** looks at 
 
 To cut a release:
 
-1. Bump the version in `system/resources/app/package.json` and `installer.iss`, and add a section at the top of `WHATSNEW.txt` and `system/app/assets/whatsnew.txt`. If `main.js` or `updater.js` changed, set `MIN_SHELL` in `tools/release.js` to the new version so older shells are steered to the installer.
+1. Bump the version in `system/resources/app/package.json` and `installer.iss`, and add a section at the top of `WHATSNEW.txt` and `system/app/assets/whatsnew.txt`. The release script writes `system/app/version.json` from `package.json`; that file ships inside the app zip and is what an updated copy reports as its version. If `main.js` or `updater.js` changed, set `MIN_SHELL` in `tools/release.js` to the new version so older shells are steered to the installer.
 2. Build:
 
    ```bash

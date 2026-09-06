@@ -285,6 +285,13 @@ function updateUI() {
 function checkUpdates(force, quiet) {
     var st = ui('setUpdateState'); if (st && !quiet) st.textContent = 'checking…';
     return fetch('/api/update-check' + (force ? '?force=1' : ''), { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(i) {
+        // An old shell reports its own version even after a hot update; the app folder knows better.
+        if (i && i.latest && window.wpAppVersion && !i.error) {
+            var mine = String(window.wpAppVersion).split('-')[0];
+            var vc = function(x, y) { var p = x.split('.').map(Number), q = y.split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; };
+            if (vc(mine, i.latest) >= 0) { i.newer = false; i.canHotUpdate = false; i.needsInstaller = false; }
+            if (vc(mine, String(i.current || '0')) > 0) i.current = mine;
+        }
         _upd.info = i; updateUI();
         showUpdateButton(i);
         if (i && i.newer) showUpdateBanner(i); else hideUpdateBanner();

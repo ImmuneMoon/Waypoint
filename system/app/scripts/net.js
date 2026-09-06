@@ -23,7 +23,18 @@ import { showConfirm } from './dialogs.js';
    with a plain "update Waypoint" message, so a table never runs mixed versions. */
 var APP_VERSION = null;
 var newerSeen = {};   // player versions newer than ours that the GM has already been told about this session
-fetch('/api/version').then(function(r) { return r.json(); }).then(function(v) { APP_VERSION = (v && v.version) ? String(v.version) : null; }).catch(function() {});
+// The shell's /api/version (older shells report only their own package.json) and the app folder's
+// own version.json: the newer wins. After a hot update on an old shell only version.json moved.
+Promise.all([
+    fetch('/api/version').then(function(r) { return r.json(); }).catch(function() { return null; }),
+    fetch('version.json', { cache: 'no-store' }).then(function(r) { return r.json(); }).catch(function() { return null; }),
+]).then(function(vs) {
+    var a = vs[0] && vs[0].version ? String(vs[0].version) : null;
+    var b = vs[1] && vs[1].version ? String(vs[1].version) : null;
+    APP_VERSION = (a && b) ? (versionCmp(b, a) > 0 ? b : a) : (a || b);
+    window.wpAppVersion = APP_VERSION;
+    document.dispatchEvent(new CustomEvent('wp-version', { detail: APP_VERSION }));
+});
 function versionCmp(a, b) {   // numeric major.minor.patch; anything after a '-' is ignored
     var pa = String(a || '0').split('-')[0].split('.').map(function(x) { return parseInt(x, 10) || 0; });
     var pb = String(b || '0').split('-')[0].split('.').map(function(x) { return parseInt(x, 10) || 0; });

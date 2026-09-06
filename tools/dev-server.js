@@ -35,7 +35,11 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/update-check' || url.pathname === '/api/update-apply') { updateHandler(req, res, url); return; }
     if (url.pathname === '/api/open-external' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"note":"dev server: not opening a browser"}'); }
     if (url.pathname === '/api/ping') { res.writeHead(200); return res.end(); }
-    if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ version: require('../system/resources/app/package.json').version + '-dev' })); }
+    if (url.pathname === '/api/version') {
+        let v = shellPkg.version;
+        try { const j = JSON.parse(fs.readFileSync(path.join(appDir, 'version.json'), 'utf8')); if (j.version && updater.cmpVersion(j.version, v) > 0) v = j.version; } catch (e) {}
+        res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ version: v + '-dev', shell: shellPkg.version }));
+    }
 
     // Shared table preferences: saves/preferences.json mirrors the browser's wp_* settings so
     // they travel with the saves folder (and survive a different install / cleared profile).

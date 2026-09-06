@@ -935,16 +935,22 @@ function makeCode() {
 // relay carries only DTLS-encrypted WebRTC traffic and can't read any of it.
 // Open Relay (metered.ca) is a long-running free public TURN service; dead or
 // unreachable entries are simply skipped by ICE.
-var PEER_OPTS = {
-    config: {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ]
-    }
-};
+var ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+];
+// Settings ▸ Firewall-friendly connections (wp_relayOnly): force every path through the relay.
+// A direct connection attempt probes many ports in a burst, which some firewalls (Avira, Norton,
+// some routers) flag as a port scan and block for minutes — dropping the player mid-join.
+// With relay-only ICE the only traffic the firewall sees is one relay endpoint.
+function relayOnly() { try { return localStorage.getItem('wp_relayOnly') === '1'; } catch (e) { return false; } }
+function peerOpts() {
+    var cfg = { iceServers: ICE_SERVERS };
+    if (relayOnly()) cfg.iceTransportPolicy = 'relay';
+    return { config: cfg };
+}
 
 /* Crash recovery: the last room code is remembered for a while, so a GM whose
    app died mid-session can relaunch, press Host again, and get the SAME code —
@@ -969,9 +975,9 @@ function startHosting(forceFresh) {
     leaveSession(true);
     var resumed = !forceFresh ? recentHostCode() : null;
     var code = resumed || makeCode();
-    var peer = new Peer('waypoint-' + code, PEER_OPTS);
+    var peer = new Peer('waypoint-' + code, peerOpts());
     net.peer = peer; net.role = 'host'; net.code = code;
-    setStatus(resumed ? 'Resuming host with your last room code...' : 'Starting host...');
+    setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;
         startHeartbeat();
@@ -1011,7 +1017,7 @@ function joinSession(code, name, isRetry) {
     leaveSession(true);
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;
-    var peer = new Peer(PEER_OPTS);
+    var peer = new Peer(peerOpts());
     net.peer = peer; net.role = 'client'; net.code = code;
     if (!isRetry) setStatus('Connecting to ' + code.toUpperCase() + '...');
     peer.on('open', function() {

@@ -8,6 +8,15 @@ The Update button
   Notes and Later also appears once per launch; Later hides just the notice.
   Nothing installs without you pressing Update.
 
+Firewall-friendly connections
+- Settings ▸ Firewall-friendly connections sends all multiplayer traffic
+  through the relay server instead of machine to machine. Turn it on if your
+  firewall (Avira, Norton, some routers) reports a "port scan" or "intruder"
+  when players join and then blocks them for minutes: a direct connection
+  attempt probes many ports in a burst, which those detectors misread. Traffic
+  stays end-to-end encrypted; the relay can't read it. Takes effect the next
+  time you host or join.
+
 WAYPOINT 1.1.2 — What's New
 ============================
 

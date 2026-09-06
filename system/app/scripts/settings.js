@@ -75,6 +75,8 @@ function syncPanel() {
     if (mmState) mmState.textContent = localStorage.getItem('wp_minimap') === 'closed' ? 'hidden' : 'shown';
     var rlState = ui('setRulersState');
     if (rlState) rlState.textContent = localStorage.getItem('wp_rulers') === 'off' ? 'hidden' : 'shown';
+    var ryState = ui('setRelayState');
+    if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') === '1' ? 'on — relay only' : 'off — direct first';
     var go = ui('setGridOpacity');
     var gpct = Math.round(gridOpacity() * 100);
     if (go) go.value = gpct;
@@ -158,6 +160,16 @@ if (_mmBtn) _mmBtn.addEventListener('click', function() {
     if (tog) tog.click();
     else localStorage.setItem('wp_minimap', localStorage.getItem('wp_minimap') === 'closed' ? 'open' : 'closed');
     syncPanel();
+});
+
+/* Relay-only connections: a per-machine preference read by net.js when a Peer is created */
+var _relayBtn = ui('setRelayBtn');
+if (_relayBtn) _relayBtn.addEventListener('click', function() {
+    var on = localStorage.getItem('wp_relayOnly') === '1';
+    localStorage.setItem('wp_relayOnly', on ? '0' : '1');
+    syncPanel();
+    if (window.wpNet && window.wpNet.active) toast(on ? 'Relay-only off — applies the next time you host or join.' : 'Relay-only on — applies the next time you host or join.');
+    else toast(on ? 'Connections go direct first again.' : 'All multiplayer traffic will go through the relay.');
 });
 
 /* Grid opacity is a viewer preference: stored locally, never sent to the table */

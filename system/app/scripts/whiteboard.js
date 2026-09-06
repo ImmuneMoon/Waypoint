@@ -541,23 +541,29 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var clientV = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
               fw.classList.toggle('turnable', clientV ? (item.ownerId === window.wpNet.myId && !window.wpNet.paused) : (state.selWbId === item.id));
           } else if (fw) fw.remove();
-          // Target rings: whoever at the table is targeting this token, in their colour
+          // Target marks: everyone targeting this token, shown as small copies of their own
+          // tokens, centred in a row that wraps into rows and never leaves the token's edges.
           var tgs = (item.isChar && window.wpNet && window.wpNet.active && window.wpNet.targetersOf) ? window.wpNet.targetersOf(item.id, activeMap.id) : [];
-          var ringEl = el.querySelector(':scope > .target-ring');
+          var marksEl = el.querySelector(':scope > .target-marks');
           if (tgs.length) {
-              if (!ringEl) { ringEl = document.createElement('div'); ringEl.className = 'target-ring'; el.appendChild(ringEl); }
+              if (!marksEl) { marksEl = document.createElement('div'); marksEl.className = 'target-marks'; el.appendChild(marksEl); }
               var tsig = tgs.map(function(t) { return t.id; }).join(',');
-              if (ringEl.dataset.sig !== tsig) {
-                  ringEl.dataset.sig = tsig;
-                  ringEl.style.boxShadow = tgs.slice(0, 3).map(function(t, i) { return '0 0 0 ' + (3 + i * 3) + 'px hsl(' + t.hue + ',75%,55%)'; }).join(', ');
-                  ringEl.title = 'Targeted by ' + tgs.map(function(t) { return t.name; }).join(', ');
-                  ringEl.innerHTML = tgs.slice(0, 3).map(function(t) {
+              if (marksEl.dataset.sig !== tsig) {
+                  marksEl.dataset.sig = tsig;
+                  var n = tgs.length, side = Math.min(item.w || 60, item.h || 52);
+                  // one row of up to 3, two rows to 8, three rows to 15, then as small as it takes
+                  var size = n <= 3 ? Math.round(side * 0.34) : n <= 8 ? Math.round(side * 0.26) : n <= 15 ? Math.round(side * 0.2) : Math.round(side * 0.15);
+                  marksEl.style.setProperty('--mark', size + 'px');
+                  marksEl.title = 'Targeted by ' + tgs.map(function(t) { return t.name; }).join(', ');
+                  marksEl.innerHTML = tgs.map(function(t) {
+                      var mine = targeterToken(t.id);
                       var ini = String(t.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
-                      return '<span class="target-tag" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>';
+                      if (mine && mine.src) return '<img class="target-mark" src="' + esc(resolveImg(mine.src)) + '" alt="" title="' + esc(t.name) + '" style="border-color:hsl(' + t.hue + ',75%,55%);">';
+                      return '<span class="target-mark target-mark-ini" title="' + esc(t.name) + '" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>';
                   }).join('');
               }
               el.classList.toggle('targeted-by-me', tgs.some(function(t) { return t.id === window.wpNet.myId; }));
-          } else if (ringEl) { ringEl.remove(); el.classList.remove('targeted-by-me'); }
+          } else if (marksEl) { marksEl.remove(); el.classList.remove('targeted-by-me'); }
           // Condition overlay: 'down' = red X over the token, 'dead' = skull + darkened art
           var stv = item.isChar && (item.status === 'down' || item.status === 'dead') ? item.status : '';
           var stEl = el.querySelector(':scope > .token-status');
@@ -1559,6 +1565,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
   }
 
+  // The token the table assigned to a player: on the current map if they have one here, else
+  // wherever it is in the campaign (a player targeting from another map still shows their face).
+  function targeterToken(pid) {
+      var camp = getActiveCampaign(); if (!camp) return null;
+      var am = getActiveMap();
+      var find = function(m) { return m && m.type === 'map' && (m.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === pid && w.type === 'image' && w.src; }); };
+      var t = find(am);
+      if (!t) { var ids = Object.keys(camp.items); for (var i = 0; i < ids.length && !t; i++) t = find(camp.items[ids[i]]); }
+      return t ? { src: t.src, name: t.charName || t.name || '' } : null;
+  }
   /* ---- targeting (players) ----
      A click — not a drag — on a character token that isn't yours marks it as your target;
      the table sees a ring in your colour. Same token again, or Esc, clears it. */

@@ -17,10 +17,11 @@ Planners
 
 Targeting
 - Players can click a character token that isn't theirs to mark it as their
-  target. Everyone at the table, GM included, sees a ring in that player's
-  colour with their initials on the token. Click it again or press Esc to
-  clear; one target per player. A target is only a marker: it never changes
-  the token.
+  target. Everyone at the table, GM included, sees a small copy of that
+  player's own token placed on the target; several targeters line up in the
+  middle and wrap into rows, always inside the token's edges. Click it again
+  or press Esc to clear; one target per player. A target is only a marker:
+  it never changes the token.
 
 WAYPOINT 1.1.8 — What's New
 ============================

@@ -10,6 +10,15 @@ Fixes
   as a port scan. The host now ignores heartbeats from players it hasn't
   admitted yet, and the player says hello first. Only the GM needs 1.1.3 for
   this — players on 1.1.2 join a 1.1.3 host fine.
+- A player's own campaign could be overwritten by the GM's: while a player
+  was reconnecting, the app briefly counted them as "not in a session" and a
+  routine save wrote the GM's table (the player-visible parts of it) to their
+  saves folder — and Host would then offer it. A campaign received from a
+  host is now never written to a player's disk under any circumstances, Host
+  and Join cancel a pending reconnect, and Host first restores the player's
+  own campaign if the GM's is still on screen. A player who already got a
+  copy can restore their own from saves\backups (the dated snapshot from
+  before the session) with Waypoint closed.
 
 The Update button
 - When a newer Waypoint is out, a gold Update button appears in the top bar

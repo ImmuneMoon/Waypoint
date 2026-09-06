@@ -45,7 +45,8 @@ var net = {
     applyingRemote: false,
     lastStage: null,
     leaving: false,      // true while tearing down on purpose (no auto-reconnect)
-    paused: false        // GM froze the table: no token moves, no travel (chat stays open)
+    paused: false,       // GM froze the table: no token moves, no travel (chat stays open)
+    foreign: false       // the campaign in memory came from a host: it must never reach this machine's disk
 };
 window.wpNet = net;
 
@@ -376,6 +377,7 @@ function applyClientItemFiltered(msg, profile) {
 function applySnapshot(msg) {
     net.applyingRemote = true;
     state.appState = msg.appState;
+    net.foreign = true;   // cleared only when load() brings this machine's own campaign back
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     if (msg.stage) {
@@ -973,6 +975,15 @@ net.recentHostCode = recentHostCode;   // sandbox testing hook
 
 function startHosting(forceFresh) {
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
+    cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table
+    if (net.foreign) {
+        // the campaign on screen is a GM's: hand it back before anything can be hosted from it
+        leaveSession(true);
+        setStatus('Restoring your own campaign…');
+        toast('That was the GM\'s campaign — restoring your own. Press Host again in a moment.');
+        load();
+        return;
+    }
     leaveSession(true);
     var resumed = !forceFresh ? recentHostCode() : null;
     var code = resumed || makeCode();
@@ -1015,6 +1026,7 @@ function startHosting(forceFresh) {
 
 function joinSession(code, name, isRetry) {
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
+    if (!isRetry) cancelReconnect();
     leaveSession(true);
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;

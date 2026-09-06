@@ -167,14 +167,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       .then(data => {
 
         var migrated = { changed: false };
-
         if(Object.keys(data).length > 0) {
-
             migrated = migrateAppState(data);
-
             state.appState = migrated.data;
-
         }
+        if (window.wpNet) window.wpNet.foreign = false;   // this is our own campaign again
 
         
 
@@ -442,16 +439,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
         pushHistory();
 
-        // Multiplayer: clients don't touch their own disk — edits go to the host.
-
-        if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
-
-            window.wpNet.onLocalSave();
-
-            saveNote.innerHTML = 'Synced to host <b>&#10003;</b>';
-
+        // Multiplayer: clients don't touch their own disk — edits go to the host. And a campaign
+        // that came from a host (wpNet.foreign) never reaches this disk even after the link drops:
+        // between reconnect attempts the client is briefly "inactive" but still holds the GM's table.
+        if (window.wpNet && (window.wpNet.foreign || (window.wpNet.active && window.wpNet.role === 'client'))) {
+            if (window.wpNet.active && window.wpNet.role === 'client') {
+                window.wpNet.onLocalSave();
+                saveNote.innerHTML = 'Synced to host <b>&#10003;</b>';
+            } else {
+                saveNote.innerHTML = 'GM\'s campaign &mdash; not saved here';
+            }
             return;
-
         }
 
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host') {

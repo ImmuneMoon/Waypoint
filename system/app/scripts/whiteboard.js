@@ -80,13 +80,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           seen[item.id] = 1;
 
           var el = state.wbEls[item.id];
-
+          if (el && el.dataset.type && el.dataset.type !== item.type) {
+              // Same id, different kind of item — a player's grey placeholder (a locked rect)
+              // becoming the real token when the GM reveals it. Rebuild the box so the new
+              // kind's styling applies; otherwise the picture ignores the 'image' sizing rule
+              // and draws at its full pixel size inside a rect-styled frame.
+              el.classList.remove(el.dataset.type);
+              el.classList.add(item.type);
+              el.dataset.type = item.type;
+              el.innerHTML = '';
+              delete el.dataset.ph;
+          }
           if(!el) {
-
               el = document.createElement('div');
-
               el.className = 'wb-item ' + item.type;
-
+              el.dataset.type = item.type;
               el.dataset.id = item.id;
 
               wb.appendChild(el);

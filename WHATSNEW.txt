@@ -19,6 +19,9 @@ Fixes
   own campaign if the GM's is still on screen. A player who already got a
   copy can restore their own from saves\backups (the dated snapshot from
   before the session) with Waypoint closed.
+- On a player's screen, a token the GM revealed drew its picture at full
+  pixel size (the grey placeholder's frame was reused without the image
+  styling). Revealed items now rebuild their frame for their real kind.
 
 The Update button
 - When a newer Waypoint is out, a gold Update button appears in the top bar

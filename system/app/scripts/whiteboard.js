@@ -2474,7 +2474,7 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
       if (nav) nav.querySelectorAll('[data-help]').forEach(function(b) { b.classList.toggle('active', b.dataset.help === pane); });
       document.querySelectorAll('#helpModal .help-pane').forEach(function(p) { p.style.display = (p.dataset.pane === pane) ? 'block' : 'none'; });
       var a = anchorId && document.getElementById(anchorId);
-      if (a) setTimeout(function() { a.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 50);
+      if (a) setTimeout(function() { a.scrollIntoView({ block: 'start', behavior: 'auto' }); }, 60);
   };
   // Help tutorials — topic rail switches the visible pane
   var _el_helpNav = document.getElementById('helpNav');

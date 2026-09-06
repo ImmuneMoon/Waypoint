@@ -1,10 +1,7 @@
-WAYPOINT 1.1.6 — What's New
+WAYPOINT 1.1.7 — What's New
 ============================
 
 Fixes
-- After a one-click update the version shown in Settings and About stayed
-  at the old number (the update check already knew better). Both now show
-  the version of the app files actually running.
 - While a player was reconnecting after a dropped link, the spectator rules
   lapsed between attempts: the sidebars, planners and editing tools appeared
   and tokens could be moved (never saved, but still wrong). A reconnecting
@@ -17,6 +14,14 @@ Fixes
   retries cycle through), the GM gets the same code back at once, and
   players reattach within a few attempts. A first join to a resumed room
   can take a few seconds longer while it finds the live generation.
+
+WAYPOINT 1.1.6 — What's New
+============================
+
+Fixes
+- After a one-click update the version shown in Settings and About stayed
+  at the old number (the update check already knew better). Both now show
+  the version of the app files actually running.
 
 WAYPOINT 1.1.5 — What's New
 ============================

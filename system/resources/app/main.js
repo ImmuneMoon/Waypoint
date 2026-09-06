@@ -4,7 +4,7 @@ const { app, BrowserWindow, shell } = require('electron');
 // Releases are published on this public GitHub repository (see tools/release.js). The app
 // checks it on launch and from Settings; updates of the front end apply in place, updates
 // that need a newer shell fall back to the installer download.
-const UPDATE_REPO = 'fulllion/waypoint';   // <owner>/<repo> — change here and nowhere else
+const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
 const SHELL_VERSION = require('./package.json').version;
 const http = require('http');

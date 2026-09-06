@@ -1,4 +1,4 @@
-WAYPOINT 1.2.0 — What's New
+WAYPOINT 1.1.4 — What's New
 ============================
 
 Fixes
@@ -9,7 +9,7 @@ Fixes
   looped through 30 attempts, and some firewalls reported the burst of retries
   as a port scan. The host now ignores heartbeats from players it hasn't
   admitted yet, and the player says hello first. Only the GM needs this version
-  for the fix — players on 1.1.2 join a 1.2.0 host fine.
+  for the fix — players on 1.1.2 join a 1.1.4 host fine.
 - A player's own campaign could be overwritten by the GM's: while a player
   was reconnecting, the app briefly counted them as "not in a session" and a
   routine save wrote the GM's table (the player-visible parts of it) to their

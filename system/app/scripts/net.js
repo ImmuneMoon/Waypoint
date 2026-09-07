@@ -1710,6 +1710,35 @@ if (_joinBtn) _joinBtn.addEventListener('click', function() {
 });
 var _leaveBtn = ui('netLeaveBtn');
 if (_leaveBtn) _leaveBtn.addEventListener('click', function() { leaveSession(false); });
+
+/* ---------- Refresh: reload without losing the session ---------- */
+var _refreshBtn = ui('refreshBtn');
+if (_refreshBtn) _refreshBtn.addEventListener('click', function() {
+    try {
+        if (net.active && net.role === 'client') sessionStorage.setItem('wp_rejoin', JSON.stringify({ code: net.code, name: getProfile().name || '', pass: (ui('netJoinPassInput') || {}).value || '' }));
+        else if (net.active && net.role === 'host') sessionStorage.setItem('wp_rehost', '1');
+    } catch (e) {}
+    location.reload();
+});
+// after a refresh: straight back to where you were
+setTimeout(function() {
+    var rj = null, rh = null;
+    try { rj = sessionStorage.getItem('wp_rejoin'); rh = sessionStorage.getItem('wp_rehost'); sessionStorage.removeItem('wp_rejoin'); sessionStorage.removeItem('wp_rehost'); } catch (e) {}
+    if (rj) {
+        try {
+            var j = JSON.parse(rj);
+            if (j && j.code) {
+                var ci = ui('netCodeInput'), ni = ui('netNameInput'), pi = ui('netJoinPassInput');
+                if (ci) ci.value = j.code; if (ni && j.name) ni.value = j.name; if (pi) pi.value = j.pass || '';
+                toast('Refreshed — rejoining the table…');
+                joinSession(j.code, j.name);
+            }
+        } catch (e) {}
+    } else if (rh) {
+        toast('Refreshed — resuming your table with the same room code…');
+        startHosting(false);
+    }
+}, 1200);
 /* The GM gets one clear "End Session for Everyone" (the host's Leave was the same
    teardown, but its label read like a player's exit). Players keep Leave Session. */
 function syncSessionButtons() {

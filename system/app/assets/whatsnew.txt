@@ -12,6 +12,11 @@ Handouts and the Journal
   caption and your own notes. It is saved on your computer, in your own saves
   folder, so it opens with no session and no GM online. Pictures are sent
   once, resized to a sensible size, and never leave your machine again.
+- Tick "Give to every player when they join" on a handout and each player
+  receives it the next time they connect, once, with no button press — the
+  session recap that is waiting for them.
+- A handout can be text as well as a picture: a letter, a briefing, a
+  session recap. Players read it as selectable text in their Journal.
 - Removing a handout on the GM's side does not reach into players' journals:
   like a paper handout, once seen it is theirs.
 

@@ -67,7 +67,9 @@ function badge(n) { var b = ui('journalBadge'); if (!b) return; unseen = Math.ma
 // A handout arrived from the GM (validated here, never trusted as-is)
 async function receiveHandout(msg) {
     var campId = safeId(msg.campId), id = safeId(msg.id);
-    if (!campId || !id || !(msg.data && msg.data.byteLength !== undefined)) return;
+    if (!campId || !id) return;
+    if (msg.kind === 'text') return receiveTextHandout(msg, campId, id);
+    if (!(msg.data && msg.data.byteLength !== undefined)) return;
     var bytes = msg.data instanceof Uint8Array ? msg.data : new Uint8Array(msg.data);
     if (bytes.length > MAX_BYTES) return;
     var mime = ({ 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1 })[msg.mime] ? msg.mime : 'image/jpeg';
@@ -87,13 +89,30 @@ async function receiveHandout(msg) {
     badge(unseen + 1);
     showHandout({ title: title, caption: caption, src: src, fresh: true });
 }
+async function receiveTextHandout(msg, campId, id) {
+    var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
+    var text = String(msg.text || '').slice(0, 60000);
+    var idx = await readIndex(campId);
+    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60);
+    idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
+    var existing = idx.entries.find(function(e) { return e.id === id; });
+    if (existing) { existing.title = title; existing.caption = caption; existing.text = text; existing.kind = 'text'; existing.updatedAt = Date.now(); }
+    else idx.entries.push({ id: id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' });
+    idx.updated = Date.now();
+    await writeIndex(campId, idx);
+    if (msg.replay && existing) return;
+    badge(unseen + 1);
+    showHandout({ title: title, caption: caption, text: text, fresh: true });
+}
 window.wpJournalReceive = receiveHandout;
 
 /* ---------- the viewer (used for a fresh reveal and from the journal) ---------- */
 function showHandout(h) {
     var m = ui('handoutModal'); if (!m) return;
     ui('handoutTitle').textContent = h.title || 'Handout';
-    ui('handoutImg').src = h.src;
+    var im = ui('handoutImg'), tx = ui('handoutText');
+    if (h.src) { im.src = h.src; im.style.display = 'block'; } else { im.removeAttribute('src'); im.style.display = 'none'; }
+    if (tx) { tx.textContent = h.text || ''; tx.style.display = h.text ? 'block' : 'none'; }
     ui('handoutCaption').textContent = h.caption || '';
     ui('handoutCaption').style.display = h.caption ? 'block' : 'none';
     ui('handoutFresh').style.display = h.fresh ? 'block' : 'none';
@@ -114,8 +133,10 @@ async function openJournal() {
     list.innerHTML = journals.map(function(j) {
         var head = '<div class="journal-camp"><b>' + esc(j.campaign || 'Campaign') + '</b>' + (j.gm ? ' <span style="color:var(--dim);">— GM ' + esc(j.gm) + '</span>' : '') + '</div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
-            return '<div class="journal-entry" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '">' +
-                '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">' +
+            var thumb = e.kind === 'text'
+                ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
+                : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
+            return '<div class="journal-entry" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '">' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || 'Handout') + '</div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
                 '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + '</div>' +
@@ -133,7 +154,10 @@ if (_jList) {
     _jList.addEventListener('click', function(e) {
         var t = e.target.closest && e.target.closest('.journal-thumb'); if (!t) return;
         var row = t.closest('.journal-entry');
-        showHandout({ title: row.querySelector('.journal-title').textContent, caption: (row.querySelector('.journal-caption') || {}).textContent || '', src: t.getAttribute('src') });
+        var base = { title: row.querySelector('.journal-title').textContent, caption: (row.querySelector('.journal-caption') || {}).textContent || '' };
+        if (row.dataset.kind === 'text') {
+            readIndex(row.dataset.camp).then(function(idx) { var en = idx.entries.find(function(x) { return x.id === row.dataset.id; }); showHandout(Object.assign(base, { text: en ? en.text : '' })); });
+        } else showHandout(Object.assign(base, { src: t.getAttribute('src') }));
     });
     var noteTimers = {};
     _jList.addEventListener('input', function(e) {
@@ -155,6 +179,7 @@ window.wpHandoutList = function() { var c = getActiveCampaign(); return c ? Obje
 
 // Bytes for the wire: the picture resized to MAX_EDGE on its long side
 window.wpHandoutPayload = function(h) {
+    if (h.kind === 'text') return Promise.resolve({ kind: 'text', text: String(h.text || '').slice(0, 60000) });
     return new Promise(function(resolve, reject) {
         var img = new Image();
         img.onload = function() {
@@ -185,12 +210,16 @@ function renderHandouts() {
             .map(function(pid) { var p = (camp.players || {})[pid]; return p && p.name ? p.name : pid; });
         var attached = rooms.filter(function(r) { return r.hid === h.id; }).map(function(r) { return r.label; });
         var who = roster.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; }).join('');
-        return '<div class="handout-row" data-id="' + esc(h.id) + '">' +
-            '<img class="handout-thumb" src="' + esc(h.src) + '" alt="" title="Preview">' +
+        var thumb = h.kind === 'text'
+            ? '<div class="handout-thumb handout-thumb-text" title="Preview">' + esc(String(h.text || '').slice(0, 140)) + '</div>'
+            : '<img class="handout-thumb" src="' + esc(h.src) + '" alt="" title="Preview">';
+        return '<div class="handout-row" data-id="' + esc(h.id) + '">' + thumb +
             '<div class="handout-body">' +
             '<input class="field handout-title" value="' + esc(h.title || '') + '" placeholder="Title">' +
-            '<textarea class="field handout-caption" placeholder="Caption the players see (optional)">' + esc(h.caption || '') + '</textarea>' +
+            (h.kind === 'text' ? '<textarea class="field handout-text" placeholder="The text the players read">' + esc(h.text || '') + '</textarea>' : '') +
+            '<textarea class="field handout-caption" placeholder="' + (h.kind === 'text' ? 'Short note under it (optional)' : 'Caption the players see (optional)') + '">' + esc(h.caption || '') + '</textarea>' +
             '<div class="handout-meta">' + (seen.length ? 'Seen by ' + esc(seen.join(', ')) : 'Not shown to anyone yet') + (attached.length ? ' · attached to ' + esc(attached.join('; ')) : '') + '</div>' +
+            '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
             '<button class="tool" data-act="table" title="Show it to everyone connected now">Show to table</button>' +
             (roster.length ? '<select class="handout-who"><option value="">Show to one player…</option>' + who + '</select>' : '') +
@@ -240,6 +269,16 @@ if (_pickGrid) _pickGrid.addEventListener('click', function(e) {
     renderHandouts();
     toast('Handout added — give it a title and a caption, then show it.');
 });
+// New text handout: a title and a body
+var _newTextBtn = ui('handoutNewTextBtn');
+if (_newTextBtn) _newTextBtn.addEventListener('click', function() {
+    var camp = getActiveCampaign(); if (!camp) return;
+    var hs = handoutsOf(camp);
+    var id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    hs[id] = { id: id, kind: 'text', title: 'New handout', caption: '', text: '', createdAt: Date.now() };
+    save(true); renderHandouts();
+    var row = document.querySelector('.handout-row[data-id="' + id + '"] .handout-title'); if (row) { row.focus(); row.select(); }
+});
 var _pickClose = ui('handoutPickClose');
 if (_pickClose) _pickClose.addEventListener('click', function() { ui('handoutPick').style.display = 'none'; });
 
@@ -250,10 +289,17 @@ if (_hList) {
         var camp = getActiveCampaign(); var h = camp && handoutsOf(camp)[row.dataset.id]; if (!h) return;
         if (e.target.classList.contains('handout-title')) h.title = e.target.value.slice(0, 120);
         if (e.target.classList.contains('handout-caption')) h.caption = e.target.value.slice(0, 4000);
+        if (e.target.classList.contains('handout-text')) h.text = e.target.value.slice(0, 60000);
         clearTimeout(_hList._t); _hList._t = setTimeout(function() { save(true); }, 400);
     });
     _hList.addEventListener('keydown', function(e) { e.stopPropagation(); });
     _hList.addEventListener('change', function(e) {
+        var box = e.target.closest && e.target.closest('.handout-auto-box');
+        if (box) {
+            var rowA = box.closest('.handout-row'); var campA = getActiveCampaign(); var hA = campA && handoutsOf(campA)[rowA.dataset.id];
+            if (hA) { if (box.checked) hA.autoOnJoin = true; else delete hA.autoOnJoin; save(true); toast(box.checked ? 'Every player gets this when they next connect.' : 'No longer given automatically.'); }
+            return;
+        }
         var sel = e.target.closest && e.target.closest('.handout-who'); if (!sel || !sel.value) return;
         var row = sel.closest('.handout-row'); var pid = sel.value; sel.value = '';
         net.revealHandout(row.dataset.id, [pid]);
@@ -262,7 +308,7 @@ if (_hList) {
         var b = e.target.closest && e.target.closest('[data-act]'); var thumb = e.target.closest && e.target.closest('.handout-thumb');
         var row = e.target.closest && e.target.closest('.handout-row'); if (!row) return;
         var camp = getActiveCampaign(); var h = camp && handoutsOf(camp)[row.dataset.id]; if (!h) return;
-        if (thumb || (b && b.dataset.act === 'preview')) { showHandout({ title: h.title, caption: h.caption, src: h.src }); return; }
+        if (thumb || (b && b.dataset.act === 'preview')) { showHandout({ title: h.title, caption: h.caption, src: h.kind === 'text' ? null : h.src, text: h.kind === 'text' ? h.text : '' }); return; }
         if (!b) return;
         if (b.dataset.act === 'table') { net.revealHandout(h.id, null); }
         else if (b.dataset.act === 'delete') {

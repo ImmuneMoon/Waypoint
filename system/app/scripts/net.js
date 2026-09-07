@@ -154,7 +154,27 @@ function hbTick() {
         } else setIndicator('ok', 'connected to the GM');
     }
 }
+// Where each player was last seen, for presence after they leave. Host: from the campaign record
+// (kept in step with the roster); client: from the last roster broadcast.
+net.away = {};
+function awayMap() {
+    if (net.role !== 'host') return net.away || {};
+    var camp = getActiveCampaign(), out = {};
+    if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) { if (camp.players[pid] && camp.players[pid].lastMap) out[pid] = camp.players[pid].lastMap; });
+    return out;
+}
+function syncLastMaps() {
+    if (net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    camp.players = camp.players || {};
+    Object.values(net.roster).forEach(function(p) {
+        if (!p || !p.id || !p.location) return;
+        camp.players[p.id] = camp.players[p.id] || { name: p.name || p.id };
+        camp.players[p.id].lastMap = p.location;
+    });
+}
 function renderRoster() {
+    syncLastMaps();
     var el = ui('netRoster');
     if (el) {
         var players = Object.values(net.roster);
@@ -821,7 +841,7 @@ net.requestTravel = function(viaItemId) {
     try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) {}
 };
 
-function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster }, null); }
+function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster, away: awayMap() }, null); }
 
 // Is this player currently on the given map? (self is always present to itself)
 net.refreshUi = function() {               // own campaign is back: spectator class, party strip, badge, and the host picker lists only own campaigns
@@ -987,7 +1007,9 @@ net.checkRoomHandouts = checkRoomHandouts;
 net.isPresent = function(ownerId, mapId) {
     if (!net.active || net.stream) return true;                    // solo, or the stream window: everything shows
     if (net.role === 'client' && ownerId === net.myId) return true;
-    return Object.values(net.roster).some(function(p) { return p && p.id === ownerId && p.location === mapId; });
+    var live = Object.values(net.roster).find(function(p) { return p && p.id === ownerId; });
+    if (live) return live.location === mapId;
+    return awayMap()[ownerId] === mapId;                            // left the table: their character stays where they were, nowhere else
 };
 
 /* Host: guarantee player P has exactly one controlled token on map M.
@@ -1267,6 +1289,7 @@ function handleMessage(msg, conn) {
         }
     } else if (msg.type === 'roster') {
         net.roster = msg.roster || {};
+        net.away = msg.away || {};
         renderRoster();
         refreshChatRecipients();
         if (net.role === 'client' && state.viewMode === 'visual') render();  // presence changed → token visibility may change
@@ -1332,9 +1355,11 @@ function wireConn(conn) {
         delete net.roster[conn.peer];
         renderRoster();
         if (net.role === 'host') {
-            toast((p && p.name ? p.name : 'A player') + ' left.');
+            toast((p && p.name ? p.name : 'A player') + ' left' + (p && p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
             if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcast({ type: 'targets', targets: net.targets }, null); }
-            broadcast({ type: 'roster', roster: net.roster }, null);
+            net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
+            broadcastRoster();
+            render();
         } else if (net.leaving) {
             // deliberate teardown: 'end' from the GM (still active) or our own Leave (already torn down)
             var stillActive = net.active;

@@ -102,6 +102,10 @@ Portals
   or while that player is away from the table: their copy on the other map
   is placed beside the landing point (or left alone if it is already there
   and off the node), and the token left behind steps off the portal.
+- A player who leaves the table stays visible where they were: their token
+  on the map they left from remains, and copies of theirs on every other map
+  are hidden from the players until they are back. The GM's leave notice
+  names the map.
 
 Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the

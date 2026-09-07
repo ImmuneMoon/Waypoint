@@ -24,6 +24,9 @@ Fixes
   the pointer now and stay on screen near an edge.
 - Right-clicking a token no longer selects it, so the side panel stays where
   it was; the menu acts on the token under the pointer.
+- The three searches keep to their own kind: the Maps search lists maps only
+  (planners were mixed in), the Planners search lists planners, and the
+  header magnifier searches campaigns — it did nothing before.
 - A token arriving through a portal could snap back onto the landing tile
   when the map's hex cells are larger than the token; the free-spot search
   now judges each spot where the token will actually sit.

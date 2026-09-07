@@ -626,7 +626,7 @@ if(_el_searchMapsBtn) _el_searchMapsBtn.addEventListener('click', function() {
 
           var html = '';
 
-          var mapKeys = Object.keys(camp.items);
+          var mapKeys = Object.keys(camp.items).filter(k => camp.items[k].type === 'map');   // maps only; planners have their own search
 
           mapKeys.sort((a,b) => camp.items[a].meta.title.localeCompare(camp.items[b].meta.title));
 
@@ -718,3 +718,42 @@ export {
 
 };
 
+
+
+  /* Campaign search (the header magnifier): campaigns only — maps and planners have their own searches */
+  var _el_searchCampBtn = document.getElementById('searchCampBtn');
+  if (_el_searchCampBtn) _el_searchCampBtn.addEventListener('click', function() {
+      var m = document.getElementById('campSearchModal'), inp = document.getElementById('campSearchInput'), res = document.getElementById('campSearchResults');
+      if (!m || !inp || !res) return;
+      m.style.display = 'flex';
+      inp.value = '';
+      inp.focus();
+      function updateList() {
+          var q = inp.value.toLowerCase();
+          var keys = Object.keys(state.appState.campaigns || {});
+          keys.sort(function(a, b) { return String(state.appState.campaigns[a].name || '').localeCompare(String(state.appState.campaigns[b].name || '')); });
+          var html = '';
+          keys.forEach(function(k) {
+              var c = state.appState.campaigns[k], name = c.name || 'Unnamed Campaign';
+              if (q && name.toLowerCase().indexOf(q) === -1) return;
+              var nMaps = Object.values(c.items || {}).filter(function(i) { return i.type === 'map'; }).length, nPl = Object.values(c.items || {}).filter(function(i) { return i.type === 'planner'; }).length;
+              html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + k + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span style="color:var(--gold); font-size:11px;">current</span>' : '') + '<span style="color:var(--dim); font-size:11px; float:right;">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + '</span></button>';
+          });
+          if (!html) html = '<div class="muted">No campaigns match.</div>';
+          res.innerHTML = html;
+          res.querySelectorAll('button').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                  m.style.display = 'none';
+                  if (this.dataset.id === state.appState.activeCampaignId) return;
+                  state.appState.activeCampaignId = this.dataset.id;
+                  state.selId = null; state.selWbId = null; state.linkStart = null;
+                  updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+                  setTimeout(function() { var cb = document.getElementById('centerBtn'); if (cb) cb.click(); }, 10);
+              });
+          });
+      }
+      inp.onkeyup = updateList;
+      updateList();
+      var closeBtn = document.getElementById('campSearchClose');
+      if (closeBtn) closeBtn.onclick = function() { m.style.display = 'none'; };
+  });

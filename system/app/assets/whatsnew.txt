@@ -10,11 +10,20 @@ Campaign Cast
 - Save to Campaign Cast now shows for any token that carries a character
   name, not only ones flagged as characters.
 
+Party strip
+- Bring a player here is on the party strip now: drag a character's icon
+  onto the play map to bring them to the drop point, or right-click the icon
+  and choose Bring here for the centre of the view. GM-run characters on the
+  strip move the same way. The per-player list in the canvas right-click
+  menu is gone.
+
 Fixes
 - Right-click menus on a play map opened thousands of pixels off screen (the
   menu sits inside the scrolling canvas but was placed with page
   coordinates), so a right-click looked like it did nothing. They open under
   the pointer now and stay on screen near an edge.
+- Right-clicking a token no longer selects it, so the side panel stays where
+  it was; the menu acts on the token under the pointer.
 
 WAYPOINT 1.3.4 — What's New
 ============================

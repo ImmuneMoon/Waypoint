@@ -1647,12 +1647,59 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var strip = document.getElementById('partyStrip'); if (!strip) return;
       strip.addEventListener('click', function(e) {
           var tok = e.target.closest && e.target.closest('.party-tok'); if (!tok) return;
+          if (strip.dataset.justDragged) return;   // that was a drag onto the map, not a click
           e.stopPropagation();
           if (window.wpStream && window.wpStreamFocusChar) { window.wpStreamFocusChar(tok.dataset.key); return; }
           focusCharacter(tok.dataset.key);
       });
       strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });   // never starts a pan or a selection box
       // Right-click: the character's actions
+      // Bring a strip entry to a point on the active map: a player's character (o:/p: keys) through
+      // bringPlayerHere, a GM-run character (i: key) by moving its token.
+      function bringKeyHere(key, x, y) {
+          var kind = key.charAt(0), camp = getActiveCampaign(), am = getActiveMap();
+          if (!camp || !am || am.type !== 'map') { toast('Open a play map first.'); return; }
+          if (kind === 'o' || kind === 'p') { window.wpNet.bringPlayerHere(key.slice(2), x, y); return; }
+          var loc = locateCharacter(camp, key, camp.activeItemId); if (!loc) return;
+          var tok = loc.tok;
+          if (loc.map !== am) { loc.map.whiteboard = (loc.map.whiteboard || []).filter(function(w) { return w !== tok; }); am.whiteboard = am.whiteboard || []; am.whiteboard.push(tok); }
+          tok.x = x - (tok.w || 60) / 2; tok.y = y - (tok.h || 52) / 2;
+          if (window.wpSeatHex) window.wpSeatHex(tok, am);
+          import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast((tok.charName || tok.name || 'Character') + (loc.map !== am ? ' brought over.' : ' moved.')); });
+      }
+      var pDrag = null;   // { key, sx, sy, ghost, moved }
+      strip.addEventListener('pointerdown', function(e) {
+          var tok = e.target.closest && e.target.closest('.party-tok'); if (!tok || e.button !== 0) return;
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
+          e.preventDefault();   // no native image drag (it would cancel the pointer sequence)
+          pDrag = { key: tok.dataset.key, sx: e.clientX, sy: e.clientY, src: tok.tagName === 'IMG' ? tok.getAttribute('src') : null, label: tok.textContent, ghost: null, moved: false };
+      });
+      document.addEventListener('pointermove', function(e) {
+          if (!pDrag) return;
+          if (!pDrag.moved && Math.hypot(e.clientX - pDrag.sx, e.clientY - pDrag.sy) < 6) return;
+          if (!pDrag.ghost) {
+              var g = document.createElement(pDrag.src ? 'img' : 'span');
+              if (pDrag.src) g.src = pDrag.src; else g.textContent = pDrag.label;
+              g.className = 'party-drag-ghost';
+              document.body.appendChild(g); pDrag.ghost = g; pDrag.moved = true;
+              document.body.classList.add('party-dragging');
+          }
+          pDrag.ghost.style.left = (e.clientX - 18) + 'px'; pDrag.ghost.style.top = (e.clientY - 18) + 'px';
+      });
+      document.addEventListener('pointercancel', function() { if (!pDrag) return; if (pDrag.ghost) pDrag.ghost.remove(); pDrag = null; document.body.classList.remove('party-dragging'); });
+      document.addEventListener('pointerup', function(e) {
+          if (!pDrag) return;
+          var d = pDrag; pDrag = null;
+          if (d.ghost) d.ghost.remove();
+          document.body.classList.remove('party-dragging');
+          if (!d.moved) return;   // a plain click: the click handler jumps
+          var wrap = document.getElementById('whiteboardWrap'); if (!wrap) return;
+          var wr = wrap.getBoundingClientRect();
+          if (e.clientX < wr.left || e.clientX > wr.right || e.clientY < wr.top || e.clientY > wr.bottom) return;
+          var z = state.zoomLevel || 1;
+          bringKeyHere(d.key, (e.clientX - wr.left + wrap.scrollLeft) / z, (e.clientY - wr.top + wrap.scrollTop) / z);
+          strip.dataset.justDragged = '1'; setTimeout(function() { delete strip.dataset.justDragged; }, 300);
+      });
       var menu = document.getElementById('partyMenu');
       function closePartyMenu() { if (menu) menu.classList.remove('show'); }
       strip.addEventListener('contextmenu', function(e) {
@@ -1676,6 +1723,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   : { act: 'none', label: '\uD83D\uDCE3 Summon ' + name + ' \u2014 not connected', dim: true });
               items.push({ act: 'summonAll', label: '\uD83D\uDCE3 Summon everyone to the table\'s map' });
           }
+          var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
+          if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', label: '\u27A4 Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
           menu.innerHTML = items.map(function(i) {
               return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(tok.dataset.key) + '" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
@@ -1693,6 +1742,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (act === 'jump') { if (window.wpStream && window.wpStreamFocusChar) window.wpStreamFocusChar(key); else focusCharacter(key); }
           else if (act === 'summon') { window.wpNet.summonPlayerById(key.slice(2)); }
           else if (act === 'summonAll') { window.wpNet.summonAll(); }
+          else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
           else if (act === 'target') {
               var camp = getActiveCampaign(); var loc = locateCharacter(camp, key, camp && camp.activeItemId);
               var am = getActiveMap();
@@ -3310,7 +3360,6 @@ function tableMenuParts(e, role) {
         html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
     } else {
         html += castMenuHtml(camp);
-        if (players.length) html += '<div class="menu-divider"></div>' + head('Players') + bringItems();
         if (role === 'host') {
             html += '<div class="menu-divider"></div>' + head('Session');
             html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
@@ -3390,10 +3439,7 @@ document.addEventListener('contextmenu', function(e) {
         var selectedIds = [];
         if (isWb) {
             selectedIds = state.selWbIds || (state.selWbId ? [state.selWbId] : []);
-            if (targetId && !selectedIds.includes(targetId)) {
-                selectedIds = [targetId]; state.selWbIds = selectedIds; state.selWbId = targetId;
-                if(window.appRender) window.appRender();
-            }
+            if (targetId && !selectedIds.includes(targetId)) selectedIds = [targetId];   // the menu acts on the item under the pointer without selecting it (no side panel)
         } else {
             selectedIds = state.selId ? [state.selId] : [];
             if (targetId && state.selId !== targetId) {

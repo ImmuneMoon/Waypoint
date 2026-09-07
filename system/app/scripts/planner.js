@@ -145,49 +145,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<textarea class="field b-content" placeholder="Mermaid flowchart code..." data-idx="'+idx+'" style="width:100%; height:150px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
 
           } else if (b.type === 'node') {
-
               html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="Node Title" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
-
               html += '<input type="text" class="field b-sub" value="'+esc(b.tag||'')+'" placeholder="Tag (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
-
               html += '<input type="text" class="field b-must" value="'+esc(b.must||'')+'" placeholder="Must Resolve... (optional)" data-idx="'+idx+'" style="margin-bottom:10px; width:100%;">';
-
-              html += '<input type="text" class="field b-cols" value="'+esc((b.cols||[]).join(', '))+'" placeholder="Column headers, comma-separated (blank = Action, Why, Cost, Returns via)" data-idx="'+idx+'" style="margin-bottom:10px; width:100%;">';
-
-
-
-              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice(0, 4) : ['Action', 'Why', 'Cost', 'Returns via'];
-
+              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : ['Action', 'Why', 'Cost', 'Returns via'];
               if (!b.rows) b.rows = [];
-
-              html += '<div><strong>Rows:</strong></div>';
-
+              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + [1,2,3,4,5,6,7,8].map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
+              html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
+              colNames.forEach(function(c, ci) { html += '<input type="text" class="b-colhead" placeholder="Column '+(ci+1)+'" value="'+esc(c)+'" data-idx="'+idx+'" data-ci="'+ci+'" title="Header of column '+(ci+1)+'">'; });
+              html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div></div>';
               b.rows.forEach(function(r, ri) {
-
-                  html += '<div class="grouped-fields">';
-
                   html += '<div class="row-h">';
-
-                  html += '<input type="text" placeholder="'+esc(colNames[0]||'—')+'" value="'+esc(r.col1||'')+'" data-idx="'+idx+'" data-ri="'+ri+'" class="r-col1">';
-
-                  html += '<input type="text" placeholder="'+esc(colNames[1]||'—')+'" value="'+esc(r.col2||'')+'" data-idx="'+idx+'" data-ri="'+ri+'" class="r-col2">';
-
-                  html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'">✖</button>';
-
-                  html += '</div><div class="row-h">';
-
-                  html += '<input type="text" placeholder="'+esc(colNames[2]||'—')+'" value="'+esc(r.col3||'')+'" data-idx="'+idx+'" data-ri="'+ri+'" class="r-col3">';
-
-                  html += '<input type="text" placeholder="'+esc(colNames[3]||'—')+'" value="'+esc(r.col4||'')+'" data-idx="'+idx+'" data-ri="'+ri+'" class="r-col4">';
-
-                  html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div>'; // spacer to align inputs
-
-                  html += '</div></div>';
-
+                  colNames.forEach(function(c, ci) { html += '<input type="text" class="r-col" placeholder="'+esc(c||'—')+'" value="'+esc(r['col'+(ci+1)]||'')+'" data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'">'; });
+                  html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row">✖</button>';
+                  html += '</div>';
               });
-
+              html += '</div>';
               html += '<button class="tool ghost add-row" data-idx="'+idx+'">+ Add Row</button>';
-
           } else if (b.type === 'flowchart') {
               if (!b.nodes) b.nodes = [];
               if (!b.edges) b.edges = [];
@@ -291,22 +265,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].must = this.value; save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.b-cols')).forEach(el => el.addEventListener('input', function() {
-          var v = this.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-          if (v.length > 0) activeMap.blocks[this.dataset.idx].cols = v;
-          else delete activeMap.blocks[this.dataset.idx].cols;
+      Array.from(blockContainer.querySelectorAll('.b-ncols')).forEach(el => el.addEventListener('change', function() {
+          var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(8, parseInt(this.value, 10) || 1));
+          var cols = (Array.isArray(bb.cols) && bb.cols.length > 0) ? bb.cols.slice() : ['Action', 'Why', 'Cost', 'Returns via'];
+          while (cols.length < n) cols.push('Column ' + (cols.length + 1));
+          cols = cols.slice(0, n);
+          bb.cols = cols;
+          save(true); renderPlanner();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function() {
+          var bb = activeMap.blocks[this.dataset.idx];
+          if (!Array.isArray(bb.cols) || !bb.cols.length) bb.cols = ['Action', 'Why', 'Cost', 'Returns via'];
+          bb.cols[this.dataset.ci] = this.value;
           save(false); renderPlannerPreview();
       }));
-
       Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.r-col1')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri].col1 = this.value; save(false); renderPlannerPreview(); }));
-
-      Array.from(blockContainer.querySelectorAll('.r-col2')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri].col2 = this.value; save(false); renderPlannerPreview(); }));
-
-      Array.from(blockContainer.querySelectorAll('.r-col3')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri].col3 = this.value; save(false); renderPlannerPreview(); }));
-
-      Array.from(blockContainer.querySelectorAll('.r-col4')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri].col4 = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri]['col' + (parseInt(this.dataset.ci, 10) + 1)] = this.value; save(false); renderPlannerPreview(); }));
 
       
 
@@ -694,7 +669,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               if (b.rows && b.rows.length > 0) {
 
-                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice(0, 4) : ['Action', 'Why', 'Cost', 'Returns via'];
+                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : ['Action', 'Why', 'Cost', 'Returns via'];
 
                   html += '<table><thead><tr>' + cols.map(function(c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
 

@@ -56,6 +56,11 @@ Planner
 - Save PDF and Save HTML always export the rendered planner. If you are in
   the editor, Waypoint switches to Render Preview at full width for the
   export and switches back afterwards.
+- The Node Box table builder has a Columns count (1 to 8) with a header box
+  per column, and each row is one line of boxes matching the columns. The
+  old comma list of headers capped the table at four columns, and a single
+  header made the preview show one column, so the other row boxes looked
+  dead. Existing tables keep their headers and rows.
 
 Tooltips
 - Hover tips appear in about a sixth of a second instead of waiting on the

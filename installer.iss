@@ -3,7 +3,7 @@
 ; migrates old save formats on first launch (after snapshotting the original
 ; into saves\backups). Build with: ISCC installer.iss
 
-#define AppVer "1.3.3"
+#define AppVer "1.3.4"
 
 [Setup]
 AppId={{5E99FC64-B981-4209-A480-DB2444535359}

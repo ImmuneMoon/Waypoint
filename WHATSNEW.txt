@@ -1,3 +1,12 @@
+WAYPOINT 1.2.1 — What's New
+============================
+
+Fixes
+- Planner flowcharts broke on brackets, braces, parentheses or quotes in a
+  node or arrow label ("Syntax error in text"). Labels are now passed to the
+  diagram engine quoted, so any text works. Node ids are reduced to letters,
+  digits and underscores.
+
 WAYPOINT 1.2.0 — What's New
 ============================
 

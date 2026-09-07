@@ -465,7 +465,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '</div>';
 
           } else if (b.type === 'flowchart') {
-
+              // Mermaid reads ( ) [ ] { } | as shape and edge markers, so free text goes inside
+              // quotes; inside quotes only " and # need escaping (mermaid's #quot; / #35; entities).
+              var mmText = function(t) { return '"' + String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>') + '"'; };
+              var mmId = function(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; };
               var m = 'flowchart TD\n';
 
               m += 'classDef gold fill:#302517,stroke:#e0a54f,color:#fff\n';
@@ -486,9 +489,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   b.nodes.forEach(function(n) {
 
-                      var id = n.id || ('n' + Math.random().toString(36).substr(2,5));
-
-                      var txt = n.text || 'Node';
+                      var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2,5)));
+                      var txt = mmText(n.text || 'Node');
 
                       var s1 = '[', s2 = ']';
 
@@ -513,16 +515,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       if (!e.from || !e.to) return;
 
                       var line = e.style === 'dotted' ? '-.->' : '-->';
-
-                      if (e.text) {
-
-                          if (e.style === 'dotted') line = '-. ' + e.text + ' .->';
-
-                          else line = '-- ' + e.text + ' -->';
-
-                      }
-
-                      m += e.from + ' ' + line + ' ' + e.to + '\n';
+                      if (e.text) line += '|' + mmText(e.text) + '|';
+                      m += mmId(e.from) + ' ' + line + ' ' + mmId(e.to) + '\n';
 
                   });
 

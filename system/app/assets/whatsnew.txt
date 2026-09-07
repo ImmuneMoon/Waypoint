@@ -8,16 +8,18 @@ Journal
 - The handout window itself has a "Your notes" box now, under the picture or
   text, the moment a handout arrives and whenever one is opened from the
   Journal. It is the same note as the one in the Journal list.
-- The Journal is laid out like a mailbox. Each campaign has four pages.
-  Journal is everything — your own pages, what you received and what you
-  sent — with a Show row to see just one of those three. Inbox is what you
+- The Journal is laid out like a mailbox. Each campaign has four pages:
+  Journal, My notes, Inbox and Sent. Journal is everything — your own pages,
+  what you received and what you sent — with a Show row to see just one of
+  those three. My notes is your own pages on their own. Inbox is what you
   have received (handouts from the GM, pages other players shared) with a
   From row per sender: the GM or one person. Sent is a separate record, one
   line per send (what, to whom, when), with a To row per recipient: the GM,
-  one person, or everyone at once. My notes is your own pages on their own.
-  Counts sit on every tab and chip, and a search looks across everything.
-  Settings choose the page the Journal opens to (Journal by default) and
-  which section Inbox and Sent open to.
+  one person, or everyone at once. Counts sit on every tab and chip, and a
+  search looks across everything. Settings has a Journal block: the page it
+  opens to (Journal by default), what the Journal page shows first, which
+  chip Inbox and Sent start on, and whether an arriving handout opens right
+  away or only marks the Journal.
 - Clearing, each behind a confirm: the Inbox (everything received, or only
   what the chosen sender sent), My notes, or the whole journal for a
   campaign. It clears this computer only; senders keep their copies, and the
@@ -70,7 +72,8 @@ Fixes
   showed the GM's campaign until the panel was reopened. It now lists only the
   player's own campaigns the moment their save is back.
 - The session password and the player password fields in the Multiplayer
-  panel showed up white; they match the other fields now.
+  panel, the relay server fields, the handout picker search and the prompt
+  box showed up white; they match the other fields now.
 
 WAYPOINT 1.2.6 — What's New
 ============================

@@ -162,7 +162,8 @@ async function receiveHandout(msg) {
     await registerJournal(campId);
     if (msg.replay && !added) return;   // already in the journal, unchanged: refreshed, no fanfare
     badge(unseen + 1);
-    showHandout({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId } });
+    if (handoutPopup()) showHandout({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId } });
+    else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
 }
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
@@ -187,7 +188,8 @@ async function receiveTextHandout(msg, campId, id) {
     await registerJournal(campId);
     if (msg.replay && !added) return;
     badge(unseen + 1);
-    showHandout({ title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId } });
+    if (handoutPopup()) showHandout({ title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId } });
+    else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
 }
 window.wpJournalReceive = receiveHandout;
 
@@ -266,9 +268,9 @@ async function openJournal() {
         function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
         var tabs = personal ? '' : '<span class="journal-tabs">'
             + tab('all', 'Journal', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
+            + tab('mine', 'My notes', nMine, 'Your own pages')
             + tab('inbox', 'Inbox', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
-            + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when')
-            + tab('mine', 'My notes', nMine, 'Your own pages') + '</span>';
+            + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when') + '</span>';
         // people: who sent you things (From) and whom you sent things (To)
         var senders = {}, recips = {};
         function bump(map, id, name, n) { if (!id) return; var m = map[id] || (map[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n += (n || 1); }
@@ -277,7 +279,7 @@ async function openJournal() {
         else mySent.forEach(function(s) { bump(recips, s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'The GM' : s.name); });
         // the Journal page separates by kind: my notes / received / sent
         var kinds = { mine: { id: 'mine', name: 'My notes', n: nMine }, inbox: { id: 'inbox', name: 'Received', n: inbox.length }, sent: { id: 'sent', name: 'Sent', n: nSent } };
-        var show = journalShow[j.campId] || '', from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
+        var show = journalShow[j.campId] !== undefined ? journalShow[j.campId] : journalShowDefault(), from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
         function chips(forKey, label, items, current, attr, allLabel, allCount, keepOrder) {
             var list = Object.values(items); if (!list.length) return '';
             if (!keepOrder) list.sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.id === '*' ? 1 : b.id === '*' ? -1 : a.name.localeCompare(b.name); });
@@ -441,6 +443,9 @@ var journalPage = {};   // page chosen per campaign in this window
 var journalFrom = {};   // party member chosen on the From the party page, per campaign
 var journalTo = {};     // recipient chosen on the Sent page, per campaign
 var journalShow = {};   // kind chosen on the Journal page (my notes / received / sent), per campaign
+function journalShowDefault() { try { var p = localStorage.getItem('wp_journalShow'); return p === 'mine' || p === 'inbox' || p === 'sent' ? p : ''; } catch (e) { return ''; } }
+// An arriving handout: open it at once (default) or only mark the Journal
+function handoutPopup() { try { return localStorage.getItem('wp_handoutArrive') !== 'quiet'; } catch (e) { return true; } }
 // Which chip a page opens to: All, the GM, or the one picked last time (Settings: wp_inboxOpens / wp_sentOpens)
 function chipOpensTo(which, campId, items) {
     var mem = which === 'inbox' ? journalFrom : journalTo;

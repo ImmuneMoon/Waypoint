@@ -685,6 +685,7 @@
 
   /* Modal & panel text inputs (multiplayer, settings, search, chat, image library) */
   #netNameInput, #netCodeInput, #netPassInput, #netJoinPassInput, #setNameInput, #campSearchInput, #plannerSearchInput,
+  #setTurnUrls, #setTurnUser, #setTurnPass, #handoutPickSearch, #customPromptInput,
   #mapSearchInput, #imgLibSearch, #chatInput {
     background: var(--panel); color: var(--ink);
     border: 1px solid var(--edge); border-radius: 6px;
@@ -692,12 +693,15 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   #netNameInput:hover, #netCodeInput:hover, #netPassInput:hover, #netJoinPassInput:hover, #setNameInput:hover, #campSearchInput:hover,
+  #setTurnUrls:hover, #setTurnUser:hover, #setTurnPass:hover, #handoutPickSearch:hover, #customPromptInput:hover,
   #plannerSearchInput:hover, #mapSearchInput:hover, #imgLibSearch:hover, #chatInput:hover { border-color: var(--gold); }
   #netNameInput:focus, #netCodeInput:focus, #netPassInput:focus, #netJoinPassInput:focus, #setNameInput:focus, #campSearchInput:focus,
+  #setTurnUrls:focus, #setTurnUser:focus, #setTurnPass:focus, #handoutPickSearch:focus, #customPromptInput:focus,
   #plannerSearchInput:focus, #mapSearchInput:focus, #imgLibSearch:focus, #chatInput:focus {
     border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.15);
   }
   #netNameInput::placeholder, #netCodeInput::placeholder, #netPassInput::placeholder, #netJoinPassInput::placeholder, #setNameInput::placeholder,
+  #setTurnUrls::placeholder, #setTurnUser::placeholder, #setTurnPass::placeholder, #handoutPickSearch::placeholder, #customPromptInput::placeholder,
   #campSearchInput::placeholder, #plannerSearchInput::placeholder, #mapSearchInput::placeholder,
   #imgLibSearch::placeholder, #chatInput::placeholder { color: var(--dim); }
 

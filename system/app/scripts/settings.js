@@ -480,3 +480,17 @@ if (_ident) _ident.addEventListener('click', function() {
     try { var v = localStorage.getItem('wp_inboxOpens'); sel.value = v === 'gm' || v === 'remember' ? v : 'all'; } catch (e) {}
     sel.addEventListener('change', function() { try { localStorage.setItem('wp_inboxOpens', sel.value); } catch (e) {} });
 })();
+
+// Journal: what the Journal page shows first, and whether an arriving handout opens at once
+(function() {
+    var sel = document.getElementById('setJournalShow');
+    if (sel) {
+        try { var v = localStorage.getItem('wp_journalShow'); sel.value = v === 'mine' || v === 'inbox' || v === 'sent' ? v : ''; } catch (e) {}
+        sel.addEventListener('change', function() { try { localStorage.setItem('wp_journalShow', sel.value); } catch (e) {} });
+    }
+    var arr = document.getElementById('setHandoutArrive');
+    if (arr) {
+        try { arr.value = localStorage.getItem('wp_handoutArrive') === 'quiet' ? 'quiet' : 'open'; } catch (e) {}
+        arr.addEventListener('change', function() { try { localStorage.setItem('wp_handoutArrive', arr.value); } catch (e) {} });
+    }
+})();

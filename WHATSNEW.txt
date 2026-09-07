@@ -32,10 +32,9 @@ Journal
 - Party sharing. While in a session, every page in a player's Journal has a
   "Share with…" picker and a Send button: one party member, everyone, or the
   GM. A handout goes with the sender's notes under it; a page of their own goes
-  as written. It arrives on the receiver's "From the party" page (there is a
-  tab and a count for it) with the sender's name and notes shown, and the
-  receiver's own notes box underneath. The host relays it; players never
-  connect to each other.
+  as written. It lands in the receiver's Inbox under the sender's name,
+  with the sender's notes shown and the receiver's own notes box underneath.
+  The host relays it; players never connect to each other.
 
 WAYPOINT 1.2.8 — What's New
 ============================

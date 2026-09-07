@@ -898,6 +898,14 @@
   .grouped-fields { display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; border: 1px solid var(--edge); margin-bottom: 8px; }
   .grouped-fields .row-h { display: flex; gap: 6px; align-items: center; }
   .grouped-fields .row-h input, .grouped-fields .row-h select { flex: 1; min-width: 0; }
+  /* Flowchart block options row: direction, spacing, zoom, reset — styled like the grouped fields */
+  .fc-opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; padding: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--edge); border-radius: 6px; }
+  .fc-opts select { background: #20202c; color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; font-size: 13px; height: 31px; min-width: 0; }
+  .fc-opts select:focus { outline: none; border-color: var(--gold); }
+  .fc-opts label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); padding: 0 4px; }
+  .fc-opts input[type=range] { width: 110px; accent-color: var(--gold); cursor: pointer; }
+  .fc-opts .fc-zoom-val { min-width: 38px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .fc-opts .tool { height: 31px; padding: 0 10px; font-size: 12px; margin-left: auto; }
   .grouped-fields .tool.x-btn { width: 31px; height: 31px; padding: 0; flex: 0 0 31px; display: flex; align-items: center; justify-content: center; }
   #plannerPreviewWrap { width: 50%; padding: 20px; overflow-y: auto; background: var(--bg); color: var(--ink); }
   
@@ -909,6 +917,14 @@
   #plannerPreviewWrap .oneline { background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 15px; color: var(--dim); margin-top: 14px; }
   #plannerPreviewWrap .oneline b { color: var(--ink); }
   #plannerPreviewWrap .diagram { background: #fbfbfd; border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin: 14px 0 6px; overflow-x: auto; text-align: center; }
+  /* Flowchart box: drag the corner to resize (remembered), scroll inside when zoomed, drag nodes to nudge */
+  #plannerPreviewWrap .diagram.fc-box { resize: both; overflow: auto; min-height: 80px; min-width: 120px; max-width: 100%; box-sizing: border-box; text-align: left; }
+  #plannerPreviewWrap .diagram.fc-box svg[data-zoomed] { max-width: none !important; }
+  #plannerPreviewWrap .diagram.fc-box g.node { cursor: move; }
+  #plannerPreviewWrap .diagram.fc-box g.node:hover { filter: brightness(1.15); }
+  /* per-node resize handle: shows on hover, bottom-right corner of the node's box */
+  #plannerPreviewWrap .diagram.fc-box g.node rect.fc-handle { fill: #e0a54f; stroke: #15151c; stroke-width: 1; cursor: nwse-resize; opacity: 0; transition: opacity .12s; }
+  #plannerPreviewWrap .diagram.fc-box g.node:hover rect.fc-handle { opacity: 1; }
   #plannerPreviewWrap .node { margin: 26px 0; }
   #plannerPreviewWrap .node h3 { margin: 0 0 3px; font-size: 18px; color: #fff; }
   #plannerPreviewWrap .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }

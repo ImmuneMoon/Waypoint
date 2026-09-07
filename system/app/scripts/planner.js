@@ -182,11 +182,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<button class="tool ghost add-row" data-idx="'+idx+'">+ Add Row</button>';
 
           } else if (b.type === 'flowchart') {
-
               if (!b.nodes) b.nodes = [];
-
               if (!b.edges) b.edges = [];
-
+              // Layout options: direction, spacing, zoom; nudges can be reset
+              var fdir = b.dir || 'TD', fsp = b.space || 'normal', fz = Math.round((b.zoom || 1) * 100);
+              html += '<div class="row-h fc-opts">';
+              html += '<select data-idx="'+idx+'" class="fc-dir" title="Which way the chart flows"><option value="TD"'+(fdir==='TD'?' selected':'')+'>Top to bottom</option><option value="LR"'+(fdir==='LR'?' selected':'')+'>Left to right</option><option value="BT"'+(fdir==='BT'?' selected':'')+'>Bottom to top</option><option value="RL"'+(fdir==='RL'?' selected':'')+'>Right to left</option></select>';
+              html += '<select data-idx="'+idx+'" class="fc-space" title="Room between nodes"><option value="compact"'+(fsp==='compact'?' selected':'')+'>Compact</option><option value="normal"'+(fsp==='normal'?' selected':'')+'>Normal spacing</option><option value="wide"'+(fsp==='wide'?' selected':'')+'>Wide spacing</option></select>';
+              html += '<label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--dim);">Zoom <input type="range" min="50" max="300" step="10" value="'+fz+'" data-idx="'+idx+'" class="fc-zoom" style="width:110px;"> <span class="fc-zoom-val">'+fz+'%</span></label>';
+              html += '<button class="tool ghost fc-reset-pos" data-idx="'+idx+'" title="Put every node back to the size and place the chart gives it"'+((b.nodePos && Object.keys(b.nodePos).length) || (b.nodeSize && Object.keys(b.nodeSize).length) ? '' : ' style="display:none;"')+'>Reset tweaks</button>';
+              html += '</div>';
+              html += '<div style="font-size:11px; color:var(--dim); margin-bottom:8px;">In the preview: drag a node to nudge it, drag its corner square to resize it, drag the box\'s corner to resize the box. Enter in a label starts a new line.</div>';
               html += '<div style="margin-bottom:5px;"><strong>Nodes:</strong></div>';
 
               b.nodes.forEach(function(n, ni) {
@@ -197,7 +203,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '<input type="text" value="'+esc(n.id||'')+'" placeholder="ID (n1)" data-idx="'+idx+'" data-ni="'+ni+'" class="fc-n-id" style="flex: 0 0 60px;">';
 
-                  html += '<input type="text" value="'+esc(n.text||'')+'" placeholder="Label" data-idx="'+idx+'" data-ni="'+ni+'" class="fc-n-text" style="flex: 1;">';
+                  html += '<textarea rows="1" placeholder="Label (Enter for a new line)" data-idx="'+idx+'" data-ni="'+ni+'" class="field fc-n-text fc-grow" style="flex: 1; resize:none; min-height:31px; line-height:1.3; padding:6px 8px;">'+esc(n.text||'')+'</textarea>';
 
                   html += '<button class="tool ghost danger del-fc-n x-btn" data-idx="'+idx+'" data-ni="'+ni+'">✖</button>';
 
@@ -314,6 +320,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-n-id')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].id = this.value; save(false); renderPlannerPreview(); }));
 
+      Array.from(blockContainer.querySelectorAll('.fc-grow')).forEach(function(el) {
+          var grow = function() { el.style.height = 'auto'; el.style.height = Math.max(31, el.scrollHeight) + 'px'; };
+          el.addEventListener('input', grow); el.addEventListener('keydown', function(e) { e.stopPropagation(); }); grow();
+      });
+      Array.from(blockContainer.querySelectorAll('.fc-dir')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].dir = this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-space')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].space = this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-zoom')).forEach(el => el.addEventListener('input', function() {
+          activeMap.blocks[this.dataset.idx].zoom = parseInt(this.value, 10) / 100;
+          var v = this.parentElement.querySelector('.fc-zoom-val'); if (v) v.textContent = this.value + '%';
+          fcApplyZoom(this.dataset.idx); save(true);
+      }));
+      Array.from(blockContainer.querySelectorAll('.fc-reset-pos')).forEach(el => el.addEventListener('click', function() {
+          var bb = activeMap.blocks[this.dataset.idx]; delete bb.nodePos; delete bb.nodeSize; delete bb.nodePosSig; save(true); renderPlanner(); renderPlannerPreview();
+      }));
       Array.from(blockContainer.querySelectorAll('.fc-n-text')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].text = this.value; save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-n-shape')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].shape = this.value; save(true); renderPlannerPreview(); }));
@@ -380,6 +400,186 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       c = c.replace(/\r/g, '');
       if (para) return c.split(/\n{2,}/).map(function(x) { return x.replace(/\n/g, '<br>'); }).join('</p><p>');
       return c.replace(/\n/g, '<br>');
+  }
+  /* ---- flowchart post-processing ----
+     Mermaid lays the chart out; on top of that the GM can zoom it, resize its box, and nudge
+     nodes by hand. Nudges are stored on the block as absolute positions (in the SVG's own
+     units) together with a signature of the node ids, and thrown away when the set of nodes
+     changes, since the chart is laid out afresh then. Edges touching a nudged node are redrawn
+     as straight lines between node centres. */
+  function fcBlockOf(box) { var am = getActiveMap(); var i = parseInt(box.dataset.fc, 10); return am && am.blocks ? am.blocks[i] : null; }
+  function fcNodeId(g) { return String(g.id || '').replace(/^flowchart-/, '').replace(/-\d+$/, ''); }
+  function fcTranslate(g) { var m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/.exec(g.getAttribute('transform') || ''); return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 }; }
+  function fcSig(b) { return (b.nodes || []).map(function(n) { return n.id; }).sort().join(','); }
+  function fcApplyZoom(idx) {
+      var box = document.querySelector('#plannerPreview .fc-box[data-fc="' + idx + '"]'); if (!box) return;
+      var svg = box.querySelector('svg'); if (!svg) return;
+      var b = fcBlockOf(box); var z = (b && b.zoom) || 1;
+      var vb = (svg.getAttribute('viewBox') || '0 0 0 0').split(/[\s,]+/).map(Number);
+      if (z === 1) { svg.style.width = ''; svg.style.maxWidth = svg.dataset.fitW ? svg.dataset.fitW + 'px' : ''; svg.removeAttribute('data-zoomed'); return; }
+      svg.style.maxWidth = 'none'; svg.style.width = Math.round((vb[2] || svg.getBoundingClientRect().width) * z) + 'px'; svg.style.height = 'auto'; svg.dataset.zoomed = '1';
+  }
+  // The node's shape element (rect, polygon, circle…) — the first child that isn't the label
+  function fcShape(g) { return g.querySelector(':scope > rect, :scope > polygon, :scope > circle, :scope > ellipse, :scope > path'); }
+  function fcScaleOf(g) { var m = /scale\(\s*([-\d.]+)[ ,]*([-\d.]*)/.exec((fcShape(g) || g).getAttribute('transform') || ''); return m ? { x: parseFloat(m[1]), y: m[2] ? parseFloat(m[2]) : parseFloat(m[1]) } : { x: 1, y: 1 }; }
+  // Half-extents of a node's box in SVG units, including any hand resize
+  function fcHalf(g) {
+      var sh = fcShape(g); var sc = fcScaleOf(g);
+      try { var bb = sh ? sh.getBBox() : g.getBBox(); return { w: Math.max(4, bb.width / 2 * sc.x), h: Math.max(4, bb.height / 2 * sc.y) }; }
+      catch (e) { return { w: 30, h: 20 }; }
+  }
+  // Where a line from this node's centre towards (tx,ty) leaves its box
+  function fcEdgePoint(g, c, tx, ty) {
+      var h = fcHalf(g), dx = tx - c.x, dy = ty - c.y;
+      if (!dx && !dy) return c;
+      var t = Math.min(dx ? h.w / Math.abs(dx) : Infinity, dy ? h.h / Math.abs(dy) : Infinity);
+      return { x: c.x + dx * t, y: c.y + dy * t };
+  }
+  function fcRedrawEdges(svg, nid) {
+      var links = Array.from(svg.querySelectorAll('path.flowchart-link'));
+      var labels = Array.from(svg.querySelectorAll('g.edgeLabel'));
+      var nodeOf = function(id) { return svg.querySelector('g.node[id^="flowchart-' + id + '-"]'); };
+      links.forEach(function(p, i) {
+          var cls = p.getAttribute('class') || '';
+          var s = (/\bLS-([^\s]+)/.exec(cls) || [])[1], t = (/\bLE-([^\s]+)/.exec(cls) || [])[1];
+          if (!s || !t || (s !== nid && t !== nid)) return;
+          var gs = nodeOf(s), gt = nodeOf(t); if (!gs || !gt) return;
+          var cs = fcTranslate(gs), ct = fcTranslate(gt);
+          var a = fcEdgePoint(gs, cs, ct.x, ct.y), c = fcEdgePoint(gt, ct, cs.x, cs.y);
+          p.setAttribute('d', 'M' + a.x + ',' + a.y + 'L' + c.x + ',' + c.y);
+          var lab = labels[i]; if (lab) lab.setAttribute('transform', 'translate(' + ((a.x + c.x) / 2) + ',' + ((a.y + c.y) / 2) + ')');
+      });
+  }
+  // Hand-resized nodes: the shape is scaled about the node's centre; the label keeps its size
+  function fcApplySize(g, sx, sy) {
+      var sh = fcShape(g); if (!sh) return;
+      sh.setAttribute('transform', 'scale(' + sx + ',' + sy + ')');
+      fcPlaceHandle(g);
+  }
+  function fcPlaceHandle(g) {
+      var hd = g.querySelector(':scope > rect.fc-handle'); if (!hd) return;
+      var h = fcHalf(g);
+      hd.setAttribute('x', h.w - 5); hd.setAttribute('y', h.h - 5);
+  }
+  function fcApplySizes(svg, b) {
+      if (!b.nodeSize) return;
+      Object.keys(b.nodeSize).forEach(function(nid) {
+          var g = svg.querySelector('g.node[id^="flowchart-' + nid + '-"]'); if (!g) return;
+          var z = b.nodeSize[nid]; fcApplySize(g, z.x, z.y); fcRedrawEdges(svg, nid);
+      });
+  }
+  function fcWireResizeHandles(box, svg, b) {
+      var pt = svg.createSVGPoint();
+      var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; var m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; };
+      Array.from(svg.querySelectorAll('g.node')).forEach(function(g) {
+          if (g.querySelector(':scope > rect.fc-handle')) return;
+          var hd = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          hd.setAttribute('class', 'fc-handle'); hd.setAttribute('width', 10); hd.setAttribute('height', 10); hd.setAttribute('rx', 2);
+          g.appendChild(hd); fcPlaceHandle(g);
+          hd.addEventListener('pointerdown', function(e) {
+              if (e.button !== 0) return;
+              e.preventDefault(); e.stopPropagation();   // not a nudge
+              var nid = fcNodeId(g), sh = fcShape(g); if (!sh) return;
+              var sc0 = fcScaleOf(g); var bb; try { bb = sh.getBBox(); } catch (err) { return; }
+              var baseW = Math.max(4, bb.width / 2), baseH = Math.max(4, bb.height / 2), c = fcTranslate(g);
+              var onMove = function(ev) {
+                  var q = toSvg(ev);
+                  var sx = Math.max(0.5, Math.min(6, (q.x - c.x) / baseW)), sy = Math.max(0.5, Math.min(6, (q.y - c.y) / baseH));
+                  fcApplySize(g, Math.round(sx * 100) / 100, Math.round(sy * 100) / 100);
+                  fcRedrawEdges(svg, nid);
+              };
+              var onUp = function() {
+                  window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+                  var sc = fcScaleOf(g);
+                  if (Math.abs(sc.x - sc0.x) < 0.01 && Math.abs(sc.y - sc0.y) < 0.01) return;
+                  b.nodeSize = b.nodeSize || {}; b.nodeSize[nid] = { x: sc.x, y: sc.y }; b.nodePosSig = fcSig(b);
+                  save(true);
+                  var rb = document.querySelector('.fc-reset-pos[data-idx="' + box.dataset.fc + '"]'); if (rb) rb.style.display = '';
+              };
+              window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+          });
+      });
+  }
+  function fcApplyNudges(box, svg, b) {
+      if (!b.nodePos && !b.nodeSize) return;
+      if (!b.nodePos) b.nodePos = {};
+      if (b.nodePosSig !== fcSig(b)) { delete b.nodePos; delete b.nodeSize; delete b.nodePosSig; save(true); return; }   // the chart changed shape: fresh layout
+      Object.keys(b.nodePos).forEach(function(nid) {
+          var g = svg.querySelector('g.node[id^="flowchart-' + nid + '-"]'); if (!g) return;
+          var p = b.nodePos[nid]; g.setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
+          fcRedrawEdges(svg, nid);
+      });
+  }
+  function fcWireNudging(box, svg, b) {
+      var pt = svg.createSVGPoint();
+      var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; var m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; };
+      Array.from(svg.querySelectorAll('g.node')).forEach(function(g) {
+          g.style.cursor = 'move';
+          g.addEventListener('pointerdown', function(e) {
+              if (e.button !== 0) return;
+              e.preventDefault(); e.stopPropagation();
+              var nid = fcNodeId(g), start = toSvg(e), origin = fcTranslate(g), moved = false;
+              var onMove = function(ev) {
+                  var q = toSvg(ev); var nx = origin.x + (q.x - start.x), ny = origin.y + (q.y - start.y);
+                  if (Math.abs(nx - origin.x) > 1 || Math.abs(ny - origin.y) > 1) moved = true;
+                  g.setAttribute('transform', 'translate(' + nx + ', ' + ny + ')');
+                  fcRedrawEdges(svg, nid);
+                  fcFitViewBox(svg);
+              };
+              var onUp = function(ev) {
+                  window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+                  if (!moved) return;
+                  var p = fcTranslate(g);
+                  b.nodePos = b.nodePos || {}; b.nodePos[nid] = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }; b.nodePosSig = fcSig(b);
+                  save(true);
+                  var rb = document.querySelector('.fc-reset-pos[data-idx="' + box.dataset.fc + '"]'); if (rb) rb.style.display = '';
+              };
+              window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+          });
+      });
+  }
+  function fcWireResize(box, b) {
+      if (!window.ResizeObserver || box.dataset.ro) return;
+      box.dataset.ro = '1';
+      var ro = new ResizeObserver(function() {
+          // the corner handle writes inline width/height; remember those
+          var w = parseInt(box.style.width, 10), h = parseInt(box.style.height, 10);
+          if (!w && !h) return;
+          if (w && w !== b.boxW) b.boxW = w;
+          if (h && h !== b.boxH) b.boxH = h;
+          clearTimeout(box._saveT); box._saveT = setTimeout(function() { save(true); }, 400);
+      });
+      ro.observe(box);
+  }
+  // Fit the SVG's view box to what is actually drawn (plus a small margin). Removes the empty
+  // bands mermaid leaves when it measured labels in a pane that was not laid out yet, and keeps
+  // nudged or resized nodes inside the picture.
+  function fcFitViewBox(svg) {
+      var root = svg.querySelector(':scope > g'); if (!root) return;
+      var bb; try { bb = root.getBBox(); } catch (e) { return; }
+      if (!bb || !(bb.width > 0) || !(bb.height > 0)) return;
+      var pad = 12;
+      var x = bb.x - pad, y = bb.y - pad, w = bb.width + pad * 2, h = bb.height + pad * 2;
+      var vb = (svg.getAttribute('viewBox') || '0 0 0 0').split(/[\s,]+/).map(Number);
+      if (Math.abs(vb[2] - w) < 2 && Math.abs(vb[3] - h) < 2 && Math.abs(vb[0] - x) < 2 && Math.abs(vb[1] - y) < 2) return;
+      svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+      svg.setAttribute('height', h);
+      if (!svg.dataset.zoomed) { svg.style.maxWidth = Math.round(w) + 'px'; }
+      svg.dataset.fitW = String(Math.round(w));
+  }
+  function fcPostProcess() {
+      Array.from(document.querySelectorAll('#plannerPreview .fc-box')).forEach(function(box) {
+          var svg = box.querySelector('svg'); var b = fcBlockOf(box); if (!svg || !b) return;
+          fcFitViewBox(svg);
+          fcApplyZoom(box.dataset.fc);
+          fcWireResizeHandles(box, svg, b);
+          fcApplySizes(svg, b);
+          fcApplyNudges(box, svg, b);
+          fcFitViewBox(svg);   // tweaks may have pushed nodes past the original bounds
+          fcApplyZoom(box.dataset.fc);
+          fcWireNudging(box, svg, b);
+          fcWireResize(box, b);
+      });
   }
   function renderPlannerPreview() {
 
@@ -472,7 +672,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               // quotes; inside quotes only " and # need escaping (mermaid's #quot; / #35; entities).
               var mmText = function(t) { return '"' + String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>') + '"'; };
               var mmId = function(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; };
-              var m = 'flowchart TD\n';
+              var spc = { compact: [18, 28], normal: [50, 50], wide: [90, 90] }[b.space || 'normal'] || [50, 50];
+              var m = '%%{init: {"flowchart": {"nodeSpacing": ' + spc[0] + ', "rankSpacing": ' + spc[1] + ', "htmlLabels": true}}}%%\n';
+              m += 'flowchart ' + (/^(TD|LR|BT|RL)$/.test(b.dir || '') ? b.dir : 'TD') + '\n';
 
               m += 'classDef gold fill:#302517,stroke:#e0a54f,color:#fff\n';
 
@@ -525,7 +727,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               }
 
-              html += '<div class="diagram"><pre class="mermaid">' + m + '</pre></div>';
+              var boxStyle = (b.boxW ? 'width:' + b.boxW + 'px;' : '') + (b.boxH ? 'height:' + b.boxH + 'px;' : '');
+              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + m + '</pre></div>';
 
           }
 
@@ -542,9 +745,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       
 
       if (window.mermaid) {
-
-          try { mermaid.run({ querySelector: '.mermaid' }); } catch(e) { }
-
+          var runMermaid = function(tries) {
+              var pane = document.getElementById('plannerPreview');
+              if (pane && pane.clientWidth === 0 && tries < 40) { setTimeout(function() { runMermaid(tries + 1); }, 60); return; }   // wait until laid out, else labels measure wrong
+              try { Promise.resolve(mermaid.run({ querySelector: '.mermaid' })).then(fcPostProcess).catch(function() {}); } catch(e) { }
+          };
+          runMermaid(0);
       }
 
   }

@@ -1,3 +1,21 @@
+WAYPOINT 1.2.2 — What's New
+============================
+
+Flowcharts, bigger
+- Node labels can have several lines: press Enter in the label.
+- No more empty bands above and below a chart: the picture is trimmed to what
+  is drawn, and charts opened while the pane was still appearing no longer
+  come out mis-measured.
+- Each flowchart block has a direction (top to bottom, left to right, and the
+  reverses), a spacing choice, and a zoom. The diagram box has a corner handle
+  to resize it, and remembers its size.
+- Nudge and resize nodes by hand: drag a node in the preview to move it, or
+  drag the small square at its corner to stretch its box (the text keeps its
+  size). Both are saved with the block and put back after every render;
+  arrows touching a tweaked node become straight lines that stop at the box
+  edge. Adding or removing nodes lays the chart out afresh (tweaks are
+  dropped), and "Reset tweaks" does the same on demand.
+
 WAYPOINT 1.2.1 — What's New
 ============================
 

@@ -1,3 +1,13 @@
+WAYPOINT 1.3.1 — What's New
+============================
+
+Journal
+- The GM can share from their Journal too: any page — including one a
+  player sent them, with the GM's notes added — goes to one connected player
+  or to everyone, and shows on the GM's Sent page beside the handouts shown.
+- A page the GM shares arrives as "from the GM", the same as a handout, so
+  the From row shows one GM.
+
 WAYPOINT 1.3.0 — What's New
 ============================
 

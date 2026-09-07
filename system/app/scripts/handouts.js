@@ -286,7 +286,7 @@ async function openJournal() {
         var mySent = [];
         j.entries.forEach(function(e) { (e.sentTo || []).forEach(function(t) { mySent.push({ e: e, to: t.to, name: t.name, at: t.at }); }); });
         mySent.sort(function(a, b) { return b.at - a.at; });
-        var nSent = iRunIt ? sent.length : mySent.length, nAll = j.entries.length + nSent;
+        var nSent = sent.length + mySent.length, nAll = j.entries.length + nSent;
         function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
         var tabs = personal ? '' : '<span class="journal-tabs">'
             + tab('all', 'Journal', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
@@ -296,9 +296,12 @@ async function openJournal() {
         // people: who sent you things (From) and whom you sent things (To)
         var senders = {}, recips = {};
         function bump(map, id, name, n) { if (!id) return; var m = map[id] || (map[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n += (n || 1); }
-        inbox.forEach(function(e) { if (e.sharedBy) bump(senders, e.sharedById || e.sharedBy, e.sharedBy); else bump(senders, 'gm', 'The GM'); });
-        if (iRunIt) sent.forEach(function(s) { var once = {}; s.to.forEach(function(t) { if (once[t.pid]) return; once[t.pid] = true; bump(recips, t.pid, t.name); }); });
-        else mySent.forEach(function(s) { bump(recips, s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'The GM' : s.name); });
+        // who a received page is from: the GM (a handout, or a page the GM shared) or one player
+        var fromOf = function(e) { return !e.sharedBy || (e.sharedById && e.sharedById === j.gmId) ? 'gm' : (e.sharedById || e.sharedBy); };
+        var fromName = function(e) { return fromOf(e) === 'gm' ? 'the GM' : e.sharedBy; };
+        inbox.forEach(function(e) { bump(senders, fromOf(e), fromOf(e) === 'gm' ? 'GM' : e.sharedBy); });
+        sent.forEach(function(s) { var once = {}; s.to.forEach(function(t) { if (once[t.pid]) return; once[t.pid] = true; bump(recips, t.pid, t.name); }); });
+        mySent.forEach(function(s) { bump(recips, s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'GM' : s.name); });
         // the Journal page separates by kind: my notes / received / sent
         var kinds = { mine: { id: 'mine', name: 'My notes', n: nMine }, inbox: { id: 'inbox', name: 'Received', n: inbox.length }, sent: { id: 'sent', name: 'Sent', n: nSent } };
         var show = journalShow[j.campId] !== undefined ? journalShow[j.campId] : journalShowDefault(), from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
@@ -335,11 +338,11 @@ async function openJournal() {
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
-            return '<div class="journal-entry" data-page="inbox" data-from="' + esc(e.sharedBy ? (e.sharedById || e.sharedBy) : 'gm') + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
+            return '<div class="journal-entry" data-page="inbox" data-from="' + esc(fromOf(e)) + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(e.sharedBy || 'the GM') + '</b></div>' +
-                (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
+                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b></div>' +
+                (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(fromOf(e) === 'gm' ? 'The GM' : e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea>' + sentLine(e) + shareControls() + '</div></div>';
         }).join('');
         var empty = (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
@@ -406,9 +409,10 @@ function sentLine(e, inner) {
     return inner ? s : '<div class="journal-when journal-sent">' + s + '</div>';
 }
 function shareControls() {
-    var n = window.wpNet; if (!(n && n.active && n.role === 'client')) return '';
+    var n = window.wpNet; if (!(n && n.active && (n.role === 'client' || n.role === 'host'))) return '';
     var others = Object.values(n.roster || {}).filter(function(p) { return p && p.id && p.id !== n.myId; });
-    var opts = '<option value="">Share with…</option>' + (others.length ? '<option value="*">Everyone in the party</option>' : '') + '<option value="gm">The GM</option>' +
+    if (n.role === 'host' && !others.length) return '';
+    var opts = '<option value="">Share with…</option>' + (others.length ? '<option value="*">Everyone in the party</option>' : '') + (n.role === 'host' ? '' : '<option value="gm">The GM</option>') +
         others.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; }).join('');
     return '<div class="journal-share-row"><select class="journal-share" title="Send this page, with your notes, to someone at the table">' + opts + '</select><button class="tool ghost journal-share-send" disabled>Send</button></div>';
 }
@@ -601,7 +605,7 @@ if (_jList) {
             var fromChip = fromC ? secC.querySelector('.journal-from[data-for="inbox"][data-from="' + fromC + '"]') : null;
             var fromName = fromChip ? fromChip.textContent.replace(/\s*\d+\s*$/, '').trim() : '';
             var idxC = await readIndex(campC), campName = idxC.campaign || (campC === 'personal' ? 'Personal notes' : 'this campaign');
-            var senderOf = function(x) { return x.sharedBy ? (x.sharedById || x.sharedBy) : 'gm'; };
+            var senderOf = function(x) { return !x.sharedBy || (x.sharedById && x.sharedById === idxC.gmId) ? 'gm' : (x.sharedById || x.sharedBy); };
             var goes = idxC.entries.filter(function(x) {
                 if (scope === 'all') return true;
                 if (scope === 'mine') return x.kind === 'note';

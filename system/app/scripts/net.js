@@ -723,11 +723,15 @@ net.clearMyTarget = function() { var t = net.targets[net.myId]; if (t) net.setTa
    with r.handoutId reveals itself to a player whose token comes to rest inside it. */
 // A player shares a journal entry: the host relays it (to one player, everyone, or the GM itself)
 net.shareEntry = function(payload) {
+    if (net.active && net.role === 'host') {
+        if (!net.conns.some(function(c) { return c.open && net.roster[c.peer]; })) { toast('Nobody is connected to share with.'); return false; }
+        return relayShare(Object.assign({ type: 'share' }, payload), null, { id: net.myId, name: getProfile().name || 'GM' }) !== false;
+    }
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) { toast('Join a session first.'); return false; }
     try { net.conns[0].send(Object.assign({ type: 'share' }, payload)); return true; } catch (e) { toast('Could not send that.'); return false; }
 };
-function relayShare(msg, conn) {
-    var sp = net.roster[conn.peer]; if (!sp) return;
+function relayShare(msg, conn, sender) {
+    var sp = sender || (conn && net.roster[conn.peer]); if (!sp) return false;
     var en = msg.entry; if (!en || typeof en !== 'object') return;
     var kind = en.kind === 'image' ? 'image' : 'text';
     var to = msg.to === '*' || msg.to === 'gm' ? msg.to : (typeof msg.to === 'string' && msg.to.length <= 80 ? msg.to : null);
@@ -748,7 +752,7 @@ function relayShare(msg, conn) {
     if (to === 'gm') { if (window.wpJournalReceive) window.wpJournalReceive(out); names.push('you'); }
     else net.conns.forEach(function(c) {
         var p = net.roster[c.peer];
-        if (!c.open || !p || c === conn) return;
+        if (!c.open || !p || (conn && c === conn)) return;
         if (to !== '*' && p.id !== to) return;
         try { c.send(out); names.push(p.name || 'a player'); } catch (e) {}
     });

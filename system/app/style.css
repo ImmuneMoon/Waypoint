@@ -850,7 +850,7 @@
   .handout-actions .tool { padding: 4px 10px; font-size: 12px; }
   .handout-actions .handout-who { font-size: 12px; padding: 4px 6px; }
   #handoutPick { flex-direction: column; flex: 0 0 auto; max-height: 46%; min-height: 0; border: 1px solid var(--edge); border-radius: 6px; padding: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.15); }
-  #handoutPickGrid { overflow-y: auto; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; align-content: start; }
+  #handoutPickGrid { overflow-y: auto; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); grid-auto-rows: max-content; gap: 8px; align-content: start; }
   #handoutPickGrid .handout-pick-cell { cursor: pointer; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: #000; }
   #handoutPickGrid .handout-pick-cell img { width: 100%; height: 80px; object-fit: cover; display: block; }
   #handoutPickGrid .handout-pick-cell .img-lib-name { font-size: 10px; color: var(--dim); padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -858,7 +858,11 @@
   /* Journal */
   .journal-thumb-text, .handout-thumb-text { display: block; overflow: hidden; font-size: 10px; line-height: 1.35; color: var(--dim); padding: 6px; white-space: pre-wrap; background: #20202c; border: 1px solid var(--edge); cursor: pointer; }
   .handout-body .handout-text { min-height: 120px; resize: vertical; font-size: 12px; line-height: 1.45; }
-  .journal-camp { color: var(--gold); margin: 6px 0 8px; font-size: 13px; }
+  .journal-camp { color: var(--gold); margin: 6px 0 8px; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+  .journal-camp .journal-add { padding: 2px 8px; font-size: 11px; margin-left: auto; }
+  .journal-own { border-color: rgba(212,175,55,0.35); }
+  .journal-note-title { font-weight: 600; flex: 1; }
+  .journal-note-body { min-height: 90px; }
   .journal-entry { display: flex; gap: 12px; padding: 10px; border: 1px solid var(--edge); border-radius: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.15); }
   .journal-thumb { width: 140px; height: 100px; object-fit: cover; border-radius: 6px; cursor: zoom-in; flex: 0 0 140px; background: #000; }
   .journal-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }

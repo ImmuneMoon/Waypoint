@@ -1,3 +1,17 @@
+WAYPOINT 1.2.5 — What's New
+============================
+
+Journal notes
+- Players have a notebook of their own: "+ Note" in any campaign's section of
+  the Journal (or a personal section before any GM has shown them anything)
+  adds a note with a title and text, editable and deletable, saved on their
+  computer next to the handouts.
+
+Fixes
+- The Handouts picture picker showed each picture as a thin sliver (the grid
+  squeezed its rows to nothing inside the scrolling box). The pictures show
+  at their proper size now.
+
 WAYPOINT 1.2.4 — What's New
 ============================
 

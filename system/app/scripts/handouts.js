@@ -149,10 +149,17 @@ async function openJournal() {
     var list = ui('journalList');
     list.innerHTML = '<div style="color:var(--dim); padding:14px;">Loading your journal…</div>';
     var journals = await listJournals();
-    if (!journals.length) { list.innerHTML = '<div style="color:var(--dim); padding:14px; line-height:1.5;">Nothing here yet. When a GM shows you a handout — a place, a face, a letter — it is saved here with its caption, and you can add your own notes. It stays on this computer and works without a session.</div>'; return; }
+    if (!journals.length) { list.innerHTML = '<div style="color:var(--dim); padding:14px; line-height:1.5;">Nothing here yet. When a GM shows you a handout — a place, a face, a letter — it is saved here with its caption, and you can add your own notes. It stays on this computer and works without a session.</div><div style="padding:0 14px;"><button class="tool ghost journal-add" data-camp="personal">+ Note</button> <span style="color:var(--dim); font-size:11px;">Start a personal notebook now; campaign sections appear as GMs show you things.</span></div>'; return; }
     list.innerHTML = journals.map(function(j) {
-        var head = '<div class="journal-camp"><b>' + esc(j.campaign || 'Campaign') + '</b>' + (j.gm ? ' <span style="color:var(--dim);">— GM ' + esc(j.gm) + '</span>' : '') + '</div>';
+        var head = '<div class="journal-camp"><b>' + esc(j.campaign || (j.campId === 'personal' ? 'Personal notes' : 'Campaign')) + '</b>' + (j.gm ? ' <span style="color:var(--dim);">— GM ' + esc(j.gm) + '</span>' : '') + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a note of your own in this section">+ Note</button></div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
+            if (e.kind === 'note') {
+                return '<div class="journal-entry journal-own" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="note">' +
+                    '<div class="journal-body">' +
+                    '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title"><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
+                    '<textarea class="journal-notes journal-note-body" placeholder="Write…">' + esc(e.text || '') + '</textarea>' +
+                    '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note</div></div></div>';
+            }
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
@@ -181,7 +188,7 @@ if (_jList) {
     });
     var noteTimers = {};
     _jList.addEventListener('input', function(e) {
-        var ta = e.target.closest && e.target.closest('.journal-notes'); if (!ta) return;
+        var ta = e.target.closest && e.target.closest('.journal-notes'); if (!ta || ta.classList.contains('journal-note-body')) return;
         var row = ta.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id, val = ta.value;
         clearTimeout(noteTimers[campId + '/' + id]);
         noteTimers[campId + '/' + id] = setTimeout(async function() {
@@ -191,6 +198,44 @@ if (_jList) {
         }, 500);
     });
     _jList.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    // own notes: add / edit / delete
+    _jList.addEventListener('click', async function(e) {
+        var add = e.target.closest && e.target.closest('.journal-add');
+        if (add) {
+            var campId = safeId(add.dataset.camp) || 'personal';
+            var idx = await readIndex(campId);
+            if (campId === 'personal') idx.campaign = idx.campaign || 'Personal notes';
+            var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+            idx.entries.push({ id: id, kind: 'note', title: '', text: '', receivedAt: Date.now(), notes: '' });
+            idx.updated = Date.now();
+            await writeIndex(campId, idx); await registerJournal(campId);
+            await openJournal();
+            var t = document.querySelector('.journal-entry[data-id="' + id + '"] .journal-note-title'); if (t) t.focus();
+            return;
+        }
+        var del = e.target.closest && e.target.closest('.journal-del');
+        if (del) {
+            var row = del.closest('.journal-entry'); var cId = row.dataset.camp, nId = row.dataset.id;
+            var body = (row.querySelector('.journal-note-body') || {}).value || '';
+            if (body.trim() && !confirm('Delete this note?')) return;
+            var ix = await readIndex(cId);
+            ix.entries = ix.entries.filter(function(x) { return x.id !== nId; }); ix.updated = Date.now();
+            await writeIndex(cId, ix);
+            row.remove();
+            if (!ix.entries.length) await openJournal();
+        }
+    });
+    _jList.addEventListener('input', function(e) {
+        var fld = e.target.closest && e.target.closest('.journal-note-title, .journal-note-body'); if (!fld) return;
+        var row = fld.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id;
+        var title = (row.querySelector('.journal-note-title') || {}).value || '', text = (row.querySelector('.journal-note-body') || {}).value || '';
+        clearTimeout(noteTimers['own:' + campId + '/' + id]);
+        noteTimers['own:' + campId + '/' + id] = setTimeout(async function() {
+            var idx = await readIndex(campId);
+            var en = idx.entries.find(function(x) { return x.id === id; });
+            if (en) { en.title = title.slice(0, 120); en.text = text.slice(0, 60000); idx.updated = Date.now(); await writeIndex(campId, idx); }
+        }, 500);
+    });
 }
 
 /* ================= GM side: Handouts ================= */

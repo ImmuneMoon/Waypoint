@@ -61,6 +61,7 @@
   body.net-client #searchCampBtn, body.net-client #newCampBtn, body.net-client #renameCampBtn, body.net-client #delCampBtn,
   body.net-client #campaignSelect, body.net-client #plannerTools,
   body.net-client #wbUndoBtn, body.net-client #wbRedoBtn, body.net-client #wbGridBtn, body.net-client #wbSnapBtn,
+  body.net-client #handoutsBtn,
   body.net-client #shapeTextBtn,
   body.net-client #shapeMenuBtn, body.net-client #addImageBtn, body.net-client #clearWbBtn,
   body.net-client .wb-tool-sep {
@@ -837,6 +838,32 @@
   #partyMenu .party-menu-item:hover { background: rgba(212,175,55,0.14); color: var(--gold); }
   #partyMenu .party-menu-item.dim { opacity: 0.45; cursor: default; }
   #partyMenu .party-menu-item.dim:hover { background: transparent; color: var(--ink); }
+  /* Handouts panel */
+  .handout-row { display: flex; gap: 12px; padding: 10px; border: 1px solid var(--edge); border-radius: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.15); }
+  .handout-thumb { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; cursor: pointer; flex: 0 0 120px; background: #000; }
+  .handout-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .handout-body .handout-title { font-weight: 600; }
+  .handout-body .handout-caption { min-height: 44px; resize: vertical; font-size: 12px; }
+  .handout-meta { color: var(--dim); font-size: 11px; }
+  .handout-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .handout-actions .tool { padding: 4px 10px; font-size: 12px; }
+  .handout-actions .handout-who { font-size: 12px; padding: 4px 6px; }
+  #handoutPick { flex-direction: column; flex: 0 0 auto; max-height: 46%; min-height: 0; border: 1px solid var(--edge); border-radius: 6px; padding: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.15); }
+  #handoutPickGrid { overflow-y: auto; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; align-content: start; }
+  #handoutPickGrid .handout-pick-cell { cursor: pointer; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: #000; }
+  #handoutPickGrid .handout-pick-cell img { width: 100%; height: 80px; object-fit: cover; display: block; }
+  #handoutPickGrid .handout-pick-cell .img-lib-name { font-size: 10px; color: var(--dim); padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #handoutPickGrid .handout-pick-cell:hover { border-color: var(--gold); }
+  /* Journal */
+  .journal-camp { color: var(--gold); margin: 6px 0 8px; font-size: 13px; }
+  .journal-entry { display: flex; gap: 12px; padding: 10px; border: 1px solid var(--edge); border-radius: 8px; margin-bottom: 8px; background: rgba(0,0,0,0.15); }
+  .journal-thumb { width: 140px; height: 100px; object-fit: cover; border-radius: 6px; cursor: zoom-in; flex: 0 0 140px; background: #000; }
+  .journal-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .journal-title { font-weight: 600; }
+  .journal-caption { color: var(--ink); font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+  .journal-when { color: var(--dim); font-size: 10px; }
+  .journal-notes { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font-size: 12px; background: #20202c; color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; }
+  body.stream-mode #handoutsBtn, body.stream-mode #journalBtn { display: none !important; }
   #zoomBox {
     position: absolute; top: 26px; right: 14px; z-index: 9000;
     display: flex; align-items: center; gap: 5px;

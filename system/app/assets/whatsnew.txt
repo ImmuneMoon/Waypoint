@@ -1,3 +1,20 @@
+WAYPOINT 1.2.3 — What's New
+============================
+
+Handouts and the Journal
+- GM: the new 📜 Handouts panel holds pictures to show your players — a place
+  they have found, a face, a letter — each with a title and a caption. Show
+  one to the whole table or to a single player, or attach it to a room in the
+  room's Properties: a player whose token comes to rest in that room is shown
+  it on their own, once. Late joiners and reconnecting players receive what
+  they were already shown.
+- Players: the new 📖 Journal keeps everything a GM has shown you, with the
+  caption and your own notes. It is saved on your computer, in your own saves
+  folder, so it opens with no session and no GM online. Pictures are sent
+  once, resized to a sensible size, and never leave your machine again.
+- Removing a handout on the GM's side does not reach into players' journals:
+  like a paper handout, once seen it is theirs.
+
 WAYPOINT 1.2.2 — What's New
 ============================
 

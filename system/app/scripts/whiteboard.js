@@ -2256,6 +2256,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (!grid || !_imgLibCache) return;
       var q = (filter || '').toLowerCase();
       var camp = getActiveCampaign();
+      // players' journals live under images/journal/ — not campaign art, keep them out of the library
+      _imgLibCache = _imgLibCache.filter(function(i) { return !/^journal(\/|$)/.test(i.folder || ''); });
       function folderLabel(folder) {
           var it = camp && camp.items[folder];
           return (it && it.meta && it.meta.title) ? it.meta.title : folder;

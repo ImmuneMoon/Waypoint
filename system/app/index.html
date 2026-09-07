@@ -70,6 +70,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/settings.js"></script>
 <script type="module" src="scripts/tips.js"></script>
 <script type="module" src="scripts/stream.js"></script>
+<script type="module" src="scripts/handouts.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -129,6 +130,8 @@ window.addEventListener('unhandledrejection', function(e) {
       <div class="header-sep"></div>
       <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update">&#11014;&#65039; Update</button>
       <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;">&#127760;<span id="netDot" aria-hidden="true"></span></button>
+      <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)">&#128220;</button>
+      <button class="tool ghost icon" id="journalBtn" title="Journal &mdash; everything a GM has shown you, with your notes" style="position:relative;">&#128214;<span id="journalBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--gold); color:#1a1408; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
       <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;">&#128172;<span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
       <button class="tool ghost icon" id="settingsBtn" title="Settings">&#9881;&#65039;</button>
       <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts">&#10067;</button>
@@ -337,6 +340,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Running the table</h4>
                       <ul>
                           <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
+                          <li><b>Handouts:</b> the &#128220; button holds pictures to show your players &mdash; a place, a face, a letter &mdash; each with a title and caption. Show one to the table or to one player, or attach it to a room (room Properties) so a player whose token enters that room sees it. Everything you show lands in that player's own Journal, on their machine, with their notes.</li>
                           <li><b>Party strip:</b> the small tokens in the play map's top-right corner are your players' characters &mdash; highlighted when they are on the map you are viewing, dimmed when that player is not connected. Click one to jump to them (their map, centred, 150%); right-click one to summon that player, or everyone, to the table's map.</li>
                           <li><b>Split party:</b> a player can double-click a door/stairs portal to move to that map alone. The roster shows where everyone is; <b>Summon All</b> pulls the whole party back to you, and the &#128227; beside a name fetches just that player.</li>
                           <li><b>Stream window:</b> Settings &#9654; Open Stream Window gives you a second window with only the play map, as players see it. Screen-share it for someone watching without the app; its corner menu follows your map, focuses one map, or focuses one character (switching maps with them and staying centred at 150%).</li>
@@ -387,6 +391,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Grey cloud boxes are things the GM hasn't revealed yet.</li>
                           <li>If a banner says the GM <b>paused the table</b>, tokens and doors are frozen until they resume &mdash; chat stays open.</li>
                           <li>Other players' tokens only show on the map they're actually on.</li>
+                          <li><b>Journal (&#128214;):</b> everything a GM has shown you, saved on this computer with its caption. Add your own notes under each picture; it all works with no session running.</li>
                           <li><b>Targeting:</b> click a character token that isn't yours to mark it as your target &mdash; everyone sees a small copy of your own token on it (several targeters line up in the middle and wrap into rows). Click it again, or press <b>Esc</b>, to clear. One target at a time.</li>
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
                       </ul>
@@ -929,6 +934,35 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 </div>
 
+<!-- Handouts (GM) -->
+<div id="handoutsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:82vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Handouts <button id="handoutsCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div style="color:var(--dim); font-size:12px; line-height:1.45; margin-bottom:10px;">Pictures you show your players: a place they have found, a face, a letter. Shown handouts are saved into each player's own Journal, where they can add notes and look again any time &mdash; even with no session running. Attach one to a room (in the room's Properties) and a player whose token enters that room sees it on their own.</div>
+        <div style="display:flex; gap:8px; margin-bottom:10px;"><button class="tool" id="handoutNewBtn">+ New handout</button></div>
+        <div id="handoutPick" style="display:none;">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;"><input type="text" id="handoutPickSearch" placeholder="Filter pictures&hellip;" style="flex:1;"><button class="tool ghost" id="handoutPickClose" style="padding:2px 8px;">&times;</button></div>
+            <div id="handoutPickGrid" style="overflow-y:auto; flex:1;"></div>
+        </div>
+        <div id="handoutsList" style="overflow-y:auto; flex:1;"></div>
+    </div>
+</div>
+<!-- A handout on screen (fresh reveal, or from the journal) -->
+<div id="handoutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100001; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:18px; border:1px solid var(--gold); border-radius:8px; max-width:92vw; max-height:92vh; display:flex; flex-direction:column; gap:10px; align-items:center;">
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:12px;"><h3 id="handoutTitle" style="margin:0; color:var(--gold);">Handout</h3><button id="handoutCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></div>
+        <img id="handoutImg" alt="" style="max-width:88vw; max-height:70vh; object-fit:contain; border-radius:6px; background:#000;">
+        <div id="handoutCaption" style="max-width:88vw; color:var(--ink); line-height:1.5; white-space:pre-wrap; text-align:center;"></div>
+        <div id="handoutFresh" style="display:none; color:var(--dim); font-size:11px;">Saved to your Journal (&#128214;) &mdash; add your own notes there.</div>
+    </div>
+</div>
+<!-- Journal (everyone) -->
+<div id="journalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:760px; max-width:94vw; height:84vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Journal <button id="journalCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div id="journalList" style="overflow-y:auto; flex:1;"></div>
+    </div>
+</div>
 <div id="playersModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Player History &amp; Bans <button id="playersCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>

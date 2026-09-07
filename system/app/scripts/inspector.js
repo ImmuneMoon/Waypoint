@@ -172,6 +172,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
              '<div class="field"><label for="fIcon">Node Icon</label><select id="fIcon">'+iconOpts+'</select></div>'+
 
              '<div class="field"><label for="fNotes">Notes / Room details</label><textarea id="fNotes">'+esc(r.notes||'')+'</textarea></div>'+
+             '<div class="field"><label for="fHandout" title="A player whose token comes to rest in this room is shown the handout (once), and it goes into their Journal">Handout on entry</label><select id="fHandout"><option value="">&mdash; none &mdash;</option>'+((window.wpHandoutList?window.wpHandoutList():[]).map(function(h){ return '<option value="'+esc(h.id)+'"'+(r.handoutId===h.id?' selected':'')+'>'+esc(h.title||h.id)+'</option>'; }).join(''))+'</select></div>'+
 
              '<div class="row"><button class="tool ghost danger" id="delBtn">Delete node</button>'+
 
@@ -282,6 +283,8 @@ if(_el_fCat) _el_fCat.addEventListener('change',function(){
       var _el_fNotes = document.getElementById('fNotes');
 
 if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value;save();});
+      var _el_fHandout = document.getElementById('fHandout');
+      if(_el_fHandout) _el_fHandout.addEventListener('change',function(){ if (this.value) r.handoutId = this.value; else delete r.handoutId; save(); });
 
       var fTargetMap = document.getElementById('fTargetMap');
 

@@ -12,7 +12,7 @@
 function render() { if (window.appRender) window.appRender(); }
 
 import { state } from './state.js';
-import { getActiveCampaign, findLandingRoom, landingPoint } from './models.js';
+import { getActiveCampaign, findLandingRoom, landingPoint, getActiveMap } from './models.js';
 import { save, toast, load } from './io.js';
 import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
@@ -232,6 +232,7 @@ function sanitizeItem(item) {
     var m = JSON.parse(JSON.stringify(item));
     (m.rooms || []).forEach(function(r) {
         delete r.notes;
+        delete r.handoutId;
         (r.characters || []).forEach(function(c) { delete c.info; delete c.ref; });
     });
     m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor; }).map(function(w) {
@@ -250,6 +251,8 @@ function sanitizeAppState(s) {
         // GM bookkeeping: the player registry, history, and ban list never ship
         delete camp.players;
         delete camp.bannedPlayers;
+        delete camp.handouts;
+        delete camp.handoutReveals;
         Object.keys(camp.items).forEach(function(id) {
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];
@@ -479,7 +482,7 @@ net.onLocalSave = function() {
         else _lastPatchHash[patch.itemId] = hs;
     }
     if (patch) broadcast(patch, null);
-    if (net.role === 'host') scheduleStageFollow();
+    if (net.role === 'host') { scheduleStageFollow(); var amH = getActiveMap(); if (amH && amH.type === 'map') checkRoomHandouts(amH); }
 };
 
 /* The table follows the GM's map, but only once they have stayed on it for a moment:
@@ -637,6 +640,7 @@ function handlePos(msg, conn) {
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
+        if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
         // Host is the authority on cells: seat the token here too, in case the
         // player's copy didn't (grid state not yet applied on their side)
         if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }
@@ -707,6 +711,69 @@ net.setTarget = function(itemId, mapId, itemName) {
     toast(next ? 'Targeting ' + (itemName || 'that token') + '. Click it again (or press Esc) to clear.' : 'Target cleared.');
 };
 net.clearMyTarget = function() { var t = net.targets[net.myId]; if (t) net.setTarget(t.id, t.mapId); };
+/* ---------- handouts (host) ----------
+   revealHandout(hid, playerIds|null): resize the picture, send it to those players (all connected
+   when null), record it on camp.handoutReveals so late joiners and reconnects get it too. A room
+   with r.handoutId reveals itself to a player whose token comes to rest inside it. */
+net.revealHandout = function(hid, pids) {
+    if (!net.active || net.role !== 'host') { toast('Host a session first.'); return; }
+    var camp = getActiveCampaign(); var h = camp && camp.handouts && camp.handouts[hid];
+    if (!h || !window.wpHandoutPayload) return;
+    var targets = net.conns.filter(function(c) { var p = net.roster[c.peer]; return c.open && p && (!pids || pids.indexOf(p.id) >= 0); });
+    if (!targets.length) { toast('Nobody to show it to right now.'); return; }
+    window.wpHandoutPayload(h).then(function(pl) {
+        targets.forEach(function(c) {
+            var p = net.roster[c.peer];
+            try { c.send({ type: 'handout', campId: camp.id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data }); } catch (e) {}
+            camp.handoutReveals = camp.handoutReveals || {};
+            camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
+            camp.handoutReveals[p.id][h.id] = Date.now();
+        });
+        net.applyingRemote = true; save(true); net.applyingRemote = false;
+        document.dispatchEvent(new CustomEvent('wp-handout-revealed'));
+        toast('"' + (h.title || 'Handout') + '" shown to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', ') + '.');
+    }).catch(function() { toast('Could not prepare that picture.'); });
+};
+// Everything already revealed to this player, sent again (their journal keeps one copy per handout)
+function sendMissedHandouts(conn, prof) {
+    var camp = getActiveCampaign(); if (!camp || !camp.handoutReveals || !camp.handoutReveals[prof.id]) return;
+    Object.keys(camp.handoutReveals[prof.id]).forEach(function(hid, i) {
+        var h = camp.handouts && camp.handouts[hid]; if (!h || !window.wpHandoutPayload) return;
+        setTimeout(function() {
+            window.wpHandoutPayload(h).then(function(pl) {
+                if (!conn.open) return;
+                try { conn.send({ type: 'handout', campId: camp.id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true }); } catch (e) {}
+            }).catch(function() {});
+        }, 1500 + i * 400);
+    });
+}
+// The room a token is standing in (its centre inside a floor item linked to a room)
+function roomUnder(item, map) {
+    if (!item || !map || !map.whiteboard) return null;
+    var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2, best = null, bestArea = Infinity;
+    map.whiteboard.forEach(function(o) {
+        if (o.id === item.id || !o.nodeId) return;
+        var ow = o.w || 0, oh = o.h || 0;
+        if (cx < o.x || cx > o.x + ow || cy < o.y || cy > o.y + oh) return;
+        if (ow * oh < bestArea) { bestArea = ow * oh; best = o; }
+    });
+    if (!best) return null;
+    return (map.rooms || []).find(function(r) { return r.id === best.nodeId; }) || null;
+}
+// Host: any player's token now resting in a room that carries a handout they haven't seen
+function checkRoomHandouts(map) {
+    if (!net.active || net.role !== 'host' || !map || map.type !== 'map') return;
+    var camp = getActiveCampaign(); if (!camp || !camp.handouts) return;
+    (map.whiteboard || []).forEach(function(w) {
+        if (!w.isChar || !w.ownerId) return;
+        var r = roomUnder(w, map); if (!r || !r.handoutId || !camp.handouts[r.handoutId]) return;
+        var seen = camp.handoutReveals && camp.handoutReveals[w.ownerId] && camp.handoutReveals[w.ownerId][r.handoutId];
+        if (seen) return;
+        if (!Object.values(net.roster).some(function(p) { return p && p.id === w.ownerId; })) return;   // only to someone connected
+        net.revealHandout(r.handoutId, [w.ownerId]);
+    });
+}
+net.checkRoomHandouts = checkRoomHandouts;
 net.isPresent = function(ownerId, mapId) {
     if (!net.active || net.stream) return true;                    // solo, or the stream window: everything shows
     if (net.role === 'client' && ownerId === net.myId) return true;
@@ -793,6 +860,7 @@ function admitPlayer(conn, prof) {
     renderRoster();
     toast((prof.name || 'A player') + ' joined.');
     // remember this player on the campaign so token ownership can outlive the session
+    setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     var camp = getActiveCampaign();
     if (camp) {
         camp.players = camp.players || {};
@@ -924,6 +992,7 @@ function handleMessage(msg, conn) {
             var profile = net.roster[conn.peer];
             var changed = applyClientItemFiltered(msg, profile);
             if (changed) {
+                setTimeout(function() { checkRoomHandouts(state.appState.campaigns[msg.campId].items[msg.itemId]); }, 50);
                 var myActive = getActiveCampaign();
                 if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
                 net.applyingRemote = true; save(true); net.applyingRemote = false;
@@ -954,6 +1023,8 @@ function handleMessage(msg, conn) {
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
         applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
         broadcast({ type: 'targets', targets: net.targets }, null);
+    } else if (msg.type === 'handout' && net.role === 'client') {
+        if (window.wpJournalReceive) window.wpJournalReceive(msg);
     } else if (msg.type === 'targets' && net.role === 'client') {
         net.targets = cleanTargets(msg.targets);
         render();

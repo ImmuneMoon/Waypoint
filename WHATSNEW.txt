@@ -30,6 +30,14 @@ Multiplayer
   do nothing for them — but the table is not paused: tokens still move and
   chat stays open. Players see a small banner and a note if they try. Late
   joiners inherit the lock; it clears when the session ends.
+- Right-click on empty space of a play map during a session for a Session
+  menu: for the GM, Summon Everyone Here, Lock / Allow Travel, Pause / Resume
+  and End Session, plus "Bring <name> here" for every player the campaign
+  knows; for a player, Leave Session (it asks first, as does the panel's
+  Leave). Between sessions the same right-click offers "Bring <name> here":
+  it puts that player's token on this map at the click point (moving the
+  one already here, or copying theirs over from another map), so they start
+  there next time.
 
 Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the

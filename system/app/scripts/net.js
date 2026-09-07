@@ -1738,7 +1738,7 @@ if (_joinBtn) _joinBtn.addEventListener('click', function() {
     joinSession(code, (ui('netNameInput').value || '').trim());
 });
 var _leaveBtn = ui('netLeaveBtn');
-if (_leaveBtn) _leaveBtn.addEventListener('click', function() { leaveSession(false); });
+if (_leaveBtn) _leaveBtn.addEventListener('click', function() { net.leaveSessionConfirm(); });
 
 /* ---------- Refresh: reload without losing the session ---------- */
 var _refreshBtn = ui('refreshBtn');
@@ -1812,7 +1812,66 @@ net.summonPlayerById = function(playerId) {
     return true;
 };
 net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
-net.isConnected = function(playerId) { return Object.values(net.roster).some(function(p) { return p && p.id === playerId; }); };
+net.togglePause = function() { var b = ui('netPauseBtn'); if (b) b.click(); };
+net.toggleTravelLock = function() { var b = ui('netTravelLockBtn'); if (b) b.click(); };
+net.endSession = function() { var b = ui('netEndBtn'); if (b) b.click(); };   // asks first, like the panel
+if (!net.leaveSession) net.leaveSession = leaveSession;
+// Leave, with a confirm (panel button and the play-map menu both use this)
+net.leaveSessionConfirm = function() {
+    if (!net.active) return;
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm('Leave the session? Your own campaign comes back on screen. You can rejoin with the same room code.', function() {
+            leaveSession(false);
+            var nm = ui('netModal'); if (nm) nm.style.display = 'none';
+        });
+    });
+};
+// Between sessions (or for a player who is not connected): move that player's token to a point on
+// the active map, taking it off whichever map it was on. Connected players are summoned instead.
+net.bringPlayerHere = function(pid, wbX, wbY) {
+    if (net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === pid; })) return net.summonPlayerById(pid);
+    var camp = getActiveCampaign(); var map = camp && getActiveMap();
+    if (!camp || !map || map.type !== 'map') { toast('Open a play map first.'); return false; }
+    var pl = (camp.players || {})[pid] || {}, name = pl.name || 'that player';
+    map.whiteboard = map.whiteboard || [];
+    var here = map.whiteboard.filter(function(w) { return w.isChar && w.ownerId === pid; });
+    var tok = here[0] || null, copied = false;
+    if (here.length > 1) here.slice(1).forEach(function(w) { delete w.ownerId; });   // one owned token per map
+    if (!tok) {
+        var src = null;
+        Object.values(camp.items).some(function(it) {
+            if (it.type !== 'map' || it === map) return false;
+            var w = (it.whiteboard || []).find(function(x) { return x.isChar && x.ownerId === pid; });
+            if (w) { src = w; return true; }
+            return false;
+        });
+        if (!src && pl.charName) {
+            var loose = map.whiteboard.find(function(x) { return x.isChar && !x.ownerId && x.charName === pl.charName; });
+            if (loose) { loose.ownerId = pid; tok = loose; }
+            else Object.values(camp.items).some(function(it) {
+                if (it.type !== 'map') return false;
+                var w = (it.whiteboard || []).find(function(x) { return x.isChar && !x.ownerId && x.charName === pl.charName; });
+                if (w) { src = w; return true; }
+                return false;
+            });
+        }
+        if (!tok && src) {
+            tok = JSON.parse(JSON.stringify(src));
+            tok.id = 'wb' + Math.random().toString(36).slice(2, 10);
+            tok.ownerId = pid;
+            map.whiteboard.push(tok); copied = true;
+        }
+    }
+    if (!tok) { toast('No token for ' + name + ' yet — one appears when they first join with a character.'); return false; }
+    tok.x = wbX - (tok.w || 60) / 2; tok.y = wbY - (tok.h || 52) / 2;
+    delete tok.hidden;
+    if (window.wpSeatHex) window.wpSeatHex(tok, map);
+    save(true);
+    if (window.appRender) window.appRender();
+    if (net.active && net.role === 'host') { var cm = sanitizeItem(map); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: map.id, item: cm }, null); }
+    toast(name + (copied ? ' placed on ' : ' moved here on ') + ((map.meta || {}).title || 'this map') + '.');
+    return true;
+};net.isConnected = function(playerId) { return Object.values(net.roster).some(function(p) { return p && p.id === playerId; }); };
 var _summonBtn = ui('netSummonBtn');
 if (_summonBtn) _summonBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;

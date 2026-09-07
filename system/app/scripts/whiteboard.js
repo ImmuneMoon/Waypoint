@@ -3176,9 +3176,57 @@ attachArrowTurn();
 (function() { var bar = document.getElementById('selToolbar'), wrap = document.getElementById('whiteboardWrap'); if (bar && wrap && bar.parentElement !== wrap) wrap.appendChild(bar); })();
 
 // Context Menu
+// Session menu on empty play-map space (only while a session is running)
+function showSessionMenu(e, role) {
+    var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
+    var n = window.wpNet, camp = getActiveCampaign(), html = '';
+    // the click point in map coordinates, for "bring here"
+    var wrap = document.getElementById('whiteboardWrap'), b = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 }, z = state.zoomLevel || 1;
+    var pt = { x: (e.clientX - b.left + (wrap ? wrap.scrollLeft : 0)) / z, y: (e.clientY - b.top + (wrap ? wrap.scrollTop : 0)) / z };
+    var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: camp.players[id].name || id }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
+    function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
+    function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '">&#10148; Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
+    if (role === 'host') {
+        html += head('Session');
+        html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
+        html += bringItems();
+        html += '<div class="menu-divider"></div>';
+        html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';
+        html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table') + '</div>';
+        html += '<div class="menu-divider"></div>';
+        html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
+    } else if (role === 'offline') {
+        if (!players.length) { cMenu.style.display = 'none'; return; }
+        html += head('Players') + bringItems();
+    } else {
+        html += head('Session');
+        html += '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
+    }
+    cMenu.innerHTML = html;
+    cMenu.style.display = 'flex';
+    cMenu.style.left = e.pageX + 'px';
+    cMenu.style.top = e.pageY + 'px';
+    Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-session'), function(it) {
+        it.addEventListener('click', function(ce) {
+            ce.stopPropagation();
+            cMenu.style.display = 'none';
+            var act = it.dataset.act;
+            if (act === 'summon') n.summonAll();
+            else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
+            else if (act === 'travel') n.toggleTravelLock();
+            else if (act === 'pause') n.togglePause();
+            else if (act === 'end') n.endSession();
+            else if (act === 'leave') n.leaveSessionConfirm();
+        });
+    });
+}
 document.addEventListener('contextmenu', function(e) {
     if (state.viewMode !== 'visual' && state.viewMode !== 'data') return;
-    if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return; // spectators get no edit menu
+    if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
+        // players get no edit menu; empty play-map space offers Leave Session
+        if (state.viewMode === 'visual' && e.target.closest('#whiteboardWrap') && !e.target.closest('.wb-item')) { e.preventDefault(); showSessionMenu(e, 'client'); }
+        return;
+    }
     
     var isCanvasOrWb = false;
     var targetId = null;
@@ -3223,8 +3271,10 @@ document.addEventListener('contextmenu', function(e) {
         var am = getActiveMap();
         
         if (selectedIds.length === 0) {
-            // Empty canvas clicked
-            cMenu.style.display = 'none';
+            // Empty canvas clicked: the Session menu while hosting, nothing otherwise
+            if (isWb && window.wpNet && window.wpNet.active && window.wpNet.role === 'host') showSessionMenu(e, 'host');
+            else if (isWb && window.wpNet && !window.wpNet.active) showSessionMenu(e, 'offline');   // between sessions: bring a player's token here
+            else cMenu.style.display = 'none';
         } else {
             // Items selected
             var html = '';

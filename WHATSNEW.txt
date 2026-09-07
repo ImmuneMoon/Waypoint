@@ -89,6 +89,10 @@ Portals
 - NPC tokens travel too: drag one onto a portal and it goes through to the
   other map (it moves, since NPCs have no per-map copies). Works with or
   without a session running.
+- The GM can walk a player's character through a portal between sessions,
+  or while that player is away from the table: their copy on the other map
+  is placed beside the landing point (or left alone if it is already there
+  and off the node), and the token left behind steps off the portal.
 
 Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the

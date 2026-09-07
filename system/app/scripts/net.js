@@ -695,7 +695,9 @@ function portalUnder(item, map) {
 net.tokenDropped = function(item, map) {
     if (!item || !item.isChar || !map) return false;
     if (!item.ownerId) return npcTravel(item, map);                                   // an NPC: the GM's own token, moves through
-    if (!net.active || net.role !== 'host' || net.paused) return false;
+    var atTable = net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
+    if (!atTable) return offlinePlayerTravel(item, map);                             // between sessions, or the player is not connected: the GM walks their character through
+    if (net.paused) return false;
     var portal = portalUnder(item, map);
     if (!portal) return false;
     var peerId = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
@@ -704,6 +706,41 @@ net.tokenDropped = function(item, map) {
     return hostTravel(conn, net.roster[peerId], portal, map);
 };
 
+// The GM walks a player's character through a portal without that player at the table: their
+// copy on the destination map is placed (or nudged off the landing node), the source steps off.
+function offlinePlayerTravel(item, map) {
+    if (net.active && net.role === 'client') return false;
+    var portal = portalUnder(item, map); if (!portal) return false;
+    var camp = getActiveCampaign(); if (!camp) return false;
+    var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (map.rooms || []).find(function(r) { return r.id === portal.nodeId; });
+    if (!pRoom || !pRoom.targetMapId || !camp.items[pRoom.targetMapId]) return false;
+    var dest = camp.items[pRoom.targetMapId]; if (dest.type !== 'map' || dest === map) return false;
+    var landSrc = portal.targetMapId ? { id: null, name: portal.name, targetRoomId: portal.targetRoomId } : pRoom;
+    var landRoom = findLandingRoom(landSrc, dest), landPt = landRoom && landingPoint(dest, landRoom);
+    var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
+    var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
+    var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
+    dest.whiteboard = dest.whiteboard || [];
+    var mine = dest.whiteboard.find(function(w) { return w.isChar && w.ownerId === item.ownerId; }), placed = false;
+    if (!mine) {
+        mine = JSON.parse(JSON.stringify(item));
+        mine.id = 'wb' + Math.random().toString(36).slice(2, 10);
+        delete mine.hidden;
+        var spot = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, null, nodeEl);
+        mine.x = spot.x; mine.y = spot.y;
+        dest.whiteboard.push(mine); placed = true;
+    } else if (nodeEl && mine.x < nodeEl.x + (nodeEl.w || 0) && mine.x + (mine.w || 60) > nodeEl.x && mine.y < nodeEl.y + (nodeEl.h || 0) && mine.y + (mine.h || 52) > nodeEl.y) {
+        var spot2 = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, mine.id, nodeEl);
+        mine.x = spot2.x; mine.y = spot2.y;
+    }
+    stepOffPortal(item, portal, map);
+    net.applyingRemote = true; save(true); net.applyingRemote = false;
+    if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
+    if (window.appRender) window.appRender();
+    var who = (camp.players || {})[item.ownerId], nm = item.charName || (who && who.name) || 'The character';
+    toast(nm + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — their token waits there.' : ' — their token there stays where it was.'));
+    return true;
+}
 // An NPC token dropped on a portal moves to the destination map (it has no per-map copies)
 function npcTravel(item, map) {
     if (net.active && net.role === 'client') return false;

@@ -254,6 +254,7 @@ function sanitizeAppState(s) {
         delete camp.handouts;
         delete camp.handoutReveals;
         delete camp.handoutLog;
+        delete camp.cast;
         Object.keys(camp.items).forEach(function(id) {
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];
@@ -614,7 +615,19 @@ function hostTravel(conn, traveler, portal, fromMap) {
     traveler.location = pRoom.targetMapId;
     traveler.detached = true;
     renderRoster();
+    var left = (fromMap.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === traveler.id; });
+    if (left) { stepOffPortal(left, portal, fromMap); var cleanFrom = sanitizeItem(fromMap); if (cleanFrom) broadcast({ type: 'item', campId: tCamp.id, itemId: fromMap.id, item: cleanFrom }, null); }
     ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
+    // a token already on the destination stays where the GM left it, unless it is still on the landing node
+    var landPtD = landRoom && landingPoint(destMap, landRoom), nodeEl = landPtD && landPtD.wbItemId ? (destMap.whiteboard || []).find(function(o) { return o.id === landPtD.wbItemId; }) : null;
+    var mineD = nodeEl && (destMap.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === traveler.id; });
+    if (mineD && mineD.x < nodeEl.x + (nodeEl.w || 0) && mineD.x + (mineD.w || 60) > nodeEl.x && mineD.y < nodeEl.y + (nodeEl.h || 0) && mineD.y + (mineD.h || 52) > nodeEl.y) {
+        var spotD = freeSpotNear(destMap, landPtD.wbX, landPtD.wbY, mineD.w || 60, mineD.h || 52, mineD.id, nodeEl);
+        mineD.x = spotD.x; mineD.y = spotD.y;
+        if (window.wpSeatHex) window.wpSeatHex(mineD, destMap);
+        net.applyingRemote = true; save(true); net.applyingRemote = false;
+        var cleanD = sanitizeItem(destMap); if (cleanD) broadcast({ type: 'item', campId: tCamp.id, itemId: destMap.id, item: cleanD }, null);
+    }
     broadcastRoster();
     if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) {} }
     var destTitle = (tCamp.items[pRoom.targetMapId].meta || {}).title || pRoom.targetMapId;
@@ -623,6 +636,34 @@ function hostTravel(conn, traveler, portal, fromMap) {
 }
 
 // The portal item under a token's center, if any (visible, room-linked, warp target set)
+// A free top-left for a w×h token near (cx, cy): spiral outwards until it overlaps no other
+// character token (and, when given, stays off the portal's footprint).
+function freeSpotNear(map, cx, cy, w, h, avoidId, portal) {
+    var others = (map.whiteboard || []).filter(function(o) { return o.isChar && o.id !== avoidId; });
+    function clashes(x, y) {
+        if (portal && x < portal.x + (portal.w || 0) && x + w > portal.x && y < portal.y + (portal.h || 0) && y + h > portal.y) return true;
+        return others.some(function(o) { return x < o.x + (o.w || 0) && x + w > o.x && y < o.y + (o.h || 0) && y + h > o.y; });
+    }
+    var step = Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2;
+    if (!clashes(x0, y0)) return { x: x0, y: y0 };
+    for (var ring = 1; ring <= 6; ring++) {
+        for (var dy = -ring; dy <= ring; dy++) for (var dx = -ring; dx <= ring; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+            var x = x0 + dx * step, y = y0 + dy * step;
+            if (!clashes(x, y)) return { x: x, y: y };
+        }
+    }
+    return { x: x0, y: y0 };
+}
+// The token left behind steps off the portal so the next crossing is not blocked
+function stepOffPortal(item, portal, map) {
+    if (!item || !portal || !map) return;
+    var w = item.w || 60, h = item.h || 52;
+    var cx = portal.x + (portal.w || 0) / 2, cy = portal.y + (portal.h || 0) + h / 2 + 12;   // just below the portal
+    var p = freeSpotNear(map, cx, cy, w, h, item.id, portal);
+    item.x = p.x; item.y = p.y;
+    if (window.wpSeatHex) window.wpSeatHex(item, map);
+}
 function portalUnder(item, map) {
     if (!item || !map || !map.whiteboard) return null;
     var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2;
@@ -644,7 +685,9 @@ function portalUnder(item, map) {
    double-click needed. Called by the host for its own drops (a GM can push a
    player's token through a door) and for player drops arriving over the wire. */
 net.tokenDropped = function(item, map) {
-    if (!net.active || net.role !== 'host' || net.paused || !item || !item.isChar || !item.ownerId) return false;
+    if (!item || !item.isChar || !map) return false;
+    if (!item.ownerId) return npcTravel(item, map);                                   // an NPC: the GM's own token, moves through
+    if (!net.active || net.role !== 'host' || net.paused) return false;
     var portal = portalUnder(item, map);
     if (!portal) return false;
     var peerId = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
@@ -653,6 +696,29 @@ net.tokenDropped = function(item, map) {
     return hostTravel(conn, net.roster[peerId], portal, map);
 };
 
+// An NPC token dropped on a portal moves to the destination map (it has no per-map copies)
+function npcTravel(item, map) {
+    if (net.active && net.role === 'client') return false;
+    var portal = portalUnder(item, map); if (!portal) return false;
+    var camp = getActiveCampaign(); if (!camp) return false;
+    var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (map.rooms || []).find(function(r) { return r.id === portal.nodeId; });
+    if (!pRoom || !pRoom.targetMapId || !camp.items[pRoom.targetMapId]) return false;
+    var dest = camp.items[pRoom.targetMapId]; if (dest.type !== 'map') return false;
+    var landSrc = portal.targetMapId ? { id: null, name: portal.name, targetRoomId: portal.targetRoomId } : pRoom;
+    var landRoom = findLandingRoom(landSrc, dest), landPt = landRoom && landingPoint(dest, landRoom);
+    var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
+    var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
+    map.whiteboard = (map.whiteboard || []).filter(function(w) { return w !== item; });
+    var spot = freeSpotNear(dest, sx, sy, item.w || 60, item.h || 52, null, landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
+    item.x = spot.x; item.y = spot.y;
+    if (window.wpSeatHex) window.wpSeatHex(item, dest);
+    dest.whiteboard = dest.whiteboard || []; dest.whiteboard.push(item);
+    net.applyingRemote = true; save(true); net.applyingRemote = false;
+    if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
+    if (window.appRender) window.appRender();
+    toast((item.charName || 'Token') + ' went through to ' + ((dest.meta || {}).title || 'the next map') + '.');
+    return true;
+}
 function handlePos(msg, conn) {
     var camp = state.appState.campaigns[msg.campId];
     var map = camp && camp.items[msg.itemId];
@@ -899,8 +965,8 @@ function ensurePlayerToken(pid, mapId, landRoomId) {
                 var landPt = landR && landingPoint(map, landR);
                 var sx = (landPt && landPt.wbX != null) ? landPt.wbX : (map.meta.homeX || 15000);
                 var sy = (landPt && landPt.wbY != null) ? landPt.wbY : (map.meta.homeY || 15000);
-                nw.x = sx - (nw.w || 60) / 2;
-                nw.y = sy - (nw.h || 52) / 2;
+                var spot = freeSpotNear(map, sx, sy, nw.w || 60, nw.h || 52, null, landPt && landPt.wbItemId ? (map.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
+                nw.x = spot.x; nw.y = spot.y;
                 if (window.wpSeatHex) window.wpSeatHex(nw, map);
                 map.whiteboard = map.whiteboard || [];
                 map.whiteboard.push(nw);

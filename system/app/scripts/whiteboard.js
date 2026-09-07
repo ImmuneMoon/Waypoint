@@ -2254,6 +2254,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   function renderImgLib(filter) {
       var grid = document.getElementById('imgLibGrid');
       if (!grid || !_imgLibCache) return;
+      grid.dataset.cast = (!_imgLibPick && state.viewMode === 'visual') ? '1' : '';
       var q = (filter || '').toLowerCase();
       var camp = getActiveCampaign();
       // players' journals live under images/journal/ — not campaign art, keep them out of the library
@@ -2279,7 +2280,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           });
           html += '</div>';
       });
-      grid.innerHTML = html || '<div style="color:var(--dim); padding:20px; text-align:center;">No images found.</div>';
+      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">No images found.</div>';
   }
 
   var _el_importCharBtn = document.getElementById('importCharBtn');
@@ -2335,6 +2336,15 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('click', function(e) {
       var cell = e.target.closest('.img-lib-cell');
       if (!cell) return;
+      if (cell.classList.contains('cast-cell')) {
+          var five = e.target.closest('.cast-cell-five');
+          var amC = getActiveMap();
+          if (!amC || amC.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
+          var ctr = viewCentre();
+          castPlace(cell.dataset.cid, ctr.x, ctr.y, five ? 5 : 1);
+          document.getElementById('imgLibModal').style.display = 'none';
+          return;
+      }
       if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; document.getElementById('imgLibModal').style.display = 'none'; cb(cell.dataset.src); return; }
       var am = getActiveMap();
       if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
@@ -3176,6 +3186,97 @@ attachArrowTurn();
 (function() { var bar = document.getElementById('selToolbar'), wrap = document.getElementById('whiteboardWrap'); if (bar && wrap && bar.parentElement !== wrap) wrap.appendChild(bar); })();
 
 // Context Menu
+/* ---------- Campaign Cast: saved characters, dropped as copies ---------- */
+function castOf(camp) { camp.cast = camp.cast || {}; return camp.cast; }
+function castSave(items) {
+    var camp = getActiveCampaign(); if (!camp) return;
+    var cast = castOf(camp), n = 0;
+    items.forEach(function(it) {
+        if (!it || !it.isChar) return;   // only character tokens belong in the cast
+        var cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        cast[cid] = { id: cid, name: it.charName || 'Character', src: it.src || '', w: it.w || 60, h: it.h || 52, color: it.color || 'transparent', charStats: it.charStats || '', shape: it.shape || '', savedAt: Date.now() };
+        n++;
+    });
+    if (!n) { import('./io.js').then(function(m) { m.toast('Select a character token to save.'); }); return; }
+    import('./io.js').then(function(m) { m.save(true); m.toast(n === 1 ? 'Saved to the campaign cast.' : n + ' saved to the campaign cast.'); });
+}
+function castPlace(cid, x, y, count) {
+    var camp = getActiveCampaign(), am = getActiveMap();
+    if (!camp || !am || am.type !== 'map') return;
+    var c = castOf(camp)[cid]; if (!c) return;
+    am.whiteboard = am.whiteboard || [];
+    count = Math.max(1, count || 1);
+    var cols = Math.ceil(Math.sqrt(count)), gap = 10;
+    for (var i = 0; i < count; i++) {
+        var col = i % cols, row = Math.floor(i / cols);
+        var it = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'image', x: x - c.w / 2 + col * (c.w + gap), y: y - c.h / 2 + row * (c.h + gap), w: c.w, h: c.h, z: 10, src: c.src, color: c.color, isChar: true, charName: count > 1 ? c.name + ' ' + (i + 1) : c.name, charStats: c.charStats, layer: 'front' };
+        if (c.shape) it.shape = c.shape;
+        if (window.wpSeatHex) window.wpSeatHex(it, am);
+        am.whiteboard.push(it);
+    }
+    import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast(count === 1 ? c.name + ' placed.' : count + ' × ' + c.name + ' placed.'); });
+}
+// Cast cells at the top of the image library (new-token flow)
+function castLibraryHtml(filter) {
+    var camp = getActiveCampaign(); if (!camp) return '';
+    var q = (filter || '').toLowerCase();
+    var list = Object.values(castOf(camp)).filter(function(c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    if (!list.length) return q ? '' : '<div class="img-lib-folder" style="color:var(--dim); font-size:11px;">&#9733; Campaign Cast — empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use.</div>';
+    return '<div class="img-lib-folder" style="color:var(--gold);">&#9733; Campaign Cast <span style="color:var(--dim); font-weight:normal;">— click to place a copy at the centre of your view</span></div>'
+        + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + '">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop five copies">&times;5</button></div>'; }).join('')
+        + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
+}
+function viewCentre() {
+    var wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;
+    if (!wrap) return { x: 15000, y: 15000 };
+    return { x: (wrap.scrollLeft + wrap.clientWidth / 2) / z, y: (wrap.scrollTop + wrap.clientHeight / 2) / z };
+}
+function castMenuHtml(camp) {
+    var list = Object.values(castOf(camp)).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    var html = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">Campaign Cast</div>';
+    if (!list.length) html += '<div class="menu-item" style="color:var(--dim); cursor:default; font-size:12px;">Empty — right-click a character token and choose Save to Campaign Cast.</div>';
+    list.slice(0, 14).forEach(function(c) {
+        html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" style="display:flex; align-items:center; gap:8px;">'
+              + (c.src ? '<img src="' + esc(c.src) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '&#9733;')
+              + '<span style="flex:1;">' + esc(c.name) + '</span>'
+              + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop five copies here" style="padding:1px 7px; font-size:10.5px;">&times;5</button></div>';
+    });
+    if (list.length > 14) html += '<div class="menu-item" style="color:var(--dim); cursor:default; font-size:11px;">' + (list.length - 14) + ' more in Manage Cast…</div>';
+    html += '<div class="menu-item cm-session" data-act="cast-manage">&#9998; Manage Cast…</div>';
+    return html;
+}
+function openCastModal() {
+    var m = document.getElementById('castModal'), list = document.getElementById('castList'); if (!m || !list) return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    var entries = Object.values(castOf(camp)).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    list.innerHTML = entries.length ? entries.map(function(c) {
+        return '<div class="cast-row" data-cid="' + esc(c.id) + '">' + (c.src ? '<img src="' + esc(c.src) + '" alt="">' : '<div class="cast-thumb-empty">&#9733;</div>')
+             + '<div style="flex:1; min-width:0;"><input class="field cast-name" value="' + esc(c.name) + '" placeholder="Name"><input class="field cast-stats" value="' + esc(c.charStats || '') + '" placeholder="Line under the name (optional)" style="margin-top:4px; font-size:12px;"></div>'
+             + '<button class="tool ghost danger cast-del" title="Remove from the cast (tokens already placed stay)">&times;</button></div>';
+    }).join('') : '<div style="color:var(--dim); padding:12px; line-height:1.5;">Nothing saved yet. Right-click a character token on a play map and choose <b>Save to Campaign Cast</b>; then right-click empty space to drop copies.</div>';
+    m.style.display = 'flex';
+}
+var _castList = document.getElementById('castList');
+if (_castList) {
+    _castList.addEventListener('input', function(e) {
+        var row = e.target.closest('.cast-row'); if (!row) return;
+        var camp = getActiveCampaign(); var c = camp && castOf(camp)[row.dataset.cid]; if (!c) return;
+        if (e.target.classList.contains('cast-name')) c.name = e.target.value.slice(0, 80);
+        if (e.target.classList.contains('cast-stats')) c.charStats = e.target.value.slice(0, 200);
+        import('./io.js').then(function(m) { m.save(false); });
+    });
+    _castList.addEventListener('click', function(e) {
+        var del = e.target.closest('.cast-del'); if (!del) return;
+        var row = del.closest('.cast-row'); var camp = getActiveCampaign(); if (!camp) return;
+        delete castOf(camp)[row.dataset.cid];
+        import('./io.js').then(function(m) { m.save(true); });
+        openCastModal();
+    });
+    _castList.addEventListener('keydown', function(e) { e.stopPropagation(); });
+}
+var _castClose = document.getElementById('castCloseBtn');
+if (_castClose) _castClose.addEventListener('click', function() { document.getElementById('castModal').style.display = 'none'; });
+
 // Session menu on empty play-map space (only while a session is running)
 function showSessionMenu(e, role) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
@@ -3186,6 +3287,7 @@ function showSessionMenu(e, role) {
     var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: camp.players[id].name || id }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '">&#10148; Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
+    if (role !== 'client') html += castMenuHtml(camp) + '<div class="menu-divider"></div>';
     if (role === 'host') {
         html += head('Session');
         html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
@@ -3196,8 +3298,8 @@ function showSessionMenu(e, role) {
         html += '<div class="menu-divider"></div>';
         html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
     } else if (role === 'offline') {
-        if (!players.length) { cMenu.style.display = 'none'; return; }
-        html += head('Players') + bringItems();
+        if (players.length) html += head('Players') + bringItems();
+        else html = html.replace(/<div class="menu-divider"><\/div>$/, '');
     } else {
         html += head('Session');
         html += '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
@@ -3206,12 +3308,17 @@ function showSessionMenu(e, role) {
     cMenu.style.display = 'flex';
     cMenu.style.left = e.pageX + 'px';
     cMenu.style.top = e.pageY + 'px';
+    Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-cast-five'), function(b5) {
+        b5.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; castPlace(b5.dataset.cid, pt.x, pt.y, 5); });
+    });
     Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-session'), function(it) {
         it.addEventListener('click', function(ce) {
             ce.stopPropagation();
             cMenu.style.display = 'none';
             var act = it.dataset.act;
             if (act === 'summon') n.summonAll();
+            else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
+            else if (act === 'cast-manage') openCastModal();
             else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
             else if (act === 'travel') n.toggleTravelLock();
             else if (act === 'pause') n.togglePause();
@@ -3356,6 +3463,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
             }
             html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
+            if (isWb && firstItem && firstItem.isChar) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
             html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
 
             cMenu.innerHTML = html;
@@ -3483,6 +3591,9 @@ document.addEventListener('contextmenu', function(e) {
                         if (it && it.isChar) { if (stNew) it.status = stNew; else delete it.status; }
                     });
                     import('./io.js').then(m => m.toast(stNew === 'dead' ? 'Marked dead.' : stNew === 'down' ? 'Marked incapacitated.' : 'Back on their feet.'));
+                } else if (action.includes('cm-cast-save')) {
+                    castSave(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
+                    return;
                 } else if (action.includes('cm-dup')) {
                     duplicateWbItems(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;   // saved + rendered inside

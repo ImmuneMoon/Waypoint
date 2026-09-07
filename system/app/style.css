@@ -1097,3 +1097,14 @@
   /* Fast tooltips (scripts/tooltips.js) */
   #wpTip { position: fixed; display: none; z-index: 200000; max-width: 320px; padding: 6px 10px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; font-size: 12px; line-height: 1.4; box-shadow: var(--shadow); pointer-events: none; opacity: 0; transition: opacity .08s; white-space: pre-line; }
   #wpTip.show { opacity: 1; }
+
+  /* Campaign Cast */
+  .cast-row { display: flex; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; margin-bottom: 6px; background: rgba(0,0,0,0.12); }
+  .cast-row img, .cast-thumb-empty { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: #000; flex: 0 0 48px; display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 20px; }
+  .cast-row .cast-del { padding: 2px 8px; }
+  .cm-cast-row .cm-cast-five { margin-left: auto; }
+
+  /* Campaign Cast cells in the image library */
+  .cast-cell { position: relative; outline: 1px solid rgba(224,165,79,0.35); }
+  .cast-cell .cast-cell-five { position: absolute; top: 4px; right: 4px; padding: 0 6px; font-size: 10px; opacity: 0; }
+  .cast-cell:hover .cast-cell-five { opacity: 1; }

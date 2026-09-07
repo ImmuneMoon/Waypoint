@@ -39,6 +39,27 @@ Multiplayer
   one already here, or copying theirs over from another map), so they start
   there next time.
 
+Campaign Cast
+- Save a character once, drop copies anywhere. Right-click a character token
+  and choose Save to Campaign Cast; from then on the empty-space right-click
+  on any play map lists the cast — click a name for one copy at that spot,
+  or ×5 for five (numbered). Manage Cast renames or removes entries; tokens
+  already placed are not affected. The cast is GM data and never reaches
+  players. The cast also sits at the top of the image library, so creating a
+  token starts with a choice of saved characters: click one to place a copy
+  at the centre of your view, or its ×5 badge for five.
+
+Portals
+- Tokens no longer pile up on a portal. Whoever arrives takes the nearest
+  free spot beside the landing point, and the token left behind on the map
+  they came from steps off the portal, so the next crossing is not blocked
+  and the GM no longer has to unstack anyone. A token that was already on
+  the destination stays where the GM put it — unless it is still sitting on
+  the landing node, in which case it is nudged to the nearest free spot.
+- NPC tokens travel too: drag one onto a portal and it goes through to the
+  other map (it moves, since NPCs have no per-map copies). Works with or
+  without a session running.
+
 Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the
   data map, instead of an upright one.

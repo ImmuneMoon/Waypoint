@@ -1010,6 +1010,14 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="handoutFresh" style="display:none; color:var(--dim); font-size:11px; display:flex; align-items:center; gap:10px;">Saved to your Journal (&#128214;). <button class="tool ghost" id="handoutOpenJournalBtn" style="padding:3px 10px; font-size:11px;">Add notes</button></div>
     </div>
 </div>
+<!-- Campaign Cast (GM) -->
+<div id="castModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:84vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Campaign Cast <button id="castCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Characters saved to this campaign. Right-click empty space on any play map to drop copies — one, or five at a time — instead of building the same NPC again or importing it.</div>
+        <div id="castList" style="overflow-y:auto; flex:1;"></div>
+    </div>
+</div>
 <!-- Journal (everyone) -->
 <div id="journalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:760px; max-width:94vw; height:84vh; display:flex; flex-direction:column;">

@@ -3192,14 +3192,21 @@ function castSave(items) {
     var camp = getActiveCampaign(); if (!camp) return;
     var cast = castOf(camp), n = 0;
     items.forEach(function(it) {
-        if (!it || !it.isChar) return;   // only character tokens belong in the cast
+        if (!it || !(it.isChar || it.charName)) return;   // only character tokens belong in the cast
         var cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-        cast[cid] = { id: cid, name: it.charName || 'Character', src: it.src || '', w: it.w || 60, h: it.h || 52, color: it.color || 'transparent', charStats: it.charStats || '', shape: it.shape || '', savedAt: Date.now() };
+        cast[cid] = { id: cid, name: it.charName || 'Character', kind: it.type || 'image', src: it.src || '', w: it.w || 60, h: it.h || 52, color: it.color || 'transparent', charStats: it.charStats || '', shape: it.shape || '', savedAt: Date.now() };
         n++;
     });
     if (!n) { import('./io.js').then(function(m) { m.toast('Select a character token to save.'); }); return; }
     import('./io.js').then(function(m) { m.save(true); m.toast(n === 1 ? 'Saved to the campaign cast.' : n + ' saved to the campaign cast.'); });
 }
+window.wpCastSaveCharacter = function(c) {
+    var camp = getActiveCampaign(); if (!camp || !c) return false;
+    var cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    castOf(camp)[cid] = { id: cid, name: c.name || 'Character', kind: c.portrait ? 'image' : 'circle', src: c.portrait || '', w: 60, h: 52, color: c.portrait ? 'transparent' : '#4db3d3', charStats: '', shape: '', savedAt: Date.now() };
+    import('./io.js').then(function(m) { m.save(true); m.toast((c.name || 'Character') + ' saved to the campaign cast.'); });
+    return true;
+};
 function castPlace(cid, x, y, count) {
     var camp = getActiveCampaign(), am = getActiveMap();
     if (!camp || !am || am.type !== 'map') return;
@@ -3209,7 +3216,8 @@ function castPlace(cid, x, y, count) {
     var cols = Math.ceil(Math.sqrt(count)), gap = 10;
     for (var i = 0; i < count; i++) {
         var col = i % cols, row = Math.floor(i / cols);
-        var it = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'image', x: x - c.w / 2 + col * (c.w + gap), y: y - c.h / 2 + row * (c.h + gap), w: c.w, h: c.h, z: 10, src: c.src, color: c.color, isChar: true, charName: count > 1 ? c.name + ' ' + (i + 1) : c.name, charStats: c.charStats, layer: 'front' };
+        var it = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: c.kind || (c.src ? 'image' : 'circle'), x: x - c.w / 2 + col * (c.w + gap), y: y - c.h / 2 + row * (c.h + gap), w: c.w, h: c.h, z: 10, color: c.color, isChar: true, charName: count > 1 ? c.name + ' ' + (i + 1) : c.name, name: count > 1 ? c.name + ' ' + (i + 1) : c.name, charStats: c.charStats, layer: 'front' };
+        if (c.src) it.src = c.src;
         if (c.shape) it.shape = c.shape;
         if (window.wpSeatHex) window.wpSeatHex(it, am);
         am.whiteboard.push(it);
@@ -3278,54 +3286,66 @@ var _castClose = document.getElementById('castCloseBtn');
 if (_castClose) _castClose.addEventListener('click', function() { document.getElementById('castModal').style.display = 'none'; });
 
 // Session menu on empty play-map space (only while a session is running)
-function showSessionMenu(e, role) {
-    var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
+// The table menu: Campaign Cast, Players ("Bring here"), Session actions. Returns the html and a
+// wire() for its items, so it can stand alone (empty space) or hang under an item menu.
+function tableMenuParts(e, role) {
     var n = window.wpNet, camp = getActiveCampaign(), html = '';
-    // the click point in map coordinates, for "bring here"
     var wrap = document.getElementById('whiteboardWrap'), b = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 }, z = state.zoomLevel || 1;
     var pt = { x: (e.clientX - b.left + (wrap ? wrap.scrollLeft : 0)) / z, y: (e.clientY - b.top + (wrap ? wrap.scrollTop : 0)) / z };
     var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: camp.players[id].name || id }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '">&#10148; Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
-    if (role !== 'client') html += castMenuHtml(camp) + '<div class="menu-divider"></div>';
-    if (role === 'host') {
-        html += head('Session');
-        html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
-        html += bringItems();
-        html += '<div class="menu-divider"></div>';
-        html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';
-        html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table') + '</div>';
-        html += '<div class="menu-divider"></div>';
-        html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
-    } else if (role === 'offline') {
-        if (players.length) html += head('Players') + bringItems();
-        else html = html.replace(/<div class="menu-divider"><\/div>$/, '');
+    if (role === 'client') {
+        html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
     } else {
-        html += head('Session');
-        html += '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
+        html += castMenuHtml(camp);
+        if (players.length) html += '<div class="menu-divider"></div>' + head('Players') + bringItems();
+        if (role === 'host') {
+            html += '<div class="menu-divider"></div>' + head('Session');
+            html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
+            html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
+        }
     }
-    cMenu.innerHTML = html;
+    function wire(cMenu) {
+        Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-cast-five'), function(b5) {
+            b5.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; castPlace(b5.dataset.cid, pt.x, pt.y, 5); });
+        });
+        Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-session'), function(it) {
+            it.addEventListener('click', function(ce) {
+                ce.stopPropagation();
+                cMenu.style.display = 'none';
+                var act = it.dataset.act;
+                if (act === 'summon') n.summonAll();
+                else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
+                else if (act === 'cast-manage') openCastModal();
+                else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
+                else if (act === 'travel') n.toggleTravelLock();
+                else if (act === 'pause') n.togglePause();
+                else if (act === 'end') n.endSession();
+                else if (act === 'leave') n.leaveSessionConfirm();
+            });
+        });
+    }
+    return { html: html, wire: wire };
+}
+function tableRole() { var n = window.wpNet; if (!n) return 'offline'; if (n.active && n.role === 'host') return 'host'; if (n.active && n.role === 'client') return 'client'; return 'offline'; }
+// Standing alone, on empty play-map space
+function showSessionMenu(e, role) {
+    var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
+    var parts = tableMenuParts(e, role);
+    cMenu.innerHTML = parts.html;
     cMenu.style.display = 'flex';
     cMenu.style.left = e.pageX + 'px';
     cMenu.style.top = e.pageY + 'px';
-    Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-cast-five'), function(b5) {
-        b5.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; castPlace(b5.dataset.cid, pt.x, pt.y, 5); });
-    });
-    Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-session'), function(it) {
-        it.addEventListener('click', function(ce) {
-            ce.stopPropagation();
-            cMenu.style.display = 'none';
-            var act = it.dataset.act;
-            if (act === 'summon') n.summonAll();
-            else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
-            else if (act === 'cast-manage') openCastModal();
-            else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
-            else if (act === 'travel') n.toggleTravelLock();
-            else if (act === 'pause') n.togglePause();
-            else if (act === 'end') n.endSession();
-            else if (act === 'leave') n.leaveSessionConfirm();
-        });
-    });
+    parts.wire(cMenu);
+}
+// Hanging under an item menu (a right-click on a background picture counts as the table)
+function appendTableMenu(cMenu, e) {
+    var parts = tableMenuParts(e, tableRole());
+    cMenu.insertAdjacentHTML('beforeend', '<div class="menu-divider"></div>' + parts.html);
+    parts.wire(cMenu);
 }
 document.addEventListener('contextmenu', function(e) {
     if (state.viewMode !== 'visual' && state.viewMode !== 'data') return;
@@ -3463,13 +3483,14 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
             }
             html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
-            if (isWb && firstItem && firstItem.isChar) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
+            if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
             html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
 
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';
             cMenu.style.left = e.pageX + 'px';
             cMenu.style.top = e.pageY + 'px';
+            if (isWb && firstItem && !firstItem.isChar && selectedIds.length === 1) appendTableMenu(cMenu, e);   // a background picture is "the table" too
 
             // Opacity slider: live preview on input, persist on release; the
             // row never closes the menu (guarded in the click handler below).

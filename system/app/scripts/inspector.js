@@ -110,6 +110,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
                  (c.portrait ? '<button class="tool ghost char-portrait-clear" title="Remove Portrait" data-idx="'+i+'" style="flex:0 0 auto;">&times;</button>' : '') +
 
+                 '<button class="tool ghost char-cast-btn" title="Save this character to the campaign cast, to drop as a token on any play map" data-idx="'+i+'">&#9733; Save to Cast</button>' +
                  '<button class="tool ghost danger del-char" aria-label="Remove Character" data-idx="'+i+'">Remove</button></div>' +
 
                  '</div>';
@@ -437,6 +438,12 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
       });
 
+      charList.querySelectorAll('.char-cast-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+              var c = r.characters[this.dataset.idx];
+              if (window.wpCastSaveCharacter) window.wpCastSaveCharacter(c);
+          });
+      });
       charList.querySelectorAll('.del-char').forEach(function(btn) {
 
           btn.addEventListener('click', function() {

@@ -1,3 +1,15 @@
+WAYPOINT 1.3.5 — What's New
+============================
+
+Campaign Cast
+- A right-click on a map's background picture opens the picture's menu with
+  the table sections (Campaign Cast, Players, Session) underneath, so the
+  table menu is always a right-click away even when no space is empty. Data
+  map characters have a ★ Save to Cast button in the right panel; one without
+  a portrait is saved as a circle token.
+- Save to Campaign Cast now shows for any token that carries a character
+  name, not only ones flagged as characters.
+
 WAYPOINT 1.3.4 — What's New
 ============================
 

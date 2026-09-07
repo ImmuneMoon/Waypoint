@@ -5,6 +5,9 @@ Fixes
 - The picture picker in the Handouts panel showed blank cells for files with
   spaces or dashes in their names; pictures load now, and a handout made
   from such a file shows and sends correctly.
+- After leaving a session, a player's side panels could stay hidden and the
+  party strip could linger over a planner until a restart. Both clear the
+  moment their own campaign is back.
 - The Journal window lists every campaign you have received anything from,
   text-only handouts included, and the reveal popup has an "Add notes" button
   that opens the Journal on the spot.

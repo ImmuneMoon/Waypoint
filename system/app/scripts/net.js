@@ -668,6 +668,7 @@ net.requestTravel = function(viaItemId) {
 function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster }, null); }
 
 // Is this player currently on the given map? (self is always present to itself)
+net.refreshUi = renderRoster;              // re-evaluates the spectator class, the party strip, the badge
 net.sanitizeAppState = sanitizeAppState;   // the stream window shows exactly what players may see
 net.applyStage = applyStage;
 /* ---------- targeting ----------

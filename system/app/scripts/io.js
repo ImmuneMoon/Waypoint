@@ -248,6 +248,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         updateSidebarNav();
         applyRememberedView();   // open the last map in the view it was left in
         render();
+        if (window.wpNet && window.wpNet.refreshUi) window.wpNet.refreshUi();   // own campaign is back: spectator chrome off, party strip re-evaluated
         // Restore the camera once layout has real dimensions (retries cover slow first paint)
         var _restoreTries = 0;
         (function tryRestore() {

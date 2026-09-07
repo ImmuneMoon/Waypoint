@@ -1012,7 +1012,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 window.updateFocusCoord = updateFocusCoord;
 
 
-window.appRender = render;
+window.appRender = function() { render(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };   // the strip clears itself outside the play map
 window.appRestoreCamera = restoreCameraPosition;
 
 export function restoreCameraPosition() {

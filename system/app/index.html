@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Waypoint</title>
   <link rel="icon" type="image/x-icon" href="icon.ico">
-  <link rel="stylesheet" href="style.css">
+  <script>try { if (localStorage.getItem('wp_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}</script>
+<link rel="stylesheet" href="style.css">
 <script>
 function showErrorBanner(text, color, top) {
     var errDiv = document.createElement('div');
@@ -681,6 +682,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <option value="oneline">One-line Summary</option>
                   <option value="node">Node Box (Tables & Paths)</option>
                   <option value="flare">Flare / Callout</option>
+                  <option value="image">Image</option>
                   <option value="flowchart">Flowchart Builder</option>
                   <option value="diagram">Mermaid Diagram (Code)</option>
                   <option value="text">Standard Text</option>
@@ -876,6 +878,8 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <div class="set-field-label" style="margin-top:14px;">Appearance</div>
+            <button class="tool ghost" id="setThemeBtn" style="width:100%;" title="Switch between Dark (the default, how Waypoint has always looked) and Light (the same layout on paper tones). Kept for next time.">&#127769; Dark &mdash; switch to Light</button>
             <div class="set-field-label" style="margin-top:18px;">Journal</div>
             <div style="color:var(--dim); font-size:11px; line-height:1.5; margin-bottom:8px;">Your Journal (&#128214;) keeps handouts, shared pages and your own notes on this computer. These choose what it shows first.</div>
             <div class="set-field-label" style="margin-top:8px;">Opens to</div>

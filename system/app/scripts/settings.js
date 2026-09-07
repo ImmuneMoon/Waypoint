@@ -494,3 +494,19 @@ if (_ident) _ident.addEventListener('click', function() {
         arr.addEventListener('change', function() { try { localStorage.setItem('wp_handoutArrive', arr.value); } catch (e) {} });
     }
 })();
+
+// Appearance: a sun / moon toggle — dark (default) or light, applied at once and kept for next time
+(function() {
+    var btn = document.getElementById('setThemeBtn'); if (!btn) return;
+    function paint() {
+        var light = document.documentElement.getAttribute('data-theme') === 'light';
+        btn.innerHTML = light ? '&#9728;&#65039; Light &mdash; switch to Dark' : '&#127769; Dark &mdash; switch to Light';
+    }
+    paint();
+    btn.addEventListener('click', function() {
+        var light = document.documentElement.getAttribute('data-theme') !== 'light';
+        if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
+        try { localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (e) {}
+        paint();
+    });
+})();

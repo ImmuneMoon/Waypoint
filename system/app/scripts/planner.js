@@ -129,6 +129,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               html += '<textarea class="field b-content" placeholder="Content (HTML allowed)..." data-idx="'+idx+'" style="width:100%; height:60px;">'+esc(b.content||'')+'</textarea>';
 
+          } else if (b.type === 'image') {
+              html += '<div class="b-img-row"><div class="b-img-thumb">' + (b.src ? '<img src="' + esc(b.src) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
+                    + '<div class="b-img-ctl"><div class="fc-opts"><button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
+                    + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
+                    + '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
+                    + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label></div>'
+                    + '<input type="text" class="field b-caption" value="' + esc(b.caption || '') + '" placeholder="Caption (optional)" data-idx="' + idx + '" style="width:100%; margin-top:6px;"></div></div>';
           } else if (b.type === 'raw') {
 
               html += '<textarea class="field b-content" placeholder="Raw HTML..." data-idx="'+idx+'" style="width:100%; height:120px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
@@ -265,6 +272,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.b-title')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].title = this.value; save(false); renderPlannerPreview(); }));
 
+      Array.from(blockContainer.querySelectorAll('.b-img-pick')).forEach(el => el.addEventListener('click', function() {
+          var idx = +this.dataset.idx;
+          if (!window.wpPickImage) { toast('The image library is not available here.'); return; }
+          window.wpPickImage(function(src) { activeMap.blocks[idx].src = src; save(true); renderPlanner(); });
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-img-upload')).forEach(el => el.addEventListener('change', function() {
+          var idx = +this.dataset.idx, f = this.files && this.files[0]; if (!f || !f.type.startsWith('image/')) return;
+          toast('Uploading picture…');
+          fetch('/api/upload?mapId=' + encodeURIComponent(activeMap.id) + '&filename=' + encodeURIComponent(f.name), { method: 'POST', body: f })
+              .then(function(r) { return r.json(); }).then(function(d) { if (d.url) { activeMap.blocks[idx].src = d.url; save(true); renderPlanner(); } else toast('Upload failed.'); })
+              .catch(function() { toast('Upload failed.'); });
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-imga')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].align = this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].caption = this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx][activeMap.blocks[this.dataset.idx].type==='node'?'tag':'sub'] = this.value; save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].must = this.value; save(false); renderPlannerPreview(); }));
@@ -644,6 +666,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               html += '<div class="diagram"><pre class="mermaid">' + (b.content||'') + '</pre></div>';
 
+          } else if (b.type === 'image') {
+              html += b.src ? '<figure class="planner-img" style="width:' + (b.width || 100) + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(b.src) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>' : '';
           } else if (b.type === 'raw') {
 
               html += (b.content||'');

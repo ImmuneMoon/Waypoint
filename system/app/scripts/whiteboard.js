@@ -2300,6 +2300,14 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('sheetViewModal').style.display = 'none';
   });
 
+  var _imgLibPick = null;   // a callback waiting for a picture (planner image block)
+  window.wpPickImage = async function(cb) {
+      _imgLibPick = cb;
+      document.getElementById('imgLibModal').style.display = 'flex';
+      document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
+      try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) { _imgLibCache = []; }
+      renderImgLib(document.getElementById('imgLibSearch').value);
+  };
   var _el_imgLibBtn = document.getElementById('imgLibBtn');
 
   if (_el_imgLibBtn) _el_imgLibBtn.addEventListener('click', async function() {
@@ -2314,6 +2322,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   var _el_imgLibClose = document.getElementById('imgLibCloseBtn');
 
   if (_el_imgLibClose) _el_imgLibClose.addEventListener('click', function() {
+      _imgLibPick = null;
       document.getElementById('imgLibModal').style.display = 'none';
   });
 
@@ -2326,6 +2335,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('click', function(e) {
       var cell = e.target.closest('.img-lib-cell');
       if (!cell) return;
+      if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; document.getElementById('imgLibModal').style.display = 'none'; cb(cell.dataset.src); return; }
       var am = getActiveMap();
       if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
       addWbItem('image', { w: 300, h: 300, src: cell.dataset.src, color: 'transparent' });

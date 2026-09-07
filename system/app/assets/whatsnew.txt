@@ -16,6 +16,13 @@ Planner
 - Image blocks. "+ Add Block ▸ Image" places a picture in a planner: choose
   one from the campaign's image library or upload a file, set its width and
   alignment, add a caption. Render Preview shows it as a figure.
+- Save PDF and Save HTML always export the rendered planner. If you are in
+  the editor, Waypoint switches to Render Preview at full width for the
+  export and switches back afterwards.
+
+Tooltips
+- Hover tips appear in about a sixth of a second instead of waiting on the
+  system delay, in a panel that follows the theme.
 
 Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the

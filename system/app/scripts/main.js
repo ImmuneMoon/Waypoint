@@ -303,9 +303,8 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
       }
 
       var title = exportTitle();
-
-      fetch('style.css').then(r => r.text()).then(function(css) {
-
+      var run = window.wpWithRenderedPlanner || function(fn) { return fn(); };
+      run(function() { return fetch('style.css').then(r => r.text()).then(function(css) {
           var content = document.getElementById('plannerPreview').innerHTML;
 
           var htmlOutput = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + title + '</title>' +
@@ -317,11 +316,8 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
               '</head><body><div id="plannerPreviewWrap">' + content + '</div></body></html>';
 
           downloadFile(title + '.html', new Blob([htmlOutput], {type: 'text/html'}));
-
           toast('HTML exported.');
-
-      }).catch(function() { toast('HTML export failed.'); });
-
+      }).catch(function() { toast('HTML export failed.'); }); });
   });
 
   var _el_exportImgBtn = document.getElementById('exportImgBtn');

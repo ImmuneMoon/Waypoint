@@ -393,6 +393,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // Render Preview toggles a fullscreen reading view: editor hidden, preview full-width
 
   var plannerFullscreen = false;
+  // Exports always use the rendered document: switch to Render Preview if needed, re-render at
+  // full width, run the export, then put the view back the way it was.
+  window.wpWithRenderedPlanner = async function(fn) {
+      var am = getActiveMap();
+      if (!am || am.type !== 'planner') { await fn(); return; }
+      var was = plannerFullscreen;
+      if (!was) { plannerFullscreen = true; applyPlannerFullscreen(); renderPlannerPreview(); await new Promise(function(r) { setTimeout(r, 700); }); }
+      try { await fn(); }
+      finally { if (!was) { plannerFullscreen = false; applyPlannerFullscreen(); renderPlannerPreview(); } }
+  };
 
   function applyPlannerFullscreen() {
 

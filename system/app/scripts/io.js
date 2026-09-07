@@ -933,9 +933,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_exportPdfBtn = document.getElementById('exportPdfBtn');
 
 if(_el_exportPdfBtn) _el_exportPdfBtn.addEventListener('click', function() {
-
-      window.print();
-
+      if (window.wpWithRenderedPlanner) window.wpWithRenderedPlanner(function() { window.print(); });   // a planner prints as its rendered document
+      else window.print();
   });
 
   

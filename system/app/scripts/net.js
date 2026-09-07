@@ -640,20 +640,28 @@ function hostTravel(conn, traveler, portal, fromMap) {
 // character token (and, when given, stays off the portal's footprint).
 function freeSpotNear(map, cx, cy, w, h, avoidId, portal) {
     var others = (map.whiteboard || []).filter(function(o) { return o.isChar && o.id !== avoidId; });
+    function seated(x, y) {   // where a token placed at (x, y) ends up after hex seating on this map
+        if (!window.wpSeatHex) return { x: x, y: y };
+        var tmp = { x: x, y: y, w: w, h: h, isChar: true };
+        window.wpSeatHex(tmp, map);
+        return { x: tmp.x, y: tmp.y };
+    }
     function clashes(x, y) {
         if (portal && x < portal.x + (portal.w || 0) && x + w > portal.x && y < portal.y + (portal.h || 0) && y + h > portal.y) return true;
         return others.some(function(o) { return x < o.x + (o.w || 0) && x + w > o.x && y < o.y + (o.h || 0) && y + h > o.y; });
     }
-    var step = Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2;
-    if (!clashes(x0, y0)) return { x: x0, y: y0 };
-    for (var ring = 1; ring <= 6; ring++) {
+    var step = Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2, tried = {};
+    var first = seated(x0, y0);
+    if (!clashes(first.x, first.y)) return first;
+    for (var ring = 1; ring <= 8; ring++) {
         for (var dy = -ring; dy <= ring; dy++) for (var dx = -ring; dx <= ring; dx++) {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-            var x = x0 + dx * step, y = y0 + dy * step;
-            if (!clashes(x, y)) return { x: x, y: y };
+            var p = seated(x0 + dx * step, y0 + dy * step), k = Math.round(p.x) + ',' + Math.round(p.y);
+            if (tried[k]) continue; tried[k] = true;
+            if (!clashes(p.x, p.y)) return p;
         }
     }
-    return { x: x0, y: y0 };
+    return first;
 }
 // The token left behind steps off the portal so the next crossing is not blocked
 function stepOffPortal(item, portal, map) {

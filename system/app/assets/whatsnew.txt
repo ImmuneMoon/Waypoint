@@ -2,7 +2,7 @@ WAYPOINT 1.3.5 — What's New
 ============================
 
 Campaign Cast
-- The table menu (Campaign Cast, Players, Session) opens on a right-click on
+- The table menu (Campaign Cast, and the Session items while hosting) opens on a right-click on
   the whiteboard background even while a token or picture is selected;
   before, a selection turned that right-click into the item menu. Data map
   characters have a ★ Save to Cast button in the right panel; one without a
@@ -24,6 +24,9 @@ Fixes
   the pointer now and stay on screen near an edge.
 - Right-clicking a token no longer selects it, so the side panel stays where
   it was; the menu acts on the token under the pointer.
+- A token arriving through a portal could snap back onto the landing tile
+  when the map's hex cells are larger than the token; the free-spot search
+  now judges each spot where the token will actually sit.
 
 WAYPOINT 1.3.4 — What's New
 ============================

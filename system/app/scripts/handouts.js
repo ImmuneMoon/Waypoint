@@ -366,7 +366,9 @@ if (_hList) {
             return;
         }
         var sel = e.target.closest && e.target.closest('.handout-who'); if (!sel || !sel.value) return;
-        var row = sel.closest('.handout-row'); var pid = sel.value; sel.value = '';
+        var row = sel.closest('.handout-row'); var pid = sel.value; var who = (sel.options[sel.selectedIndex] || {}).text || 'this player'; sel.value = '';
+        var campW = getActiveCampaign(); var hW = campW && handoutsOf(campW)[row.dataset.id]; if (!hW) return;
+        if (!confirm('Show "' + (hW.title || 'this handout') + '" to ' + who + '?')) return;
         net.revealHandout(row.dataset.id, [pid]);
     });
     _hList.addEventListener('click', function(e) {
@@ -375,7 +377,7 @@ if (_hList) {
         var camp = getActiveCampaign(); var h = camp && handoutsOf(camp)[row.dataset.id]; if (!h) return;
         if (thumb || (b && b.dataset.act === 'preview')) { showHandout({ title: h.title, caption: h.caption, src: h.kind === 'text' ? null : h.src, text: h.kind === 'text' ? h.text : '' }); return; }
         if (!b) return;
-        if (b.dataset.act === 'table') { net.revealHandout(h.id, null); }
+        if (b.dataset.act === 'table') { if (confirm('Show "' + (h.title || 'this handout') + '" to everyone at the table now?')) net.revealHandout(h.id, null); }
         else if (b.dataset.act === 'delete') {
             delete handoutsOf(camp)[h.id];
             Object.values(camp.items).forEach(function(m) { if (m.type === 'map') (m.rooms || []).forEach(function(r) { if (r.handoutId === h.id) delete r.handoutId; }); });

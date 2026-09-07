@@ -287,9 +287,10 @@ function renderHandouts() {
             '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
             '<button class="tool" data-act="table" title="Show it to everyone connected now">Show to table</button>' +
-            (roster.length ? '<select class="handout-who" title="Pick a player, then press Send"><option value="">Show to one player…</option>' + who + '</select><button class="tool handout-send" data-act="send" disabled title="Show it to the player picked on the left">Send</button>' : '') +
+            (roster.length ? '<select class="handout-who" title="Pick a player, then press Send"><option value="">Show to one player…</option>' + who + '</select>' : '') +
             '<button class="tool ghost" data-act="preview">Preview</button>' +
             '<button class="tool ghost danger" data-act="delete" title="Remove this handout (players keep what they were already shown)">Delete</button>' +
+            (roster.length ? '<button class="tool handout-send" data-act="send" disabled title="Show it to the player picked in the dropdown">Send</button>' : '') +
             '</div></div></div>';
     }).join('');
 }

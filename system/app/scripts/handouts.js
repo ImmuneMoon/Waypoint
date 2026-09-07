@@ -142,14 +142,27 @@ async function receiveHandout(msg) {
             if (!src) { failed = true; return false; }
             existing.hash = hash; existing.src = src; existing.mime = mime;
         }
-        if (existing && existing.hash === hash) {
-            // the same picture again: title and caption follow the GM, the player's notes stay
-            existing.title = title; existing.caption = caption; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+        var hasNotes = existing && String(existing.notes || '').trim() !== '';
+        if (existing && !hasNotes) {
+            // nothing written on it yet: the latest replaces it, whatever changed
+            if (existing.hash !== hash) {
+                src = await putFile(campId, existing.id + '.' + ext, bytes, mime);
+                if (!src) { failed = true; return false; }
+                existing.hash = hash; existing.src = src; existing.mime = mime; added = true;
+            } else src = existing.src;
+            existing.title = title; existing.caption = caption; existing.updatedAt = Date.now(); existing.notes = '';
+            stampShared(existing, msg);
+            shownId = existing.id;
+            return;
+        }
+        if (existing && existing.hash === hash && msg.replay) {
+            // the same picture coming back on reconnect: refreshed quietly, the notes stay
+            existing.title = title; existing.caption = caption; existing.updatedAt = Date.now();
             stampShared(existing, msg);
             src = existing.src; shownId = existing.id;
             return;
         }
-        // a new picture (or the first one): a new entry with its own file and its own notes box
+        // first time, or a re-queue / re-show / new picture on top of a noted copy: a new entry of its own
         var nid = existing ? versionId(id) : id;
         src = await putFile(campId, nid + '.' + ext, bytes, mime);
         if (!src) { failed = true; return false; }
@@ -172,14 +185,23 @@ async function receiveTextHandout(msg, campId, id) {
     await withIndex(campId, function(idx) {
         stampHead(idx, msg);
         existing = latestOf(idx, id);
-        if (existing && String(existing.text || '') === text) {
-            // same words again: title and caption follow the GM, the player's notes stay
-            existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+        var hasNotes = existing && String(existing.notes || '').trim() !== '';
+        if (existing && !hasNotes) {
+            // nothing written on it yet: the latest replaces it, whatever changed
+            if (String(existing.text || '') !== text) added = true;
+            existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.text = text; existing.updatedAt = Date.now(); existing.notes = '';
             stampShared(existing, msg);
             shownId = existing.id;
             return;
         }
-        // new or changed text: a new entry beside the old one, which keeps its notes
+        if (existing && String(existing.text || '') === text && msg.replay) {
+            // the same words coming back on reconnect: refreshed quietly, the notes stay
+            existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.updatedAt = Date.now();
+            stampShared(existing, msg);
+            shownId = existing.id;
+            return;
+        }
+        // first time, or a re-queue / re-show / changed text on top of a noted copy: a new entry of its own
         var en = { id: existing ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
         stampShared(en, msg);

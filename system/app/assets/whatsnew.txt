@@ -1,3 +1,12 @@
+WAYPOINT 1.2.8 — What's New
+============================
+
+Fixes
+- A picture handout's default title carried the random tag the app puts in
+  front of uploaded file names ("bmvjkw2n Ror'Chiir — token"). The tag, the
+  file extension, size suffixes and a trailing "— token" are dropped, in the
+  picker and in the title.
+
 WAYPOINT 1.2.7 — What's New
 ============================
 

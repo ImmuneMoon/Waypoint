@@ -462,19 +462,28 @@ if (_newBtn) _newBtn.addEventListener('click', async function() {
     var q = (ui('handoutPickSearch').value || '').toLowerCase();
     var draw = function() {
         var rows = imgs.filter(function(i) { return !q || (i.name + ' ' + i.folder).toLowerCase().indexOf(q) >= 0; });
-        grid.innerHTML = rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(i.name) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
+        grid.innerHTML = rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(niceName(i.name)) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
     };
     draw();
     ui('handoutPickSearch').oninput = function() { q = this.value.toLowerCase(); draw(); };
 });
+// A readable name for a stored picture: "k3j9x2ab_Ror'Chiir — token_160.png" → "Ror'Chiir"
+function niceName(file) {
+    var n = decodeURIComponent(String(file || '').split('/').pop() || '');
+    n = n.replace(/\.[a-z0-9]{2,5}$/i, '');            // extension
+    n = n.replace(/^[a-z0-9]{6,10}_(?=.)/, '');          // the uploader's random tag
+    n = n.replace(/[_-]\d{2,4}$/, '');                   // a size suffix such as _160
+    n = n.replace(/\s*[—–-]\s*token$/i, '').replace(/_token$/i, '');   // token pictures named after their character
+    n = n.replace(/[_]+/g, ' ').replace(/\s+-\s+/g, ' — ').replace(/\s{2,}/g, ' ').trim();
+    return n || 'Handout';
+}
 var _pickGrid = ui('handoutPickGrid');
 if (_pickGrid) _pickGrid.addEventListener('click', function(e) {
     var cell = e.target.closest && e.target.closest('.handout-pick-cell'); if (!cell) return;
     var camp = getActiveCampaign(); if (!camp) return;
     var hs = handoutsOf(camp);
     var id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    var name = decodeURIComponent(cell.dataset.src.split('/').pop() || 'Handout').replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ');
-    hs[id] = { id: id, title: name.slice(0, 120), caption: '', src: cell.dataset.src, createdAt: Date.now() };
+    hs[id] = { id: id, title: niceName(cell.dataset.src).slice(0, 120), caption: '', src: cell.dataset.src, createdAt: Date.now() };
     save(true);
     ui('handoutPick').style.display = 'none';
     renderHandouts();

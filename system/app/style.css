@@ -684,7 +684,7 @@
   #netPauseBtn.paused { border-color: var(--gold); color: var(--gold); }
 
   /* Modal & panel text inputs (multiplayer, settings, search, chat, image library) */
-  #netNameInput, #netCodeInput, #setNameInput, #campSearchInput, #plannerSearchInput,
+  #netNameInput, #netCodeInput, #netPassInput, #netJoinPassInput, #setNameInput, #campSearchInput, #plannerSearchInput,
   #mapSearchInput, #imgLibSearch, #chatInput {
     background: var(--panel); color: var(--ink);
     border: 1px solid var(--edge); border-radius: 6px;

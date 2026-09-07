@@ -961,6 +961,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="journalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:760px; max-width:94vw; height:84vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Journal <button id="journalCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <input id="journalSearch" class="field" type="search" placeholder="Search — titles, captions, handout text, your notes" style="margin-bottom:10px;" autocomplete="off">
         <div id="journalList" style="overflow-y:auto; flex:1;"></div>
     </div>
 </div>

@@ -1,6 +1,19 @@
 WAYPOINT 1.2.7 — What's New
 ============================
 
+Journal
+- When a GM changes a handout — new text in a recap, a different picture —
+  and shows it again, it lands in the Journal as a new entry beside the old
+  one. The earlier version and the notes under it are kept; the new one gets
+  its own notes box. Showing the same handout again unchanged still just
+  refreshes its title and caption.
+- The Journal is searchable. The box at the top looks through titles,
+  captions, the full text of text handouts and your own notes as you type.
+  Exact wording comes first, then entries holding every word in any order,
+  then entries with most of the words. Word endings are folded ("trials"
+  finds "trial"), accents and punctuation are ignored, and a typo in a
+  longer word is forgiven. Esc clears it.
+
 Fixes
 - A player's notes on a handout could vanish after the GM showed the same
   picture again or the player reconnected. Handouts replayed on reconnect
@@ -10,6 +23,8 @@ Fixes
 - After leaving a session, the session panel's "campaign to host" list still
   showed the GM's campaign until the panel was reopened. It now lists only the
   player's own campaigns the moment their save is back.
+- The session password and the player password fields in the Multiplayer
+  panel showed up white; they match the other fields now.
 
 WAYPOINT 1.2.6 — What's New
 ============================

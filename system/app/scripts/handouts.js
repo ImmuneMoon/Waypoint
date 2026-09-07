@@ -97,6 +97,23 @@ function badge(n) { var b = ui('journalBadge'); if (!b) return; unseen = Math.ma
 // A handout arrived from the GM (validated here, never trusted as-is)
 // One journal per campaign per GM: a campaign id can be copied between installs, a GM's id cannot
 function journalKey(msg) { var c = safeId(msg.campId), g = safeId(msg.gmId); return c && g ? c + '__' + g : c; }
+// FNV-1a over the picture bytes: enough to tell "the same picture again" from "a new picture"
+function hashBytes(bytes) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16) + '-' + bytes.length.toString(16);
+}
+// The newest journal entry that came from handout <id> (the original or any later version)
+function latestOf(idx, id) {
+    var best = null;
+    idx.entries.forEach(function(e) { if ((e.id === id || e.from === id) && (!best || (e.receivedAt || 0) > (best.receivedAt || 0))) best = e; });
+    return best;
+}
+function versionId(id) { return safeId(id).slice(0, 44) + '-v' + Date.now().toString(36); }
+function stampHead(idx, msg) {
+    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
+    idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
+}
 async function receiveHandout(msg) {
     var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
@@ -107,34 +124,56 @@ async function receiveHandout(msg) {
     var mime = ({ 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1 })[msg.mime] ? msg.mime : 'image/jpeg';
     var ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
-    var src = await putFile(campId, id + '.' + ext, bytes, mime);
-    if (!src) { toast('The GM showed you something, but it could not be saved.'); return; }
-    var existing;
-    await withIndex(campId, function(idx) {
-        idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
-        idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
-        existing = idx.entries.find(function(e) { return e.id === id; });
-        if (existing) { existing.title = title; existing.caption = caption; existing.src = src; existing.mime = mime; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = ''; }   // the player's notes are theirs: untouched
-        else idx.entries.push({ id: id, title: title, caption: caption, src: src, mime: mime, receivedAt: Date.now(), notes: '' });
+    var hash = hashBytes(bytes);
+    var existing, added = false, failed = false, src;
+    await withIndex(campId, async function(idx) {
+        stampHead(idx, msg);
+        existing = latestOf(idx, id);
+        if (existing && existing.hash === undefined) {
+            // first time this entry meets a hash (journal from before versions): same picture assumed, file refreshed
+            src = await putFile(campId, existing.id + '.' + ext, bytes, mime);
+            if (!src) { failed = true; return false; }
+            existing.hash = hash; existing.src = src; existing.mime = mime;
+        }
+        if (existing && existing.hash === hash) {
+            // the same picture again: title and caption follow the GM, the player's notes stay
+            existing.title = title; existing.caption = caption; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+            src = existing.src;
+            return;
+        }
+        // a new picture (or the first one): a new entry with its own file and its own notes box
+        var nid = existing ? versionId(id) : id;
+        src = await putFile(campId, nid + '.' + ext, bytes, mime);
+        if (!src) { failed = true; return false; }
+        var en = { id: nid, title: title, caption: caption, src: src, mime: mime, hash: hash, receivedAt: Date.now(), notes: '' };
+        if (existing) en.from = id;
+        idx.entries.push(en); added = true;
     });
+    if (failed) { toast('The GM showed you something, but it could not be saved.'); return; }
     await registerJournal(campId);
-    if (msg.replay && existing) return;   // already in the journal: refreshed, no fanfare
+    if (msg.replay && !added) return;   // already in the journal, unchanged: refreshed, no fanfare
     badge(unseen + 1);
     showHandout({ title: title, caption: caption, src: src, fresh: true });
 }
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var text = String(msg.text || '').slice(0, 60000);
-    var existing;
+    var existing, added = false;
     await withIndex(campId, function(idx) {
-        idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
-        idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
-        existing = idx.entries.find(function(e) { return e.id === id; });
-        if (existing) { existing.title = title; existing.caption = caption; existing.text = text; existing.kind = 'text'; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = ''; }
-        else idx.entries.push({ id: id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' });
+        stampHead(idx, msg);
+        existing = latestOf(idx, id);
+        if (existing && String(existing.text || '') === text) {
+            // same words again: title and caption follow the GM, the player's notes stay
+            existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+            return;
+        }
+        // new or changed text: a new entry beside the old one, which keeps its notes
+        var en = { id: existing ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
+        if (existing) en.from = id;
+        idx.entries.push(en); added = true;
     });
     await registerJournal(campId);
-    if (msg.replay && existing) return;
+    if (msg.replay && !added) return;
     badge(unseen + 1);
     showHandout({ title: title, caption: caption, text: text, fresh: true });
 }
@@ -179,14 +218,102 @@ async function openJournal() {
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
-            return '<div class="journal-entry" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '">' + thumb +
+            return '<div class="journal-entry" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || 'Handout') + '</div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + '</div>' +
+                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea></div></div>';
         }).join('');
-        return head + entries;
+        return '<div class="journal-section">' + head + entries + '</div>';
     }).join('');
+    journalFilter();
+}
+// Search: forgiving rather than literal. Every word of the query has to be found somewhere in the
+// entry (any order), a word matches by prefix ("sel" finds Selkath), accents and punctuation are
+// ignored, and a word of four letters or more survives one typo (two from eight letters up).
+function normWords(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+}
+function editDistance(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    var prev = [], cur = [], i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+        cur = [i]; var rowMin = i;
+        for (j = 1; j <= b.length; j++) {
+            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev[j - 1] + 1);   // swapped letters
+            if (cur[j] < rowMin) rowMin = cur[j];
+        }
+        if (rowMin > max) return max + 1;
+        prev = cur;
+    }
+    return prev[b.length];
+}
+// crude stemming so "trials" meets "trial" and "dismissed" meets "dismiss"
+function stem(w) {
+    if (w.length > 5 && /ing$/.test(w)) return w.slice(0, -3);
+    if (w.length > 4 && /(ed|es)$/.test(w)) return w.slice(0, -2);
+    if (w.length > 3 && /s$/.test(w) && !/ss$/.test(w)) return w.slice(0, -1);
+    return w;
+}
+// How well one query word is found among an entry's words: 0 = not at all
+function wordScore(term, words) {
+    var slack = term.length >= 8 ? 2 : term.length >= 4 ? 1 : 0, best = 0, ts = stem(term);
+    for (var i = 0; i < words.length; i++) {
+        var w = words[i], s;
+        if (w === term) return 10;                                                         // the very word
+        if (stem(w) === ts) s = 9;                                                         // same word, other ending
+        else if (w.indexOf(term) === 0) s = 8;                                             // prefix ("sel" → selkath)
+        else if (term.length >= 3 && w.indexOf(term) > 0) s = 5;                           // inside a longer word
+        else if (slack && editDistance(term, w.length > term.length + slack ? w.slice(0, term.length + slack) : w, slack) <= slack) s = 6;   // a typo or two
+        else s = 0;
+        if (s > best) best = s;
+    }
+    return best;
+}
+function journalFilter() {
+    var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
+    var terms = normWords(box.value);
+    var q = terms.length, phrase = terms.join(' ');
+    var scored = [];
+    list.querySelectorAll('.journal-entry').forEach(function(row, i) { if (!row.dataset.i) row.dataset.i = String(i + 1); });   // the rendered (date) order, to come back to
+    if (!q) {
+        list.querySelectorAll('.journal-section').forEach(function(sec) {
+            Array.prototype.slice.call(sec.querySelectorAll('.journal-entry')).sort(function(a, b) { return +a.dataset.i - +b.dataset.i; }).forEach(function(r) { sec.appendChild(r); });
+        });
+    }
+    list.querySelectorAll('.journal-entry').forEach(function(row) {
+        if (!q) { row.style.display = ''; return; }
+        var hay = row.textContent + ' ' + (row.dataset.text || '');
+        row.querySelectorAll('input, textarea').forEach(function(f) { hay += ' ' + f.value; });
+        var words = normWords(hay), hit = 0, score = 0;
+        terms.forEach(function(t) { var s = wordScore(t, words); if (s) hit++; score += s; });
+        if (q > 1 && (' ' + words.join(' ') + ' ').indexOf(' ' + phrase + ' ') >= 0) score += 100;   // the exact wording, first
+        else if (hit === q) score += 40;                                                             // every word, in any order
+        var ok = hit === q || (q >= 3 && hit >= Math.ceil(q * 0.6));                                 // or most of the words when there are several
+        row.style.display = ok ? '' : 'none';
+        if (ok) scored.push({ row: row, score: score });
+    });
+    // best matches first inside each section (rows are moved, not re-rendered, so typed notes are safe)
+    if (q) {
+        var groups = {};
+        scored.forEach(function(s) { var sec = s.row.parentNode; var k = sec.dataset.k || (sec.dataset.k = 'g' + Math.random()); (groups[k] = groups[k] || []).push(s); });
+        Object.keys(groups).forEach(function(k) {
+            var g = groups[k].slice().sort(function(a, b) { return b.score - a.score; });
+            var sec = g[0].row.parentNode;
+            g.forEach(function(s) { sec.appendChild(s.row); });
+        });
+    }
+    list.querySelectorAll('.journal-section').forEach(function(sec) {
+        var any = !q || Array.prototype.some.call(sec.querySelectorAll('.journal-entry'), function(r) { return r.style.display !== 'none'; });
+        sec.style.display = any ? '' : 'none';
+    });
+}
+var _jSearch = ui('journalSearch');
+if (_jSearch) {
+    _jSearch.addEventListener('input', journalFilter);
+    _jSearch.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { _jSearch.value = ''; journalFilter(); } });
 }
 var _jBtn = ui('journalBtn');
 if (_jBtn) _jBtn.addEventListener('click', openJournal);

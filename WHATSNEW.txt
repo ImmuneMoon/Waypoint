@@ -27,6 +27,13 @@ Fixes
 - A token arriving through a portal could snap back onto the landing tile
   when the map's hex cells are larger than the token; the free-spot search
   now judges each spot where the token will actually sit.
+- Dropping a token on a portal used to announce "<name> is now in <room>"
+  even when nothing crossed; the crossing runs first now and the room note
+  only appears when the token actually stays in that room.
+- A token resting on a portal tile counts as on it when a third of the token
+  overlaps the tile, not only when its exact centre is inside; hex seating
+  could park the centre just outside a tile that is not hex-aligned, and the
+  crossing never fired.
 
 WAYPOINT 1.3.4 — What's New
 ============================

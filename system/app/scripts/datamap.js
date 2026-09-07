@@ -781,10 +781,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       break;
                   }
               }
+              // A portal under the token? Travel first, so the room note below only fires when the token actually stays put.
+              var traveled = !!(window.wpNet && window.wpNet.tokenDropped && window.wpNet.tokenDropped(item, am));
               var toRoom = window.wpAutoRoom ? window.wpAutoRoom(item, am) : null;
-              if (toRoom) import('./io.js').then(function(m) { m.toast((item.charName || 'Character') + ' is now in ' + (toRoom.name || 'that room') + '.'); });
-              // GM drops a player's token on a portal: that player travels through it
-              if (window.wpNet && window.wpNet.tokenDropped) window.wpNet.tokenDropped(item, am);
+              if (toRoom && !traveled) import('./io.js').then(function(m) { m.toast((item.charName || 'Character') + ' is now in ' + (toRoom.name || 'that room') + '.'); });
           }
           save();
         } else {

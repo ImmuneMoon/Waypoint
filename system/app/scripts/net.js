@@ -674,12 +674,17 @@ function stepOffPortal(item, portal, map) {
 }
 function portalUnder(item, map) {
     if (!item || !map || !map.whiteboard) return null;
-    var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2;
+    var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2, iw = item.w || 60, ih = item.h || 52;
     var best = null, bestArea = Infinity;
     map.whiteboard.forEach(function(o) {
         if (o.id === item.id || !(o.nodeId || o.targetMapId) || o.hidden) return;
         var ow = o.w || 0, oh = o.h || 0;
-        if (cx < o.x || cx > o.x + ow || cy < o.y || cy > o.y + oh) return;
+        // resting on the portal: the token's centre inside it, or at least a third of the token overlapping it
+        // (hex seating can park the centre a few pixels outside a tile that is not hex-aligned)
+        var inside = !(cx < o.x || cx > o.x + ow || cy < o.y || cy > o.y + oh);
+        var ovW = Math.min(item.x + iw, o.x + ow) - Math.max(item.x, o.x), ovH = Math.min(item.y + ih, o.y + oh) - Math.max(item.y, o.y);
+        var frac = (ovW > 0 && ovH > 0) ? (ovW * ovH) / (iw * ih) : 0;
+        if (!inside && frac < 0.34) return;
         if (!o.targetMapId) {
             var room = (map.rooms || []).find(function(r) { return r.id === o.nodeId; });
             if (!room || !room.targetMapId) return;

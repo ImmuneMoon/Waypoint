@@ -831,7 +831,9 @@ window.addEventListener('unhandledrejection', function(e) {
     <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
 
-        <div class="set-section-label">Profile</div>
+        <details class="set-group" open data-group="profile">
+            <summary>Profile</summary>
+            <div class="set-group-body">
         <div style="display:flex; gap:14px; align-items:center; margin-bottom:12px;">
             <div id="setAvatarPreview" title="Your table picture">?</div>
             <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
@@ -847,8 +849,17 @@ window.addEventListener('unhandledrejection', function(e) {
             <div class="set-field-label">Display name</div>
             <input type="text" id="setNameInput" placeholder="How players see you" style="width:100%; box-sizing:border-box;">
         </div>
-
-        <div class="set-section-label">Table</div>
+            </div>
+        </details>
+        <details class="set-group" data-group="appearance">
+            <summary>Appearance</summary>
+            <div class="set-group-body">
+            <div class="theme-switch-row"><span class="theme-switch-icon" aria-hidden="true">&#9728;&#65039;</span><button class="theme-switch" id="setThemeBtn" role="switch" aria-checked="true" title="Dark / light toggle"><span class="theme-knob"></span></button><span class="theme-switch-icon" aria-hidden="true">&#127769;</span></div>
+            </div>
+        </details>
+        <details class="set-group" data-group="table">
+            <summary>Table</summary>
+            <div class="set-group-body">
         <div style="margin-bottom:6px;">
             <div class="set-field-label">Measurement system</div>
             <div style="display:flex; gap:6px;">
@@ -869,18 +880,11 @@ window.addEventListener('unhandledrejection', function(e) {
             <input type="range" id="setGridOpacity" min="10" max="100" style="width:100%;" title="How strongly the square/hex grid lines draw over the map">
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Only on this computer &mdash; in multiplayer every player picks their own.</div>
         </div>
-
-        <div class="set-section-label" style="margin-top:18px;">Advanced</div>
-        <div style="margin-bottom:12px;">
-            <div class="set-field-label">Default opacity for new items <span id="setOpacityVal" style="color:var(--dim);"></span></div>
-            <input type="range" id="setOpacity" min="10" max="100" style="width:100%;">
-        </div>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-            <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
-            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
-            <div class="set-field-label" style="margin-top:14px;">Appearance</div>
-            <div class="theme-switch-row"><span class="theme-switch-icon" aria-hidden="true">&#9728;&#65039;</span><button class="theme-switch" id="setThemeBtn" role="switch" aria-checked="true" title="Dark is the default, how Waypoint has always looked. Light is the same layout on paper tones. Kept for next time."><span class="theme-knob"></span></button><span class="theme-switch-icon" aria-hidden="true">&#127769;</span><span id="setThemeLabel" class="theme-switch-label">Dark</span></div>
-            <div class="set-field-label" style="margin-top:18px;">Journal</div>
+            </div>
+        </details>
+        <details class="set-group" data-group="journal">
+            <summary>Journal</summary>
+            <div class="set-group-body">
             <div style="color:var(--dim); font-size:11px; line-height:1.5; margin-bottom:8px;">Your Journal (&#128214;) keeps handouts, shared pages and your own notes on this computer. These choose what it shows first.</div>
             <div class="set-field-label" style="margin-top:8px;">Opens to</div>
             <select id="setJournalPage" class="field" style="width:100%; box-sizing:border-box;" title="The page each campaign shows first."><option value="all">Journal — everything: my notes, received and sent</option><option value="mine">My notes — my own pages</option><option value="inbox">Inbox — what I have received, by sender</option><option value="sent">Sent — what I have sent, by recipient</option></select>
@@ -892,6 +896,11 @@ window.addEventListener('unhandledrejection', function(e) {
             <select id="setSentOpens" class="field" style="width:100%; box-sizing:border-box;" title="Which To chip the Sent page starts on."><option value="all">Anyone — everything sent</option><option value="gm">The GM — only what went to the GM</option><option value="remember">The last person I picked</option></select>
             <div class="set-field-label" style="margin-top:10px;">When a handout arrives</div>
             <select id="setHandoutArrive" class="field" style="width:100%; box-sizing:border-box;" title="A handout or shared page from the GM or a party member: open it on screen at once, or only count it on the Journal button."><option value="open">Open it right away</option><option value="quiet">Only mark the Journal (a short toast, no window)</option></select>
+            </div>
+        </details>
+        <details class="set-group" data-group="multiplayer">
+            <summary>Multiplayer</summary>
+            <div class="set-group-body">
             <div class="gm-only"><!-- GM tools: hidden while joined to someone else's session -->
             <div class="set-field-label" style="margin-top:14px;">Stream window</div>
             <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, exactly as players see it (no GM notes, hidden items stay hidden). Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map to focus in its corner menu.">&#128250; Open Stream Window</button>
@@ -917,6 +926,24 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">Turn this on if your firewall reports a "port scan" or "intruder" when players join. Traffic stays end-to-end encrypted; the relay can't read it.</div>
             </div>
             </div>
+            </div>
+        </details>
+        <details class="set-group" data-group="advanced">
+            <summary>Advanced</summary>
+            <div class="set-group-body">
+        <div style="margin-bottom:12px;">
+            <div class="set-field-label">Default opacity for new items <span id="setOpacityVal" style="color:var(--dim);"></span></div>
+            <input type="range" id="setOpacity" min="10" max="100" style="width:100%;">
+        </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+            <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
+            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            </div>
+            </div>
+        </details>
+        <details class="set-group" data-group="updates">
+            <summary>Updates &amp; about</summary>
+            <div class="set-group-body">
             <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Updates <span id="setUpdateState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setUpdateCheckBtn" style="width:100%;" title="Look for a newer Waypoint on the releases page">Check for Updates</button>
             <div id="setUpdateRow" style="display:none; margin-top:8px; gap:8px;">
@@ -925,7 +952,8 @@ window.addEventListener('unhandledrejection', function(e) {
                 <button class="tool ghost" id="setUpdateNotesBtn" style="padding:4px 10px;" title="Release notes for the new version">Notes</button>
             </div>
             <div style="text-align:center; margin-top:14px;"><button id="setVersionBtn" class="tool ghost" style="font-size:11px; color:var(--dim); padding:2px 10px;" title="Click to read what's new">Waypoint</button></div>
-        </div>
+            </div>
+        </details>
         <div style="font-size:10.5px; color:var(--dim); margin-top:10px; line-height:1.5;">Campaign data lives in the <b>saves</b> folder and is snapshotted to <b>saves/backups</b> on every launch.</div>
     </div>
 </div>

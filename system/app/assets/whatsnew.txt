@@ -5,6 +5,9 @@ Appearance
 - Settings has a sun / moon switch. Dark is the default and is exactly what
   Waypoint has always looked like; Light puts the same layout on paper tones.
   The choice is kept and applied before the window paints.
+- Settings is folded into groups — Profile, Appearance, Table, Journal,
+  Multiplayer, Advanced, Updates & about — each opening on a click, so the
+  panel is short again. Which groups you leave open is remembered.
 
 Planner
 - Image blocks. "+ Add Block ▸ Image" places a picture in a planner: choose

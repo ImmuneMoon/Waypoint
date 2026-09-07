@@ -501,7 +501,6 @@ if (_ident) _ident.addEventListener('click', function() {
     function paint() {
         var light = document.documentElement.getAttribute('data-theme') === 'light';
         sw.setAttribute('aria-checked', light ? 'false' : 'true');   // knob sits under the moon when dark
-        if (lbl) lbl.textContent = light ? 'Light' : 'Dark';
     }
     paint();
     sw.addEventListener('click', function() {
@@ -509,5 +508,18 @@ if (_ident) _ident.addEventListener('click', function() {
         if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
         try { localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (e) {}
         paint();
+    });
+})();
+
+// Settings groups: remember which are open
+(function() {
+    var groups = document.querySelectorAll('#settingsModal details.set-group'); if (!groups.length) return;
+    var saved = null; try { saved = JSON.parse(localStorage.getItem('wp_setGroups') || 'null'); } catch (e) {}
+    groups.forEach(function(d) {
+        if (saved && typeof saved[d.dataset.group] === 'boolean') d.open = saved[d.dataset.group];
+        d.addEventListener('toggle', function() {
+            var st = {}; groups.forEach(function(g) { st[g.dataset.group] = g.open; });
+            try { localStorage.setItem('wp_setGroups', JSON.stringify(st)); } catch (e) {}
+        });
     });
 })();

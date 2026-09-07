@@ -725,8 +725,8 @@ net.revealHandout = function(hid, pids) {
         targets.forEach(function(c) {
             var p = net.roster[c.peer];
             try { c.send(pl.kind === 'text'
-                ? { type: 'handout', kind: 'text', campId: camp.id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text }
-                : { type: 'handout', campId: camp.id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data }); } catch (e) {}
+                ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text }
+                : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data }); } catch (e) {}
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
             camp.handoutReveals[p.id][h.id] = Date.now();
@@ -752,8 +752,8 @@ function sendMissedHandouts(conn, prof) {
             window.wpHandoutPayload(h).then(function(pl) {
                 if (!conn.open) return;
                 try { conn.send(pl.kind === 'text'
-                    ? { type: 'handout', kind: 'text', campId: camp.id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, replay: true }
-                    : { type: 'handout', campId: camp.id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true }); } catch (e) {}
+                    ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, replay: true }
+                    : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true }); } catch (e) {}
             }).catch(function() {});
         }, 1500 + i * 400);
     });

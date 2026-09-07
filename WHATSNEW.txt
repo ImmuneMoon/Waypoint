@@ -17,6 +17,9 @@ Handouts and the Journal
   session recap that is waiting for them.
 - A handout can be text as well as a picture: a letter, a briefing, a
   session recap. Players read it as selectable text in their Journal.
+- Everything is scoped per campaign and per GM: handouts, who has been shown
+  what, and the automatic delivery live inside one campaign, and a player's
+  journal keeps one section per campaign per GM, so nothing crosses tables.
 - Removing a handout on the GM's side does not reach into players' journals:
   like a paper handout, once seen it is theirs.
 

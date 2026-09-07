@@ -65,8 +65,10 @@ var unseen = 0;
 function badge(n) { var b = ui('journalBadge'); if (!b) return; unseen = Math.max(0, n); b.textContent = unseen ? String(unseen) : ''; b.style.display = unseen ? 'block' : 'none'; }
 
 // A handout arrived from the GM (validated here, never trusted as-is)
+// One journal per campaign per GM: a campaign id can be copied between installs, a GM's id cannot
+function journalKey(msg) { var c = safeId(msg.campId), g = safeId(msg.gmId); return c && g ? c + '__' + g : c; }
 async function receiveHandout(msg) {
-    var campId = safeId(msg.campId), id = safeId(msg.id);
+    var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
     if (msg.kind === 'text') return receiveTextHandout(msg, campId, id);
     if (!(msg.data && msg.data.byteLength !== undefined)) return;
@@ -78,7 +80,7 @@ async function receiveHandout(msg) {
     var src = await putFile(campId, id + '.' + ext, bytes, mime);
     if (!src) { toast('The GM showed you something, but it could not be saved.'); return; }
     var idx = await readIndex(campId);
-    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60);
+    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
     idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
     var existing = idx.entries.find(function(e) { return e.id === id; });
     if (existing) { existing.title = title; existing.caption = caption; existing.src = src; existing.mime = mime; existing.updatedAt = Date.now(); }
@@ -93,7 +95,7 @@ async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var text = String(msg.text || '').slice(0, 60000);
     var idx = await readIndex(campId);
-    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60);
+    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
     idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
     var existing = idx.entries.find(function(e) { return e.id === id; });
     if (existing) { existing.title = title; existing.caption = caption; existing.text = text; existing.kind = 'text'; existing.updatedAt = Date.now(); }

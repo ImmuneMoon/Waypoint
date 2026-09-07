@@ -466,3 +466,10 @@ if (_ident) _ident.addEventListener('click', function() {
     try { var v = localStorage.getItem('wp_journalPage'); sel.value = v === 'gm' || v === 'mine' ? v : 'all'; } catch (e) {}
     sel.addEventListener('change', function() { try { localStorage.setItem('wp_journalPage', sel.value); } catch (e) {} });
 })();
+
+// Journal: which section the Sent page opens to (All / The GM / the last one picked)
+(function() {
+    var sel = document.getElementById('setSentOpens'); if (!sel) return;
+    try { var v = localStorage.getItem('wp_sentOpens'); sel.value = v === 'gm' || v === 'remember' ? v : 'all'; } catch (e) {}
+    sel.addEventListener('change', function() { try { localStorage.setItem('wp_sentOpens', sel.value); } catch (e) {} });
+})();

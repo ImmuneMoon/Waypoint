@@ -25,7 +25,10 @@ Journal
   and times once they have shared it. The GM's own Journal has no "From the
   GM" page; it has a "Sent" page instead, listing every handout they have
   shown, to whom and when. Players have a "Sent" page as well: one line per
-  send — what, to whom, when — kept apart from what they received.
+  send — what, to whom, when — kept apart from what they received. Sent has
+  its own sections: All, one per person you have sent to, and The GM. It
+  opens to All; Settings "Sent opens to" can make that The GM or the last
+  person you looked at.
 - The "From the party" page shows everyone's shares together. A chip per
   party member narrows it to that person: what they sent you and what you
   sent them, side by side.

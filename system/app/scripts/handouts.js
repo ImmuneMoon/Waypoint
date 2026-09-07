@@ -274,8 +274,16 @@ async function openJournal() {
         function member(id, name) { if (!id || id === '*') return; var m = members[id] || (members[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n++; }
         j.entries.forEach(function(e) { if (e.sharedBy) member(e.sharedById || e.sharedBy, e.sharedBy); });
         mySent.forEach(function(s) { member(s.to, s.to === 'gm' ? 'The GM' : s.name); });
-        var fromRow = personal || !Object.keys(members).length ? '' : '<div class="journal-from-row"><button class="journal-from' + (!from ? ' active' : '') + '" data-from="">Everyone <span class="journal-count">' + nParty + '</span></button>' +
-            Object.values(members).sort(function(a, b) { return a.name.localeCompare(b.name); }).map(function(m) { return '<button class="journal-from' + (from === m.id ? ' active' : '') + '" data-from="' + esc(m.id) + '" title="What ' + esc(m.name) + ' sent you, and what you sent them">' + esc(m.name) + ' <span class="journal-count">' + m.n + '</span></button>'; }).join('') + '</div>';
+        var fromRow = personal || !Object.keys(members).length ? '' : '<div class="journal-from-row" data-for="party"><button class="journal-from' + (!from ? ' active' : '') + '" data-for="party" data-from="">Everyone <span class="journal-count">' + nParty + '</span></button>' +
+            Object.values(members).sort(function(a, b) { return a.name.localeCompare(b.name); }).map(function(m) { return '<button class="journal-from' + (from === m.id ? ' active' : '') + '" data-for="party" data-from="' + esc(m.id) + '" title="What ' + esc(m.name) + ' sent you, and what you sent them">' + esc(m.name) + ' <span class="journal-count">' + m.n + '</span></button>'; }).join('') + '</div>';
+        // Sent page sections: everyone you have sent to (players: from sentTo; GM: from the delivery log)
+        var recips = {};
+        function recip(id, name) { if (!id) return; var r = recips[id] || (recips[id] = { id: id, name: name || id, n: 0 }); if (name && (r.name === id || !r.name)) r.name = name; r.n++; }
+        if (iRunIt) sent.forEach(function(s) { s.to.forEach(function(t) { recip(t.pid, t.name); }); });
+        else mySent.forEach(function(s) { recip(s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'The GM' : s.name); });
+        var to = sentOpensTo(j.campId, recips);
+        var toRow = personal || !Object.keys(recips).length ? '' : '<div class="journal-from-row" data-for="sent"><button class="journal-from' + (!to ? ' active' : '') + '" data-for="sent" data-to="">All <span class="journal-count">' + nSent + '</span></button>' +
+            Object.values(recips).sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.name.localeCompare(b.name); }).map(function(r) { return '<button class="journal-from' + (to === r.id ? ' active' : '') + '" data-for="sent" data-to="' + esc(r.id) + '" title="What you sent ' + esc(r.name) + '">' + esc(r.name) + ' <span class="journal-count">' + r.n + '</span></button>'; }).join('') + '</div>';
         var mySentRows = mySent.map(function(s) {
             var e = s.e, kind = e.kind === 'note' || e.kind === 'text' ? 'text' : 'image', text = e.kind === 'note' ? (e.text || '') : (e.text || '');
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
@@ -314,7 +322,7 @@ async function openJournal() {
                 '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') +
                 '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + '</div></div></div>';
         }).join('');
-        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-from="' + esc(from) + '">' + head + fromRow + empty + sentRows + mySentRows + entries + '</div>';
+        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + fromRow + toRow + empty + sentRows + mySentRows + entries + '</div>';
     }).join('');
     journalFilter();
 }
@@ -425,6 +433,14 @@ function sentRecords(key) {
 }
 var journalPage = {};   // page chosen per campaign in this window
 var journalFrom = {};   // party member chosen on the From the party page, per campaign
+var journalTo = {};     // recipient chosen on the Sent page, per campaign
+function sentOpensTo(campId, recips) {
+    if (journalTo[campId] !== undefined) return recips[journalTo[campId]] ? journalTo[campId] : '';
+    var pref = 'all'; try { pref = localStorage.getItem('wp_sentOpens') || 'all'; } catch (e) {}
+    if (pref === 'gm' && recips.gm) return 'gm';
+    if (pref === 'remember') { try { var last = localStorage.getItem('journal_sentTo_' + campId) || ''; if (recips[last]) return last; } catch (e) {} }
+    return '';
+}
 // Does this row belong on the page its section is showing?
 function onPage(row) {
     var sec = row.closest('.journal-section'); if (!sec) return true;
@@ -436,9 +452,11 @@ function onPage(row) {
         if (rp === 'sent') return (' ' + (row.dataset.to || '') + ' ').indexOf(' ' + from + ' ') >= 0;
         return false;
     }
+    var to = sec.dataset.to || '';
+    if (page === 'sent' && to) return !isEmpty && rp === 'sent' && (' ' + (row.dataset.to || '') + ' ').indexOf(' ' + to + ' ') >= 0;
     return rp === page;
 }
-function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); return p === 'gm' || p === 'mine' || p === 'party' ? p : 'all'; } catch (e) { return 'all'; } }
+function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); return p === 'gm' || p === 'mine' || p === 'party' || p === 'sent' ? p : 'all'; } catch (e) { return 'all'; } }
 window.wpJournalDefaultPage = journalDefaultPage;
 function journalFilter() {
     var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
@@ -453,7 +471,7 @@ function journalFilter() {
         });
     }
     list.querySelectorAll('.journal-empty').forEach(function(el) { el.style.display = !q && onPage(el) ? '' : 'none'; });
-    list.querySelectorAll('.journal-from-row').forEach(function(el) { el.style.display = !q && el.parentNode.dataset.page === 'party' ? '' : 'none'; });
+    list.querySelectorAll('.journal-from-row').forEach(function(el) { el.style.display = !q && el.parentNode.dataset.page === (el.dataset.for || 'party') ? '' : 'none'; });
     list.querySelectorAll('.journal-entry').forEach(function(row) {
         if (!q) { row.style.display = onPage(row) ? '' : 'none'; return; }
         var hay = row.textContent + ' ' + (row.dataset.text || '');
@@ -544,8 +562,13 @@ if (_jList) {
         var chip = e.target.closest && e.target.closest('.journal-from');
         if (chip) {
             var secF = chip.closest('.journal-section'); if (!secF) return;
-            journalFrom[secF.dataset.camp] = chip.dataset.from; secF.dataset.from = chip.dataset.from;
-            secF.querySelectorAll('.journal-from').forEach(function(b) { b.classList.toggle('active', b === chip); });
+            if (chip.dataset.for === 'sent') {
+                journalTo[secF.dataset.camp] = chip.dataset.to; secF.dataset.to = chip.dataset.to;
+                try { localStorage.setItem('journal_sentTo_' + secF.dataset.camp, chip.dataset.to); } catch (err) {}
+            } else {
+                journalFrom[secF.dataset.camp] = chip.dataset.from; secF.dataset.from = chip.dataset.from;
+            }
+            chip.parentNode.querySelectorAll('.journal-from').forEach(function(b) { b.classList.toggle('active', b === chip); });
             journalFilter();
             return;
         }

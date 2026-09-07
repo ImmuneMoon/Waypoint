@@ -287,7 +287,7 @@ function renderHandouts() {
             '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
             '<button class="tool" data-act="table" title="Show it to everyone connected now">Show to table</button>' +
-            (roster.length ? '<select class="handout-who"><option value="">Show to one player…</option>' + who + '</select>' : '') +
+            (roster.length ? '<select class="handout-who" title="Pick a player, then press Send"><option value="">Show to one player…</option>' + who + '</select><button class="tool handout-send" data-act="send" disabled title="Show it to the player picked on the left">Send</button>' : '') +
             '<button class="tool ghost" data-act="preview">Preview</button>' +
             '<button class="tool ghost danger" data-act="delete" title="Remove this handout (players keep what they were already shown)">Delete</button>' +
             '</div></div></div>';
@@ -365,11 +365,8 @@ if (_hList) {
             if (hA) { if (box.checked) hA.autoOnJoin = true; else delete hA.autoOnJoin; save(true); toast(box.checked ? 'Every player gets this when they next connect.' : 'No longer given automatically.'); }
             return;
         }
-        var sel = e.target.closest && e.target.closest('.handout-who'); if (!sel || !sel.value) return;
-        var row = sel.closest('.handout-row'); var pid = sel.value; var who = (sel.options[sel.selectedIndex] || {}).text || 'this player'; sel.value = '';
-        var campW = getActiveCampaign(); var hW = campW && handoutsOf(campW)[row.dataset.id]; if (!hW) return;
-        if (!confirm('Show "' + (hW.title || 'this handout') + '" to ' + who + '?')) return;
-        net.revealHandout(row.dataset.id, [pid]);
+        var sel = e.target.closest && e.target.closest('.handout-who'); if (!sel) return;
+        var sendBtn = sel.parentNode.querySelector('.handout-send'); if (sendBtn) sendBtn.disabled = !sel.value;
     });
     _hList.addEventListener('click', function(e) {
         var b = e.target.closest && e.target.closest('[data-act]'); var thumb = e.target.closest && e.target.closest('.handout-thumb');
@@ -377,7 +374,12 @@ if (_hList) {
         var camp = getActiveCampaign(); var h = camp && handoutsOf(camp)[row.dataset.id]; if (!h) return;
         if (thumb || (b && b.dataset.act === 'preview')) { showHandout({ title: h.title, caption: h.caption, src: h.kind === 'text' ? null : h.src, text: h.kind === 'text' ? h.text : '' }); return; }
         if (!b) return;
-        if (b.dataset.act === 'table') { if (confirm('Show "' + (h.title || 'this handout') + '" to everyone at the table now?')) net.revealHandout(h.id, null); }
+        if (b.dataset.act === 'table') { net.revealHandout(h.id, null); }
+        else if (b.dataset.act === 'send') {
+            var selS = row.querySelector('.handout-who'); var pidS = selS && selS.value; if (!pidS) return;
+            net.revealHandout(h.id, [pidS]);
+            selS.value = ''; b.disabled = true;
+        }
         else if (b.dataset.act === 'delete') {
             delete handoutsOf(camp)[h.id];
             Object.values(camp.items).forEach(function(m) { if (m.type === 'map') (m.rooms || []).forEach(function(r) { if (r.handoutId === h.id) delete r.handoutId; }); });

@@ -2,8 +2,8 @@ WAYPOINT 1.2.6 — What's New
 ============================
 
 Handouts
-- Showing a handout to one player or to the whole table asks you to confirm
-  first, so a slip of the mouse cannot hand something out early.
+- Showing a handout to one player is two steps now: pick the player, then
+  press Send. A slip in the dropdown can no longer hand something out early.
 - The "Show to one player" dropdown (and the stream window's pickers) match
   the rest of the app instead of showing up white.
 

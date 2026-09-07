@@ -31,12 +31,28 @@ async function readIndex(campId) {
     return { campId: campId, gm: '', entries: [] };
 }
 async function writeIndex(campId, idx) {
-    var body = JSON.stringify(idx);
+    var body = JSON.stringify(idx), ok = false;
     try {
         var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(JOURNAL_DIR + '/' + safeId(campId) + '/journal.json'), { method: 'POST', body: body });
-        if (r.ok) return true;
+        ok = r.ok;
     } catch (e) {}
-    try { localStorage.setItem(lsKey(campId), body); return true; } catch (e) { return false; }
+    try { localStorage.setItem(lsKey(campId), body); ok = true; } catch (e) {}   // mirror (and fallback when there is no shell)
+    return ok;
+}
+// Every change to a journal goes through one queue per campaign: read, change, write, in order.
+// Two handouts arriving close together (replays come 0.4 s apart) used to read the same index and
+// the later write dropped the earlier entry — and its notes with it, on the next replay.
+var indexQueues = {};
+function withIndex(campId, change) {
+    var prev = indexQueues[campId] || Promise.resolve();
+    var next = prev.catch(function() {}).then(async function() {
+        var idx = await readIndex(campId);
+        var r = await change(idx);
+        if (r !== false) { idx.updated = Date.now(); await writeIndex(campId, idx); }
+        return idx;
+    });
+    indexQueues[campId] = next;
+    return next;
 }
 async function putFile(campId, file, bytes, mime) {
     try {
@@ -93,14 +109,14 @@ async function receiveHandout(msg) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var src = await putFile(campId, id + '.' + ext, bytes, mime);
     if (!src) { toast('The GM showed you something, but it could not be saved.'); return; }
-    var idx = await readIndex(campId);
-    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
-    idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
-    var existing = idx.entries.find(function(e) { return e.id === id; });
-    if (existing) { existing.title = title; existing.caption = caption; existing.src = src; existing.mime = mime; existing.updatedAt = Date.now(); }
-    else idx.entries.push({ id: id, title: title, caption: caption, src: src, mime: mime, receivedAt: Date.now(), notes: '' });
-    idx.updated = Date.now();
-    await writeIndex(campId, idx);
+    var existing;
+    await withIndex(campId, function(idx) {
+        idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
+        idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
+        existing = idx.entries.find(function(e) { return e.id === id; });
+        if (existing) { existing.title = title; existing.caption = caption; existing.src = src; existing.mime = mime; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = ''; }   // the player's notes are theirs: untouched
+        else idx.entries.push({ id: id, title: title, caption: caption, src: src, mime: mime, receivedAt: Date.now(), notes: '' });
+    });
     await registerJournal(campId);
     if (msg.replay && existing) return;   // already in the journal: refreshed, no fanfare
     badge(unseen + 1);
@@ -109,14 +125,14 @@ async function receiveHandout(msg) {
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var text = String(msg.text || '').slice(0, 60000);
-    var idx = await readIndex(campId);
-    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
-    idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
-    var existing = idx.entries.find(function(e) { return e.id === id; });
-    if (existing) { existing.title = title; existing.caption = caption; existing.text = text; existing.kind = 'text'; existing.updatedAt = Date.now(); }
-    else idx.entries.push({ id: id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' });
-    idx.updated = Date.now();
-    await writeIndex(campId, idx);
+    var existing;
+    await withIndex(campId, function(idx) {
+        idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
+        idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
+        existing = idx.entries.find(function(e) { return e.id === id; });
+        if (existing) { existing.title = title; existing.caption = caption; existing.text = text; existing.kind = 'text'; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = ''; }
+        else idx.entries.push({ id: id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' });
+    });
     await registerJournal(campId);
     if (msg.replay && existing) return;
     badge(unseen + 1);
@@ -191,10 +207,12 @@ if (_jList) {
         var ta = e.target.closest && e.target.closest('.journal-notes'); if (!ta || ta.classList.contains('journal-note-body')) return;
         var row = ta.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id, val = ta.value;
         clearTimeout(noteTimers[campId + '/' + id]);
-        noteTimers[campId + '/' + id] = setTimeout(async function() {
-            var idx = await readIndex(campId);
-            var en = idx.entries.find(function(x) { return x.id === id; });
-            if (en) { en.notes = val.slice(0, 20000); idx.updated = Date.now(); await writeIndex(campId, idx); }
+        noteTimers[campId + '/' + id] = setTimeout(function() {
+            withIndex(campId, function(idx) {
+                var en = idx.entries.find(function(x) { return x.id === id; });
+                if (!en) return false;
+                en.notes = val.slice(0, 20000);
+            });
         }, 500);
     });
     _jList.addEventListener('keydown', function(e) { e.stopPropagation(); });
@@ -203,12 +221,12 @@ if (_jList) {
         var add = e.target.closest && e.target.closest('.journal-add');
         if (add) {
             var campId = safeId(add.dataset.camp) || 'personal';
-            var idx = await readIndex(campId);
-            if (campId === 'personal') idx.campaign = idx.campaign || 'Personal notes';
             var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-            idx.entries.push({ id: id, kind: 'note', title: '', text: '', receivedAt: Date.now(), notes: '' });
-            idx.updated = Date.now();
-            await writeIndex(campId, idx); await registerJournal(campId);
+            await withIndex(campId, function(idx) {
+                if (campId === 'personal') idx.campaign = idx.campaign || 'Personal notes';
+                idx.entries.push({ id: id, kind: 'note', title: '', text: '', receivedAt: Date.now(), notes: '' });
+            });
+            await registerJournal(campId);
             await openJournal();
             var t = document.querySelector('.journal-entry[data-id="' + id + '"] .journal-note-title'); if (t) t.focus();
             return;
@@ -218,9 +236,7 @@ if (_jList) {
             var row = del.closest('.journal-entry'); var cId = row.dataset.camp, nId = row.dataset.id;
             var body = (row.querySelector('.journal-note-body') || {}).value || '';
             if (body.trim() && !confirm('Delete this note?')) return;
-            var ix = await readIndex(cId);
-            ix.entries = ix.entries.filter(function(x) { return x.id !== nId; }); ix.updated = Date.now();
-            await writeIndex(cId, ix);
+            var ix = await withIndex(cId, function(idx) { idx.entries = idx.entries.filter(function(x) { return x.id !== nId; }); });
             row.remove();
             if (!ix.entries.length) await openJournal();
         }
@@ -230,10 +246,12 @@ if (_jList) {
         var row = fld.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id;
         var title = (row.querySelector('.journal-note-title') || {}).value || '', text = (row.querySelector('.journal-note-body') || {}).value || '';
         clearTimeout(noteTimers['own:' + campId + '/' + id]);
-        noteTimers['own:' + campId + '/' + id] = setTimeout(async function() {
-            var idx = await readIndex(campId);
-            var en = idx.entries.find(function(x) { return x.id === id; });
-            if (en) { en.title = title.slice(0, 120); en.text = text.slice(0, 60000); idx.updated = Date.now(); await writeIndex(campId, idx); }
+        noteTimers['own:' + campId + '/' + id] = setTimeout(function() {
+            withIndex(campId, function(idx) {
+                var en = idx.entries.find(function(x) { return x.id === id; });
+                if (!en) return false;
+                en.title = title.slice(0, 120); en.text = text.slice(0, 60000);
+            });
         }, 500);
     });
 }

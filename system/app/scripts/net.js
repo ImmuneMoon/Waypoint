@@ -668,7 +668,11 @@ net.requestTravel = function(viaItemId) {
 function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster }, null); }
 
 // Is this player currently on the given map? (self is always present to itself)
-net.refreshUi = renderRoster;              // re-evaluates the spectator class, the party strip, the badge
+net.refreshUi = function() {               // own campaign is back: spectator class, party strip, badge, and the host picker lists only own campaigns
+    renderRoster();
+    if (!net.active) refreshStageSelect();
+    syncSessionButtons();
+};
 net.sanitizeAppState = sanitizeAppState;   // the stream window shows exactly what players may see
 net.applyStage = applyStage;
 /* ---------- targeting ----------

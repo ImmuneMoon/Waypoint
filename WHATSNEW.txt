@@ -1,3 +1,16 @@
+WAYPOINT 1.2.7 — What's New
+============================
+
+Fixes
+- A player's notes on a handout could vanish after the GM showed the same
+  picture again or the player reconnected. Handouts replayed on reconnect
+  arrived faster than each one was saved, and the later save could drop the
+  earlier entry; the next replay then re-created it blank. Journal saves now
+  run one at a time, and a re-shown handout never touches the notes under it.
+- After leaving a session, the session panel's "campaign to host" list still
+  showed the GM's campaign until the panel was reopened. It now lists only the
+  player's own campaigns the moment their save is back.
+
 WAYPOINT 1.2.6 — What's New
 ============================
 

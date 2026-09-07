@@ -1,3 +1,20 @@
+WAYPOINT 1.2.9 — What's New
+============================
+
+Journal
+- Anything in the Journal can be removed now, handouts the GM sent included
+  (the × beside the title). It leaves the player's journal only; the GM keeps
+  theirs and can show it again.
+- The handout window itself has a "Your notes" box now, under the picture or
+  text, the moment a handout arrives and whenever one is opened from the
+  Journal. It is the same note as the one in the Journal list.
+- Each campaign in the Journal has three pages: "All" (newest first), "From
+  the GM" for the handouts, and "My notes" for the player's own pages, with
+  counts on the tabs. A search looks across everything. Settings has a
+  "Journal opens to" choice; All is the default. The "— GM" tag is now a
+  quiet "run by <name>", shown only when the GM has set a name; it tells two
+  campaigns of the same name from different GMs apart.
+
 WAYPOINT 1.2.8 — What's New
 ============================
 

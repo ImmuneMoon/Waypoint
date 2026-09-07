@@ -459,3 +459,10 @@ if (_ident) _ident.addEventListener('click', function() {
         });
     });
 });
+
+// Journal: the page each campaign opens to (All / From the GM / My notes)
+(function() {
+    var sel = document.getElementById('setJournalPage'); if (!sel) return;
+    try { var v = localStorage.getItem('wp_journalPage'); sel.value = v === 'gm' || v === 'mine' ? v : 'all'; } catch (e) {}
+    sel.addEventListener('change', function() { try { localStorage.setItem('wp_journalPage', sel.value); } catch (e) {} });
+})();

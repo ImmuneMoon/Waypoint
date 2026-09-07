@@ -125,7 +125,7 @@ async function receiveHandout(msg) {
     var ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var hash = hashBytes(bytes);
-    var existing, added = false, failed = false, src;
+    var existing, added = false, failed = false, src, shownId = id;
     await withIndex(campId, async function(idx) {
         stampHead(idx, msg);
         existing = latestOf(idx, id);
@@ -138,7 +138,7 @@ async function receiveHandout(msg) {
         if (existing && existing.hash === hash) {
             // the same picture again: title and caption follow the GM, the player's notes stay
             existing.title = title; existing.caption = caption; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
-            src = existing.src;
+            src = existing.src; shownId = existing.id;
             return;
         }
         // a new picture (or the first one): a new entry with its own file and its own notes box
@@ -147,35 +147,36 @@ async function receiveHandout(msg) {
         if (!src) { failed = true; return false; }
         var en = { id: nid, title: title, caption: caption, src: src, mime: mime, hash: hash, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
-        idx.entries.push(en); added = true;
+        idx.entries.push(en); added = true; shownId = nid;
     });
     if (failed) { toast('The GM showed you something, but it could not be saved.'); return; }
     await registerJournal(campId);
     if (msg.replay && !added) return;   // already in the journal, unchanged: refreshed, no fanfare
     badge(unseen + 1);
-    showHandout({ title: title, caption: caption, src: src, fresh: true });
+    showHandout({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId } });
 }
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var text = String(msg.text || '').slice(0, 60000);
-    var existing, added = false;
+    var existing, added = false, shownId = id;
     await withIndex(campId, function(idx) {
         stampHead(idx, msg);
         existing = latestOf(idx, id);
         if (existing && String(existing.text || '') === text) {
             // same words again: title and caption follow the GM, the player's notes stay
             existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+            shownId = existing.id;
             return;
         }
         // new or changed text: a new entry beside the old one, which keeps its notes
         var en = { id: existing ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
-        idx.entries.push(en); added = true;
+        idx.entries.push(en); added = true; shownId = en.id;
     });
     await registerJournal(campId);
     if (msg.replay && !added) return;
     badge(unseen + 1);
-    showHandout({ title: title, caption: caption, text: text, fresh: true });
+    showHandout({ title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId } });
 }
 window.wpJournalReceive = receiveHandout;
 
@@ -189,7 +190,37 @@ function showHandout(h) {
     ui('handoutCaption').textContent = h.caption || '';
     ui('handoutCaption').style.display = h.caption ? 'block' : 'none';
     ui('handoutFresh').style.display = h.fresh ? 'flex' : 'none';
+    var nw = ui('handoutNotesWrap'), nt = ui('handoutNotes');
+    viewerEntry = h.entry || null;
+    if (nw && nt) {
+        nw.style.display = viewerEntry ? 'flex' : 'none';
+        nt.value = '';
+        if (viewerEntry) readIndex(viewerEntry.campId).then(function(idx) {
+            var en = idx.entries.find(function(x) { return x.id === viewerEntry.id; });
+            if (en && viewerEntry === (h.entry || null)) nt.value = en.notes || '';
+        });
+    }
     m.style.display = 'flex';
+}
+var viewerEntry = null, viewerNoteTimer = null;
+var _hNotes = ui('handoutNotes');
+if (_hNotes) {
+    _hNotes.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    _hNotes.addEventListener('input', function() {
+        if (!viewerEntry) return;
+        var en = viewerEntry, val = _hNotes.value;
+        // keep the journal list's box in step if it is open behind the viewer
+        var row = document.querySelector('.journal-entry[data-camp="' + en.campId + '"][data-id="' + en.id + '"] .journal-notes');
+        if (row && row.value !== val) row.value = val;
+        clearTimeout(viewerNoteTimer);
+        viewerNoteTimer = setTimeout(function() {
+            withIndex(en.campId, function(idx) {
+                var x = idx.entries.find(function(y) { return y.id === en.id; });
+                if (!x) return false;
+                x.notes = val.slice(0, 20000);
+            });
+        }, 500);
+    });
 }
 var _hJournal = ui('handoutOpenJournalBtn');
 if (_hJournal) _hJournal.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; openJournal(); });
@@ -206,10 +237,15 @@ async function openJournal() {
     var journals = await listJournals();
     if (!journals.length) { list.innerHTML = '<div style="color:var(--dim); padding:14px; line-height:1.5;">Nothing here yet. When a GM shows you a handout — a place, a face, a letter — it is saved here with its caption, and you can add your own notes. It stays on this computer and works without a session.</div><div style="padding:0 14px;"><button class="tool ghost journal-add" data-camp="personal">+ Note</button> <span style="color:var(--dim); font-size:11px;">Start a personal notebook now; campaign sections appear as GMs show you things.</span></div>'; return; }
     list.innerHTML = journals.map(function(j) {
-        var head = '<div class="journal-camp"><b>' + esc(j.campaign || (j.campId === 'personal' ? 'Personal notes' : 'Campaign')) + '</b>' + (j.gm ? ' <span style="color:var(--dim);">— GM ' + esc(j.gm) + '</span>' : '') + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a note of your own in this section">+ Note</button></div>';
+        var nGm = j.entries.filter(function(e) { return e.kind !== 'note'; }).length, nMine = j.entries.length - nGm;
+        var personal = j.campId === 'personal';
+        var page = personal ? 'mine' : (journalPage[j.campId] || journalDefaultPage());
+        var runBy = j.gm && !/^gm$/i.test(j.gm.trim()) ? ' <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by ' + esc(j.gm) + '</span>' : '';
+        var tabs = personal ? '' : '<span class="journal-tabs"><button class="tool ghost journal-tab' + (page === 'all' ? ' active' : '') + '" data-tab="all" title="Everything, newest first">All <span class="journal-count">' + j.entries.length + '</span></button><button class="tool ghost journal-tab' + (page === 'gm' ? ' active' : '') + '" data-tab="gm" title="Handouts the GM has shown you">From the GM <span class="journal-count">' + nGm + '</span></button><button class="tool ghost journal-tab' + (page === 'mine' ? ' active' : '') + '" data-tab="mine" title="Your own pages">My notes <span class="journal-count">' + nMine + '</span></button></span>';
+        var head = '<div class="journal-camp"><b>' + esc(j.campaign || (personal ? 'Personal notes' : 'Campaign')) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
             if (e.kind === 'note') {
-                return '<div class="journal-entry journal-own" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="note">' +
+                return '<div class="journal-entry journal-own" data-page="mine" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="note">' +
                     '<div class="journal-body">' +
                     '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title"><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
                     '<textarea class="journal-notes journal-note-body" placeholder="Write…">' + esc(e.text || '') + '</textarea>' +
@@ -218,13 +254,15 @@ async function openJournal() {
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
-            return '<div class="journal-entry" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
-                '<div class="journal-body"><div class="journal-title">' + esc(e.title || 'Handout') + '</div>' +
+            return '<div class="journal-entry" data-page="gm" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
+                '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the GM keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
                 '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea></div></div>';
         }).join('');
-        return '<div class="journal-section">' + head + entries + '</div>';
+        var empty = (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
+                  + (!nGm && !personal ? '<div class="journal-empty" data-page="gm">Nothing from the GM yet.</div>' : '');
+        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '">' + head + empty + entries + '</div>';
     }).join('');
     journalFilter();
 }
@@ -272,10 +310,14 @@ function wordScore(term, words) {
     }
     return best;
 }
+var journalPage = {};   // page chosen per campaign in this window
+function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); return p === 'gm' || p === 'mine' ? p : 'all'; } catch (e) { return 'all'; } }
+window.wpJournalDefaultPage = journalDefaultPage;
 function journalFilter() {
     var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
     var terms = normWords(box.value);
     var q = terms.length, phrase = terms.join(' ');
+    list.classList.toggle('searching', q > 0);   // a search looks across both pages
     var scored = [];
     list.querySelectorAll('.journal-entry').forEach(function(row, i) { if (!row.dataset.i) row.dataset.i = String(i + 1); });   // the rendered (date) order, to come back to
     if (!q) {
@@ -324,7 +366,7 @@ if (_jList) {
     _jList.addEventListener('click', function(e) {
         var t = e.target.closest && e.target.closest('.journal-thumb'); if (!t) return;
         var row = t.closest('.journal-entry');
-        var base = { title: row.querySelector('.journal-title').textContent, caption: (row.querySelector('.journal-caption') || {}).textContent || '' };
+        var base = { title: row.querySelector('.journal-title').textContent.replace(/\s*\u00d7\s*$/, '').trim(), caption: (row.querySelector('.journal-caption') || {}).textContent || '', entry: { campId: row.dataset.camp, id: row.dataset.id } };
         if (row.dataset.kind === 'text') {
             readIndex(row.dataset.camp).then(function(idx) { var en = idx.entries.find(function(x) { return x.id === row.dataset.id; }); showHandout(Object.assign(base, { text: en ? en.text : '' })); });
         } else showHandout(Object.assign(base, { src: t.getAttribute('src') }));
@@ -333,6 +375,7 @@ if (_jList) {
     _jList.addEventListener('input', function(e) {
         var ta = e.target.closest && e.target.closest('.journal-notes'); if (!ta || ta.classList.contains('journal-note-body')) return;
         var row = ta.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id, val = ta.value;
+        if (viewerEntry && viewerEntry.campId === campId && viewerEntry.id === id && _hNotes && _hNotes.value !== val) _hNotes.value = val;
         clearTimeout(noteTimers[campId + '/' + id]);
         noteTimers[campId + '/' + id] = setTimeout(function() {
             withIndex(campId, function(idx) {
@@ -345,9 +388,18 @@ if (_jList) {
     _jList.addEventListener('keydown', function(e) { e.stopPropagation(); });
     // own notes: add / edit / delete
     _jList.addEventListener('click', async function(e) {
+        var tab = e.target.closest && e.target.closest('.journal-tab');
+        if (tab) {
+            var secT = tab.closest('.journal-section'); if (!secT) return;
+            journalPage[secT.dataset.camp] = tab.dataset.tab;
+            secT.dataset.page = tab.dataset.tab;
+            secT.querySelectorAll('.journal-tab').forEach(function(b) { b.classList.toggle('active', b === tab); });
+            return;
+        }
         var add = e.target.closest && e.target.closest('.journal-add');
         if (add) {
             var campId = safeId(add.dataset.camp) || 'personal';
+            if (journalPage[campId] === 'gm') journalPage[campId] = 'all';   // the new page must be visible
             var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
             await withIndex(campId, function(idx) {
                 if (campId === 'personal') idx.campaign = idx.campaign || 'Personal notes';
@@ -361,8 +413,14 @@ if (_jList) {
         var del = e.target.closest && e.target.closest('.journal-del');
         if (del) {
             var row = del.closest('.journal-entry'); var cId = row.dataset.camp, nId = row.dataset.id;
-            var body = (row.querySelector('.journal-note-body') || {}).value || '';
-            if (body.trim() && !confirm('Delete this note?')) return;
+            if (row.dataset.kind === 'note') {
+                var body = (row.querySelector('.journal-note-body') || {}).value || '';
+                if (body.trim() && !confirm('Delete this note?')) return;
+            } else {
+                var nm = ((row.querySelector('.journal-title') || {}).textContent || 'this handout').replace(/\s*\u00d7\s*$/, '').trim() || 'this handout';
+                var hasNotes = ((row.querySelector('.journal-notes') || {}).value || '').trim();
+                if (!confirm('Remove "' + nm + '" from your journal?' + (hasNotes ? ' Your notes under it go with it.' : '') + ' The GM can show it again later.')) return;
+            }
             var ix = await withIndex(cId, function(idx) { idx.entries = idx.entries.filter(function(x) { return x.id !== nId; }); });
             row.remove();
             if (!ix.entries.length) await openJournal();

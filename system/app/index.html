@@ -875,6 +875,8 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <div class="set-field-label" style="margin-top:14px;">Journal opens to</div>
+            <select id="setJournalPage" class="field" style="width:100%; box-sizing:border-box;" title="The page each campaign in your Journal shows first. All puts handouts and your own notes together, newest first."><option value="all">All — handouts and my notes together</option><option value="gm">From the GM — handouts only</option><option value="mine">My notes — my own pages only</option></select>
             <div class="set-field-label" style="margin-top:14px;">Stream window</div>
             <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, exactly as players see it (no GM notes, hidden items stay hidden). Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map to focus in its corner menu.">&#128250; Open Stream Window</button>
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows what players see and updates as you play.</div>
@@ -954,6 +956,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <img id="handoutImg" alt="" style="max-width:88vw; max-height:70vh; object-fit:contain; border-radius:6px; background:#000;">
         <div id="handoutText" style="display:none; max-width:min(88vw, 760px); max-height:70vh; overflow-y:auto; white-space:pre-wrap; line-height:1.55; color:var(--ink); text-align:left; padding:4px 10px; user-select:text;"></div>
         <div id="handoutCaption" style="max-width:88vw; color:var(--ink); line-height:1.5; white-space:pre-wrap; text-align:center;"></div>
+        <div id="handoutNotesWrap" style="display:none; width:min(88vw, 760px); flex-direction:column; gap:4px;"><label for="handoutNotes" style="font-size:11px; letter-spacing:.06em; color:var(--dim); text-transform:uppercase;">Your notes</label><textarea id="handoutNotes" class="field" placeholder="Write anything you want to remember about this — it is saved in your Journal on this computer." style="min-height:64px; resize:vertical;"></textarea></div>
         <div id="handoutFresh" style="display:none; color:var(--dim); font-size:11px; display:flex; align-items:center; gap:10px;">Saved to your Journal (&#128214;). <button class="tool ghost" id="handoutOpenJournalBtn" style="padding:3px 10px; font-size:11px;">Add notes</button></div>
     </div>
 </div>

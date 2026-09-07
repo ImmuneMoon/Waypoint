@@ -470,7 +470,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   function fcWireResizeHandles(box, svg, b) {
       var pt = svg.createSVGPoint();
-      var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; var m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; };
+      var inv = null;
+      var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; return inv ? pt.matrixTransform(inv) : { x: 0, y: 0 }; };
       Array.from(svg.querySelectorAll('g.node')).forEach(function(g) {
           if (g.querySelector(':scope > rect.fc-handle')) return;
           var hd = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -480,6 +481,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (e.button !== 0) return;
               e.preventDefault(); e.stopPropagation();   // not a nudge
               var nid = fcNodeId(g), sh = fcShape(g); if (!sh) return;
+              var m0 = svg.getScreenCTM(); if (!m0) return; inv = m0.inverse();
+              svg.style.overflow = 'visible';
               var sc0 = fcScaleOf(g); var bb; try { bb = sh.getBBox(); } catch (err) { return; }
               var baseW = Math.max(4, bb.width / 2), baseH = Math.max(4, bb.height / 2), c = fcTranslate(g);
               var onMove = function(ev) {
@@ -490,8 +493,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               };
               var onUp = function() {
                   window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+                  svg.style.overflow = ''; inv = null;
                   var sc = fcScaleOf(g);
                   if (Math.abs(sc.x - sc0.x) < 0.01 && Math.abs(sc.y - sc0.y) < 0.01) return;
+                  fcFitViewBox(svg); fcApplyZoom(box.dataset.fc);
                   b.nodeSize = b.nodeSize || {}; b.nodeSize[nid] = { x: sc.x, y: sc.y }; b.nodePosSig = fcSig(b);
                   save(true);
                   var rb = document.querySelector('.fc-reset-pos[data-idx="' + box.dataset.fc + '"]'); if (rb) rb.style.display = '';
@@ -512,23 +517,27 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   function fcWireNudging(box, svg, b) {
       var pt = svg.createSVGPoint();
-      var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; var m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; };
+      var inv = null;   // screen→SVG matrix captured when a drag starts, so the mapping cannot shift under the pointer
+      var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; return inv ? pt.matrixTransform(inv) : { x: 0, y: 0 }; };
       Array.from(svg.querySelectorAll('g.node')).forEach(function(g) {
           g.style.cursor = 'move';
           g.addEventListener('pointerdown', function(e) {
               if (e.button !== 0) return;
               e.preventDefault(); e.stopPropagation();
+              var m0 = svg.getScreenCTM(); if (!m0) return; inv = m0.inverse();
+              svg.style.overflow = 'visible';
               var nid = fcNodeId(g), start = toSvg(e), origin = fcTranslate(g), moved = false;
               var onMove = function(ev) {
                   var q = toSvg(ev); var nx = origin.x + (q.x - start.x), ny = origin.y + (q.y - start.y);
                   if (Math.abs(nx - origin.x) > 1 || Math.abs(ny - origin.y) > 1) moved = true;
                   g.setAttribute('transform', 'translate(' + nx + ', ' + ny + ')');
                   fcRedrawEdges(svg, nid);
-                  fcFitViewBox(svg);
               };
               var onUp = function(ev) {
                   window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+                  svg.style.overflow = ''; inv = null;
                   if (!moved) return;
+                  fcFitViewBox(svg); fcApplyZoom(box.dataset.fc);
                   var p = fcTranslate(g);
                   b.nodePos = b.nodePos || {}; b.nodePos[nid] = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }; b.nodePosSig = fcSig(b);
                   save(true);
@@ -563,7 +572,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var vb = (svg.getAttribute('viewBox') || '0 0 0 0').split(/[\s,]+/).map(Number);
       if (Math.abs(vb[2] - w) < 2 && Math.abs(vb[3] - h) < 2 && Math.abs(vb[0] - x) < 2 && Math.abs(vb[1] - y) < 2) return;
       svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
-      svg.setAttribute('height', h);
+      svg.removeAttribute('height'); svg.style.height = 'auto';
       if (!svg.dataset.zoomed) { svg.style.maxWidth = Math.round(w) + 'px'; }
       svg.dataset.fitW = String(Math.round(w));
   }

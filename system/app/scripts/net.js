@@ -253,6 +253,7 @@ function sanitizeAppState(s) {
         delete camp.bannedPlayers;
         delete camp.handouts;
         delete camp.handoutReveals;
+        delete camp.handoutLog;
         Object.keys(camp.items).forEach(function(id) {
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];
@@ -720,6 +721,39 @@ net.clearMyTarget = function() { var t = net.targets[net.myId]; if (t) net.setTa
    revealHandout(hid, playerIds|null): resize the picture, send it to those players (all connected
    when null), record it on camp.handoutReveals so late joiners and reconnects get it too. A room
    with r.handoutId reveals itself to a player whose token comes to rest inside it. */
+// A player shares a journal entry: the host relays it (to one player, everyone, or the GM itself)
+net.shareEntry = function(payload) {
+    if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) { toast('Join a session first.'); return false; }
+    try { net.conns[0].send(Object.assign({ type: 'share' }, payload)); return true; } catch (e) { toast('Could not send that.'); return false; }
+};
+function relayShare(msg, conn) {
+    var sp = net.roster[conn.peer]; if (!sp) return;
+    var en = msg.entry; if (!en || typeof en !== 'object') return;
+    var kind = en.kind === 'image' ? 'image' : 'text';
+    var to = msg.to === '*' || msg.to === 'gm' ? msg.to : (typeof msg.to === 'string' && msg.to.length <= 80 ? msg.to : null);
+    if (!to) return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    var out = {
+        type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM',
+        id: 'sh_' + String(sp.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24) + '_' + String(en.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30),
+        title: String(en.title || '').slice(0, 120), caption: String(en.caption || '').slice(0, 4000),
+        sharedBy: String(sp.name || 'A player').slice(0, 60), sharedById: sp.id, sharedNotes: String(en.notes || '').slice(0, 20000)
+    };
+    if (kind === 'text') { out.kind = 'text'; out.text = String(en.text || '').slice(0, 60000); }
+    else {
+        if (!(en.data && en.data.byteLength !== undefined) || en.data.byteLength > 6 * 1024 * 1024) return;
+        out.mime = ({ 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1 })[en.mime] ? en.mime : 'image/jpeg'; out.data = en.data;
+    }
+    var names = [];
+    if (to === 'gm') { if (window.wpJournalReceive) window.wpJournalReceive(out); names.push('you'); }
+    else net.conns.forEach(function(c) {
+        var p = net.roster[c.peer];
+        if (!c.open || !p || c === conn) return;
+        if (to !== '*' && p.id !== to) return;
+        try { c.send(out); names.push(p.name || 'a player'); } catch (e) {}
+    });
+    if (names.length) toast((sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', ') + '.');
+}
 net.revealHandout = function(hid, pids) {
     if (!net.active || net.role !== 'host') { toast('Host a session first.'); return; }
     var camp = getActiveCampaign(); var h = camp && camp.handouts && camp.handouts[hid];
@@ -735,6 +769,7 @@ net.revealHandout = function(hid, pids) {
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
             camp.handoutReveals[p.id][h.id] = Date.now();
+            camp.handoutLog = (camp.handoutLog || []).concat([{ hid: h.id, pid: p.id, name: p.name || '', at: Date.now() }]).slice(-2000);   // history: survives a re-queue
         });
         net.applyingRemote = true; save(true); net.applyingRemote = false;
         document.dispatchEvent(new CustomEvent('wp-handout-revealed'));
@@ -1039,6 +1074,8 @@ function handleMessage(msg, conn) {
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
         applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
         broadcast({ type: 'targets', targets: net.targets }, null);
+    } else if (msg.type === 'share' && net.role === 'host') {
+        relayShare(msg, conn);
     } else if (msg.type === 'handout' && net.role === 'client') {
         if (window.wpJournalReceive) window.wpJournalReceive(msg);
     } else if (msg.type === 'targets' && net.role === 'client') {

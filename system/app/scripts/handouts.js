@@ -110,6 +110,13 @@ function latestOf(idx, id) {
     return best;
 }
 function versionId(id) { return safeId(id).slice(0, 44) + '-v' + Date.now().toString(36); }
+// A shared entry remembers who sent it and what they wrote under it
+function stampShared(en, msg) {
+    if (!msg.sharedBy) return;
+    en.sharedBy = String(msg.sharedBy).slice(0, 60);
+    en.sharedById = safeId(msg.sharedById);
+    en.sharedNotes = String(msg.sharedNotes || '').slice(0, 20000);
+}
 function stampHead(idx, msg) {
     idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
     idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
@@ -138,6 +145,7 @@ async function receiveHandout(msg) {
         if (existing && existing.hash === hash) {
             // the same picture again: title and caption follow the GM, the player's notes stay
             existing.title = title; existing.caption = caption; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+            stampShared(existing, msg);
             src = existing.src; shownId = existing.id;
             return;
         }
@@ -147,6 +155,7 @@ async function receiveHandout(msg) {
         if (!src) { failed = true; return false; }
         var en = { id: nid, title: title, caption: caption, src: src, mime: mime, hash: hash, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
+        stampShared(en, msg);
         idx.entries.push(en); added = true; shownId = nid;
     });
     if (failed) { toast('The GM showed you something, but it could not be saved.'); return; }
@@ -165,12 +174,14 @@ async function receiveTextHandout(msg, campId, id) {
         if (existing && String(existing.text || '') === text) {
             // same words again: title and caption follow the GM, the player's notes stay
             existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.updatedAt = Date.now(); if (existing.notes === undefined) existing.notes = '';
+            stampShared(existing, msg);
             shownId = existing.id;
             return;
         }
         // new or changed text: a new entry beside the old one, which keeps its notes
         var en = { id: existing ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
+        stampShared(en, msg);
         idx.entries.push(en); added = true; shownId = en.id;
     });
     await registerJournal(campId);
@@ -235,13 +246,43 @@ async function openJournal() {
     var list = ui('journalList');
     list.innerHTML = '<div style="color:var(--dim); padding:14px;">Loading your journal…</div>';
     var journals = await listJournals();
+    var own = ownCampaignKey();
+    if (own && !journals.some(function(j) { return j.campId === own.key; }) && sentRecords(own.key).length) journals.unshift({ campId: own.key, campaign: own.camp.name || '', gm: '', gmId: window.wpNet.myId, entries: [], updated: 0 });
     if (!journals.length) { list.innerHTML = '<div style="color:var(--dim); padding:14px; line-height:1.5;">Nothing here yet. When a GM shows you a handout — a place, a face, a letter — it is saved here with its caption, and you can add your own notes. It stays on this computer and works without a session.</div><div style="padding:0 14px;"><button class="tool ghost journal-add" data-camp="personal">+ Note</button> <span style="color:var(--dim); font-size:11px;">Start a personal notebook now; campaign sections appear as GMs show you things.</span></div>'; return; }
     list.innerHTML = journals.map(function(j) {
-        var nGm = j.entries.filter(function(e) { return e.kind !== 'note'; }).length, nMine = j.entries.length - nGm;
+        var nMine = j.entries.filter(function(e) { return e.kind === 'note'; }).length, nParty = j.entries.filter(function(e) { return e.sharedBy; }).length, nGm = j.entries.length - nMine - nParty;
         var personal = j.campId === 'personal';
+        var iRunIt = !!(j.gmId && window.wpNet && j.gmId === window.wpNet.myId);   // my own campaign: nothing here is "from the GM"
+        var sent = iRunIt ? sentRecords(j.campId) : [];
         var page = personal ? 'mine' : (journalPage[j.campId] || journalDefaultPage());
-        var runBy = j.gm && !/^gm$/i.test(j.gm.trim()) ? ' <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by ' + esc(j.gm) + '</span>' : '';
-        var tabs = personal ? '' : '<span class="journal-tabs"><button class="tool ghost journal-tab' + (page === 'all' ? ' active' : '') + '" data-tab="all" title="Everything, newest first">All <span class="journal-count">' + j.entries.length + '</span></button><button class="tool ghost journal-tab' + (page === 'gm' ? ' active' : '') + '" data-tab="gm" title="Handouts the GM has shown you">From the GM <span class="journal-count">' + nGm + '</span></button><button class="tool ghost journal-tab' + (page === 'mine' ? ' active' : '') + '" data-tab="mine" title="Your own pages">My notes <span class="journal-count">' + nMine + '</span></button></span>';
+        if (iRunIt && page === 'gm') page = 'all';
+        var runBy = j.gm && !iRunIt && !/^gm$/i.test(j.gm.trim()) ? ' <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by ' + esc(j.gm) + '</span>' : '';
+        // a player's sent records: one per send
+        var mySent = [];
+        j.entries.forEach(function(e) { (e.sentTo || []).forEach(function(t) { mySent.push({ e: e, to: t.to, name: t.name, at: t.at }); }); });
+        mySent.sort(function(a, b) { return b.at - a.at; });
+        var nSent = iRunIt ? sent.length : mySent.length;
+        var from = journalFrom[j.campId] || '';
+        function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
+        var tabs = personal ? '' : '<span class="journal-tabs">' + tab('all', 'All', j.entries.length, 'Everything you have received, and your own pages, newest first')
+            + (iRunIt ? '' : tab('gm', 'From the GM', nGm, 'Handouts the GM has shown you'))
+            + tab('party', 'From the party', nParty, 'Notes and handouts other players shared with you; a chip narrows it to one person, sent and received')
+            + tab('mine', 'My notes', nMine, 'Your own pages')
+            + tab('sent', 'Sent', nSent, iRunIt ? 'Handouts you have shown, and to whom' : 'Pages you have shared, with whom and when') + '</span>';
+        // one chip per party member you have received from or sent to
+        var members = {};
+        function member(id, name) { if (!id || id === '*') return; var m = members[id] || (members[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n++; }
+        j.entries.forEach(function(e) { if (e.sharedBy) member(e.sharedById || e.sharedBy, e.sharedBy); });
+        mySent.forEach(function(s) { member(s.to, s.to === 'gm' ? 'The GM' : s.name); });
+        var fromRow = personal || !Object.keys(members).length ? '' : '<div class="journal-from-row"><button class="journal-from' + (!from ? ' active' : '') + '" data-from="">Everyone <span class="journal-count">' + nParty + '</span></button>' +
+            Object.values(members).sort(function(a, b) { return a.name.localeCompare(b.name); }).map(function(m) { return '<button class="journal-from' + (from === m.id ? ' active' : '') + '" data-from="' + esc(m.id) + '" title="What ' + esc(m.name) + ' sent you, and what you sent them">' + esc(m.name) + ' <span class="journal-count">' + m.n + '</span></button>'; }).join('') + '</div>';
+        var mySentRows = mySent.map(function(s) {
+            var e = s.e, kind = e.kind === 'note' || e.kind === 'text' ? 'text' : 'image', text = e.kind === 'note' ? (e.text || '') : (e.text || '');
+            var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
+            return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + s.at + '" data-kind="' + kind + '" data-sent="1"' + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
+                '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
+                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'the GM' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div></div></div>';
+        }).join('');
         var head = '<div class="journal-camp"><b>' + esc(j.campaign || (personal ? 'Personal notes' : 'Campaign')) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
             if (e.kind === 'note') {
@@ -249,20 +290,31 @@ async function openJournal() {
                     '<div class="journal-body">' +
                     '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title"><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
                     '<textarea class="journal-notes journal-note-body" placeholder="Write…">' + esc(e.text || '') + '</textarea>' +
-                    '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note</div></div></div>';
+                    '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note</div>' + sentLine(e) + shareControls() + '</div></div>';
             }
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
-            return '<div class="journal-entry" data-page="gm" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
+            return '<div class="journal-entry" data-page="' + (e.sharedBy ? 'party' : 'gm') + '"' + (e.sharedBy ? ' data-from="' + esc(e.sharedById || e.sharedBy) + '"' : '') + ' data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the GM keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + '</div>' +
-                '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea></div></div>';
+                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + (e.sharedBy ? ' · shared by <b>' + esc(e.sharedBy) + '</b>' : '') + '</div>' +
+                (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
+                '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea>' + sentLine(e) + shareControls() + '</div></div>';
         }).join('');
         var empty = (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
-                  + (!nGm && !personal ? '<div class="journal-empty" data-page="gm">Nothing from the GM yet.</div>' : '');
-        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '">' + head + empty + entries + '</div>';
+                  + (!nGm && !personal && !iRunIt ? '<div class="journal-empty" data-page="gm">Nothing from the GM yet.</div>' : '')
+                  + (iRunIt && !sent.length ? '<div class="journal-empty" data-page="sent">Nothing shown to the players yet.</div>' : '')
+                  + (!iRunIt && !personal && !mySent.length ? '<div class="journal-empty" data-page="sent">Nothing sent yet — while in a session, pick "Share with…" on any page.</div>' : '')
+                  + (!nParty && !personal ? '<div class="journal-empty" data-page="party">Nothing shared by the party yet.</div>' : '');
+        var sentRows = sent.map(function(s) {
+            var thumb = s.kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(s.text || '').slice(0, 160)) + '</div>'
+                      : s.src ? '<img class="journal-thumb" src="' + esc(s.src) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
+            return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to.map(function(t) { return t.pid || ''; }).join(' ')) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(s.hid) + '" data-kind="' + (s.kind === 'text' ? 'text' : 'image') + '" data-sent="1"' + (s.kind === 'text' ? ' data-text="' + esc(String(s.text || '')) + '"' : '') + '>' + thumb +
+                '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') +
+                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + '</div></div></div>';
+        }).join('');
+        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-from="' + esc(from) + '">' + head + fromRow + empty + sentRows + mySentRows + entries + '</div>';
     }).join('');
     journalFilter();
 }
@@ -310,8 +362,83 @@ function wordScore(term, words) {
     }
     return best;
 }
+// "Share with…" + Send on every entry, for a player in a session: one party member, everyone, or the GM
+function sentLine(e, inner) {
+    var s = e && e.sentTo && e.sentTo.length ? 'Sent to ' + e.sentTo.slice().reverse().map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') : '';
+    return inner ? s : '<div class="journal-when journal-sent">' + s + '</div>';
+}
+function shareControls() {
+    var n = window.wpNet; if (!(n && n.active && n.role === 'client')) return '';
+    var others = Object.values(n.roster || {}).filter(function(p) { return p && p.id && p.id !== n.myId; });
+    var opts = '<option value="">Share with…</option>' + (others.length ? '<option value="*">Everyone in the party</option>' : '') + '<option value="gm">The GM</option>' +
+        others.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; }).join('');
+    return '<div class="journal-share-row"><select class="journal-share" title="Send this page, with your notes, to someone at the table">' + opts + '</select><button class="tool ghost journal-share-send" disabled>Send</button></div>';
+}
+async function shareEntry(campId, id, to, btn) {
+    var idx = await readIndex(campId);
+    var e = idx.entries.find(function(x) { return x.id === id; }); if (!e) return;
+    var entry;
+    if (e.kind === 'note') entry = { id: e.id, kind: 'text', title: e.title || 'A note', caption: '', text: e.text || '', notes: '' };
+    else if (e.kind === 'text') entry = { id: e.id, kind: 'text', title: e.title || 'Handout', caption: e.caption || '', text: e.text || '', notes: e.notes || '' };
+    else {
+        var bytes = null;
+        try { var r = await fetch(/^(data:|blob:)/.test(e.src || '') ? e.src : encodeURI(e.src || ''), { cache: 'no-store' }); if (r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (err) {}
+        if (!bytes || !bytes.length) { toast('That picture could not be read from your journal.'); return; }
+        entry = { id: e.id, kind: 'image', title: e.title || 'Handout', caption: e.caption || '', mime: e.mime || 'image/jpeg', data: bytes, notes: e.notes || '' };
+    }
+    if (window.wpNet.shareEntry({ to: to, entry: entry })) {
+        var who = to === '*' ? 'everyone in the party' : to === 'gm' ? 'the GM' : ((Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === to; }) || {}).name || 'them');
+        toast('"' + (entry.title || 'Note') + '" sent to ' + who + '.');
+        await withIndex(campId, function(idx) {
+            var x = idx.entries.find(function(y) { return y.id === id; }); if (!x) return false;
+            x.sentTo = (x.sentTo || []).concat([{ to: to, name: who, at: Date.now() }]).slice(-40);
+        });
+        var line = document.querySelector('.journal-entry[data-camp="' + campId + '"][data-id="' + id + '"] .journal-sent');
+        if (line) line.innerHTML = sentLine(await readIndex(campId).then(function(ix) { return ix.entries.find(function(y) { return y.id === id; }); }), true);
+    }
+    if (btn) { btn.disabled = true; var s = btn.parentNode.querySelector('.journal-share'); if (s) s.value = ''; }
+}
+// The GM's own campaign, keyed the way players' journals key it (campaign id + GM id)
+function ownCampaignKey() {
+    var n = window.wpNet; if (!n || !n.myId || n.foreign || (n.active && n.role === 'client')) return null;
+    var camp = getActiveCampaign(); if (!camp) return null;
+    return { key: safeId(camp.id) + '__' + safeId(n.myId), camp: camp };
+}
+// What the GM has shown from this campaign, newest first: read from the reveal record on the save
+function sentRecords(key) {
+    var own = ownCampaignKey(); if (!own || own.key !== key) return [];
+    var camp = own.camp, rev = camp.handoutReveals || {}, hs = camp.handouts || {}, by = {}, seen = {};
+    function nameOf(pid, fallback) { var pl = (camp.players || {})[pid]; return pl && pl.name ? pl.name : (fallback || pid); }
+    function add(hid, pid, name, at) {
+        var k = hid + '|' + pid + '|' + at; if (seen[k]) return; seen[k] = true;
+        var r = by[hid] || (by[hid] = { hid: hid, to: [], last: 0 });
+        r.to.push({ name: name, at: at, pid: pid }); if (at > r.last) r.last = at;
+    }
+    (camp.handoutLog || []).forEach(function(l) { if (l && l.hid) add(l.hid, l.pid, nameOf(l.pid, l.name), l.at || 0); });
+    Object.keys(rev).forEach(function(pid) { Object.keys(rev[pid] || {}).forEach(function(hid) { add(hid, pid, nameOf(pid), rev[pid][hid]); }); });
+    return Object.values(by).map(function(r) {
+        var h = hs[r.hid] || {};
+        r.title = h.title || '(removed handout)'; r.caption = h.caption || ''; r.kind = h.kind || 'image'; r.text = h.text || ''; r.src = h.src || '';
+        r.to.sort(function(a, b) { return b.at - a.at; });
+        return r;
+    }).sort(function(a, b) { return b.last - a.last; });
+}
 var journalPage = {};   // page chosen per campaign in this window
-function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); return p === 'gm' || p === 'mine' ? p : 'all'; } catch (e) { return 'all'; } }
+var journalFrom = {};   // party member chosen on the From the party page, per campaign
+// Does this row belong on the page its section is showing?
+function onPage(row) {
+    var sec = row.closest('.journal-section'); if (!sec) return true;
+    var page = sec.dataset.page || 'all', from = sec.dataset.from || '', rp = row.dataset.page, isEmpty = row.className.indexOf('journal-empty') >= 0;
+    if (page === 'all') return !isEmpty && rp !== 'sent';
+    if (page === 'party' && from) {
+        if (isEmpty) return false;
+        if (rp === 'party') return row.dataset.from === from;
+        if (rp === 'sent') return (' ' + (row.dataset.to || '') + ' ').indexOf(' ' + from + ' ') >= 0;
+        return false;
+    }
+    return rp === page;
+}
+function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); return p === 'gm' || p === 'mine' || p === 'party' ? p : 'all'; } catch (e) { return 'all'; } }
 window.wpJournalDefaultPage = journalDefaultPage;
 function journalFilter() {
     var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
@@ -325,8 +452,10 @@ function journalFilter() {
             Array.prototype.slice.call(sec.querySelectorAll('.journal-entry')).sort(function(a, b) { return +a.dataset.i - +b.dataset.i; }).forEach(function(r) { sec.appendChild(r); });
         });
     }
+    list.querySelectorAll('.journal-empty').forEach(function(el) { el.style.display = !q && onPage(el) ? '' : 'none'; });
+    list.querySelectorAll('.journal-from-row').forEach(function(el) { el.style.display = !q && el.parentNode.dataset.page === 'party' ? '' : 'none'; });
     list.querySelectorAll('.journal-entry').forEach(function(row) {
-        if (!q) { row.style.display = ''; return; }
+        if (!q) { row.style.display = onPage(row) ? '' : 'none'; return; }
         var hay = row.textContent + ' ' + (row.dataset.text || '');
         row.querySelectorAll('input, textarea').forEach(function(f) { hay += ' ' + f.value; });
         var words = normWords(hay), hit = 0, score = 0;
@@ -366,6 +495,10 @@ if (_jList) {
     _jList.addEventListener('click', function(e) {
         var t = e.target.closest && e.target.closest('.journal-thumb'); if (!t) return;
         var row = t.closest('.journal-entry');
+        if (row.dataset.sent) {
+            showHandout({ title: row.querySelector('.journal-title').textContent, caption: (row.querySelector('.journal-caption') || {}).textContent || '', src: row.dataset.kind === 'text' ? null : t.getAttribute('src'), text: row.dataset.kind === 'text' ? row.dataset.text : '' });
+            return;
+        }
         var base = { title: row.querySelector('.journal-title').textContent.replace(/\s*\u00d7\s*$/, '').trim(), caption: (row.querySelector('.journal-caption') || {}).textContent || '', entry: { campId: row.dataset.camp, id: row.dataset.id } };
         if (row.dataset.kind === 'text') {
             readIndex(row.dataset.camp).then(function(idx) { var en = idx.entries.find(function(x) { return x.id === row.dataset.id; }); showHandout(Object.assign(base, { text: en ? en.text : '' })); });
@@ -386,14 +519,34 @@ if (_jList) {
         }, 500);
     });
     _jList.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    _jList.addEventListener('change', function(e) {
+        var s = e.target.closest && e.target.closest('.journal-share'); if (!s) return;
+        var b = s.parentNode.querySelector('.journal-share-send'); if (b) b.disabled = !s.value;
+    });
     // own notes: add / edit / delete
     _jList.addEventListener('click', async function(e) {
+        var sendB = e.target.closest && e.target.closest('.journal-share-send');
+        if (sendB) {
+            var rowS = sendB.closest('.journal-entry'), selS = sendB.parentNode.querySelector('.journal-share');
+            if (!rowS || !selS || !selS.value) return;
+            shareEntry(rowS.dataset.camp, rowS.dataset.id, selS.value, sendB);
+            return;
+        }
         var tab = e.target.closest && e.target.closest('.journal-tab');
         if (tab) {
             var secT = tab.closest('.journal-section'); if (!secT) return;
             journalPage[secT.dataset.camp] = tab.dataset.tab;
             secT.dataset.page = tab.dataset.tab;
             secT.querySelectorAll('.journal-tab').forEach(function(b) { b.classList.toggle('active', b === tab); });
+            journalFilter();
+            return;
+        }
+        var chip = e.target.closest && e.target.closest('.journal-from');
+        if (chip) {
+            var secF = chip.closest('.journal-section'); if (!secF) return;
+            journalFrom[secF.dataset.camp] = chip.dataset.from; secF.dataset.from = chip.dataset.from;
+            secF.querySelectorAll('.journal-from').forEach(function(b) { b.classList.toggle('active', b === chip); });
+            journalFilter();
             return;
         }
         var add = e.target.closest && e.target.closest('.journal-add');

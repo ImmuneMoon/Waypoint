@@ -14,6 +14,21 @@ Journal
   "Journal opens to" choice; All is the default. The "— GM" tag is now a
   quiet "run by <name>", shown only when the GM has set a name; it tells two
   campaigns of the same name from different GMs apart.
+- Party sharing. While in a session, every page in a player's Journal has a
+  "Share with…" picker and a Send button: one party member, everyone, or the
+  GM. A handout goes with the sender's notes under it; a page of their own goes
+  as written. It arrives on the receiver's "From the party" page (there is a
+  tab and a count for it) with the sender's name and notes shown, and the
+  receiver's own notes box underneath. The host relays it; players never
+  connect to each other.
+- A record of what went out. A player's entry shows "Sent to …" with names
+  and times once they have shared it. The GM's own Journal has no "From the
+  GM" page; it has a "Sent" page instead, listing every handout they have
+  shown, to whom and when. Players have a "Sent" page as well: one line per
+  send — what, to whom, when — kept apart from what they received.
+- The "From the party" page shows everyone's shares together. A chip per
+  party member narrows it to that person: what they sent you and what you
+  sent them, side by side.
 
 WAYPOINT 1.2.8 — What's New
 ============================

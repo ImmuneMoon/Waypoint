@@ -870,9 +870,21 @@
   .journal-tab.active { color: var(--gold); border-color: var(--gold); background: rgba(212,175,55,0.08); }
   .journal-count { opacity: 0.7; font-size: 10px; margin-left: 3px; }
   .journal-empty { color: var(--dim); font-size: 12px; padding: 6px 4px 10px; }
-  #journalList:not(.searching) .journal-section[data-page="gm"] > [data-page="mine"],
-  #journalList:not(.searching) .journal-section[data-page="mine"] > [data-page="gm"] { display: none !important; }
-  #journalList.searching .journal-empty { display: none !important; }
+  .journal-shared { border-left: 2px solid var(--gold); background: rgba(212,175,55,0.06); padding: 6px 10px; font-size: 12px; white-space: pre-wrap; line-height: 1.45; color: var(--ink); }
+  .journal-shared-who { color: var(--gold); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 3px; }
+  .journal-share-row { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+  .journal-share { background: #20202c; color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 8px; font-size: 11px; height: 26px; min-width: 0; cursor: pointer; }
+  .journal-share:focus { outline: none; border-color: var(--gold); }
+  .journal-share option { background: #20202c; color: var(--ink); }
+  .journal-share-send { padding: 2px 10px; font-size: 11px; margin-left: auto; }
+  .journal-share-send:disabled { opacity: 0.4; cursor: default; }
+  .journal-sent:empty { display: none; }
+  .journal-sentrow { border-style: dashed; }
+  .journal-from-row { display: flex; gap: 4px; flex-wrap: wrap; margin: -2px 0 8px; }
+  .journal-from { background: transparent; color: var(--dim); border: 1px solid var(--edge); border-radius: 12px; padding: 1px 9px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .journal-from:hover { border-color: var(--gold); color: var(--ink); }
+  .journal-from.active { color: var(--gold); border-color: var(--gold); background: rgba(212,175,55,0.08); }
+
   .journal-own { border-color: rgba(212,175,55,0.35); }
   .journal-note-title { font-weight: 600; flex: 1; }
   .journal-note-body { min-height: 90px; }

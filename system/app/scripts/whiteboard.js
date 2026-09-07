@@ -31,7 +31,7 @@ function fixEmbeddedImgs(el) {
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, findLandingRoom, characterList, locateCharacter } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image } from './io.js';
 
@@ -48,6 +48,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
   function renderWhiteboard() {
+      if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
 
       var activeMap = getActiveMap();
 
@@ -1575,6 +1576,133 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!t) { var ids = Object.keys(camp.items); for (var i = 0; i < ids.length && !t; i++) t = find(camp.items[ids[i]]); }
       return t ? { src: t.src, name: t.charName || t.name || '' } : null;
   }
+  /* ---- party strip ----
+     Every player's character as a small token in the corner of the play map. The ones on the
+     map you are viewing are highlighted; while hosting, a player who is not connected is dimmed.
+     Click one to jump to that character: their map (if different), centred on them at 150%. */
+  var FOCUS_ZOOM = 1.5;
+  function renderPartyStrip() {
+      var strip = document.getElementById('partyStrip'); if (!strip) return;
+      var camp = getActiveCampaign(), am = getActiveMap();
+      var spectator = window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream;
+      if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual' || spectator) { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
+      var list = characterList(camp, true, am.id);
+      var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
+      var present = {};
+      if (hosting) Object.values(window.wpNet.roster || {}).forEach(function(p) { if (p && p.id) present[p.id] = true; });
+      // Connected players without a token yet: their table picture, or a chip with their name
+      if (hosting) {
+          var owned = {}; list.forEach(function(c) { if (c.ownerId) owned[c.ownerId] = true; });
+          Object.values(window.wpNet.roster || {}).forEach(function(p) {
+              if (!p || !p.id || owned[p.id]) return;
+              var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
+              var locMap = p.location && camp.items[p.location];
+              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true,
+                          mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
+          });
+      }
+      var sig = list.map(function(c) { return c.key + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (hosting ? (present[c.ownerId] ? 1 : 0) : 2); }).join(';') + '#' + am.id;
+      if (strip.dataset.sig === sig) return;
+      strip.dataset.sig = sig;
+      strip.innerHTML = list.map(function(c) {
+          var here = c.mapId === am.id;
+          var away = hosting && c.ownerId && !present[c.ownerId];
+          var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '');
+          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (c.noToken ? ' \u2014 no token yet' : '') + '. Click to jump to them.';
+          if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" title="' + esc(tip) + '">';
+          var ini = String(c.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
+          return '<span class="' + cls + ' party-ini" data-key="' + esc(c.key) + '" title="' + esc(tip) + '">' + esc(ini) + '</span>';
+      }).join('');
+  }
+  window.wpRenderPartyStrip = renderPartyStrip;
+  function focusCharacter(key) {
+      var camp = getActiveCampaign(); if (!camp) return;
+      if (key.charAt(0) === 'p') {
+          // a player with no token yet: go to the map they are on
+          var pl = Object.values((window.wpNet && window.wpNet.roster) || {}).find(function(p) { return p && p.id === key.slice(2); });
+          if (!pl || !pl.location || !camp.items[pl.location]) { toast((pl && pl.name || 'That player') + ' has no token and no map yet.'); return; }
+          if (camp.activeItemId !== pl.location) { camp.activeItemId = pl.location; updateSidebarNav(); }
+          state.viewMode = 'visual'; render();
+          if (window.appRestoreCamera) window.appRestoreCamera();
+          save();
+          toast(pl.name + ' is on this map but has no token yet \u2014 give them one from a character token\'s Properties.');
+          return;
+      }
+      var loc = locateCharacter(camp, key, camp.activeItemId);
+      if (!loc) { toast('That character is not on any map right now.'); return; }
+      if (camp.activeItemId !== loc.map.id) { camp.activeItemId = loc.map.id; updateSidebarNav(); }
+      state.viewMode = 'visual';
+      loc.map.meta = loc.map.meta || {};
+      loc.map.meta.lastWbX = loc.tok.x + (loc.tok.w || 60) / 2;
+      loc.map.meta.lastWbY = loc.tok.y + (loc.tok.h || 52) / 2;
+      loc.map.meta.lastWbZoom = FOCUS_ZOOM;
+      state.selWbId = loc.tok.id; state.selWbIds = [loc.tok.id];
+      render();
+      if (window.appRestoreCamera) window.appRestoreCamera();
+      save();
+      toast('Focused on ' + (loc.tok.charName || loc.tok.name || 'the character') + '.');
+  }
+  window.wpFocusCharacter = focusCharacter;
+  (function wirePartyStrip() {
+      var strip = document.getElementById('partyStrip'); if (!strip) return;
+      strip.addEventListener('click', function(e) {
+          var tok = e.target.closest && e.target.closest('.party-tok'); if (!tok) return;
+          e.stopPropagation();
+          if (window.wpStream && window.wpStreamFocusChar) { window.wpStreamFocusChar(tok.dataset.key); return; }
+          focusCharacter(tok.dataset.key);
+      });
+      strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });   // never starts a pan or a selection box
+      // Right-click: the character's actions
+      var menu = document.getElementById('partyMenu');
+      function closePartyMenu() { if (menu) menu.classList.remove('show'); }
+      strip.addEventListener('contextmenu', function(e) {
+          var tok = e.target.closest && e.target.closest('.party-tok'); if (!tok || !menu) return;
+          e.preventDefault(); e.stopPropagation();
+          var camp = getActiveCampaign(); var am = getActiveMap();
+          var isPlayerOnly = tok.dataset.key.charAt(0) === 'p';
+          var loc = isPlayerOnly ? null : locateCharacter(camp, tok.dataset.key, camp && camp.activeItemId);
+          var ownerId = (tok.dataset.key.charAt(0) === 'o' || isPlayerOnly) ? tok.dataset.key.slice(2) : null;
+          var rosterP = ownerId && window.wpNet && Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === ownerId; });
+          var name = loc ? (loc.tok.charName || loc.tok.name || 'this character') : (rosterP && rosterP.name) || 'this player';
+          var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
+          var connected = hosting && ownerId && window.wpNet.isConnected(ownerId);
+          var here = loc && am && loc.map.id === am.id;
+          var items = [];
+          var whereName = loc ? (loc.map.meta && loc.map.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta.title) || 'their map';
+          items.push({ act: 'jump', label: '\uD83C\uDFAF Jump to ' + name + (here ? '' : ' (' + whereName + ')') });
+          if (hosting && ownerId) {
+              items.push(connected
+                  ? { act: 'summon', label: '\uD83D\uDCE3 Summon ' + name + ' to the table\'s map' }
+                  : { act: 'none', label: '\uD83D\uDCE3 Summon ' + name + ' \u2014 not connected', dim: true });
+              items.push({ act: 'summonAll', label: '\uD83D\uDCE3 Summon everyone to the table\'s map' });
+          }
+          if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
+          menu.innerHTML = items.map(function(i) {
+              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(tok.dataset.key) + '" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
+          }).join('');
+          var vw = window.innerWidth, vh = window.innerHeight;
+          menu.style.left = Math.min(e.clientX, vw - 220) + 'px';
+          menu.style.top = Math.min(e.clientY, vh - (items.length * 34 + 12)) + 'px';
+          menu.classList.add('show');
+      });
+      if (menu) menu.addEventListener('click', function(e) {
+          var b = e.target.closest && e.target.closest('.party-menu-item'); if (!b) return;
+          e.stopPropagation();
+          var key = b.dataset.key, act = b.dataset.act;
+          closePartyMenu();
+          if (act === 'jump') { if (window.wpStream && window.wpStreamFocusChar) window.wpStreamFocusChar(key); else focusCharacter(key); }
+          else if (act === 'summon') { window.wpNet.summonPlayerById(key.slice(2)); }
+          else if (act === 'summonAll') { window.wpNet.summonAll(); }
+          else if (act === 'target') {
+              var camp = getActiveCampaign(); var loc = locateCharacter(camp, key, camp && camp.activeItemId);
+              var am = getActiveMap();
+              if (loc && am && loc.map.id === am.id && loc.tok.ownerId !== window.wpNet.myId) window.wpNet.setTarget(loc.tok.id, am.id, loc.tok.charName || loc.tok.name);
+              else toast('You can only target a character on the map you are on.');
+          }
+      });
+      document.addEventListener('pointerdown', function(e) { if (menu && menu.classList.contains('show') && !e.target.closest('#partyMenu')) closePartyMenu(); }, true);
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePartyMenu(); });
+  })();
   /* ---- targeting (players) ----
      A click — not a drag — on a character token that isn't yours marks it as your target;
      the table sees a ring in your colour. Same token again, or Esc, clears it. */

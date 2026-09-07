@@ -337,8 +337,9 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Running the table</h4>
                       <ul>
                           <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
+                          <li><b>Party strip:</b> the small tokens in the play map's top-right corner are your players' characters &mdash; highlighted when they are on the map you are viewing, dimmed when that player is not connected. Click one to jump to them (their map, centred, 150%); right-click one to summon that player, or everyone, to the table's map.</li>
                           <li><b>Split party:</b> a player can double-click a door/stairs portal to move to that map alone. The roster shows where everyone is; <b>Summon All</b> pulls the whole party back to you, and the &#128227; beside a name fetches just that player.</li>
-                          <li><b>Stream window:</b> Settings &#9654; Open Stream Window gives you a second window with only the play map, as players see it. Screen-share it for someone watching without the app; its corner menu follows your map or focuses one.</li>
+                          <li><b>Stream window:</b> Settings &#9654; Open Stream Window gives you a second window with only the play map, as players see it. Screen-share it for someone watching without the app; its corner menu follows your map, focuses one map, or focuses one character (switching maps with them and staying centred at 150%).</li>
                           <li><b>Player drawings:</b> players have the pen and eraser too. Their marks ride above tokens without blocking them, and they can only erase their own.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to message everyone, or pick one player to send a private whisper.</li>
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
@@ -608,6 +609,8 @@ window.addEventListener('unhandledrejection', function(e) {
       <canvas id="rulerLeft" width="36"></canvas>
       <div id="rulerCursorX"></div>
       <div id="rulerCursorY"></div>
+      <div id="partyStrip" title="Your players' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map."></div>
+      <div id="partyMenu" class="shape-menu" style="position:fixed; flex-direction:column; min-width:200px; z-index:99998;"></div>
       <div id="zoomBox">
           <span id="cursorPos" title="Cursor position (world coordinates)">&ndash;</span>
           <div class="zoom-sep"></div>
@@ -804,6 +807,8 @@ window.addEventListener('unhandledrejection', function(e) {
     <span class="stream-dot" title="Live: this window mirrors your table as players see it"></span>
     <label for="streamFocus">Showing</label>
     <select id="streamFocus" title="Follow the GM's current map, or focus one map until you change it"></select>
+    <label for="streamChar">Focus on</label>
+    <select id="streamChar" title="Follow one character: the view switches to the map they are on and stays centred on them at 150%"></select>
     <button class="tool ghost" id="streamHideBtn" title="Hide this bar (move the mouse to the top-left corner to bring it back)">&#10005;</button>
 </div>
 <div id="pauseBanner">&#9208;&#65039; The GM has paused the table &mdash; chat is still open</div>

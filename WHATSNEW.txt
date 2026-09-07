@@ -1,3 +1,23 @@
+WAYPOINT 1.2.0 — What's New
+============================
+
+Party strip
+- The play map's top-right corner shows each player's character as a small
+  token. The ones on the map you are viewing are highlighted; while hosting,
+  a player who is not connected is dimmed, and a connected player who has no
+  token yet appears as their table picture (or a chip with their name) with a
+  dashed border. Click a token to jump to that
+  character: their map if different, centred on them at 150%. Right-click
+  one for more: summon that player to the table's map, or summon everyone.
+  The stream window has the same strip, where a click focuses the stream on
+  them.
+
+Stream window: focus on a character
+- The stream window's corner bar gains "Focus on": pick a character and the
+  view switches to whatever map they are on and stays centred on their token
+  at 150%, following them as they move and travel. Picking a map again clears
+  it.
+
 WAYPOINT 1.1.9 — What's New
 ============================
 

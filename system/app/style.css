@@ -374,6 +374,7 @@
   #streamBar.hidden { opacity: 0; pointer-events: none; }
   #streamBar label { color: var(--dim); }
   #streamBar select { font-size: 12px; max-width: 320px; }
+  #streamBar select:disabled { opacity: 0.45; }
   #streamBar .stream-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0524f; box-shadow: 0 0 6px #e0524f; animation: netPulse 1.4s ease-in-out infinite; }
   #streamBar .tool { padding: 2px 7px; font-size: 11px; }
   
@@ -806,6 +807,36 @@
   #rulerLeft { position: absolute; top: 0; left: 0; width: 36px; height: 100%; z-index: 900; pointer-events: none; display: none; }
   #rulerCursorX { position: absolute; top: 0; width: 1px; height: 18px; background: var(--gold); z-index: 901; pointer-events: none; display: none; }
   #rulerCursorY { position: absolute; left: 0; width: 36px; height: 1px; background: var(--gold); z-index: 901; pointer-events: none; display: none; }
+  /* Party strip: the players' characters, top-right under the zoom box */
+  #partyStrip {
+    position: absolute; top: 62px; right: 14px; z-index: 8990; display: flex; flex-wrap: wrap; justify-content: flex-end;
+    gap: 4px; max-width: 200px; pointer-events: auto;
+  }
+  #partyStrip:empty { display: none; }
+  .party-tok {
+    width: 30px; height: 30px; border-radius: 50%; object-fit: cover; box-sizing: border-box; cursor: pointer;
+    border: 2px solid var(--edge); background: var(--panel); box-shadow: 0 2px 6px rgba(0,0,0,0.5); opacity: 0.8; transition: transform .12s, opacity .12s;
+  }
+  .party-tok:hover { transform: scale(1.15); opacity: 1; }
+  .party-tok.here { border-color: var(--gold); opacity: 1; box-shadow: 0 0 0 2px rgba(212,175,55,0.35), 0 2px 6px rgba(0,0,0,0.5); }
+  .party-tok.away { opacity: 0.4; filter: grayscale(0.7); }
+  .party-tok.party-face { border-style: dashed; }
+  .party-tok.party-ini { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--ink); }
+  body.stream-mode #partyStrip { top: 10px; right: 14px; }
+  /* Party menu: the strip's right-click actions. Lives outside the toolbar, so it gets the
+     toolbar menu's look here explicitly. */
+  #partyMenu {
+    display: none; flex-direction: column; gap: 2px; min-width: 240px; max-width: 340px; padding: 6px;
+    background: #131313; border: 1px solid #3a3a4a; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+  }
+  #partyMenu.show { display: flex; }
+  #partyMenu .party-menu-item {
+    width: 100%; height: auto; border-radius: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.35;
+    justify-content: flex-start; text-align: left; white-space: normal; color: var(--ink); background: transparent;
+  }
+  #partyMenu .party-menu-item:hover { background: rgba(212,175,55,0.14); color: var(--gold); }
+  #partyMenu .party-menu-item.dim { opacity: 0.45; cursor: default; }
+  #partyMenu .party-menu-item.dim:hover { background: transparent; color: var(--ink); }
   #zoomBox {
     position: absolute; top: 26px; right: 14px; z-index: 9000;
     display: flex; align-items: center; gap: 5px;

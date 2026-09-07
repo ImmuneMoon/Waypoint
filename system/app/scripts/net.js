@@ -186,6 +186,7 @@ function renderRoster() {
             }).join('');
         }
     }
+    if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();   // the party strip mirrors who is connected
     var badge = ui('netBtn');
     if (badge) badge.classList.toggle('net-live', net.active);
     // Spectator chrome stays while a host's campaign is on screen, connected or not (net.foreign)
@@ -1618,6 +1619,14 @@ net.summonPlayer = function(peerKey) {
     broadcastRoster();
     toast((p && p.name ? p.name : 'Player') + ' summoned to your map.');
 };
+net.summonPlayerById = function(playerId) {
+    var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === playerId; });
+    if (!key) { toast('That player is not connected right now.'); return false; }
+    net.summonPlayer(key);
+    return true;
+};
+net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
+net.isConnected = function(playerId) { return Object.values(net.roster).some(function(p) { return p && p.id === playerId; }); };
 var _summonBtn = ui('netSummonBtn');
 if (_summonBtn) _summonBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;

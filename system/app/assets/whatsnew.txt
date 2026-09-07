@@ -61,6 +61,11 @@ Planner
   old comma list of headers capped the table at four columns, and a single
   header made the preview show one column, so the other row boxes looked
   dead. Existing tables keep their headers and rows.
+- The block has two modes. Scene node keeps the title, tag, Must resolve
+  line and the route table (Action, Why, Cost, Returns via by default);
+  Plain table is an optional title and a grid, for information. "+ Add
+  Block ▸ Table" starts one in plain mode; the Mode switch on the block
+  changes it either way.
 
 Tooltips
 - Hover tips appear in about a sixth of a second instead of waiting on the

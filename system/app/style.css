@@ -1118,3 +1118,7 @@
   .b-table { overflow-x: auto; }
   .b-heads input { font-weight: 600; color: var(--gold); }
   .b-table .row-h input { min-width: 70px; }
+
+  /* Planner: plain table mode of the node block */
+  #plannerPreviewWrap .node.plain-table { border-left: none; padding-left: 0; background: transparent; }
+  #plannerPreviewWrap .node.plain-table h3 { font-size: 15px; }

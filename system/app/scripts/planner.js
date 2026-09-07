@@ -109,7 +109,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
 
-          html += '<div class="block-head"><span>' + b.type.toUpperCase() + '</span>';
+          html += '<div class="block-head"><span>' + (b.type === 'node' ? (b.mode === 'table' ? 'TABLE' : 'SCENE NODE') : b.type.toUpperCase()) + '</span>';
 
           html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'">✖</button></div></div>';
 
@@ -145,10 +145,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<textarea class="field b-content" placeholder="Mermaid flowchart code..." data-idx="'+idx+'" style="width:100%; height:150px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
 
           } else if (b.type === 'node') {
-              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="Node Title" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
-              html += '<input type="text" class="field b-sub" value="'+esc(b.tag||'')+'" placeholder="Tag (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
-              html += '<input type="text" class="field b-must" value="'+esc(b.must||'')+'" placeholder="Must Resolve... (optional)" data-idx="'+idx+'" style="margin-bottom:10px; width:100%;">';
-              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : ['Action', 'Why', 'Cost', 'Returns via'];
+              var plain = b.mode === 'table';
+              html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label></div>';
+              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(plain ? 'Table title (optional)' : 'Node Title')+'" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
+              if (!plain) {
+                  html += '<input type="text" class="field b-sub" value="'+esc(b.tag||'')+'" placeholder="Tag (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
+                  html += '<input type="text" class="field b-must" value="'+esc(b.must||'')+'" placeholder="Must Resolve... (optional)" data-idx="'+idx+'" style="margin-bottom:10px; width:100%;">';
+              }
+              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + [1,2,3,4,5,6,7,8].map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
@@ -265,9 +269,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].must = this.value; save(false); renderPlannerPreview(); }));
 
+      Array.from(blockContainer.querySelectorAll('.b-mode')).forEach(el => el.addEventListener('change', function() {
+          var bb = activeMap.blocks[this.dataset.idx];
+          if (this.value === 'table') bb.mode = 'table'; else delete bb.mode;
+          save(true); renderPlanner();
+      }));
       Array.from(blockContainer.querySelectorAll('.b-ncols')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(8, parseInt(this.value, 10) || 1));
-          var cols = (Array.isArray(bb.cols) && bb.cols.length > 0) ? bb.cols.slice() : ['Action', 'Why', 'Cost', 'Returns via'];
+          var cols = (Array.isArray(bb.cols) && bb.cols.length > 0) ? bb.cols.slice() : (bb.mode === 'table' ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
           while (cols.length < n) cols.push('Column ' + (cols.length + 1));
           cols = cols.slice(0, n);
           bb.cols = cols;
@@ -275,7 +284,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function() {
           var bb = activeMap.blocks[this.dataset.idx];
-          if (!Array.isArray(bb.cols) || !bb.cols.length) bb.cols = ['Action', 'Why', 'Cost', 'Returns via'];
+          if (!Array.isArray(bb.cols) || !bb.cols.length) bb.cols = bb.mode === 'table' ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via'];
           bb.cols[this.dataset.ci] = this.value;
           save(false); renderPlannerPreview();
       }));
@@ -659,17 +668,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'node') {
 
-              html += '<div class="node"><h3>' + (b.title||'');
-
-              if (b.tag) html += ' <span class="tag">'+b.tag+'</span>';
-
-              html += '</h3>';
-
-              if (b.must) html += '<p class="must"><b>Must resolve:</b> '+b.must+'</p>';
-
+              var plainPv = b.mode === 'table';
+              html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
+              if (!plainPv || b.title) html += '<h3>' + (b.title||'') + (!plainPv && b.tag ? ' <span class="tag">'+b.tag+'</span>' : '') + '</h3>';
+              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> '+b.must+'</p>';
               if (b.rows && b.rows.length > 0) {
-
-                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : ['Action', 'Why', 'Cost', 'Returns via'];
+                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
 
                   html += '<table><thead><tr>' + cols.map(function(c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
 
@@ -826,7 +830,7 @@ if(_el_addBlockSelect) _el_addBlockSelect.addEventListener('change', function() 
 
       if (!activeMap.blocks) activeMap.blocks = [];
 
-      activeMap.blocks.push({ id: 'b_'+uid(), type: this.value });
+      activeMap.blocks.push(this.value === 'table' ? { id: 'b_'+uid(), type: 'node', mode: 'table' } : { id: 'b_'+uid(), type: this.value });
 
       this.value = '';
 

@@ -790,6 +790,7 @@ window.addEventListener('unhandledrejection', function(e) {
                 </div>
                 <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;">&#128161; Send this code to your players, then <b>close this window</b> &mdash; the session keeps running while you work. Reopen it any time with the &#127760; button to see who's here, pause, or summon.</div>
                 <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the &#128227; on their name in the player list above.">&#128227; Summon All Players</button>
+                <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused.">&#128274; Lock Travel Between Maps</button>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
             </div>
         </div>
@@ -820,6 +821,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <select id="streamChar" title="Follow one character: the view switches to the map they are on and stays centred on them at 150%"></select>
     <button class="tool ghost" id="streamHideBtn" title="Hide this bar (move the mouse to the top-left corner to bring it back)">&#10005;</button>
 </div>
+<div id="travelLockBanner" style="display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:5000; background:var(--panel2); border:1px solid var(--gold); color:var(--ink); padding:5px 12px; border-radius:6px; font-size:12px; box-shadow:var(--shadow);">&#128274; Travel between maps is locked by the GM</div>
 <div id="pauseBanner">&#9208;&#65039; The GM has paused the table &mdash; chat is still open</div>
 
 <div id="updateBanner" role="status" style="display:none;">

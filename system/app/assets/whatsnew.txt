@@ -24,6 +24,13 @@ Tooltips
 - Hover tips appear in about a sixth of a second instead of waiting on the
   system delay, in a panel that follows the theme.
 
+Multiplayer
+- Lock Travel Between Maps, beside Pause in the Multiplayer panel. While it
+  is on, players stay on the maps they are on — portals, warps and room links
+  do nothing for them — but the table is not paused: tokens still move and
+  chat stays open. Players see a small banner and a note if they try. Late
+  joiners inherit the lock; it clears when the session ends.
+
 Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the
   data map, instead of an upright one.

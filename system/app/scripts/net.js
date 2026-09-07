@@ -440,6 +440,7 @@ function applySnapshot(msg) {
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
+    setTravelLockLocal(!!msg.travelLocked);
     net.targets = cleanTargets(msg.targets);
     if (msg.stage) {
         applyStage(msg.stage);
@@ -535,6 +536,23 @@ function setPausedLocal(on) {
     }
 }
 
+// Travel lock: no map crossings for players while it is on; everything else stays live
+net.travelLocked = false;
+function setTravelLockLocal(on) {
+    net.travelLocked = !!on;
+    var btn = ui('netTravelLockBtn');
+    if (btn) { btn.innerHTML = net.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }
+    var hint = ui('travelLockBanner');
+    if (hint) hint.style.display = (net.travelLocked && net.role === 'client' && net.active) ? 'block' : 'none';
+}
+var _travelLockBtn = ui('netTravelLockBtn');
+if (_travelLockBtn) _travelLockBtn.addEventListener('click', function() {
+    if (!net.active || net.role !== 'host') return;
+    setTravelLockLocal(!net.travelLocked);
+    broadcast({ type: 'travelLock', on: net.travelLocked }, null);
+    toast(net.travelLocked ? 'Travel locked — players stay on their maps. The table is still live.' : 'Travel allowed again.');
+});
+var _travelDenyLast = {};
 var _pauseBtn = ui('netPauseBtn');
 if (_pauseBtn) _pauseBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;
@@ -581,6 +599,11 @@ function applyPosToDom(msg) {
 function hostTravel(conn, traveler, portal, fromMap) {
     var tCamp = getActiveCampaign();
     if (!traveler || !tCamp || !fromMap || !portal) return false;
+    if (net.travelLocked) {
+        var k = traveler.id || 'x', now = Date.now();
+        if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) {} }
+        return false;
+    }
     if (portal.hidden || !(portal.nodeId || portal.targetMapId)) return false;
     // The item's own portal target, else its linked room's
     var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (fromMap.rooms || []).find(function(r) { return r.id === portal.nodeId; });
@@ -930,7 +953,7 @@ function admitPlayer(conn, prof) {
     var stage = currentStage();
     net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, targets: net.targets }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, targets: net.targets }); } catch (e) {}
     broadcastRoster();
 }
 
@@ -1063,6 +1086,11 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'pause' && net.role === 'client') {
         setPausedLocal(!!msg.on);
         toast(msg.on ? 'The GM paused the table.' : 'The table is live again.');
+    } else if (msg.type === 'travelLock' && net.role === 'client') {
+        setTravelLockLocal(!!msg.on);
+        toast(msg.on ? 'The GM has locked travel between maps for now.' : 'Travel between maps is open again.');
+    } else if (msg.type === 'travelDenied' && net.role === 'client') {
+        toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         if (net.paused) return;   // frozen table: no travel
         var traveler = net.roster[conn.peer];
@@ -1430,6 +1458,7 @@ function leaveSession(silent) {
     stopHeartbeat();
     if (!silent) setIndicator(null);
     setPausedLocal(false);
+    setTravelLockLocal(false);
     bannedIds = {}; pendingJoins = []; approvalOpen = false;   // bans and pending approvals are per-session
     var hi = ui('netHostInfo');
     if (hi) hi.style.display = 'none';

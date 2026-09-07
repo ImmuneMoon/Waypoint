@@ -753,20 +753,36 @@ function npcTravel(item, map) {
     var camp = getActiveCampaign(); if (!camp) return false;
     var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (map.rooms || []).find(function(r) { return r.id === portal.nodeId; });
     if (!pRoom || !pRoom.targetMapId || !camp.items[pRoom.targetMapId]) return false;
-    var dest = camp.items[pRoom.targetMapId]; if (dest.type !== 'map') return false;
+    var dest = camp.items[pRoom.targetMapId]; if (dest.type !== 'map' || dest === map) return false;
     var landSrc = portal.targetMapId ? { id: null, name: portal.name, targetRoomId: portal.targetRoomId } : pRoom;
     var landRoom = findLandingRoom(landSrc, dest), landPt = landRoom && landingPoint(dest, landRoom);
     var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
-    map.whiteboard = (map.whiteboard || []).filter(function(w) { return w !== item; });
-    var spot = freeSpotNear(dest, sx, sy, item.w || 60, item.h || 52, null, landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
-    item.x = spot.x; item.y = spot.y;
-    if (window.wpSeatHex) window.wpSeatHex(item, dest);
-    dest.whiteboard = dest.whiteboard || []; dest.whiteboard.push(item);
+    var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
+    dest.whiteboard = dest.whiteboard || [];
+    var key = item.charName || '';
+    var there = key ? dest.whiteboard.find(function(w) { return w.isChar && !w.ownerId && w.charName === key; }) : null, placed = false;
+    if (!there) {
+        there = JSON.parse(JSON.stringify(item));
+        there.id = 'wb' + Math.random().toString(36).slice(2, 10);
+        delete there.hidden;
+        var spot = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, null, nodeEl);
+        there.x = spot.x; there.y = spot.y;
+        dest.whiteboard.push(there); placed = true;
+    } else {
+        delete there.hidden;   // the character is there now: players may see it
+        if (nodeEl && there.x < nodeEl.x + (nodeEl.w || 0) && there.x + (there.w || 60) > nodeEl.x && there.y < nodeEl.y + (nodeEl.h || 0) && there.y + (there.h || 52) > nodeEl.y) {
+            var spot2 = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, there.id, nodeEl);
+            there.x = spot2.x; there.y = spot2.y;
+        }
+    }
+    // the token left behind stays in its room, off the portal, out of the players' sight
+    stepOffPortal(item, portal, map);
+    item.hidden = true;
     net.applyingRemote = true; save(true); net.applyingRemote = false;
     if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
     if (window.appRender) window.appRender();
-    toast((item.charName || 'Token') + ' went through to ' + ((dest.meta || {}).title || 'the next map') + '.');
+    toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — a token is placed there' : ' — the token there is shown') + '; the one here is hidden from players.');
     return true;
 }
 function handlePos(msg, conn) {

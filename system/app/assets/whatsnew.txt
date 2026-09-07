@@ -93,9 +93,11 @@ Portals
   and the GM no longer has to unstack anyone. A token that was already on
   the destination stays where the GM put it — unless it is still sitting on
   the landing node, in which case it is nudged to the nearest free spot.
-- NPC tokens travel too: drag one onto a portal and it goes through to the
-  other map (it moves, since NPCs have no per-map copies). Works with or
-  without a session running.
+- NPC tokens travel too, the same way players do: drag one onto a portal
+  and the destination gets a copy of it (only if it has none already, placed
+  beside the landing point); the token left behind stays in its room, steps
+  off the portal and is hidden from players. Works with or without a session
+  running.
 - The GM can walk a player's character through a portal between sessions,
   or while that player is away from the table: their copy on the other map
   is placed beside the landing point (or left alone if it is already there

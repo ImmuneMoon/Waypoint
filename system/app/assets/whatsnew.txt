@@ -2,7 +2,7 @@ WAYPOINT 1.3.4 — What's New
 ============================
 
 Appearance
-- Settings has a sun / moon toggle. Dark is the default and is exactly what
+- Settings has a sun / moon switch. Dark is the default and is exactly what
   Waypoint has always looked like; Light puts the same layout on paper tones.
   The choice is kept and applied before the window paints.
 

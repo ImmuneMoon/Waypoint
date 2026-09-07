@@ -1066,3 +1066,14 @@
     background: var(--border);
     margin: 4px 0;
 }
+
+  /* Appearance switch (Settings): sun on the left, moon on the right, the knob slides between */
+  .theme-switch-row { display: flex; align-items: center; gap: 10px; }
+  .theme-switch-icon { font-size: 16px; line-height: 1; }
+  .theme-switch { position: relative; width: 52px; height: 28px; border-radius: 14px; border: 1px solid var(--edge); background: var(--bg2); cursor: pointer; padding: 0; transition: background .2s, border-color .2s; flex: 0 0 auto; }
+  .theme-switch:hover { border-color: var(--gold); }
+  .theme-switch:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(224,165,79,0.35); }
+  .theme-switch[aria-checked="true"] { background: var(--gold); border-color: var(--gold); }
+  .theme-knob { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35); transition: left .2s; }
+  .theme-switch[aria-checked="true"] .theme-knob { left: 26px; }
+  .theme-switch-label { color: var(--dim); font-size: 12px; margin-left: 2px; }

@@ -495,15 +495,16 @@ if (_ident) _ident.addEventListener('click', function() {
     }
 })();
 
-// Appearance: a sun / moon toggle — dark (default) or light, applied at once and kept for next time
+// Appearance: a sun / moon switch — dark (default) or light, applied at once and kept for next time
 (function() {
-    var btn = document.getElementById('setThemeBtn'); if (!btn) return;
+    var sw = document.getElementById('setThemeBtn'), lbl = document.getElementById('setThemeLabel'); if (!sw) return;
     function paint() {
         var light = document.documentElement.getAttribute('data-theme') === 'light';
-        btn.innerHTML = light ? '&#9728;&#65039; Light &mdash; switch to Dark' : '&#127769; Dark &mdash; switch to Light';
+        sw.setAttribute('aria-checked', light ? 'false' : 'true');   // knob sits under the moon when dark
+        if (lbl) lbl.textContent = light ? 'Light' : 'Dark';
     }
     paint();
-    btn.addEventListener('click', function() {
+    sw.addEventListener('click', function() {
         var light = document.documentElement.getAttribute('data-theme') !== 'light';
         if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
         try { localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (e) {}

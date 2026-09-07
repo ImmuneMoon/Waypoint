@@ -7,6 +7,17 @@ Fixes
   diagram engine quoted, so any text works. Node ids are reduced to letters,
   digits and underscores.
 
+Planners
+- Each planner remembers whether Render Preview (the reading view) is on, and
+  opens that way next time. The setting is part of the document, so it travels
+  with the campaign.
+
+Maps
+- Each map remembers whether you last had it open as a data map or a play
+  map, and comes back that way: after a relaunch, from the sidebar, from a
+  breadcrumb, from search. Stored with the map, so it travels with the
+  campaign.
+
 WAYPOINT 1.2.0 — What's New
 ============================
 

@@ -245,9 +245,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         
 
         updateCampaignSelect();
-
         updateSidebarNav();
-
+        applyRememberedView();   // open the last map in the view it was left in
         render();
         // Restore the camera once layout has real dimensions (retries cover slow first paint)
         var _restoreTries = 0;
@@ -505,11 +504,22 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var _segBtns = modeSelect ? Array.prototype.slice.call(modeSelect.querySelectorAll('.seg-btn')) : [];
 
+  // A map remembers which view it was last shown in; applied whenever that map becomes active
+  function applyRememberedView() {
+      var am = getActiveMap();
+      if (!am || am.type !== 'map' || !am.meta) return;
+      var v = am.meta.lastView;
+      if ((v === 'data' || v === 'visual') && state.viewMode !== v) {
+          state.viewMode = v;
+          _segBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.mode === v); });
+      }
+  }
+  window.wpApplyRememberedView = applyRememberedView;
   function setViewMode(mode) {
-
       if (state.viewMode === mode) return;
-
       state.viewMode = mode;
+      var amV = getActiveMap();
+      if (amV && amV.type === 'map' && (mode === 'data' || mode === 'visual')) { amV.meta = amV.meta || {}; amV.meta.lastView = mode; save(); }   // remembered per map
 
       _segBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.mode === mode); });
 

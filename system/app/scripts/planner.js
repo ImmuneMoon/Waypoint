@@ -47,10 +47,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
   function renderPlanner() {
-
       var activeMap = getActiveMap();
-
       if (!activeMap) return;
+      // This document remembers its own reading-view state
+      if (activeMap.type === 'planner') {
+          var rv = !!(activeMap.meta && activeMap.meta.readerView);
+          if (rv !== plannerFullscreen) { plannerFullscreen = rv; applyPlannerFullscreen(); }
+      }
 
       
 
@@ -551,8 +554,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_renderPlannerBtn = document.getElementById('renderPlannerBtn');
 
 if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function() {
-
     plannerFullscreen = !plannerFullscreen;
+    var amR = getActiveMap();
+    if (amR && amR.type === 'planner') { amR.meta = amR.meta || {}; amR.meta.readerView = plannerFullscreen; save(); }   // remembered per document
 
     renderPlannerPreview();
 

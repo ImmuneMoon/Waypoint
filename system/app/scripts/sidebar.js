@@ -245,6 +245,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 if (activeC) {
                     activeC.activeItemId = this.dataset.id;
                     state.selId = null; state.selWbId = null; state.linkStart = null;
+                    if (window.wpApplyRememberedView) window.wpApplyRememberedView();
                     updateSidebarNav();
                     render(); save(true);
                     restoreCameraPosition();
@@ -396,8 +397,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!camp || !camp.items[mapId]) return false;
 
       camp.activeItemId = mapId;
-
       state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
+      if (!landRoomId && window.wpApplyRememberedView) window.wpApplyRememberedView();   // a landing room picks its own view below
 
       // Arrive ON the landing room, not at the map's saved home: the camera
       // targets the room card (data view) or its linked whiteboard item, and

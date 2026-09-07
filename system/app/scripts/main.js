@@ -879,6 +879,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var camp = state.appState.campaigns[en.campId];
         camp.activeItemId = en.itemId;
         var it = camp.items[en.itemId];
+        if (window.wpApplyRememberedView) window.wpApplyRememberedView();
         if (en.roomId && it.type === 'map') {
             state.viewMode = 'data';
             state.selId = en.roomId;

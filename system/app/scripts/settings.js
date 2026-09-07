@@ -473,3 +473,10 @@ if (_ident) _ident.addEventListener('click', function() {
     try { var v = localStorage.getItem('wp_sentOpens'); sel.value = v === 'gm' || v === 'remember' ? v : 'all'; } catch (e) {}
     sel.addEventListener('change', function() { try { localStorage.setItem('wp_sentOpens', sel.value); } catch (e) {} });
 })();
+
+// Journal: which From section the Inbox opens to
+(function() {
+    var sel = document.getElementById('setInboxOpens'); if (!sel) return;
+    try { var v = localStorage.getItem('wp_inboxOpens'); sel.value = v === 'gm' || v === 'remember' ? v : 'all'; } catch (e) {}
+    sel.addEventListener('change', function() { try { localStorage.setItem('wp_inboxOpens', sel.value); } catch (e) {} });
+})();

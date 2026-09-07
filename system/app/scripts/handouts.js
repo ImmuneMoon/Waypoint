@@ -250,46 +250,54 @@ async function openJournal() {
     if (own && !journals.some(function(j) { return j.campId === own.key; }) && sentRecords(own.key).length) journals.unshift({ campId: own.key, campaign: own.camp.name || '', gm: '', gmId: window.wpNet.myId, entries: [], updated: 0 });
     if (!journals.length) { list.innerHTML = '<div style="color:var(--dim); padding:14px; line-height:1.5;">Nothing here yet. When a GM shows you a handout — a place, a face, a letter — it is saved here with its caption, and you can add your own notes. It stays on this computer and works without a session.</div><div style="padding:0 14px;"><button class="tool ghost journal-add" data-camp="personal">+ Note</button> <span style="color:var(--dim); font-size:11px;">Start a personal notebook now; campaign sections appear as GMs show you things.</span></div>'; return; }
     list.innerHTML = journals.map(function(j) {
-        var nMine = j.entries.filter(function(e) { return e.kind === 'note'; }).length, nParty = j.entries.filter(function(e) { return e.sharedBy; }).length, nGm = j.entries.length - nMine - nParty;
         var personal = j.campId === 'personal';
         var iRunIt = !!(j.gmId && window.wpNet && j.gmId === window.wpNet.myId);   // my own campaign: nothing here is "from the GM"
         var sent = iRunIt ? sentRecords(j.campId) : [];
         var page = personal ? 'mine' : (journalPage[j.campId] || journalDefaultPage());
-        if (iRunIt && page === 'gm') page = 'all';
         var runBy = j.gm && !iRunIt && !/^gm$/i.test(j.gm.trim()) ? ' <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by ' + esc(j.gm) + '</span>' : '';
-        // a player's sent records: one per send
+        // inbox: everything received (the GM's handouts, other players' shares); own pages are the rest
+        var inbox = j.entries.filter(function(e) { return e.kind !== 'note'; });
+        var nMine = j.entries.length - inbox.length;
+        // sent: players from each entry's sentTo, the GM from the delivery log — one record per send
         var mySent = [];
         j.entries.forEach(function(e) { (e.sentTo || []).forEach(function(t) { mySent.push({ e: e, to: t.to, name: t.name, at: t.at }); }); });
         mySent.sort(function(a, b) { return b.at - a.at; });
-        var nSent = iRunIt ? sent.length : mySent.length;
-        var from = journalFrom[j.campId] || '';
+        var nSent = iRunIt ? sent.length : mySent.length, nAll = j.entries.length + nSent;
         function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
-        var tabs = personal ? '' : '<span class="journal-tabs">' + tab('all', 'All', j.entries.length, 'Everything you have received, and your own pages, newest first')
-            + (iRunIt ? '' : tab('gm', 'From the GM', nGm, 'Handouts the GM has shown you'))
-            + tab('party', 'From the party', nParty, 'Notes and handouts other players shared with you; a chip narrows it to one person, sent and received')
-            + tab('mine', 'My notes', nMine, 'Your own pages')
-            + tab('sent', 'Sent', nSent, iRunIt ? 'Handouts you have shown, and to whom' : 'Pages you have shared, with whom and when') + '</span>';
-        // one chip per party member you have received from or sent to
-        var members = {};
-        function member(id, name) { if (!id || id === '*') return; var m = members[id] || (members[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n++; }
-        j.entries.forEach(function(e) { if (e.sharedBy) member(e.sharedById || e.sharedBy, e.sharedBy); });
-        mySent.forEach(function(s) { member(s.to, s.to === 'gm' ? 'The GM' : s.name); });
-        var fromRow = personal || !Object.keys(members).length ? '' : '<div class="journal-from-row" data-for="party"><button class="journal-from' + (!from ? ' active' : '') + '" data-for="party" data-from="">Everyone <span class="journal-count">' + nParty + '</span></button>' +
-            Object.values(members).sort(function(a, b) { return a.name.localeCompare(b.name); }).map(function(m) { return '<button class="journal-from' + (from === m.id ? ' active' : '') + '" data-for="party" data-from="' + esc(m.id) + '" title="What ' + esc(m.name) + ' sent you, and what you sent them">' + esc(m.name) + ' <span class="journal-count">' + m.n + '</span></button>'; }).join('') + '</div>';
-        // Sent page sections: everyone you have sent to (players: from sentTo; GM: from the delivery log)
-        var recips = {};
-        function recip(id, name) { if (!id) return; var r = recips[id] || (recips[id] = { id: id, name: name || id, n: 0 }); if (name && (r.name === id || !r.name)) r.name = name; r.n++; }
-        if (iRunIt) sent.forEach(function(s) { s.to.forEach(function(t) { recip(t.pid, t.name); }); });
-        else mySent.forEach(function(s) { recip(s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'The GM' : s.name); });
-        var to = sentOpensTo(j.campId, recips);
-        var toRow = personal || !Object.keys(recips).length ? '' : '<div class="journal-from-row" data-for="sent"><button class="journal-from' + (!to ? ' active' : '') + '" data-for="sent" data-to="">All <span class="journal-count">' + nSent + '</span></button>' +
-            Object.values(recips).sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.name.localeCompare(b.name); }).map(function(r) { return '<button class="journal-from' + (to === r.id ? ' active' : '') + '" data-for="sent" data-to="' + esc(r.id) + '" title="What you sent ' + esc(r.name) + '">' + esc(r.name) + ' <span class="journal-count">' + r.n + '</span></button>'; }).join('') + '</div>';
+        var tabs = personal ? '' : '<span class="journal-tabs">'
+            + tab('all', 'Journal', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
+            + tab('inbox', 'Inbox', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
+            + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when')
+            + tab('mine', 'My notes', nMine, 'Your own pages') + '</span>';
+        // people: who sent you things (From) and whom you sent things (To)
+        var senders = {}, recips = {};
+        function bump(map, id, name, n) { if (!id) return; var m = map[id] || (map[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n += (n || 1); }
+        inbox.forEach(function(e) { if (e.sharedBy) bump(senders, e.sharedById || e.sharedBy, e.sharedBy); else bump(senders, 'gm', 'The GM'); });
+        if (iRunIt) sent.forEach(function(s) { var once = {}; s.to.forEach(function(t) { if (once[t.pid]) return; once[t.pid] = true; bump(recips, t.pid, t.name); }); });
+        else mySent.forEach(function(s) { bump(recips, s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'The GM' : s.name); });
+        // the Journal page separates by kind: my notes / received / sent
+        var kinds = { mine: { id: 'mine', name: 'My notes', n: nMine }, inbox: { id: 'inbox', name: 'Received', n: inbox.length }, sent: { id: 'sent', name: 'Sent', n: nSent } };
+        var show = journalShow[j.campId] || '', from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
+        function chips(forKey, label, items, current, attr, allLabel, allCount, keepOrder) {
+            var list = Object.values(items); if (!list.length) return '';
+            if (!keepOrder) list.sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.id === '*' ? 1 : b.id === '*' ? -1 : a.name.localeCompare(b.name); });
+            return '<div class="journal-from-row" data-for="' + forKey + '"><span class="journal-chip-label">' + label + '</span>'
+                + '<button class="journal-from' + (!current ? ' active' : '') + '" data-for="' + forKey + '" data-' + attr + '="">' + allLabel + ' <span class="journal-count">' + allCount + '</span></button>'
+                + list.map(function(p) { return '<button class="journal-from' + (current === p.id ? ' active' : '') + '" data-for="' + forKey + '" data-' + attr + '="' + esc(p.id) + '">' + esc(p.name) + ' <span class="journal-count">' + p.n + '</span></button>'; }).join('') + '</div>';
+        }
+        function clearBtn(scope, label, title) { return '<button class="tool ghost danger journal-clear" data-scope="' + scope + '" title="' + title + '">' + label + '</button>'; }
+        var chipRows = personal
+            ? '<div class="journal-from-row" data-for="mine">' + clearBtn('mine', 'Clear my notes', 'Delete every page of your own in this section') + '</div>'
+            : chips('all', 'Show', kinds, show, 'show', 'Everything', nAll, true).replace(/<\/div>$/, clearBtn('all', 'Clear journal', 'Empty this campaign\'s journal on this computer') + '</div>')
+              + (inbox.length ? chips('inbox', 'From', senders, from, 'from', 'Anyone', inbox.length).replace(/<\/div>$/, clearBtn('inbox', 'Clear', 'Remove what is listed here — everything received, or only the chosen sender\'s') + '</div>') : '')
+              + chips('sent', 'To', recips, to, 'to', 'Anyone', nSent)
+              + '<div class="journal-from-row" data-for="mine">' + clearBtn('mine', 'Clear my notes', 'Delete every page of your own in this campaign') + '</div>';
         var mySentRows = mySent.map(function(s) {
-            var e = s.e, kind = e.kind === 'note' || e.kind === 'text' ? 'text' : 'image', text = e.kind === 'note' ? (e.text || '') : (e.text || '');
+            var e = s.e, kind = e.kind === 'note' || e.kind === 'text' ? 'text' : 'image', text = e.text || '';
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + s.at + '" data-kind="' + kind + '" data-sent="1"' + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'the GM' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div></div></div>';
+                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'the GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div></div></div>';
         }).join('');
         var head = '<div class="journal-camp"><b>' + esc(j.campaign || (personal ? 'Personal notes' : 'Campaign')) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
@@ -303,18 +311,16 @@ async function openJournal() {
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
-            return '<div class="journal-entry" data-page="' + (e.sharedBy ? 'party' : 'gm') + '"' + (e.sharedBy ? ' data-from="' + esc(e.sharedById || e.sharedBy) + '"' : '') + ' data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
-                '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the GM keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
+            return '<div class="journal-entry" data-page="inbox" data-from="' + esc(e.sharedBy ? (e.sharedById || e.sharedBy) : 'gm') + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
+                '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + (e.sharedBy ? ' · shared by <b>' + esc(e.sharedBy) + '</b>' : '') + '</div>' +
+                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(e.sharedBy || 'the GM') + '</b></div>' +
                 (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea>' + sentLine(e) + shareControls() + '</div></div>';
         }).join('');
         var empty = (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
-                  + (!nGm && !personal && !iRunIt ? '<div class="journal-empty" data-page="gm">Nothing from the GM yet.</div>' : '')
-                  + (iRunIt && !sent.length ? '<div class="journal-empty" data-page="sent">Nothing shown to the players yet.</div>' : '')
-                  + (!iRunIt && !personal && !mySent.length ? '<div class="journal-empty" data-page="sent">Nothing sent yet — while in a session, pick "Share with…" on any page.</div>' : '')
-                  + (!nParty && !personal ? '<div class="journal-empty" data-page="party">Nothing shared by the party yet.</div>' : '');
+                  + (!inbox.length && !personal ? '<div class="journal-empty" data-page="inbox">' + (iRunIt ? 'Nothing shared with you yet.' : 'Nothing received yet.') + '</div>' : '')
+                  + (!nSent && !personal ? '<div class="journal-empty" data-page="sent">' + (iRunIt ? 'Nothing shown to the players yet.' : 'Nothing sent yet — while in a session, pick "Share with…" on any page.') + '</div>' : '');
         var sentRows = sent.map(function(s) {
             var thumb = s.kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(s.text || '').slice(0, 160)) + '</div>'
                       : s.src ? '<img class="journal-thumb" src="' + esc(s.src) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
@@ -322,7 +328,7 @@ async function openJournal() {
                 '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') +
                 '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + '</div></div></div>';
         }).join('');
-        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + fromRow + toRow + empty + sentRows + mySentRows + entries + '</div>';
+        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-show="' + esc(show) + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + chipRows + empty + sentRows + mySentRows + entries + '</div>';
     }).join('');
     journalFilter();
 }
@@ -434,29 +440,31 @@ function sentRecords(key) {
 var journalPage = {};   // page chosen per campaign in this window
 var journalFrom = {};   // party member chosen on the From the party page, per campaign
 var journalTo = {};     // recipient chosen on the Sent page, per campaign
-function sentOpensTo(campId, recips) {
-    if (journalTo[campId] !== undefined) return recips[journalTo[campId]] ? journalTo[campId] : '';
-    var pref = 'all'; try { pref = localStorage.getItem('wp_sentOpens') || 'all'; } catch (e) {}
-    if (pref === 'gm' && recips.gm) return 'gm';
-    if (pref === 'remember') { try { var last = localStorage.getItem('journal_sentTo_' + campId) || ''; if (recips[last]) return last; } catch (e) {} }
+var journalShow = {};   // kind chosen on the Journal page (my notes / received / sent), per campaign
+// Which chip a page opens to: All, the GM, or the one picked last time (Settings: wp_inboxOpens / wp_sentOpens)
+function chipOpensTo(which, campId, items) {
+    var mem = which === 'inbox' ? journalFrom : journalTo;
+    if (mem[campId] !== undefined) return items[mem[campId]] ? mem[campId] : '';
+    var pref = 'all'; try { pref = localStorage.getItem(which === 'inbox' ? 'wp_inboxOpens' : 'wp_sentOpens') || 'all'; } catch (e) {}
+    if (pref === 'gm' && items.gm) return 'gm';
+    if (pref === 'remember') { try { var last = localStorage.getItem('journal_' + which + 'Last_' + campId) || ''; if (items[last]) return last; } catch (e) {} }
     return '';
 }
 // Does this row belong on the page its section is showing?
 function onPage(row) {
     var sec = row.closest('.journal-section'); if (!sec) return true;
-    var page = sec.dataset.page || 'all', from = sec.dataset.from || '', rp = row.dataset.page, isEmpty = row.className.indexOf('journal-empty') >= 0;
-    if (page === 'all') return !isEmpty && rp !== 'sent';
-    if (page === 'party' && from) {
+    var page = sec.dataset.page || 'all', rp = row.dataset.page, isEmpty = row.className.indexOf('journal-empty') >= 0;
+    var has = function(list, id) { return (' ' + (list || '') + ' ').indexOf(' ' + id + ' ') >= 0; };
+    if (page === 'all') {
+        var show = sec.dataset.show || '';
         if (isEmpty) return false;
-        if (rp === 'party') return row.dataset.from === from;
-        if (rp === 'sent') return (' ' + (row.dataset.to || '') + ' ').indexOf(' ' + from + ' ') >= 0;
-        return false;
+        return !show || rp === show;
     }
-    var to = sec.dataset.to || '';
-    if (page === 'sent' && to) return !isEmpty && rp === 'sent' && (' ' + (row.dataset.to || '') + ' ').indexOf(' ' + to + ' ') >= 0;
+    if (page === 'inbox') { var from = sec.dataset.from || ''; return rp === 'inbox' && (isEmpty || !from || row.dataset.from === from); }
+    if (page === 'sent') { var to = sec.dataset.to || ''; return rp === 'sent' && (isEmpty || !to || has(row.dataset.to, to)); }
     return rp === page;
 }
-function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); return p === 'gm' || p === 'mine' || p === 'party' || p === 'sent' ? p : 'all'; } catch (e) { return 'all'; } }
+function journalDefaultPage() { try { var p = localStorage.getItem('wp_journalPage'); if (p === 'gm' || p === 'party') p = 'inbox'; return p === 'inbox' || p === 'sent' || p === 'mine' ? p : 'all'; } catch (e) { return 'all'; } }
 window.wpJournalDefaultPage = journalDefaultPage;
 function journalFilter() {
     var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
@@ -471,7 +479,7 @@ function journalFilter() {
         });
     }
     list.querySelectorAll('.journal-empty').forEach(function(el) { el.style.display = !q && onPage(el) ? '' : 'none'; });
-    list.querySelectorAll('.journal-from-row').forEach(function(el) { el.style.display = !q && el.parentNode.dataset.page === (el.dataset.for || 'party') ? '' : 'none'; });
+    list.querySelectorAll('.journal-from-row').forEach(function(el) { el.style.display = !q && el.parentNode.dataset.page === el.dataset.for ? '' : 'none'; });
     list.querySelectorAll('.journal-entry').forEach(function(row) {
         if (!q) { row.style.display = onPage(row) ? '' : 'none'; return; }
         var hay = row.textContent + ' ' + (row.dataset.text || '');
@@ -559,15 +567,50 @@ if (_jList) {
             journalFilter();
             return;
         }
+        var clr = e.target.closest && e.target.closest('.journal-clear');
+        if (clr) {
+            var secC = clr.closest('.journal-section'); if (!secC) return;
+            var campC = secC.dataset.camp, scope = clr.dataset.scope, fromC = secC.dataset.from || '';
+            var fromChip = fromC ? secC.querySelector('.journal-from[data-for="inbox"][data-from="' + fromC + '"]') : null;
+            var fromName = fromChip ? fromChip.textContent.replace(/\s*\d+\s*$/, '').trim() : '';
+            var idxC = await readIndex(campC), campName = idxC.campaign || (campC === 'personal' ? 'Personal notes' : 'this campaign');
+            var senderOf = function(x) { return x.sharedBy ? (x.sharedById || x.sharedBy) : 'gm'; };
+            var goes = idxC.entries.filter(function(x) {
+                if (scope === 'all') return true;
+                if (scope === 'mine') return x.kind === 'note';
+                return x.kind !== 'note' && (!fromC || senderOf(x) === fromC);
+            });
+            if (!goes.length) { toast('Nothing to clear there.'); return; }
+            // spell out what goes: counts by kind, and who sent them
+            var nH = goes.filter(function(x) { return x.kind !== 'note' && !x.sharedBy; }).length, nS = goes.filter(function(x) { return x.sharedBy; }).length, nN = goes.filter(function(x) { return x.kind === 'note'; }).length;
+            var nNotes = goes.filter(function(x) { return x.kind !== 'note' && String(x.notes || '').trim(); }).length, nSent = goes.reduce(function(a, x) { return a + ((x.sentTo || []).length); }, 0);
+            var parts = [];
+            if (nH) parts.push(nH + ' handout' + (nH === 1 ? '' : 's') + ' from the GM');
+            if (nS) { var who = {}; goes.forEach(function(x) { if (x.sharedBy) who[x.sharedBy] = true; }); parts.push(nS + ' shared page' + (nS === 1 ? '' : 's') + ' from ' + Object.keys(who).join(', ')); }
+            if (nN) parts.push(nN + ' page' + (nN === 1 ? '' : 's') + ' of your own');
+            var what = scope === 'all' ? 'the whole journal for ' + campName : scope === 'mine' ? 'your own pages in ' + campName : fromC ? 'everything from ' + fromName + ' in the inbox for ' + campName : 'the whole inbox for ' + campName;
+            var msg = 'Clear ' + what + '?\n\nThis removes ' + goes.length + ' item' + (goes.length === 1 ? '' : 's') + ': ' + parts.join('; ') + '.'
+                + (nNotes ? '\nYour notes under ' + nNotes + ' of them go too.' : '')
+                + (nSent ? '\nYour sent record for ' + nSent + ' send' + (nSent === 1 ? '' : 's') + ' goes too.' : '')
+                + '\n\nThis computer only. Senders keep their copies, and the GM can show a handout again.';
+            if (!confirm(msg)) return;
+            await withIndex(campC, function(idx) {
+                if (scope === 'all') idx.entries = [];
+                else if (scope === 'mine') idx.entries = idx.entries.filter(function(x) { return x.kind !== 'note'; });
+                else idx.entries = idx.entries.filter(function(x) { return x.kind === 'note' || (fromC ? senderOf(x) !== fromC : false); });
+            });
+            if (scope === 'all' || scope === 'inbox') { journalFrom[campC] = undefined; }
+            toast(scope === 'all' ? 'Journal cleared.' : scope === 'mine' ? 'Your pages are gone.' : 'Inbox cleared.');
+            await openJournal();
+            return;
+        }
         var chip = e.target.closest && e.target.closest('.journal-from');
         if (chip) {
             var secF = chip.closest('.journal-section'); if (!secF) return;
-            if (chip.dataset.for === 'sent') {
-                journalTo[secF.dataset.camp] = chip.dataset.to; secF.dataset.to = chip.dataset.to;
-                try { localStorage.setItem('journal_sentTo_' + secF.dataset.camp, chip.dataset.to); } catch (err) {}
-            } else {
-                journalFrom[secF.dataset.camp] = chip.dataset.from; secF.dataset.from = chip.dataset.from;
-            }
+            var camp = secF.dataset.camp;
+            if (chip.dataset.for === 'sent') { journalTo[camp] = chip.dataset.to; secF.dataset.to = chip.dataset.to; try { localStorage.setItem('journal_sentLast_' + camp, chip.dataset.to); } catch (err) {} }
+            else if (chip.dataset.for === 'inbox') { journalFrom[camp] = chip.dataset.from; secF.dataset.from = chip.dataset.from; try { localStorage.setItem('journal_inboxLast_' + camp, chip.dataset.from); } catch (err) {} }
+            else { journalShow[camp] = chip.dataset.show; secF.dataset.show = chip.dataset.show; }
             chip.parentNode.querySelectorAll('.journal-from').forEach(function(b) { b.classList.toggle('active', b === chip); });
             journalFilter();
             return;
@@ -575,7 +618,7 @@ if (_jList) {
         var add = e.target.closest && e.target.closest('.journal-add');
         if (add) {
             var campId = safeId(add.dataset.camp) || 'personal';
-            if (journalPage[campId] === 'gm') journalPage[campId] = 'all';   // the new page must be visible
+            if (journalPage[campId] === 'inbox' || journalPage[campId] === 'sent') journalPage[campId] = 'all';   // the new page must be visible
             var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
             await withIndex(campId, function(idx) {
                 if (campId === 'personal') idx.campaign = idx.campaign || 'Personal notes';

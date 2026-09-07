@@ -8,12 +8,25 @@ Journal
 - The handout window itself has a "Your notes" box now, under the picture or
   text, the moment a handout arrives and whenever one is opened from the
   Journal. It is the same note as the one in the Journal list.
-- Each campaign in the Journal has three pages: "All" (newest first), "From
-  the GM" for the handouts, and "My notes" for the player's own pages, with
-  counts on the tabs. A search looks across everything. Settings has a
-  "Journal opens to" choice; All is the default. The "— GM" tag is now a
-  quiet "run by <name>", shown only when the GM has set a name; it tells two
-  campaigns of the same name from different GMs apart.
+- The Journal is laid out like a mailbox. Each campaign has four pages.
+  Journal is everything — your own pages, what you received and what you
+  sent — with a Show row to see just one of those three. Inbox is what you
+  have received (handouts from the GM, pages other players shared) with a
+  From row per sender: the GM or one person. Sent is a separate record, one
+  line per send (what, to whom, when), with a To row per recipient: the GM,
+  one person, or everyone at once. My notes is your own pages on their own.
+  Counts sit on every tab and chip, and a search looks across everything.
+  Settings choose the page the Journal opens to (Journal by default) and
+  which section Inbox and Sent open to.
+- Clearing, each behind a confirm: the Inbox (everything received, or only
+  what the chosen sender sent), My notes, or the whole journal for a
+  campaign. It clears this computer only; senders keep their copies, and the
+  GM's record of what they have shown stays with the campaign.
+- The GM's own Journal works the same way: Inbox is what players shared
+  with them, Sent lists every handout they have shown, to whom and when.
+  The "— GM" tag on a campaign is now a quiet "run by <name>", shown only
+  when the GM has set a name; it tells two campaigns of the same name from
+  different GMs apart.
 - Party sharing. While in a session, every page in a player's Journal has a
   "Share with…" picker and a Send button: one party member, everyone, or the
   GM. A handout goes with the sender's notes under it; a page of their own goes
@@ -21,17 +34,6 @@ Journal
   tab and a count for it) with the sender's name and notes shown, and the
   receiver's own notes box underneath. The host relays it; players never
   connect to each other.
-- A record of what went out. A player's entry shows "Sent to …" with names
-  and times once they have shared it. The GM's own Journal has no "From the
-  GM" page; it has a "Sent" page instead, listing every handout they have
-  shown, to whom and when. Players have a "Sent" page as well: one line per
-  send — what, to whom, when — kept apart from what they received. Sent has
-  its own sections: All, one per person you have sent to, and The GM. It
-  opens to All; Settings "Sent opens to" can make that The GM or the last
-  person you looked at.
-- The "From the party" page shows everyone's shares together. A chip per
-  party member narrows it to that person: what they sent you and what you
-  sent them, side by side.
 
 WAYPOINT 1.2.8 — What's New
 ============================

@@ -298,7 +298,7 @@ async function openJournal() {
         function bump(map, id, name, n) { if (!id) return; var m = map[id] || (map[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n += (n || 1); }
         // who a received page is from: the GM (a handout, or a page the GM shared) or one player
         var fromOf = function(e) { return !e.sharedBy || (e.sharedById && e.sharedById === j.gmId) ? 'gm' : (e.sharedById || e.sharedBy); };
-        var fromName = function(e) { return fromOf(e) === 'gm' ? 'the GM' : e.sharedBy; };
+        var fromName = function(e) { return fromOf(e) === 'gm' ? 'GM' : e.sharedBy; };
         inbox.forEach(function(e) { bump(senders, fromOf(e), fromOf(e) === 'gm' ? 'GM' : e.sharedBy); });
         sent.forEach(function(s) { var once = {}; s.to.forEach(function(t) { if (once[t.pid]) return; once[t.pid] = true; bump(recips, t.pid, t.name); }); });
         mySent.forEach(function(s) { bump(recips, s.to, s.to === '*' ? 'Everyone at once' : s.to === 'gm' ? 'GM' : s.name); });
@@ -324,7 +324,7 @@ async function openJournal() {
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + s.at + '" data-kind="' + kind + '" data-sent="1"' + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'the GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div></div></div>';
+                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div></div></div>';
         }).join('');
         var head = '<div class="journal-camp"><b>' + esc(j.campaign || (personal ? 'Personal notes' : 'Campaign')) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
@@ -412,7 +412,7 @@ function shareControls() {
     var n = window.wpNet; if (!(n && n.active && (n.role === 'client' || n.role === 'host'))) return '';
     var others = Object.values(n.roster || {}).filter(function(p) { return p && p.id && p.id !== n.myId; });
     if (n.role === 'host' && !others.length) return '';
-    var opts = '<option value="">Share with…</option>' + (others.length ? '<option value="*">Everyone in the party</option>' : '') + (n.role === 'host' ? '' : '<option value="gm">The GM</option>') +
+    var opts = '<option value="">Share with…</option>' + (others.length ? '<option value="*">Everyone in the party</option>' : '') + (n.role === 'host' ? '' : '<option value="gm">GM</option>') +
         others.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; }).join('');
     return '<div class="journal-share-row"><select class="journal-share" title="Send this page, with your notes, to someone at the table">' + opts + '</select><button class="tool ghost journal-share-send" disabled>Send</button></div>';
 }
@@ -429,7 +429,7 @@ async function shareEntry(campId, id, to, btn) {
         entry = { id: e.id, kind: 'image', title: e.title || 'Handout', caption: e.caption || '', mime: e.mime || 'image/jpeg', data: bytes, notes: e.notes || '' };
     }
     if (window.wpNet.shareEntry({ to: to, entry: entry })) {
-        var who = to === '*' ? 'everyone in the party' : to === 'gm' ? 'the GM' : ((Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === to; }) || {}).name || 'them');
+        var who = to === '*' ? 'everyone in the party' : to === 'gm' ? 'GM' : ((Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === to; }) || {}).name || 'them');
         toast('"' + (entry.title || 'Note') + '" sent to ' + who + '.');
         await withIndex(campId, function(idx) {
             var x = idx.entries.find(function(y) { return y.id === id; }); if (!x) return false;

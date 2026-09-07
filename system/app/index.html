@@ -887,11 +887,14 @@ window.addEventListener('unhandledrejection', function(e) {
             <select id="setSentOpens" class="field" style="width:100%; box-sizing:border-box;" title="Which To chip the Sent page starts on."><option value="all">Anyone — everything sent</option><option value="gm">The GM — only what went to the GM</option><option value="remember">The last person I picked</option></select>
             <div class="set-field-label" style="margin-top:10px;">When a handout arrives</div>
             <select id="setHandoutArrive" class="field" style="width:100%; box-sizing:border-box;" title="A handout or shared page from the GM or a party member: open it on screen at once, or only count it on the Journal button."><option value="open">Open it right away</option><option value="quiet">Only mark the Journal (a short toast, no window)</option></select>
+            <div class="gm-only"><!-- GM tools: hidden while joined to someone else's session -->
             <div class="set-field-label" style="margin-top:14px;">Stream window</div>
             <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, exactly as players see it (no GM notes, hidden items stay hidden). Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map to focus in its corner menu.">&#128250; Open Stream Window</button>
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows what players see and updates as you play.</div>
+            </div>
             <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you.">Reset Multiplayer Identity</button>
             <!-- Relay-only connections: hidden until Waypoint has a working TURN relay again (openrelay.metered.ca stopped allocating, Sept 2026). The code path in net.js/peerOpts() is complete. -->
+            <div class="gm-only"><!-- GM tools: hidden while joined to someone else's session -->
             <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Relay server <span id="setTurnState" style="color:var(--dim);"></span></div>
             <div style="font-size:11px; color:var(--dim); line-height:1.45; margin-bottom:6px;">For players who sit at "Connecting…" forever (carrier-grade NAT, common on mobile and outside the US/EU). Only the GM needs this: paste a TURN relay's address and credentials from your provider. Kept on this machine only. <a href="#" id="setTurnHelpLink" style="color:var(--gold);" title="Step-by-step: where to get a relay and what to paste here">How do I set this up?</a></div>
             <input type="text" id="setTurnUrls" placeholder="turn:relay.example.com:443?transport=tcp  (one or more, space-separated)" style="width:100%; box-sizing:border-box; margin-bottom:6px;" autocomplete="off" spellcheck="false">
@@ -907,6 +910,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Firewall-friendly connections <span id="setRelayState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setRelayBtn" style="width:100%;" title="Send all multiplayer traffic through the relay server instead of connecting machine to machine. Stops firewalls (Avira, Norton, some routers) from reading a player's join as a port scan and blocking them. A touch more latency. Takes effect the next time you host or join.">Toggle Relay-Only Connections</button>
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">Turn this on if your firewall reports a "port scan" or "intruder" when players join. Traffic stays end-to-end encrypted; the relay can't read it.</div>
+            </div>
             </div>
             <div class="set-field-label" style="margin-top:14px; display:flex; justify-content:space-between;">Updates <span id="setUpdateState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setUpdateCheckBtn" style="width:100%;" title="Look for a newer Waypoint on the releases page">Check for Updates</button>

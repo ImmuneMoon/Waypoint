@@ -73,6 +73,8 @@ Fixes
 - The session password and the player password fields in the Multiplayer
   panel, the relay server fields, the handout picker search and the prompt
   box showed up white; they match the other fields now.
+- While joined to another GM's session, Settings no longer shows the Stream
+  window and Relay server tools; they are the host's to use.
 
 WAYPOINT 1.2.6 — What's New
 ============================

@@ -1,6 +1,6 @@
 # Waypoint
 
-Current release: **1.3.1** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
+Current release: **1.3.2** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
 
 A portable desktop companion for tabletop RPG campaigns: linked data maps for the GM, hex-grid play maps with tokens and scene art for the table, planners for notes, and peer-to-peer multiplayer so a GM can host a session and players can join with a room code. Built on Electron. Every campaign lives in a plain `saves` folder beside the app, so backups and hand-offs are file copies.
 

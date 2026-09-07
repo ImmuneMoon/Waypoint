@@ -3397,8 +3397,8 @@ document.addEventListener('contextmenu', function(e) {
         
         var am = getActiveMap();
         
-        if (selectedIds.length === 0) {
-            // Empty canvas clicked: the Session menu while hosting, nothing otherwise
+        if (selectedIds.length === 0 || (isWb && !targetId)) {
+            // The whiteboard background (nothing under the pointer): the table menu, whatever is selected
             if (isWb && window.wpNet && window.wpNet.active && window.wpNet.role === 'host') showSessionMenu(e, 'host');
             else if (isWb && window.wpNet && !window.wpNet.active) showSessionMenu(e, 'offline');   // between sessions: bring a player's token here
             else cMenu.style.display = 'none';
@@ -3490,7 +3490,6 @@ document.addEventListener('contextmenu', function(e) {
             cMenu.style.display = 'flex';
             cMenu.style.left = e.pageX + 'px';
             cMenu.style.top = e.pageY + 'px';
-            if (isWb && firstItem && !firstItem.isChar && selectedIds.length === 1) appendTableMenu(cMenu, e);   // a background picture is "the table" too
 
             // Opacity slider: live preview on input, persist on release; the
             // row never closes the menu (guarded in the click handler below).

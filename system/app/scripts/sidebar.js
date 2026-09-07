@@ -161,11 +161,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               : '<span class="caret-spacer"></span>';
 
-          return '<div class="sidebar-item' + (isActive ? ' active' : '') + '" data-id="' + item.id + '" draggable="true"' +
+          var guides = '';
+          for (var g = 1; g <= depth; g++) guides += '<span class="tree-guide" style="left:' + (10 + (g - 1) * 14 + 5) + 'px;"></span>';   // under the parent's caret
+          return '<div class="sidebar-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + item.id + '" data-depth="' + depth + '" draggable="true"' +
 
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
-                 caret + '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
+                 guides + caret + '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
 
                  '</div>';
 

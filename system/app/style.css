@@ -1088,3 +1088,8 @@
   .set-group-body { padding: 4px 12px 12px; }
   .set-group-body > .set-field-label:first-child { margin-top: 0 !important; }
   #setResetIdentityBtn { width: 100%; margin-top: 10px; }
+
+  /* Sidebar trees: guide lines per nesting level, a divider between top-level entries */
+  .tree-guide { position: absolute; top: -2px; bottom: -2px; width: 0; border-left: 1px solid var(--edge); pointer-events: none; opacity: .9; }
+  .sidebar-item.active .tree-guide { opacity: .5; }
+  .sidebar-item.tree-root + .sidebar-item.tree-root, .sidebar-item:not(.tree-root) + .sidebar-item.tree-root { border-top: 1px solid var(--edge); margin-top: 4px; padding-top: 10px; border-top-left-radius: 0; border-top-right-radius: 0; }

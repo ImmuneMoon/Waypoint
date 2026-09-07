@@ -3286,6 +3286,17 @@ var _castClose = document.getElementById('castCloseBtn');
 if (_castClose) _castClose.addEventListener('click', function() { document.getElementById('castModal').style.display = 'none'; });
 
 // Session menu on empty play-map space (only while a session is running)
+// Place the context menu under the pointer. It lives inside the scrolled whiteboard container, so
+// page coordinates would put it thousands of pixels away; position relative to its offset parent.
+function placeMenu(cMenu, e) {
+    var op = cMenu.offsetParent || document.body, pr = op.getBoundingClientRect();
+    var x = e.clientX - pr.left + op.scrollLeft, y = e.clientY - pr.top + op.scrollTop;
+    cMenu.style.left = x + 'px'; cMenu.style.top = y + 'px';
+    // keep it on screen
+    var r = cMenu.getBoundingClientRect();
+    if (r.right > window.innerWidth - 6) cMenu.style.left = (x - (r.right - window.innerWidth + 6)) + 'px';
+    if (r.bottom > window.innerHeight - 6) cMenu.style.top = (y - (r.bottom - window.innerHeight + 6)) + 'px';
+}
 // The table menu: Campaign Cast, Players ("Bring here"), Session actions. Returns the html and a
 // wire() for its items, so it can stand alone (empty space) or hang under an item menu.
 function tableMenuParts(e, role) {
@@ -3337,8 +3348,7 @@ function showSessionMenu(e, role) {
     var parts = tableMenuParts(e, role);
     cMenu.innerHTML = parts.html;
     cMenu.style.display = 'flex';
-    cMenu.style.left = e.pageX + 'px';
-    cMenu.style.top = e.pageY + 'px';
+    placeMenu(cMenu, e);
     parts.wire(cMenu);
 }
 // Hanging under an item menu (a right-click on a background picture counts as the table)
@@ -3488,8 +3498,7 @@ document.addEventListener('contextmenu', function(e) {
 
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';
-            cMenu.style.left = e.pageX + 'px';
-            cMenu.style.top = e.pageY + 'px';
+            placeMenu(cMenu, e);
 
             // Opacity slider: live preview on input, persist on release; the
             // row never closes the menu (guarded in the click handler below).

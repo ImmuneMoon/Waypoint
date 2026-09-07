@@ -47,14 +47,28 @@ async function putFile(campId, file, bytes, mime) {
     if (bytes.length > 1500000) return null;
     return await new Promise(function(res) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = function() { res(null); }; fr.readAsDataURL(new Blob([bytes], { type: mime })); });
 }
+// Registry of journals on this machine: a file beside them, mirrored in localStorage. (Scanning for
+// pictures is not enough — a text-only handout has no picture file.)
+async function readRegistry() {
+    var keys = {};
+    try { var r = await fetch('/saves/' + JOURNAL_DIR + '/journals.json', { cache: 'no-store' }); if (r.ok) { var j = await r.json(); (j.keys || []).forEach(function(k) { keys[safeId(k)] = true; }); } } catch (e) {}
+    try { JSON.parse(localStorage.getItem('journal_registry') || '[]').forEach(function(k) { keys[safeId(k)] = true; }); } catch (e) {}
+    delete keys['']; return keys;
+}
+async function registerJournal(key) {
+    var keys = await readRegistry(); keys[safeId(key)] = true;
+    var list = Object.keys(keys);
+    try { await fetch('/api/upload-exact?path=' + encodeURIComponent(JOURNAL_DIR + '/journals.json'), { method: 'POST', body: JSON.stringify({ keys: list }) }); } catch (e) {}
+    try { localStorage.setItem('journal_registry', JSON.stringify(list)); } catch (e) {}
+}
 // Every campaign that has a journal on this machine
 async function listJournals() {
-    var ids = {};
+    var ids = await readRegistry();
     try {
         var imgs = await (await fetch('/api/list-images')).json();
         (imgs || []).forEach(function(i) { var m = /^journal\/([A-Za-z0-9_-]+)/.exec(i.folder || ''); if (m) ids[m[1]] = true; });
     } catch (e) {}
-    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('journal_') === 0) ids[k.slice(8)] = true; } } catch (e) {}
+    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('journal_') === 0 && k !== 'journal_registry') ids[k.slice(8)] = true; } } catch (e) {}
     var out = [];
     for (var id in ids) { var idx = await readIndex(id); if (idx.entries.length) out.push(idx); }
     out.sort(function(a, b) { return (b.updated || 0) - (a.updated || 0); });
@@ -87,6 +101,7 @@ async function receiveHandout(msg) {
     else idx.entries.push({ id: id, title: title, caption: caption, src: src, mime: mime, receivedAt: Date.now(), notes: '' });
     idx.updated = Date.now();
     await writeIndex(campId, idx);
+    await registerJournal(campId);
     if (msg.replay && existing) return;   // already in the journal: refreshed, no fanfare
     badge(unseen + 1);
     showHandout({ title: title, caption: caption, src: src, fresh: true });
@@ -102,6 +117,7 @@ async function receiveTextHandout(msg, campId, id) {
     else idx.entries.push({ id: id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' });
     idx.updated = Date.now();
     await writeIndex(campId, idx);
+    await registerJournal(campId);
     if (msg.replay && existing) return;
     badge(unseen + 1);
     showHandout({ title: title, caption: caption, text: text, fresh: true });
@@ -113,13 +129,15 @@ function showHandout(h) {
     var m = ui('handoutModal'); if (!m) return;
     ui('handoutTitle').textContent = h.title || 'Handout';
     var im = ui('handoutImg'), tx = ui('handoutText');
-    if (h.src) { im.src = h.src; im.style.display = 'block'; } else { im.removeAttribute('src'); im.style.display = 'none'; }
+    if (h.src) { im.src = /^(data:|blob:)/.test(h.src) ? h.src : encodeURI(h.src); im.style.display = 'block'; } else { im.removeAttribute('src'); im.style.display = 'none'; }
     if (tx) { tx.textContent = h.text || ''; tx.style.display = h.text ? 'block' : 'none'; }
     ui('handoutCaption').textContent = h.caption || '';
     ui('handoutCaption').style.display = h.caption ? 'block' : 'none';
-    ui('handoutFresh').style.display = h.fresh ? 'block' : 'none';
+    ui('handoutFresh').style.display = h.fresh ? 'flex' : 'none';
     m.style.display = 'flex';
 }
+var _hJournal = ui('handoutOpenJournalBtn');
+if (_hJournal) _hJournal.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; openJournal(); });
 var _hClose = ui('handoutCloseBtn');
 if (_hClose) _hClose.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; });
 
@@ -196,7 +214,7 @@ window.wpHandoutPayload = function(h) {
             }, png ? 'image/png' : 'image/jpeg', JPEG_Q);
         };
         img.onerror = function() { reject(new Error('image failed to load')); };
-        img.src = h.src;
+        img.src = /^(data:|blob:)/.test(h.src) ? h.src : encodeURI(h.src);
     });
 };
 
@@ -214,7 +232,7 @@ function renderHandouts() {
         var who = roster.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; }).join('');
         var thumb = h.kind === 'text'
             ? '<div class="handout-thumb handout-thumb-text" title="Preview">' + esc(String(h.text || '').slice(0, 140)) + '</div>'
-            : '<img class="handout-thumb" src="' + esc(h.src) + '" alt="" title="Preview">';
+            : '<img class="handout-thumb" src="' + encodeURI(h.src || '') + '" alt="" title="Preview">';
         return '<div class="handout-row" data-id="' + esc(h.id) + '">' + thumb +
             '<div class="handout-body">' +
             '<input class="field handout-title" value="' + esc(h.title || '') + '" placeholder="Title">' +
@@ -253,7 +271,7 @@ if (_newBtn) _newBtn.addEventListener('click', async function() {
     var q = (ui('handoutPickSearch').value || '').toLowerCase();
     var draw = function() {
         var rows = imgs.filter(function(i) { return !q || (i.name + ' ' + i.folder).toLowerCase().indexOf(q) >= 0; });
-        grid.innerHTML = rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + esc(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(i.name) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
+        grid.innerHTML = rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(i.name) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
     };
     draw();
     ui('handoutPickSearch').oninput = function() { q = this.value.toLowerCase(); draw(); };

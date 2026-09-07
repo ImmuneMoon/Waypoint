@@ -1,3 +1,14 @@
+WAYPOINT 1.2.4 — What's New
+============================
+
+Fixes
+- The picture picker in the Handouts panel showed blank cells for files with
+  spaces or dashes in their names; pictures load now, and a handout made
+  from such a file shows and sends correctly.
+- The Journal window lists every campaign you have received anything from,
+  text-only handouts included, and the reveal popup has an "Add notes" button
+  that opens the Journal on the spot.
+
 WAYPOINT 1.2.3 — What's New
 ============================
 

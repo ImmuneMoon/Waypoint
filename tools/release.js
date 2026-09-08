@@ -34,7 +34,13 @@ const zipName = 'waypoint-app-' + VERSION + '.zip';
 const zipPath = path.join(dist, zipName);
 
 if (!NOTES_ONLY) {
-// (The README's current-release line is updated at publish time, not at build time — see the publish step.)
+// 0a. README names this release (pushed together with the published release)
+{
+    const readmePath = path.join(ROOT, 'README.md');
+    const readme = fs.readFileSync(readmePath, 'utf8');
+    const updated = readme.replace(/Current release: \*\*[^*]+\*\*/, 'Current release: **' + VERSION + '**');
+    if (updated !== readme) fs.writeFileSync(readmePath, updated);
+}
 
 // 0. the app folder carries its version (a hot update swaps system/app only, so this is what moves the number)
 fs.writeFileSync(path.join(SYSTEM, 'app', 'version.json'), JSON.stringify({ version: VERSION }) + '\n');
@@ -109,15 +115,4 @@ function api(method, url, body, contentType) {
         await api('POST', uploadBase + '?name=' + encodeURIComponent(f), fs.readFileSync(p), 'application/octet-stream');
     }
     console.log('Published:', rel.html_url);
-    // README names the published release — only now, so the README never runs ahead of what players can download
-    try {
-        const readmePath = path.join(ROOT, 'README.md');
-        const readme = fs.readFileSync(readmePath, 'utf8');
-        const updated = readme.replace(/Current release: \*\*[^*]+\*\*/, 'Current release: **' + VERSION + '**');
-        if (updated !== readme) {
-            fs.writeFileSync(readmePath, updated);
-            execSync('git add README.md && git commit -q -m "README: current release ' + VERSION + '" && git push -q', { cwd: ROOT, stdio: 'inherit' });
-            console.log('README now says', VERSION);
-        }
-    } catch (e) { console.log('README not updated automatically (' + e.message + ') — set the Current release line to ' + VERSION + ' and push.'); }
 })().catch(e => { console.error(e.message); process.exit(1); });

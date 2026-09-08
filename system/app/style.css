@@ -1140,3 +1140,11 @@
   #plannerPreviewWrap .pv-linkrow { margin: 4px 0 8px; }
   #plannerPreviewWrap .pv-link { color: var(--blue); text-decoration: none; border: 1px solid var(--edge); border-radius: 6px; padding: 3px 9px; font-size: 12.5px; display: inline-block; }
   #plannerPreviewWrap .pv-link:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Pinned / Recent maps above the Maps tree */
+  #mapQuick { padding: 2px 6px 6px; border-bottom: 1px solid var(--edge); margin-bottom: 4px; }
+  .mq-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px 0; }
+  .mq-label { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-right: 2px; flex: 0 0 auto; }
+  .mq-chip { font: inherit; font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--edge); background: rgba(0,0,0,0.12); color: var(--ink); cursor: pointer; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mq-chip:hover { border-color: var(--gold); }
+  .mq-chip.pinned { color: var(--gold); }

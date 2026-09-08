@@ -275,6 +275,7 @@ function sanitizeAppState(s) {
         delete camp.handoutReveals;
         delete camp.handoutLog;
         delete camp.cast;
+        delete camp.pinnedMaps;
         Object.keys(camp.items).forEach(function(id) {
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];

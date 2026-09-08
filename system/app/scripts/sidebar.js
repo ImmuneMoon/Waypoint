@@ -115,6 +115,35 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var _lastActiveId = null;
 
+  // Pinned and recent maps, shown above the Maps tree. Recent is per campaign on this computer.
+  function recentKey(camp) { return 'wp_recent_' + camp.id; }
+  function noteRecent(camp) {
+      var it = camp.items[camp.activeItemId]; if (!it || it.type !== 'map') return;
+      try {
+          var list = JSON.parse(localStorage.getItem(recentKey(camp)) || '[]').filter(function(id) { return id !== it.id && camp.items[id]; });
+          list.unshift(it.id);
+          localStorage.setItem(recentKey(camp), JSON.stringify(list.slice(0, 8)));
+      } catch (e) {}
+  }
+  function mapQuickHtml(camp) {
+      noteRecent(camp);
+      var pinned = (camp.pinnedMaps || []).filter(function(id) { return camp.items[id] && camp.items[id].type === 'map'; });
+      var recent = [];
+      try { recent = JSON.parse(localStorage.getItem(recentKey(camp)) || '[]'); } catch (e) {}
+      recent = recent.filter(function(id) { return camp.items[id] && camp.items[id].type === 'map' && id !== camp.activeItemId && pinned.indexOf(id) < 0; }).slice(0, 5);
+      function chip(id, cls) { var m = camp.items[id]; var t = (m.meta && m.meta.title) || id; return '<button class="mq-chip' + (cls ? ' ' + cls : '') + '" data-id="' + esc(id) + '" title="' + esc(t) + '">' + esc(t) + '</button>'; }
+      if (!pinned.length && !recent.length) return '';
+      var html = '<div id="mapQuick">';
+      if (pinned.length) html += '<div class="mq-row"><span class="mq-label" title="Pinned from the play-map right-click menu">Pinned</span>' + pinned.map(function(id) { return chip(id, 'pinned'); }).join('') + '</div>';
+      if (recent.length) html += '<div class="mq-row"><span class="mq-label" title="The last maps you opened">Recent</span>' + recent.map(function(id) { return chip(id); }).join('') + '</div>';
+      return html + '</div>';
+  }
+  var _mqNav = document.getElementById('mapNavList');
+  if (_mqNav) _mqNav.addEventListener('click', function(e) {
+      var chip = e.target.closest && e.target.closest('.mq-chip'); if (!chip) return;
+      e.stopPropagation();
+      navigateToMap(chip.dataset.id);
+  });
   function updateSidebarNav() {
 
       var camp = getActiveCampaign();
@@ -204,7 +233,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       pNav.innerHTML = treeHtml('planner') || '<div class="nav-empty">No planners yet — press + above to write your first session plan.</div>';
 
-      mNav.innerHTML = treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>';
+      mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
 
 
 

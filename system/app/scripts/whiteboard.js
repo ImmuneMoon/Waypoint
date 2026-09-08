@@ -270,7 +270,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   
 
                   var isClientTT = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-                  var travelHint = r.targetMapId ? '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>' : '';
+                  var destTT = r.targetMapId && getActiveCampaign() ? getActiveCampaign().items[r.targetMapId] : null;
+                  var destRoomTT = destTT && r.targetRoomId ? (destTT.rooms || []).find(function(x) { return x.id === r.targetRoomId; }) : null;
+                  var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + '</div>' : '';
+                  var travelHint = r.targetMapId ? destLine + '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>' : '';
 
                   var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" style="width:100%; max-height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
@@ -3361,6 +3364,8 @@ function tableMenuParts(e, role) {
     } else {
         var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
         if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
+        var amPin = getActiveMap(), isPinned = !!(camp && amPin && (camp.pinnedMaps || []).indexOf(amPin.id) >= 0);
+        if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list">&#128204; ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div><div class="menu-divider"></div>';
         html += castMenuHtml(camp);
         if (role === 'host') {
             html += '<div class="menu-divider"></div>' + head('Session');
@@ -3382,6 +3387,14 @@ function tableMenuParts(e, role) {
                 if (act === 'summon') n.summonAll();
                 else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
                 else if (act === 'cast-manage') openCastModal();
+                else if (act === 'pin') {
+                    var campP = getActiveCampaign(), amP = getActiveMap(); if (!campP || !amP) return;
+                    campP.pinnedMaps = (campP.pinnedMaps || []).filter(function(id) { return campP.items[id]; });
+                    var atP = campP.pinnedMaps.indexOf(amP.id);
+                    if (atP >= 0) campP.pinnedMaps.splice(atP, 1); else campP.pinnedMaps.push(amP.id);
+                    import('./io.js').then(function(m) { m.save(true); m.toast(atP >= 0 ? 'Unpinned.' : 'Pinned — it sits at the top of the Maps list now.'); });
+                    import('./sidebar.js').then(function(m) { m.updateSidebarNav(); });
+                }
                 else if (act === 'scene') { var campN = getActiveCampaign(); if (campN && campN.items[it.dataset.id]) { campN.activeItemId = it.dataset.id; state.selId = null; state.selWbId = null; import('./sidebar.js').then(function(m) { m.updateSidebarNav(); }); import('./io.js').then(function(m) { m.save(true); }); if (window.appRender) window.appRender(); } }
                 else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
                 else if (act === 'travel') n.toggleTravelLock();

@@ -826,8 +826,8 @@
   .sidebar-item:hover .sidebar-del-btn { display: inline-block; }
   .sidebar-del-btn:hover { color: #f66; background: rgba(255,255,255,0.1); }
   .sidebar-item.active { background: var(--panel); color: var(--ink); font-weight: bold; border-color: var(--edge); border-left: 3px solid var(--gold); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-  .caret { cursor: pointer; user-select: none; font-size: 10px; color: var(--dim); display: inline-block; width: 14px; text-align: center; flex: 0 0 14px; }
-  .caret:hover { color: var(--gold); }
+  .caret { cursor: pointer; user-select: none; font-size: 10px; color: var(--gold); display: inline-block; width: 14px; text-align: center; flex: 0 0 14px; opacity: .85; }   /* the same gold as the section titles */
+  .caret:hover { opacity: 1; }
   .caret.down { transform: rotate(90deg); }
   .caret-spacer { display: inline-block; width: 14px; flex: 0 0 14px; }
 

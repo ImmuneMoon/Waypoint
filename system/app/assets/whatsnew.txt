@@ -5,6 +5,8 @@ Maps
 - The lock menu reads the whole nest: "Lock this and every map under it"
   shows while any nested map is still open, "Unlock…" while any is locked,
   both when it is mixed — so a locked parent can still close its children.
+- The fold arrows in the Planners and Maps trees are gold, like the section
+  titles.
 
 Installer
 - When a copy of Waypoint is already installed, Setup asks what to do:

@@ -3354,18 +3354,25 @@ function combatRowsFor(mapId, opts) {
     var camp = getActiveCampaign(), map = camp && camp.items[mapId]; if (!map) return [];
     var n = window.wpNet, running = n.combats && n.combats[mapId];
     var byTok = {}; (running ? running.rows : []).forEach(function(r) { if (r.tokId) byTok[r.tokId] = r; });
-    var pre = (opts && opts.pre) || [];
+    // live target pairs on this map: whoever is targeting (their own token) and whoever they target
+    var pair = {}; ((opts && opts.pre) || []).forEach(function(id) { pair[id] = 'targeted'; });
+    Object.keys((n && n.targets) || {}).forEach(function(pid) {
+        var t = n.targets[pid]; if (!t || t.mapId !== mapId) return;
+        pair[t.id] = 'targeted';
+        var mine = (map.whiteboard || []).find(function(w) { return w.isChar && !w.hidden && w.ownerId === pid; });
+        if (mine) pair[mine.id] = pair[mine.id] || 'targeting';
+    });
     var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
         var was = byTok[w.id];
-        var on = was ? true : (!!w.ownerId || pre.indexOf(w.id) >= 0);
-        return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null, on: on, party: !!w.ownerId };
+        var on = !!was || !!pair[w.id];   // only a running combat's rows and the tokens in a target pair start ticked
+        return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null, on: on, party: !!w.ownerId, targeted: pair[w.id] || '' };
     });
     // custom rows of a running combat (no token) stay
     (running ? running.rows : []).forEach(function(r) { if (!r.tokId) rows.push({ id: r.id, name: r.name, tokId: null, init: r.init, src: null, on: true, custom: true }); });
     if (running) {   // keep the running order first, newcomers after
         var order = {}; running.rows.forEach(function(r, i) { order[r.id] = i; });
         rows.sort(function(a, b) { var x = order[a.id] !== undefined ? order[a.id] : 999 + rows.indexOf(a), y = order[b.id] !== undefined ? order[b.id] : 999 + rows.indexOf(b); return x - y; });
-    } else rows.sort(function(a, b) { return (b.party ? 1 : 0) - (a.party ? 1 : 0) || a.name.localeCompare(b.name); });
+    } else rows.sort(function(a, b) { return (b.targeted ? 1 : 0) - (a.targeted ? 1 : 0) || (b.party ? 1 : 0) - (a.party ? 1 : 0) || a.name.localeCompare(b.name); });
     return rows;
 }
 function combatSortByInit(rows) {   // high to low, ties keep their place
@@ -3382,7 +3389,7 @@ function renderCombatModal() {
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + ' title="In the fight">'
             + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '&#10022;' : '&#9733;') + '</span>')
-            + '<span class="combat-name">' + esc(r.name) + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + '</span>'
+            + '<span class="combat-name">' + esc(r.name) + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + '</span>'
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '" title="Initiative — higher goes first">'
             + '<button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button>'
             + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row">&times;</button>' : '')

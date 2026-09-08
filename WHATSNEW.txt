@@ -10,6 +10,17 @@ Export
   This Campaign — reads from the loaded campaign only; Export Everything is
   the one that takes every campaign in the save.
 
+Header
+- The icon row is grouped by purpose, each group a small labelled pill:
+  Table (multiplayer, chat), Journal (handouts, journal) and App (refresh,
+  settings, help, about). Update, when there is one, stays at the front.
+
+Table chat
+- A player who joins or rejoins gets the recent table conversation (the
+  last sixty table-wide lines; private whispers stay private), so a latecomer
+  is not lost. The chat button dims while no session is running, with a tip
+  saying it needs one.
+
 WAYPOINT 1.3.5 — What's New
 ============================
 

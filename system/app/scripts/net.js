@@ -1093,6 +1093,10 @@ function admitPlayer(conn, prof) {
     toast((prof.name || 'A player') + ' joined.');
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
+    setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
+        var recent = chatLog.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60);
+        if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) {} }
+    }, 1200);
     var camp = getActiveCampaign();
     if (camp) {
         camp.players = camp.players || {};
@@ -1287,6 +1291,14 @@ function handleMessage(msg, conn) {
         } else {
             pushChat(msg);
         }
+    } else if (msg.type === 'chat-history' && net.role === 'client') {
+        var hist = Array.isArray(msg.log) ? msg.log.filter(function(m) { return m && m.from && typeof m.text === 'string'; }).slice(-60) : [];
+        var have = {}; chatLog.forEach(function(m) { have[(m.ts || 0) + '|' + (m.from && m.from.id) + '|' + m.text] = true; });
+        var added = 0;
+        hist.forEach(function(m) { var k = (m.ts || 0) + '|' + m.from.id + '|' + m.text; if (!have[k]) { chatLog.push({ from: { id: String(m.from.id || ''), name: String(m.from.name || '').slice(0, 60), gm: !!m.from.gm }, text: String(m.text).slice(0, 2000), scope: 'global', ts: m.ts || Date.now() }); added++; } });
+        chatLog.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
+        while (chatLog.length > 200) chatLog.shift();
+        if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none') { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
     } else if (msg.type === 'roster') {
         net.roster = msg.roster || {};
         net.away = msg.away || {};
@@ -1928,6 +1940,8 @@ setTimeout(function() {
 /* The GM gets one clear "End Session for Everyone" (the host's Leave was the same
    teardown, but its label read like a player's exit). Players keep Leave Session. */
 function syncSessionButtons() {
+    var cbtn = ui('chatBtn');
+    if (cbtn) { cbtn.classList.toggle('needs-session', !net.active); cbtn.dataset.tip = net.active ? 'Table chat' : 'Table chat — needs a session (host or join one first)'; cbtn.removeAttribute('title'); }
     var hosting = !!(net.active && net.role === 'host');
     var endB = ui('netEndBtn'), leaveB = ui('netLeaveBtn');
     if (endB) endB.style.display = hosting ? 'block' : 'none';

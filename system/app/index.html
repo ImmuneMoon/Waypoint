@@ -132,14 +132,20 @@ window.addEventListener('unhandledrejection', function(e) {
       <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed" hidden>
       <div class="header-sep"></div>
       <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update">&#11014;&#65039; Update</button>
-      <button class="tool ghost icon" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session">&#128260;</button>
-      <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;">&#127760;<span id="netDot" aria-hidden="true"></span></button>
-      <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)">&#128220;</button>
-      <button class="tool ghost icon" id="journalBtn" title="Journal &mdash; everything a GM has shown you, with your notes" style="position:relative;">&#128214;<span id="journalBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--gold); color:#1a1408; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
-      <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;">&#128172;<span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
-      <button class="tool ghost icon" id="settingsBtn" title="Settings">&#9881;&#65039;</button>
-      <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts">&#10067;</button>
-      <button class="tool ghost icon" id="aboutBtn" title="About Waypoint">&#8505;&#65039;</button>
+      <div class="hdr-group" data-label="Table">
+        <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;">&#127760;<span id="netDot" aria-hidden="true"></span></button>
+        <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;">&#128172;<span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
+      </div>
+      <div class="hdr-group" data-label="Journal">
+        <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)">&#128220;</button>
+        <button class="tool ghost icon" id="journalBtn" title="Journal &mdash; everything a GM has shown you, with your notes" style="position:relative;">&#128214;<span id="journalBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--gold); color:#1a1408; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
+      </div>
+      <div class="hdr-group" data-label="App">
+        <button class="tool ghost icon" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session">&#128260;</button>
+        <button class="tool ghost icon" id="settingsBtn" title="Settings">&#9881;&#65039;</button>
+        <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts">&#10067;</button>
+        <button class="tool ghost icon" id="aboutBtn" title="About Waypoint">&#8505;&#65039;</button>
+      </div>
     </div>
     <div class="save-note" id="saveNote"></div>
   </header>

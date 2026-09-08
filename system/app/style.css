@@ -1122,3 +1122,11 @@
   /* Planner: plain table mode of the node block */
   #plannerPreviewWrap .node.plain-table { border-left: none; padding-left: 0; background: transparent; }
   #plannerPreviewWrap .node.plain-table h3 { font-size: 15px; }
+
+  /* Header icon groups: a labelled pill per purpose */
+  .hdr-group { position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 3px 6px 3px 6px; margin-left: 10px; border: 1px solid var(--edge); border-radius: 10px; background: rgba(0,0,0,0.12); }
+  .hdr-group::before { content: attr(data-label); position: absolute; top: -7px; left: 8px; padding: 0 4px; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); background: var(--bg2); line-height: 1.2; pointer-events: none; }
+  .hdr-group .tool.icon { margin: 0; }
+  body.net-client .hdr-group[data-label="Journal"] { display: inline-flex; }
+
+  .tool.icon.needs-session { opacity: .45; }

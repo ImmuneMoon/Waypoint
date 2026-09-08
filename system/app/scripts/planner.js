@@ -441,7 +441,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       { sep: true },
       { c: 'insertUnorderedList', l: '&#8226; List', t: 'Bulleted list' }, { c: 'insertOrderedList', l: '1. List', t: 'Numbered list' },
       { sep: true },
-      { c: 'removeFormat', l: 'T&#8339;', t: 'Clear formatting on the selection' }
+      { c: 'removeFormat', l: 'T&#8339;', t: 'Clear formatting on the selection' },
+      { sep: true },
+      { sym: true, l: '&#937;', t: 'Insert a symbol — arrows, dashes, ellipsis, bullets, maths, checks, quotes' }
+  ];
+  // Symbols the bar can drop in at the cursor. Each entry: [character, name].
+  var RTE_SYMS = [
+      ['\u2192', 'right arrow'], ['\u2190', 'left arrow'], ['\u2194', 'both ways'], ['\u21D2', 'implies'], ['\u2191', 'up'], ['\u2193', 'down'], ['\u21B3', 'then'],
+      ['\u2014', 'em dash'], ['\u2013', 'en dash'], ['\u2026', 'ellipsis'], ['\u2022', 'bullet'], ['\u00B7', 'middle dot'], ['\u25AA', 'small square'], ['\u25B8', 'small triangle'],
+      ['\u00D7', 'times'], ['\u00F7', 'divide'], ['\u00B1', 'plus-minus'], ['\u2248', 'about'], ['\u2260', 'not equal'], ['\u2264', 'at most'], ['\u2265', 'at least'], ['\u221E', 'infinity'],
+      ['\u00B0', 'degrees'], ['\u00BD', 'half'], ['\u00BC', 'quarter'], ['\u00BE', 'three quarters'], ['\u00B2', 'squared'],
+      ['\u2713', 'check'], ['\u2717', 'cross'], ['\u2605', 'star'], ['\u2606', 'empty star'], ['\u2020', 'dagger'], ['\u2021', 'double dagger'], ['\u00A7', 'section'], ['\u00B6', 'pilcrow'],
+      ['\u201C', 'open quote'], ['\u201D', 'close quote'], ['\u2018', 'open single'], ['\u2019', 'apostrophe'], ['\u00AB', 'guillemet open'], ['\u00BB', 'guillemet close'],
+      ['\u2122', 'trademark'], ['\u00A9', 'copyright'], ['\u00AE', 'registered'], ['\u2699', 'gear'], ['\u2694', 'crossed swords'], ['\u2620', 'skull'], ['\u2691', 'flag'], ['\u2690', 'empty flag']
   ];
   function rteInitial(b) {
       var c = String(b.content || '');
@@ -450,7 +462,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return b.type === 'text' && body ? '<p>' + body + '</p>' : body;
   }
   function rteHtml(idx, b) {
-      var bar = RTE_CMDS.map(function(k) { return k.sep ? '<span class="rte-sep"></span>' : '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>'; }).join('');
+      var bar = RTE_CMDS.map(function(k) {
+          if (k.sep) return '<span class="rte-sep"></span>';
+          if (k.sym) return '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';
+          return '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>';
+      }).join('');
       return '<div class="rte" data-idx="' + idx + '"><div class="rte-bar">' + bar + '</div>'
           + '<div class="field rte-body" contenteditable="true" data-idx="' + idx + '" data-placeholder="Write here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + rteInitial(b) + '</div></div>';
   }
@@ -462,6 +478,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
   }
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) {}
+  document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.rte-symwrap'))) document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('selectionchange', function() {
       var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) rteSyncBar(a);
   });
@@ -483,8 +501,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(container.querySelectorAll('.rte-bar')).forEach(function(bar) {
           bar.addEventListener('mousedown', function(e) { e.preventDefault(); });   // keep the selection in the box
           bar.addEventListener('click', function(e) {
-              var btn = e.target.closest && e.target.closest('.rte-btn'); if (!btn) return;
               var body = bar.parentNode.querySelector('.rte-body');
+              var sym = e.target.closest && e.target.closest('.rte-sym');
+              if (sym) {   // drop the symbol in at the cursor (replacing a selection), close the tray
+                  body.focus();
+                  try { document.execCommand('insertText', false, sym.dataset.sym); } catch (err) {}
+                  bar.querySelector('.rte-symwrap').classList.remove('open');
+                  body.dispatchEvent(new Event('input', { bubbles: true }));
+                  return;
+              }
+              var symBtn = e.target.closest && e.target.closest('.rte-symbtn');
+              if (symBtn) { symBtn.parentNode.classList.toggle('open'); return; }
+              var btn = e.target.closest && e.target.closest('.rte-btn'); if (!btn) return;
               body.focus();
               try { document.execCommand(btn.dataset.cmd, false, null); } catch (err) {}
               body.dispatchEvent(new Event('input', { bubbles: true }));

@@ -1219,8 +1219,10 @@
   #notepadPanel.min #notepadText, #notepadPanel.min .notepad-foot { display: none; }
 
   /* Planner text editor */
-  .rte { border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); overflow: hidden; }
-  .rte-bar { display: flex; align-items: center; gap: 2px; padding: 3px 4px; border-bottom: 1px solid var(--edge); background: rgba(0,0,0,0.12); flex-wrap: wrap; }
+  .rte { border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); position: relative; }
+  .rte:has(.rte-symwrap.open) { z-index: 40; }
+  .rte-body { border-radius: 0 0 6px 6px !important; }
+  .rte-bar { display: flex; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 6px 6px 0 0; border-bottom: 1px solid var(--edge); background: rgba(0,0,0,0.12); flex-wrap: wrap; }
   .rte-btn { font: inherit; font-size: 12px; min-width: 26px; height: 24px; padding: 0 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink); cursor: pointer; }
   .rte-btn:hover { border-color: var(--edge); }
   .rte-btn.on { background: var(--edge); color: var(--gold); border-color: var(--edge); }
@@ -1230,3 +1232,11 @@
   .rte-body:empty::before { content: attr(data-placeholder); color: var(--dim); pointer-events: none; }
   .rte-body p { margin: 0 0 8px; } .rte-body p:last-child { margin-bottom: 0; }
   .rte-body ul, .rte-body ol { margin: 4px 0 8px; padding-left: 22px; }
+
+  /* Planner editor: symbol tray */
+  .rte-symwrap { position: relative; display: inline-flex; }
+  .rte-syms { display: none; position: absolute; top: 100%; right: 0; z-index: 30; margin-top: 4px; width: 264px; padding: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 6px; box-shadow: var(--shadow); flex-wrap: wrap; gap: 2px; }
+  .rte-symwrap.open .rte-syms { display: flex; }
+  .rte-symwrap.open .rte-symbtn { background: var(--edge); color: var(--gold); }
+  .rte-sym { font: inherit; font-size: 15px; width: 30px; height: 28px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink); cursor: pointer; line-height: 1; }
+  .rte-sym:hover { border-color: var(--gold); color: var(--gold); }

@@ -95,19 +95,19 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="header-group">
       <select id="campaignSelect" class="map-select" aria-label="Select Campaign"></select>
       <div class="hdr-group" data-label="Campaign">
-        <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns">&#128269;</button>
-        <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign">&#65291;</button>
-        <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign">&#9998;</button>
-        <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign">&#128465;&#65039;</button>
+        <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button>
+        <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+        <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
       </div>
     </div>
     <div class="header-sep"></div>
     <div class="seg-control" id="viewModeSelect" role="group" aria-label="Select View Mode">
-      <button class="seg-btn active" data-mode="data">&#128423;&#65039; Data Map</button>
-      <button class="seg-btn" data-mode="visual">&#127912; Play Map</button>
+      <button class="seg-btn active" data-mode="data"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4zM8 2v16M16 6v16"/></svg> Data Map</button>
+      <button class="seg-btn" data-mode="visual"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8.5 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM21 15l-5-5L5 21"/></svg> Play Map</button>
     </div>
     <span id="plannerTools" style="display:none;">
-      <button class="tool" id="renderPlannerBtn">&#9654; Render Preview</button>
+      <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render Preview </button>
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">&#9654; Next</option><option value="played">&#9989; Played</option><option value="skipped">&#9197; Skipped</option></select>
     </span>
     <div id="mapBreadcrumb"></div>
@@ -116,7 +116,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <span id="visualTools" style="display:none;"><input type="file" id="imgFileIn" accept="image/*" hidden></span>
       <input type="file" id="sheetFileIn" accept=".json,application/json" hidden>
       <div class="dropdown-wrap" id="saveAsDropdownWrap">
-        <button class="tool ghost" id="saveAsBtn">&#128190; Export As <span class="caret-down">&#9662;</span></button>
+        <button class="tool ghost" id="saveAsBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> Export As <span class="caret-down">&#9662;</span></button>
         <div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">
           <div class="menu-item" id="exportImgBtn" title="Export current view as PNG">&#128444;&#65039; Save as Image</div>
           <div class="menu-item" id="exportPdfBtn" title="Export as PDF / Print">&#128196; Save PDF</div>
@@ -131,23 +131,23 @@ window.addEventListener('unhandledrejection', function(e) {
           <div class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled">&#128230; Export Everything</div>
         </div>
       </div>
-      <button class="tool ghost" id="importBtn">&#128194; Import</button>
+      <button class="tool ghost" id="importBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Import </button>
       <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed" hidden>
       <div class="header-sep"></div>
-      <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update">&#11014;&#65039; Update</button>
+      <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM16 12l-4-4-4 4M12 16V8"/></svg> Update </button>
       <div class="hdr-group" data-label="Table">
-        <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;">&#127760;<span id="netDot" aria-hidden="true"></span></button>
-        <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;">&#128172;<span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
+        <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg><span id="netDot" aria-hidden="true"></span></button>
+        <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 1 1 21 11.5z"/></svg><span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
       </div>
       <div class="hdr-group" data-label="Journal">
-        <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)">&#128220;</button>
-        <button class="tool ghost icon" id="journalBtn" title="Journal &mdash; everything a GM has shown you, with your notes" style="position:relative;">&#128214;<span id="journalBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--gold); color:#1a1408; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
+        <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8"/></svg></button>
+        <button class="tool ghost icon" id="journalBtn" title="Journal &mdash; everything a GM has shown you, with your notes" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg><span id="journalBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--gold); color:#1a1408; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
       </div>
       <div class="hdr-group" data-label="App">
-        <button class="tool ghost icon" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session">&#128260;</button>
-        <button class="tool ghost icon" id="settingsBtn" title="Settings">&#9881;&#65039;</button>
-        <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts">&#10067;</button>
-        <button class="tool ghost icon" id="aboutBtn" title="About Waypoint">&#8505;&#65039;</button>
+        <button class="tool ghost icon" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg></button>
+        <button class="tool ghost icon" id="settingsBtn" title="Settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></button>
+        <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></button>
+        <button class="tool ghost icon" id="aboutBtn" title="About Waypoint"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 16v-4M12 8h.01"/></svg></button>
       </div>
     </div>
     <div class="save-note" id="saveNote"></div>
@@ -443,11 +443,11 @@ window.addEventListener('unhandledrejection', function(e) {
   <div class="layout-wrapper">
     <div id="campaignSidebar">
         <div class="sidebar-section">
-            <h3><span class="section-title" data-section="planners" data-label="Planners" title="Collapse/expand this section">&#9662; Planners</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllPlannersBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested planners">&#8862;</button><button class="tool ghost" id="searchPlannersBtn" style="padding:2px 6px; margin:0;" title="Search Planners">&#128269;</button><button class="tool ghost" id="newPlannerBtn" style="padding:2px 6px; margin:0;" title="Create new Planner" aria-label="Create new Planner">+</button></div></h3>
+            <h3><span class="section-title" data-section="planners" data-label="Planners" title="Collapse/expand this section">&#9662; Planners</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllPlannersBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchPlannersBtn" style="padding:2px 6px; margin:0;" title="Search Planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost" id="newPlannerBtn" style="padding:2px 6px; margin:0;" title="Create new Planner" aria-label="Create new Planner"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
             <div id="plannerNavList"></div>
         </div>
         <div class="sidebar-section">
-            <h3><span class="section-title" data-section="maps" data-label="Maps" title="Collapse/expand this section">&#9662; Maps</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllMapsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested maps">&#8862;</button><button class="tool ghost" id="searchMapsSidebarBtn" style="padding:2px 6px; margin:0;" title="Search Maps">&#128269;</button><button class="tool ghost" id="newMapSidebarBtn" style="padding:2px 6px; margin:0;" title="Create new Map" aria-label="Create new Map">+</button></div></h3>
+            <h3><span class="section-title" data-section="maps" data-label="Maps" title="Collapse/expand this section">&#9662; Maps</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllMapsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested maps"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchMapsSidebarBtn" style="padding:2px 6px; margin:0;" title="Search Maps"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost" id="newMapSidebarBtn" style="padding:2px 6px; margin:0;" title="Create new Map" aria-label="Create new Map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
             <div id="mapNavList"></div>
         </div>
     </div>

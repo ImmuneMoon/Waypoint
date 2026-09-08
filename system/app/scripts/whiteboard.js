@@ -15,6 +15,21 @@ var wb = document.getElementById('whiteboard');
 var _lastMeasureMapId = null;
 
 // In a session, clients resolve campaign images through the host-fed cache
+// A text box with no colour of its own: light ink on a dark plate, dark ink on a light one,
+// the theme's ink when the plate is missing or nearly clear (so both themes stay readable).
+function plateInk(bg) {
+    if (!bg || bg === 'transparent') return '';
+    var r, g, b, a = 1, m;
+    if ((m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(bg).trim()))) {
+        var x = m[1].length === 3 ? m[1].split('').map(function(c) { return c + c; }).join('') : m[1];
+        r = parseInt(x.slice(0, 2), 16); g = parseInt(x.slice(2, 4), 16); b = parseInt(x.slice(4, 6), 16);
+    } else if ((m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(String(bg).trim()))) {
+        r = +m[1]; g = +m[2]; b = +m[3]; if (m[4] !== undefined) a = +m[4];
+    } else return '';
+    if (a < 0.35) return '';
+    var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    return lum < 128 ? '#f2f2f7' : '#1f1d24';
+}
 function resolveImg(src) {
     return (window.wpNet && window.wpNet.assetSrc) ? window.wpNet.assetSrc(src) : src;
 }
@@ -369,7 +384,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // Text boxes: the color swatch is the text color, not a fill; the box
           // has its own background, font, size, and alignment.
           if (item.type === 'text') {
-              el.style.color = (item.color && item.color !== 'transparent' && item.color !== 'var(--panel2)') ? item.color : '';
+              el.style.color = (item.color && item.color !== 'transparent' && item.color !== 'var(--panel2)') ? item.color : plateInk(item.bg);
               el.style.background = (item.bg && item.bg !== 'transparent') ? item.bg : 'transparent';
               el.style.fontFamily = item.font || '';
               el.style.fontSize = item.fontSize ? item.fontSize + 'px' : '';

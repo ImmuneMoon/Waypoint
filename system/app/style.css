@@ -1165,3 +1165,10 @@
   .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0; }
   .journal-tag { font-size: 10px; letter-spacing: .04em; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--edge); color: var(--dim); cursor: pointer; }
   .journal-tag:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Snapshots list (Settings ▸ Advanced) */
+  .snap-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid var(--edge); border-radius: 6px; }
+  .snap-when { flex: 1; min-width: 0; }
+  .snap-kind { color: var(--dim); font-size: 10.5px; }
+  .snap-size { color: var(--dim); font-size: 10.5px; min-width: 48px; text-align: right; }
+  .snap-row .tool { padding: 2px 8px; font-size: 11px; }

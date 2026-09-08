@@ -275,7 +275,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + '</div>' : '';
                   var travelHint = r.targetMapId ? destLine + '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>' : '';
 
-                  var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" style="width:100%; max-height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
+                  var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; max-height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
                   tt.innerHTML = '<div class="room" style="border-left-color:'+c.color+'; margin:0; pointer-events:none;">' +
 
@@ -469,6 +469,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if(!el.querySelector('img')) {
 
                   var img = document.createElement('img');
+                  img.decoding = 'async';          // decode off the main thread: a map of many pictures opens sooner
+                  img.loading = 'lazy';            // pictures far outside the view load when scrolled to
 
                   // The frame must be the picture: once the image's real proportions are
                   // known, the box adopts them (width kept) so the resize handle and the
@@ -1587,14 +1589,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function renderPartyStrip() {
       var strip = document.getElementById('partyStrip'); if (!strip) return;
       var camp = getActiveCampaign(), am = getActiveMap();
-      var spectator = window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream;
-      if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual' || spectator) { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
+      if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual') { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
       var list = characterList(camp, true, am.id);
       var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
+      var atTable = window.wpNet && window.wpNet.active && (hosting || window.wpNet.role === 'client');   // players see the party too, read-only
       var present = {};
-      if (hosting) Object.values(window.wpNet.roster || {}).forEach(function(p) { if (p && p.id) present[p.id] = true; });
+      if (atTable) Object.values(window.wpNet.roster || {}).forEach(function(p) { if (p && p.id) present[p.id] = true; });
+      strip.title = atTable && !hosting
+          ? 'The party — everyone at the table. The highlighted ones are on this map: click to find them, right-click to target.'
+          : 'Your players\' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map.';
       // Connected players without a token yet: their table picture, or a chip with their name
-      if (hosting) {
+      if (atTable) {
           var owned = {}; list.forEach(function(c) { if (c.ownerId) owned[c.ownerId] = true; });
           Object.values(window.wpNet.roster || {}).forEach(function(p) {
               if (!p || !p.id || owned[p.id]) return;
@@ -1604,14 +1609,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
           });
       }
-      var sig = list.map(function(c) { return c.key + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (hosting ? (present[c.ownerId] ? 1 : 0) : 2); }).join(';') + '#' + am.id;
+      var sig = list.map(function(c) { return c.key + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
       strip.innerHTML = list.map(function(c) {
           var here = c.mapId === am.id;
-          var away = hosting && c.ownerId && !present[c.ownerId];
+          var away = atTable && c.ownerId && !present[c.ownerId];
           var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '');
-          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (c.noToken ? ' \u2014 no token yet' : '') + '. Click to jump to them.';
+          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (c.noToken ? ' \u2014 no token yet' : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" title="' + esc(tip) + '">';
           var ini = String(c.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
           return '<span class="' + cls + ' party-ini" data-key="' + esc(c.key) + '" title="' + esc(tip) + '">' + esc(ini) + '</span>';
@@ -1620,6 +1625,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpRenderPartyStrip = renderPartyStrip;
   function focusCharacter(key) {
       var camp = getActiveCampaign(); if (!camp) return;
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream) {
+          var amC = getActiveMap(), locC = locateCharacter(camp, key, camp.activeItemId);
+          if (!locC) {
+              var plC = Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === key.slice(2); });
+              var whereC = plC && plC.location && camp.items[plC.location] ? (camp.items[plC.location].meta || {}).title : null;
+              toast((plC && plC.name || 'They') + (whereC ? ' is on ' + whereC + '.' : ' is not on any map right now.'));
+              return;
+          }
+          var nameC = locC.tok.charName || locC.tok.name || 'They';
+          if (!amC || locC.map.id !== amC.id) { toast(nameC + ' is on ' + ((locC.map.meta || {}).title || 'another map') + '.'); return; }
+          amC.meta = amC.meta || {};
+          amC.meta.lastWbX = locC.tok.x + (locC.tok.w || 60) / 2; amC.meta.lastWbY = locC.tok.y + (locC.tok.h || 52) / 2; amC.meta.lastWbZoom = FOCUS_ZOOM;
+          render();
+          if (window.appRestoreCamera) window.appRestoreCamera();
+          toast('Found ' + nameC + '.');
+          return;
+      }
       if (key.charAt(0) === 'p') {
           // a player with no token yet: go to the map they are on
           var pl = Object.values((window.wpNet && window.wpNet.roster) || {}).find(function(p) { return p && p.id === key.slice(2); });
@@ -1719,7 +1741,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var here = loc && am && loc.map.id === am.id;
           var items = [];
           var whereName = loc ? (loc.map.meta && loc.map.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta.title) || 'their map';
-          items.push({ act: 'jump', label: '\uD83C\uDFAF Jump to ' + name + (here ? '' : ' (' + whereName + ')') });
+          var isClientM = window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream;
+          if (isClientM && !here) items.push({ act: 'none', label: name + ' \u2014 on ' + whereName, dim: true });
+          else items.push({ act: 'jump', label: '\uD83C\uDFAF ' + (isClientM ? 'Find ' : 'Jump to ') + name + (here ? '' : ' (' + whereName + ')') });
           if (hosting && ownerId) {
               items.push(connected
                   ? { act: 'summon', label: '\uD83D\uDCE3 Summon ' + name + ' to the table\'s map' }

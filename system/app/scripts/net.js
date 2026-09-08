@@ -1093,6 +1093,7 @@ function ensurePlayerToken(pid, mapId, landRoomId) {
 var bannedIds = {};        // profile id -> true, for this session only
 var pendingJoins = [];     // [{conn, prof}] awaiting the GM's Allow/Deny
 var approvalOpen = false;
+var approvedIds = {};      // profile id -> true: the GM said yes, but that connection was already gone — next attempt goes straight in
 
 function denyJoin(conn, reason) {
     try { conn.send({ type: 'denied', reason: reason }); } catch (e) {}
@@ -1142,7 +1143,8 @@ function processNextApproval() {
         approvalOpen = false;
         if (!net.active || net.role !== 'host') return;
         if (yes) {
-            admitPlayer(next.conn, next.prof);
+            if (next.conn.open) admitPlayer(next.conn, next.prof);
+            else { approvedIds[next.prof.id] = true; toast((next.prof.name || 'That player') + ' had already dropped — they go straight in when they try again.'); }
         } else {
             bannedIds[next.prof.id] = true;   // no re-prompt spam this session
             denyJoin(next.conn, 'The GM declined your request to join.');
@@ -1172,7 +1174,7 @@ function handleMessage(msg, conn) {
     // an old build, a hand-rolled client, a probe — is dropped without a reply and the
     // connection closed. Nothing is ever sent to, or applied from, an unadmitted peer.
     if (net.role === 'host' && msg.type !== 'hello' && !net.roster[conn.peer]) {
-        if (msg.type === 'hb') return;   // a waiting player's heartbeat: harmless, and expected while the GM decides
+        if (msg.type === 'hb') { noteSeen(conn.peer); return; }   // a waiting player's heartbeat: keeps them from being dropped while the GM decides
         try { conn.close(); } catch (e) {}
         return;
     }
@@ -1216,7 +1218,7 @@ function handleMessage(msg, conn) {
             return;
         }
         var camp0 = getActiveCampaign();
-        var returning = camp0 && camp0.players && camp0.players[prof.id];
+        var returning = (camp0 && camp0.players && camp0.players[prof.id]) || approvedIds[prof.id];
         if (returning) {
             admitPlayer(conn, prof);   // known at this table: straight in
         } else {
@@ -1385,8 +1387,8 @@ function wireConn(conn) {
         delete net.roster[conn.peer];
         renderRoster();
         if (net.role === 'host') {
-            toast((p && p.name ? p.name : 'A player') + ' left' + (p && p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
-            logEvent('player', (p && p.name ? p.name : 'A player') + ' left' + (p && p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
+            if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
+            if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
             if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcast({ type: 'targets', targets: net.targets }, null); }
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();

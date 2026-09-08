@@ -21,7 +21,7 @@ const ROOT = path.join(__dirname, '..');
 const SYSTEM = path.join(ROOT, 'system');
 const pkg = JSON.parse(fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'package.json'), 'utf8'));
 const VERSION = pkg.version;
-const MIN_SHELL = '1.1.2';   // bump to the current version whenever main.js / updater.js change
+const MIN_SHELL = '1.3.7';   // bump to the current version whenever main.js / updater.js change
 const mainSrc = fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'main.js'), 'utf8');
 const REPO = (mainSrc.match(/const UPDATE_REPO = '([^']+)'/) || [])[1];
 const ISCC = process.env.ISCC || 'D:\\Files\\Programs\\Inno Setup 6\\ISCC.exe';

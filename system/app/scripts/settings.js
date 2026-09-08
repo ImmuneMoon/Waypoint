@@ -284,6 +284,64 @@ if (_layout) _layout.addEventListener('click', function() {
     toast('Panel layout reset.');
 });
 
+/* ---------- snapshots (Settings ▸ Advanced) ---------- */
+function fmtBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+function snapLabel(b) { return /before-restore/.test(b.file) ? 'before a restore' : b.kept ? 'taken by hand' : 'at launch'; }
+async function loadSnapshots() {
+    var list = ui('setSnapList'); if (!list) return;
+    var rows = null;
+    try { var r = await fetch('/api/backups', { cache: 'no-store' }); if (r.ok) rows = await r.json(); } catch (e) {}
+    if (!Array.isArray(rows)) {
+        list.innerHTML = '<div style="color:var(--dim); line-height:1.5;">Listing snapshots from here needs the current installer (Settings &#9656; Updates). The launch backups are still written to the saves folder under <b>backups</b>.</div>';
+        var nb = ui('setSnapNowBtn'); if (nb) nb.disabled = true;
+        return;
+    }
+    if (!rows.length) { list.innerHTML = '<div style="color:var(--dim);">No snapshots yet — one is taken at every launch.</div>'; return; }
+    list.innerHTML = rows.map(function(b) {
+        return '<div class="snap-row" data-file="' + esc(b.file) + '"><span class="snap-when">' + esc(new Date(b.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })) + '</span><span class="snap-kind">' + snapLabel(b) + '</span><span class="snap-size">' + fmtBytes(b.size) + '</span>'
+            + '<button class="tool ghost snap-restore" title="Replace the save with this copy and reload (the save as it is now is snapshotted first)">Restore</button>'
+            + '<button class="tool ghost danger snap-del" title="Delete this snapshot">&times;</button></div>';
+    }).join('');
+}
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+var _snapGroup = document.querySelector('.set-group[data-group="advanced"]');
+if (_snapGroup) _snapGroup.addEventListener('toggle', function() { if (_snapGroup.open) loadSnapshots(); });
+var _snapNow = ui('setSnapNowBtn');
+if (_snapNow) _snapNow.addEventListener('click', async function() {
+    try {
+        var r = await fetch('/api/backup-now', { method: 'POST' });
+        if (r.status === 404) { var jx = await r.json().catch(function() { return {}; }); toast(jx.error === 'no save yet' ? 'Nothing saved yet to snapshot.' : 'Snapshots need the current installer — see Updates.'); return; }
+        if (!r.ok) throw new Error();
+        toast('Snapshot taken. It stays until you delete it.');
+        loadSnapshots();
+    } catch (e) { toast('Snapshot failed.'); }
+});
+var _snapList = ui('setSnapList');
+if (_snapList) _snapList.addEventListener('click', async function(e) {
+    var row = e.target.closest && e.target.closest('.snap-row'); if (!row) return;
+    var file = row.dataset.file, when = (row.querySelector('.snap-when') || {}).textContent || file;
+    var d = await import('./dialogs.js');
+    if (e.target.closest('.snap-del')) {
+        d.showConfirm('Delete the snapshot from ' + when + '? Only that copy goes; the save is untouched.', async function() {
+            try { var r = await fetch('/api/delete-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: file }) }); if (!r.ok) throw new Error(); toast('Snapshot deleted.'); loadSnapshots(); }
+            catch (err) { toast('Could not delete that snapshot.'); }
+        });
+        return;
+    }
+    if (e.target.closest('.snap-restore')) {
+        if (window.wpNet && window.wpNet.active) { toast('End or leave the session first — a restore replaces the whole save.'); return; }
+        d.showConfirm('Restore the save from ' + when + '? Every campaign goes back to how it was then. The save as it is now is snapshotted first, then Waypoint reloads.', async function() {
+            try {
+                var r = await fetch('/api/restore-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: file }) });
+                if (!r.ok) throw new Error();
+                window.__wpNoSave = true;   // nothing in memory may overwrite the restored file
+                toast('Restored — reloading.');
+                setTimeout(function() { location.reload(); }, 400);
+            } catch (err) { toast('Restore failed — the save was not changed.'); }
+        });
+    }
+});
+
 var _prefs = ui('setResetPrefsBtn');
 if (_prefs) _prefs.addEventListener('click', function() {
     // Every wp_* preference goes — except identity/profile, the version marker and the last host code

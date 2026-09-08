@@ -952,9 +952,15 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
+            <button class="tool ghost" id="setSnapNowBtn" title="Copy the save as it is right now into saves/backups. Kept until you delete it.">Snapshot the Save Now</button>
             <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
             </div>
+                <div style="margin-top:14px;">
+                <div class="set-field-label">Snapshots of the save</div>
+                <div id="setSnapList" style="display:flex; flex-direction:column; gap:4px; font-size:12px;"><div style="color:var(--dim);">Loading&hellip;</div></div>
+                <div style="color:var(--dim); font-size:10.5px; line-height:1.5; margin-top:6px;">Waypoint copies the save into the saves folder's <b>backups</b> at every launch and keeps the newest ten. Snapshots you take by hand are kept until you delete them. <b>Restore</b> replaces the whole save with that copy and reloads; the save as it is now is snapshotted first, so nothing is lost.</div>
             </div>
+        </div>
         </details>
         <details class="set-group" data-group="updates">
             <summary>Updates &amp; about</summary>

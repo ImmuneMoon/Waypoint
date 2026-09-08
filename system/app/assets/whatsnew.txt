@@ -30,6 +30,29 @@ Handouts
   a click on a chip searches the journal for it, and the smart search
   matches them.
 
+At the table
+- Players see the party strip too. The same faces the GM has: the ones on
+  your map lit, players who left dimmed. Click a face to find that character
+  on your map, or to hear which map they are on; right-click to target.
+  It is read-only for players — no dragging, no summoning.
+
+Snapshots
+- Settings ▸ Advanced lists the save's snapshots: the copy Waypoint takes
+  at every launch (newest ten kept) and any you take by hand with
+  "Snapshot the Save Now" (kept until deleted). Restore puts the whole save
+  back to that copy and reloads — the save as it was is snapshotted first.
+  Needs this release's installer; older shells still get the launch backups.
+
+Faster maps
+- Pictures on a play map decode off the main thread and load as they scroll
+  into view, so a map full of art opens sooner. Players on a map the GM is
+  not on still get its pictures the same way as before.
+
+Fixes
+- A player waiting for the GM to let them in was dropped after twenty
+  seconds and had to ask again. They now wait as long as it takes, and if
+  the GM says yes after they gave up, they go straight in next time.
+
 WAYPOINT 1.3.6 — What's New
 ============================
 

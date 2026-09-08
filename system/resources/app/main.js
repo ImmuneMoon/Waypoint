@@ -143,6 +143,44 @@ const server = http.createServer((req, res) => {
             return;
         }
     }
+    // Snapshots of the save: the launch backups in saves/backups plus ones taken by hand (keep-*, never pruned)
+    if (url.pathname === '/api/backups' && req.method === 'GET') {
+        try {
+            const bkDir = path.join(savesDir, 'backups');
+            const list = fs.existsSync(bkDir) ? fs.readdirSync(bkDir).filter(f => /^(data|keep)-[A-Za-z0-9_-]+\.json$/.test(f)).map(f => { const st = fs.statSync(path.join(bkDir, f)); return { file: f, size: st.size, at: st.mtimeMs, kept: f.indexOf('keep-') === 0 }; }).sort((a, b) => b.at - a.at) : [];
+            res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(list));
+        } catch (e) { res.writeHead(500); return res.end('{"error":"list failed"}'); }
+    }
+    if (url.pathname === '/api/backup-now' && req.method === 'POST') {
+        try {
+            if (!fs.existsSync(dataFile)) { res.writeHead(404); return res.end('{"error":"no save yet"}'); }
+            const bkDir = path.join(savesDir, 'backups');
+            if (!fs.existsSync(bkDir)) fs.mkdirSync(bkDir, { recursive: true });
+            const f = 'keep-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.json';
+            fs.copyFileSync(dataFile, path.join(bkDir, f));
+            res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true, file: f }));
+        } catch (e) { res.writeHead(500); return res.end('{"error":"snapshot failed"}'); }
+    }
+    if ((url.pathname === '/api/restore-backup' || url.pathname === '/api/delete-backup') && req.method === 'POST') {
+        let body = '';
+        req.on('data', c => body += c.toString());
+        req.on('end', () => {
+            try {
+                const file = String((JSON.parse(body || '{}') || {}).file || '');
+                if (!/^(data|keep)-[A-Za-z0-9_-]+\.json$/.test(file)) { res.writeHead(400); return res.end('{"error":"bad name"}'); }
+                const bkDir = path.join(savesDir, 'backups'), src = path.join(bkDir, file);
+                if (!fs.existsSync(src)) { res.writeHead(404); return res.end('{"error":"no such snapshot"}'); }
+                if (url.pathname === '/api/delete-backup') { fs.unlinkSync(src); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
+                const text = fs.readFileSync(src, 'utf8');
+                JSON.parse(text);   // a snapshot that does not parse is not restored
+                if (fs.existsSync(dataFile) && fs.statSync(dataFile).size > 2) fs.copyFileSync(dataFile, path.join(bkDir, 'keep-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '-before-restore.json'));
+                fs.writeFileSync(dataFile + '.tmp', text, 'utf8');
+                fs.renameSync(dataFile + '.tmp', dataFile);
+                res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
+            } catch (e) { res.writeHead(500); res.end('{"error":"restore failed"}'); }
+        });
+        return;
+    }
     if (url.pathname === '/api/data') {
         if (req.method === 'GET') {
             let json = '{}';

@@ -427,6 +427,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var saveTimeout;
 
   function save(immediate) {
+    if (window.__wpNoSave) return;   // a snapshot is being restored: the in-memory copy must not win
 
     var activeMap = getActiveMap();
 

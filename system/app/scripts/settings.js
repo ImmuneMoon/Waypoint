@@ -292,7 +292,8 @@ async function loadSnapshots() {
     var rows = null;
     try { var r = await fetch('/api/backups', { cache: 'no-store' }); if (r.ok) rows = await r.json(); } catch (e) {}
     if (!Array.isArray(rows)) {
-        list.innerHTML = '<div style="color:var(--dim); line-height:1.5;">Listing snapshots from here needs the current installer (Settings &#9656; Updates). The launch backups are still written to the saves folder under <b>backups</b>.</div>';
+        list.innerHTML = '<div style="color:var(--dim); line-height:1.5;">Listing snapshots from here needs the current core, which comes as the installer. The launch backups are still written to the saves folder under <b>backups</b>. <button class="tool ghost" id="setSnapCoreBtn" style="padding:2px 8px; font-size:11px;">Show the steps</button></div>';
+        var cb = ui('setSnapCoreBtn'); if (cb) cb.addEventListener('click', function() { showInstallerSteps(coreInfo()); });
         var nb = ui('setSnapNowBtn'); if (nb) nb.disabled = true;
         return;
     }
@@ -389,13 +390,57 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    changed, Update Now downloads it, the shell swaps system/app in place and we reload. If the
    release needs a newer shell, the button becomes Get Installer instead. A quiet check runs a
    few seconds after launch; a newer version raises the header Update button and a notice. */
-var _upd = { info: null };
+var _upd = { info: null, shellOld: null, shell: null };
+var SHELL_WANTED = '1.3.6';   // the core this app expects; older cores are walked through the installer
+var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
+function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
+// Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the
+// snapshot route is missing (404), which is just as telling.
+function checkShell() {
+    return Promise.all([
+        fetch('/api/version', { cache: 'no-store' }).then(function(r) { return r.json(); }).catch(function() { return null; }),
+        fetch('/api/backups', { cache: 'no-store' }).then(function(r) { return r.status; }).catch(function() { return 0; })
+    ]).then(function(v) {
+        var shell = v[0] && v[0].shell ? String(v[0].shell) : null;
+        _upd.shell = shell;
+        _upd.shellOld = (shell && vcmp(shell, SHELL_WANTED) < 0) || v[1] === 404;
+        if (_upd.shellOld) coreNudge(true);
+        return _upd.shellOld;
+    });
+}
+window.wpCheckShell = checkShell;
+function coreInfo() {
+    var i = _upd.info || {};
+    return { latest: (window.wpAppVersion || i.current || ''), installer: i.installer || i.page || RELEASES_PAGE, core: true };
+}
+// The header button, the notice bar and Settings all say "core update"; the steps open once per app version on their own
+function coreNudge(firstTime) {
+    if (!_upd.shellOld) return;
+    var i = _upd.info;
+    if (i && i.newer) return;   // a newer app comes first; the core nudge returns after it lands
+    var b = ui('updateBtn');
+    if (b) { b.textContent = '\u2B06\uFE0F Core update'; b.title = "Waypoint's core is older than this app — it needs the installer once. Click to see the steps; nothing downloads until you say so."; b.style.display = 'inline-block'; }
+    var bar = ui('updateBanner'), txt = ui('updateBannerText'), go = ui('updateBannerGo');
+    if (bar && txt) {
+        txt.textContent = "Waypoint's app files are current, but its core needs the installer once — Get Installer shows the steps first.";
+        if (go) go.textContent = 'Get Installer';
+        var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
+        bar.style.display = 'flex';
+    }
+    updateUI();
+    if (firstTime) {
+        var seenKey = 'wp_coreSeen', cur = String(window.wpAppVersion || '');
+        var seen = null; try { seen = localStorage.getItem(seenKey); } catch (e) {}
+        if (seen !== cur) { try { localStorage.setItem(seenKey, cur); } catch (e) {} setTimeout(function() { showInstallerSteps(coreInfo()); }, 800); }
+    }
+}
 function updateUI() {
     var st = ui('setUpdateState'), row = ui('setUpdateRow'), now = ui('setUpdateNowBtn'), inst = ui('setUpdateInstallerBtn');
     var i = _upd.info;
     if (!st || !row) return;
     if (!i) { st.textContent = ''; row.style.display = 'none'; return; }
     if (i.error) { st.textContent = 'could not check (' + (i.error.length > 40 ? 'offline?' : i.error) + ')'; row.style.display = 'none'; return; }
+    if (!i.newer && _upd.shellOld) { st.textContent = 'app ' + (window.wpAppVersion || i.current) + ' — core needs the installer'; row.style.display = 'flex'; if (now) now.style.display = 'none'; if (inst) inst.style.display = 'block'; return; }
     if (!i.newer) { st.textContent = 'up to date (' + i.current + ')'; row.style.display = 'none'; return; }
     st.textContent = i.latest + ' available';
     row.style.display = 'flex';
@@ -414,7 +459,7 @@ function checkUpdates(force, quiet) {
         }
         _upd.info = i; updateUI();
         showUpdateButton(i);
-        if (i && i.newer) showUpdateBanner(i); else hideUpdateBanner();
+        if (i && i.newer) showUpdateBanner(i); else if (_upd.shellOld) coreNudge(false); else hideUpdateBanner();
         if (i && i.newer && !quiet) toast('Waypoint ' + i.latest + ' is available.');
         return i;
     }).catch(function(e) { _upd.info = { error: String(e) }; updateUI(); });
@@ -466,7 +511,9 @@ function showUpdateBanner(i) {
 function hideUpdateBanner() { var bar = ui('updateBanner'); if (bar) bar.style.display = 'none'; }
 var _bGo = ui('updateBannerGo');
 if (_bGo) _bGo.addEventListener('click', function() {
-    var i = _upd.info; if (!i) return;
+    var i = _upd.info;
+    if (!(i && i.newer) && _upd.shellOld) { hideUpdateBanner(); showInstallerSteps(coreInfo()); return; }
+    if (!i) return;
     if (i.canHotUpdate) runHotUpdate();
     else { hideUpdateBanner(); var b = ui('setUpdateInstallerBtn'); if (b) b.click(); }
 });
@@ -484,12 +531,16 @@ if (_bLater) _bLater.addEventListener('click', function() {
 function showInstallerSteps(i) {
     var m = ui('installerModal'), v = ui('installerVersion'); if (!m) return;
     if (v) v.textContent = i.latest ? 'Waypoint ' + i.latest : 'This update';
+    var n = ui('installerIntroNormal'), c = ui('installerIntroCore'), t = ui('installerTitle');
+    if (n) n.style.display = i.core ? 'none' : '';
+    if (c) c.style.display = i.core ? '' : 'none';
+    if (t) t.textContent = i.core ? "Waypoint's core needs the installer" : 'This update needs the installer';
     m.dataset.url = i.installer || i.page || '';
     m.style.display = 'flex';
 }
 window.wpShowInstallerSteps = showInstallerSteps;
 var _updInst = ui('setUpdateInstallerBtn');
-if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info; if (!i) return; showInstallerSteps(i); });
+if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info; if (i && i.newer) showInstallerSteps(i); else if (_upd.shellOld) showInstallerSteps(coreInfo()); });
 (function() {
     var m = ui('installerModal'); if (!m) return;
     var go = ui('installerGoBtn'), later = ui('installerLaterBtn'), close = ui('installerCloseBtn');
@@ -514,7 +565,7 @@ if (_updNotes) _updNotes.addEventListener('click', function() {
     document.getElementById('legalModal').style.display = 'flex';
 });
 window.wpCheckUpdates = checkUpdates;
-setTimeout(function() { checkUpdates(false, true); }, 5000);   // quiet launch check (cached 15 min by the shell)
+setTimeout(function() { checkUpdates(false, true).then(function() { checkShell(); }); }, 5000);   // quiet launch check (cached 15 min by the shell), then: is the core older than this app?
 
 var _verBtn = ui('setVersionBtn');
 if (_verBtn) _verBtn.addEventListener('click', function() { if (window.wpShowWhatsNew) window.wpShowWhatsNew(this.dataset.version || ''); });

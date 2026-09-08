@@ -842,8 +842,9 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- An update that needs the installer: the steps, before anything downloads -->
 <div id="installerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100002; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px 24px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:94vw; max-height:88vh; overflow-y:auto; line-height:1.55;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">This update needs the installer <button id="installerCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
-        <p style="margin:0 0 10px;"><b><span id="installerVersion">This update</span></b> changes Waypoint's core, which the one-click update cannot replace. It comes as the full installer instead. Nothing has downloaded yet.</p>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="installerTitle">This update needs the installer</span> <button id="installerCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <p id="installerIntroNormal" style="margin:0 0 10px;"><b><span id="installerVersion">This update</span></b> changes Waypoint's core, which the one-click update cannot replace. It comes as the full installer instead. Nothing has downloaded yet.</p>
+        <p id="installerIntroCore" style="margin:0 0 10px; display:none;">Waypoint's app files just updated in place, but its <b>core</b> &mdash; the part a one-click update cannot replace &mdash; is older. Snapshots, and updates like this one in future, need the new core, and it comes as the full installer. Nothing has downloaded yet; Waypoint keeps working as it is until you do this.</p>
         <p style="margin:0 0 6px; color:var(--dim); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;">What happens when you press Continue</p>
         <ol style="margin:0 0 12px; padding-left:22px;">
             <li>Your browser downloads <b>Waypoint_Setup.exe</b> (about 110&nbsp;MB).</li>

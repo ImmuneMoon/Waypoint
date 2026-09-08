@@ -1,3 +1,14 @@
+WAYPOINT 1.3.8 — What's New
+============================
+
+Updates
+- Older cores are walked through the installer instead of surprised by it.
+  The app part now reaches every copy as a one-click update; if it then finds
+  it is running on an older core, it shows the steps once (what downloads,
+  close Waypoint, run the file, SmartScreen, saves kept), keeps a "Core
+  update" button in the top bar, and downloads the installer only when you
+  press Continue. Waypoint keeps working meanwhile.
+
 WAYPOINT 1.3.7 — What's New
 ============================
 

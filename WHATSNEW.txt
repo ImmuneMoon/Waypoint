@@ -1,15 +1,5 @@
-WAYPOINT 1.4.1 — What's New
+WAYPOINT 1.4.2 — What's New
 ============================
-
-Planners
-- Find in a planner. A search box in the planner toolbar (or Ctrl+F while a
-  planner is open) lights every hit in the rendered preview and jumps between
-  them with Enter, Shift+Enter or the arrows, with a "3 / 12" count. The
-  exact phrase wins; failing that each word is matched at word starts, case
-  and accents ignored. Hits stay lit while you edit.
-- The planner's controls — Render Preview, Status and Find — sit in a bar
-  over the rendered preview instead of the header. Nothing of that bar, or
-  of the highlights, goes into an export.
 
 Maps
 - Lock maps for players. Right-click a map in the Maps sidebar: "Lock for
@@ -22,6 +12,19 @@ Maps
 
 Fixes
 - Right-click menus close as soon as you scroll.
+
+WAYPOINT 1.4.1 — What's New
+============================
+
+Planners
+- Find in a planner. A search box in the planner toolbar (or Ctrl+F while a
+  planner is open) lights every hit in the rendered preview and jumps between
+  them with Enter, Shift+Enter or the arrows, with a "3 / 12" count. The
+  exact phrase wins; failing that each word is matched at word starts, case
+  and accents ignored. Hits stay lit while you edit.
+- The planner's controls — Render Preview, Status and Find — sit in a bar
+  over the rendered preview instead of the header. Nothing of that bar, or
+  of the highlights, goes into an export.
 
 WAYPOINT 1.4.0 — What's New
 ============================

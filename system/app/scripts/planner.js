@@ -127,7 +127,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
 
-              html += '<textarea class="field b-content" placeholder="Content (HTML allowed)..." data-idx="'+idx+'" style="width:100%; height:60px;">'+esc(b.content||'')+'</textarea>';
+              html += rteHtml(idx, b);
 
           } else if (b.type === 'image') {
               html += '<div class="b-img-row"><div class="b-img-thumb">' + (b.src ? '<img src="' + esc(b.src) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
@@ -306,6 +306,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           save(false); renderPlannerPreview();
       }));
       Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
+      wireRte(blockContainer);
 
       Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri]['col' + (parseInt(this.dataset.ci, 10) + 1)] = this.value; save(false); renderPlannerPreview(); }));
 
@@ -429,6 +430,67 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   // Typed text keeps its line breaks: a blank line starts a new paragraph, a single Enter a
   // line break. Content that already uses block HTML (<p>, <br>, lists, headings…) is left as is.
+  /* ---- rich text editor for text blocks ----
+     A formatting bar over a contenteditable box. Buttons apply to the selection, or to what is
+     typed next when nothing is selected (the browser's own toggle behaviour); Ctrl+B/I/U work as
+     usual. The block keeps the box's HTML. Old content — raw newlines, or tags typed by hand —
+     is shown as it always rendered. */
+  var RTE_CMDS = [
+      { c: 'bold', l: '<b>B</b>', t: 'Bold (Ctrl+B)' }, { c: 'italic', l: '<i>I</i>', t: 'Italic (Ctrl+I)' },
+      { c: 'underline', l: '<u>U</u>', t: 'Underline (Ctrl+U)' }, { c: 'strikeThrough', l: '<s>S</s>', t: 'Strikethrough' },
+      { sep: true },
+      { c: 'insertUnorderedList', l: '&#8226; List', t: 'Bulleted list' }, { c: 'insertOrderedList', l: '1. List', t: 'Numbered list' },
+      { sep: true },
+      { c: 'removeFormat', l: 'T&#8339;', t: 'Clear formatting on the selection' }
+  ];
+  function rteInitial(b) {
+      var c = String(b.content || '');
+      if (/<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;   // already block HTML
+      var body = nl(c, b.type === 'text');
+      return b.type === 'text' && body ? '<p>' + body + '</p>' : body;
+  }
+  function rteHtml(idx, b) {
+      var bar = RTE_CMDS.map(function(k) { return k.sep ? '<span class="rte-sep"></span>' : '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>'; }).join('');
+      return '<div class="rte" data-idx="' + idx + '"><div class="rte-bar">' + bar + '</div>'
+          + '<div class="field rte-body" contenteditable="true" data-idx="' + idx + '" data-placeholder="Write here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + rteInitial(b) + '</div></div>';
+  }
+  function rteSyncBar(body) {
+      var bar = body.parentNode.querySelector('.rte-bar'); if (!bar) return;
+      bar.querySelectorAll('.rte-btn').forEach(function(btn) {
+          var on = false; try { on = document.queryCommandState(btn.dataset.cmd); } catch (e) {}
+          btn.classList.toggle('on', !!on);
+      });
+  }
+  try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) {}
+  document.addEventListener('selectionchange', function() {
+      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) rteSyncBar(a);
+  });
+  function wireRte(container) {
+      Array.from(container.querySelectorAll('.rte-body')).forEach(function(body) {
+          body.addEventListener('input', function() {
+              var am = getActiveMap(); if (!am || !am.blocks) return;
+              am.blocks[this.dataset.idx].content = this.innerHTML;
+              save(false); renderPlannerPreview(); rteSyncBar(this);
+          });
+          body.addEventListener('keydown', function(e) { e.stopPropagation(); });
+          body.addEventListener('paste', function(e) {   // plain text only — no styles from elsewhere
+              e.preventDefault();
+              var t = (e.clipboardData || window.clipboardData).getData('text/plain');
+              document.execCommand('insertText', false, t);
+          });
+          body.addEventListener('focus', function() { rteSyncBar(this); });
+      });
+      Array.from(container.querySelectorAll('.rte-bar')).forEach(function(bar) {
+          bar.addEventListener('mousedown', function(e) { e.preventDefault(); });   // keep the selection in the box
+          bar.addEventListener('click', function(e) {
+              var btn = e.target.closest && e.target.closest('.rte-btn'); if (!btn) return;
+              var body = bar.parentNode.querySelector('.rte-body');
+              body.focus();
+              try { document.execCommand(btn.dataset.cmd, false, null); } catch (err) {}
+              body.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+      });
+  }
   function nl(content, para) {
       var c = String(content || '');
       if (!/\n/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;
@@ -665,7 +727,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'text') {
 
-              html += '<p>' + nl(b.content, true) + '</p>';
+              html += /<(p|div|ul|ol|h[1-6]|blockquote|pre|table)\b/i.test(String(b.content || '')) ? String(b.content) : '<p>' + nl(b.content, true) + '</p>';
 
           } else if (b.type === 'flare') {
 

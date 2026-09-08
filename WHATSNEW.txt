@@ -1,3 +1,13 @@
+WAYPOINT 1.3.9 — What's New
+============================
+
+Planners
+- Text blocks (Text, Lede, One-liner, Callout, Flare) have a real editor:
+  bold, italic, underline, strikethrough, bulleted and numbered lists, and
+  clear formatting, from a bar over the box or Ctrl+B / I / U. Formatting
+  applies to what you have selected, or to what you type next. No more
+  typing <b> and <i> by hand — old blocks open exactly as they rendered.
+
 WAYPOINT 1.3.8 — What's New
 ============================
 

@@ -2377,12 +2377,19 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (!s.imageCats.by || typeof s.imageCats.by !== 'object') s.imageCats.by = {};
       return s.imageCats;
   }
-  function imgCatOf(path) { var c = imgCats(); var n = c.by[path]; return n && c.list.indexOf(n) >= 0 ? n : ''; }
+  function imgCatsOf(path) {   // every category this picture is in (old saves stored one name)
+      var c = imgCats(); var v = c.by[path]; if (!v) return [];
+      var arr = Array.isArray(v) ? v : [v];
+      return arr.filter(function(n) { return c.list.indexOf(n) >= 0; });
+  }
+  function imgCatOf(path) { var a = imgCatsOf(path); return a.length ? a.join(', ') : ''; }
+  function imgCatHas(path, name) { return imgCatsOf(path).indexOf(name) >= 0; }
+  function imgCatWrite(path, arr) { var c = imgCats(); if (arr.length) c.by[path] = arr; else delete c.by[path]; }
   function imgCatsSave() { import('./io.js').then(function(m) { m.save(true); }); }
   function renderImgCats() {
       var row = document.getElementById('imgLibCats'); if (!row) return;
       var c = imgCats(), counts = {}, none = 0;
-      (_imgLibCache || []).forEach(function(im) { var n = imgCatOf(im.path); if (n) counts[n] = (counts[n] || 0) + 1; else none++; });
+      (_imgLibCache || []).forEach(function(im) { var ns = imgCatsOf(im.path); if (ns.length) ns.forEach(function(n) { counts[n] = (counts[n] || 0) + 1; }); else none++; });
       if (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && c.list.indexOf(_imgLibCat) < 0) _imgLibCat = '';
       var html = '<span class="journal-chip-label">Show</span>'
           + '<button class="journal-from' + (!_imgLibCat ? ' active' : '') + '" data-cat="">All <span class="journal-count">' + (_imgLibCache || []).length + '</span></button>'
@@ -2393,13 +2400,20 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           + (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' ? '<button class="journal-from img-cat-tool" data-act="rename" title="Rename this category">Rename</button><button class="journal-from img-cat-tool danger" data-act="delete" title="Remove this category — its pictures stay, just untagged">Delete</button>' : '');
       row.innerHTML = html;
   }
-  function imgCatAssign(path, name) {
-      var c = imgCats();
-      if (name) c.by[path] = name; else delete c.by[path];
+  // act: 'add' (tag with another), 'move' (drop the current view's category, tag with the chosen one), 'remove'
+  function imgCatChange(path, act, name) {
+      var cur = imgCatsOf(path), from = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
+      if (act === 'remove') cur = cur.filter(function(n) { return n !== name; });
+      else {
+          if (act === 'move' && from) cur = cur.filter(function(n) { return n !== from; });
+          if (name && cur.indexOf(name) < 0) cur.push(name);
+      }
+      imgCatWrite(path, cur);
       imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
       var pv = document.getElementById('imgLibPreview');
       if (pv && pv.style.display !== 'none' && pv.dataset.src === path) openImgPreview(path);
   }
+  function imgCatAssign(path, name) { imgCatChange(path, 'add', name); }   // kept for older callers
   function imgCatNew(cb) {
       showPrompt('New category:', '', function(name) {
           name = String(name || '').trim().slice(0, 40); if (!name) return;
@@ -2407,6 +2421,27 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           if (c.list.indexOf(name) < 0) c.list.push(name);
           imgCatsSave(); if (cb) cb(name); else renderImgLib(document.getElementById('imgLibSearch').value);
       });
+  }
+  // The category menu for one picture. Inside a category view it offers Move (out of this one, into
+  // another) and Remove; everywhere it offers Add (a picture can be in several categories).
+  function openImgCatMenu(src, x, y) {
+      var menu = document.getElementById('imgCatMenu'); if (!menu) return;
+      var c = imgCats(), mine = imgCatsOf(src);
+      var from = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
+      var others = c.list.filter(function(n) { return mine.indexOf(n) < 0; });
+      var html = '<div class="party-menu-head">Add to category</div>'
+          + others.map(function(n) { return '<button class="wb-tool-btn party-menu-item" data-act="add" data-cat="' + esc(n) + '">' + esc(n) + '</button>'; }).join('')
+          + '<button class="wb-tool-btn party-menu-item" data-act="new-add">+ New category\u2026</button>';
+      if (from && mine.indexOf(from) >= 0) {
+          html += '<div class="party-menu-head">Move from ' + esc(from) + ' to</div>'
+              + others.map(function(n) { return '<button class="wb-tool-btn party-menu-item" data-act="move" data-cat="' + esc(n) + '">' + esc(n) + '</button>'; }).join('')
+              + '<button class="wb-tool-btn party-menu-item" data-act="new-move">+ New category\u2026</button>'
+              + '<button class="wb-tool-btn party-menu-item danger" data-act="remove" data-cat="' + esc(from) + '">Remove from ' + esc(from) + '</button>';
+      }   // in All, By map and No category only Add is offered
+      menu.dataset.src = src;
+      menu.innerHTML = html;
+      menu.style.display = 'flex'; menu.classList.add('show');
+      window.wpClampMenu(menu, x, y);
   }
   function hideImgCatMenu() { var m = document.getElementById('imgCatMenu'); if (m) m.classList.remove('show'), m.style.display = 'none'; }
   (function wireImgCats() {
@@ -2421,42 +2456,35 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               showPrompt('Rename category:', old, function(name) {
                   name = String(name || '').trim().slice(0, 40); if (!name || name === old) return;
                   var i = c.list.indexOf(old); if (i >= 0) c.list[i] = name;
-                  Object.keys(c.by).forEach(function(p) { if (c.by[p] === old) c.by[p] = name; });
+                  Object.keys(c.by).forEach(function(p) { var arr = Array.isArray(c.by[p]) ? c.by[p] : [c.by[p]]; c.by[p] = arr.map(function(n) { return n === old ? name : n; }); });
                   _imgLibCat = name; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
               });
               return;
           }
           if (act === 'delete') {
-              var del = _imgLibCat, cc = imgCats(), n = Object.keys(cc.by).filter(function(p) { return cc.by[p] === del; }).length;
-              showConfirm('Delete the category "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' goes' : 's go') + ' back to No category — no picture is deleted.' : 'It is empty.'), function(yes) {
+              var del = _imgLibCat, cc = imgCats(), n = Object.keys(cc.by).filter(function(p) { return imgCatHas(p, del); }).length;
+              showConfirm('Delete the category "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' loses' : 's lose') + ' that tag — nothing is deleted.' : 'It is empty.'), function(yes) {
                   if (!yes) return;
                   cc.list = cc.list.filter(function(x) { return x !== del; });
-                  Object.keys(cc.by).forEach(function(p) { if (cc.by[p] === del) delete cc.by[p]; });
+                  Object.keys(cc.by).forEach(function(p) { imgCatWrite(p, imgCatsOf(p).filter(function(x) { return x !== del; })); });
                   _imgLibCat = ''; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
               });
               return;
           }
           if (b.dataset.cat !== undefined) { _imgLibCat = b.dataset.cat; renderImgLib(document.getElementById('imgLibSearch').value); }
       });
-      // right-click a picture: move it
+      // right-click a picture: add it to a category (and, inside a category, move it or take it out)
       grid.addEventListener('contextmenu', function(e) {
           var cell = e.target.closest && e.target.closest('.img-lib-cell'); if (!cell || cell.classList.contains('cast-cell')) return;
           e.preventDefault(); e.stopPropagation();
-          var c = imgCats(), cur = imgCatOf(cell.dataset.src);
-          menu.dataset.src = cell.dataset.src;
-          menu.innerHTML = '<div class="party-menu-head">Move to</div>'
-              + c.list.map(function(n) { return '<button class="wb-tool-btn party-menu-item' + (cur === n ? ' on' : '') + '" data-cat="' + esc(n) + '">' + (cur === n ? '&#10003; ' : '') + esc(n) + '</button>'; }).join('')
-              + '<button class="wb-tool-btn party-menu-item' + (!cur ? ' on' : '') + '" data-cat="">' + (!cur ? '&#10003; ' : '') + 'No category</button>'
-              + '<button class="wb-tool-btn party-menu-item" data-act="new">+ New category\u2026</button>';
-          menu.style.display = 'flex'; menu.classList.add('show');
-          window.wpClampMenu(menu, e.clientX, e.clientY);
+          openImgCatMenu(cell.dataset.src, e.clientX, e.clientY);
       });
       menu.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
           e.stopPropagation();
-          var src = menu.dataset.src; hideImgCatMenu();
-          if (b.dataset.act === 'new') { imgCatNew(function(name) { imgCatAssign(src, name); }); return; }
-          imgCatAssign(src, b.dataset.cat || '');
+          var src = menu.dataset.src, act = b.dataset.act, cat = b.dataset.cat || ''; hideImgCatMenu();
+          if (act === 'new-add' || act === 'new-move') { imgCatNew(function(name) { imgCatChange(src, act === 'new-move' ? 'move' : 'add', name); }); return; }
+          if (act === 'add' || act === 'move' || act === 'remove') imgCatChange(src, act, cat);
       });
       document.addEventListener('pointerdown', function(e) { if (menu.style.display !== 'none' && !e.target.closest('#imgCatMenu')) hideImgCatMenu(); }, true);
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideImgCatMenu(); });
@@ -2479,7 +2507,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       _imgLibCache.forEach(function(im) {
           var label = folderLabel(im.folder), cat = imgCatOf(im.path);
           var byMap = _imgLibCat === '__bymap';
-          if (_imgLibCat === '__none' ? cat : (_imgLibCat && !byMap && cat !== _imgLibCat)) return;
+          if (_imgLibCat === '__none' ? cat : (_imgLibCat && !byMap && !imgCatHas(im.path, _imgLibCat))) return;
           if (q && im.name.toLowerCase().indexOf(q) === -1 && label.toLowerCase().indexOf(q) === -1 && (cat || '').toLowerCase().indexOf(q) === -1) return;
           var key = byMap ? label : '';
           (byFolder[key] = byFolder[key] || []).push(im);
@@ -2490,13 +2518,13 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           html += '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">';
           byFolder[label].forEach(function(im) {
               var catTag = (!_imgLibCat || _imgLibCat === '__bymap') && imgCatOf(im.path) ? '<span class="img-lib-tag">' + esc(imgCatOf(im.path)) + '</span>' : '';
-              html += '<div class="img-lib-cell" data-src="' + im.path + '" title="' + im.name + (imgCatOf(im.path) ? ' \u00b7 ' + esc(imgCatOf(im.path)) : '') + ' \u2014 right-click to move it into a category">' +
+              html += '<div class="img-lib-cell" data-src="' + im.path + '" title="' + im.name + (imgCatOf(im.path) ? ' \u00b7 ' + esc(imgCatOf(im.path)) : '') + ' \u2014 right-click to add it to a category">' +
                   '<img src="' + encodeURI(im.path) + '" loading="lazy">' + catTag +
                   '<div class="img-lib-name">' + im.name + '</div></div>';
           });
           html += '</div>';
       });
-      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + (_imgLibCat && _imgLibCat !== '__bymap' ? 'Nothing in this category yet — right-click a picture under All to move it here.' : 'No images match.') + '</div>';
+      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + (_imgLibCat && _imgLibCat !== '__bymap' ? 'Nothing in this category yet — right-click a picture under All and add it here.' : 'No images match.') + '</div>';
   }
 
   var _el_importCharBtn = document.getElementById('importCharBtn');
@@ -2572,7 +2600,9 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('imgLibPreviewImg').src = encodeURI(src);
       document.getElementById('imgLibPreviewName').textContent = im ? im.name : src.split('/').pop();
       var cat = imgCatOf(src);
-      document.getElementById('imgLibPreviewMeta').innerHTML = (mapName ? '<div>Map: <b>' + esc(mapName) + '</b></div>' : '') + '<div>Category: <b>' + (cat ? esc(cat) : 'none') + '</b></div>';
+      document.getElementById('imgLibPreviewMeta').innerHTML = (mapName ? '<div>Map: <b>' + esc(mapName) + '</b></div>' : '') + '<div>Categor' + (imgCatsOf(src).length === 1 ? 'y' : 'ies') + ': <b>' + (cat ? esc(cat) : 'none') + '</b></div>';
+      var catBtn = document.getElementById('imgLibPreviewCat'), fromV = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
+      if (catBtn) { catBtn.innerHTML = fromV ? 'Add / move category\u2026' : 'Add to category\u2026'; catBtn.title = fromV ? 'Add another category, move it out of ' + fromV + ', or take it out' : 'Tag this picture with a category (it can be in several)'; }
       var add = document.getElementById('imgLibPreviewAdd');
       add.textContent = _imgLibPick ? 'Use this picture' : 'Add to map';
       add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map';
@@ -2600,15 +2630,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       });
       document.getElementById('imgLibPreviewCat').addEventListener('click', function(e) {
           var src = pv.dataset.src; if (!src) return;
-          var menu = document.getElementById('imgCatMenu'), c = imgCats(), cur = imgCatOf(src);
-          menu.dataset.src = src;
-          menu.innerHTML = '<div class="party-menu-head">Move to</div>'
-              + c.list.map(function(n) { return '<button class="wb-tool-btn party-menu-item' + (cur === n ? ' on' : '') + '" data-cat="' + esc(n) + '">' + (cur === n ? '&#10003; ' : '') + esc(n) + '</button>'; }).join('')
-              + '<button class="wb-tool-btn party-menu-item' + (!cur ? ' on' : '') + '" data-cat="">' + (!cur ? '&#10003; ' : '') + 'No category</button>'
-              + '<button class="wb-tool-btn party-menu-item" data-act="new">+ New category\u2026</button>';
-          menu.style.display = 'flex'; menu.classList.add('show');
           var r = this.getBoundingClientRect();
-          window.wpClampMenu(menu, r.left, r.bottom + 4);
+          openImgCatMenu(src, r.left, r.bottom + 4);
       });
       // Escape steps back from the preview before it would close the library
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && pv.style.display !== 'none') { e.stopPropagation(); closeImgPreview(); } }, true);

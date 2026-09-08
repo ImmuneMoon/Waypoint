@@ -8,8 +8,11 @@ Planners
 Image Library
 - Clicking a picture opens a large preview — name, map, category — with an
   "Add to map" button (or "Use this picture" when a planner block is asking),
-  a "Move to category" button and Back. Nothing lands on the map until you
+  an "Add to category" button and Back. Nothing lands on the map until you
   press Add.
+- A picture can be in several categories. "Add to category" tags it with
+  another; inside a category, "Move" swaps that category for another and
+  "Remove" takes it out. All, By map and No category only ever add.
 
 WAYPOINT 1.4.2 — What's New
 ============================

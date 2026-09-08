@@ -1283,3 +1283,11 @@
   #imgLibPreview .ilp-name { font-weight: 600; word-break: break-word; }
   #imgLibPreview .ilp-meta { color: var(--dim); font-size: 12px; line-height: 1.5; margin-bottom: 6px; }
   #imgLibPreview .ilp-side .tool { width: 100%; }
+
+  /* Image Library category menu: the same panel as the party menu */
+  #imgCatMenu { flex-direction: column; gap: 2px; min-width: 220px; max-width: 320px; padding: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); }
+  #imgCatMenu .party-menu-item { width: 100%; height: auto; border-radius: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.35; justify-content: flex-start; text-align: left; white-space: normal; color: var(--ink); background: transparent; border: none; cursor: pointer; }
+  #imgCatMenu .party-menu-item:hover { background: rgba(224,165,79,0.14); color: var(--gold); }
+  #imgCatMenu .party-menu-item.danger:hover { background: rgba(217,83,79,0.14); color: var(--red); }
+  #imgCatMenu .party-menu-head { padding: 6px 10px 2px; }
+  #imgCatMenu .party-menu-head + .party-menu-head { margin-top: 4px; border-top: 1px solid var(--edge); padding-top: 8px; }

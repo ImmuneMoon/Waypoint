@@ -327,6 +327,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       tt.style.left = (e.clientX - wrapBox.left + document.getElementById('whiteboardWrap').scrollLeft + 20) + 'px';   // clear of the pointer (a hand cursor is ~24px)
 
                       tt.style.top = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop + 28) + 'px';
+                      // keep the card on screen: flip to the left of the pointer, or above it, when the edge is near
+                      var ttR = tt.getBoundingClientRect(), ttW = window.innerWidth, ttH = window.innerHeight;
+                      if (ttR.right > ttW - 8) tt.style.left = (e.clientX - wrapBox.left + document.getElementById('whiteboardWrap').scrollLeft - ttR.width - 14) + 'px';
+                      if (ttR.bottom > ttH - 8) tt.style.top = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop - ttR.height - 14) + 'px';
 
                   }
 

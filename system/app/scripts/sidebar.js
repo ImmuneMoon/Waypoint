@@ -165,6 +165,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (n && n.logEvent) n.logEvent('table', (on ? 'Locked ' : 'Unlocked ') + (names.length === 1 ? names[0] : names.length + ' maps (' + names[0] + '…)') + (on ? ' for players' : ' for players'));
       toast((on ? 'Locked for players: ' : 'Open to players again: ') + (names.length === 1 ? names[0] : names[0] + ' and ' + (names.length - 1) + ' map' + (names.length === 2 ? '' : 's') + ' under it') + '.');
   }
+  // Right-click → scene status (the same rule as the toolbar picker: one Next at a time)
+  (function wireStatusMenu() {
+      var menu = document.getElementById('sidebarContextMenu'); if (!menu) return;
+      menu.querySelectorAll('.ctx-status').forEach(function(x) {
+          x.addEventListener('click', function() {
+              var id = menu.dataset.id; menu.style.display = 'none';
+              var camp = getActiveCampaign(), it = camp && camp.items[id]; if (!it || it.type !== 'planner') return;
+              var st = this.dataset.status;
+              it.meta = it.meta || {};
+              if (st) it.meta.status = st; else delete it.meta.status;
+              if (st === 'next') Object.values(camp.items).forEach(function(o) { if (o !== it && o.type === 'planner' && o.meta && o.meta.status === 'next') delete o.meta.status; });
+              save(true); updateSidebarNav();
+              var sel = document.getElementById('plannerStatus'); if (sel && camp.activeItemId === id) sel.value = st;
+              toast((it.meta.title || 'Planner') + (st === 'next' ? ' is the next scene.' : st === 'played' ? ' marked played.' : st === 'skipped' ? ' marked skipped.' : ': status cleared.'));
+          });
+      });
+  })();
   (function wireLockMenu() {
       var one = document.getElementById('ctxLockItem'), nest = document.getElementById('ctxLockNest'), menu = document.getElementById('sidebarContextMenu');
       function go(all) {
@@ -292,6 +309,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 var it = activeC && activeC.items[this.dataset.id];
                 var isMapCtx = !!(it && it.type === 'map'), lockedCtx = !!(it && it.meta && it.meta.playerLock);
                 menu.querySelectorAll('.ctx-map-only').forEach(function(x) { x.style.display = isMapCtx ? 'block' : 'none'; });
+                var isPlCtx = !!(it && it.type === 'planner'), stCtx = (it && it.meta && it.meta.status) || '';
+                menu.querySelectorAll('.ctx-planner-only').forEach(function(x) { x.style.display = isPlCtx ? 'block' : 'none'; });
+                menu.querySelectorAll('.ctx-status').forEach(function(x) { x.classList.toggle('on', x.dataset.status === stCtx && !!stCtx); if (x.dataset.status === '') x.style.display = isPlCtx && stCtx ? 'block' : 'none'; });
                 var lockOne = document.getElementById('ctxLockItem'), lockNest = document.getElementById('ctxLockNest');
                 if (lockOne) lockOne.innerHTML = lockedCtx ? '&#128275; Unlock for players' : '&#128274; Lock for players';
                 if (lockNest) lockNest.innerHTML = lockedCtx ? '&#128275; Unlock this and every map under it' : '&#128274; Lock this and every map under it';

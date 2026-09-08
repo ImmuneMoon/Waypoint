@@ -1145,7 +1145,8 @@
   .si-status { flex: 0 0 auto; font-size: 11px; margin-right: 2px; }
   .si-status.si-next { color: var(--gold); }
   .si-status.si-lock { font-size: 10px; opacity: .85; }
-  #sidebarContextMenu .menu-item.ctx-map-only { color: var(--ink); }
+  #sidebarContextMenu .menu-item.ctx-map-only, #sidebarContextMenu .menu-item.ctx-planner-only { color: var(--ink); }
+  #sidebarContextMenu .menu-item.ctx-status.on { color: var(--gold); }
   .si-status.si-skipped { opacity: .6; }
   #plannerStatus { margin-left: 0; }
   /* Planner → map link */

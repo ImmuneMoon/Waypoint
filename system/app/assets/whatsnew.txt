@@ -1,3 +1,10 @@
+WAYPOINT 1.4.3 — What's New
+============================
+
+Planners
+- Right-click a planner in the sidebar to mark it Next, Played or Skipped,
+  or clear its status — the same as the toolbar picker.
+
 WAYPOINT 1.4.2 — What's New
 ============================
 

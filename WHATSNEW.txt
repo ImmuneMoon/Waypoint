@@ -15,6 +15,14 @@ Maps
   away. Recent is kept per campaign on this computer.
 - Hovering a portal names the map it leads to and the room you land in.
 
+Session log
+- Everything that happens at the table is written to a log on the campaign:
+  session start and end, who joined and left, every handout shown, every
+  crossing, table-wide chat, shares, pauses and travel locks. Open it from
+  the Multiplayer panel or the play-map right-click menu, filter by kind,
+  and save it as a text file — the raw material for the next recap. GM data,
+  never sent to players.
+
 WAYPOINT 1.3.6 — What's New
 ============================
 

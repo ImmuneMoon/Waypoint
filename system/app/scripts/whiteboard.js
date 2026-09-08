@@ -3365,13 +3365,16 @@ function tableMenuParts(e, role) {
         var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
         if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && (camp.pinnedMaps || []).indexOf(amPin.id) >= 0);
-        if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list">&#128204; ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div><div class="menu-divider"></div>';
+        if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list">&#128204; ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
+        if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log">&#128220; Session Log\u2026</div>';
+        html += '<div class="menu-divider"></div>';
         html += castMenuHtml(camp);
         if (role === 'host') {
             html += '<div class="menu-divider"></div>' + head('Session');
             html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
             html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';
             html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="log">&#128220; Session Log\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End Session for Everyone</div>';
         }
     }
@@ -3387,6 +3390,7 @@ function tableMenuParts(e, role) {
                 if (act === 'summon') n.summonAll();
                 else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
                 else if (act === 'cast-manage') openCastModal();
+                else if (act === 'log') n.openSessionLog();
                 else if (act === 'pin') {
                     var campP = getActiveCampaign(), amP = getActiveMap(); if (!campP || !amP) return;
                     campP.pinnedMaps = (campP.pinnedMaps || []).filter(function(id) { return campP.items[id]; });

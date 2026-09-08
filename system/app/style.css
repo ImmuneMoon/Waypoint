@@ -1148,3 +1148,14 @@
   .mq-chip { font: inherit; font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--edge); background: rgba(0,0,0,0.12); color: var(--ink); cursor: pointer; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mq-chip:hover { border-color: var(--gold); }
   .mq-chip.pinned { color: var(--gold); }
+
+  /* Session log */
+  .log-day { color: var(--dim); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 4px; }
+  .log-session { color: var(--gold); font-weight: 600; padding: 6px 8px; border-top: 1px solid var(--edge); margin-top: 6px; }
+  .log-ended { color: var(--dim); font-weight: 400; font-size: 11px; }
+  .log-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 8px; border-radius: 4px; }
+  .log-row:hover { background: rgba(0,0,0,0.12); }
+  .log-time { color: var(--dim); font-size: 11px; flex: 0 0 48px; }
+  .log-kind { flex: 0 0 64px; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
+  .log-kind.k-handout { color: var(--gold); } .log-kind.k-travel { color: var(--blue); } .log-kind.k-chat { color: var(--teal); } .log-kind.k-player { color: var(--green); } .log-kind.k-share { color: var(--violet); }
+  .log-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }

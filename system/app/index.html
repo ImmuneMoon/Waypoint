@@ -801,6 +801,7 @@ window.addEventListener('unhandledrejection', function(e) {
                 </div>
                 <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;">&#128161; Send this code to your players, then <b>close this window</b> &mdash; the session keeps running while you work. Reopen it any time with the &#127760; button to see who's here, pause, or summon.</div>
                 <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the &#128227; on their name in the player list above.">&#128227; Summon All Players</button>
+                <button class="tool ghost" id="netLogBtn" style="margin-top:8px; width:100%;" title="Everything that happened at the table — joins, handouts, crossings, chat, shares — by session">&#128220; Session Log</button>
                 <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused.">&#128274; Lock Travel Between Maps</button>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
             </div>
@@ -1019,6 +1020,19 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="handoutCaption" style="max-width:88vw; color:var(--ink); line-height:1.5; white-space:pre-wrap; text-align:center;"></div>
         <div id="handoutNotesWrap" style="display:none; width:min(88vw, 760px); flex-direction:column; gap:4px;"><label for="handoutNotes" style="font-size:11px; letter-spacing:.06em; color:var(--dim); text-transform:uppercase;">Your notes</label><textarea id="handoutNotes" class="field" placeholder="Write anything you want to remember about this — it is saved in your Journal on this computer." style="min-height:64px; resize:vertical;"></textarea></div>
         <div id="handoutFresh" style="display:none; color:var(--dim); font-size:11px; display:flex; align-items:center; gap:10px;">Saved to your Journal (&#128214;). <button class="tool ghost" id="handoutOpenJournalBtn" style="padding:3px 10px; font-size:11px;">Add notes</button></div>
+    </div>
+</div>
+<!-- Session log (GM) -->
+<div id="sessionLogModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:640px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Session Log <button id="sessionLogClose" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+            <select id="sessionLogKind" class="field" style="flex:1;"><option value="">Everything</option><option value="session">Sessions</option><option value="player">Players</option><option value="handout">Handouts</option><option value="travel">Travel</option><option value="chat">Chat</option><option value="share">Shares</option><option value="table">Table (pause, travel lock)</option></select>
+            <button class="tool ghost" id="sessionLogSave" title="Save the whole log as a text file">Save as text</button>
+            <button class="tool ghost danger" id="sessionLogClear" title="Empty the log (asks first)">Clear</button>
+        </div>
+        <div id="sessionLogList" style="overflow-y:auto; flex:1; font-size:12.5px;"></div>
+        <div style="color:var(--dim); font-size:10.5px; margin-top:8px; line-height:1.5;">Written by the host as things happen; part of the campaign save, never sent to players. Newest first.</div>
     </div>
 </div>
 <!-- Campaign Cast (GM) -->

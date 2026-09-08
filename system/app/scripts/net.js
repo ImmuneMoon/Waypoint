@@ -276,6 +276,7 @@ function sanitizeAppState(s) {
         delete camp.handoutLog;
         delete camp.cast;
         delete camp.pinnedMaps;
+        delete camp.sessionLog;
         Object.keys(camp.items).forEach(function(id) {
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];
@@ -559,6 +560,14 @@ function setPausedLocal(on) {
 }
 
 // Travel lock: no map crossings for players while it is on; everything else stays live
+// Session log: what happened at the table, on the campaign (GM data). Saved with the next save.
+function logEvent(kind, text) {
+    if (net.role === 'client') return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    camp.sessionLog = camp.sessionLog || [];
+    camp.sessionLog.push({ at: Date.now(), kind: kind, text: String(text || '').slice(0, 400) });
+    if (camp.sessionLog.length > 3000) camp.sessionLog.splice(0, camp.sessionLog.length - 3000);
+}
 net.travelLocked = false;
 function setTravelLockLocal(on) {
     net.travelLocked = !!on;
@@ -573,6 +582,7 @@ if (_travelLockBtn) _travelLockBtn.addEventListener('click', function() {
     setTravelLockLocal(!net.travelLocked);
     broadcast({ type: 'travelLock', on: net.travelLocked }, null);
     toast(net.travelLocked ? 'Travel locked — players stay on their maps. The table is still live.' : 'Travel allowed again.');
+    logEvent('table', net.travelLocked ? 'Travel between maps locked' : 'Travel between maps allowed');
 });
 var _travelDenyLast = {};
 var _pauseBtn = ui('netPauseBtn');
@@ -581,6 +591,7 @@ if (_pauseBtn) _pauseBtn.addEventListener('click', function() {
     setPausedLocal(!net.paused);
     broadcast({ type: 'pause', on: net.paused }, null);
     toast(net.paused ? 'Table paused — players are frozen (chat stays open).' : 'Table resumed.');
+    logEvent('table', net.paused ? 'Table paused' : 'Table resumed');
 });
 
 /* ---------- live position streaming ----------
@@ -653,6 +664,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) {} }
     var destTitle = (tCamp.items[pRoom.targetMapId].meta || {}).title || pRoom.targetMapId;
     toast((traveler.name || 'A player') + ' traveled to ' + destTitle + '.');
+    logEvent('travel', (traveler.name || 'A player') + ' traveled to ' + destTitle + (pRoom && pRoom.name ? ' via ' + pRoom.name : ''));
     return true;
 }
 
@@ -933,6 +945,7 @@ function relayShare(msg, conn, sender) {
         try { c.send(out); names.push(p.name || 'a player'); } catch (e) {}
     });
     if (names.length) toast((sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', ') + '.');
+    if (names.length) logEvent('share', (sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', '));
 }
 net.revealHandout = function(hid, pids) {
     if (!net.active || net.role !== 'host') { toast('Host a session first.'); return; }
@@ -954,6 +967,7 @@ net.revealHandout = function(hid, pids) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
         document.dispatchEvent(new CustomEvent('wp-handout-revealed'));
         toast('"' + (h.title || 'Handout') + '" shown to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', ') + '.');
+        logEvent('handout', '"' + (h.title || 'Handout') + '" shown to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', '));
     }).catch(function() { toast('Could not prepare that picture.'); });
 };
 // Everything already revealed to this player, sent again (their journal keeps one copy per handout)
@@ -1092,6 +1106,7 @@ function admitPlayer(conn, prof) {
     net.roster[conn.peer] = prof;
     renderRoster();
     toast((prof.name || 'A player') + ' joined.');
+    logEvent('player', (prof.name || 'A player') + ' joined');
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
@@ -1289,6 +1304,7 @@ function handleMessage(msg, conn) {
             // player comments are table-wide: relay to everyone else
             pushChat(msg);
             broadcast(msg, conn);
+            if (msg.scope !== 'whisper') logEvent('chat', ((msg.from && msg.from.name) || 'Player') + ': ' + String(msg.text || '').slice(0, 300));
         } else {
             pushChat(msg);
         }
@@ -1369,6 +1385,7 @@ function wireConn(conn) {
         renderRoster();
         if (net.role === 'host') {
             toast((p && p.name ? p.name : 'A player') + ' left' + (p && p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
+            logEvent('player', (p && p.name ? p.name : 'A player') + ' left' + (p && p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
             if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcast({ type: 'targets', targets: net.targets }, null); }
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();
@@ -1517,6 +1534,8 @@ function startHosting(forceFresh) {
         syncSessionButtons();
         renderRoster();
         toast(resumed ? 'Hosting resumed with the same room code — players can rejoin as before.' : 'Hosting started. Share the room code.');
+        logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + String(code).toUpperCase());
+        net.applyingRemote = true; save(true); net.applyingRemote = false;
     });
     peer.on('connection', function(conn) {
         net.conns.push(conn);
@@ -1637,6 +1656,7 @@ function leaveSession(silent) {
         net.stageOverride = null;
         setStatus('Not in a session.');
         toast(wasClient ? 'Left the session — restoring your own campaign.' : wasHost ? 'Session ended for everyone — the room code is retired.' : 'Left the session.');
+        if (wasHost) { logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }
         if (wasClient) load();
     }
     syncSessionButtons();
@@ -1773,6 +1793,7 @@ function sendChat() {
         broadcast(msg, null); // client's only conn is the host, which relays
     }
     pushChat(msg);
+    if (net.role === 'host' && msg.scope !== 'whisper') logEvent('chat', 'GM: ' + String(msg.text || '').slice(0, 300));
 }
 
 var _chatBtn = ui('chatBtn');
@@ -1984,6 +2005,55 @@ net.summonPlayerById = function(playerId) {
     return true;
 };
 net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
+// Session Log window
+var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', table: 'Table' };
+function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+net.openSessionLog = function() {
+    var m = ui('sessionLogModal'), list = ui('sessionLogList'), sel = ui('sessionLogKind'); if (!m || !list) return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    var kind = sel ? sel.value : '';
+    var log = (camp.sessionLog || []).filter(function(e) { return !kind || e.kind === kind || e.kind === 'session'; });
+    if (!log.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">Nothing logged yet. Host a session and the table\'s events — joins, handouts, crossings, chat, shares — are written here as they happen.</div>'; }
+    else {
+        // grouped by session, newest session first; inside a session the newest line is at the top
+        var groups = [], cur = null;
+        log.forEach(function(e) {
+            if (e.kind === 'session' && /started|resumed/.test(e.text)) { cur = { head: e, rows: [] }; groups.push(cur); return; }
+            if (!cur) { cur = { head: null, rows: [] }; groups.push(cur); }
+            cur.rows.push(e);
+        });
+        function hm(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        var html = '';
+        groups.slice().reverse().forEach(function(g) {
+            var ended = g.rows.filter(function(e) { return e.kind === 'session'; }).pop();
+            var when = g.head ? new Date(g.head.at).toLocaleDateString() + ' ' + hm(g.head.at) : (g.rows[0] ? new Date(g.rows[0].at).toLocaleDateString() : '');
+            html += '<div class="log-session">' + escText(when) + ' · ' + escText(g.head ? g.head.text : 'Between sessions') + (ended ? ' <span class="log-ended">→ ended ' + escText(hm(ended.at)) + '</span>' : '') + '</div>';
+            g.rows.slice().reverse().forEach(function(e) {
+                if (e.kind === 'session') return;
+                html += '<div class="log-row"><span class="log-time">' + escText(hm(e.at)) + '</span><span class="log-kind k-' + escText(e.kind) + '">' + escText(_logKinds[e.kind] || e.kind) + '</span><span class="log-text">' + escText(e.text) + '</span></div>';
+            });
+        });
+        list.innerHTML = html;
+    }
+    m.style.display = 'flex';
+};
+(function() {
+    var sel = ui('sessionLogKind'); if (sel) sel.addEventListener('change', function() { net.openSessionLog(); });
+    var close = ui('sessionLogClose'); if (close) close.addEventListener('click', function() { ui('sessionLogModal').style.display = 'none'; });
+    var open = ui('netLogBtn'); if (open) open.addEventListener('click', function() { net.openSessionLog(); });
+    var saveB = ui('sessionLogSave'); if (saveB) saveB.addEventListener('click', function() {
+        var camp = getActiveCampaign(); if (!camp) return;
+        var lines = (camp.sessionLog || []).map(function(e) { return fmtLogTime(e.at) + '  [' + (_logKinds[e.kind] || e.kind) + ']  ' + e.text; });
+        var blob = new Blob([(camp.name || 'Campaign') + ' — session log\n\n' + lines.join('\n') + '\n'], { type: 'text/plain' });
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (camp.name || 'campaign').replace(/[^A-Za-z0-9]+/g, '-').toLowerCase() + '-session-log.txt';
+        document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+        toast('Session log saved as text.');
+    });
+    var clearB = ui('sessionLogClear'); if (clearB) clearB.addEventListener('click', function() {
+        var camp = getActiveCampaign(); if (!camp || !(camp.sessionLog || []).length) return;
+        (function() { showConfirm('Clear the session log for ' + (camp.name || 'this campaign') + '? ' + camp.sessionLog.length + ' lines go. Save it as text first if you want to keep it.', function() { camp.sessionLog = []; save(true); net.openSessionLog(); }); })();
+    });
+})();
 net.togglePause = function() { var b = ui('netPauseBtn'); if (b) b.click(); };
 net.toggleTravelLock = function() { var b = ui('netTravelLockBtn'); if (b) b.click(); };
 net.endSession = function() { var b = ui('netEndBtn'); if (b) b.click(); };   // asks first, like the panel

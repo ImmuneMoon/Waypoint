@@ -644,6 +644,12 @@ function hostTravel(conn, traveler, portal, fromMap) {
     // The item's own portal target, else its linked room's
     var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (fromMap.rooms || []).find(function(r) { return r.id === portal.nodeId; });
     if (!pRoom || !pRoom.targetMapId || !tCamp.items[pRoom.targetMapId]) return false;
+    var destLockM = tCamp.items[pRoom.targetMapId];
+    if (destLockM.meta && destLockM.meta.playerLock) {   // closed to players until the GM opens it (summon and bring still work)
+        var kL = (traveler.id || 'x') + '|' + pRoom.targetMapId, nowL = Date.now();
+        if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) {} }
+        return false;
+    }
     var destMap = tCamp.items[pRoom.targetMapId];
     var landSrc = portal.targetMapId ? { id: null, name: portal.name, targetRoomId: portal.targetRoomId } : pRoom;
     var landRoom = findLandingRoom(landSrc, destMap);
@@ -1416,7 +1422,8 @@ function handleMessage(msg, conn) {
         setTravelLockLocal(!!msg.on);
         toast(msg.on ? 'The GM has locked travel between maps for now.' : 'Travel between maps is open again.');
     } else if (msg.type === 'travelDenied' && net.role === 'client') {
-        toast('Travel between maps is locked right now — the GM will open it when the time comes.');
+        if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
+        else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         if (net.paused) return;   // frozen table: no travel
         var traveler = net.roster[conn.peer];
@@ -2180,6 +2187,13 @@ net.summonPlayerById = function(playerId) {
     return true;
 };
 net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
+// Host: send the players a fresh copy of these maps (after a lock change, say)
+net.pushItems = function(ids) {
+    if (!(net.active && net.role === 'host')) return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    (ids || []).forEach(function(id) { var it = camp.items[id]; if (!it) return; var clean = sanitizeItem(it); if (clean) broadcast({ type: 'item', campId: camp.id, itemId: id, item: clean }, null); });
+};
+net.logEvent = logEvent;
 (function() {
     var b = ui('netCombatBtn'); if (!b) return;
     b.addEventListener('click', function() {

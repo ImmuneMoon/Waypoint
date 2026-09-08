@@ -144,6 +144,38 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       e.stopPropagation();
       navigateToMap(chip.dataset.id);
   });
+  // Lock or unlock a map (and, for a nest, every map under it) for players
+  function mapNest(camp, id) {
+      var out = [id];
+      Object.values(camp.items).forEach(function(it) { if (it.type === 'map' && it.id !== id && isMapDescendantOf(camp, it.id, id)) out.push(it.id); });
+      return out;
+  }
+  function setPlayerLock(ids, on) {
+      var camp = getActiveCampaign(); if (!camp) return;
+      var names = [];
+      ids.forEach(function(id) {
+          var m = camp.items[id]; if (!m || m.type !== 'map') return;
+          m.meta = m.meta || {};
+          if (on) m.meta.playerLock = true; else delete m.meta.playerLock;
+          names.push(m.meta.title || id);
+      });
+      save(true); updateSidebarNav();
+      var n = window.wpNet;
+      if (n && n.pushItems) n.pushItems(ids);
+      if (n && n.logEvent) n.logEvent('table', (on ? 'Locked ' : 'Unlocked ') + (names.length === 1 ? names[0] : names.length + ' maps (' + names[0] + '…)') + (on ? ' for players' : ' for players'));
+      toast((on ? 'Locked for players: ' : 'Open to players again: ') + (names.length === 1 ? names[0] : names[0] + ' and ' + (names.length - 1) + ' map' + (names.length === 2 ? '' : 's') + ' under it') + '.');
+  }
+  (function wireLockMenu() {
+      var one = document.getElementById('ctxLockItem'), nest = document.getElementById('ctxLockNest'), menu = document.getElementById('sidebarContextMenu');
+      function go(all) {
+          if (!menu) return; var id = menu.dataset.id; menu.style.display = 'none';
+          var camp = getActiveCampaign(), it = camp && camp.items[id]; if (!it || it.type !== 'map') return;
+          var on = !(it.meta && it.meta.playerLock);
+          setPlayerLock(all ? mapNest(camp, id) : [id], on);
+      }
+      if (one) one.addEventListener('click', function() { go(false); });
+      if (nest) nest.addEventListener('click', function() { go(true); });
+  })();
   function updateSidebarNav() {
 
       var camp = getActiveCampaign();
@@ -197,6 +229,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
                  guides + caret + (item.type === 'planner' && item.meta.status ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '✅' : '⏭') + '</span>' : '') +
+                 (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — they cannot travel here until you unlock it">&#128274;</span>' : '') +
                  '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
 
                  '</div>';
@@ -258,6 +291,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 menu.dataset.id = this.dataset.id;
                 var activeC = getActiveCampaign();
                 var it = activeC && activeC.items[this.dataset.id];
+                var isMapCtx = !!(it && it.type === 'map'), lockedCtx = !!(it && it.meta && it.meta.playerLock);
+                menu.querySelectorAll('.ctx-map-only').forEach(function(x) { x.style.display = isMapCtx ? 'block' : 'none'; });
+                var lockOne = document.getElementById('ctxLockItem'), lockNest = document.getElementById('ctxLockNest');
+                if (lockOne) lockOne.innerHTML = lockedCtx ? '&#128275; Unlock for players' : '&#128274; Lock for players';
+                if (lockNest) lockNest.innerHTML = lockedCtx ? '&#128275; Unlock this and every map under it' : '&#128274; Lock this and every map under it';
                 var childBtn = document.getElementById('ctxNewChildItem');
                 if (childBtn) {
                     childBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';

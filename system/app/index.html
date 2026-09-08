@@ -1140,6 +1140,9 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="sidebarContextMenu" class="dropdown" style="display:none; position:fixed; z-index:100000; flex-direction:column; background:var(--panel2); border:1px solid var(--gold); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:120px;">
     <div class="menu-item" id="ctxNewChildItem" style="padding:8px 16px; cursor:pointer; color:#fff;">+ New Child Map</div>
     <div class="menu-item" id="ctxRenameItem" style="padding:8px 16px; cursor:pointer; color:#fff;">Rename</div>
+    <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
+    <div class="menu-item ctx-map-only" id="ctxLockItem" style="padding:8px 16px; cursor:pointer;" title="Players cannot travel to a locked map — portals, warps and room links into it are refused. You can still summon or bring them there.">&#128274; Lock for players</div>
+    <div class="menu-item ctx-map-only" id="ctxLockNest" style="padding:8px 16px; cursor:pointer;" title="Lock (or unlock) this map together with every map nested under it — a whole module at once.">&#128274; Lock this and every map under it</div>
     <div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
 </div>

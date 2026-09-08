@@ -11,6 +11,18 @@ Planners
   over the rendered preview instead of the header. Nothing of that bar, or
   of the highlights, goes into an export.
 
+Maps
+- Lock maps for players. Right-click a map in the Maps sidebar: "Lock for
+  players" closes that map, "Lock this and every map under it" closes a whole
+  module at once (and the unlock twins open them again). Players cannot
+  travel to a locked map — portals, warps and room links into it are refused
+  with a plain "isn't open yet" — so a party stays inside the maps you have
+  opened until you are ready. Summon and Bring still work for you. A lock
+  mark shows in the tree and on portal hover.
+
+Fixes
+- Right-click menus close as soon as you scroll.
+
 WAYPOINT 1.4.0 — What's New
 ============================
 

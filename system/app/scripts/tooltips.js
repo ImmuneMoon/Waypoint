@@ -54,3 +54,14 @@
     document.addEventListener('scroll', hide, true);
     window.addEventListener('blur', hide);
 })();
+
+// Right-click menus close as soon as the page scrolls or the wheel turns (they are positioned for where the pointer was).
+(function closeMenusOnScroll() {
+    function close() {
+        var a = document.getElementById("sidebarContextMenu"); if (a && a.style.display !== "none") a.style.display = "none";
+        var b = document.getElementById("contextMenu"); if (b && b.style.display !== "none") b.style.display = "none";
+        var c = document.getElementById("partyMenu"); if (c) c.classList.remove("show");
+    }
+    document.addEventListener("scroll", close, true);
+    document.addEventListener("wheel", close, { capture: true, passive: true });
+})();

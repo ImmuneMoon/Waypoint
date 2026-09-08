@@ -1,3 +1,11 @@
+WAYPOINT 1.4.0 — What's New
+============================
+
+Planners
+- The text editor's bar has a symbol tray (Ω): arrows, em and en dashes,
+  ellipsis, bullets, maths signs, checks, stars, quotes and a few marks —
+  one click drops it in at the cursor.
+
 WAYPOINT 1.3.9 — What's New
 ============================
 
@@ -7,9 +15,6 @@ Planners
   clear formatting, from a bar over the box or Ctrl+B / I / U. Formatting
   applies to what you have selected, or to what you type next. No more
   typing <b> and <i> by hand — old blocks open exactly as they rendered.
-- The same bar has a symbol tray (Ω): arrows, em and en dashes, ellipsis,
-  bullets, maths signs, checks, stars, quotes and a few marks — one click
-  drops it in at the cursor.
 
 WAYPOINT 1.3.8 — What's New
 ============================

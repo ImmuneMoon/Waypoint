@@ -34,7 +34,7 @@ import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiv
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
 
-import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
+import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
 import { showPrompt, showConfirm, isCampaignNameTaken, getUniqueCampaignTitle, promptForCampaignName, isItemNameTaken, getUniqueItemTitle, promptForItemName } from './dialogs.js';
 
@@ -150,7 +150,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(plain ? 'Table title (optional)' : 'Node Title')+'" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
               if (!plain) {
                   html += '<input type="text" class="field b-sub" value="'+esc(b.tag||'')+'" placeholder="Tag (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
-                  html += '<input type="text" class="field b-must" value="'+esc(b.must||'')+'" placeholder="Must Resolve... (optional)" data-idx="'+idx+'" style="margin-bottom:10px; width:100%;">';
+                  html += '<input type="text" class="field b-must" value="'+esc(b.must||'')+'" placeholder="Must Resolve... (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
+                  var campL = getActiveCampaign();
+                  var mapsL = campL ? Object.values(campL.items).filter(function(i) { return i.type === 'map'; }).sort(function(x, y) { return String(x.meta.title || '').localeCompare(String(y.meta.title || '')); }) : [];
+                  var linkedMap = b.linkMapId && campL ? campL.items[b.linkMapId] : null;
+                  html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Map <select class="b-linkmap" data-idx="'+idx+'" title="The map this scene plays on; the preview gets an Open link"><option value="">(none)</option>' + mapsL.map(function(m) { return '<option value="'+esc(m.id)+'"'+(b.linkMapId === m.id ? ' selected' : '')+'>'+esc(m.meta.title || m.id)+'</option>'; }).join('') + '</select></label>';
+                  if (linkedMap) html += '<label>Room <select class="b-linkroom" data-idx="'+idx+'" title="Land in this room"><option value="">(map as a whole)</option>' + (linkedMap.rooms || []).map(function(r) { return '<option value="'+esc(r.id)+'"'+(b.linkRoomId === r.id ? ' selected' : '')+'>'+esc(r.name || r.id)+'</option>'; }).join('') + '</select></label>';
+                  html += '</div>';
               }
               var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
               if (!b.rows) b.rows = [];
@@ -269,6 +275,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].must = this.value; save(false); renderPlannerPreview(); }));
 
+      Array.from(blockContainer.querySelectorAll('.b-linkmap')).forEach(el => el.addEventListener('change', function() {
+          var bb = activeMap.blocks[this.dataset.idx];
+          if (this.value) bb.linkMapId = this.value; else delete bb.linkMapId;
+          delete bb.linkRoomId;
+          save(true); renderPlanner();
+      }));
+      Array.from(blockContainer.querySelectorAll('.b-linkroom')).forEach(el => el.addEventListener('change', function() {
+          var bb = activeMap.blocks[this.dataset.idx];
+          if (this.value) bb.linkRoomId = this.value; else delete bb.linkRoomId;
+          save(false); renderPlannerPreview();
+      }));
       Array.from(blockContainer.querySelectorAll('.b-mode')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];
           if (this.value === 'table') bb.mode = 'table'; else delete bb.mode;
@@ -394,6 +411,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var pw = document.getElementById('plannerPreviewWrap');
 
+      var stSel = document.getElementById('plannerStatus');
+      if (stSel) { var amS = getActiveMap(); stSel.value = (amS && amS.meta && amS.meta.status) || ''; }
       var btn = document.getElementById('renderPlannerBtn');
 
       if (!ed || !pw) return;
@@ -672,6 +691,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
               if (!plainPv || b.title) html += '<h3>' + (b.title||'') + (!plainPv && b.tag ? ' <span class="tag">'+b.tag+'</span>' : '') + '</h3>';
               if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> '+b.must+'</p>';
+              if (!plainPv && b.linkMapId) {
+                  var campP = getActiveCampaign(), mapP = campP && campP.items[b.linkMapId];
+                  if (mapP) {
+                      var roomP = b.linkRoomId ? (mapP.rooms || []).find(function(r) { return r.id === b.linkRoomId; }) : null;
+                      html += '<p class="pv-linkrow"><a href="#" class="pv-link" data-map="' + esc(b.linkMapId) + '" data-room="' + esc(b.linkRoomId || '') + '" title="Open this map' + (roomP ? ' at ' + esc(roomP.name || '') : '') + '">&#128205; Open ' + esc(mapP.meta.title || 'map') + (roomP ? ' · ' + esc(roomP.name || '') : '') + '</a></p>';
+                  }
+              }
               if (b.rows && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
 
@@ -781,6 +807,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var _el_renderPlannerBtn = document.getElementById('renderPlannerBtn');
 
+var _el_plannerStatus = document.getElementById('plannerStatus');
+if (_el_plannerStatus) _el_plannerStatus.addEventListener('change', function() {
+    var am = getActiveMap(); if (!am || am.type !== 'planner') return;
+    am.meta = am.meta || {};
+    if (this.value) am.meta.status = this.value; else delete am.meta.status;
+    if (this.value === 'next') {   // only one scene is "next" at a time
+        var camp = getActiveCampaign();
+        Object.values(camp.items).forEach(function(it) { if (it !== am && it.type === 'planner' && it.meta && it.meta.status === 'next') delete it.meta.status; });
+    }
+    save(true); updateSidebarNav();
+    toast(this.value === 'next' ? 'Marked as the next scene.' : this.value === 'played' ? 'Marked played.' : this.value === 'skipped' ? 'Marked skipped.' : 'Status cleared.');
+});
 if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function() {
     plannerFullscreen = !plannerFullscreen;
     var amR = getActiveMap();
@@ -797,7 +835,11 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
   // Double-click anywhere in the rendered preview to jump the editor to that block
 
   var _el_plannerPreviewEl = document.getElementById('plannerPreview');
-
+  if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', function(e) {
+      var a = e.target.closest && e.target.closest('.pv-link'); if (!a) return;
+      e.preventDefault(); e.stopPropagation();
+      navigateToMap(a.dataset.map, a.dataset.room || null);
+  });
   if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('dblclick', function(e) {
 
       var blk = e.target.closest('.pv-blk');

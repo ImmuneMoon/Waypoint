@@ -167,7 +167,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
-                 guides + caret + '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
+                 guides + caret + (item.type === 'planner' && item.meta.status ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '✅' : '⏭') + '</span>' : '') +
+                 '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
 
                  '</div>';
 

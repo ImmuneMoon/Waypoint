@@ -3359,6 +3359,8 @@ function tableMenuParts(e, role) {
     if (role === 'client') {
         html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave Session</div>';
     } else {
+        var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
+        if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
         html += castMenuHtml(camp);
         if (role === 'host') {
             html += '<div class="menu-divider"></div>' + head('Session');
@@ -3380,6 +3382,7 @@ function tableMenuParts(e, role) {
                 if (act === 'summon') n.summonAll();
                 else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
                 else if (act === 'cast-manage') openCastModal();
+                else if (act === 'scene') { var campN = getActiveCampaign(); if (campN && campN.items[it.dataset.id]) { campN.activeItemId = it.dataset.id; state.selId = null; state.selWbId = null; import('./sidebar.js').then(function(m) { m.updateSidebarNav(); }); import('./io.js').then(function(m) { m.save(true); }); if (window.appRender) window.appRender(); } }
                 else if (act === 'bring') n.bringPlayerHere(it.dataset.pid, pt.x, pt.y);
                 else if (act === 'travel') n.toggleTravelLock();
                 else if (act === 'pause') n.togglePause();

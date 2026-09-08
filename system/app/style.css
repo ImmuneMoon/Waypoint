@@ -1130,3 +1130,13 @@
   body.net-client .hdr-group[data-label="Journal"] { display: inline-flex; }
 
   .tool.icon.needs-session { opacity: .45; }
+
+  /* Scene status marks in the planner tree */
+  .si-status { flex: 0 0 auto; font-size: 11px; margin-right: 2px; }
+  .si-status.si-next { color: var(--gold); }
+  .si-status.si-skipped { opacity: .6; }
+  #plannerStatus { margin-left: 6px; }
+  /* Planner → map link */
+  #plannerPreviewWrap .pv-linkrow { margin: 4px 0 8px; }
+  #plannerPreviewWrap .pv-link { color: var(--blue); text-decoration: none; border: 1px solid var(--edge); border-radius: 6px; padding: 3px 9px; font-size: 12.5px; display: inline-block; }
+  #plannerPreviewWrap .pv-link:hover { border-color: var(--gold); color: var(--gold); }

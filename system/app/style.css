@@ -1143,7 +1143,7 @@
   .si-status { flex: 0 0 auto; font-size: 11px; margin-right: 2px; }
   .si-status.si-next { color: var(--gold); }
   .si-status.si-skipped { opacity: .6; }
-  #plannerStatus { margin-left: 6px; }
+  #plannerStatus { margin-left: 0; }
   /* Planner → map link */
   #plannerPreviewWrap .pv-linkrow { margin: 4px 0 8px; }
   #plannerPreviewWrap .pv-link { color: var(--blue); text-decoration: none; border: 1px solid var(--edge); border-radius: 6px; padding: 3px 9px; font-size: 12.5px; display: inline-block; }
@@ -1240,3 +1240,14 @@
   .rte-symwrap.open .rte-symbtn { background: var(--edge); color: var(--gold); }
   .rte-sym { font: inherit; font-size: 15px; width: 30px; height: 28px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink); cursor: pointer; line-height: 1; }
   .rte-sym:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Find in planner */
+  #plannerFindBar { position: sticky; top: -20px; z-index: 5; display: flex; justify-content: flex-end; margin: -20px -20px 10px; padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--edge); }
+  #plannerFindWrap { display: inline-flex; align-items: center; gap: 3px; }
+  #plannerTools.hdr-group { gap: 4px; }
+  #plannerFind { width: 170px; padding: 5px 9px; font-size: 12.5px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); color: var(--ink); outline: none; }
+  #plannerFind:focus { border-color: var(--gold); }
+  #plannerFindCount { color: var(--dim); font-size: 11px; min-width: 42px; text-align: center; }
+  #plannerFindWrap .tool.icon { width: 26px; height: 26px; font-size: 9px; }
+  #plannerPreview mark.pf-hit { background: rgba(224,165,79,0.35); color: inherit; border-radius: 3px; padding: 0 1px; }
+  #plannerPreview mark.pf-hit.pf-cur { background: var(--gold); color: #1a1408; box-shadow: 0 0 0 2px rgba(224,165,79,0.45); }

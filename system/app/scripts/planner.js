@@ -715,7 +715,105 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           fcWireResize(box, b);
       });
   }
+  /* ---- find in planner ----
+     Highlights in the rendered preview only (the editor boxes are left alone). Text nodes are
+     matched on a normalised copy (lower case, accents stripped) with an index map back to the
+     original, so "Selkath" is found by "selk" and "Sahrhie" by "sahr". The exact phrase wins;
+     with no phrase hit, every word is matched at word starts. */
+  var pfState = { q: '', hits: [], cur: -1 };
+  function pfNorm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+  function pfClear() {
+      var pv = document.getElementById('plannerPreview'); if (!pv) return;
+      pv.querySelectorAll('mark.pf-hit').forEach(function(m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); p.normalize(); });
+      pfState.hits = []; pfState.cur = -1;
+  }
+  function pfTextNodes(root) {
+      var out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function(n) {
+          var p = n.parentNode; if (!p) return NodeFilter.FILTER_REJECT;
+          var tag = p.nodeName; if (tag === 'SCRIPT' || tag === 'STYLE' || p.closest('svg')) return NodeFilter.FILTER_REJECT;
+          return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      } });
+      var n; while ((n = w.nextNode())) out.push(n);
+      return out;
+  }
+  // ranges [start,end) in a text node's original string for a regex over its normalised form
+  function pfRanges(node, re) {
+      var orig = node.nodeValue, map = [], norm = '';
+      for (var i = 0; i < orig.length; i++) { var ch = orig[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); for (var k = 0; k < ch.length; k++) map.push(i); norm += ch; }
+      map.push(orig.length);
+      var out = [], m; re.lastIndex = 0;
+      while ((m = re.exec(norm))) { if (!m[0]) { re.lastIndex++; continue; } out.push([map[m.index], map[m.index + m[0].length - 1] + 1]); }
+      return out;
+  }
+  function pfWrap(node, ranges) {
+      var hits = [];
+      for (var i = ranges.length - 1; i >= 0; i--) {   // from the end so earlier offsets stay valid
+          var r = ranges[i], rest = node.splitText(r[0]), after = rest.splitText(r[1] - r[0]);
+          var mk = document.createElement('mark'); mk.className = 'pf-hit'; rest.parentNode.insertBefore(mk, rest); mk.appendChild(rest);
+          hits.unshift(mk); void after;
+      }
+      return hits;
+  }
+  function pfEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function plannerFindApply(keepCur) {
+      var pv = document.getElementById('plannerPreview'), box = document.getElementById('plannerFind'), cnt = document.getElementById('plannerFindCount'); if (!pv || !box) return;
+      var wasCur = keepCur ? pfState.cur : -1;
+      pfClear();
+      var q = pfNorm(box.value).trim(); pfState.q = q;
+      if (!q) { if (cnt) cnt.textContent = ''; return; }
+      var nodes = pfTextNodes(pv), hits = [];
+      var phrase = new RegExp(pfEsc(q), 'g');
+      nodes.forEach(function(n) { var rs = pfRanges(n, phrase); if (rs.length) hits = hits.concat(pfWrap(n, rs)); });
+      if (!hits.length && /\s/.test(q)) {   // no phrase: every word, at word starts
+          var words = q.split(/\s+/).filter(Boolean).map(pfEsc);
+          var re = new RegExp('(?<![a-z0-9])(' + words.join('|') + ')[a-z0-9]*', 'g');
+          nodes = pfTextNodes(pv);
+          nodes.forEach(function(n) {
+              var rs = pfRanges(n, re).map(function(r) { return r; });
+              if (rs.length) hits = hits.concat(pfWrap(n, rs));
+          });
+      } else if (!hits.length) {   // one word: at word starts, any ending
+          var re1 = new RegExp('(?<![a-z0-9])(' + pfEsc(q) + ')[a-z0-9]*', 'g');
+          nodes = pfTextNodes(pv);
+          nodes.forEach(function(n) { var rs = pfRanges(n, re1); if (rs.length) hits = hits.concat(pfWrap(n, rs)); });
+      }
+      pfState.hits = hits;
+      if (!hits.length) { if (cnt) cnt.textContent = '0'; pfState.cur = -1; return; }
+      pfGo(wasCur >= 0 && wasCur < hits.length ? wasCur : 0, true);
+  }
+  function pfGo(i, quiet) {
+      var hits = pfState.hits, cnt = document.getElementById('plannerFindCount'); if (!hits.length) return;
+      if (pfState.cur >= 0 && hits[pfState.cur]) hits[pfState.cur].classList.remove('pf-cur');
+      pfState.cur = ((i % hits.length) + hits.length) % hits.length;
+      var h = hits[pfState.cur]; h.classList.add('pf-cur');
+      h.scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });
+      if (cnt) cnt.textContent = (pfState.cur + 1) + ' / ' + hits.length;
+  }
+  (function wirePlannerFind() {
+      var box = document.getElementById('plannerFind'); if (!box) return;
+      var t = null;
+      box.addEventListener('input', function() { clearTimeout(t); t = setTimeout(function() { plannerFindApply(false); }, 120); });
+      box.addEventListener('keydown', function(e) {
+          e.stopPropagation();
+          if (e.key === 'Enter') { e.preventDefault(); pfGo(pfState.cur + (e.shiftKey ? -1 : 1)); }
+          else if (e.key === 'Escape') { box.value = ''; plannerFindApply(false); box.blur(); }
+      });
+      var nx = document.getElementById('plannerFindNext'), pr = document.getElementById('plannerFindPrev');
+      if (nx) nx.addEventListener('click', function() { pfGo(pfState.cur + 1); });
+      if (pr) pr.addEventListener('click', function() { pfGo(pfState.cur - 1); });
+      document.addEventListener('keydown', function(e) {
+          if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'f') return;
+          var am = getActiveMap(); if (!am || am.type !== 'planner') return;
+          e.preventDefault(); box.focus(); box.select();
+      });
+  })();
+  window.wpPlannerFind = plannerFindApply;
   function renderPlannerPreview() {
+      renderPlannerPreviewCore();
+      var box = document.getElementById('plannerFind');
+      if (box && box.value.trim()) plannerFindApply(true);   // keep the hits lit through an edit
+  }
+  function renderPlannerPreviewCore() {
 
       var activeMap = getActiveMap();
 

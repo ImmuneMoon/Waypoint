@@ -64,6 +64,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function renderWhiteboard() {
       if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+      if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
 
       var activeMap = getActiveMap();
 
@@ -455,6 +456,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (clientView) { el.style.display = absentOwner ? 'none' : ''; }
 
           else { el.style.display = ''; el.classList.toggle('wb-absent', absentOwner); }
+          var combatR = window.wpNet && window.wpNet.active && window.wpNet.combats && window.wpNet.combats[activeMap.id];
+          el.classList.toggle('wb-turn', !!(combatR && combatR.rows[combatR.turn] && combatR.rows[combatR.turn].tokId === item.id));
           if (state.selWbIds && state.selWbIds.includes(item.id) && state.selWbIds.length > 1) { el.style.boxShadow = '0 0 0 2px var(--gold)'; } else { el.style.boxShadow = 'none'; }
 
           
@@ -3345,6 +3348,128 @@ function castMenuHtml(camp) {
     html += '<div class="menu-item cm-session" data-act="cast-manage">&#9998; Manage Cast…</div>';
     return html;
 }
+/* ---------- combat: roster panel (GM) and the turn strip (everyone) ---------- */
+var combatDraft = null;   // { mapId, rows:[{id,name,tokId,init,src,on}], running }
+function combatRowsFor(mapId, opts) {
+    var camp = getActiveCampaign(), map = camp && camp.items[mapId]; if (!map) return [];
+    var n = window.wpNet, running = n.combats && n.combats[mapId];
+    var byTok = {}; (running ? running.rows : []).forEach(function(r) { if (r.tokId) byTok[r.tokId] = r; });
+    var pre = (opts && opts.pre) || [];
+    var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
+        var was = byTok[w.id];
+        var on = was ? true : (!!w.ownerId || pre.indexOf(w.id) >= 0);
+        return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null, on: on, party: !!w.ownerId };
+    });
+    // custom rows of a running combat (no token) stay
+    (running ? running.rows : []).forEach(function(r) { if (!r.tokId) rows.push({ id: r.id, name: r.name, tokId: null, init: r.init, src: null, on: true, custom: true }); });
+    if (running) {   // keep the running order first, newcomers after
+        var order = {}; running.rows.forEach(function(r, i) { order[r.id] = i; });
+        rows.sort(function(a, b) { var x = order[a.id] !== undefined ? order[a.id] : 999 + rows.indexOf(a), y = order[b.id] !== undefined ? order[b.id] : 999 + rows.indexOf(b); return x - y; });
+    } else rows.sort(function(a, b) { return (b.party ? 1 : 0) - (a.party ? 1 : 0) || a.name.localeCompare(b.name); });
+    return rows;
+}
+function combatSortByInit(rows) {   // high to low, ties keep their place
+    return rows.map(function(r, i) { return { r: r, i: i }; }).sort(function(a, b) { return (b.r.init - a.r.init) || (a.i - b.i); }).map(function(x) { return x.r; });
+}
+function renderCombatModal() {
+    var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list || !combatDraft) return;
+    var camp = getActiveCampaign(), map = camp && camp.items[combatDraft.mapId];
+    document.getElementById('combatMapName').textContent = map && map.meta && map.meta.title || combatDraft.mapId;
+    var running = combatDraft.running;
+    document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start Combat';
+    list.innerHTML = combatDraft.rows.map(function(r, i) {
+        return '<div class="combat-row' + (r.on ? '' : ' off') + '" draggable="true" data-i="' + i + '">'
+            + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
+            + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + ' title="In the fight">'
+            + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '&#10022;' : '&#9733;') + '</span>')
+            + '<span class="combat-name">' + esc(r.name) + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + '</span>'
+            + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '" title="Initiative — higher goes first">'
+            + '<button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button>'
+            + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row">&times;</button>' : '')
+            + '</div>';
+    }).join('') || '<div style="color:var(--dim); padding:8px;">No character tokens on this map. Add a custom row below, or place tokens first.</div>';
+    m.style.display = 'flex';
+}
+function openCombatModal(mapId, opts) {
+    var n = window.wpNet; if (!(n && n.active && n.role === 'host')) { toast('Combat runs at the table — host a session first.'); return; }
+    var running = n.combats && n.combats[mapId];
+    combatDraft = { mapId: mapId, rows: combatRowsFor(mapId, opts), running: !!running };
+    renderCombatModal();
+}
+window.wpOpenCombat = openCombatModal;
+(function wireCombatModal() {
+    var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list) return;
+    function rowOf(e) { var r = e.target.closest && e.target.closest('.combat-row'); return r ? +r.dataset.i : -1; }
+    list.addEventListener('change', function(e) {
+        var i = rowOf(e); if (i < 0) return;
+        if (e.target.classList.contains('combat-on')) { combatDraft.rows[i].on = e.target.checked; renderCombatModal(); }
+        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); }
+    });
+    list.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    list.addEventListener('click', function(e) {
+        var i = rowOf(e); if (i < 0) return;
+        var rows = combatDraft.rows;
+        if (e.target.closest('.combat-up') && i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
+        else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
+        else if (e.target.closest('.combat-del')) { rows.splice(i, 1); renderCombatModal(); }
+    });
+    var dragI = -1;
+    list.addEventListener('dragstart', function(e) { dragI = rowOf(e); if (dragI < 0) { e.preventDefault(); return; } e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(dragI)); } catch (err) {} });
+    list.addEventListener('dragover', function(e) { if (dragI < 0) return; e.preventDefault(); var r = e.target.closest && e.target.closest('.combat-row'); list.querySelectorAll('.combat-row').forEach(function(x) { x.classList.toggle('drop-before', x === r); }); });
+    list.addEventListener('drop', function(e) {
+        e.preventDefault(); var j = rowOf(e); if (dragI < 0 || j < 0 || j === dragI) { dragI = -1; renderCombatModal(); return; }
+        var rows = combatDraft.rows, mv = rows.splice(dragI, 1)[0]; rows.splice(j, 0, mv); dragI = -1; renderCombatModal();
+    });
+    list.addEventListener('dragend', function() { dragI = -1; list.querySelectorAll('.drop-before').forEach(function(x) { x.classList.remove('drop-before'); }); });
+    var addBtn = document.getElementById('combatAddBtn'), addName = document.getElementById('combatAddName');
+    function addCustom() {
+        var name = (addName.value || '').trim(); if (!name) { addName.focus(); return; }
+        combatDraft.rows.push({ id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name.slice(0, 60), tokId: null, init: 0, src: null, on: true, custom: true });
+        addName.value = ''; renderCombatModal();
+    }
+    if (addBtn) addBtn.addEventListener('click', addCustom);
+    if (addName) addName.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter') addCustom(); });
+    document.getElementById('combatCancelBtn').addEventListener('click', function() { m.style.display = 'none'; combatDraft = null; });
+    document.getElementById('combatCloseBtn').addEventListener('click', function() { m.style.display = 'none'; combatDraft = null; });
+    document.getElementById('combatStartBtn').addEventListener('click', function() {
+        var n = window.wpNet; if (!combatDraft || !n) return;
+        var rows = combatDraft.rows.filter(function(r) { return r.on; }).map(function(r) { return { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; });
+        if (!rows.length) { toast('Tick at least one combatant.'); return; }
+        var was = n.combats && n.combats[combatDraft.mapId];
+        var turn = 0, round = 1;
+        if (was) { round = was.round; var curId = (was.rows[was.turn] || {}).id; var at = rows.findIndex(function(r) { return r.id === curId; }); turn = at >= 0 ? at : 0; }
+        n.combatSet(combatDraft.mapId, { mapId: combatDraft.mapId, round: round, turn: turn, rows: rows });
+        m.style.display = 'none'; combatDraft = null;
+    });
+})();
+function renderCombatStrip() {
+    var strip = document.getElementById('combatStrip'); if (!strip) return;
+    var n = window.wpNet, am = getActiveMap();
+    var c = n && n.active && am && am.type === 'map' && state.viewMode === 'visual' && n.combats && n.combats[am.id];
+    if (!c) { strip.innerHTML = ''; strip.style.display = 'none'; return; }
+    var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
+    var host = n.role === 'host';
+    strip.style.display = 'flex';
+    strip.innerHTML = '<span class="combat-strip-round" title="Round">&#9876; R' + c.round + '</span>'
+        + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
+        + '<span class="combat-strip-cur" title="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + esc(cur.name || '') + '</span>'
+        + '<span class="combat-strip-next" title="Up next">next ' + esc(nxt.name || '') + '</span>'
+        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
+}
+window.wpRenderCombatStrip = renderCombatStrip;
+(function wireCombatStrip() {
+    var strip = document.getElementById('combatStrip'); if (!strip) return;
+    strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+    strip.addEventListener('click', function(e) {
+        var b = e.target.closest && e.target.closest('.combat-strip-btn'); if (!b) return;
+        e.stopPropagation();
+        var n = window.wpNet, am = getActiveMap(); if (!(n && n.role === 'host' && am)) return;
+        if (b.dataset.act === 'next') n.combatStep(am.id, 1);
+        else if (b.dataset.act === 'prev') n.combatStep(am.id, -1);
+        else if (b.dataset.act === 'edit') openCombatModal(am.id, {});
+        else if (b.dataset.act === 'end') n.combatEnd(am.id);
+    });
+})();
 function openCastModal() {
     var m = document.getElementById('castModal'), list = document.getElementById('castList'); if (!m || !list) return;
     var camp = getActiveCampaign(); if (!camp) return;
@@ -3410,6 +3535,16 @@ function tableMenuParts(e, role) {
         html += castMenuHtml(camp);
         if (role === 'host') {
             html += '<div class="menu-divider"></div>' + head('Session');
+            var combatM = getActiveMap() && n.combats && n.combats[getActiveMap().id];
+            if (combatM) {
+                var curM = combatM.rows[combatM.turn] || {};
+                html += '<div class="menu-item cm-session" data-act="combat-next" title="Round ' + combatM.round + ' — ' + esc(curM.name || '') + ' is up">&#9876; Next Turn</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-prev">&#9194; Previous Turn</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-edit">&#9998; Combat Roster\u2026</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)">End Combat</div>';
+            } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns">&#9876; Start Combat\u2026</div>';
+            html += '<div class="menu-item cm-session" data-act="notepad">&#128221; ' + (n.notepad && n.notepad.on ? 'Put Away Table Notepad' : 'Open Table Notepad') + '</div>';
+            html += '<div class="menu-divider"></div>';
             html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
             html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';
             html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table') + '</div>';
@@ -3430,6 +3565,11 @@ function tableMenuParts(e, role) {
                 else if (act === 'cast') castPlace(it.dataset.cid, pt.x, pt.y, 1);
                 else if (act === 'cast-manage') openCastModal();
                 else if (act === 'log') n.openSessionLog();
+                else if (act === 'notepad') n.notepadToggle();
+                else if (act === 'combat' || act === 'combat-edit') { var amX = getActiveMap(); if (amX) openCombatModal(amX.id, {}); }
+                else if (act === 'combat-next') { var amN = getActiveMap(); if (amN) n.combatStep(amN.id, 1); }
+                else if (act === 'combat-prev') { var amP = getActiveMap(); if (amP) n.combatStep(amP.id, -1); }
+                else if (act === 'combat-end') { var amE = getActiveMap(); if (amE) n.combatEnd(amE.id); }
                 else if (act === 'pin') {
                     var campP = getActiveCampaign(), amP = getActiveMap(); if (!campP || !amP) return;
                     campP.pinnedMaps = (campP.pinnedMaps || []).filter(function(id) { return campP.items[id]; });

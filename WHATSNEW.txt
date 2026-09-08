@@ -1,6 +1,29 @@
 WAYPOINT 1.3.6 — What's New
 ============================
 
+Combat
+- Turn order at the table. Start Combat from the play-map right-click menu
+  (Session) or the Multiplayer panel: a roster of everyone on that map — the
+  party ticked, other characters ready to tick, plus custom rows for things
+  without a token — with an initiative each. Higher goes first, ties keep
+  their place, and you can drag rows into any order by hand.
+- Running it: Next and Previous turn, a round counter, and End Combat from
+  the same menu or the turn strip at the top of the map. The active token
+  gets a gold ring for everyone. Players see the strip — whose turn it is and
+  who is next — and cannot change it.
+- A player targeting an NPC asks the GM whether to start combat there (once
+  per NPC per session). Nothing starts on its own.
+- One combat per map, so a split party can fight on two maps at once. Late
+  joiners see the running combat; it ends with the session.
+
+Table notepad
+- A disposable notepad for the table. The GM opens it from the play-map
+  right-click menu (Session) or the Multiplayer panel; everyone sees it as
+  the GM types. Anyone can save it to their Journal with one press; the GM
+  can clear it (it asks first). It is gone when the GM puts it away or the
+  session ends — never part of the save.
+
+
 Planners
 - Scene status. A Status picker in the planner toolbar marks a scene Next,
   Played or Skipped; the mark shows before its name in the Planners tree,

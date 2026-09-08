@@ -454,6 +454,21 @@ async function shareEntry(campId, id, to, btn) {
     }
     if (btn) { btn.disabled = true; var s = btn.parentNode.querySelector('.journal-share'); if (s) s.value = ''; }
 }
+// Save a page of text (the table notepad) to the journal: the campaign's section for a player, the GM's own
+window.wpJournalAddNote = async function(meta, title, text) {
+    var n = window.wpNet, key;
+    if (n && n.role === 'host') { var own = ownCampaignKey(); key = own ? own.key : 'personal'; }
+    else key = journalKey(meta || {}) || 'personal';
+    var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    await withIndex(key, function(idx) {
+        if (key === 'personal') idx.campaign = idx.campaign || 'Personal notes';
+        else if (meta && meta.campaign) stampHead(idx, meta);
+        idx.entries.push({ id: id, kind: 'note', title: String(title || '').slice(0, 120), text: String(text || '').slice(0, 60000), receivedAt: Date.now(), notes: '' });
+    });
+    await registerJournal(key);
+    badge(unseen + 1);
+    toast('Saved to your Journal as "' + String(title || 'Note').slice(0, 60) + '".');
+};
 // The GM's own campaign, keyed the way players' journals key it (campaign id + GM id)
 function ownCampaignKey() {
     var n = window.wpNet; if (!n || !n.myId || n.foreign || (n.active && n.role === 'client')) return null;

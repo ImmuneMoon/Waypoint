@@ -465,6 +465,9 @@ function applySnapshot(msg) {
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     setTravelLockLocal(!!msg.travelLocked);
     net.targets = cleanTargets(msg.targets);
+    net.combats = cleanCombats(msg.combats);
+    if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
+    if (msg.notepad && typeof msg.notepad === 'object') applyNotepad(msg.notepad);
     if (msg.stage) {
         applyStage(msg.stage);
     } else {
@@ -870,6 +873,152 @@ net.applyStage = applyStage;
    and hands the current map to late joiners in the snapshot. A target is a pointer, nothing
    more: it never changes the token it points at. */
 net.targets = {};
+/* ---------- table notepad ----------
+   A disposable pad the GM opens for the table: everyone sees it live, anyone can save it to their
+   Journal, and it is gone when the GM puts it away or the session ends. Never saved with the campaign. */
+net.notepad = { on: false, text: '' };
+var notepadTimer = null;
+function notepadMsg() {
+    var camp = getActiveCampaign() || {};
+    return { type: 'notepad', on: !!net.notepad.on, text: String(net.notepad.text || '').slice(0, 20000), campId: camp.id || '', gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM' };
+}
+function renderNotepad() {
+    var p = ui('notepadPanel'), ta = ui('notepadText'); if (!p || !ta) return;
+    var on = net.active && net.notepad.on;
+    p.style.display = on ? 'flex' : 'none';
+    if (!on) return;
+    var host = net.role === 'host';
+    ta.readOnly = !host;
+    ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
+    if (document.activeElement !== ta && ta.value !== net.notepad.text) ta.value = net.notepad.text || '';
+    var close = ui('notepadCloseBtn'); if (close) close.style.display = host ? '' : 'none';
+    var clr = ui('notepadClearBtn'); if (clr) clr.style.display = host ? '' : 'none';
+    var who = ui('notepadWho'); if (who) who.textContent = host ? 'everyone at the table sees this' : 'written by ' + (net.notepad.gm || 'the GM');
+}
+window.wpRenderNotepad = renderNotepad;
+net.notepadToggle = function() {
+    if (net.role !== 'host') return;
+    if (net.notepad.on) {
+        var has = String(net.notepad.text || '').trim();
+        showConfirm('Put the table notepad away? ' + (has ? 'Its text goes for everyone who has not saved it to their Journal.' : 'It is empty.'), function(yes) {
+            if (!yes) return;
+            net.notepad = { on: false, text: '' };
+            broadcast(notepadMsg(), null); renderNotepad(); toast('Notepad put away.');
+            logEvent('table', 'Table notepad put away');
+        });
+    } else {
+        net.notepad.on = true;
+        broadcast(notepadMsg(), null); renderNotepad(); toast('Table notepad open — everyone sees it.');
+        logEvent('table', 'Table notepad opened');
+        var ta = ui('notepadText'); if (ta) setTimeout(function() { ta.focus(); }, 50);
+    }
+};
+net.notepadInput = function(text) {
+    if (net.role !== 'host' || !net.notepad.on) return;
+    net.notepad.text = String(text || '').slice(0, 20000);
+    clearTimeout(notepadTimer);
+    notepadTimer = setTimeout(function() { broadcast(notepadMsg(), null); }, 250);
+};
+(function() {
+    var ta = ui('notepadText'), close = ui('notepadCloseBtn'), saveB = ui('notepadSaveBtn'), minB = ui('notepadMinBtn'), p = ui('notepadPanel'), head = ui('notepadHead');
+    if (!ta) return;
+    ta.addEventListener('input', function() { net.notepadInput(ta.value); });
+    ta.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    if (close) close.addEventListener('click', function() { net.notepadToggle(); });
+    var clearB = ui('notepadClearBtn');
+    if (clearB) clearB.addEventListener('click', function() {
+        if (net.role !== 'host' || !net.notepad.on) return;
+        if (!String(net.notepad.text || ta.value || '').trim()) { toast('The notepad is already empty.'); return; }
+        showConfirm('Clear the table notepad? The text goes for everyone who has not saved it to their Journal. The notepad stays open.', function(yes) {
+            if (!yes) return;
+            clearTimeout(notepadTimer);
+            net.notepad.text = ''; ta.value = '';
+            broadcast(notepadMsg(), null); renderNotepad(); toast('Notepad cleared.');
+            logEvent('table', 'Table notepad cleared');
+        });
+    });
+    if (minB) minB.addEventListener('click', function() { p.classList.toggle('min'); minB.textContent = p.classList.contains('min') ? '\u25B4' : '\u25BE'; });
+    if (saveB) saveB.addEventListener('click', function() {
+        var text = net.role === 'host' ? ta.value : (net.notepad.text || '');
+        if (!String(text).trim()) { toast('Nothing on the notepad yet.'); return; }
+        var meta = net.role === 'host' ? notepadMsg() : net.notepad;
+        if (window.wpJournalAddNote) window.wpJournalAddNote(meta, 'Table notes — ' + new Date().toLocaleDateString(), text);
+    });
+    var pb = ui('netNotepadBtn'); if (pb) pb.addEventListener('click', function() {
+        if (!(net.active && net.role === 'host')) { toast('Host a session first — the notepad is for the table.'); return; }
+        ui('netModal').style.display = 'none'; net.notepadToggle();
+    });
+    // drag the pad around by its header (position kept for this session only)
+    if (head && p) {
+        var d = null;
+        head.addEventListener('pointerdown', function(e) {
+            if (e.target.closest('button')) return;
+            var r = p.getBoundingClientRect(); d = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); e.preventDefault();
+        });
+        head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; });
+        head.addEventListener('pointerup', function() { d = null; });
+        head.addEventListener('pointercancel', function() { d = null; });
+    }
+})();
+
+/* ---------- combat / turn order ----------
+   One combat per map: net.combats[mapId] = { mapId, round, turn, rows: [{ id, name, tokId, init, src }] }.
+   The host owns it; clients get it in the snapshot and in 'combats' messages. Ends with the session. */
+net.combats = {};
+var combatAsked = {};   // mapId|tokId -> true: the "start combat?" question for a targeted NPC is asked once per session
+function cleanCombats(c) {
+    var out = {}; if (!c || typeof c !== 'object') return out;
+    Object.keys(c).slice(0, 40).forEach(function(mapId) {
+        var k = c[mapId]; if (!k || typeof k !== 'object' || !Array.isArray(k.rows)) return;
+        var rows = k.rows.slice(0, 60).map(function(r) {
+            return r && typeof r === 'object' ? { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Number(r.init) || 0, src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null } : null;
+        }).filter(Boolean);
+        if (!rows.length) return;
+        out[String(mapId).slice(0, 80)] = { mapId: String(mapId).slice(0, 80), round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
+    });
+    return out;
+}
+function applyNotepad(m) {
+    var was = net.notepad.on;
+    net.notepad = { on: !!m.on, text: String(m.text || '').slice(0, 20000), campId: String(m.campId || '').slice(0, 80), gmId: String(m.gmId || '').slice(0, 80), campaign: String(m.campaign || '').slice(0, 120), gm: String(m.gm || 'GM').slice(0, 60) };
+    if (net.notepad.on && !was) toast('The GM opened a table notepad — you can save it to your Journal any time.');
+    else if (!net.notepad.on && was) toast('The GM put the table notepad away.');
+    renderNotepad();
+}
+function broadcastCombats() { broadcast({ type: 'combats', combats: net.combats }, null); }
+function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
+function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
+net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
+// host: put a combat on a map (or take it off with null)
+net.combatSet = function(mapId, combat) {
+    if (net.role !== 'host') return;
+    var had = net.combats[mapId];
+    if (combat) {
+        combat.mapId = mapId;
+        net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
+        if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
+        toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
+    } else {
+        if (had) { logEvent('table', 'Combat ended on ' + mapTitleOf(mapId) + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); toast('Combat ended on ' + mapTitleOf(mapId) + '.'); }
+        delete net.combats[mapId];
+    }
+    broadcastCombats(); combatRefresh();
+};
+net.combatStep = function(mapId, dir) {
+    if (net.role !== 'host') return;
+    var c = net.combats[mapId]; if (!c || !c.rows.length) return;
+    var t = c.turn + (dir < 0 ? -1 : 1);
+    if (t >= c.rows.length) { t = 0; c.round += 1; }
+    else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
+    c.turn = t;
+    toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
+    broadcastCombats(); combatRefresh();
+};
+net.combatEnd = function(mapId) {
+    if (net.role !== 'host' || !net.combats[mapId]) return;
+    var c = net.combats[mapId];
+    showConfirm('End combat on ' + mapTitleOf(mapId) + '? Round ' + c.round + ', ' + c.rows.length + ' in the order. The ring and the turn strip go for everyone.', function(yes) { if (yes) net.combatSet(mapId, null); });
+};
 function targetersOf(itemId, mapId) {
     return Object.keys(net.targets).filter(function(pid) { var t = net.targets[pid]; return t && t.id === itemId && t.mapId === mapId; })
         .map(function(pid) { return { id: pid, name: net.targets[pid].name || 'Player', hue: playerHue(pid) }; });
@@ -1129,7 +1278,7 @@ function admitPlayer(conn, prof) {
     var stage = currentStage();
     net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, targets: net.targets }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
     broadcastRoster();
 }
 
@@ -1283,10 +1432,30 @@ function handleMessage(msg, conn) {
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
         applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
         broadcast({ type: 'targets', targets: net.targets }, null);
+        // a player squaring up to an NPC: offer to start combat there (once per NPC per session)
+        if (msg.id && !net.combats[msg.mapId] && !combatAsked[msg.mapId + '|' + msg.id]) {
+            var campT = getActiveCampaign(), mapT = campT && campT.items[msg.mapId];
+            var tokT = mapT && (mapT.whiteboard || []).find(function(w) { return w.id === msg.id; });
+            if (tokT && tokT.isChar && !tokT.ownerId && !tokT.hidden) {
+                combatAsked[msg.mapId + '|' + msg.id] = true;
+                showConfirm((tp.name || 'A player') + ' is targeting ' + (tokT.charName || tokT.name || 'a character') + ' on ' + mapTitleOf(msg.mapId) + '. Start combat there?', function(yes) {
+                    if (yes && window.wpOpenCombat) window.wpOpenCombat(msg.mapId, { pre: [msg.id], owner: tp.id });
+                });
+            }
+        }
     } else if (msg.type === 'share' && net.role === 'host') {
         relayShare(msg, conn);
     } else if (msg.type === 'handout' && net.role === 'client') {
         if (window.wpJournalReceive) window.wpJournalReceive(msg);
+    } else if (msg.type === 'notepad' && net.role === 'client') {
+        applyNotepad(msg);
+    } else if (msg.type === 'combats' && net.role === 'client') {
+        var before = net.combats, after = cleanCombats(msg.combats);
+        net.combats = after;
+        var camC = getActiveCampaign(), mineC = camC && after[camC.activeItemId], mineB = camC && before[camC.activeItemId];
+        if (mineC && (!mineB || mineB.turn !== mineC.turn || mineB.round !== mineC.round)) toast((mineB ? '' : 'Combat! ') + (mineC.rows[mineC.turn] || {}).name + "'s turn" + (mineC.round > 1 && mineC.turn === 0 ? ' — round ' + mineC.round : '') + '.');
+        else if (mineB && !mineC) toast('Combat is over.');
+        combatRefresh();
     } else if (msg.type === 'targets' && net.role === 'client') {
         net.targets = cleanTargets(msg.targets);
         render();
@@ -1647,6 +1816,9 @@ function leaveSession(silent) {
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
     net.peer = null; net.conns = []; net.roster = {}; net.active = false; net.role = null; net.code = null; net.lastStage = null;
     net.targets = {};
+    net.combats = {}; combatAsked = {};
+    net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
+    if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
     stopHeartbeat();
     if (!silent) setIndicator(null);
     setPausedLocal(false);
@@ -2008,6 +2180,16 @@ net.summonPlayerById = function(playerId) {
     return true;
 };
 net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
+(function() {
+    var b = ui('netCombatBtn'); if (!b) return;
+    b.addEventListener('click', function() {
+        if (!(net.active && net.role === 'host')) { toast('Host a session first — combat runs at the table.'); return; }
+        var camp = getActiveCampaign(), am = camp && camp.items[camp.activeItemId];
+        if (!am || am.type !== 'map') { toast('Open the play map the fight is on first.'); return; }
+        ui('netModal').style.display = 'none';
+        if (window.wpOpenCombat) window.wpOpenCombat(am.id, {});
+    });
+})();
 // Session Log window
 var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', table: 'Table' };
 function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }

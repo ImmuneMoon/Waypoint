@@ -628,6 +628,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <div id="rulerCursorX"></div>
       <div id="rulerCursorY"></div>
       <div id="partyStrip" title="Your players' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map."></div>
+      <div id="combatStrip" style="display:none;" title="Combat on this map"></div>
       <div id="partyMenu" class="shape-menu" style="position:fixed; flex-direction:column; min-width:200px; z-index:99998;"></div>
       <div id="zoomBox">
           <span id="cursorPos" title="Cursor position (world coordinates)">&ndash;</span>
@@ -801,6 +802,8 @@ window.addEventListener('unhandledrejection', function(e) {
                 </div>
                 <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;">&#128161; Send this code to your players, then <b>close this window</b> &mdash; the session keeps running while you work. Reopen it any time with the &#127760; button to see who's here, pause, or summon.</div>
                 <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the &#128227; on their name in the player list above.">&#128227; Summon All Players</button>
+                <button class="tool ghost" id="netCombatBtn" style="margin-top:8px; width:100%;" title="Start combat on the map you are on: pick who is in, give initiative, run the turns. Also on the play-map right-click menu.">&#9876; Start Combat</button>
+                <button class="tool ghost" id="netNotepadBtn" style="margin-top:8px; width:100%;" title="A disposable notepad the whole table sees as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.">&#128221; Table Notepad</button>
                 <button class="tool ghost" id="netLogBtn" style="margin-top:8px; width:100%;" title="Everything that happened at the table — joins, handouts, crossings, chat, shares — by session">&#128220; Session Log</button>
                 <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused.">&#128274; Lock Travel Between Maps</button>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
@@ -1040,6 +1043,22 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <div id="sessionLogList" style="overflow-y:auto; flex:1; font-size:12.5px;"></div>
         <div style="color:var(--dim); font-size:10.5px; margin-top:8px; line-height:1.5;">Written by the host as things happen; part of the campaign save, never sent to players. Newest first.</div>
+    </div>
+</div>
+<!-- Table notepad (everyone; the GM writes) -->
+<div id="notepadPanel" style="display:none;">
+    <div id="notepadHead"><span class="notepad-title">&#128221; Table notepad</span><span id="notepadWho" class="notepad-who"></span><button class="tool ghost notepad-btn" id="notepadMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="notepadCloseBtn" title="Put it away for everyone">&times;</button></div>
+    <textarea id="notepadText" class="field" spellcheck="false"></textarea>
+    <div class="notepad-foot"><span class="notepad-hint">Gone at the end of the session.</span><span style="display:flex; gap:4px;"><button class="tool ghost danger notepad-btn" id="notepadClearBtn" title="Wipe the text for everyone (asks first); the notepad stays open">Clear</button><button class="tool ghost notepad-btn" id="notepadSaveBtn" title="Copy the text into your Journal as a note of your own">Save to my Journal</button></span></div>
+</div>
+<!-- Combat roster (GM) -->
+<div id="combatModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Combat &mdash; <span id="combatMapName" style="color:var(--ink); font-weight:500;"></span> <button id="combatCloseBtn" class="tool ghost" style="padding:2px 8px;">&times;</button></h3>
+        <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Tick who is in the fight and give each an initiative &mdash; higher goes first, ties keep their place. Drag a row (or use the arrows) to set the order by hand. The party is ticked already; other characters on this map wait below it.</div>
+        <div id="combatRows" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:4px; min-height:80px;"></div>
+        <div style="display:flex; gap:6px; margin-top:10px; align-items:center;"><input id="combatAddName" class="field" placeholder="Something without a token (a trap, a turret, a swarm)&hellip;" style="flex:1;"><button class="tool ghost" id="combatAddBtn">+ Add row</button></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;"><button class="tool ghost" id="combatCancelBtn">Cancel</button><button class="tool" id="combatStartBtn">Start Combat</button></div>
     </div>
 </div>
 <!-- Campaign Cast (GM) -->

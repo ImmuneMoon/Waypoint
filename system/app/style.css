@@ -1184,3 +1184,36 @@
   html[data-theme="light"] #whiteboard { background-image: url("data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='25' cy='25' r='1.5' fill='%23b9b2a4'/%3E%3C/svg%3E"); }
   html[data-theme="light"] .seg-btn.active { box-shadow: 0 1px 3px rgba(40,30,10,.18); }
   html[data-theme="light"] .hdr-group { background: rgba(0,0,0,0.04); }
+
+  /* Combat: the ring, the turn strip, the roster panel */
+  .wb-item.wb-turn { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(224,165,79,0.28), 0 0 18px rgba(224,165,79,0.55) !important; z-index: 40 !important; }
+  #combatStrip { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); z-index: 8990; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 18px; background: var(--panel2); box-shadow: var(--shadow); font-size: 12.5px; white-space: nowrap; pointer-events: auto; }
+  .combat-strip-round { color: var(--gold); font-weight: 700; letter-spacing: .04em; }
+  .combat-strip-cur { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
+  .combat-strip-cur img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
+  .combat-strip-next { color: var(--dim); font-size: 11px; }
+  .combat-strip-btn { font: inherit; background: transparent; border: 1px solid var(--edge); color: var(--ink); border-radius: 10px; padding: 1px 8px; cursor: pointer; font-size: 11px; }
+  .combat-strip-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .combat-strip-btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .combat-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.08); }
+  .combat-row.off { opacity: .55; }
+  .combat-row.drop-before { border-top: 2px solid var(--gold); }
+  .combat-grip { color: var(--dim); cursor: grab; font-size: 16px; line-height: 1; }
+  .combat-face { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid var(--edge); flex: 0 0 26px; }
+  .combat-face-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--gold); background: var(--panel); }
+  .combat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .combat-tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--edge); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+  .combat-init { width: 58px; text-align: center; }
+  .combat-row .tool { padding: 1px 7px; font-size: 11px; }
+
+  /* Table notepad */
+  #notepadPanel { position: fixed; right: 18px; top: 140px; width: 320px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #notepadHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  .notepad-title { color: var(--gold); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+  .notepad-who { flex: 1; min-width: 0; color: var(--dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #notepadPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #notepadText { border: none; border-radius: 0; resize: vertical; min-height: 140px; max-height: 60vh; font-size: 13px; line-height: 1.5; padding: 8px 10px; background: transparent; }
+  #notepadText:read-only { color: var(--ink); }
+  .notepad-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--edge); }
+  .notepad-hint { color: var(--dim); font-size: 10.5px; }
+  #notepadPanel.min #notepadText, #notepadPanel.min .notepad-foot { display: none; }

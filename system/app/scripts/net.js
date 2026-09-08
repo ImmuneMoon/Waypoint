@@ -267,6 +267,7 @@ function sanitizeItem(item) {
 }
 function sanitizeAppState(s) {
     var c = JSON.parse(JSON.stringify(s));
+    delete c.imageCats;   // the GM's picture-library categories
     Object.values(c.campaigns || {}).forEach(function(camp) {
         // GM bookkeeping: the player registry, history, and ban list never ship
         delete camp.players;

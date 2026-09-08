@@ -2346,6 +2346,118 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   /* ---------- image library ---------- */
 
   var _imgLibCache = null;
+  /* ---- library categories ----
+     Metadata in the save (appState.imageCats = { list: [names], by: { path: name } }), never file
+     moves, so nothing that uses a picture is touched. '' = All, '__none' = No category. */
+  var _imgLibCat = '';
+  var _imgLibMap = '';   // '' = every map; else a folder key
+  function renderImgMaps(folderLabel) {
+      var row = document.getElementById('imgLibMaps'); if (!row) return;
+      var counts = {}, labels = {};
+      (_imgLibCache || []).forEach(function(im) { var f = im.folder || ''; counts[f] = (counts[f] || 0) + 1; labels[f] = folderLabel(f); });
+      var keys = Object.keys(counts).sort(function(a, b) { return labels[a].localeCompare(labels[b]); });
+      if (_imgLibMap && !counts[_imgLibMap]) _imgLibMap = '';
+      row.innerHTML = '<span class="journal-chip-label">Map</span>'
+          + '<button class="journal-from' + (!_imgLibMap ? ' active' : '') + '" data-map="">All</button>'
+          + keys.map(function(k) { return '<button class="journal-from' + (_imgLibMap === k ? ' active' : '') + '" data-map="' + esc(k) + '" title="' + esc(labels[k]) + '">' + esc(labels[k]) + ' <span class="journal-count">' + counts[k] + '</span></button>'; }).join('');
+  }
+  (function wireImgMaps() {
+      var row = document.getElementById('imgLibMaps'); if (!row) return;
+      row.addEventListener('click', function(e) {
+          var b = e.target.closest && e.target.closest('button[data-map]'); if (!b) return;
+          _imgLibMap = b.dataset.map || ''; renderImgLib(document.getElementById('imgLibSearch').value);
+      });
+  })();
+  function imgCats() {
+      var s = state.appState; if (!s) return { list: [], by: {} };
+      if (!s.imageCats || typeof s.imageCats !== 'object') s.imageCats = { list: [], by: {} };
+      if (!Array.isArray(s.imageCats.list)) s.imageCats.list = [];
+      if (!s.imageCats.by || typeof s.imageCats.by !== 'object') s.imageCats.by = {};
+      return s.imageCats;
+  }
+  function imgCatOf(path) { var c = imgCats(); var n = c.by[path]; return n && c.list.indexOf(n) >= 0 ? n : ''; }
+  function imgCatsSave() { import('./io.js').then(function(m) { m.save(true); }); }
+  function renderImgCats() {
+      var row = document.getElementById('imgLibCats'); if (!row) return;
+      var c = imgCats(), counts = {}, none = 0;
+      (_imgLibCache || []).forEach(function(im) { var n = imgCatOf(im.path); if (n) counts[n] = (counts[n] || 0) + 1; else none++; });
+      if (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && c.list.indexOf(_imgLibCat) < 0) _imgLibCat = '';
+      var html = '<span class="journal-chip-label">Show</span>'
+          + '<button class="journal-from' + (!_imgLibCat ? ' active' : '') + '" data-cat="">All <span class="journal-count">' + (_imgLibCache || []).length + '</span></button>'
+          + '<button class="journal-from' + (_imgLibCat === '__bymap' ? ' active' : '') + '" data-cat="__bymap" title="Every picture, grouped under the map it belongs to">By map</button>'
+          + c.list.map(function(n) { return '<button class="journal-from' + (_imgLibCat === n ? ' active' : '') + '" data-cat="' + esc(n) + '">' + esc(n) + ' <span class="journal-count">' + (counts[n] || 0) + '</span></button>'; }).join('')
+          + '<button class="journal-from' + (_imgLibCat === '__none' ? ' active' : '') + '" data-cat="__none">No category <span class="journal-count">' + none + '</span></button>'
+          + '<button class="journal-from img-cat-new" data-act="new" title="Make a category">+ New</button>'
+          + (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' ? '<button class="journal-from img-cat-tool" data-act="rename" title="Rename this category">Rename</button><button class="journal-from img-cat-tool danger" data-act="delete" title="Remove this category — its pictures stay, just untagged">Delete</button>' : '');
+      row.innerHTML = html;
+  }
+  function imgCatAssign(path, name) {
+      var c = imgCats();
+      if (name) c.by[path] = name; else delete c.by[path];
+      imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+  }
+  function imgCatNew(cb) {
+      showPrompt('New category:', '', function(name) {
+          name = String(name || '').trim().slice(0, 40); if (!name) return;
+          var c = imgCats();
+          if (c.list.indexOf(name) < 0) c.list.push(name);
+          imgCatsSave(); if (cb) cb(name); else renderImgLib(document.getElementById('imgLibSearch').value);
+      });
+  }
+  function hideImgCatMenu() { var m = document.getElementById('imgCatMenu'); if (m) m.classList.remove('show'), m.style.display = 'none'; }
+  (function wireImgCats() {
+      var row = document.getElementById('imgLibCats'), grid = document.getElementById('imgLibGrid'), menu = document.getElementById('imgCatMenu');
+      if (!row || !grid || !menu) return;
+      row.addEventListener('click', function(e) {
+          var b = e.target.closest && e.target.closest('button'); if (!b) return;
+          var act = b.dataset.act;
+          if (act === 'new') { imgCatNew(function(name) { _imgLibCat = name; renderImgLib(document.getElementById('imgLibSearch').value); }); return; }
+          if (act === 'rename') {
+              var old = _imgLibCat, c = imgCats();
+              showPrompt('Rename category:', old, function(name) {
+                  name = String(name || '').trim().slice(0, 40); if (!name || name === old) return;
+                  var i = c.list.indexOf(old); if (i >= 0) c.list[i] = name;
+                  Object.keys(c.by).forEach(function(p) { if (c.by[p] === old) c.by[p] = name; });
+                  _imgLibCat = name; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+              });
+              return;
+          }
+          if (act === 'delete') {
+              var del = _imgLibCat, cc = imgCats(), n = Object.keys(cc.by).filter(function(p) { return cc.by[p] === del; }).length;
+              showConfirm('Delete the category "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' goes' : 's go') + ' back to No category — no picture is deleted.' : 'It is empty.'), function(yes) {
+                  if (!yes) return;
+                  cc.list = cc.list.filter(function(x) { return x !== del; });
+                  Object.keys(cc.by).forEach(function(p) { if (cc.by[p] === del) delete cc.by[p]; });
+                  _imgLibCat = ''; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+              });
+              return;
+          }
+          if (b.dataset.cat !== undefined) { _imgLibCat = b.dataset.cat; renderImgLib(document.getElementById('imgLibSearch').value); }
+      });
+      // right-click a picture: move it
+      grid.addEventListener('contextmenu', function(e) {
+          var cell = e.target.closest && e.target.closest('.img-lib-cell'); if (!cell || cell.classList.contains('cast-cell')) return;
+          e.preventDefault(); e.stopPropagation();
+          var c = imgCats(), cur = imgCatOf(cell.dataset.src);
+          menu.dataset.src = cell.dataset.src;
+          menu.innerHTML = '<div class="party-menu-head">Move to</div>'
+              + c.list.map(function(n) { return '<button class="wb-tool-btn party-menu-item' + (cur === n ? ' on' : '') + '" data-cat="' + esc(n) + '">' + (cur === n ? '&#10003; ' : '') + esc(n) + '</button>'; }).join('')
+              + '<button class="wb-tool-btn party-menu-item' + (!cur ? ' on' : '') + '" data-cat="">' + (!cur ? '&#10003; ' : '') + 'No category</button>'
+              + '<button class="wb-tool-btn party-menu-item" data-act="new">+ New category\u2026</button>';
+          menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+          menu.style.top = Math.min(e.clientY, window.innerHeight - (c.list.length + 3) * 34) + 'px';
+          menu.style.display = 'flex'; menu.classList.add('show');
+      });
+      menu.addEventListener('click', function(e) {
+          var b = e.target.closest && e.target.closest('button'); if (!b) return;
+          e.stopPropagation();
+          var src = menu.dataset.src; hideImgCatMenu();
+          if (b.dataset.act === 'new') { imgCatNew(function(name) { imgCatAssign(src, name); }); return; }
+          imgCatAssign(src, b.dataset.cat || '');
+      });
+      document.addEventListener('pointerdown', function(e) { if (menu.style.display !== 'none' && !e.target.closest('#imgCatMenu')) hideImgCatMenu(); }, true);
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideImgCatMenu(); });
+  })();
 
   function renderImgLib(filter) {
       var grid = document.getElementById('imgLibGrid');
@@ -2359,24 +2471,29 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           var it = camp && camp.items[folder];
           return (it && it.meta && it.meta.title) ? it.meta.title : folder;
       }
+      renderImgCats(); renderImgMaps(folderLabel);
       var byFolder = {};
       _imgLibCache.forEach(function(im) {
-          var label = folderLabel(im.folder);
-          if (q && im.name.toLowerCase().indexOf(q) === -1 && label.toLowerCase().indexOf(q) === -1) return;
-          (byFolder[label] = byFolder[label] || []).push(im);
+          var label = folderLabel(im.folder), cat = imgCatOf(im.path);
+          var byMap = _imgLibCat === '__bymap';
+          if (_imgLibCat === '__none' ? cat : (_imgLibCat && !byMap && cat !== _imgLibCat)) return;
+          if (q && im.name.toLowerCase().indexOf(q) === -1 && label.toLowerCase().indexOf(q) === -1 && (cat || '').toLowerCase().indexOf(q) === -1) return;
+          var key = byMap ? label : '';
+          (byFolder[key] = byFolder[key] || []).push(im);
       });
       var html = '';
       Object.keys(byFolder).sort().forEach(function(label) {
-          html += '<div style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin:12px 0 6px;">' + label + ' <span style="color:var(--dim);">(' + byFolder[label].length + ')</span></div>';
+          if (label) html += '<div style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin:12px 0 6px;">' + label + ' <span style="color:var(--dim);">(' + byFolder[label].length + ')</span></div>';
           html += '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">';
           byFolder[label].forEach(function(im) {
-              html += '<div class="img-lib-cell" data-src="' + im.path + '" title="' + im.name + '">' +
-                  '<img src="' + encodeURI(im.path) + '" loading="lazy">' +
+              var catTag = (!_imgLibCat || _imgLibCat === '__bymap') && imgCatOf(im.path) ? '<span class="img-lib-tag">' + esc(imgCatOf(im.path)) + '</span>' : '';
+              html += '<div class="img-lib-cell" data-src="' + im.path + '" title="' + im.name + (imgCatOf(im.path) ? ' \u00b7 ' + esc(imgCatOf(im.path)) : '') + ' \u2014 right-click to move it into a category">' +
+                  '<img src="' + encodeURI(im.path) + '" loading="lazy">' + catTag +
                   '<div class="img-lib-name">' + im.name + '</div></div>';
           });
           html += '</div>';
       });
-      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">No images found.</div>';
+      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + (_imgLibCat && _imgLibCat !== '__bymap' ? 'Nothing in this category yet — right-click a picture under All to move it here.' : 'No images match.') + '</div>';
   }
 
   var _el_importCharBtn = document.getElementById('importCharBtn');

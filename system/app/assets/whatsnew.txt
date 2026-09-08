@@ -10,6 +10,15 @@ Maps
   opened until you are ready. Summon and Bring still work for you. A lock
   mark shows in the tree and on portal hover.
 
+Image Library
+- Categories. Make your own (+ New in the chip row), right-click a picture
+  to move it into one, and switch between All, each category and No
+  category. Rename or delete a category from its chip — deleting only untags
+  the pictures. Categories are bookkeeping in the save, not file moves, so
+  every map, handout and cast entry keeps its picture.
+- "By map" is a view of its own that groups every picture under the map it
+  belongs to; All and the categories show one flat grid.
+
 Fixes
 - Right-click menus close as soon as you scroll.
 

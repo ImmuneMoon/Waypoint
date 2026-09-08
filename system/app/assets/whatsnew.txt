@@ -1,3 +1,11 @@
+WAYPOINT 1.4.4 — What's New
+============================
+
+Maps
+- The lock menu reads the whole nest: "Lock this and every map under it"
+  shows while any nested map is still open, "Unlock…" while any is locked,
+  both when it is mixed — so a locked parent can still close its children.
+
 WAYPOINT 1.4.3 — What's New
 ============================
 

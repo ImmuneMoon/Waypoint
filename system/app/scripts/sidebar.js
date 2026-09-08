@@ -153,12 +153,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function setPlayerLock(ids, on) {
       var camp = getActiveCampaign(); if (!camp) return;
       var names = [];
+      var changed = 0;
       ids.forEach(function(id) {
           var m = camp.items[id]; if (!m || m.type !== 'map') return;
           m.meta = m.meta || {};
+          if (!!m.meta.playerLock !== !!on) changed++;
           if (on) m.meta.playerLock = true; else delete m.meta.playerLock;
           names.push(m.meta.title || id);
       });
+      if (!changed) { toast(on ? 'Already locked for players.' : 'Already open to players.'); updateSidebarNav(); return; }
       save(true); updateSidebarNav();
       var n = window.wpNet;
       if (n && n.pushItems) n.pushItems(ids);
@@ -183,15 +186,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
   })();
   (function wireLockMenu() {
-      var one = document.getElementById('ctxLockItem'), nest = document.getElementById('ctxLockNest'), menu = document.getElementById('sidebarContextMenu');
-      function go(all) {
+      var one = document.getElementById('ctxLockItem'), nest = document.getElementById('ctxLockNest'), unnest = document.getElementById('ctxUnlockNest'), menu = document.getElementById('sidebarContextMenu');
+      function go(all, force) {
           if (!menu) return; var id = menu.dataset.id; menu.style.display = 'none';
           var camp = getActiveCampaign(), it = camp && camp.items[id]; if (!it || it.type !== 'map') return;
-          var on = !(it.meta && it.meta.playerLock);
+          var on = force !== undefined ? force : !(it.meta && it.meta.playerLock);
           setPlayerLock(all ? mapNest(camp, id) : [id], on);
       }
       if (one) one.addEventListener('click', function() { go(false); });
-      if (nest) nest.addEventListener('click', function() { go(true); });
+      if (nest) nest.addEventListener('click', function() { go(true, true); });
+      if (unnest) unnest.addEventListener('click', function() { go(true, false); });
   })();
   function updateSidebarNav() {
 
@@ -312,9 +316,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 var isPlCtx = !!(it && it.type === 'planner'), stCtx = (it && it.meta && it.meta.status) || '';
                 menu.querySelectorAll('.ctx-planner-only').forEach(function(x) { x.style.display = isPlCtx ? 'block' : 'none'; });
                 menu.querySelectorAll('.ctx-status').forEach(function(x) { x.classList.toggle('on', x.dataset.status === stCtx && !!stCtx); if (x.dataset.status === '') x.style.display = isPlCtx && stCtx ? 'block' : 'none'; });
-                var lockOne = document.getElementById('ctxLockItem'), lockNest = document.getElementById('ctxLockNest');
+                var lockOne = document.getElementById('ctxLockItem'), lockNest = document.getElementById('ctxLockNest'), unlockNest = document.getElementById('ctxUnlockNest');
                 if (lockOne) lockOne.innerHTML = lockedCtx ? '&#128275; Unlock for players' : '&#128274; Lock for players';
-                if (lockNest) lockNest.innerHTML = lockedCtx ? '&#128275; Unlock this and every map under it' : '&#128274; Lock this and every map under it';
+                if (isMapCtx && lockNest && unlockNest) {
+                    // the nest entries follow the whole nest: offer Lock while any map under it is open, Unlock while any is locked
+                    var nestIds = mapNest(activeC, it.id), nLocked = nestIds.filter(function(id) { var m = activeC.items[id]; return m && m.meta && m.meta.playerLock; }).length;
+                    var hasKids = nestIds.length > 1;
+                    lockNest.style.display = hasKids && nLocked < nestIds.length ? 'block' : 'none';
+                    unlockNest.style.display = hasKids && nLocked > 0 ? 'block' : 'none';
+                    lockNest.innerHTML = '&#128274; Lock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + (nestIds.length - nLocked) + ' still open)</span>' : '');
+                    unlockNest.innerHTML = '&#128275; Unlock this and every map under it' + (nLocked && nLocked < nestIds.length ? ' <span style="color:var(--dim); font-size:11px;">(' + nLocked + ' locked)</span>' : '');
+                }
                 var childBtn = document.getElementById('ctxNewChildItem');
                 if (childBtn) {
                     childBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';

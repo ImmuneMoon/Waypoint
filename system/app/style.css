@@ -1267,3 +1267,8 @@
   #imgCatMenu .party-menu-head { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px 2px; }
   #imgCatMenu .party-menu-item { width: 100%; border-radius: 0; font-size: 12px; height: auto; padding: 8px 10px; text-align: left; }
   #imgCatMenu .party-menu-item.on { color: var(--gold); }
+
+  /* light-mode toolbar glyphs: the play-map and drawing toolbars used a fixed light grey that washes out on a light ground */
+  html[data-theme="light"] .wb-tool-btn, html[data-theme="light"] .draw-size-btn, html[data-theme="light"] .draw-style-btn { color: var(--ink); }
+  html[data-theme="light"] .wb-tool-btn.active, html[data-theme="light"] .draw-size-btn.active, html[data-theme="light"] .draw-style-btn.active { color: #fff; }
+  html[data-theme="light"] .draw-swatch.active { border-color: var(--ink); }

@@ -21,6 +21,9 @@ Image Library
 
 Fixes
 - Right-click menus close as soon as you scroll.
+- Light theme: the play-map and drawing toolbar glyphs (undo, grid, shapes,
+  text, arrow) are dark on the light ground instead of washed-out grey.
+- Light theme: the map rulers and the minimap follow the theme too.
 
 WAYPOINT 1.4.1 — What's New
 ============================

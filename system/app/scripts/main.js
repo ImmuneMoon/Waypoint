@@ -675,7 +675,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             if(RULER_STEPS[i] * z >= 70) { step = RULER_STEPS[i]; break; }
         }
 
-        var bg = 'rgba(21,21,28,0.85)', line = 'rgba(255,255,255,0.22)', txt = '#9a9aad';
+        var lightR = document.documentElement.getAttribute('data-theme') === 'light';   // the rulers follow the theme
+        var bg = lightR ? 'rgba(239,236,229,0.92)' : 'rgba(21,21,28,0.85)', line = lightR ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.22)', txt = lightR ? '#5d5964' : '#9a9aad';
 
         var ctxT = top.getContext('2d');
         ctxT.clearRect(0, 0, W, 18);
@@ -769,7 +770,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         }
         var ctx = cv.getContext('2d');
         ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = '#15151c';
+        var lightM = document.documentElement.getAttribute('data-theme') === 'light';
+        ctx.fillStyle = lightM ? '#e6e2d9' : '#15151c';
         ctx.fillRect(0, 0, W, H);
         items.forEach(function(i) {
             ctx.fillStyle = i.c;
@@ -777,11 +779,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             ctx.fillRect(i.x * sc + ox, i.y * sc + oy, Math.max(2, i.w * sc), Math.max(2, i.h * sc));
         });
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = lightM ? '#1f1d24' : '#ffffff';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(vx * sc + ox, vy * sc + oy, vw * sc, vh * sc);
     }
     window.renderMinimap = renderMinimap;
+    window.wpRenderRulers = renderRulers;
 
     (function wireMinimap() {
         var box = document.getElementById('minimap');

@@ -632,6 +632,7 @@ if (_ident) _ident.addEventListener('click', function() {
         var light = document.documentElement.getAttribute('data-theme') !== 'light';
         if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
         try { localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (e) {}
+        setTimeout(function() { if (window.wpRenderRulers) window.wpRenderRulers(); if (window.renderMinimap) window.renderMinimap(); }, 30);   // canvases redraw in the new colours
         paint();
     });
 })();

@@ -21,6 +21,8 @@ Image Library
 
 Fixes
 - Right-click menus close as soon as you scroll.
+- Right-click menus near the bottom or right edge of the window open upward
+  or to the left instead of running off screen.
 - Light theme: the play-map and drawing toolbar glyphs (undo, grid, shapes,
   text, arrow) are dark on the light ground instead of washed-out grey.
 - Light theme: the map rulers and the minimap follow the theme too.

@@ -286,8 +286,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 var menu = document.getElementById('sidebarContextMenu');
                 if(!menu) return;
                 menu.style.display = 'block';
-                menu.style.left = e.pageX + 'px';
-                menu.style.top = e.pageY + 'px';
+                window.wpClampMenu(menu, e.clientX, e.clientY);   // above the pointer when the bottom is near
                 menu.dataset.id = this.dataset.id;
                 var activeC = getActiveCampaign();
                 var it = activeC && activeC.items[this.dataset.id];

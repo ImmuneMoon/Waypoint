@@ -65,3 +65,12 @@
     document.addEventListener("scroll", close, true);
     document.addEventListener("wheel", close, { capture: true, passive: true });
 })();
+
+// Place a fixed-position menu at the pointer, but keep it on screen: when there is no room below,
+// it opens above the pointer; when there is no room to the right, it opens to the left.
+window.wpClampMenu = function(menu, x, y) {
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+    var r = menu.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+    if (r.bottom > H - 6) menu.style.top = Math.max(6, (y - r.height - 2 >= 6) ? y - r.height - 2 : H - r.height - 6) + 'px';
+    if (r.right > W - 6) menu.style.left = Math.max(6, (x - r.width - 2 >= 6) ? x - r.width - 2 : W - r.width - 6) + 'px';
+};

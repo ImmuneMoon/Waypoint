@@ -1775,10 +1775,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           menu.innerHTML = items.map(function(i) {
               return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(tok.dataset.key) + '" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
           }).join('');
-          var vw = window.innerWidth, vh = window.innerHeight;
-          menu.style.left = Math.min(e.clientX, vw - 220) + 'px';
-          menu.style.top = Math.min(e.clientY, vh - (items.length * 34 + 12)) + 'px';
           menu.classList.add('show');
+          window.wpClampMenu(menu, e.clientX, e.clientY);
       });
       if (menu) menu.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('.party-menu-item'); if (!b) return;
@@ -2444,9 +2442,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               + c.list.map(function(n) { return '<button class="wb-tool-btn party-menu-item' + (cur === n ? ' on' : '') + '" data-cat="' + esc(n) + '">' + (cur === n ? '&#10003; ' : '') + esc(n) + '</button>'; }).join('')
               + '<button class="wb-tool-btn party-menu-item' + (!cur ? ' on' : '') + '" data-cat="">' + (!cur ? '&#10003; ' : '') + 'No category</button>'
               + '<button class="wb-tool-btn party-menu-item" data-act="new">+ New category\u2026</button>';
-          menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
-          menu.style.top = Math.min(e.clientY, window.innerHeight - (c.list.length + 3) * 34) + 'px';
           menu.style.display = 'flex'; menu.classList.add('show');
+          window.wpClampMenu(menu, e.clientX, e.clientY);
       });
       menu.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;

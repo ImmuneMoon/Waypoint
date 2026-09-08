@@ -826,6 +826,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (scope === 'all') {
           payload = state.appState;
           base = 'waypoint-everything';
+      } else if (scope === 'campaign') {
+          // this campaign on its own: every map and planner plus its players, handouts, delivery record, cast
+          var cc = {}; cc[camp.id] = clone(camp);
+          payload = { activeCampaignId: camp.id, campaigns: cc };
+          base = slugName(camp.name) + '-campaign';
       } else if (scope === 'item') {
           var it = camp.items[camp.activeItemId];
           if (!it) { toast('Nothing is open.'); return null; }
@@ -893,7 +898,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
   }
 
-  var _exportScopeBtns = { exportItemBtn: 'item', exportMapsBtn: 'maps', exportWbsBtn: 'whiteboards', exportPlannersBtn: 'planners', exportBtn: 'all' };
+  var _exportScopeBtns = { exportItemBtn: 'item', exportMapsBtn: 'maps', exportWbsBtn: 'whiteboards', exportPlannersBtn: 'planners', exportCampaignBtn: 'campaign', exportBtn: 'all' };
   Object.keys(_exportScopeBtns).forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('click', function() { exportScope(_exportScopeBtns[id]); });

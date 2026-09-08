@@ -35,7 +35,7 @@ The installer isn't code-signed, so Windows shows a blue SmartScreen screen the 
 
 That is all SmartScreen means here: the installer is new and unsigned, not flagged. You only see it once per download.
 
-New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken.
+New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken. When Setup finds a copy already installed it asks what to do: update it in place (the usual choice), do a clean install that rebuilds the program files but keeps your saves and settings unless you tick the box to delete them, or put a separate copy in a new folder and leave the existing one alone.
 
 Requirements: Windows 10 or 11. An internet connection is needed for multiplayer only.
 

@@ -27,6 +27,7 @@ OutputBaseFilename=Waypoint_Setup
 PrivilegesRequired=lowest
 UsePreviousAppDir=yes
 DisableDirPage=auto
+; (an existing install adds a choice page after Welcome — update in place, clean install, or a separate copy; see [Code])
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
 MinVersion=10.0
@@ -80,24 +81,142 @@ begin
   TaskKill('Waypoint-Core.exe');
 end;
 
-function IsUpdate(): Boolean;
 var
-  InstallPath: string;
+  PrevInstallPath: string;
+  ModePage: TInputOptionWizardPage;   { shown only when a copy is already installed }
+  WipePage: TInputOptionWizardPage;   { shown only for a clean install }
+
+function IsUpdate(): Boolean;
 begin
-  Result := RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{5E99FC64-B981-4209-A480-DB2444535359}_is1', 'InstallLocation', InstallPath);
+  Result := RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{5E99FC64-B981-4209-A480-DB2444535359}_is1', 'InstallLocation', PrevInstallPath);
+end;
+
+{ 0 = update in place, 1 = clean install here, 2 = separate copy in a new folder }
+function InstallMode(): Integer;
+begin
+  Result := 0;
+  if (ModePage <> nil) then
+  begin
+    if ModePage.Values[1] then Result := 1;
+    if ModePage.Values[2] then Result := 2;
+  end;
+end;
+
+function WipeSaves(): Boolean;
+begin
+  Result := (WipePage <> nil) and WipePage.Values[0];
 end;
 
 procedure InitializeWizard;
 begin
-  if IsUpdate() then
+  { /UPDATE=1 (a scripted or app-driven update) skips the choice page: plain update in place }
+  if IsUpdate() and (ExpandConstant('{param:UPDATE|0}') <> '1') then
   begin
     WizardForm.WelcomeLabel1.Caption := 'Welcome to the Waypoint Update Wizard';
-    WizardForm.WelcomeLabel2.Caption := 'Setup found an existing copy of Waypoint and will update it in place.'
-      + #13#10#13#10 + 'Your campaigns, saves, images, and settings are not touched by this update. '
-      + 'If your save comes from an older version of Waypoint, the app converts it to the newest format '
-      + 'on first launch — after keeping an untouched copy of the original in the saves\backups folder.'
-      + #13#10#13#10 + 'Updates work from any prior version, no matter how old.';
+    WizardForm.WelcomeLabel2.Caption := 'Setup found an existing copy of Waypoint in:' + #13#10 + PrevInstallPath
+      + #13#10#13#10 + 'On the next page you choose what to do with it: update it in place (the usual choice), '
+      + 'do a clean install, or put a separate copy somewhere else.'
+      + #13#10#13#10 + 'An in-place update never touches your campaigns, saves, images or settings. '
+      + 'If your save comes from an older version, the app converts it on first launch after keeping '
+      + 'an untouched copy in the saves\backups folder.';
+
+    ModePage := CreateInputOptionPage(wpWelcome, 'A copy of Waypoint is already installed',
+      'What would you like Setup to do?',
+      'Pick one. The first option is the normal update and keeps everything you have.',
+      True, False);
+    ModePage.Add('Update this copy in place (recommended) — keeps campaigns, saves, images and settings');
+    ModePage.Add('Clean install here — wipe the program files and rebuild them; saves and settings are kept unless you say otherwise on the next page');
+    ModePage.Add('Install a separate copy in a new folder — the existing copy is left exactly as it is');
+    ModePage.Values[0] := True;
+
+    WipePage := CreateInputOptionPage(ModePage.ID, 'Clean install',
+      'What should go?',
+      'The program files in ' + PrevInstallPath + ' are removed and installed fresh. Your saves folder (campaigns, maps, images, journals) and your settings are kept unless you tick the box.',
+      False, False);
+    WipePage.Add('Also delete my saves, images, journals and settings — everything. This cannot be undone.');
+    WipePage.Values[0] := False;
   end;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if (WipePage <> nil) and (PageID = WipePage.ID) then Result := (InstallMode() <> 1);
+  { a separate copy needs the folder page even though a previous folder is known }
+  if (PageID = wpSelectDir) and (ModePage <> nil) and (InstallMode() = 2) then Result := False;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (WipePage <> nil) and (CurPageID = WipePage.ID) and WipePage.Values[0] then
+  begin
+    Result := MsgBox('Delete ALL of Waypoint''s data in ' + PrevInstallPath + ' — every campaign, map, image, journal and setting?'
+      + #13#10#13#10 + 'There is no undo. Choose No to keep the saves folder.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+    if not Result then WipePage.Values[0] := False;
+  end;
+  if (CurPageID = wpSelectDir) and (ModePage <> nil) and (InstallMode() = 2)
+     and (CompareText(RemoveBackslashUnlessRoot(WizardForm.DirEdit.Text), RemoveBackslashUnlessRoot(PrevInstallPath)) = 0) then
+  begin
+    MsgBox('That is the folder of the existing copy. Pick a different folder for a separate copy, or go back and choose "Update this copy in place".', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = wpSelectDir) and (ModePage <> nil) and (InstallMode() = 2)
+     and (CompareText(RemoveBackslashUnlessRoot(WizardForm.DirEdit.Text), RemoveBackslashUnlessRoot(PrevInstallPath)) = 0) then
+    WizardForm.DirEdit.Text := ExpandConstant('{localappdata}\Programs\Waypoint 2');
+end;
+
+{ Clean install: everything under the install folder goes except the saves folder and the
+  per-install settings (system\userdata) — those go too only when the box was ticked. }
+procedure WipeProgramFiles(Root: string; AlsoData: Boolean);
+var
+  FindRec: TFindRec;
+  P: string;
+begin
+  if not DirExists(Root) then exit;
+  if FindFirst(AddBackslash(Root) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        begin
+          P := AddBackslash(Root) + FindRec.Name;
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          begin
+            if CompareText(FindRec.Name, 'saves') = 0 then
+            begin
+              if AlsoData then DelTree(P, True, True, True);
+            end
+            else if CompareText(FindRec.Name, 'system') = 0 then
+            begin
+              { inside system\, keep userdata unless the data goes too }
+              WipeProgramFiles(P, AlsoData);
+            end
+            else if CompareText(FindRec.Name, 'userdata') = 0 then
+            begin
+              if AlsoData then DelTree(P, True, True, True);
+            end
+            else
+              DelTree(P, True, True, True);
+          end
+          else
+            DeleteFile(P);
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssInstall) and (ModePage <> nil) and (InstallMode() = 1) then
+    WipeProgramFiles(ExpandConstant('{app}'), WipeSaves());
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

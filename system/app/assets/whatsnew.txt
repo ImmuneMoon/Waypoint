@@ -6,6 +6,17 @@ Maps
   shows while any nested map is still open, "Unlock…" while any is locked,
   both when it is mixed — so a locked parent can still close its children.
 
+Installer
+- When a copy of Waypoint is already installed, Setup asks what to do:
+  update it in place (the usual choice — nothing of yours is touched), do a
+  clean install that wipes the program files but keeps your saves and
+  settings unless you tick the box to delete them, or put a separate copy
+  in a new folder and leave the existing one alone.
+- Updating from inside the app is unchanged: the one-click update never runs
+  the installer, and when a core update does, "Update this copy in place" is
+  already selected — press Next. (Silent or scripted runs can pass /UPDATE=1
+  to skip the question.)
+
 WAYPOINT 1.4.3 — What's New
 ============================
 

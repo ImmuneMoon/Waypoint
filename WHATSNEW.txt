@@ -1,4 +1,4 @@
-WAYPOINT 1.3.7 — What's New
+WAYPOINT 1.3.6 — What's New
 ============================
 
 Planners
@@ -62,8 +62,6 @@ Look
   row, data-map card titles, the toast, the header, the canvas dots and
   links, toolbar dividers and scrollbars all follow the theme now.
 
-WAYPOINT 1.3.6 — What's New
-============================
 
 Export
 - Export As has "Export This Campaign": one campaign on its own, every map

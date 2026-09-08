@@ -450,7 +450,7 @@ function showUpdateButton(i) {
     var b = ui('updateBtn'); if (!b) return;
     if (!i || !i.newer) { b.style.display = 'none'; return; }
     b.textContent = '⬆️ Update to ' + i.latest;
-    b.title = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : ' — click to get the installer');
+    b.title = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
     b.style.display = 'inline-block';
 }
 function showUpdateBanner(i) {
@@ -458,7 +458,7 @@ function showUpdateBanner(i) {
     if (_bannerSeen === i.latest) return;
     _bannerSeen = i.latest;
     var txt = ui('updateBannerText');
-    if (txt) txt.textContent = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — one click to update.' : ' — this one needs the installer.');
+    if (txt) txt.textContent = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
     var go = ui('updateBannerGo'); if (go) go.textContent = i.canHotUpdate ? 'Update' : 'Get Installer';
     var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
     bar.style.display = 'flex';
@@ -479,14 +479,30 @@ if (_bLater) _bLater.addEventListener('click', function() {
     hideUpdateBanner();
     toast('The Update button stays in the top bar until you update.');
 });
+// An update that changes the app's core cannot install in place. Before anything downloads, say so
+// and spell out the steps; the download starts only when the person presses Continue.
+function showInstallerSteps(i) {
+    var m = ui('installerModal'), v = ui('installerVersion'); if (!m) return;
+    if (v) v.textContent = i.latest ? 'Waypoint ' + i.latest : 'This update';
+    m.dataset.url = i.installer || i.page || '';
+    m.style.display = 'flex';
+}
+window.wpShowInstallerSteps = showInstallerSteps;
 var _updInst = ui('setUpdateInstallerBtn');
-if (_updInst) _updInst.addEventListener('click', function() {
-    var i = _upd.info; if (!i) return;
-    var target = i.installer || i.page;
-    fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
-        .then(function(r) { if (!r.ok) throw new Error(); toast('Opening the download in your browser. Run the installer over this copy; saves and settings are kept.'); })
-        .catch(function() { toast('Open this in a browser: ' + target); });
-});
+if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info; if (!i) return; showInstallerSteps(i); });
+(function() {
+    var m = ui('installerModal'); if (!m) return;
+    var go = ui('installerGoBtn'), later = ui('installerLaterBtn'), close = ui('installerCloseBtn');
+    function hide() { m.style.display = 'none'; }
+    if (later) later.addEventListener('click', function() { hide(); toast('No download started. The Update button stays in the top bar until you install it.'); });
+    if (close) close.addEventListener('click', hide);
+    if (go) go.addEventListener('click', function() {
+        var target = m.dataset.url; if (!target) { hide(); return; }
+        fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
+            .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run Waypoint_Setup.exe, and open Waypoint again.'); })
+            .catch(function() { hide(); toast('Open this in a browser: ' + target); });
+    });
+})();
 var _updNotes = ui('setUpdateNotesBtn');
 if (_updNotes) _updNotes.addEventListener('click', function() {
     var i = _upd.info; if (!i) return;

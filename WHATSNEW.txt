@@ -7,6 +7,9 @@ Updates
   downloads, what to do with the file, the Windows SmartScreen screen, and
   that saves and settings stay. Nothing downloads until you press Continue.
 
+Look
+- Data Map has its linked-nodes icon back; Play Map carries the map.
+
 WAYPOINT 1.3.6 — What's New
 ============================
 

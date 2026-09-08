@@ -1027,8 +1027,18 @@ window.addEventListener('unhandledrejection', function(e) {
         <input type="text" id="imgLibSearch" placeholder="Filter by name or map&hellip;" style="width:100%; box-sizing:border-box; margin-bottom:8px;">
         <div id="imgLibCats" class="journal-from-row" style="margin-bottom:8px;"></div>
         <div id="imgLibGrid" style="overflow-y:auto; flex:1;"></div>
+        <div id="imgLibPreview" style="display:none;">
+            <div class="ilp-stage"><img id="imgLibPreviewImg" alt=""></div>
+            <div class="ilp-side">
+                <div id="imgLibPreviewName" class="ilp-name"></div>
+                <div id="imgLibPreviewMeta" class="ilp-meta"></div>
+                <button class="tool" id="imgLibPreviewAdd">Add to map</button>
+                <button class="tool ghost" id="imgLibPreviewCat" title="Put this picture in a category">Move to category&hellip;</button>
+                <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>
+            </div>
+        </div>
         <div id="imgCatMenu" class="shape-menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"></div>
-        <div style="color:var(--dim); font-size:11px; margin-top:10px;">Click an image to place it on the current play map. Right-click one to move it into a category.</div>
+        <div style="color:var(--dim); font-size:11px; margin-top:10px;">Click an image for a large preview, then Add to map. Right-click one to move it into a category.</div>
     </div>
 </div>
 

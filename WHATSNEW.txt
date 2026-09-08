@@ -5,6 +5,12 @@ Planners
 - Right-click a planner in the sidebar to mark it Next, Played or Skipped,
   or clear its status — the same as the toolbar picker.
 
+Image Library
+- Clicking a picture opens a large preview — name, map, category — with an
+  "Add to map" button (or "Use this picture" when a planner block is asking),
+  a "Move to category" button and Back. Nothing lands on the map until you
+  press Add.
+
 WAYPOINT 1.4.2 — What's New
 ============================
 

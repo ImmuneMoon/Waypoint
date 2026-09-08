@@ -2397,6 +2397,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var c = imgCats();
       if (name) c.by[path] = name; else delete c.by[path];
       imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+      var pv = document.getElementById('imgLibPreview');
+      if (pv && pv.style.display !== 'none' && pv.dataset.src === path) openImgPreview(path);
   }
   function imgCatNew(cb) {
       showPrompt('New category:', '', function(name) {
@@ -2537,7 +2539,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   var _el_imgLibClose = document.getElementById('imgLibCloseBtn');
 
   if (_el_imgLibClose) _el_imgLibClose.addEventListener('click', function() {
-      _imgLibPick = null;
+      _imgLibPick = null; closeImgPreview();
       document.getElementById('imgLibModal').style.display = 'none';
   });
 
@@ -2559,13 +2561,58 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           document.getElementById('imgLibModal').style.display = 'none';
           return;
       }
-      if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; document.getElementById('imgLibModal').style.display = 'none'; cb(cell.dataset.src); return; }
-      var am = getActiveMap();
-      if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
-      addWbItem('image', { w: 300, h: 300, src: cell.dataset.src, color: 'transparent' });
-      document.getElementById('imgLibModal').style.display = 'none';
-      toast('Image placed.');
+      openImgPreview(cell.dataset.src);   // a large look first; Add to map (or Use this picture) is a deliberate press
   });
+  /* ---- library preview ---- */
+  function imgLibEntry(src) { return (_imgLibCache || []).find(function(i) { return i.path === src; }) || null; }
+  function openImgPreview(src) {
+      var pv = document.getElementById('imgLibPreview'), grid = document.getElementById('imgLibGrid'); if (!pv || !grid) return;
+      var im = imgLibEntry(src), camp = getActiveCampaign();
+      var folder = im ? im.folder : '', mapIt = camp && camp.items[folder], mapName = (mapIt && mapIt.meta && mapIt.meta.title) || folder || '';
+      document.getElementById('imgLibPreviewImg').src = encodeURI(src);
+      document.getElementById('imgLibPreviewName').textContent = im ? im.name : src.split('/').pop();
+      var cat = imgCatOf(src);
+      document.getElementById('imgLibPreviewMeta').innerHTML = (mapName ? '<div>Map: <b>' + esc(mapName) + '</b></div>' : '') + '<div>Category: <b>' + (cat ? esc(cat) : 'none') + '</b></div>';
+      var add = document.getElementById('imgLibPreviewAdd');
+      add.textContent = _imgLibPick ? 'Use this picture' : 'Add to map';
+      add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map';
+      pv.dataset.src = src;
+      grid.style.display = 'none'; pv.style.display = 'flex';
+  }
+  function closeImgPreview() {
+      var pv = document.getElementById('imgLibPreview'), grid = document.getElementById('imgLibGrid'); if (!pv || !grid) return;
+      pv.style.display = 'none'; grid.style.display = '';
+      document.getElementById('imgLibPreviewImg').removeAttribute('src');
+  }
+  window.wpCloseImgPreview = closeImgPreview;
+  (function wireImgPreview() {
+      var pv = document.getElementById('imgLibPreview'); if (!pv) return;
+      document.getElementById('imgLibPreviewBack').addEventListener('click', closeImgPreview);
+      document.getElementById('imgLibPreviewAdd').addEventListener('click', function() {
+          var src = pv.dataset.src; if (!src) return;
+          if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; cb(src); return; }
+          var am = getActiveMap();
+          if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
+          addWbItem('image', { w: 300, h: 300, src: src, color: 'transparent' });
+          closeImgPreview();
+          document.getElementById('imgLibModal').style.display = 'none';
+          toast('Image placed.');
+      });
+      document.getElementById('imgLibPreviewCat').addEventListener('click', function(e) {
+          var src = pv.dataset.src; if (!src) return;
+          var menu = document.getElementById('imgCatMenu'), c = imgCats(), cur = imgCatOf(src);
+          menu.dataset.src = src;
+          menu.innerHTML = '<div class="party-menu-head">Move to</div>'
+              + c.list.map(function(n) { return '<button class="wb-tool-btn party-menu-item' + (cur === n ? ' on' : '') + '" data-cat="' + esc(n) + '">' + (cur === n ? '&#10003; ' : '') + esc(n) + '</button>'; }).join('')
+              + '<button class="wb-tool-btn party-menu-item' + (!cur ? ' on' : '') + '" data-cat="">' + (!cur ? '&#10003; ' : '') + 'No category</button>'
+              + '<button class="wb-tool-btn party-menu-item" data-act="new">+ New category\u2026</button>';
+          menu.style.display = 'flex'; menu.classList.add('show');
+          var r = this.getBoundingClientRect();
+          window.wpClampMenu(menu, r.left, r.bottom + 4);
+      });
+      // Escape steps back from the preview before it would close the library
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && pv.style.display !== 'none') { e.stopPropagation(); closeImgPreview(); } }, true);
+  })();
 
   function uploadImageFile(f, cx, cy) {
 

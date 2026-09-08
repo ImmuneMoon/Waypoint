@@ -401,9 +401,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var am = getActiveMap();
       if (!am || am.type !== 'planner') { await fn(); return; }
       var was = plannerFullscreen;
+      // nothing of the bar over the preview (controls, find box, highlights) belongs in an export
+      var bar = document.getElementById('plannerFindBar'), barParent = bar && bar.parentNode, barNext = bar && bar.nextSibling;
+      var findBox = document.getElementById('plannerFind'), findQ = findBox ? findBox.value : '';
+      if (findBox) findBox.value = '';
+      pfClear();
+      if (bar && barParent) barParent.removeChild(bar);
       if (!was) { plannerFullscreen = true; applyPlannerFullscreen(); renderPlannerPreview(); await new Promise(function(r) { setTimeout(r, 700); }); }
       try { await fn(); }
-      finally { if (!was) { plannerFullscreen = false; applyPlannerFullscreen(); renderPlannerPreview(); } }
+      finally {
+          if (!was) { plannerFullscreen = false; applyPlannerFullscreen(); renderPlannerPreview(); }
+          if (bar && barParent) barParent.insertBefore(bar, barNext);
+          if (findBox && findQ) { findBox.value = findQ; plannerFindApply(true); }
+      }
   };
 
   function applyPlannerFullscreen() {

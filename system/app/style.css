@@ -1037,6 +1037,8 @@
   
   @media print {
       header, .sidebar, #plannerEditor, .tool, .canvas-controls { display: none !important; }
+      #plannerFindBar { display: none !important; }
+      #plannerPreview mark.pf-hit { background: transparent !important; color: inherit !important; box-shadow: none !important; }
       .main-content { width: 100% !important; margin: 0 !important; padding: 0 !important; }
       body { background: white; color: black; }
       #plannerPreview { background: white; color: black; max-width: 100%; border: none; padding: 0; }
@@ -1242,10 +1244,12 @@
   .rte-sym:hover { border-color: var(--gold); color: var(--gold); }
 
   /* Find in planner */
-  #plannerFindBar { position: sticky; top: -20px; z-index: 5; display: flex; justify-content: flex-end; margin: -20px -20px 10px; padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--edge); }
-  #plannerFindWrap { display: inline-flex; align-items: center; gap: 3px; }
-  #plannerTools.hdr-group { gap: 4px; }
-  #plannerFind { width: 170px; padding: 5px 9px; font-size: 12.5px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); color: var(--ink); outline: none; }
+  #plannerFindBar { position: sticky; top: -20px; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: -20px -20px 10px; padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--edge); }
+  #plannerFindWrap { display: inline-flex; align-items: center; gap: 3px; flex: 1 1 200px; min-width: 0; justify-content: flex-end; }
+  #plannerTools.hdr-group { flex: 0 0 auto; }
+  #plannerTools.hdr-group { gap: 4px; margin-left: 0; }
+  #plannerFindBar .hdr-group::before { background: var(--bg); }
+  #plannerFind { width: 100%; max-width: 190px; min-width: 70px; flex: 1 1 auto; padding: 5px 9px; font-size: 12.5px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); color: var(--ink); outline: none; }
   #plannerFind:focus { border-color: var(--gold); }
   #plannerFindCount { color: var(--dim); font-size: 11px; min-width: 42px; text-align: center; }
   #plannerFindWrap .tool.icon { width: 26px; height: 26px; font-size: 9px; }

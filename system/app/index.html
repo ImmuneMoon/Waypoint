@@ -106,10 +106,6 @@ window.addEventListener('unhandledrejection', function(e) {
       <button class="seg-btn active" data-mode="data"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM18 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM12 16.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM8.5 5h7M7.2 7.2l3.6 7.3M16.8 7.2l-3.6 7.3"/></svg> Data Map</button>
       <button class="seg-btn" data-mode="visual"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4zM8 2v16M16 6v16"/></svg> Play Map</button>
     </div>
-    <span id="plannerTools" class="hdr-group" data-label="Planner" style="display:none;">
-      <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render Preview </button>
-      <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">&#9654; Next</option><option value="played">&#9989; Played</option><option value="skipped">&#9197; Skipped</option></select>
-    </span>
     <div id="mapBreadcrumb"></div>
     <div class="spacer"></div>
     <div class="header-group">
@@ -704,7 +700,10 @@ window.addEventListener('unhandledrejection', function(e) {
           </div>
         </div>
         <div id="plannerPreviewWrap">
-          <div id="plannerFindBar"><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
+          <div id="plannerFindBar"><span id="plannerTools" class="hdr-group" data-label="Planner" style="display:none;">
+      <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render Preview </button>
+      <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">&#9654; Next</option><option value="played">&#9989; Played</option><option value="skipped">&#9197; Skipped</option></select>
+    </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
         <input type="search" id="plannerFind" placeholder="Find (Ctrl+F)" autocomplete="off" spellcheck="false">
         <span id="plannerFindCount"></span>
         <button class="tool ghost icon" id="plannerFindPrev" title="Previous hit (Shift+Enter)">&#9650;</button>

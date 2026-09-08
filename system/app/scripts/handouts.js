@@ -111,7 +111,16 @@ function latestOf(idx, id) {
 }
 function versionId(id) { return safeId(id).slice(0, 44) + '-v' + Date.now().toString(36); }
 // A shared entry remembers who sent it and what they wrote under it
+// Tags: short lowercase words, at most eight, from "faces, places" or an array
+function tagList(v) {
+    var arr = Array.isArray(v) ? v : String(v || '').split(/[,;]+/);
+    var out = [], seen = {};
+    arr.forEach(function(t) { t = String(t || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 24); if (t && !seen[t]) { seen[t] = true; out.push(t); } });
+    return out.slice(0, 8);
+}
+function tagChips(tags, cls) { return (tags && tags.length) ? '<div class="tag-row">' + tags.map(function(t) { return '<span class="' + (cls || 'journal-tag') + '" data-tag="' + esc(t) + '" title="Show everything tagged ' + esc(t) + '">' + esc(t) + '</span>'; }).join('') + '</div>' : ''; }
 function stampShared(en, msg) {
+    en.tags = tagList(msg.tags);
     if (!msg.sharedBy) return;
     en.sharedBy = String(msg.sharedBy).slice(0, 60);
     en.sharedById = safeId(msg.sharedById);
@@ -344,7 +353,7 @@ async function openJournal() {
                 : '<img class="journal-thumb" src="' + esc(e.src) + '" alt="" title="Open">';
             return '<div class="journal-entry" data-page="inbox" data-from="' + esc(fromOf(e)) + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
-                (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
+                (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') + tagChips(e.tags) +
                 '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b></div>' +
                 (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(fromOf(e) === 'gm' ? 'The GM' : e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea>' + sentLine(e) + shareControls() + '</div></div>';
@@ -356,7 +365,7 @@ async function openJournal() {
             var thumb = s.kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(s.text || '').slice(0, 160)) + '</div>'
                       : s.src ? '<img class="journal-thumb" src="' + esc(s.src) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to.map(function(t) { return t.pid || ''; }).join(' ')) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(s.hid) + '" data-kind="' + (s.kind === 'text' ? 'text' : 'image') + '" data-sent="1"' + (s.kind === 'text' ? ' data-text="' + esc(String(s.text || '')) + '"' : '') + '>' + thumb +
-                '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') +
+                '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') + tagChips(s.tags) +
                 '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this handout…">' + esc((j.sentNotes || {})['sent:' + s.hid] || '') + '</textarea></div></div>';
         }).join('');
@@ -425,13 +434,13 @@ async function shareEntry(campId, id, to, btn) {
     var idx = await readIndex(campId);
     var e = idx.entries.find(function(x) { return x.id === id; }); if (!e) return;
     var entry;
-    if (e.kind === 'note') entry = { id: e.id, kind: 'text', title: e.title || 'A note', caption: '', text: e.text || '', notes: '' };
-    else if (e.kind === 'text') entry = { id: e.id, kind: 'text', title: e.title || 'Handout', caption: e.caption || '', text: e.text || '', notes: e.notes || '' };
+    if (e.kind === 'note') entry = { id: e.id, kind: 'text', title: e.title || 'A note', caption: '', text: e.text || '', notes: '', tags: e.tags || [] };
+    else if (e.kind === 'text') entry = { id: e.id, kind: 'text', title: e.title || 'Handout', caption: e.caption || '', text: e.text || '', notes: e.notes || '', tags: e.tags || [] };
     else {
         var bytes = null;
         try { var r = await fetch(/^(data:|blob:)/.test(e.src || '') ? e.src : encodeURI(e.src || ''), { cache: 'no-store' }); if (r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (err) {}
         if (!bytes || !bytes.length) { toast('That picture could not be read from your journal.'); return; }
-        entry = { id: e.id, kind: 'image', title: e.title || 'Handout', caption: e.caption || '', mime: e.mime || 'image/jpeg', data: bytes, notes: e.notes || '' };
+        entry = { id: e.id, kind: 'image', title: e.title || 'Handout', caption: e.caption || '', mime: e.mime || 'image/jpeg', data: bytes, notes: e.notes || '', tags: e.tags || [] };
     }
     if (window.wpNet.shareEntry({ to: to, entry: entry })) {
         var who = to === '*' ? 'everyone in the party' : to === 'gm' ? 'GM' : ((Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === to; }) || {}).name || 'them');
@@ -465,7 +474,7 @@ function sentRecords(key) {
     Object.keys(rev).forEach(function(pid) { Object.keys(rev[pid] || {}).forEach(function(hid) { add(hid, pid, nameOf(pid), rev[pid][hid]); }); });
     return Object.values(by).map(function(r) {
         var h = hs[r.hid] || {};
-        r.title = h.title || '(removed handout)'; r.caption = h.caption || ''; r.kind = h.kind || 'image'; r.text = h.text || ''; r.src = h.src || '';
+        r.title = h.title || '(removed handout)'; r.caption = h.caption || ''; r.kind = h.kind || 'image'; r.text = h.text || ''; r.src = h.src || ''; r.tags = h.tags || [];
         r.to.sort(function(a, b) { return b.at - a.at; });
         return r;
     }).sort(function(a, b) { return b.last - a.last; });
@@ -555,6 +564,8 @@ if (_jClose) _jClose.addEventListener('click', function() { ui('journalModal').s
 var _jList = ui('journalList');
 if (_jList) {
     _jList.addEventListener('click', function(e) {
+        var tg = e.target.closest && e.target.closest('.journal-tag');
+        if (tg) { var sb = ui('journalSearch'); if (sb) { sb.value = tg.dataset.tag; journalFilter(); sb.focus(); } return; }
         var t = e.target.closest && e.target.closest('.journal-thumb'); if (!t) return;
         var row = t.closest('.journal-entry');
         if (row.dataset.sent) {
@@ -722,9 +733,23 @@ window.wpHandoutPayload = function(h) {
     });
 };
 
+var handoutTag = '';   // the tag the Handouts panel is filtered to ('' = all)
+function renderHandoutTags(camp) {
+    var row = ui('handoutTagRow'); if (!row) return;
+    var counts = {};
+    Object.values(handoutsOf(camp)).forEach(function(h) { (h.tags || []).forEach(function(t) { counts[t] = (counts[t] || 0) + 1; }); });
+    var tags = Object.keys(counts).sort();
+    if (!tags.length) { row.style.display = 'none'; handoutTag = ''; return; }
+    if (handoutTag && !counts[handoutTag]) handoutTag = '';
+    row.style.display = 'flex';
+    row.innerHTML = '<span class="journal-chip-label">Tags</span><button class="journal-from' + (!handoutTag ? ' active' : '') + '" data-tag="">All</button>'
+        + tags.map(function(t) { return '<button class="journal-from' + (handoutTag === t ? ' active' : '') + '" data-tag="' + esc(t) + '">' + esc(t) + ' <span class="journal-count">' + counts[t] + '</span></button>'; }).join('');
+}
 function renderHandouts() {
     var camp = getActiveCampaign(), list = ui('handoutsList'); if (!camp || !list) return;
+    renderHandoutTags(camp);
     var hs = Object.values(handoutsOf(camp)).sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    if (handoutTag) hs = hs.filter(function(h) { return (h.tags || []).indexOf(handoutTag) >= 0; });
     var roster = (net.active && net.role === 'host') ? Object.values(net.roster) : [];
     if (!hs.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">No handouts yet. Press <b>New handout</b> and pick a picture from your campaign — a place, a face, a letter. Then show it to the table, to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
     var rooms = [];
@@ -742,6 +767,7 @@ function renderHandouts() {
             '<input class="field handout-title" value="' + esc(h.title || '') + '" placeholder="Title">' +
             (h.kind === 'text' ? '<textarea class="field handout-text" placeholder="The text the players read">' + esc(h.text || '') + '</textarea>' : '') +
             '<textarea class="field handout-caption" placeholder="' + (h.kind === 'text' ? 'Short note under it (optional)' : 'Caption the players see (optional)') + '">' + esc(h.caption || '') + '</textarea>' +
+            '<input class="field handout-tags" value="' + esc((h.tags || []).join(', ')) + '" placeholder="Tags — faces, places, letters… (comma-separated; players see them and can search by them)" title="Tags sort the panel and travel with the handout">' +
             '<div class="handout-meta">' + (seen.length ? 'Seen by ' + esc(seen.join(', ')) : 'Not shown to anyone yet') + (attached.length ? ' · attached to ' + esc(attached.join('; ')) : '') + '</div>' +
             '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
@@ -754,6 +780,11 @@ function renderHandouts() {
     }).join('');
 }
 window.wpRenderHandouts = renderHandouts;
+var _hTagRow = ui('handoutTagRow');
+if (_hTagRow) _hTagRow.addEventListener('click', function(e) {
+    var b = e.target.closest && e.target.closest('[data-tag]'); if (!b) return;
+    handoutTag = b.dataset.tag || ''; renderHandouts();
+});
 
 async function openHandouts() {
     var m = ui('handoutsModal'); if (!m) return;
@@ -824,6 +855,7 @@ if (_hList) {
         if (e.target.classList.contains('handout-title')) h.title = e.target.value.slice(0, 120);
         if (e.target.classList.contains('handout-caption')) h.caption = e.target.value.slice(0, 4000);
         if (e.target.classList.contains('handout-text')) h.text = e.target.value.slice(0, 60000);
+        if (e.target.classList.contains('handout-tags')) { h.tags = tagList(e.target.value); if (!h.tags.length) delete h.tags; clearTimeout(_hList._tg); _hList._tg = setTimeout(function() { renderHandoutTags(camp); }, 600); }
         clearTimeout(_hList._t); _hList._t = setTimeout(function() { save(true); }, 400);
     });
     _hList.addEventListener('keydown', function(e) { e.stopPropagation(); });

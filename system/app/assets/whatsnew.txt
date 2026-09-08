@@ -23,6 +23,13 @@ Session log
   and save it as a text file — the raw material for the next recap. GM data,
   never sent to players.
 
+Handouts
+- Tags. Give a handout tags (faces, places, letters — anything, comma
+  separated); a tag row at the top of the Handouts panel filters the list.
+  Tags travel with the handout: players see them as chips in their Inbox,
+  a click on a chip searches the journal for it, and the smart search
+  matches them.
+
 WAYPOINT 1.3.6 — What's New
 ============================
 

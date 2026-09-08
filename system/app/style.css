@@ -1159,3 +1159,9 @@
   .log-kind { flex: 0 0 64px; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
   .log-kind.k-handout { color: var(--gold); } .log-kind.k-travel { color: var(--blue); } .log-kind.k-chat { color: var(--teal); } .log-kind.k-player { color: var(--green); } .log-kind.k-share { color: var(--violet); }
   .log-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+
+  /* Handout tags */
+  .handout-body .handout-tags { font-size: 11.5px; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0; }
+  .journal-tag { font-size: 10px; letter-spacing: .04em; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--edge); color: var(--dim); cursor: pointer; }
+  .journal-tag:hover { border-color: var(--gold); color: var(--gold); }

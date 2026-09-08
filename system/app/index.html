@@ -94,10 +94,12 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="header-sep"></div>
     <div class="header-group">
       <select id="campaignSelect" class="map-select" aria-label="Select Campaign"></select>
-      <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns">&#128269;</button>
-      <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign">&#65291;</button>
-      <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign">&#9998;</button>
-      <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign">&#128465;&#65039;</button>
+      <div class="hdr-group" data-label="Campaign">
+        <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns">&#128269;</button>
+        <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign">&#65291;</button>
+        <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign">&#9998;</button>
+        <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign">&#128465;&#65039;</button>
+      </div>
     </div>
     <div class="header-sep"></div>
     <div class="seg-control" id="viewModeSelect" role="group" aria-label="Select View Mode">

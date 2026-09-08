@@ -13,7 +13,8 @@ Export
 Header
 - The icon row is grouped by purpose, each group a small labelled pill:
   Table (multiplayer, chat), Journal (handouts, journal) and App (refresh,
-  settings, help, about). Update, when there is one, stays at the front.
+  settings, help, about) and, beside the campaign picker, Campaign (search,
+  new, rename, delete). Update, when there is one, stays at the front.
 
 Table chat
 - A player who joins or rejoins gets the recent table conversation (the

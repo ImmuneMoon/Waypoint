@@ -22,7 +22,18 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 ## Installing (players and GMs)
 
-Download `Waypoint_Setup.exe` from the latest release and run it. Windows will probably show a blue SmartScreen screen because the installer isn't code-signed; click **More info**, then **Run anyway**. The installer puts Waypoint in your user folder, needs no admin rights, and offers a Start Menu and desktop shortcut.
+Download `Waypoint_Setup.exe` from the latest release and run it. The installer puts Waypoint in your user folder, needs no admin rights, and offers a Start Menu and desktop shortcut.
+
+### "Windows protected your PC"
+
+The installer isn't code-signed, so Windows shows a blue SmartScreen screen the first time you run it. It looks like this, and it is safe to continue:
+
+![SmartScreen: click More info, then Run anyway](docs/smartscreen.png)
+
+1. Click **More info** (the small link under the warning text).
+2. The app and publisher lines appear, and a **Run anyway** button shows up beside **Don't run**. Click **Run anyway**.
+
+That is all SmartScreen means here: the installer is new and unsigned, not flagged. You only see it once per download.
 
 New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken.
 

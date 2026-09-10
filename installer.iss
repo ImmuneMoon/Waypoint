@@ -16,6 +16,8 @@ VersionInfoVersion={#AppVer}
 VersionInfoDescription=Waypoint — campaign mapping and whiteboard planning
 DefaultDirName={localappdata}\Programs\Waypoint
 UninstallDisplayIcon={app}\Waypoint.exe
+; tells the shell to drop its cached icons after an in-place update, so the new Waypoint.exe icon shows without a sign-out
+ChangesAssociations=yes
 SetupIconFile=system\icon.ico
 LicenseFile=license.txt
 InfoBeforeFile=WHATSNEW.txt

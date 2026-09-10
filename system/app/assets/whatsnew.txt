@@ -1,3 +1,16 @@
+WAYPOINT 1.4.5 — What's New
+============================
+
+Look
+- A new Waypoint icon: the gold-edged d20 with the W, in the app's own navy
+  and gold. It is the window and taskbar icon, the Waypoint.exe icon in
+  Explorer and on shortcuts, the installer's icon and the mark in the app
+  header.
+- The Fulllion Creative Works mark in About is the new outline version.
+
+Installer
+- Spare icon files in the system folder are no longer packaged.
+
 WAYPOINT 1.4.4 — What's New
 ============================
 

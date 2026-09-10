@@ -847,6 +847,11 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
                         [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((w.front && [0, 90, 180, 270].indexOf(w.front) < 0) ? [[w.front, w.front + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + ((w.front || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
                     html += '<div class="field"><label for="wbFaceMode">Turning</label><select id="wbFaceMode"><option value="art"' + (w.faceMode !== 'arrow' ? ' selected' : '') + '>Art turns with the arrow</option><option value="arrow"' + (w.faceMode === 'arrow' ? ' selected' : '') + '>Arrow only (art stays upright)</option></select></div>';
+                    // Elevation (yards) and posture — only while the viewer toggles are on (Settings → Table)
+                    var stanceApi = window.wpStance, elevOnI = !!(stanceApi && stanceApi.on('elevation')), postOnI = !!(stanceApi && stanceApi.on('posture'));
+                    if (elevOnI) html += '<div class="field"><label for="wbElev">Elevation <span class="muted">(yards above the ground; a pit is negative)</span></label><input type="number" id="wbElev" step="1" value="' + stanceApi.tokenElevation(w) + '"></div>';
+                    if (postOnI) html += '<div class="field"><label for="wbPosture">Posture</label><select id="wbPosture">' + stanceApi.POSTURES.map(function(p) { return '<option value="' + p + '"' + (stanceApi.tokenPosture(w) === p ? ' selected' : '') + '>' + stanceApi.POSTURE_LABEL[p] + '</option>'; }).join('') + '</select></div>';
+                    if (!elevOnI && !postOnI) html += '<div class="muted" style="margin:-4px 0 10px;">Elevation and posture are off &mdash; turn them on in &#9881; Settings &rarr; Table.</div>';
                     html += '<div class="field"><label for="wbStatus">Condition</label><select id="wbStatus"><option value=""' + (!w.status ? ' selected' : '') + '>Alive</option><option value="down"' + (w.status === 'down' ? ' selected' : '') + '>Incapacitated (red X)</option><option value="dead"' + (w.status === 'dead' ? ' selected' : '') + '>Dead (skull, darkened)</option></select></div>';
                     // Multiplayer ownership: known players from this campaign + anyone connected now
                     var playersKnown = {};
@@ -1036,6 +1041,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(wbCharName) wbCharName.addEventListener('input', function() { w.charName = this.value; save(); });
                 var wbCharStats = document.getElementById('wbCharStats');
                 if(wbCharStats) wbCharStats.addEventListener('input', function() { w.charStats = this.value; save(); });
+                var wbElev = document.getElementById('wbElev');
+                if (wbElev) wbElev.addEventListener('change', function() { window.wpStance.setElevation(w, this.value); this.value = window.wpStance.tokenElevation(w); save(); renderWhiteboard(); });
+                var wbPosture = document.getElementById('wbPosture');
+                if (wbPosture) wbPosture.addEventListener('change', function() { window.wpStance.setPosture(w, this.value); save(); renderWhiteboard(); });
                 var wbSheetView = document.getElementById('wbSheetView');
                 if (wbSheetView) wbSheetView.addEventListener('click', function() {
                     import('./shadowbase.js').then(function(m) { m.showSheet(w); });

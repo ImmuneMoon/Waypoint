@@ -75,6 +75,10 @@ function syncPanel() {
     if (mmState) mmState.textContent = localStorage.getItem('wp_minimap') === 'closed' ? 'hidden' : 'shown';
     var rlState = ui('setRulersState');
     if (rlState) rlState.textContent = localStorage.getItem('wp_rulers') === 'off' ? 'hidden' : 'shown';
+    var evState = ui('setElevationState');
+    if (evState) evState.textContent = localStorage.getItem('wp_elevation') === 'on' ? 'on' : 'off';
+    var poState = ui('setPostureState');
+    if (poState) poState.textContent = localStorage.getItem('wp_posture') === 'on' ? 'on' : 'off';
     var ryState = ui('setRelayState');
     if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') === '1' ? 'on — relay only' : 'off — direct first';
     var go = ui('setGridOpacity');
@@ -260,6 +264,23 @@ if (_rlBtn) _rlBtn.addEventListener('click', function() {
     if (window.appRender) window.appRender();
     syncPanel();
     toast(off ? 'Rulers shown.' : 'Rulers hidden.');
+});
+
+/* Token stance: elevation (yards) and posture chips, and the blast tool's 3D figure. Off by
+   default — a table that runs flat never sees them. The values stay on the tokens either
+   way; in a session the GM's choice is what players see (net.broadcastStance). The keys
+   are wp_* so they mirror into saves/preferences.json with the other table settings. */
+[['Elevation', 'wp_elevation'], ['Posture', 'wp_posture']].forEach(function(def) {
+    var b = ui('set' + def[0] + 'Btn'); if (!b) return;
+    b.addEventListener('click', function() {
+        var on = localStorage.getItem(def[1]) === 'on';
+        try { localStorage.setItem(def[1], on ? 'off' : 'on'); } catch (e) {}
+        if (window.appRender) window.appRender();
+        if (window.wpRefreshBlasts) window.wpRefreshBlasts();
+        if (window.wpNet && window.wpNet.broadcastStance) window.wpNet.broadcastStance();
+        syncPanel();
+        toast(def[0] + (on ? ' off \u2014 chips hidden, the values are kept.' : ' on.'));
+    });
 });
 
 var _op = ui('setOpacity');

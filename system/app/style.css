@@ -353,6 +353,7 @@
   }
   body.mode-draw #whiteboardWrap, body.mode-draw #whiteboardWrap * { cursor: var(--cur-pen) !important; }
   body.mode-measure #whiteboardWrap, body.mode-measure #whiteboardWrap * { cursor: var(--cur-measure) !important; }
+  body.mode-blast #whiteboardWrap, body.mode-blast #whiteboardWrap * { cursor: crosshair !important; }
   body.mode-eraser #whiteboardWrap, body.mode-eraser #whiteboardWrap * { cursor: none !important; }
   body.placing #whiteboardWrap, body.placing #whiteboardWrap * { cursor: var(--cur-place) !important; }
   body.mode-pan #whiteboardWrap .wb-item, body.mode-pan #whiteboardWrap .wb-item * { cursor: grab !important; }
@@ -461,6 +462,13 @@
   .token-status svg { width: 74%; height: 74%; filter: drop-shadow(0 0 2px #000); }
   .wb-item.tok-dead::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.45); z-index: 1; pointer-events: none; }
   .wb-item.tok-dead > img { filter: saturate(0.45); }
+  /* Stance chips: elevation (gold, red-tinted below ground) and posture (blue) in a row at the
+     bottom of the token, inside its cell. Fixed dark plate so they read over any art or theme. */
+  .token-stance { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; pointer-events: none; z-index: 4; }
+  .token-stance .chip { font: 700 9px/1 Consolas, monospace; padding: 2px 3px; border-radius: 3px; background: rgba(0,0,0,0.78); color: #f2c66d; letter-spacing: .02em; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); white-space: nowrap; }
+  .token-stance .chip.below { color: #f4a3a3; }
+  .token-stance .chip.post { color: #8fd6ec; }
+  .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }
   .token-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--bg); pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
   .wb-item.trigger.trigger-diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
   .wb-item.star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); background: var(--faint); }
@@ -506,6 +514,17 @@
   #measureLayer g.measure:hover line:not(.hit) { stroke: var(--red); }
   #measureLayer g.measure:hover circle { fill: var(--red); }
   #measureLayer g.measure:hover text { fill: var(--red); }
+  /* Blast templates share the layer: a translucent red disc, its label, and a distance over every token in range */
+  /* Only the ring (a fat invisible stroke), the centre dot and the label take clicks — the
+     disc itself lets tokens under it be clicked and dragged as usual */
+  #measureLayer g.blast { pointer-events: none; cursor: pointer; }
+  #measureLayer g.blast circle.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }
+  #measureLayer g.blast circle.ring { fill: none; stroke: transparent; stroke-width: 14; stroke-dasharray: none; pointer-events: stroke; }
+  #measureLayer g.blast circle.dot { fill: var(--red); pointer-events: auto; }
+  #measureLayer g.blast text { fill: var(--red); pointer-events: auto; }
+  #measureLayer g.blast text.hit { fill: var(--ink); font-size: 12px; pointer-events: none; }
+  #measureLayer g.blast:hover circle.area { stroke: var(--gold); fill: rgba(224,165,79,0.14); }
+  #measureLayer g.blast:hover circle.dot, #measureLayer g.blast:hover text { fill: var(--gold); }
   /* ---- inspector ---- */
   /* ---- sidebar ---- */
   #sidebar{

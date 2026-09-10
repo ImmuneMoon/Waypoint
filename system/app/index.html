@@ -315,7 +315,12 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Choose <b>Imperial</b> or <b>Metric</b>. By default a hex cell is 1 yard across and a square is 5 feet.</li>
                           <li>For huge maps (space battles!), set <b>Map Scale</b> in the measure options &mdash; e.g. one cell = 100 yd or 2 km. Each map keeps its own scale.</li>
                           <li><b>Click any placed ruler to remove it</b> (it turns red on hover); <b>Clear rulers</b> in the measure options removes them all.</li>
+                          <li>With <b>Token elevation</b> on (&#9881; Settings &rarr; Table), a ruler between two tokens at different heights prints the straight-line <b>3D</b> figure as a second number.</li>
                       </ol>
+                      <h4>Blast radius</h4>
+                      <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Click a blast to remove it. Blasts are yours alone, like rulers.</p>
+                      <h4>Elevation &amp; posture</h4>
+                      <p>Two switches in <b>&#9881; Settings &rarr; Table</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. In a session your switches decide what players see.</p>
                       <h4>Coordinate rulers &amp; minimap</h4>
                       <p>The number strips along the top and left edges are coordinate rulers. Turn them off (or back on) in <b>&#9881; Settings &rarr; Table</b>, alongside the minimap toggle and a <b>Grid opacity</b> slider &mdash; that slider is yours alone, so in multiplayer every player can fade the grid to taste without changing anyone else's view. Zoom steps are 5% per click or <kbd>Mouse Wheel</kbd> tick (the wheel zooms toward the pointer; hold <kbd>Shift</kbd> to scroll instead).</p>
                   </div>
@@ -575,6 +580,36 @@ window.addEventListener('unhandledrejection', function(e) {
                   </div>
                   <div class="draw-menu-row">
                       <button class="draw-style-btn" id="measureClearBtn" title="Remove all placed rulers">Clear rulers</button>
+                  </div>
+              </div>
+          </div>
+
+          <div style="position:relative;" class="gm-only">
+              <button class="wb-tool-btn" id="blastModeBtn" title="Blast &mdash; click a cell to drop a grenade's radius; tokens in range show their distance (click again for the weapon)">&#128165;</button>
+              <div class="shape-menu draw-menu" id="blastMenu">
+                  <div class="draw-menu-label">Blast Radius (area effect, feet)</div>
+                  <div class="draw-menu-row" id="blastPresetRow" style="flex-wrap:wrap;">
+                      <button class="draw-style-btn" data-name="Frag" data-ft="12">Frag 12</button>
+                      <button class="draw-style-btn" data-name="Concussion" data-ft="12">Concussion 12</button>
+                      <button class="draw-style-btn" data-name="Sonic" data-ft="20">Sonic 20</button>
+                      <button class="draw-style-btn" data-name="Ion" data-ft="24">Ion 24</button>
+                      <button class="draw-style-btn" data-name="Plasma" data-ft="30">Plasma 30</button>
+                  </div>
+                  <div class="draw-menu-row">
+                      <input type="number" id="blastFt" min="1" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                      <span style="font-size:11px; color:var(--dim);">ft &mdash; any other weapon (&divide;3 = yards)</span>
+                  </div>
+                  <div id="blastElevRow">
+                      <div class="draw-menu-label">Blast Height (yd)</div>
+                      <div class="draw-menu-row">
+                          <input type="number" id="blastElev" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                          <span style="font-size:11px; color:var(--dim);">where it goes off &mdash; the token in that cell's height, else the ground</span>
+                      </div>
+                  </div>
+                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off (&#9881; Settings &rarr; Table): flat hex distance.</div>
+                  <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>
+                  <div class="draw-menu-row">
+                      <button class="draw-style-btn" id="blastClearBtn" title="Remove all placed blasts">Clear blasts</button>
                   </div>
               </div>
           </div>
@@ -915,6 +950,16 @@ window.addEventListener('unhandledrejection', function(e) {
         <div style="margin-bottom:8px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Coordinate rulers <span id="setRulersState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setRulersBtn" style="width:100%;">Toggle Rulers</button>
+        </div>
+        <div style="margin-bottom:8px;" class="gm-only">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Token elevation <span id="setElevationState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setElevationBtn" style="width:100%;">Toggle Elevation</button>
+            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Height in yards on each token (a ledge at +3, a pit at &minus;2): a chip on the token, and the &#128165; Blast tool measures straight-line, height included. Off hides the chips but keeps the values. In a session, your setting is what players see.</div>
+        </div>
+        <div style="margin-bottom:8px;" class="gm-only">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Token posture <span id="setPostureState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setPostureBtn" style="width:100%;">Toggle Posture</button>
+            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Standing, crouching, sitting, kneeling, crawling, prone or face up (handbook ch. 9): a chip on the token, seeded from an attached ShadowBase sheet. Players set their own token's posture and elevation by right-clicking it.</div>
         </div>
         <div style="margin-bottom:14px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Grid opacity <span id="setGridOpacityVal" style="color:var(--dim);"></span></div>

@@ -14,6 +14,77 @@ var wb = document.getElementById('whiteboard');
 
 var _lastMeasureMapId = null;
 
+/* ---- token stance: elevation (yards) + posture (handbook ch. 9) ----
+   Two viewer toggles (Settings → Table: wp_elevation / wp_posture, both off by default)
+   decide whether the chips draw and whether the blast template measures in 3D. The
+   values stay on the token either way, so switching a toggle back on restores them.
+   In a session the GM's toggles govern the player copy: net.stance arrives with the
+   snapshot and again whenever the GM flips one. */
+var POSTURES = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'prone', 'supine'];
+var POSTURE_LABEL = { standing: 'Standing', crouching: 'Crouching', sitting: 'Sitting', kneeling: 'Kneeling', crawling: 'Crawling', prone: 'Lying prone', supine: 'Lying face up' };
+var POSTURE_CHIP = { crouching: 'CRO', sitting: 'SIT', kneeling: 'KNL', crawling: 'CRW', prone: 'PRN', supine: 'SUP' };
+// Accepts the seven ids and the handbook's long names ("lying prone", "lying face up")
+function normalizePosture(v) {
+    var s = String(v || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    if (!s || s === 'standing' || s === 'stand') return 'standing';
+    if (/face ?up|supine|on (the|their) back/.test(s)) return 'supine';
+    if (/prone|face ?down/.test(s)) return 'prone';
+    if (/crouch/.test(s)) return 'crouching';
+    if (/sit/.test(s)) return 'sitting';
+    if (/kneel/.test(s)) return 'kneeling';
+    if (/crawl/.test(s)) return 'crawling';
+    return 'standing';
+}
+function tokenElevation(it) { var e = Number(it && it.elevation); return isFinite(e) ? e : 0; }
+function tokenPosture(it) { return normalizePosture(it && it.posture); }
+function stanceOn(which) {   // 'elevation' | 'posture'
+    var n = window.wpNet;
+    if (n && n.active && n.role === 'client' && n.stance) return !!n.stance[which];
+    try { return localStorage.getItem('wp_' + which) === 'on'; } catch (e) { return false; }
+}
+function setTokenElevation(it, v) { v = Math.round(Number(v) * 10) / 10; if (!isFinite(v) || v === 0) delete it.elevation; else it.elevation = Math.max(-999, Math.min(999, v)); }
+function setTokenPosture(it, v) { v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v; }
+function fmtElev(e) { return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round(Math.abs(e) * 10) / 10); }
+window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenPosture: tokenPosture, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev };
+
+// Context-menu rows for elevation (− / value / +) and posture (select); shared by the GM's
+// item menu and the player's own-token menu. Rows carry cm-stance so the menu stays open.
+function stanceMenuHtml(it) {
+    var eOn = stanceOn('elevation'), pOn = stanceOn('posture');
+    if (!eOn && !pOn) return '';
+    var ctl = 'padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;';
+    var html = '<div class="menu-divider"></div>';
+    if (eOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Elevation</span>'
+        + '<button class="cm-stance align-btn stance-elev" data-d="-1" title="Down one yard">&minus;</button>'
+        + '<input class="cm-stance stance-elev-in" type="number" step="1" value="' + tokenElevation(it) + '" style="width:54px; ' + ctl + '">'
+        + '<span class="cm-stance" style="color:var(--dim);">yd</span>'
+        + '<button class="cm-stance align-btn stance-elev" data-d="1" title="Up one yard">+</button></div>';
+    if (pOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Posture</span>'
+        + '<select class="cm-stance stance-post" style="' + ctl + '">' + POSTURES.map(function(p) { return '<option value="' + p + '"' + (tokenPosture(it) === p ? ' selected' : '') + '>' + POSTURE_LABEL[p] + '</option>'; }).join('') + '</select></div>';
+    return html;
+}
+function wireStanceMenu(cMenu, items, onChange) {
+    items = (items || []).filter(function(t) { return t && t.isChar; });
+    if (!items.length) return;
+    var inp = cMenu.querySelector('.stance-elev-in');
+    function setAll(v) { items.forEach(function(t) { setTokenElevation(t, v); }); if (inp) inp.value = tokenElevation(items[0]); onChange(); }
+    Array.prototype.forEach.call(cMenu.querySelectorAll('.stance-elev'), function(b) {
+        b.addEventListener('click', function(ce) { ce.stopPropagation(); setAll(tokenElevation(items[0]) + parseInt(b.dataset.d, 10)); });
+    });
+    if (inp) { inp.addEventListener('click', function(ce) { ce.stopPropagation(); }); inp.addEventListener('change', function() { setAll(this.value); }); }
+    var sel = cMenu.querySelector('.stance-post');
+    if (sel) { sel.addEventListener('click', function(ce) { ce.stopPropagation(); }); sel.addEventListener('change', function() { var v = this.value; items.forEach(function(t) { setTokenPosture(t, v); }); onChange(); }); }
+}
+// A player's own token: the one edit menu they get (same permission line as moving it)
+function showStanceMenu(e, tok) {
+    var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
+    var rows = stanceMenuHtml(tok); if (!rows) return;
+    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + rows.replace('<div class="menu-divider"></div>', '');
+    cMenu.style.display = 'flex';
+    placeMenu(cMenu, e);
+    wireStanceMenu(cMenu, [tok], function() { save(); render(); });
+}
+
 // In a session, clients resolve campaign images through the host-fed cache
 // A text box with no colour of its own: light ink on a dark plate, dark ink on a light one,
 // the theme's ink when the plate is missing or nearly clear (so both themes stay readable).
@@ -83,6 +154,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           _lastMeasureMapId = activeMap.id;
 
           if (typeof clearMeasures === 'function') clearMeasures();
+          if (typeof clearBlasts === 'function') clearBlasts();
 
       }
 
@@ -213,6 +285,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       var cname = wItem.charName || 'Unnamed Character';
 
                       var cstats = wItem.charStats || '';
+                      var stanceBits = [];
+                      if (stanceOn('elevation') && tokenElevation(wItem)) stanceBits.push('Elevation ' + fmtElev(tokenElevation(wItem)) + ' yd');
+                      if (stanceOn('posture') && tokenPosture(wItem) !== 'standing') stanceBits.push(POSTURE_LABEL[tokenPosture(wItem)]);
+                      var stanceLine = stanceBits.length ? '<div class="rc" style="color:var(--gold); font-size:11px;">' + stanceBits.join(' \u00b7 ') + '</div>' : '';
 
                       // GM only: the roster entry's notes ride along (players never get `info`)
                       var isClientC = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
@@ -227,7 +303,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                                      '<div class="rn">'+esc(cname)+'</div>' +
 
-                                     '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap;">'+esc(cstats)+'</div>' +
+                                     '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap;">'+esc(cstats)+'</div>' + stanceLine +
 
                                      '</div>';
 
@@ -602,6 +678,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (stEl) stEl.remove();
           el.classList.toggle('tok-dead', stv === 'dead');
           el.classList.toggle('tok-down', stv === 'down');
+          // Stance chips (Settings → Table toggles): a small row at the bottom of the token,
+          // inside its own cell so one-token-per-hex still reads at grid scale.
+          var elevV = item.isChar && stanceOn('elevation') ? tokenElevation(item) : 0;
+          var postV = item.isChar && stanceOn('posture') ? tokenPosture(item) : 'standing';
+          var stanceHtml = '';
+          if (elevV) stanceHtml += '<span class="chip elev' + (elevV < 0 ? ' below' : '') + '" title="Elevation ' + fmtElev(elevV) + ' yd">' + fmtElev(elevV) + '</span>';
+          if (postV !== 'standing') stanceHtml += '<span class="chip post" title="' + POSTURE_LABEL[postV] + '">' + POSTURE_CHIP[postV] + '</span>';
+          var stanceEl = el.querySelector(':scope > .token-stance');
+          if (stanceHtml) {
+              if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
+              if (stanceEl.dataset.sig !== stanceHtml) { stanceEl.dataset.sig = stanceHtml; stanceEl.innerHTML = stanceHtml; }
+          } else if (stanceEl) stanceEl.remove();
           if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1) && !item.locked) {
 
               el.classList.add('sel');
@@ -629,6 +717,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var rotHandle = document.getElementById('globalRotateHandle');
 
       positionHandles(activeMap);
+      if (window.wpRefreshBlasts) window.wpRefreshBlasts();   // tokens moved: re-check who is in a blast
 
       
 
@@ -1409,7 +1498,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_eraserModeBtn = document.getElementById('eraserModeBtn');
 
   function updateWbToolbar(activeId) {
-      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn'].forEach(id => {
+      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn'].forEach(id => {
           var el = document.getElementById(id);
           if (el) el.classList.remove('active');
       });
@@ -1419,7 +1508,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       window.isPanMode = (activeId === 'panModeBtn');
       if (activeId !== 'eraserModeBtn' && window.wpEraserCursorHide) window.wpEraserCursorHide();
       // Per-tool cursors (style.css `body.mode-*`): the class beats every item's own cursor
-      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure'].forEach(function(c) { document.body.classList.remove(c); });
+      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
   }
 
@@ -2081,11 +2170,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<circle cx="' + m.x1 + '" cy="' + m.y1 + '" r="4"></circle><circle cx="' + m.x2 + '" cy="' + m.y2 + '" r="4"></circle>';
 
-          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist) + '</text></g>';
+          // Elevation on + both ends on tokens at different heights: the straight-line 3D figure too
+          var lab3 = '';
+          if (stanceOn('elevation')) {
+              var amR = getActiveMap(), tA = amR && tokenAtPoint(amR, m.x1, m.y1), tB = amR && tokenAtPoint(amR, m.x2, m.y2);
+              if (tA && tB && tA !== tB && tokenElevation(tA) !== tokenElevation(tB)) {
+                  var hY = boardYards(m.x1, m.y1, m.x2, m.y2), vY = tokenElevation(tB) - tokenElevation(tA);
+                  lab3 = '3D ' + _r1(Math.sqrt(hY * hY + vY * vY)) + ' yd \u00b7 ' + fmtElev(vY) + ' yd';
+              }
+          }
+          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist) + '</text>';
+          if (lab3) html += '<text x="' + (mx + 8) + '" y="' + (my + 11) + '">' + lab3 + '</text>';
+          html += '</g>';
 
       });
 
-      layer.innerHTML = html;
+      layer.innerHTML = html + blastSvg();
+      applyBlastHits();
 
   }
 
@@ -2093,9 +2194,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var layer = document.getElementById('measureLayer');
       if (!layer) return;
       layer.addEventListener('pointerdown', function(e) {
-          if (e.target.closest && e.target.closest('g.measure') && !window.isPanMode) e.stopPropagation();
+          if (e.target.closest && (e.target.closest('g.measure') || e.target.closest('g.blast')) && !window.isPanMode) e.stopPropagation();
       });
       layer.addEventListener('click', function(e) {
+          var gb = e.target.closest && e.target.closest('g.blast');
+          if (gb) {
+              var bi = parseInt(gb.dataset.i, 10);
+              if (bi >= 0 && bi < blasts.length) { blasts.splice(bi, 1); renderMeasures(); syncBlastMenu(); toast('Blast removed.'); }
+              e.stopPropagation(); return;
+          }
           var g = e.target.closest && e.target.closest('g.measure');
           if (!g || g.classList.contains('live')) return;
           var i = parseInt(g.dataset.i, 10);
@@ -2182,7 +2289,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       e.stopPropagation();
 
-      if (!window.isMeasureMode) {
+      if (!window.isMeasureMode || window.wpMeasureKind !== 'ruler') {
+          window.wpMeasureKind = 'ruler'; closeBlastMenu();
 
           window.isMeasureMode = true;
 
@@ -2245,6 +2353,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       wbWrap.addEventListener('pointerdown', function(e) {
 
           if (!window.isMeasureMode || e.button !== 0) return;
+          if (window.wpMeasureKind === 'blast') { placeBlast(e); e.preventDefault(); return; }
 
           var p = measurePoint(e);
 
@@ -2286,6 +2395,140 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       isMeasuring = false;
 
+  });
+
+  /* ---- blast template: a grenade's area effect on the board (handbook ch. 7 / ch. 11) ----
+     A sub-mode of Measure (window.wpMeasureKind = 'blast'): click a cell to drop a template.
+     Radius is the weapon's area effect in feet (÷3 → yards). Every token within it lights up
+     with its distance printed, so the GM applies damage ÷ (3 × d) by hand — Waypoint never
+     rolls. Horizontal distance is hex distance in yards (one hex = one yard unless the map's
+     scale says otherwise; squares and gridless maps fall back to straight pixels); with the
+     Elevation toggle on, the vertical difference between the token and the template's own
+     height joins it straight-line: d = sqrt(h² + v²). Templates are local, like rulers —
+     never saved, never sent. */
+  window.wpMeasureKind = 'ruler';
+  var blasts = [];
+  var blastDefaults = { ft: 12, name: 'Frag' };
+  try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: _bf.name || '' }; } catch (e) {}
+  var _blastHitIds = [];
+  function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1.09361, km: 1093.61, mi: 1760 }[u] || 1; }
+  function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
+  function hexCellOf(x, y) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows)
+      var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
+      var rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r);
+      var dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r));
+      if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
+      return { q: rx, r: ry };
+  }
+  function hexDist(a, b) { var dq = a.q - b.q, dr = a.r - b.r; return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
+  function tokenCentre(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }
+  function tokenAtPoint(map, x, y) {   // topmost character token whose box holds the point
+      var hit = null;
+      (map.whiteboard || []).forEach(function(t) { if (t.isChar && x >= t.x && x <= t.x + (t.w || 60) && y >= t.y && y <= t.y + (t.h || 52)) hit = t; });
+      return hit;
+  }
+  // Horizontal distance in yards between two board points, the way the handbook counts it
+  function boardYards(ax, ay, bx, by) {
+      if (state.gridType === 'hex') return hexDist(hexCellOf(ax, ay), hexCellOf(bx, by)) * cellYards();
+      return Math.hypot(bx - ax, by - ay) / mapMeasureConfig().cellPx * cellYards();
+  }
+  function blastRadiusYd(b) { return b.ft / 3; }
+  function blastDistances(b, map) {   // every character token (hidden ones too — the GM is the only viewer)
+      var elevOn = stanceOn('elevation');
+      return (map.whiteboard || []).filter(function(t) { return t.isChar; }).map(function(t) {
+          var c = tokenCentre(t);
+          var h = boardYards(b.x, b.y, c.x, c.y);
+          var v = elevOn ? tokenElevation(t) - (b.elev || 0) : 0;
+          return { tok: t, h: h, v: v, d: Math.sqrt(h * h + v * v) };
+      });
+  }
+  function blastSvg() {
+      var map = getActiveMap(); if (!map || !blasts.length) return '';
+      var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '';
+      blasts.forEach(function(b, i) {
+          var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd;
+          html += '<g class="blast" data-i="' + i + '"><title>Click to remove this blast</title>';
+          html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>';
+          var lbl = (b.name ? esc(b.name) + ' ' : '') + b.ft + ' ft \u00b7 r ' + _r1(rYd) + ' yd' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' yd' : '');
+          html += '<text x="' + (b.x + 8) + '" y="' + (b.y - rPx - 8) + '">' + lbl + '</text>';
+          blastDistances(b, map).forEach(function(r) {
+              if (r.d > rYd + 1e-9) return;
+              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + _r1(r.d) + ' yd' + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + _r1(Math.abs(r.v)) + ')' : '') + '</text>';
+          });
+          html += '</g>';
+      });
+      return html;
+  }
+  function applyBlastHits() {
+      var map = getActiveMap(), hit = {};
+      if (map && blasts.length) blasts.forEach(function(b) { var rYd = blastRadiusYd(b); blastDistances(b, map).forEach(function(r) { if (r.d <= rYd + 1e-9) hit[r.tok.id] = true; }); });
+      _blastHitIds.forEach(function(id) { if (!hit[id] && state.wbEls[id]) state.wbEls[id].classList.remove('blast-hit'); });
+      _blastHitIds = Object.keys(hit);
+      _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.add('blast-hit'); });
+  }
+  window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length) renderMeasures(); };
+  window.wpBlasts = function() { return blasts; };   // sandbox testing hook
+  function clearBlasts() { blasts = []; renderMeasures(); }
+  function placeBlast(e) {
+      var map = getActiveMap(); if (!map) return;
+      var box = wbWrap.getBoundingClientRect();
+      var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
+      var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      if (state.gridType === 'hex') { var hc = snapToHex(x, y, 30, 'center'); x = hc.x; y = hc.y; }
+      else if (state.gridType === 'square') { x = Math.floor(x / 50) * 50 + 25; y = Math.floor(y / 50) * 50 + 25; }
+      // A grenade lands at the height of whoever stands in that cell (a token on a catwalk), else the ground
+      var under = tokenAtPoint(map, x, y);
+      var b = { x: x, y: y, ft: blastDefaults.ft, name: blastDefaults.name, elev: under ? tokenElevation(under) : 0 };
+      blasts.push(b);
+      renderMeasures(); syncBlastMenu();
+      var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
+      toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' yd' : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Click it to remove.');
+  }
+  var _el_blastModeBtn = document.getElementById('blastModeBtn');
+  var _el_blastMenu = document.getElementById('blastMenu');
+  function closeBlastMenu() { if (_el_blastMenu) _el_blastMenu.classList.remove('show'); }
+  function lastBlast() { return blasts.length ? blasts[blasts.length - 1] : null; }
+  function syncBlastMenu() {
+      if (!_el_blastMenu) return;
+      var b = lastBlast(), ft = b ? b.ft : blastDefaults.ft, nm = b ? b.name : blastDefaults.name;
+      document.querySelectorAll('#blastPresetRow .draw-style-btn').forEach(function(x) { x.classList.toggle('active', parseInt(x.dataset.ft, 10) === ft && x.dataset.name === nm); });
+      var ftIn = document.getElementById('blastFt'); if (ftIn && document.activeElement !== ftIn) ftIn.value = ft;
+      var elIn = document.getElementById('blastElev'); if (elIn && document.activeElement !== elIn) elIn.value = b ? (b.elev || 0) : 0;
+      var elRow = document.getElementById('blastElevRow'); if (elRow) elRow.style.display = stanceOn('elevation') ? '' : 'none';
+      var flat = document.getElementById('blastFlatNote'); if (flat) flat.style.display = stanceOn('elevation') ? 'none' : '';
+      var which = document.getElementById('blastWhich'); if (which) which.textContent = b ? 'Changes apply to the last blast placed (' + blasts.length + ' on this map).' : 'Click a cell on the map to place a blast.';
+  }
+  function setBlastShape(ft, name) {
+      ft = Math.round(Number(ft) || 0);
+      if (!(ft > 0)) { syncBlastMenu(); return; }
+      ft = Math.min(3000, ft);
+      blastDefaults = { ft: ft, name: name || '' };
+      try { localStorage.setItem('wp_blast', JSON.stringify(blastDefaults)); } catch (e) {}
+      var b = lastBlast(); if (b) { b.ft = ft; b.name = name || ''; renderMeasures(); }
+      syncBlastMenu();
+  }
+  if (_el_blastModeBtn) _el_blastModeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!window.isMeasureMode || window.wpMeasureKind !== 'blast') {
+          window.isMeasureMode = true; window.wpMeasureKind = 'blast';
+          window.isDrawingMode = false; window.isEraserMode = false;
+          if (wbWrap) wbWrap.style.cursor = 'crosshair';
+          updateWbToolbar('blastModeBtn');
+          closeDrawMenu(); if (_el_measureMenu) _el_measureMenu.classList.remove('show');
+          state.selWbId = null; state.selWbIds = []; render();
+          if (_el_blastMenu) { syncBlastMenu(); _el_blastMenu.classList.add('show'); }
+      } else if (_el_blastMenu) { syncBlastMenu(); _el_blastMenu.classList.toggle('show'); }
+  });
+  document.querySelectorAll('#blastPresetRow .draw-style-btn').forEach(function(b) { b.addEventListener('click', function() { setBlastShape(this.dataset.ft, this.dataset.name); }); });
+  var _el_blastFt = document.getElementById('blastFt');
+  if (_el_blastFt) _el_blastFt.addEventListener('change', function() { setBlastShape(this.value, ''); });
+  var _el_blastElev = document.getElementById('blastElev');
+  if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = Number(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; renderMeasures(); });
+  var _el_blastClearBtn = document.getElementById('blastClearBtn');
+  if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() { clearBlasts(); syncBlastMenu(); });
+  if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+  document.addEventListener('click', function(e) {
+      if (_el_blastMenu && _el_blastMenu.classList.contains('show') && !e.target.closest('#blastMenu') && !e.target.closest('#blastModeBtn')) closeBlastMenu();
   });
 
   // Pen preferences survive restarts: colour, width, freehand/line (wp_drawColor / wp_drawWidth / wp_drawStraight)
@@ -3804,8 +4047,15 @@ function appendTableMenu(cMenu, e) {
 document.addEventListener('contextmenu', function(e) {
     if (state.viewMode !== 'visual' && state.viewMode !== 'data') return;
     if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
-        // players get no edit menu; empty play-map space offers Leave Session
-        if (state.viewMode === 'visual' && e.target.closest('#whiteboardWrap') && !e.target.closest('.wb-item')) { e.preventDefault(); showSessionMenu(e, 'client'); }
+        // players get no edit menu — except elevation / posture on their own token (the
+        // same permission line as moving it); empty play-map space offers Leave Session
+        if (state.viewMode === 'visual' && e.target.closest('#whiteboardWrap')) {
+            var ownEl = e.target.closest('.wb-item');
+            if (ownEl) {
+                var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
+                if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !window.wpNet.paused && (stanceOn('elevation') || stanceOn('posture'))) { e.preventDefault(); showStanceMenu(e, tokO); }
+            } else { e.preventDefault(); showSessionMenu(e, 'client'); }
+        }
         return;
     }
     
@@ -3932,6 +4182,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-status-alive">&#9825; Alive</div>';
                 html += '<div class="menu-item cm-status-down">&#10006; Incapacitated</div>';
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
+                html += stanceMenuHtml(firstItem);
             }
             html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
@@ -3940,6 +4191,9 @@ document.addEventListener('contextmenu', function(e) {
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';
             placeMenu(cMenu, e);
+
+            // Elevation / posture rows (character tokens, when the toggles are on)
+            if (isWb) wireStanceMenu(cMenu, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), function() { save(); render(); });
 
             // Opacity slider: live preview on input, persist on release; the
             // row never closes the menu (guarded in the click handler below).
@@ -4000,7 +4254,7 @@ document.addEventListener('contextmenu', function(e) {
         cMenu.onclick = function(ce) {
             var action = ce.target.className;
 
-            if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn'))) return; // control rows keep the menu open
+            if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance'))) return; // control rows keep the menu open
 
             if (isWb) {
                 if (action.includes('cm-group')) {

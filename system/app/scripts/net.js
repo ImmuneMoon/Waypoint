@@ -245,6 +245,10 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
 // Strip GM-only content before anything leaves the host: planners never ship,
 // room notes / character dossier info never ship, GM-note cards never ship,
 // and hidden whiteboard items are reduced to a position-only stub.
+// Token stance from a player: a finite elevation in yards, a posture from the seven
+var POSTURE_SET = { standing: 1, crouching: 1, sitting: 1, kneeling: 1, crawling: 1, prone: 1, supine: 1 };
+function cleanElevation(v) { v = Math.round(Number(v) * 10) / 10; return isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; }
+function cleanPosture(v) { v = String(v || 'standing').toLowerCase(); return POSTURE_SET[v] ? v : 'standing'; }
 function sanitizeItem(item) {
     if (!item) return item;
     if (item.type === 'planner') return null;
@@ -435,6 +439,13 @@ function applyClientItemFiltered(msg, profile) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
         }
+        // Stance (elevation in yards, posture): the owner may set them on their own token
+        var elevC = cleanElevation(w.elevation), postC = cleanPosture(w.posture);
+        if ((lw.elevation || 0) !== elevC || (lw.posture || 'standing') !== postC) {
+            if (elevC) lw.elevation = elevC; else delete lw.elevation;
+            if (postC !== 'standing') lw.posture = postC; else delete lw.posture;
+            changed = true;
+        }
     });
     // A player's own drawing missing from their copy was erased by them
     var before = liveItem.whiteboard.length;
@@ -465,6 +476,7 @@ function applySnapshot(msg) {
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     setTravelLockLocal(!!msg.travelLocked);
+    net.stance = cleanStance(msg.stance);
     net.targets = cleanTargets(msg.targets);
     net.combats = cleanCombats(msg.combats);
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
@@ -562,6 +574,15 @@ function setPausedLocal(on) {
         btn.classList.toggle('paused', net.paused);
     }
 }
+
+/* ---------- stance toggles (Settings → Table) ---------- */
+// The GM's Elevation / Posture toggles govern what players see: sent with the snapshot
+// and again whenever the GM flips one. Clients keep them in net.stance (whiteboard.js
+// reads it ahead of their own local preference while the session runs).
+net.stance = null;
+net.stanceFlags = function() { var f = { elevation: false, posture: false }; try { f.elevation = localStorage.getItem('wp_elevation') === 'on'; f.posture = localStorage.getItem('wp_posture') === 'on'; } catch (e) {} return f; };
+function cleanStance(s) { return { elevation: !!(s && s.elevation), posture: !!(s && s.posture) }; }
+net.broadcastStance = function() { if (!net.active || net.role !== 'host') return; broadcast({ type: 'stance', flags: net.stanceFlags() }, null); };
 
 // Travel lock: no map crossings for players while it is on; everything else stays live
 // Session log: what happened at the table, on the campaign (GM data). Saved with the next save.
@@ -1285,7 +1306,7 @@ function admitPlayer(conn, prof) {
     var stage = currentStage();
     net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
     broadcastRoster();
 }
 
@@ -1419,6 +1440,9 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'pause' && net.role === 'client') {
         setPausedLocal(!!msg.on);
         toast(msg.on ? 'The GM paused the table.' : 'The table is live again.');
+    } else if (msg.type === 'stance' && net.role === 'client') {
+        net.stance = cleanStance(msg.flags);
+        render();
     } else if (msg.type === 'travelLock' && net.role === 'client') {
         setTravelLockLocal(!!msg.on);
         toast(msg.on ? 'The GM has locked travel between maps for now.' : 'Travel between maps is open again.');

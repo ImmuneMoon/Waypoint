@@ -112,6 +112,7 @@ export function attachSheet(item, file, done) {
             normalizeForSite(j);
             item.sheet = j;
             if (!item.charName && j.name) item.charName = j.name;
+            if (j.posture && window.wpStance && window.wpStance.on('posture')) window.wpStance.setPosture(item, j.posture);   // the sheet's ch. 9 posture seeds the token
             toast('Sheet attached: ' + (j.name || 'character') + ' ✓');
             if (done) done(j);
         };
@@ -164,6 +165,7 @@ export async function buildCharacterJson(item, campName) {
     }
     base.name = item.charName || base.name || 'Unnamed Character';
     if (!base.campaign) base.campaign = campName || '';
+    if (window.wpStance && window.wpStance.on('posture')) base.posture = window.wpStance.tokenPosture(item);   // the site's posture field: the same seven values
     var portrait = await bestPortraitDataUrl(item);
     if (portrait) base.portrait = portrait;   // else whatever the sheet carried stays
     var fname = (base.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'character') + ' — ShadowBase.json';
@@ -228,6 +230,7 @@ export function importCharacterToken(file) {
             sheet: j
         };
         if (src) item.src = src;
+        if (j.posture && window.wpStance && window.wpStance.on('posture')) window.wpStance.setPosture(item, j.posture);
         map.whiteboard = map.whiteboard || [];
         map.whiteboard.push(item);
         var st = (await import('./state.js')).state;

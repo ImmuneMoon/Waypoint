@@ -1,3 +1,33 @@
+WAYPOINT 1.4.6 — What's New
+============================
+
+Tokens
+- Elevation and posture. Two new switches in Settings → Table give every
+  character token a height in yards (a ledge at +3, a catwalk at +5, a pit
+  at −2) and a posture — standing, crouching, sitting, kneeling, crawling,
+  lying prone or lying face up (handbook ch. 9). Both show as small chips at
+  the foot of the token, in its hover card and in Properties; the token's
+  right-click menu edits them too. Players set their own token's by
+  right-clicking it. Both switches are off by default; switching one off
+  hides the chips but keeps the values, and in a session the GM's switches
+  decide what players see. The switches travel with the saves folder like
+  the other table settings.
+- An attached ShadowBase sheet seeds the token's posture, and Export JSON
+  writes the token's posture back into the sheet.
+
+Blast tool
+- A new 💥 Blast tool next to Measure drops a grenade's area effect on a
+  cell: Frag 12 ft, Concussion 12 ft, Sonic 20 ft, Ion 24 ft, Plasma 30 ft,
+  or any radius in feet (÷3 = yards on the map). Every token within the
+  radius lights up with its distance in yards, so the GM applies the
+  handbook's damage ÷ (3 × distance) by hand — Waypoint never rolls.
+  Distance is hex distance; with Token elevation on it is straight-line,
+  height included (√(h² + v²)), from the blast's own height — the token in
+  the landing cell, else the ground, editable in the tool's menu. Click a
+  blast to remove it. Blasts are local, like rulers.
+- Rulers: with Token elevation on, a ruler between two tokens at different
+  heights prints the 3D figure as a second number.
+
 WAYPOINT 1.4.5 — What's New
 ============================
 

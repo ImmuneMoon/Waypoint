@@ -7,6 +7,9 @@ Look
   Explorer and on shortcuts, the installer's icon and the mark in the app
   header.
 - The Fulllion Creative Works mark in About is the new outline version.
+- The icon is a square, multi-size .ico (16 to 256 px). The commissioned file
+  held a 226 x 256 picture in a 256 x 256 slot; Windows forgave that, the
+  app's browser engine drew nothing in the header.
 
 Installer
 - Spare icon files in the system folder are no longer packaged.

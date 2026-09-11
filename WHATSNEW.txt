@@ -69,6 +69,11 @@ Tutorial
   customizable presets, lighter multiplayer sync), kept with each release.
 
 Play map
+- The Campaign Cast in the play map's right-click menu is one row now
+  (★ Campaign Cast, with the count). Hover or click it for the members —
+  every one of them, scrollable, with a filter once the list is long — and
+  Manage Cast at the foot. A long cast used to stretch the menu past the
+  screen and bury the session items under it.
 - Hovering an item that is linked to a room now shows the room's notes on the
   card as well (for the GM only; players still never receive notes).
 - Trigger zones have a hover card too: their name and the message they fire

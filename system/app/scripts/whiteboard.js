@@ -2823,7 +2823,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       _imgLibPick = cb;
       document.getElementById('imgLibModal').style.display = 'flex';
       document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
-      try { _imgLibCache = (await (await fetch('/api/list-images')).json()).filter(function(i) { return !/(^|\/)_/.test(i.folder || ''); }); } catch (e) { _imgLibCache = []; }
+      try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) { _imgLibCache = []; }
       renderImgLib(document.getElementById('imgLibSearch').value);
   };
   var _el_imgLibBtn = document.getElementById('imgLibBtn');
@@ -2832,7 +2832,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('imgLibModal').style.display = 'flex';
       document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
       try {
-          _imgLibCache = (await (await fetch('/api/list-images')).json()).filter(function(i) { return !/(^|\/)_/.test(i.folder || ''); });
+          _imgLibCache = await (await fetch('/api/list-images')).json();
       } catch(e) { _imgLibCache = []; }
       renderImgLib(document.getElementById('imgLibSearch').value);
   });

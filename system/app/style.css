@@ -1175,7 +1175,12 @@
   #contextMenu .cm-sub { display: none; position: absolute; left: 100%; top: -4px; width: 230px; max-height: 292px; overflow-y: auto; overflow-x: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.5); padding: 4px 0; cursor: default; }
   #contextMenu .cm-cast-open:hover > .cm-sub, #contextMenu .cm-cast-open.open > .cm-sub { display: block; }
   #contextMenu .cm-sub.flip { left: auto; right: 100%; }
-  #contextMenu .cm-sub .cm-filter { display: block; width: calc(100% - 16px); box-sizing: border-box; margin: 4px 8px 4px; padding: 3px 8px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--edge); border: 1px solid var(--border); border-radius: 4px; outline: none; }
+  #contextMenu .cm-sub-head { display: flex; align-items: center; gap: 6px; margin: 4px 8px 4px; }
+  .cm-batch-wrap, .cast-batch-wrap { display: inline-flex; align-items: center; gap: 2px; color: var(--dim); font-size: 12px; font-weight: normal; cursor: default; }
+  .img-lib-folder.cast-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .cm-batch, .cast-batch { width: 46px; padding: 2px 4px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--edge); border: 1px solid var(--border); border-radius: 4px; outline: none; text-align: center; }
+  .cm-batch:focus, .cast-batch:focus { border-color: var(--gold); }
+  #contextMenu .cm-sub .cm-filter { flex: 1; min-width: 0; box-sizing: border-box; margin: 0; padding: 3px 8px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--edge); border: 1px solid var(--border); border-radius: 4px; outline: none; }
   #contextMenu .cm-sub .cm-filter:focus { border-color: var(--gold); }
   #contextMenu .cm-sub .cm-cast-row { padding: 3px 10px; font-size: 12.5px; gap: 6px !important; }
   #contextMenu .cm-sub .cm-cast-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

@@ -74,6 +74,9 @@ Play map
   every one of them, scrollable, with a filter once the list is long — and
   Manage Cast at the foot. A long cast used to stretch the menu past the
   screen and bury the session items under it.
+- The × button beside a cast member drops a batch: the number box at the
+  top of the flyout (and beside the Campaign Cast heading in the Image
+  Library) sets how many, 1 to 50, starting at 1; the choice is remembered.
 - Hovering an item that is linked to a room now shows the room's notes on the
   card as well (for the GM only; players still never receive notes).
 - Trigger zones have a hover card too: their name and the message they fire

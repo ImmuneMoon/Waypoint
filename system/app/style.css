@@ -575,6 +575,9 @@
   .field.check-row { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
   .field.check-row input[type="checkbox"] { width:16px; height:16px; margin:0; flex:0 0 auto; accent-color:var(--gold); cursor:pointer; }
   .field.check-row label { display:inline; flex:1; margin:0; text-transform:none; letter-spacing:0; font-size:12.5px; color:var(--ink); text-align:left; cursor:pointer; }
+  .field.vis-field label { justify-content:flex-start; }
+  .field.vis-field input[type="checkbox"] { width:16px; height:16px; margin:0; flex:0 0 auto; accent-color:var(--gold); cursor:pointer; }
+  .field.vis-field label > span { flex:1; text-align:left; font-size:12.5px; letter-spacing:0; }
   .field input, .field select, .field textarea, input.field, textarea.field, select.field, .cat-label, .grouped-fields input, .grouped-fields select {
     width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--edge);
     border-radius:6px;padding:8px 9px;font:inherit;font-size:13px; box-sizing:border-box;

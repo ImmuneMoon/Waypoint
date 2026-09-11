@@ -336,6 +336,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   
 
+                  if (wItem.type === 'trigger' && !wItem.nodeId) {
+                      // a trigger zone is GM prep: its card shows the name and the message it fires; players get nothing
+                      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
+                      tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
+                                     '<div class="rn">' + esc(wItem.name || 'Trigger zone') + '</div>' +
+                                     '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;">' + esc(wItem.eventMessage || 'No event message yet \u2014 write one in Properties.') + '</div>' +
+                                     '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">Trigger zone \u00b7 fires when a character token is dropped here</div></div>';
+                      tt.style.display = 'block';
+                      return;
+                  }
                   if (wItem.type === 'text' && !wItem.nodeId) {
                       var plain = (wItem.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                       var wordCount = plain ? plain.split(' ').length : 0;

@@ -71,6 +71,8 @@ Tutorial
 Play map
 - Hovering an item that is linked to a room now shows the room's notes on the
   card as well (for the GM only; players still never receive notes).
+- Trigger zones have a hover card too: their name and the message they fire
+  (GM only).
 
 Text boxes
 - With the Text tool armed, clicking an existing text box edits it in place

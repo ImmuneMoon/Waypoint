@@ -76,6 +76,13 @@ Text boxes
   a box can have solid words on a faint plate (or the other way round). The
   Opacity slider further down still fades the whole box.
 
+Multiplayer
+- Per-change sync. The GM's table now sends only what changed on a map —
+  the tokens, shapes, rooms or links that moved, appeared or went away —
+  instead of the whole map every time anything on it changed. Busy boards
+  with many tokens stay snappy over the wire; a whole-map copy is still
+  sent whenever that is the smaller message.
+
 Fixes
 - Grouped items no longer drift apart when moved. On release the grid
   snap (and, on hex maps, the seating of hex items into their cell) moved

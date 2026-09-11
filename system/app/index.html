@@ -336,7 +336,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       </ol>
                       <h4>Blast radius</h4>
                       <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Drag a blast to move it (it re-seats in a cell and, unless you set its height, takes the height of whoever stands there); right-click it to remove it. Blasts are yours alone, like rulers.</p>
-                      <div class="help-tip"><b>Temporary:</b> the toolbar blast button is a stopgap. Blasts will be thrown by the character &mdash; PC or NPC &mdash; from the VTT character sheets once those are implemented, and the preset radii are not permanent: they will be defined per campaign, from that campaign's own weapons, and customizable.</div>
+                      <div class="help-tip"><b>Temporary:</b> the toolbar blast button is a stopgap. Blasts will be thrown by the character &mdash; PC or NPC &mdash; from the VTT character sheets once those are implemented, and the preset explosive types are not permanent, names and radii alike: they will be defined per campaign, from that campaign's own weapons, and customizable.</div>
                       <h4>Elevation &amp; posture</h4>
                       <p>Two switches in <b>&#9881; Settings &rarr; Table</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. In a session your switches decide what players see.</p>
                       <h4>Coordinate rulers &amp; minimap</h4>
@@ -433,19 +433,18 @@ window.addEventListener('unhandledrejection', function(e) {
                   <div class="help-pane" data-pane="roadmap" style="display:none;">
                       <h4>Where Waypoint is heading</h4>
                       <p>Notes on features that are planned or partly in place, so you know what is a stopgap and what is coming. Plans change with play.</p>
-                      <h4>Character sheets in the app</h4>
+                      <h4>A system builder: rules, sheets, dice</h4>
                       <ul>
-                          <li>Tokens already attach a <b>shadow-base.com</b> sheet (View, Export JSON, posture and elevation seeded from it). The intent is a full <b>VTT character sheet</b> for every PC and NPC inside Waypoint, so actions at the table come from the character rather than from toolbar tools.</li>
+                          <li><b>Handbook.</b> A third section in the left panel beside Planners and Maps for a campaign's rules, written with the same block editor, with a table of contents and a read-only copy players can open at the table.</li>
+                          <li><b>Rules with no code.</b> A game system is a set of definitions &mdash; attributes, derived values, skills, resources, conditions, item types &mdash; with spreadsheet-style formulas such as <code>floor((STR - 10) / 2)</code> or <code>d20 + Skill.Stealth</code>. Any system, from a light homebrew to something as granular as GURPS, is the same forms with more rows.</li>
+                          <li><b>Character sheet builder.</b> Sheets are layouts of fields bound to the system: attribute boxes, skill lists, resource bars, item lists, laid out by the GM. Every PC and NPC gets one inside Waypoint, on the token, so actions at the table come from the character rather than from toolbar tools. Today's <b>shadow-base.com</b> attach is the first bridge of that kind, not the shape of the final thing.</li>
+                          <li><b>Dice that follow the rules.</b> Rolls are formulas with dice in them, evaluated by the same engine, with the breakdown shown and posted to chat and the session log; buttons on the sheet fire them.</li>
+                          <li><b>Item libraries and player-built characters.</b> The GM crafts item templates and a library; players build characters from the sheet using it, and the rules validate point budgets, prerequisites and caps.</li>
                       </ul>
                       <h4>Blasts thrown from the sheet</h4>
                       <ul>
                           <li>The toolbar <b>&#128165; Blast</b> tool is a <b>stopgap</b>. Grenades will be thrown by the character &mdash; PC or NPC &mdash; from their character sheet: the throwing token's cell and height are the origin, the weapon on the sheet gives the radius. The distance maths and the per-token labels stay as they are.</li>
-                          <li>The preset radii (Frag, Concussion, Sonic, Ion, Plasma) are <b>not permanent</b>: they will be defined <b>per campaign</b>, from that campaign's own weapons, and <b>customizable</b>.</li>
-                      </ul>
-                      <h4>Multiplayer</h4>
-                      <ul>
-                          <li>Sync currently sends a whole map item when anything in it changes. A lighter <b>per-change sync</b> is on the list so busy boards with many tokens stay snappy over the wire.</li>
-                          <li>A cross-network field test at a real table is still owed before the connection notes in <b>Multiplayer: Hosting</b> are called final.</li>
+                          <li>The preset explosive types &mdash; their names (Frag, Concussion, Sonic, Ion, Plasma) and their radii &mdash; are <b>not permanent</b>: they will be defined <b>per campaign</b>, from that campaign's own weapons, and <b>customizable</b>.</li>
                       </ul>
                       <h4>Campaign content</h4>
                       <ul>

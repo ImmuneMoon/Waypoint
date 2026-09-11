@@ -37,7 +37,7 @@ function buildTutorialCampaign() {
         danger: { label: 'Danger',      color: '#d9534f' }
     };
     valley.rooms = [
-        { id: 'tut_millbrook', name: 'Millbrook', cat: 'town', x: 15000, y: 15200, notes: 'A river town with a mill, a shrine and one very nervous mayor.\nThe party starts here.', characters: [{ id: 'tut_c_mayor', name: 'Mayor Ostra', info: 'Hiding that the town sold grain to the raiders.' }] },
+        { id: 'tut_millbrook', name: 'Millbrook', cat: 'town', x: 15000, y: 15200, notes: 'A river town with a mill, a shrine and one very nervous mayor.\nThe party starts here. Double-click to open the town map (a square grid).', characters: [{ id: 'tut_c_mayor', name: 'Mayor Ostra', info: 'Hiding that the town sold grain to the raiders.' }], targetMapId: 'map_tut_town', icon: 'Door' },
         { id: 'tut_oldroad',  name: 'Old Road',  cat: 'wild', x: 15260, y: 15060, notes: 'Half a day on foot. A dashed line on the map means a route — travel, not a doorway.', characters: [] },
         { id: 'tut_woods',    name: 'Blackpine Woods', cat: 'wild', x: 15520, y: 15200, notes: 'Dark, quiet, and full of shortcuts only the locals know.', characters: [{ id: 'tut_c_hermit', name: 'Hermit Pell', info: 'Knows the hidden path to the cave.' }] },
         { id: 'tut_cave',     name: "Wyrm's Cave", cat: 'danger', x: 15520, y: 15400, notes: 'Double-click this node to travel into the cave map. The dotted line into it is a secret path.', characters: [], targetMapId: 'map_tut_cave', icon: 'Cave' }
@@ -56,9 +56,11 @@ function buildTutorialCampaign() {
     cave.cats = { cave: { label: 'Cave', color: '#4db3d3' }, danger: { label: 'Danger', color: '#d9534f' } };
     cave.rooms = [
         { id: 'tut_entrance', name: 'Entrance', cat: 'cave', x: 15000, y: 15100, notes: 'Cold air, old bones, claw marks on the rock.', characters: [] },
-        { id: 'tut_hoard',    name: "Wyrm's Hoard", cat: 'danger', x: 15300, y: 15100, notes: 'The wyrm sleeps on a bed of coin. Roll for stealth.', characters: [{ id: 'tut_c_wyrm', name: 'Cave Wyrm', info: 'Old, half-blind, hoards more than gold.' }] }
+        { id: 'tut_hoard',    name: "Wyrm's Hoard", cat: 'danger', x: 15300, y: 15100, notes: 'The wyrm sleeps on a bed of coin. Roll for stealth.', characters: [{ id: 'tut_c_wyrm', name: 'Cave Wyrm', info: 'Old, half-blind, hoards more than gold.' }] },
+        { id: 'tut_ledge',    name: 'Ledge (3 yd up)', cat: 'cave', x: 15150, y: 14960, notes: 'A rock shelf three yards above the floor. Anyone standing here has Elevation +3 (right-click a token → Elevation): rulers and blasts then measure height as well as distance. Torvin is up here already.', characters: [] },
+        { id: 'tut_trap',     name: 'Pit trap', cat: 'danger', x: 15150, y: 15240, notes: 'A trigger zone: drop a token on it and its Event Message fires. Select it to change the message in Properties.', characters: [] }
     ];
-    cave.links = [['tut_entrance', 'tut_hoard']];
+    cave.links = [['tut_entrance', 'tut_hoard'], ['tut_entrance', 'tut_ledge', 'secret', { label: 'Climb' }], ['tut_hoard', 'tut_trap', '', { label: 'Loose floor' }]];
     // Hex-cell items sit on the flat-top lattice: cell centres at x = 45q + 15, y = 52(r + q/2)
     // (see CAMPAIGN_INTEGRATION.md); a 60×52 item's top-left is the centre minus (30, 26).
     function hexAt(q, r, props) { return Object.assign({ x: 45 * q + 15 - 30, y: 52 * (r + q / 2) - 26, w: 60, h: 52 }, props); }
@@ -66,12 +68,33 @@ function buildTutorialCampaign() {
     cave.whiteboard = [
         { id: 'tut_wb_floor',  type: 'rect', x: 14790, y: 14934, w: 420, h: 312, color: '#262633', layer: 'back', nodeId: 'tut_entrance', name: 'Entrance floor' },
         { id: 'tut_wb_hoard',  type: 'rect', x: 15240, y: 14934, w: 420, h: 312, color: '#2a2230', layer: 'back', nodeId: 'tut_hoard', name: 'Hoard floor' },
-        { id: 'tut_wb_label',  type: 'text', x: 14800, y: 14860, w: 360, h: 40, color: 'transparent', text: '<b>Wyrm\'s Cave</b> — drag the tokens, hover them, right-click one', fontSize: 14, layer: 'front' },
-        hexAt(q0, r0,          { id: 'tut_wb_hero', type: 'circle', color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — drag me. Right-click for conditions, posture, elevation.' }),
-        hexAt(q0 + 2, r0,      { id: 'tut_wb_ally', type: 'circle', color: '#5cb87a', layer: 'middle', isChar: true, charName: 'Torvin', name: 'Torvin', charStats: 'A friend with a lantern.' }),
-        hexAt(q0 + 14, r0 - 7, { id: 'tut_wb_wyrm', type: 'circle', color: '#d9534f', layer: 'middle', isChar: true, charName: 'Cave Wyrm', name: 'Cave Wyrm', charStats: 'Old and half-blind. Hidden from players until you reveal it.', hidden: true, posture: 'lying-prone' }),
-        hexAt(q0 + 6, r0 - 4,  { id: 'tut_wb_ledge', type: 'hexagon', color: '#3a3a4a', layer: 'back-mid', name: 'Ledge' }),
-        hexAt(q0 + 8, r0 - 3,  { id: 'tut_wb_trap', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The floor gives way — a pit trap! The wyrm stirs.', name: 'Pit trap' })
+        { id: 'tut_wb_label',  type: 'text', x: 14800, y: 14860, w: 360, h: 40, color: 'transparent', text: '<b>Wyrm\'s Cave</b> (hex grid) — drag the tokens, hover the ledge and the trap, right-click a token', fontSize: 14, layer: 'front' },
+        // On a hex grid the tokens are hexagons: one fills a cell exactly (60×52)
+        hexAt(q0, r0,          { id: 'tut_wb_hero', type: 'hexagon', color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — a hex token, one cell wide. Drag me; right-click for conditions, posture, elevation.' }),
+        hexAt(q0 + 6, r0 - 4,  { id: 'tut_wb_ledge', type: 'hexagon', color: '#3a3a4a', layer: 'back-mid', name: 'Ledge', nodeId: 'tut_ledge' }),
+        hexAt(q0 + 6, r0 - 4,  { id: 'tut_wb_ally', type: 'hexagon', color: '#5cb87a', layer: 'middle', isChar: true, charName: 'Torvin', name: 'Torvin', charStats: 'A friend with a lantern, up on the ledge — hence the +3.', elevation: 3 }),
+        hexAt(q0 + 14, r0 - 7, { id: 'tut_wb_wyrm', type: 'hexagon', color: '#d9534f', layer: 'middle', isChar: true, charName: 'Cave Wyrm', name: 'Cave Wyrm', charStats: 'Old and half-blind. Hidden from players until you reveal it.', hidden: true, posture: 'lying-prone' }),
+        hexAt(q0 + 8, r0 - 3,  { id: 'tut_wb_trap', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The floor gives way — a pit trap! The wyrm stirs.', name: 'Pit trap', nodeId: 'tut_trap' })
+    ];
+
+    // Millbrook: a SQUARE grid (50 px cells) with square tokens, so both grid types are in the tour
+    var town = createNewMap('Millbrook');
+    town.id = 'map_tut_town';
+    town.meta.parentId = valley.id;
+    town.meta.homeX = 15100; town.meta.homeY = 15100; town.meta.lastView = 'visual'; town.meta.gridType = 'square';
+    town.cats = { town: { label: 'Town', color: '#e0a54f' }, holy: { label: 'Shrine', color: '#b98cff' } };
+    town.rooms = [
+        { id: 'tut_market', name: 'Market square', cat: 'town', x: 15000, y: 15100, notes: 'Stalls, gossip, and the mayor pretending not to see the party.', characters: [{ id: 'tut_c_mayor2', name: 'Mayor Ostra', info: 'Nervous. Will pay double to keep the grain deal quiet.' }] },
+        { id: 'tut_shrine', name: 'Shrine', cat: 'holy', x: 15300, y: 15100, notes: 'A trigger zone stands at its door: ring the bell by dropping a token on it.', characters: [] }
+    ];
+    town.links = [['tut_market', 'tut_shrine', '', { label: 'Across the square' }]];
+    // Square cells are 50 px: a 50×50 token fills one; positions are multiples of 50
+    town.whiteboard = [
+        { id: 'tut_wb_townfloor', type: 'rect', x: 14800, y: 14900, w: 500, h: 350, color: '#2a2622', layer: 'back', nodeId: 'tut_market', name: 'Market square' },
+        { id: 'tut_wb_townlabel', type: 'text', x: 14800, y: 14840, w: 420, h: 40, color: 'transparent', text: '<b>Millbrook</b> (square grid) — square tokens fill one 50 px cell each', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_hero2',  type: 'rect', x: 15000, y: 15050, w: 50, h: 50, color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — a square token, one cell wide. Drag me and Snap seats me in a cell.' },
+        { id: 'tut_wb_mayor',  type: 'rect', x: 15150, y: 15100, w: 50, h: 50, color: '#e0a54f', layer: 'middle', isChar: true, charName: 'Mayor Ostra', name: 'Mayor Ostra', charStats: 'The mayor. An NPC token: only the GM moves it.', charRef: 'tut_c_mayor2' },
+        { id: 'tut_wb_bell',   type: 'trigger', x: 15250, y: 14950, w: 50, h: 50, color: 'transparent', eventMessage: 'The shrine bell rings across the square. Every head turns.', name: 'Shrine bell', nodeId: 'tut_shrine' }
     ];
 
     var plan = createNewPlanner('Session 1 — Into the Cave');
@@ -89,6 +112,7 @@ function buildTutorialCampaign() {
 
     camp.items[valley.id] = valley;
     camp.items[cave.id] = cave;
+    camp.items[town.id] = town;
     camp.items[plan.id] = plan;
     camp.activeItemId = valley.id;
     return camp;
@@ -140,7 +164,7 @@ function openLeft() { var sb = document.getElementById('campaignSidebar'); if (s
 
 var STEPS = [
     { target: null, title: 'Welcome to Waypoint',
-      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: a valley, a cave under it, and a session plan. It is a real campaign — <b>keep it and build on it</b>, or discard it at the end (or any time from Help → Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
+      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: a valley with a hex-grid cave and a square-grid town under it, and a session plan. It is a real campaign — <b>keep it and build on it</b>, or discard it at the end (or any time from Help → Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_valley'); goView('data'); } },
     { target: '#campaignSelect', title: 'Campaigns',
       html: 'Everything belongs to a campaign. This picker switches between them; the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial.' },
@@ -158,11 +182,14 @@ var STEPS = [
       html: 'Whatever you select is edited here: a room\'s name, category colour, GM-only notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears; the arrow on its edge toggles it by hand.',
       before: function() { openItem('map_tut_valley'); goView('data'); state.selId = 'tut_millbrook'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); } },
     { target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the cave, on its Play Map. Left to right: centre, undo, grid and snap, then the tools — move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike &mdash; they will be set per campaign, from its own weapons, and customizable.</i>',
+      html: 'Now inside the cave, on its Play Map. Left to right: centre, undo, then <b>grid</b> (square, hex or none &mdash; each map remembers its own) and <b>snap</b>, then the tools — move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike &mdash; they will be set per campaign, from its own weapons, and customizable.</i>',
       before: function() { openItem('map_tut_cave'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
-      html: 'Any shape or image with <b>Is Character</b> set is a token: hover it for its name and stats, drag it (it seats itself in a hex), <b>right-click</b> it for conditions, posture and elevation — the chips at its foot show height (<b>+3</b>) and posture (<b>KNL</b>, <b>PRN</b>…), and the switches for both live in Settings → Table. In a session a player can right-click <i>their own</i> token for the same posture and elevation rows, and your switches decide what they see. The <b>Cave Wyrm</b> is hidden from players — you see it dimmed — until you tick <b>Visible to players</b>. The hex trigger zone fires its message when a token is dropped on it.',
+      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the tokens are hexagons, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; hover the <b>ledge</b> or the <b>pit trap</b> and their room card explains them (they are linked to rooms on the data map). <b>Torvin</b> stands on the ledge at <b>+3</b>. <b>Right-click</b> a token for conditions, posture and elevation — the chips at its foot show height (<b>+3</b>) and posture (<b>KNL</b>, <b>PRN</b>…), and the switches for both live in Settings → Table. In a session a player can right-click <i>their own</i> token for the same posture and elevation rows, and your switches decide what they see. The <b>Cave Wyrm</b> is hidden from players — you see it dimmed — until you tick <b>Visible to players</b>. The hex trigger zone fires its message when a token is dropped on it.',
       before: function() { openItem('map_tut_cave'); goView('visual'); } },
+    { target: '#whiteboardWrap', title: 'Square grids, square tokens',
+      html: '<b>Millbrook</b> runs on a <b>square grid</b>: 50 px cells, and the tokens are squares that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The shrine bell is a square trigger zone. Pick the grid per map with the grid button &mdash; the valley\'s data map has no play grid at all.',
+      before: function() { openItem('map_tut_town'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
       before: function() { openItem('plan_tut_session1'); } },

@@ -398,6 +398,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                                  '<div class="rn">'+esc(r.name||'(unnamed)')+'</div>' +
 
                                  '<div class="rc" style="color:'+c.color+'">'+esc(c.label)+'</div>' +
+                                 (!isClientTT && r.notes ? '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; margin-top:4px;">' + esc(String(r.notes).slice(0, 320)) + (String(r.notes).length > 320 ? '\u2026' : '') + '</div>' : '') +   // GM only: the room's notes ride the hover card
 
                                  travelHint +
 

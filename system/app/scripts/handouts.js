@@ -81,7 +81,7 @@ async function registerJournal(key) {
 async function listJournals() {
     var ids = await readRegistry();
     try {
-        var imgs = await (await fetch('/api/list-images')).json();
+        var imgs = (await (await fetch('/api/list-images')).json()).filter(function(i) { return !/(^|\/)_/.test(i.folder || ''); });
         (imgs || []).forEach(function(i) { var m = /^journal\/([A-Za-z0-9_-]+)/.exec(i.folder || ''); if (m) ids[m[1]] = true; });
     } catch (e) {}
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('journal_') === 0 && k !== 'journal_registry') ids[k.slice(8)] = true; } } catch (e) {}
@@ -817,7 +817,7 @@ if (_newBtn) _newBtn.addEventListener('click', async function() {
     pick.style.display = 'flex';
     grid.innerHTML = '<div style="color:var(--dim); padding:10px;">Loading pictures…</div>';
     var imgs = [];
-    try { imgs = await (await fetch('/api/list-images')).json(); } catch (e) {}
+    try { imgs = (await (await fetch('/api/list-images')).json()).filter(function(i) { return !/(^|\/)_/.test(i.folder || ''); }); } catch (e) {}
     imgs = (imgs || []).filter(function(i) { return !/^journal(\/|$)/.test(i.folder || ''); });
     var q = (ui('handoutPickSearch').value || '').toLowerCase();
     var draw = function() {

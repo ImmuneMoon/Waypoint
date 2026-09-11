@@ -19,6 +19,7 @@ Briefing for anyone (human or AI) generating campaign content for the Waypoint a
   Waypoint.exe                     launcher (starts system\Waypoint-Core.exe)
   saves/data.json                  THE ENTIRE APP STATE — this is your integration target
   saves/images/<mapId>/<file>      images placed on whiteboards
+  saves/images/_<anything>/        hidden from the picture library and handout pickers (1.4.6): park duplicates or retired art here
   saves/backups/                   automatic launch snapshots of data.json (newest 10) — read-only for you
   system/app/                      frontend source (index.html, style.css, scripts/*.js)
   system/resources/app/main.js     Electron shell: HTTP server on port 3000 + /api endpoints

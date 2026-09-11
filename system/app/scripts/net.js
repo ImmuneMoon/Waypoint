@@ -516,12 +516,78 @@ function quickHash(s) {
 }
 
 // Called from io.js on every local save while a session is active.
+/* ---------- per-change sync (host → players) ----------
+   Instead of the whole map item on every save, the host sends only what changed since the last
+   thing it sent for that item: play-map items and rooms added / changed / removed (matched by id,
+   compared by a quick hash), and links / meta / categories only when they differ. The snapshot at
+   join is always the full state, so a delta is at worst a superset of what a player is missing; a
+   player who somehow lacks the item asks for the full copy (needItem). Whole-item sends remain the
+   fallback whenever a delta would not be smaller. Players → host keeps the whole-item message: the
+   host filters it field by field anyway. */
+var _lastSent = {};   // itemId → the sanitized item as last broadcast by this host
+function itemDelta(itemId, clean) {
+    var base = _lastSent[itemId];
+    if (!base || clean.type !== 'map' || base.type !== 'map') return null;      // no baseline: send whole
+    var d = { type: 'itemDelta', itemId: itemId }, any = false;
+    function coll(key) {
+        var was = {}, now = {}, set = [], del = [], added = false;
+        (base[key] || []).forEach(function(x) { was[x.id] = quickHash(JSON.stringify(x)); });
+        (clean[key] || []).forEach(function(x) { var h = quickHash(JSON.stringify(x)); now[x.id] = 1; if (was[x.id] !== h) { set.push(x); if (was[x.id] === undefined) added = true; } });
+        Object.keys(was).forEach(function(id) { if (!now[id]) del.push(id); });
+        if (set.length || del.length) {
+            d[key] = { set: set, del: del };
+            if (added || del.length) d[key].order = (clean[key] || []).map(function(x) { return x.id; });   // list order matters for stacking
+            any = true;
+        }
+    }
+    coll('whiteboard'); coll('rooms');
+    ['links', 'meta', 'cats'].forEach(function(k) { if (JSON.stringify(clean[k]) !== JSON.stringify(base[k])) { d[k] = clean[k]; any = true; } });
+    var known = { type: 1, id: 1, whiteboard: 1, rooms: 1, links: 1, meta: 1, cats: 1 };
+    var other = Object.keys(clean).concat(Object.keys(base)).some(function(k) { return !known[k] && JSON.stringify(clean[k]) !== JSON.stringify(base[k]); });
+    if (other) return null;                                                     // an unusual key changed: send whole
+    return any ? d : false;                                                     // false = nothing changed at all
+}
+function applyItemDelta(msg) {
+    var camp = state.appState.campaigns[msg.campId]; if (!camp) return;
+    var it = camp.items[msg.itemId];
+    if (!it) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it: ask for the whole thing
+    net.applyingRemote = true;
+    ['whiteboard', 'rooms'].forEach(function(key) {
+        var ch = msg[key]; if (!ch) return;
+        var list = it[key] = it[key] || [];
+        var at = {}; list.forEach(function(x, i) { at[x.id] = i; });
+        (ch.del || []).forEach(function(id) { if (at[id] !== undefined) list[at[id]] = null; });
+        (ch.set || []).forEach(function(x) { if (at[x.id] !== undefined && list[at[x.id]]) list[at[x.id]] = x; else list.push(x); });
+        it[key] = list.filter(Boolean);
+        if (ch.order) { var pos = {}; ch.order.forEach(function(id, i) { pos[id] = i; }); it[key].sort(function(a, b) { return (pos[a.id] === undefined ? 1e9 : pos[a.id]) - (pos[b.id] === undefined ? 1e9 : pos[b.id]); }); }
+    });
+    ['links', 'meta', 'cats'].forEach(function(k) { if (msg[k] !== undefined) it[k] = msg[k]; });
+    var myActive = getActiveCampaign();
+    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
+    updateSidebarNav();
+    net.applyingRemote = false;
+}
+// Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
+net.sendItem = function(campId, itemId, onlyConn) {
+    var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
+    var clean = sanitizeItem(it); if (!clean) return;
+    var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
+    if (onlyConn) { try { onlyConn.send(full); } catch (e) {} return; }              // one player asked for the whole thing
+    var d = itemDelta(itemId, clean);
+    if (d === false) return;                                                          // unchanged since the last send
+    var msg = full;
+    if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(full).length * 0.9) msg = d; }
+    broadcast(msg, null);
+    _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
+};
+net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta;   // sandbox testing hooks
+
 net.onLocalSave = function() {
     if (!net.active || net.applyingRemote) return;
     var patch = activeItemPatch();
-    if (patch && net.role === 'host') {
-        var clean = sanitizeItem(patch.item);
-        patch = clean ? { type: 'item', campId: patch.campId, itemId: patch.itemId, item: clean } : null;
+    if (net.role === 'host') {
+        if (patch) net.sendItem(patch.campId, patch.itemId);
+        patch = null;
     }
     if (patch) {
         var hs = quickHash(JSON.stringify(patch.item));
@@ -1434,12 +1500,15 @@ function handleMessage(msg, conn) {
                 var myActive = getActiveCampaign();
                 if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
                 net.applyingRemote = true; save(true); net.applyingRemote = false;
-                var cleanItem = sanitizeItem(state.appState.campaigns[msg.campId].items[msg.itemId]);
-                if (cleanItem) broadcast({ type: 'item', campId: msg.campId, itemId: msg.itemId, item: cleanItem }, null);
+                net.sendItem(msg.campId, msg.itemId);   // the filtered result goes back out as a delta
             }
         } else {
             applyItem(msg);
         }
+    } else if (msg.type === 'itemDelta' && net.role === 'client') {
+        applyItemDelta(msg);
+    } else if (msg.type === 'needItem' && net.role === 'host') {
+        net.sendItem(msg.campId, msg.itemId, conn);
     } else if (msg.type === 'stage' && net.role === 'client') {
         applyStage(msg.stage);
         toast(msg.personal ? 'You arrive.' : 'The GM moved the table to a new map.');
@@ -1714,6 +1783,7 @@ var ROOM_GENS = 4;
 function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase() + (gen ? '-r' + gen : ''); }
 net._hostGen = 0;
 function startHosting(forceFresh) {
+    _lastSent = {};   // a new table starts from the snapshot, not from anything sent before
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     if (forceFresh) net._hostGen = 0;
     cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table

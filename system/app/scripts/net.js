@@ -1960,6 +1960,7 @@ function assetMime(path) {
 net.assetSrc = function(path) {
     if (!path || !net.active || net.role !== 'client' || net.stream) return path;   // the stream window reads images straight from the local server
     if (/^(data:|blob:)/.test(path)) return path;   // already self-contained
+    if (!/^\/?saves\//.test(path)) return path;     // shipped with the app (assets/…): every install has it
     if (assetCache[path]) return assetCache[path];
     if (!assetPending[path] && net.conns[0] && net.conns[0].open) {
         assetPending[path] = true;

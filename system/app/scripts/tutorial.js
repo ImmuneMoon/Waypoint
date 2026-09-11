@@ -25,96 +25,199 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function
 /* ---------- the demo campaign ---------- */
 // Ids are fixed so the tour can find its pieces and a rebuild replaces the old copy cleanly.
 function buildTutorialCampaign() {
+    var A = 'assets/tutorial/';                    // shipped with the app, so every install has it
     var camp = createNewCampaign(TUTORIAL_NAME);
     camp.id = TUTORIAL_CAMP_ID;
+    // Hex-cell items sit on the flat-top lattice (cell centres x = 45q + 15, y = 52(r + q/2)); the same
+    // rounding the app's own seating uses, so nothing needs re-seating on load.
+    function hexCentre(x, y) {
+        var sz = 30, h = 52, q = (x - sz / 2) / (1.5 * sz), r = y / h - q / 2;
+        var rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r);
+        var dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r));
+        if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
+        return { x: 1.5 * sz * rx + sz / 2, y: h * (ry + rx / 2) };
+    }
+    function hexTok(x, y, props) { var c = hexCentre(x, y); return Object.assign({ x: c.x - 30, y: c.y - 26, w: 60, h: 52, layer: 'middle' }, props); }
+    function sqTok(x, y, props) { return Object.assign({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50, w: 50, h: 50, layer: 'middle' }, props); }
+    function pic(file, extra) { return Object.assign({ type: 'image', src: A + file, color: 'transparent', isChar: true }, extra); }
+    function stairs(x, y, target, up, label) { return hexTok(x, y, { id: 'tut_wb_' + target.replace('map_tut_', '') + (up ? '_up' : '_down'), type: 'hexagon', color: 'rgba(224,165,79,0.35)', layer: 'back-mid', name: label, targetMapId: target, portalIcon: up ? 'Stairs Up' : 'Stairs Down' }); }
+    var O = 14488;                                 // a 1024 px map placed here is centred on (15000, 15000)
 
-    var valley = createNewMap('Greywater Valley');
-    valley.id = 'map_tut_valley';
-    valley.meta.homeX = 15300; valley.meta.homeY = 15200; valley.meta.lastView = 'data';
-    valley.cats = {
-        town:   { label: 'Town',        color: '#e0a54f' },
-        wild:   { label: 'Wilderness',  color: '#5cb87a' },
-        danger: { label: 'Danger',      color: '#d9534f' }
-    };
-    valley.rooms = [
-        { id: 'tut_millbrook', name: 'Millbrook', cat: 'town', x: 15000, y: 15200, notes: 'A river town with a mill, a shrine and one very nervous mayor.\nThe party starts here. Double-click to open the town map (a square grid).', characters: [{ id: 'tut_c_mayor', name: 'Mayor Ostra', info: 'Hiding that the town sold grain to the raiders.' }], targetMapId: 'map_tut_town', icon: 'Door' },
-        { id: 'tut_oldroad',  name: 'Old Road',  cat: 'wild', x: 15260, y: 15060, notes: 'Half a day on foot. A dashed line on the map means a route — travel, not a doorway.', characters: [] },
-        { id: 'tut_woods',    name: 'Blackpine Woods', cat: 'wild', x: 15520, y: 15200, notes: 'Dark, quiet, and full of shortcuts only the locals know.', characters: [{ id: 'tut_c_hermit', name: 'Hermit Pell', info: 'Knows the hidden path to the cave.' }] },
-        { id: 'tut_cave',     name: "Wyrm's Cave", cat: 'danger', x: 15520, y: 15400, notes: 'Double-click this node to travel into the cave map. The dotted line into it is a secret path.', characters: [], targetMapId: 'map_tut_cave', icon: 'Cave' }
+    /* ---- Eldara Realm: the top of the tree ---- */
+    var realm = createNewMap('Eldara Realm');
+    realm.id = 'map_tut_realm';
+    realm.meta.homeX = 15300; realm.meta.homeY = 15200; realm.meta.lastView = 'data';
+    realm.cats = { city: { label: 'City', color: '#e0a54f' }, wild: { label: 'Wilderness', color: '#5cb87a' }, danger: { label: 'Danger', color: '#d9534f' } };
+    realm.rooms = [
+        { id: 'tut_r_eldara', name: 'Eldara', cat: 'city', x: 15000, y: 15200, notes: 'The elven city under the great tree. The party starts at its inn.\nDouble-click to open the city map.', characters: [], targetMapId: 'map_tut_city', icon: 'Gate', image: A + 'scene_eldara.jpg' },
+        { id: 'tut_r_hills', name: 'Rugged Hills', cat: 'wild', x: 15300, y: 15040, notes: 'Two days of bad road. The raiders who have been hitting the caravans hole up somewhere in here.', characters: [] },
+        { id: 'tut_r_hideout', name: "Raiders' Hideout", cat: 'danger', x: 15560, y: 15200, notes: 'A timber house on a rock shelf with a cellar and a lookout floor. Double-click to open the ground floor; the stairs inside lead to the other floors.', characters: [{ id: 'tut_c_grukk', name: 'Grukk', info: 'Orc. Runs the raiders. Keeps the ledger in the office.', portrait: A + 'orc_sq.jpg' }], targetMapId: 'map_tut_ground', icon: 'Door', image: A + 'scene_hideout.jpg' },
+        { id: 'tut_r_fort', name: 'Old Fort', cat: 'danger', x: 15300, y: 15400, notes: 'A ruined hillfort the raiders use as a fallback. Something older than raiders lives in the walls.', characters: [], targetMapId: 'map_tut_fort', icon: 'Tower' }
     ];
-    valley.links = [
-        ['tut_millbrook', 'tut_oldroad', '', { label: 'Half a day on foot', notes: 'Safe by day. At night the raiders watch the ford.' }],
-        ['tut_oldroad', 'tut_woods', 'route', { label: 'Cart track', notes: 'A route, not a doorway: travel takes time. Random encounter on a 1.' }],
-        ['tut_woods', 'tut_cave', 'secret', { label: "Pell's path", notes: 'Only Hermit Pell knows it. Survival DC 15 to find it without him.' }],
-        ['tut_millbrook', 'tut_woods', 'oneway', { label: 'Downstream ferry', notes: 'The ferry only runs downstream; the way back is the Old Road.' }]
-    ];
-
-    var cave = createNewMap("Wyrm's Cave");
-    cave.id = 'map_tut_cave';
-    cave.meta.parentId = valley.id;
-    cave.meta.homeX = 15150; cave.meta.homeY = 15100; cave.meta.lastView = 'visual'; cave.meta.gridType = 'hex';
-    cave.cats = { cave: { label: 'Cave', color: '#4db3d3' }, danger: { label: 'Danger', color: '#d9534f' } };
-    cave.rooms = [
-        { id: 'tut_entrance', name: 'Entrance', cat: 'cave', x: 15000, y: 15100, notes: 'Cold air, old bones, claw marks on the rock.', characters: [] },
-        { id: 'tut_hoard',    name: "Wyrm's Hoard", cat: 'danger', x: 15300, y: 15100, notes: 'The wyrm sleeps on a bed of coin. Roll for stealth.', characters: [{ id: 'tut_c_wyrm', name: 'Cave Wyrm', info: 'Old, half-blind, hoards more than gold.' }] },
-        { id: 'tut_ledge',    name: 'Ledge (3 yd up)', cat: 'cave', x: 15150, y: 14960, notes: 'A rock shelf three yards above the floor. Anyone standing here has Elevation +3 (right-click a token → Elevation): rulers and blasts then measure height as well as distance. Torvin is up here already.', characters: [] },
-        { id: 'tut_trap',     name: 'Pit trap', cat: 'danger', x: 15150, y: 15240, notes: 'A trigger zone: drop a token on it and its Event Message fires. Select it to change the message in Properties.', characters: [] }
-    ];
-    cave.links = [['tut_entrance', 'tut_hoard'], ['tut_entrance', 'tut_ledge', 'secret', { label: 'Climb' }], ['tut_hoard', 'tut_trap', '', { label: 'Loose floor' }]];
-    // Hex-cell items sit on the flat-top lattice: cell centres at x = 45q + 15, y = 52(r + q/2)
-    // (see CAMPAIGN_INTEGRATION.md); a 60×52 item's top-left is the centre minus (30, 26).
-    function hexAt(q, r, props) { return Object.assign({ x: 45 * q + 15 - 30, y: 52 * (r + q / 2) - 26, w: 60, h: 52 }, props); }
-    var q0 = 333, r0 = 124;   // the cell near (15000, 15106)
-    cave.whiteboard = [
-        { id: 'tut_wb_floor',  type: 'rect', x: 14790, y: 14934, w: 420, h: 312, color: '#262633', layer: 'back', nodeId: 'tut_entrance', name: 'Entrance floor' },
-        { id: 'tut_wb_hoard',  type: 'rect', x: 15240, y: 14934, w: 420, h: 312, color: '#2a2230', layer: 'back', nodeId: 'tut_hoard', name: 'Hoard floor' },
-        { id: 'tut_wb_label',  type: 'text', x: 14800, y: 14860, w: 360, h: 40, color: 'transparent', text: '<b>Wyrm\'s Cave</b> (hex grid) — drag the tokens, hover the ledge and the trap, right-click a token', fontSize: 14, layer: 'front' },
-        // On a hex grid the tokens are hexagons: one fills a cell exactly (60×52)
-        hexAt(q0, r0,          { id: 'tut_wb_hero', type: 'hexagon', color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — a hex token, one cell wide. Drag me; right-click for conditions, posture, elevation.' }),
-        hexAt(q0 + 6, r0 - 4,  { id: 'tut_wb_ledge', type: 'hexagon', color: '#3a3a4a', layer: 'back-mid', name: 'Ledge', nodeId: 'tut_ledge' }),
-        hexAt(q0 + 6, r0 - 4,  { id: 'tut_wb_ally', type: 'hexagon', color: '#5cb87a', layer: 'middle', isChar: true, charName: 'Torvin', name: 'Torvin', charStats: 'A friend with a lantern, up on the ledge — hence the +3.', elevation: 3 }),
-        hexAt(q0 + 14, r0 - 7, { id: 'tut_wb_wyrm', type: 'hexagon', color: '#d9534f', layer: 'middle', isChar: true, charName: 'Cave Wyrm', name: 'Cave Wyrm', charStats: 'Old and half-blind. Hidden from players until you reveal it.', hidden: true, posture: 'lying-prone' }),
-        hexAt(q0 + 8, r0 - 3,  { id: 'tut_wb_trap', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The floor gives way — a pit trap! The wyrm stirs.', name: 'Pit trap', nodeId: 'tut_trap' })
+    realm.links = [
+        ['tut_r_eldara', 'tut_r_hills', 'route', { label: "Two days' ride", notes: 'Caravan road. A raid on a 1–2 each day.' }],
+        ['tut_r_hills', 'tut_r_hideout', 'secret', { label: 'Goat path', notes: 'Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).' }],
+        ['tut_r_hideout', 'tut_r_fort', 'oneway', { label: 'Downriver', notes: 'The raiders flee to the fort by raft; the way back is on foot.' }],
+        ['tut_r_eldara', 'tut_r_fort', '', { label: 'Old road' }]
     ];
 
-    // Millbrook: a SQUARE grid (50 px cells) with square tokens, so both grid types are in the tour
-    var town = createNewMap('Millbrook');
-    town.id = 'map_tut_town';
-    town.meta.parentId = valley.id;
-    town.meta.homeX = 15100; town.meta.homeY = 15100; town.meta.lastView = 'visual'; town.meta.gridType = 'square';
-    town.cats = { town: { label: 'Town', color: '#e0a54f' }, holy: { label: 'Shrine', color: '#b98cff' } };
-    town.rooms = [
-        { id: 'tut_market', name: 'Market square', cat: 'town', x: 15000, y: 15100, notes: 'Stalls, gossip, and the mayor pretending not to see the party.', characters: [{ id: 'tut_c_mayor2', name: 'Mayor Ostra', info: 'Nervous. Will pay double to keep the grain deal quiet.' }] },
-        { id: 'tut_shrine', name: 'Shrine', cat: 'holy', x: 15300, y: 15100, notes: 'A trigger zone stands at its door: ring the bell by dropping a token on it.', characters: [] }
+    /* ---- Eldara: the city, with scene images and portraits ---- */
+    var city = createNewMap('Eldara');
+    city.id = 'map_tut_city';
+    city.meta.parentId = realm.id;
+    city.meta.homeX = 15000; city.meta.homeY = 15000; city.meta.lastView = 'data'; city.meta.gridType = 'off';
+    city.cats = { civic: { label: 'Civic', color: '#e0a54f' }, holy: { label: 'Temple', color: '#b98cff' }, trade: { label: 'Trade', color: '#4db3d3' } };
+    city.rooms = [
+        { id: 'tut_palace', name: 'Palace', cat: 'civic', x: 14980, y: 14840, notes: 'The court of King Thalindor sits in the roots of the great tree. He wants the raiders gone before the harvest caravans roll.\nThis room has a scene image and a character with a portrait: hover its play-map shape.', characters: [{ id: 'tut_c_king', name: 'King Thalindor Starseeker', info: 'Patient, proud, and short of soldiers. Pays in favours before gold.', portrait: A + 'king_sq.jpg' }, { id: 'tut_c_golems', name: 'The Wardens', info: 'Two elven golems that never leave the throne room.', portrait: A + 'golems_sq.jpg' }], image: A + 'scene_throne.jpg' },
+        { id: 'tut_temple', name: 'Temple', cat: 'holy', x: 15300, y: 14840, notes: 'Crystal-lit hall of the Moon. Healing for a donation; blessings for a promise.', characters: [{ id: 'tut_c_priestess', name: 'High Priestess Elandra Moonshadow', info: 'Knows the fort is older than the city and what sleeps under it.', portrait: A + 'priestess_sq.jpg' }], image: A + 'scene_temple.jpg' },
+        { id: 'tut_smith', name: 'Blacksmith', cat: 'trade', x: 14800, y: 15220, notes: 'Elion will reforge anything the party brings back from the hideout.', characters: [{ id: 'tut_c_smith', name: 'Master Blacksmith Elion Flameheart', info: 'Grumbles. Sold the raiders their axes without knowing.', portrait: A + 'smith_sq.jpg' }], image: A + 'scene_forge.jpg' },
+        { id: 'tut_library', name: 'Library', cat: 'civic', x: 15300, y: 15100, notes: 'Maps of the hills, if anyone asks nicely.', characters: [] },
+        { id: 'tut_emporium', name: 'Emporium', cat: 'trade', x: 15560, y: 14980, notes: 'Everything the caravans still bring in, at raid prices.', characters: [] },
+        { id: 'tut_inn', name: 'The Inn', cat: 'trade', x: 15000, y: 15400, notes: 'Where the party meets. Double-click to open its battle map (a square grid).', characters: [{ id: 'tut_c_chef', name: 'Nessa', info: 'Wood-elf cook. Hears everything the caravan drivers say.', portrait: A + 'chef_sq.jpg' }], targetMapId: 'map_tut_inn', icon: 'Door' }
     ];
-    town.links = [['tut_market', 'tut_shrine', '', { label: 'Across the square' }]];
-    // Square cells are 50 px: a 50×50 token fills one; positions are multiples of 50
-    town.whiteboard = [
-        { id: 'tut_wb_townfloor', type: 'rect', x: 14800, y: 14900, w: 500, h: 350, color: '#2a2622', layer: 'back', nodeId: 'tut_market', name: 'Market square' },
-        { id: 'tut_wb_townlabel', type: 'text', x: 14800, y: 14840, w: 420, h: 40, color: 'transparent', text: '<b>Millbrook</b> (square grid) — square tokens fill one 50 px cell each', fontSize: 14, layer: 'front' },
-        { id: 'tut_wb_hero2',  type: 'rect', x: 15000, y: 15050, w: 50, h: 50, color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — a square token, one cell wide. Drag me and Snap seats me in a cell.' },
-        { id: 'tut_wb_mayor',  type: 'rect', x: 15150, y: 15100, w: 50, h: 50, color: '#e0a54f', layer: 'middle', isChar: true, charName: 'Mayor Ostra', name: 'Mayor Ostra', charStats: 'The mayor. An NPC token: only the GM moves it.', charRef: 'tut_c_mayor2' },
-        { id: 'tut_wb_bell',   type: 'trigger', x: 15250, y: 14950, w: 50, h: 50, color: 'transparent', eventMessage: 'The shrine bell rings across the square. Every head turns.', name: 'Shrine bell', nodeId: 'tut_shrine' }
+    city.links = [
+        ['tut_inn', 'tut_smith', '', { label: 'Up the lane' }],
+        ['tut_inn', 'tut_library', 'route', { label: 'Across town' }],
+        ['tut_library', 'tut_temple', '', { label: 'Temple steps' }],
+        ['tut_palace', 'tut_temple', 'oneway', { label: "King's walk", notes: 'Only the court uses it; the gate is guarded on the temple side.' }],
+        ['tut_emporium', 'tut_library', '', { label: 'Market street' }],
+        ['tut_smith', 'tut_palace', 'secret', { label: 'Root tunnel', notes: 'An old service tunnel into the palace cellars. Elion knows.' }]
+    ];
+    // Play map: the city seen from above, no grid; shapes over the districts are linked to the rooms
+    function district(id, room, px, py, w, h) { return { id: id, type: 'rect', x: O + px - w / 2, y: O + py - h / 2, w: w, h: h, color: 'rgba(224,165,79,0.14)', layer: 'middle', nodeId: room, name: room.replace('tut_', '') }; }
+    city.whiteboard = [
+        { id: 'tut_wb_citymap', type: 'image', src: A + 'map_eldara.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Eldara from above' },
+        district('tut_wb_d_palace', 'tut_palace', 410, 250, 220, 120),
+        district('tut_wb_d_temple', 'tut_temple', 710, 250, 200, 120),
+        district('tut_wb_d_emporium', 'tut_emporium', 780, 510, 220, 110),
+        district('tut_wb_d_library', 'tut_library', 670, 660, 200, 110),
+        district('tut_wb_d_smith', 'tut_smith', 290, 680, 240, 110),
+        district('tut_wb_d_inn', 'tut_inn', 250, 900, 160, 110)
     ];
 
-    var plan = createNewPlanner('Session 1 — Into the Cave');
+    /* ---- The Inn: SQUARE grid over a drawn tavern (its own 50 px squares line up with the app's) ---- */
+    var inn = createNewMap('The Inn');
+    inn.id = 'map_tut_inn';
+    inn.meta.parentId = city.id;
+    inn.meta.homeX = 15450; inn.meta.homeY = 15300; inn.meta.lastView = 'visual'; inn.meta.gridType = 'square';
+    inn.cats = { room: { label: 'Room', color: '#e0a54f' } };
+    inn.rooms = [
+        { id: 'tut_inn_common', name: 'Common room', cat: 'room', x: 15000, y: 15100, notes: 'Seven tables, a hearth, and a door that bangs. The party sits by the window.', characters: [] },
+        { id: 'tut_inn_bar', name: 'Bar', cat: 'room', x: 15300, y: 15100, notes: 'Nessa runs it when the innkeeper is out, which is always.', characters: [] }
+    ];
+    inn.links = [['tut_inn_common', 'tut_inn_bar', '', { label: 'Three steps' }]];
+    var IX = 14868, IY = 14773;   // places the drawing's grid lines on multiples of 50
+    inn.whiteboard = [
+        { id: 'tut_wb_innmap', type: 'image', src: A + 'map_inn.jpg', x: IX, y: IY, w: 1198, h: 1089, color: 'transparent', layer: 'back', locked: true, name: 'The Inn' },
+        { id: 'tut_wb_innfloor', type: 'rect', x: 15000, y: 15000, w: 800, h: 600, color: 'transparent', layer: 'back-mid', nodeId: 'tut_inn_common', name: 'Common room floor', opacity: 0.1 },
+        { id: 'tut_wb_innlabel', type: 'text', x: 14880, y: 14700, w: 520, h: 40, color: 'transparent', text: '<b>The Inn</b> (square grid) \u2014 square picture tokens, one 50 px cell each', fontSize: 14, layer: 'front' },
+        sqTok(15250, 15400, pic('bren_sq.jpg', { id: 'tut_wb_bren', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.' })),
+        sqTok(15300, 15400, pic('tharic_sq.jpg', { id: 'tut_wb_tharic', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight. Says little, hits hard.' })),
+        sqTok(15250, 15450, pic('sage_sq.jpg', { id: 'tut_wb_sage', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard. Reads everything, including the raiders\' ledger.' })),
+        sqTok(15450, 14950, pic('chef_sq.jpg', { id: 'tut_wb_chef', charName: 'Nessa', name: 'Nessa', charStats: 'Wood-elf cook. An NPC token: only the GM moves it.', charRef: 'tut_c_chef' })),
+        { id: 'tut_wb_inndoor', type: 'trigger', x: 15450, y: 15750, w: 50, h: 50, color: 'transparent', eventMessage: 'The door bangs open. A caravan driver stumbles in, bleeding: \u201cRaiders. On the hill road.\u201d', name: 'The door' }
+    ];
+
+    /* ---- Raiders' Hideout: three floors on HEX grids, stairs as portals ---- */
+    var ground = createNewMap("Hideout \u2014 Ground Floor");
+    ground.id = 'map_tut_ground';
+    ground.meta.parentId = realm.id;
+    ground.meta.homeX = 15000; ground.meta.homeY = 15000; ground.meta.lastView = 'visual'; ground.meta.gridType = 'hex';
+    ground.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
+    ground.rooms = [
+        { id: 'tut_g_guard', name: 'Guard room', cat: 'danger', x: 14900, y: 15000, notes: 'Grukk\'s desk and two guards. The ledger is in the office behind.', characters: [] },
+        { id: 'tut_g_office', name: 'Office', cat: 'room', x: 15150, y: 14800, notes: 'The ledger names the Emporium\'s buyer. Locked (DC 12).', characters: [] },
+        { id: 'tut_g_armory', name: 'Armory', cat: 'room', x: 14800, y: 15300, notes: 'Elion\'s axes. He will want them back.', characters: [] },
+        { id: 'tut_g_cell', name: 'Jail cell', cat: 'room', x: 14800, y: 14800, notes: 'A caravan guard, alive, if the party is quick.', characters: [] }
+    ];
+    ground.links = [['tut_g_guard', 'tut_g_office', '', { label: 'Door' }], ['tut_g_guard', 'tut_g_armory', '', { label: 'Door' }], ['tut_g_guard', 'tut_g_cell', 'secret', { label: 'Barred hatch' }]];
+    ground.whiteboard = [
+        { id: 'tut_wb_groundmap', type: 'image', src: A + 'map_ground.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Ground floor plan' },
+        { id: 'tut_wb_guardfloor', type: 'rect', x: O + 60, y: O + 190, w: 640, h: 640, color: 'transparent', layer: 'back-mid', nodeId: 'tut_g_guard', name: 'Guard room floor', opacity: 0.1 },
+        { id: 'tut_wb_groundlabel', type: 'text', x: O + 40, y: O - 60, w: 620, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Ground Floor</b> (hex grid) \u2014 hex picture tokens; the stairs are portals: double-click them', fontSize: 14, layer: 'front' },
+        // On a hex grid the picture tokens are clipped to a hexagon and fill one cell (60\u00d752)
+        hexTok(O + 420, O + 470, pic('orc_hex.png', { id: 'tut_wb_grukk', charName: 'Grukk', name: 'Grukk', charStats: 'Orc raider chief. NPC \u2014 right-click for conditions, posture, elevation.', charRef: 'tut_c_grukk' })),
+        hexTok(O + 560, O + 300, pic('minotaur_soldier_hex.png', { id: 'tut_wb_horn', charName: 'Horn', name: 'Horn', charStats: 'Minotaur guard. Hidden from players until they open the door.', hidden: true })),
+        hexTok(O + 300, O + 600, pic('bren_hex.png', { id: 'tut_wb_bren2', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Your character, in hex form for a hex map.' })),
+        hexTok(O + 360, O + 640, pic('tharic_hex.png', { id: 'tut_wb_tharic2', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
+        hexTok(O + 300, O + 690, pic('sage_hex.png', { id: 'tut_wb_sage2', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.' })),
+        stairs(O + 935, O + 760, 'map_tut_basement', false, 'Stairs down'),
+        stairs(O + 700, O + 420, 'map_tut_top', true, 'Stairs up'),
+        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside \u2014 DC 12 to pick it, or ask Grukk nicely.', name: 'Office door' })
+    ];
+
+    var basement = createNewMap('Hideout \u2014 Basement');
+    basement.id = 'map_tut_basement';
+    basement.meta.parentId = ground.id;
+    basement.meta.homeX = 15000; basement.meta.homeY = 15000; basement.meta.lastView = 'visual'; basement.meta.gridType = 'hex';
+    basement.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
+    basement.rooms = [
+        { id: 'tut_b_hall', name: 'Cellar', cat: 'room', x: 14900, y: 15000, notes: 'Barrels, damp, and a corridor around the vault.', characters: [] },
+        { id: 'tut_b_vault', name: 'Locked vault', cat: 'danger', x: 15200, y: 15000, notes: 'The raiders\' takings \u2014 and the thing they feed. The slime is hidden from players until the door opens.', characters: [] }
+    ];
+    basement.links = [['tut_b_hall', 'tut_b_vault', 'secret', { label: 'Vault door', notes: 'Iron, barred from outside. Grukk has the key.' }]];
+    basement.whiteboard = [
+        { id: 'tut_wb_basemap', type: 'image', src: A + 'map_basement.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Basement plan' },
+        { id: 'tut_wb_baselabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Basement</b> (hex grid) \u2014 the vault holds a hidden token and a trap', fontSize: 14, layer: 'front' },
+        hexTok(O + 497, O + 470, pic('slime_hex.png', { id: 'tut_wb_slime', charName: 'Vault Slime', name: 'Vault Slime', charStats: 'Fed on whatever the raiders did not want. Hidden until revealed.', hidden: true, posture: 'lying-prone' })),
+        hexTok(O + 560, O + 610, { id: 'tut_wb_vaultdoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The vault door swings in. Something green and heavy shifts in the dark.', name: 'Vault door' }),
+        stairs(O + 300, O + 230, 'map_tut_ground', true, 'Stairs up')
+    ];
+
+    var top = createNewMap('Hideout \u2014 Top Floor');
+    top.id = 'map_tut_top';
+    top.meta.parentId = ground.id;
+    top.meta.homeX = 14800; top.meta.homeY = 15000; top.meta.lastView = 'visual'; top.meta.gridType = 'hex';
+    top.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
+    top.rooms = [
+        { id: 'tut_t_dock', name: 'Dock', cat: 'room', x: 14900, y: 14800, notes: 'A loading dock over the drop. The raft rope runs from here.', characters: [] },
+        { id: 'tut_t_gallery', name: 'Archers\' gallery', cat: 'danger', x: 14900, y: 15100, notes: 'Two loopholes over the approach. Anyone here is 4 yards above the ground: Elevation +4 on the tokens, so shots down to the yard measure the height too.', characters: [] }
+    ];
+    top.links = [['tut_t_dock', 'tut_t_gallery', '', { label: 'Ladder' }]];
+    top.whiteboard = [
+        { id: 'tut_wb_topmap', type: 'image', src: A + 'map_top.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Top floor plan' },
+        { id: 'tut_wb_toplabel', type: 'text', x: O + 40, y: O - 60, w: 560, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Top Floor</b> (hex grid) \u2014 the archers stand 4 yards up: note the +4 chips', fontSize: 14, layer: 'front' },
+        hexTok(O + 100, O + 385, pic('minotaur_archer_hex.png', { id: 'tut_wb_fletch1', charName: 'Fletch', name: 'Fletch', charStats: 'Minotaur archer at the north loophole. Elevation +4.', elevation: 4 })),
+        hexTok(O + 100, O + 700, pic('minotaur_archer_hex.png', { id: 'tut_wb_fletch2', charName: 'Second archer', name: 'Second archer', charStats: 'Minotaur archer at the south loophole. Elevation +4, kneeling.', elevation: 4, posture: 'kneeling' })),
+        stairs(O + 330, O + 340, 'map_tut_ground', false, 'Stairs down')
+    ];
+
+    /* ---- Old Fort: an outdoor hex map ---- */
+    var fort = createNewMap('Old Fort');
+    fort.id = 'map_tut_fort';
+    fort.meta.parentId = realm.id;
+    fort.meta.homeX = 15000; fort.meta.homeY = 15000; fort.meta.lastView = 'visual'; fort.meta.gridType = 'hex';
+    fort.cats = { wild: { label: 'Wilderness', color: '#5cb87a' }, danger: { label: 'Danger', color: '#d9534f' } };
+    fort.rooms = [
+        { id: 'tut_f_yard', name: 'Fort yard', cat: 'danger', x: 15000, y: 15000, notes: 'Walls still stand; the gate does not. The spriggan in the trees is not with the raiders.', characters: [] },
+        { id: 'tut_f_wood', name: 'Tree line', cat: 'wild', x: 14700, y: 15100, notes: 'Cover, and something watching from it.', characters: [] }
+    ];
+    fort.links = [['tut_f_wood', 'tut_f_yard', 'oneway', { label: 'Charge across the open' }]];
+    fort.whiteboard = [
+        { id: 'tut_wb_fortmap', type: 'image', src: A + 'map_fort.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Old Fort' },
+        { id: 'tut_wb_fortlabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Old Fort</b> (hex grid) \u2014 an outdoor battle map; the archer on the wall is at +3', fontSize: 14, layer: 'front' },
+        hexTok(O + 830, O + 220, pic('minotaur_archer_hex.png', { id: 'tut_wb_wallarcher', charName: 'Wall archer', name: 'Wall archer', charStats: 'On the battlements: Elevation +3.', elevation: 3 })),
+        hexTok(O + 500, O + 560, pic('minotaur_soldier_hex.png', { id: 'tut_wb_gateguard', charName: 'Gate guard', name: 'Gate guard', charStats: 'Minotaur soldier at the gate.' })),
+        hexTok(O + 140, O + 300, pic('spriggan_hex.png', { id: 'tut_wb_spriggan', charName: 'Old Thornback', name: 'Old Thornback', charStats: 'Spriggan. Hidden in the trees until the party gets close.', hidden: true }))
+    ];
+
+    /* ---- the session plan ---- */
+    var plan = createNewPlanner('Session 1 \u2014 The Hill Road');
     plan.id = 'plan_tut_session1';
     plan.meta.status = 'next';
     plan.blocks = [
-        { type: 'h1', title: 'Session 1 — Into the Cave', sub: 'A one-evening tutorial adventure' },
-        { type: 'lede', content: 'The mayor of Millbrook hires the party to find out what is taking the sheep. The trail leads through Blackpine Woods to the Wyrm\'s Cave.' },
+        { type: 'h1', title: 'Session 1 \u2014 The Hill Road', sub: 'A one-evening tutorial adventure' },
+        { type: 'lede', content: 'Raiders are bleeding the caravans between Eldara and the hills. King Thalindor wants it stopped before harvest; the party starts at The Inn, where a wounded driver names the hill road.' },
         { type: 'h2', title: 'Beats' },
-        { type: 'node', title: 'The hermit\'s bargain', tag: 'social', must: 'The party learns the secret path.', cols: ['Check', 'DC', 'On success'], rows: [{ col1: 'Persuade Pell', col2: '12', col3: 'He marks the path on their map.' }, { col1: 'Intimidate', col2: '15', col3: 'He talks, then warns the wyrm.' }] },
-        { type: 'callout', content: 'Planners are yours alone — players never receive them, so put the twist here, not in a room name.' },
-        { type: 'h2', title: 'The cave' },
-        { type: 'text', content: 'Switch to the <b>Wyrm\'s Cave</b> map and its Play Map. The wyrm token is hidden from players until you reveal it (select it → Visible to players).' }
+        { type: 'node', title: 'The driver at the inn', tag: 'social', must: 'The party learns where the raiders strike.', cols: ['Check', 'DC', 'On success'], rows: [{ col1: 'Medicine', col2: '10', col3: 'He lives and describes the goat path.' }, { col1: 'Insight', col2: '13', col3: 'He is hiding that he sold the route.' }] },
+        { type: 'node', title: 'The hideout', tag: 'combat', must: 'Grukk\'s ledger changes hands.', cols: ['Where', 'Who', 'Note'], rows: [{ col1: 'Ground floor', col2: 'Grukk, Horn', col3: 'Horn is hidden behind the guard-room door.' }, { col1: 'Top floor', col2: 'Two archers', col3: 'Elevation +4 \u2014 use the ruler for the 3D figure.' }, { col1: 'Basement', col2: 'Vault slime', col3: 'Only if they open the vault.' }] },
+        { type: 'callout', content: 'Planners are yours alone \u2014 players never receive them, so put the twist (the Emporium buyer) here, not in a room name.' },
+        { type: 'h2', title: 'If they chase the raiders' },
+        { type: 'text', content: 'The survivors raft downriver to the <b>Old Fort</b>. Old Thornback the spriggan is nobody\'s friend.' }
     ];
 
-    camp.items[valley.id] = valley;
-    camp.items[cave.id] = cave;
-    camp.items[town.id] = town;
-    camp.items[plan.id] = plan;
-    camp.activeItemId = valley.id;
+    [realm, city, inn, ground, basement, top, fort, plan].forEach(function(it) { camp.items[it.id] = it; });
+    camp.activeItemId = realm.id;
     return camp;
 }
 
@@ -164,32 +267,32 @@ function openLeft() { var sb = document.getElementById('campaignSidebar'); if (s
 
 var STEPS = [
     { target: null, title: 'Welcome to Waypoint',
-      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: a valley with a hex-grid cave and a square-grid town under it, and a session plan. It is a real campaign — <b>keep it and build on it</b>, or discard it at the end (or any time from Help → Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
-      before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_valley'); goView('data'); } },
+      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city, its inn on a square grid, a three-floor raiders\' hideout on hex grids, an old fort, and a session plan. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
+      before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
     { target: '#campaignSelect', title: 'Campaigns',
       html: 'Everything belongs to a campaign. This picker switches between them; the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial.' },
     { target: '#mapNavList', title: 'Maps nest like places',
-      html: '<b>Greywater Valley</b> holds <b>Wyrm\'s Cave</b>: world → region → building → room, as deep as you like. Drag a map onto another to nest it. Right-click a map for <b>New Child Map</b> (a map inside it) or <b>New Parent Map</b> (a new map that wraps it, with a portal node already placed).' },
+      html: '<b>Eldara Realm</b> holds the city <b>Eldara</b>, which holds <b>The Inn</b>; the <b>Raiders\' Hideout</b> holds its <b>Basement</b> and <b>Top Floor</b>. World \u2192 region \u2192 building \u2192 room, as deep as you like. Drag a map onto another to nest it. Right-click a map for <b>New Parent Map</b> (a new map that wraps it, with a portal node already placed) or <b>New Child Map</b> (a map inside it).' },
     { target: '#viewModeSelect', title: 'Two faces of every map',
       html: 'The <b>Data Map</b> is the node view for your notes and connections; the <b>Play Map</b> is the battle map with tokens. This switch flips between them, and each map remembers which face you left it on.',
-      before: function() { openItem('map_tut_valley'); goView('data'); } },
+      before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#dataFloatingToolbar', title: 'Data map tools',
-      html: '<b>Add Room</b> drops a node. <b>↔ Link Mode</b> connects two rooms — pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Hover a line and a small chip appears at its middle (a labelled line keeps its chip). Click the line or the chip to open it in <b>Properties</b>: a label that is drawn on the line (players see it), GM-only notes about the journey (never sent), the type, a swap for the direction, and Remove. <kbd>Delete</kbd> removes the selected link; right-click the chip for a quick type menu. The valley\'s lines are already labelled.' },
+      html: '<b>Add Room</b> drops a node. <b>\u2194 Link Mode</b> connects two rooms \u2014 pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Hover a line and a small chip appears at its middle (a labelled line keeps its chip). Click the line or the chip to open it in <b>Properties</b>: a label that is drawn on the line (players see it), GM-only notes about the journey (never sent), the type, a swap for the direction, and Remove. <kbd>Delete</kbd> removes the selected link; right-click the chip for a quick type menu. Eldara\'s lines are already labelled \u2014 one of each type.' },
     { target: '#canvasWrap', title: 'Rooms and portals',
-      html: 'Drag rooms around; click one to edit it on the right. <b>Wyrm\'s Cave</b> carries a cave icon because it is a <b>portal</b>: double-click it to travel into the cave map, and use the breadcrumb at the top to climb back out. In multiplayer, players travel by dropping their token on a portal.',
-      before: function() { openItem('map_tut_valley'); goView('data'); } },
+      html: 'Drag rooms around; click one to edit it on the right. The <b>Palace</b> carries a scene image and a king with a portrait; hover its shape on the Play Map to see both. <b>The Inn</b> carries a door icon because it is a <b>portal</b>: double-click it to travel into the inn\'s battle map, and use the breadcrumb at the top to climb back out. In multiplayer, players travel by dropping their token on a portal.',
+      before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#sidebar', title: 'The Properties panel',
-      html: 'Whatever you select is edited here: a room\'s name, category colour, GM-only notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears; the arrow on its edge toggles it by hand.',
-      before: function() { openItem('map_tut_valley'); goView('data'); state.selId = 'tut_millbrook'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); } },
+      html: 'Whatever you select is edited here: a room\'s name, category colour, scene image, GM-only notes and the characters found there, each with a portrait. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears; the arrow on its edge toggles it by hand.',
+      before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); } },
     { target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the cave, on its Play Map. Left to right: centre, undo, then <b>grid</b> (square, hex or none &mdash; each map remembers its own) and <b>snap</b>, then the tools — move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike &mdash; they will be set per campaign, from its own weapons, and customizable.</i>',
-      before: function() { openItem('map_tut_cave'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
+      html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, undo, then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i>',
+      before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
-      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the tokens are hexagons, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; hover the <b>ledge</b> or the <b>pit trap</b> and their room card explains them (they are linked to rooms on the data map). <b>Torvin</b> stands on the ledge at <b>+3</b>. <b>Right-click</b> a token for conditions, posture and elevation — the chips at its foot show height (<b>+3</b>) and posture (<b>KNL</b>, <b>PRN</b>…), and the switches for both live in Settings → Table. In a session a player can right-click <i>their own</i> token for the same posture and elevation rows, and your switches decide what they see. The <b>Cave Wyrm</b> is hidden from players — you see it dimmed — until you tick <b>Visible to players</b>. The hex trigger zone fires its message when a token is dropped on it.',
-      before: function() { openItem('map_tut_cave'); goView('visual'); } },
+      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it.',
+      before: function() { openItem('map_tut_ground'); goView('visual'); } },
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
-      html: '<b>Millbrook</b> runs on a <b>square grid</b>: 50 px cells, and the tokens are squares that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The shrine bell is a square trigger zone. Pick the grid per map with the grid button &mdash; the valley\'s data map has no play grid at all.',
-      before: function() { openItem('map_tut_town'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
+      html: '<b>The Inn</b> runs on a <b>square grid</b>: 50 px cells over a drawn tavern whose own squares line up with them, and the tokens are square pictures that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The square at the door is a trigger zone. Pick the grid per map with the grid button \u2014 the city map above uses none at all.',
+      before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
       before: function() { openItem('plan_tut_session1'); } },

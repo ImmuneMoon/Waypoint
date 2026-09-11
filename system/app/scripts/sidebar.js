@@ -332,6 +332,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     childBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';
                     if (it) childBtn.textContent = it.type === 'planner' ? '+ New Child Planner' : '+ New Child Map';
                 }
+                var parentBtn = document.getElementById('ctxNewParentItem');
+                if (parentBtn) {
+                    parentBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';
+                    if (it) parentBtn.innerHTML = it.type === 'planner' ? '&#8593; New Parent Planner' : '&#8593; New Parent Map';
+                }
             });
             el.addEventListener('click', function(e) {
 

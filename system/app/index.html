@@ -72,6 +72,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/tips.js"></script>
 <script type="module" src="scripts/stream.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
+<script type="module" src="scripts/tutorial.js"></script>
 <script src="scripts/tooltips.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
@@ -200,6 +201,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <div style="display:flex; gap:16px; flex:1; min-height:0;">
               <div id="helpNav">
                   <button data-help="start" class="active">&#128640; Getting Started</button>
+                  <button data-help="tutorial">&#127891; Tutorial</button>
                   <button data-help="datamap">&#128506;&#65039; Data Maps</button>
                   <button data-help="whiteboard">&#127912; Play Map</button>
                   <button data-help="grids">&#11041; Grids &amp; Measuring</button>
@@ -213,12 +215,13 @@ window.addEventListener('unhandledrejection', function(e) {
                   <div class="help-pane" data-pane="start">
                       <h4>What Waypoint is</h4>
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> (locations with two faces: a node-based <b>Data Map</b> for your notes and a freeform <b>Play Map</b> for the battle map) and <b>Planners</b> (document pages for session plans). Everything lives in the left sidebar.</p>
+                      <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign that you can keep and build on.</p>
                       <h4>Your first map</h4>
                       <ol>
                           <li>Press <b>+</b> next to <b>Maps</b> in the left sidebar and name it.</li>
                           <li>The <b>Properties</b> sidebar on the right opens when you select a room or an item and closes when the selection clears; the &#9654; button on its edge opens or closes it by hand.</li>
                           <li>Use the <b>Data Map / Play Map</b> switch at the top to flip between the two faces of the same location.</li>
-                          <li>Drag one map onto another in the sidebar to nest it inside (world &rarr; city &rarr; building). A breadcrumb appears up top so you always know where you are.</li>
+                          <li>Drag one map onto another in the sidebar to nest it inside (world &rarr; city &rarr; building). A breadcrumb appears up top so you always know where you are. Right-click a map for <b>New Child Map</b> (a map inside it) or <b>New Parent Map</b> (a new map that wraps it &mdash; the existing map moves under it and the new map gets a portal node leading in).</li>
                       </ol>
                       <h4>Getting around fast</h4>
                       <ul>
@@ -235,12 +238,25 @@ window.addEventListener('unhandledrejection', function(e) {
                       <div class="help-tip">Waypoint works fully offline. Internet is only needed for Multiplayer and for diagram blocks in Planners.</div>
                   </div>
 
+                  <div class="help-pane" data-pane="tutorial" style="display:none;">
+                      <h4>Interactive tutorial</h4>
+                      <p id="tourState"></p>
+                      <p>The tour is a guided walkthrough over the real app &mdash; campaigns and the map tree, both faces of a map, the toolbars, tokens, planners, multiplayer and settings &mdash; in about fifteen short steps. Nothing is locked while it runs: try each thing as the card describes it, then press <b>Next</b>. <kbd>Esc</kbd> leaves the tour at any point.</p>
+                      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
+                          <button class="tool gm-only" id="tourStartBtn">&#9654; Start the tutorial</button>
+                          <button class="tool ghost gm-only" id="tourOpenBtn">Open the Tutorial campaign</button>
+                          <button class="tool ghost gm-only" id="tourRebuildBtn" title="Replace the Tutorial campaign with a fresh copy">Rebuild it</button>
+                          <button class="tool ghost danger gm-only" id="tourDiscardBtn" title="Delete the Tutorial campaign from your save">Discard the Tutorial campaign</button>
+                      </div>
+                      <div class="help-tip">The Tutorial campaign is a normal campaign in your save: rename it, add to it, host a session on it. Discarding it deletes only that campaign. <span id="tourVersion" style="color:var(--dim);"></span></div>
+                  </div>
+
                   <div class="help-pane" data-pane="datamap" style="display:none;">
                       <h4>Tools</h4>
                       <ul>
                           <li><b>&#10138; Select / Move</b> (default) &mdash; click rooms to edit them, drag to move, drag a box to select several.</li>
                           <li><b>&#9995; Pan</b> &mdash; drag anywhere to move the map itself; rooms never move while it's active. (Middle-click drag pans in any tool.)</li>
-                          <li><b>&#8596; Link Mode</b> &mdash; lit gold while active; click two rooms to connect them. Pick another tool to leave it.</li>
+                          <li><b>&#8596; Link Mode</b> &mdash; lit gold while active; click two rooms to connect them. Its menu picks the <b>line type</b> for new links: a solid <b>Path</b>, a dashed <b>Route</b>, a dotted <b>Secret</b> way, or a <b>One-way</b> arrow from the first room to the second. <b>Done linking</b> (or the Select tool) leaves it.</li>
                           <li><b>&#128465; Clear the board</b> &mdash; removes every room and link on this map after a confirmation (Undo brings them back).</li>
                       </ul>
                       <h4>Rooms (nodes)</h4>
@@ -255,7 +271,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Connections</h4>
                       <ol>
                           <li>Click <b>&#8596; Link Mode</b>, then click two rooms one after the other to connect them.</li>
-                          <li>Still in Link Mode, click the small <span style="color:var(--red)">&times;</span> on a line to remove it.</li>
+                          <li>Every line carries a small chip at its middle showing its type. Click the chip to change the line type or remove the link &mdash; in any tool, not just Link Mode.</li>
                       </ol>
                       <h4>Linked maps (doors, stairs, warps)</h4>
                       <ol>
@@ -318,7 +334,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>With <b>Token elevation</b> on (&#9881; Settings &rarr; Table), a ruler between two tokens at different heights prints the straight-line <b>3D</b> figure as a second number.</li>
                       </ol>
                       <h4>Blast radius</h4>
-                      <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Click a blast to remove it. Blasts are yours alone, like rulers.</p>
+                      <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Drag a blast to move it (it re-seats in a cell and, unless you set its height, takes the height of whoever stands there); right-click it to remove it. Blasts are yours alone, like rulers.</p>
                       <h4>Elevation &amp; posture</h4>
                       <p>Two switches in <b>&#9881; Settings &rarr; Table</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. In a session your switches decide what players see.</p>
                       <h4>Coordinate rulers &amp; minimap</h4>
@@ -468,7 +484,20 @@ window.addEventListener('unhandledrejection', function(e) {
             <div class="wb-tool-sep"></div>
             <button class="wb-tool-btn active" id="dataMoveBtn" title="Select / Move (drag rooms, box-select)">&#10138;</button>
             <button class="wb-tool-btn" id="dataPanBtn" title="Pan (drag the map around; rooms never move)">&#9995;</button>
-            <button class="wb-tool-btn" id="linkBtn" title="Link Mode (click two rooms to connect them)">&#8596;</button>
+            <div style="position:relative; display:inline-block;">
+                <button class="wb-tool-btn" id="linkBtn" title="Link Mode &mdash; click two rooms to connect them (click again for the line type)">&#8596;</button>
+                <div class="shape-menu draw-menu" id="linkMenu" style="bottom:100%; top:auto; left:50%; transform:translateX(-50%); margin-bottom:10px;">
+                    <div class="draw-menu-label">Line type for new links</div>
+                    <div class="draw-menu-row" id="linkTypeRow" style="flex-wrap:wrap;">
+                        <button class="draw-style-btn" data-type="" title="A plain connection">&#8212; Path</button>
+                        <button class="draw-style-btn" data-type="route" title="Dashed: travel between places, not a doorway">- - Route</button>
+                        <button class="draw-style-btn" data-type="secret" title="Dotted: a hidden or secret way">&middot;&middot;&middot; Secret</button>
+                        <button class="draw-style-btn" data-type="oneway" title="An arrow from the first room you click to the second">&rarr; One-way</button>
+                    </div>
+                    <div class="draw-menu-row" style="font-size:11px; color:var(--dim); line-height:1.4;">Click two rooms to connect them. Click the chip on any line to change its type or remove it.</div>
+                    <div class="draw-menu-row"><button class="draw-style-btn" id="linkDoneBtn" title="Back to the Select tool">Done linking</button></div>
+                </div>
+            </div>
             <div class="wb-tool-sep"></div>
             <button class="wb-tool-btn" id="addBtn" title="Add Room">&#10133;</button>
               <button class="wb-tool-btn" id="snapBtn" title="Snap to Grid">&#129522;</button>
@@ -585,7 +614,7 @@ window.addEventListener('unhandledrejection', function(e) {
           </div>
 
           <div style="position:relative;" class="gm-only">
-              <button class="wb-tool-btn" id="blastModeBtn" title="Blast &mdash; click a cell to drop a grenade's radius; tokens in range show their distance (click again for the weapon)">&#128165;</button>
+              <button class="wb-tool-btn" id="blastModeBtn" title="Blast &mdash; click a cell to drop a grenade's radius; tokens in range show their distance. Drag a blast to move it, right-click to remove it (click again for the weapon)">&#128165;</button>
               <div class="shape-menu draw-menu" id="blastMenu">
                   <div class="draw-menu-label">Blast Radius (area effect, feet)</div>
                   <div class="draw-menu-row" id="blastPresetRow" style="flex-wrap:wrap;">
@@ -1194,8 +1223,10 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <div id="toast"><span id="toastMsg"></span><button id="toastBtn" hidden>Undo</button></div>
 
+<div id="edgeMenu" class="dropdown" style="display:none; position:fixed; z-index:100000; flex-direction:column; background:var(--panel2); border:1px solid var(--gold); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:150px;"></div>
 <div id="sidebarContextMenu" class="dropdown" style="display:none; position:fixed; z-index:100000; flex-direction:column; background:var(--panel2); border:1px solid var(--gold); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:120px;">
     <div class="menu-item" id="ctxNewChildItem" style="padding:8px 16px; cursor:pointer; color:#fff;">+ New Child Map</div>
+    <div class="menu-item" id="ctxNewParentItem" style="padding:8px 16px; cursor:pointer; color:#fff;" title="A new map that wraps this one: this map moves under it, and the new map gets a portal node leading here">&#8593; New Parent Map</div>
     <div class="menu-item" id="ctxRenameItem" style="padding:8px 16px; cursor:pointer; color:#fff;">Rename</div>
     <div class="menu-divider ctx-planner-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-planner-only ctx-status" data-status="next" style="padding:8px 16px; cursor:pointer;" title="The scene you play next — only one at a time; it shows in the play-map right-click menu">&#9654; Mark as Next</div>

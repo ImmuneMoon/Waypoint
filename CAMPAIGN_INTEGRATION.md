@@ -84,7 +84,7 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
     "surface": { "label": "Surface · Public", "color": "#e0a54f" }
   },
   "rooms": [ /* data-map nodes, below */ ],
-  "links": [ ["roomIdA","roomIdB"], ["roomIdC","roomIdD","route"] ],  // 3rd element "route" = dashed line
+  "links": [ ["roomIdA","roomIdB"], ["roomIdC","roomIdD","route"] ],  // 3rd element = line type (1.4.6): omitted = solid path, "route" = dashed, "secret" = dotted, "oneway" = arrow from the first room to the second
   "whiteboard": [ /* whiteboard items, below */ ]
 }
 ```
@@ -202,6 +202,7 @@ Both canvases are 30,000 × 30,000 world units; **cluster content around the cen
 - **Measuring rulers are not saved** — they're per-session overlays; don't try to author them.
 - **Viewer preferences are not in the save**: grid opacity, rulers on/off, minimap, units, and zoom all live in each user's local storage. Never write them into `data.json`.
 - **Data-map "Clear the board"** exists in-app now (rooms + links wiped with confirmation, undoable). If a manifest asks for a map to be emptied, the GM can do it in one click — you don't need to ship an empty-map merge.
+- **The Tutorial campaign (1.4.6)** — the app creates a campaign with the fixed id `camp_tutorial` (name "Tutorial") for its interactive tour, and the user may keep building on it or discard it from Help → Tutorial. Never use that id for a drop, and don't ship content into it: a "Rebuild" from the Help pane replaces the whole campaign. `wp_tourSeen`, `wp_linkType` and the blast/stance keys are viewer preferences in `saves/preferences.json`, never authored.
 - **Categories** are per-map. Reuse a consistent palette across maps for the same concepts. (1.1.1) The campaign object may carry `catLibrary: { "<libId>": { label, color } }` — the GM's saved palette, matched to map categories by label (case-insensitive). If you ship a consistent palette, also write it into `catLibrary` so the GM can add it to new maps with one click; never remove entries the GM saved.
 - **Dark theme**: play map background is near-black (#15151c). Use light stroke colors for `path` items and legible colors for shapes.
 

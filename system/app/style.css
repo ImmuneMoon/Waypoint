@@ -156,14 +156,19 @@
   #edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   #edges line.edge{stroke:var(--link);stroke-width:2.5;opacity:.75}
   #edges line.edge.route{stroke-dasharray:7 6;stroke:var(--link-route)}
+  #edges line.edge.secret{stroke-dasharray:2 6;stroke-linecap:round;stroke:var(--link-route)}
+  #edges line.edge.oneway{stroke:var(--link)}
+  #edges .edge-arrow{fill:var(--link)}
+  /* The chip on each link: its type glyph; click for the type menu. Faint until hovered, full in Link Mode. */
   .edge-del{
-    position:absolute;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;
-    background:var(--panel2);border:1px solid var(--red);color:var(--red);font-size:12px;line-height:18px;
-    text-align:center;cursor:pointer;display:none;z-index:5;padding:0;
+    position:absolute;transform:translate(-50%,-50%);min-width:22px;height:20px;border-radius:10px;
+    background:var(--panel2);border:1px solid var(--faint);color:var(--dim);font-size:11px;line-height:18px;font-weight:700;
+    text-align:center;cursor:pointer;display:block;opacity:.4;z-index:5;padding:0 5px;white-space:nowrap;
     transition: opacity 0.15s, background 0.15s;
   }
-  .edge-del:hover{background:var(--red);color:#fff}
-  body.linkmode .edge-del{display:block}
+  .edge-del:hover{opacity:1;border-color:var(--gold);color:var(--gold)}
+  body.linkmode .edge-del{opacity:1;border-color:var(--blue);color:var(--ink)}
+  body.data-pan .edge-del{pointer-events:none}
 
   .room{
     position:absolute; min-width:118px; max-width:190px; background:var(--panel);
@@ -517,7 +522,7 @@
   /* Blast templates share the layer: a translucent red disc, its label, and a distance over every token in range */
   /* Only the ring (a fat invisible stroke), the centre dot and the label take clicks — the
      disc itself lets tokens under it be clicked and dragged as usual */
-  #measureLayer g.blast { pointer-events: none; cursor: pointer; }
+  #measureLayer g.blast { pointer-events: none; cursor: move; }
   #measureLayer g.blast circle.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }
   #measureLayer g.blast circle.ring { fill: none; stroke: transparent; stroke-width: 14; stroke-dasharray: none; pointer-events: stroke; }
   #measureLayer g.blast circle.dot { fill: var(--red); pointer-events: auto; }
@@ -813,6 +818,16 @@
 
   /* Help modal — topic rail + tutorial panes */
   #helpNav { display:flex; flex-direction:column; gap:4px; min-width:180px; border-right:1px solid var(--edge); padding-right:14px; overflow-y:auto; }
+  /* Interactive tutorial: a spotlight cut out of a dim sheet, and a card beside it */
+  #tourOverlay { display:none; position:fixed; inset:0; z-index:100001; pointer-events:none; }
+  body.tour-on #tourOverlay { display:block; }
+  #tourSpot { position:fixed; border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,0.62), 0 0 0 2px var(--gold); pointer-events:none; transition:left .2s, top .2s, width .2s, height .2s; }
+  #tourSpot.nospot { box-shadow:0 0 0 9999px rgba(0,0,0,0.62); }
+  #tourCard { position:fixed; pointer-events:auto; background:var(--bg2); border:1px solid var(--gold); border-radius:10px; padding:16px 18px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:var(--ink); font-size:13.5px; line-height:1.5; }
+  #tourCard h3 { margin:2px 0 8px; color:var(--gold); font-size:16px; }
+  #tourCard .tour-step { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); }
+  #tourCard .tour-body b { color:var(--gold); }
+  #tourCard .tour-btns { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; }
   #helpNav button { text-align:left; background:none; border:none; color:var(--ink); font-size:12.5px; padding:8px 10px; border-radius:5px; cursor:pointer; white-space:nowrap; font-family:inherit; }
   #helpNav button:hover { background:rgba(255,255,255,0.06); }
   #helpNav button.active { background:var(--panel); color:var(--gold); }

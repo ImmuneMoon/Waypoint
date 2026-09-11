@@ -18,7 +18,7 @@ import { showConfirm } from './dialogs.js';
 var TUTORIAL_VERSION = '1.4.6';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
-var TUTORIAL_ART_CAT = 'Tutorial art';
+var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
 var TUTORIAL_ART_URL = '/saves/images/tutorial/';   // the pictures the demo uses, copied from assets/tutorial into the saves folder
 var TUTORIAL_ART_FILES = ["bren_hex.png","bren_sq.jpg","chef_hex.png","chef_sq.jpg","golems_hex.png","golems_sq.jpg","innkeeper_hex.png","innkeeper_sq.jpg","king_hex.png","king_sq.jpg","liriel_hex.png","liriel_sq.jpg","map_basement.jpg","map_eldara.jpg","map_fort.jpg","map_ground.jpg","map_inn.jpg","map_top.jpg","minotaur_archer_hex.png","minotaur_archer_sq.jpg","minotaur_soldier_hex.png","minotaur_soldier_sq.jpg","orc_hex.png","orc_sq.jpg","priestess_hex.png","priestess_sq.jpg","sage_hex.png","sage_sq.jpg","scene_eldara.jpg","scene_emporium.jpg","scene_forge.jpg","scene_hideout.jpg","scene_inn.jpg","scene_temple.jpg","scene_throne.jpg","slime_hex.png","slime_sq.jpg","smith_hex.png","smith_sq.jpg","spriggan_hex.png","spriggan_sq.jpg","tharic_hex.png","tharic_sq.jpg"];
 /* The tour's pictures ship inside the app (assets/tutorial) but the demo campaign uses copies in
@@ -78,13 +78,20 @@ function buildTutorialCampaign() {
         { id: 'tut_r_eldara', name: 'Eldara', cat: 'city', x: 15000, y: 15200, notes: 'The elven city under the great tree. The party starts at its inn.\nDouble-click to open the city map.', characters: [], targetMapId: 'map_tut_city', icon: 'Gate', image: A + 'scene_eldara.jpg' },
         { id: 'tut_r_hills', name: 'Rugged Hills', cat: 'wild', x: 15300, y: 15040, notes: 'Two days of bad road. The raiders who have been hitting the caravans hole up somewhere in here. Double-click for the hill road battle map (the ambush).', characters: [], targetMapId: 'map_tut_hillroad', icon: 'Camp' },
         { id: 'tut_r_hideout', name: "Raiders' Hideout", cat: 'danger', x: 15560, y: 15200, notes: 'A timber house on a rock shelf with a cellar and a lookout floor. Double-click to open the ground floor; the stairs inside lead to the other floors.', characters: [{ id: 'tut_c_grukk', name: 'Grukk', info: 'Orc. Runs the raiders. Keeps the ledger in the office.', portrait: A + 'orc_sq.jpg' }], targetMapId: 'map_tut_ground', icon: 'Door', image: A + 'scene_hideout.jpg' },
-        { id: 'tut_r_fort', name: 'Old Fort', cat: 'danger', x: 15300, y: 15400, notes: 'A ruined hillfort the raiders use as a fallback. Something older than raiders lives in the walls.', characters: [], targetMapId: 'map_tut_fort', icon: 'Tower' }
+        { id: 'tut_r_fort', name: 'Old Fort', cat: 'danger', x: 15300, y: 15400, notes: 'A ruined hillfort the raiders use as a fallback. Something older than raiders lives in the walls.', characters: [], targetMapId: 'map_tut_fort', icon: 'Tower', image: A + 'map_fort.jpg' }
     ];
     realm.links = [
         ['tut_r_eldara', 'tut_r_hills', 'route', { label: "Two days' ride", notes: 'Caravan road. A raid on a 1–2 each day.' }],
         ['tut_r_hills', 'tut_r_hideout', 'secret', { label: 'Goat path', notes: 'Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).' }],
         ['tut_r_hideout', 'tut_r_fort', 'oneway', { label: 'Downriver', notes: 'The raiders flee to the fort by raft; the way back is on foot.' }],
         ['tut_r_eldara', 'tut_r_fort', '', { label: 'Old road' }]
+    ];
+
+    // The realm's play map is a scene, not a battle map: the painting of Eldara, no grid, nothing to seat
+    realm.meta.gridType = 'off';
+    realm.whiteboard = [
+        { id: 'tut_wb_realmscene', type: 'image', src: A + 'scene_eldara.jpg', x: O + 62, y: O + 62, w: 900, h: 900, color: 'transparent', layer: 'back', locked: true, name: 'Eldara under the great tree' },
+        { id: 'tut_wb_realmlabel', type: 'text', x: O + 62, y: O, w: 640, h: 40, color: 'transparent', text: '<b>Eldara Realm</b> (no grid) \u2014 a scene to set the mood; the maps below it are where play happens', fontSize: 14, layer: 'front' }
     ];
 
     /* ---- Eldara: the city, with scene images and portraits ---- */
@@ -333,12 +340,6 @@ function buildTutorialCampaign() {
         hexTok(15100, 15000, { id: 'tut_wb_hrambush', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'An arrow from the rock above. Grukk and Horn come out of the trees. Reveal the three hidden tokens (select each \u2192 Visible to players) and start combat from the right-click menu.', name: 'Ambush point' })
     ];
 
-    /* ---- Campaign Cast: raiders to drop by the handful (play map right-click → Cast) ---- */
-    camp.cast = {
-        tut_cast_raider: { id: 'tut_cast_raider', name: 'Raider', kind: 'image', src: A + 'orc_hex.png', w: 60, h: 52, color: 'transparent', charStats: 'A raider. Drop one, or five at once.', shape: '', savedAt: Date.now() },
-        tut_cast_guard: { id: 'tut_cast_guard', name: 'Minotaur guard', kind: 'image', src: A + 'minotaur_soldier_hex.png', w: 60, h: 52, color: 'transparent', charStats: 'Hired muscle.', shape: '', savedAt: Date.now() },
-        tut_cast_slime: { id: 'tut_cast_slime', name: 'Slime', kind: 'image', src: A + 'slime_hex.png', w: 60, h: 52, color: 'transparent', charStats: 'It divides when hit.', shape: '', savedAt: Date.now() }
-    };
     /* ---- Handouts: what the GM can show players (they land in each player's Journal) ---- */
     camp.handouts = {
         tut_h_ledger: { id: 'tut_h_ledger', kind: 'text', title: "Grukk's ledger", caption: 'Found in the hideout office', text: 'Caravan of the 3rd \u2014 12 bales, 4 casks, to L.A. at the Emporium, paid in silver.\nCaravan of the 9th \u2014 the Ironfist wagon. Keep the swords.\nHorn owes me two nights.', createdAt: Date.now() },
@@ -433,7 +434,7 @@ var STEPS = [
       html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, undo, then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i>',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
-      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click empty board for the <b>Campaign Cast</b> \u2014 saved tokens (a raider, a guard, a slime) to drop one at a time or five at once.',
+      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click a token and <b>Save to Campaign Cast</b> keeps a copy you can drop again from the play map\'s right-click menu, one at a time or five at once.',
       before: function() { openItem('map_tut_ground'); goView('visual'); } },
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
       html: '<b>The Inn</b> runs on a <b>square grid</b>: 50 px cells over a drawn tavern whose own squares line up with them, and the tokens are square pictures that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The square at the door is a trigger zone. Pick the grid per map with the grid button \u2014 the city map above uses none at all.',
@@ -442,7 +443,7 @@ var STEPS = [
       html: '<b>Eldara</b> has no grid: an overview map where pictures, shapes and tokens sit wherever you drop them, at any size \u2014 region maps, city streets, ship decks, theatre-of-mind scenes. <b>Snap</b> still helps: in <b>Items</b> mode a dragged item glues flush to its neighbours instead of to cells. Rulers still work \u2014 set <b>Map Scale</b> in the measure options (1 cell = 100 yd, 2 km\u2026) so distances read right for the map. The tinted district shapes are linked to rooms: hover one for its card, double-click the Inn\'s to travel.',
       before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',
-      html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Tutorial art</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
+      html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Default</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
       before: function() { openItem('map_tut_inn'); goView('visual'); } },
     { target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
@@ -463,7 +464,7 @@ var STEPS = [
     { target: '#helpBtn', title: 'Help is always here',
       html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. <b>Ctrl + K</b> jumps to any map, planner or room by name.' },
     { target: null, title: 'That\'s the tour', finish: true,
-      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Tutorial art</b> until you delete them there.' }
+      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Default</b> until you delete them there.' }
 ];
 
 var tour = { i: -1, overlay: null, spot: null, card: null, active: false };
@@ -612,6 +613,7 @@ function saveIsFresh() {
         var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
         if (!loaded && tries < 40) return;
         clearInterval(t);
+        if (window.wpImgCatRename && window.wpImgCatRename('Tutorial art', TUTORIAL_ART_CAT)) save(true);   // the category's earlier name
         var tc = loaded && tutorialCampaign();
         if (!tc || tc.tutorialArt === 'installed') return;
         installTutorialArt(function() { tc.tutorialArt = 'installed'; save(true); render(); });

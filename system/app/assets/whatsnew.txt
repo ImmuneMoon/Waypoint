@@ -62,6 +62,16 @@ Tutorial
   On a brand-new save the tour starts by itself, once; everyone else
   finds it under Help → Tutorial.
 
+Fixes
+- Grouped items no longer drift apart when moved. On release the grid
+  snap (and, on hex maps, the seating of hex items into their cell) moved
+  only the item under the pointer; every item in the drag now takes the
+  same correction, so a text box grouped with a teleport point keeps its
+  place beside it no matter which of the two you drag.
+- Switching campaigns from the header dropdown (and some imports) threw
+  an error trying to press a centre button that no longer exists; the map
+  now simply opens on its remembered camera.
+
 WAYPOINT 1.4.5 — What's New
 ============================
 

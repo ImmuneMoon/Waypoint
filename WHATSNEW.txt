@@ -8,12 +8,14 @@ Tokens
   lying prone or lying face up (handbook ch. 9). Both show as small chips at
   the foot of the token, in its hover card and in Properties; the token's
   right-click menu edits them too. Players set their own token's by
-  right-clicking it. Both switches are off by default; switching one off
-  hides the chips but keeps the values, and in a session the GM's switches
-  decide what players see. The switches travel with the saves folder like
-  the other table settings.
-- An attached ShadowBase sheet seeds the token's posture, and Export JSON
-  writes the token's posture back into the sheet.
+  right-clicking it. Both switches are on from the first launch; a table
+  that runs flat switches them off once and the choice sticks. Switching
+  one off hides the chips but keeps the values, and in a session the GM's
+  switches decide what players see. The switches travel with the saves
+  folder like the other table settings.
+- An attached ShadowBase sheet seeds the token's posture and elevation
+  from its details, and Export JSON writes both back into the sheet, using
+  the website's posture ids (lying-prone, lying-face-up).
 
 Blast tool
 - A new 💥 Blast tool next to Measure drops a grenade's area effect on a

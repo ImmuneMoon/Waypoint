@@ -98,6 +98,15 @@ export function normalizeForSite(j) {
 }
 window.wpNormalizeForSite = normalizeForSite;   // sandbox testing hook
 
+// A sheet's stance seeds the token: details.posture / details.elevation (top-level accepted
+// too), each only while its Settings → Table switch is on.
+function seedStance(item, j) {
+    var st = window.wpStance; if (!st || !j) return;
+    var d = (j.details && typeof j.details === 'object') ? j.details : {};
+    var p = d.posture != null ? d.posture : j.posture, e = d.elevation != null ? d.elevation : j.elevation;
+    if (p && st.on('posture')) st.setPosture(item, p);
+    if (e != null && e !== '' && isFinite(Number(e)) && st.on('elevation')) st.setElevation(item, Number(e));
+}
 export function attachSheet(item, file, done) {
     if (!file) return;
     if (!/\.json$/i.test(file.name)) { toast('Pick a ShadowBase .json file.'); return; }
@@ -112,7 +121,7 @@ export function attachSheet(item, file, done) {
             normalizeForSite(j);
             item.sheet = j;
             if (!item.charName && j.name) item.charName = j.name;
-            if (j.posture && window.wpStance && window.wpStance.on('posture')) window.wpStance.setPosture(item, j.posture);   // the sheet's ch. 9 posture seeds the token
+            seedStance(item, j);   // the sheet's details.posture / details.elevation seed the token
             toast('Sheet attached: ' + (j.name || 'character') + ' ✓');
             if (done) done(j);
         };
@@ -165,7 +174,14 @@ export async function buildCharacterJson(item, campName) {
     }
     base.name = item.charName || base.name || 'Unnamed Character';
     if (!base.campaign) base.campaign = campName || '';
-    if (window.wpStance && window.wpStance.on('posture')) base.posture = window.wpStance.tokenPosture(item);   // the site's posture field: the same seven values
+    // The site's stance fields live in details (docs/CHARACTER_JSON_FORMAT.md on the website):
+    // posture ids standing / crouching / sitting / kneeling / crawling / lying-prone / lying-face-up,
+    // elevation in yards. Each is written only while its switch is on.
+    if (window.wpStance) {
+        if (!base.details || typeof base.details !== 'object') base.details = {};
+        if (window.wpStance.on('posture')) base.details.posture = window.wpStance.tokenPosture(item);
+        if (window.wpStance.on('elevation')) base.details.elevation = window.wpStance.tokenElevation(item);
+    }
     var portrait = await bestPortraitDataUrl(item);
     if (portrait) base.portrait = portrait;   // else whatever the sheet carried stays
     var fname = (base.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'character') + ' — ShadowBase.json';
@@ -230,7 +246,7 @@ export function importCharacterToken(file) {
             sheet: j
         };
         if (src) item.src = src;
-        if (j.posture && window.wpStance && window.wpStance.on('posture')) window.wpStance.setPosture(item, j.posture);
+        seedStance(item, j);
         map.whiteboard = map.whiteboard || [];
         map.whiteboard.push(item);
         var st = (await import('./state.js')).state;

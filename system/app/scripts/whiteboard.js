@@ -15,20 +15,21 @@ var wb = document.getElementById('whiteboard');
 var _lastMeasureMapId = null;
 
 /* ---- token stance: elevation (yards) + posture (handbook ch. 9) ----
-   Two viewer toggles (Settings → Table: wp_elevation / wp_posture, both off by default)
+   Two viewer toggles (Settings → Table: wp_elevation / wp_posture, both ON from first launch)
    decide whether the chips draw and whether the blast template measures in 3D. The
    values stay on the token either way, so switching a toggle back on restores them.
    In a session the GM's toggles govern the player copy: net.stance arrives with the
    snapshot and again whenever the GM flips one. */
-var POSTURES = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'prone', 'supine'];
-var POSTURE_LABEL = { standing: 'Standing', crouching: 'Crouching', sitting: 'Sitting', kneeling: 'Kneeling', crawling: 'Crawling', prone: 'Lying prone', supine: 'Lying face up' };
-var POSTURE_CHIP = { crouching: 'CRO', sitting: 'SIT', kneeling: 'KNL', crawling: 'CRW', prone: 'PRN', supine: 'SUP' };
-// Accepts the seven ids and the handbook's long names ("lying prone", "lying face up")
+// The ids are the website's (shadow-base.com details.posture); the 1.4.6 pre-release ids
+// prone / supine and the handbook's long names are still accepted on read.
+var POSTURES = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'];
+var POSTURE_LABEL = { standing: 'Standing', crouching: 'Crouching', sitting: 'Sitting', kneeling: 'Kneeling', crawling: 'Crawling', 'lying-prone': 'Lying prone', 'lying-face-up': 'Lying face up' };
+var POSTURE_CHIP = { crouching: 'CRO', sitting: 'SIT', kneeling: 'KNL', crawling: 'CRW', 'lying-prone': 'PRN', 'lying-face-up': 'SUP' };
 function normalizePosture(v) {
     var s = String(v || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
     if (!s || s === 'standing' || s === 'stand') return 'standing';
-    if (/face ?up|supine|on (the|their) back/.test(s)) return 'supine';
-    if (/prone|face ?down/.test(s)) return 'prone';
+    if (/face ?up|supine|on (the|their) back/.test(s)) return 'lying-face-up';
+    if (/prone|face ?down/.test(s)) return 'lying-prone';
     if (/crouch/.test(s)) return 'crouching';
     if (/sit/.test(s)) return 'sitting';
     if (/kneel/.test(s)) return 'kneeling';
@@ -40,7 +41,7 @@ function tokenPosture(it) { return normalizePosture(it && it.posture); }
 function stanceOn(which) {   // 'elevation' | 'posture'
     var n = window.wpNet;
     if (n && n.active && n.role === 'client' && n.stance) return !!n.stance[which];
-    try { return localStorage.getItem('wp_' + which) === 'on'; } catch (e) { return false; }
+    try { return localStorage.getItem('wp_' + which) !== 'off'; } catch (e) { return true; }   // on until switched off
 }
 function setTokenElevation(it, v) { v = Math.round(Number(v) * 10) / 10; if (!isFinite(v) || v === 0) delete it.elevation; else it.elevation = Math.max(-999, Math.min(999, v)); }
 function setTokenPosture(it, v) { v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v; }

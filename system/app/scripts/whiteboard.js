@@ -2195,15 +2195,39 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var layer = document.getElementById('measureLayer');
       if (!layer) return;
       layer.addEventListener('pointerdown', function(e) {
-          if (e.target.closest && (e.target.closest('g.measure') || e.target.closest('g.blast')) && !window.isPanMode) e.stopPropagation();
-      });
-      layer.addEventListener('click', function(e) {
-          var gb = e.target.closest && e.target.closest('g.blast');
-          if (gb) {
-              var bi = parseInt(gb.dataset.i, 10);
-              if (bi >= 0 && bi < blasts.length) { blasts.splice(bi, 1); renderMeasures(); syncBlastMenu(); toast('Blast removed.'); }
+          if (!e.target.closest || window.isPanMode) return;
+          var gbd = e.target.closest('g.blast');
+          if (gbd && e.button === 0) {   // drag a blast to move it (a plain click does nothing)
+              var bi0 = parseInt(gbd.dataset.i, 10);
+              if (bi0 >= 0 && bi0 < blasts.length) { blastDrag = { i: bi0, sx: e.clientX, sy: e.clientY, ox: blasts[bi0].x, oy: blasts[bi0].y, moved: false }; e.preventDefault(); }
               e.stopPropagation(); return;
           }
+          if (e.target.closest('g.measure') || gbd) e.stopPropagation();
+      });
+      // Right-click a blast to remove it
+      layer.addEventListener('contextmenu', function(e) {
+          var gbc = e.target.closest && e.target.closest('g.blast'); if (!gbc) return;
+          e.preventDefault(); e.stopPropagation();
+          var bic = parseInt(gbc.dataset.i, 10);
+          if (bic >= 0 && bic < blasts.length) { blasts.splice(bic, 1); renderMeasures(); syncBlastMenu(); toast('Blast removed.'); }
+      });
+      document.addEventListener('pointermove', function(e) {
+          if (!blastDrag) return;
+          var bm = blasts[blastDrag.i]; if (!bm) { blastDrag = null; return; }
+          if (!blastDrag.moved && Math.hypot(e.clientX - blastDrag.sx, e.clientY - blastDrag.sy) < 4) return;
+          blastDrag.moved = true;
+          bm.x = blastDrag.ox + (e.clientX - blastDrag.sx) / state.zoomLevel;
+          bm.y = blastDrag.oy + (e.clientY - blastDrag.sy) / state.zoomLevel;
+          renderMeasures();
+      });
+      document.addEventListener('pointerup', function() {
+          if (!blastDrag) return;
+          var bu = blasts[blastDrag.i], movedU = blastDrag.moved; blastDrag = null;
+          if (!bu || !movedU) return;
+          seatBlast(bu); renderMeasures(); syncBlastMenu();
+      });
+      layer.addEventListener('click', function(e) {
+          if (e.target.closest && e.target.closest('g.blast')) { e.stopPropagation(); return; }   // blasts: drag moves, right-click removes
           var g = e.target.closest && e.target.closest('g.measure');
           if (!g || g.classList.contains('live')) return;
           var i = parseInt(g.dataset.i, 10);
@@ -2412,6 +2436,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var blastDefaults = { ft: 12, name: 'Frag' };
   try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: _bf.name || '' }; } catch (e) {}
   var _blastHitIds = [];
+  var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
   function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1.09361, km: 1093.61, mi: 1760 }[u] || 1; }
   function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
   function hexCellOf(x, y) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows)
@@ -2448,7 +2473,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '';
       blasts.forEach(function(b, i) {
           var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd;
-          html += '<g class="blast" data-i="' + i + '"><title>Click to remove this blast</title>';
+          html += '<g class="blast" data-i="' + i + '"><title>Drag to move \u00b7 right-click to remove</title>';
           html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>';
           var lbl = (b.name ? esc(b.name) + ' ' : '') + b.ft + ' ft \u00b7 r ' + _r1(rYd) + ' yd' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' yd' : '');
           html += '<text x="' + (b.x + 8) + '" y="' + (b.y - rPx - 8) + '">' + lbl + '</text>';
@@ -2470,20 +2495,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length) renderMeasures(); };
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
   function clearBlasts() { blasts = []; renderMeasures(); }
+  // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there
+  function seatBlast(b) {
+      if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
+      else if (state.gridType === 'square') { b.x = Math.floor(b.x / 50) * 50 + 25; b.y = Math.floor(b.y / 50) * 50 + 25; }
+      if (b.autoElev) { var mapS = getActiveMap(), under = mapS && tokenAtPoint(mapS, b.x, b.y); b.elev = under ? tokenElevation(under) : 0; }
+  }
   function placeBlast(e) {
       var map = getActiveMap(); if (!map) return;
       var box = wbWrap.getBoundingClientRect();
       var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
       var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
-      if (state.gridType === 'hex') { var hc = snapToHex(x, y, 30, 'center'); x = hc.x; y = hc.y; }
-      else if (state.gridType === 'square') { x = Math.floor(x / 50) * 50 + 25; y = Math.floor(y / 50) * 50 + 25; }
-      // A grenade lands at the height of whoever stands in that cell (a token on a catwalk), else the ground
-      var under = tokenAtPoint(map, x, y);
-      var b = { x: x, y: y, ft: blastDefaults.ft, name: blastDefaults.name, elev: under ? tokenElevation(under) : 0 };
+      // A grenade lands in a cell, at the height of whoever stands there (a token on a catwalk), else the ground
+      var b = { x: x, y: y, ft: blastDefaults.ft, name: blastDefaults.name, elev: 0, autoElev: true };
+      seatBlast(b);
       blasts.push(b);
       renderMeasures(); syncBlastMenu();
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
-      toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' yd' : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Click it to remove.');
+      toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' yd' : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Drag it to move, right-click to remove.');
   }
   var _el_blastModeBtn = document.getElementById('blastModeBtn');
   var _el_blastMenu = document.getElementById('blastMenu');
@@ -2524,7 +2553,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_blastFt = document.getElementById('blastFt');
   if (_el_blastFt) _el_blastFt.addEventListener('change', function() { setBlastShape(this.value, ''); });
   var _el_blastElev = document.getElementById('blastElev');
-  if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = Number(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; renderMeasures(); });
+  if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = Number(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; b.autoElev = false; renderMeasures(); });
   var _el_blastClearBtn = document.getElementById('blastClearBtn');
   if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() { clearBlasts(); syncBlastMenu(); });
   if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });

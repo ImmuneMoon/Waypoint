@@ -179,7 +179,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       ln.setAttribute('x2',cB.x);ln.setAttribute('y2',cB.y);
 
-      ln.setAttribute('class','edge'+(lk[2]==='route'?' route':''));
+      var lt = LINK_TYPES[lk[2]] ? (lk[2] || '') : '';
+      ln.setAttribute('class', 'edge' + (lt ? ' ' + lt : ''));
+      if (lt === 'oneway') {   // stop at the card's edge so the arrowhead shows
+          ensureArrowMarker(svg);
+          var dxA = cB.x - cA.x, dyA = cB.y - cA.y, hwA = b.offsetWidth / 2 + 4, hhA = b.offsetHeight / 2 + 4;
+          var tA = Math.min(dxA ? Math.abs(hwA / dxA) : Infinity, dyA ? Math.abs(hhA / dyA) : Infinity);
+          if (isFinite(tA) && tA < 1) { ln.setAttribute('x2', cB.x - dxA * tA); ln.setAttribute('y2', cB.y - dyA * tA); }
+          ln.setAttribute('marker-end', 'url(#edgeArrow)');
+      }
 
       svg.appendChild(ln);
 
@@ -187,13 +195,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var del=document.createElement('div');
 
-      del.className='edge-del'; del.textContent='×';
+      del.className='edge-del' + (lt ? ' t-' + lt : ''); del.textContent = LINK_TYPES[lt].glyph;
 
       del.style.left=((cA.x+cB.x)/2)+'px'; del.style.top=((cA.y+cB.y)/2)+'px';
 
-      del.title='Remove link';
+      del.title = LINK_TYPES[lt].label + ' \u2014 click to change the line type or remove the link';
 
-      del.addEventListener('click', function(ev){ ev.stopPropagation(); removeLinkAt(i); });
+      del.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
+      del.addEventListener('click', function(ev){ ev.stopPropagation(); openEdgeMenu(ev, i); });
 
       canvas.appendChild(del);
 
@@ -287,6 +296,68 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
+
+  /* ---- link (edge) types ----
+     A link is [roomA, roomB] or [roomA, roomB, type]. The type picked in the Link menu applies
+     to new links; the chip on each line changes or removes that one link. */
+  var LINK_TYPES = {
+      '':     { label: 'Path',    glyph: '\u2014',  hint: 'a plain connection' },
+      route:  { label: 'Route',   glyph: '- -',     hint: 'dashed: travel between places' },
+      secret: { label: 'Secret',  glyph: '\u00b7\u00b7\u00b7', hint: 'dotted: a hidden way' },
+      oneway: { label: 'One-way', glyph: '\u2192',  hint: 'an arrow from the first room to the second' }
+  };
+  state.linkType = '';
+  try { var _lt0 = localStorage.getItem('wp_linkType'); if (_lt0 && LINK_TYPES[_lt0]) state.linkType = _lt0; } catch (e) {}
+  function ensureArrowMarker(svg) {
+      if (svg.querySelector('#edgeArrow')) return;
+      svg.insertAdjacentHTML('afterbegin', '<defs><marker id="edgeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="edge-arrow"></path></marker></defs>');
+  }
+  function syncLinkMenu() {
+      document.querySelectorAll('#linkTypeRow .draw-style-btn').forEach(function(b) { b.classList.toggle('active', (b.dataset.type || '') === (state.linkType || '')); });
+  }
+  function setLinkType(t) {
+      state.linkType = LINK_TYPES[t] ? t : '';
+      try { localStorage.setItem('wp_linkType', state.linkType); } catch (e) {}
+      syncLinkMenu();
+  }
+  // The chip on a line: change its type, or remove it
+  function openEdgeMenu(ev, i) {
+      var menu = document.getElementById('edgeMenu'), am = getActiveMap();
+      if (!menu || !am || !am.links[i]) return;
+      var cur = LINK_TYPES[am.links[i][2]] ? (am.links[i][2] || '') : '';
+      var item = 'padding:8px 16px; cursor:pointer;';
+      menu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default; padding:6px 16px 2px;">Line type</div>'
+          + Object.keys(LINK_TYPES).map(function(t) { return '<div class="menu-item edge-type" data-type="' + t + '" style="' + item + (t === cur ? ' color:var(--gold);' : '') + '" title="' + LINK_TYPES[t].hint + '">' + (t === cur ? '\u2713 ' : '') + LINK_TYPES[t].glyph + '\u2002' + LINK_TYPES[t].label + '</div>'; }).join('')
+          + '<div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>'
+          + '<div class="menu-item danger edge-remove" style="' + item + ' color:var(--red);">Remove link</div>';
+      menu.style.display = 'block';
+      window.wpClampMenu(menu, ev.clientX, ev.clientY);
+      menu.querySelectorAll('.edge-type').forEach(function(x) {
+          x.addEventListener('click', function(ce) {
+              ce.stopPropagation(); menu.style.display = 'none';
+              var lk = am.links[i]; if (!lk) return;
+              var t = this.dataset.type || '';
+              if (t) lk[2] = t; else lk.length = 2;
+              save(); render(); toast('Link: ' + LINK_TYPES[t].label + '.');
+          });
+      });
+      var rm = menu.querySelector('.edge-remove');
+      if (rm) rm.addEventListener('click', function(ce) { ce.stopPropagation(); menu.style.display = 'none'; removeLinkAt(i); });
+  }
+  document.addEventListener('click', function(e) {
+      var menu = document.getElementById('edgeMenu');
+      if (menu && menu.style.display !== 'none' && !e.target.closest('#edgeMenu')) menu.style.display = 'none';
+  });
+  document.querySelectorAll('#linkTypeRow .draw-style-btn').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); setLinkType(this.dataset.type || ''); }); });
+  var _el_linkDoneBtn = document.getElementById('linkDoneBtn');
+  if (_el_linkDoneBtn) _el_linkDoneBtn.addEventListener('click', function(e) { e.stopPropagation(); setDataTool('dataMoveBtn'); render(); });
+  var _el_linkMenu0 = document.getElementById('linkMenu');
+  if (_el_linkMenu0) ['pointerdown', 'click'].forEach(function(ev) { _el_linkMenu0.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+  document.addEventListener('click', function(e) {
+      var lm = document.getElementById('linkMenu');
+      if (lm && lm.classList.contains('show') && !e.target.closest('#linkMenu') && !e.target.closest('#linkBtn')) lm.classList.remove('show');
+  });
+  syncLinkMenu();
 
   function snapToHex(x, y, s, mode) {
       // FLAT-TOP hexes (a flat side faces up), size s = 30: a cell is 2s = 60 wide
@@ -797,7 +868,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     var a=state.linkStart, b=el.dataset.id; state.linkStart=null;
                     var existing = activeMap.links.findIndex(l=> (l[0]===a&&l[1]===b)||(l[0]===b&&l[1]===a));
                     if(existing>=0) { activeMap.links.splice(existing,1); import('./io.js').then(m=>m.toast('Link removed.')); }
-                    else { activeMap.links.push([a,b]); import('./io.js').then(m=>m.toast('Link added.')); }
+                    else { activeMap.links.push(state.linkType ? [a, b, state.linkType] : [a, b]); import('./io.js').then(m=>m.toast((LINK_TYPES[state.linkType || ''] || LINK_TYPES['']).label + ' link added.')); }
                     render(); save();
                 }
               } else {
@@ -1250,7 +1321,7 @@ if(_el_addBtn) _el_addBtn.addEventListener('click', function(){
       });
       window.isPanMode = (id === 'dataPanBtn');
       document.body.classList.toggle('linkmode', id === 'linkBtn');
-      if (id !== 'linkBtn') state.linkStart = null;
+      if (id !== 'linkBtn') { state.linkStart = null; var lmT = document.getElementById('linkMenu'); if (lmT) lmT.classList.remove('show'); }
       var cw = document.getElementById('canvasWrap');
       if (cw) cw.style.cursor = (id === 'dataPanBtn') ? 'grab' : 'default';
       document.body.classList.toggle('data-pan', id === 'dataPanBtn');
@@ -1259,7 +1330,12 @@ if(_el_addBtn) _el_addBtn.addEventListener('click', function(){
 
   var _el_linkBtn = document.getElementById('linkBtn');
 
-if(_el_linkBtn) _el_linkBtn.addEventListener('click',function(){setLinkMode(!isLinkMode());render();});
+if(_el_linkBtn) _el_linkBtn.addEventListener('click',function(e){
+      e.stopPropagation();
+      var lm = document.getElementById('linkMenu');
+      if (!isLinkMode()) { setLinkMode(true); render(); if (lm) { syncLinkMenu(); lm.classList.add('show'); } }
+      else if (lm) { syncLinkMenu(); lm.classList.toggle('show'); }   // the Select tool (or Done linking) leaves link mode
+  });
 
   var _el_dataMoveBtn = document.getElementById('dataMoveBtn');
   if (_el_dataMoveBtn) _el_dataMoveBtn.addEventListener('click', function() { setDataTool('dataMoveBtn'); render(); });

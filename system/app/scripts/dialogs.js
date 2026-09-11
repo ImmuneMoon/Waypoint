@@ -468,6 +468,37 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
       });
   });
 
+  // A new map (or planner) that wraps an existing one: the new item takes the old one's place in
+  // the tree, the old one nests under it, and a map gets a portal node leading into the child.
+  var _el_ctxNewParentItem = document.getElementById('ctxNewParentItem');
+  if (_el_ctxNewParentItem) _el_ctxNewParentItem.addEventListener('click', function() {
+      var menu = document.getElementById('sidebarContextMenu');
+      menu.style.display = 'none';
+      var camp = getActiveCampaign();
+      if (!camp) return;
+      var childId = menu.dataset.id, child = camp.items[childId];
+      if (!child || (child.type !== 'map' && child.type !== 'planner')) return;
+      var isPl = child.type === 'planner';
+      var initial = getUniqueItemTitle(isPl ? 'New Section' : 'New Region', null);
+      promptForItemName(initial, 'Name the new ' + (isPl ? 'planner' : 'map') + ' that will hold \u201c' + (child.meta.title || '') + '\u201d:', null, function(title) {
+          var parent = isPl ? createNewPlanner(title) : createNewMap(title);
+          var grand = child.meta && child.meta.parentId;
+          if (grand && camp.items[grand]) parent.meta.parentId = grand;   // the new item steps into the child's old place
+          child.meta = child.meta || {};
+          child.meta.parentId = parent.id;
+          parent.meta.collapsed = false;
+          if (!isPl) {
+              // The child appears on the new parent's data map as a portal node
+              parent.rooms.push({ id: 'r' + Math.random().toString(36).slice(2, 8), name: child.meta.title || 'Map', cat: Object.keys(parent.cats)[0], x: 14940, y: 14980, notes: '', characters: [], targetMapId: child.id, icon: 'Door' });
+          }
+          camp.items[parent.id] = parent;
+          camp.activeItemId = parent.id;
+          state.selId = null; state.selWbId = null; state.linkStart = null;
+          updateSidebarNav(); render(); save(true);
+          toast('\u201c' + title + '\u201d now holds \u201c' + (child.meta.title || (isPl ? 'the planner' : 'the map')) + '\u201d' + (isPl ? '.' : ' \u2014 the node on its data map is a portal into it.'));
+      });
+  });
+
   var _el_ctxRenameItem = document.getElementById('ctxRenameItem');
 if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       var menu = document.getElementById('sidebarContextMenu');

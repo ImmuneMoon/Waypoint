@@ -45,6 +45,9 @@ if (!NOTES_ONLY) {
 // 0. the app folder carries its version (a hot update swaps system/app only, so this is what moves the number)
 fs.writeFileSync(path.join(SYSTEM, 'app', 'version.json'), JSON.stringify({ version: VERSION }) + '\n');
 
+// 0b. the interactive tutorial must still point at real controls (a moved button fails the build)
+execSync('node "' + path.join(__dirname, 'tutorialcheck.js') + '"', { stdio: 'inherit' });
+
 // 1. app zip (PowerShell's Compress-Archive: deflate entries, which updater.js reads)
 console.log('Zipping system/app ->', zipName);
 if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);

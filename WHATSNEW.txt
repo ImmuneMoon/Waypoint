@@ -25,10 +25,37 @@ Blast tool
   handbook's damage ÷ (3 × distance) by hand — Waypoint never rolls.
   Distance is hex distance; with Token elevation on it is straight-line,
   height included (√(h² + v²)), from the blast's own height — the token in
-  the landing cell, else the ground, editable in the tool's menu. Click a
-  blast to remove it. Blasts are local, like rulers.
+  the landing cell, else the ground, editable in the tool's menu. Drag a
+  blast to move it, right-click it to remove it. Blasts are local, like
+  rulers.
 - Rulers: with Token elevation on, a ruler between two tokens at different
   heights prints the 3D figure as a second number.
+
+Maps
+- New Parent Map: right-click a map in the sidebar to wrap it in a new map.
+  The existing map moves under the new one (taking the same place in the
+  tree the old one had), and the new map's data map starts with a portal
+  node that leads into it. Planners get the same: New Parent Planner.
+
+Data maps
+- Line types. Link Mode now opens a menu to pick the type of the lines you
+  are about to draw: a solid Path, a dashed Route, a dotted Secret way, or a
+  One-way arrow from the first room you click to the second. Every line
+  carries a small chip at its middle: click it, in any tool, to change the
+  line type or remove the link. Done linking (or the Select tool) leaves
+  Link Mode.
+
+Tutorial
+- Help now has a Tutorial tab. Start it and Waypoint adds a small campaign
+  called Tutorial to your save (a valley, a cave nested under it with
+  tokens, and a session plan), then walks you through the app in about
+  fifteen steps with a spotlight over the real controls: campaigns, the map
+  tree, both faces of a map, linking, portals, the play map tools and
+  tokens, planners, multiplayer, settings. Esc leaves it at any time. The
+  Tutorial campaign is yours to keep and build on, or to discard from the
+  same tab (or at the end of the tour); it can be rebuilt fresh any time.
+  On a brand-new save the tour starts by itself, once; everyone else
+  finds it under Help → Tutorial.
 
 WAYPOINT 1.4.5 — What's New
 ============================

@@ -69,6 +69,9 @@ Text boxes
 - While a text box is being edited the caret can be placed anywhere in it,
   including the space above and below the words, and text can be
   highlighted; the box goes back to its centred layout when you click away.
+- Text Opacity and Background Opacity are separate sliders in Properties, so
+  a box can have solid words on a faint plate (or the other way round). The
+  Opacity slider further down still fades the whole box.
 
 Fixes
 - Grouped items no longer drift apart when moved. On release the grid

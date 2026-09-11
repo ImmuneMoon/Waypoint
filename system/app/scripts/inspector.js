@@ -877,7 +877,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (w.type === 'trigger') {
                 html += '<div class="field"><label for="wbEventMsg">Event Message</label><textarea id="wbEventMsg" placeholder="Message when character drops here...">'+esc(w.eventMessage||'')+'</textarea></div>';
             } else {
-                html += '<div class="field" style="display:flex; align-items:center; gap:5px; margin-bottom:10px;"><input type="checkbox" id="wbIsChar" '+(w.isChar?'checked':'')+'> <label for="wbIsChar" style="margin:0; text-transform:none;">Is Character</label></div>';
+                html += '<div class="field check-row"><input type="checkbox" id="wbIsChar" '+(w.isChar?'checked':'')+'> <label for="wbIsChar">Is Character</label></div>';
                 if(w.isChar) {
                     html += '<div class="field"><label for="wbCharName">Character Name</label><input type="text" id="wbCharName" value="'+esc(w.charName||'')+'"></div>';
                     html += '<div class="field"><label for="wbCharStats">Stats / Notes</label><textarea id="wbCharStats">'+esc(w.charStats||'')+'</textarea></div>';
@@ -951,7 +951,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
               (w.type !== 'image' && w.type !== 'trigger' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
-              (w.type !== 'path' && w.type !== 'text' ? '<div class="field" style="display:flex; align-items:center; gap:5px; margin-bottom:10px;"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio" style="margin:0; text-transform:none;">Lock proportions when resizing</label></div>' : '') +
+              (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
               (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (w.strokeWidth||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(w.strokeWidth||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(w.strokeWidth||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
               '<div class="field"><label for="wbRot">Rotation</label><div style="display:flex; gap:8px;"><input type="range" id="wbRot" min="-180" max="180" value="'+(w.rot||0)+'" style="flex:1"><input type="number" id="wbRotNum" value="'+(w.rot||0)+'" style="width:60px" aria-label="Rotation degrees"></div></div>'+
               '<div class="field"><label for="wbLayer">Layer</label>'+
@@ -962,7 +962,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<option value="back-mid"'+(w.layer==='back-mid'?' selected':'')+'>Back-Mid Layer</option>'+
               '<option value="back"'+(w.layer==='back'?' selected':'')+'>Back Layer (Background)</option>'+
               '</select></div>'+
-              '<div class="field" style="display:flex; align-items:center; gap:5px; margin-bottom:15px;"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock" style="margin:0; text-transform:none;">Locked (Prevent drag & resize)</label></div>'+
+              '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1579,7 +1579,9 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
              '<div class="field"><label for="wbTextSize">Text Size <span class="muted" id="wbTextSizeVal">' + (w.fontSize || 16) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbTextSize" min="8" max="96" value="' + (w.fontSize || 16) + '" style="flex:1"><input type="number" id="wbTextSizeNum" min="8" max="200" value="' + (w.fontSize || 16) + '" style="width:56px" aria-label="Text size in pixels"></div></div>' +
              '<div class="field"><label>Alignment</label><div style="display:flex; gap:4px; margin-bottom:4px;">' + ab('left', '&#8676;', 'Align left') + ab('center', '&#8596;', 'Center') + ab('right', '&#8677;', 'Align right') + ab('justify', '&#8801;', 'Justify') + '</div>' +
              '<div style="display:flex; gap:4px;">' + vb('top', '&#8679;', 'Top') + vb('middle', '&#8597;', 'Middle') + vb('bottom', '&#8681;', 'Bottom') + '</div></div>' +
-             '<div class="field"><label>Box Background</label><div class="color-row">' + bgHtml + '</div></div>';
+             '<div class="field"><label>Box Background</label><div class="color-row">' + bgHtml + '</div></div>' +
+             '<div class="field"><label for="wbTextOpacity">Text Opacity <span class="muted" id="wbTextOpacityVal">' + Math.round((w.textOpacity == null ? 1 : w.textOpacity) * 100) + '%</span></label><input type="range" id="wbTextOpacity" min="10" max="100" value="' + Math.round((w.textOpacity == null ? 1 : w.textOpacity) * 100) + '" style="width:100%"></div>' +
+             '<div class="field"><label for="wbBgOpacity">Background Opacity <span class="muted" id="wbBgOpacityVal">' + Math.round((w.bgOpacity == null ? 1 : w.bgOpacity) * 100) + '%</span></label><input type="range" id="wbBgOpacity" min="0" max="100" value="' + Math.round((w.bgOpacity == null ? 1 : w.bgOpacity) * 100) + '" style="width:100%"><div class="muted" style="margin-top:3px;">Each on its own; the Opacity slider further down fades the whole box.</div></div>';
   }
   function wireTextStyle(w) {
       var el = state.wbEls && state.wbEls[w.id];
@@ -1611,6 +1613,11 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               save(); render();
           });
       });
+      var tO = document.getElementById('wbTextOpacity'), bO = document.getElementById('wbBgOpacity');
+      function applyTextOp(v) { v = Math.max(0.1, Math.min(1, parseInt(v, 10) / 100)); if (v >= 1) delete w.textOpacity; else w.textOpacity = v; var l1 = document.getElementById('wbTextOpacityVal'); if (l1) l1.textContent = Math.round(v * 100) + '%'; renderWhiteboard(); }
+      function applyBgOp(v) { v = Math.max(0, Math.min(1, parseInt(v, 10) / 100)); if (v >= 1) delete w.bgOpacity; else w.bgOpacity = v; var l2 = document.getElementById('wbBgOpacityVal'); if (l2) l2.textContent = Math.round(v * 100) + '%'; renderWhiteboard(); }
+      if (tO) { tO.addEventListener('input', function() { applyTextOp(this.value); }); tO.addEventListener('change', function() { save(); }); }
+      if (bO) { bO.addEventListener('input', function() { applyBgOp(this.value); }); bO.addEventListener('change', function() { save(); }); }
       var bgC = document.getElementById('wbTextBgCustom');
       if (bgC) {
           bgC.addEventListener('input', function() { w.bg = this.value; if (el) el.style.background = this.value; });

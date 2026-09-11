@@ -30,6 +30,8 @@ var BY_ID = {
     lkType: 'How the line is drawn: a plain path, a dashed route, a dotted secret way, or a one-way arrow.',
     lkLabel: 'A short name for this connection, drawn on the line. Players see it.',
     lkNotes: 'What travelling this way involves. GM only — never sent to players.',
+    wbTextOpacity: 'How solid the words are, from 10% to fully opaque. The background keeps its own setting.',
+    wbBgOpacity: 'How solid the box behind the words is, from invisible to fully opaque. The words keep their own setting.',
     wbLockRatio: 'Keep width and height in proportion when resizing (Shift while dragging does the same).',
     wbStrokeWidth: 'Thickness of the stroke, in board pixels.',
     wbStrokeWidthNum: 'Thickness of the stroke, in board pixels.',

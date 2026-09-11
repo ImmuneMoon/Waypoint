@@ -89,6 +89,26 @@ function showStanceMenu(e, tok) {
 // In a session, clients resolve campaign images through the host-fed cache
 // A text box with no colour of its own: light ink on a dark plate, dark ink on a light one,
 // the theme's ink when the plate is missing or nearly clear (so both themes stay readable).
+// A colour at a given opacity, for the text / background opacity sliders. color-mix keeps any
+// CSS colour intact (names, var(--ink), rgba); an older engine falls back to a canvas parse.
+function withAlpha(c, a) {
+    a = Number(a); if (!isFinite(a) || a >= 1) return c;
+    if (!c || c === 'transparent') return c;
+    a = Math.max(0, Math.min(1, a));
+    try { if (window.CSS && CSS.supports && CSS.supports('color', 'color-mix(in srgb, red 50%, transparent)')) return 'color-mix(in srgb, ' + c + ' ' + Math.round(a * 100) + '%, transparent)'; } catch (e) {}
+    var probe = c;
+    if (/^var\(/.test(c)) { try { probe = getComputedStyle(document.documentElement).getPropertyValue(c.slice(4, -1).trim()).trim() || c; } catch (e) {} }
+    try {
+        var cv = withAlpha._cv || (withAlpha._cv = document.createElement('canvas').getContext('2d'));
+        cv.fillStyle = '#000'; cv.fillStyle = probe; var s = cv.fillStyle;
+        var m = /^#([0-9a-f]{6})$/i.exec(s);
+        if (m) return 'rgba(' + parseInt(m[1].slice(0, 2), 16) + ',' + parseInt(m[1].slice(2, 4), 16) + ',' + parseInt(m[1].slice(4, 6), 16) + ',' + a + ')';
+        var m2 = /^rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)$/.exec(s);
+        if (m2) return 'rgba(' + m2[1] + ',' + m2[2] + ',' + m2[3] + ',' + (a * +m2[4]) + ')';
+    } catch (e) {}
+    return c;
+}
+window.wpWithAlpha = withAlpha;
 function plateInk(bg) {
     if (!bg || bg === 'transparent') return '';
     var r, g, b, a = 1, m;
@@ -467,8 +487,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // Text boxes: the color swatch is the text color, not a fill; the box
           // has its own background, font, size, and alignment.
           if (item.type === 'text') {
-              el.style.color = (item.color && item.color !== 'transparent' && item.color !== 'var(--panel2)') ? item.color : plateInk(item.bg);
-              el.style.background = (item.bg && item.bg !== 'transparent') ? item.bg : 'transparent';
+              // Text and background each carry their own opacity (textOpacity / bgOpacity), on top of the whole-item opacity
+              var inkT = (item.color && item.color !== 'transparent' && item.color !== 'var(--panel2)') ? item.color : (plateInk(item.bg) || 'var(--ink)');
+              el.style.color = withAlpha(inkT, item.textOpacity == null ? 1 : item.textOpacity);
+              el.style.background = (item.bg && item.bg !== 'transparent') ? withAlpha(item.bg, item.bgOpacity == null ? 1 : item.bgOpacity) : 'transparent';
               el.style.fontFamily = item.font || '';
               el.style.fontSize = item.fontSize ? item.fontSize + 'px' : '';
               var al = item.align || 'center';

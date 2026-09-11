@@ -50,7 +50,7 @@ function buildTutorialCampaign() {
     realm.cats = { city: { label: 'City', color: '#e0a54f' }, wild: { label: 'Wilderness', color: '#5cb87a' }, danger: { label: 'Danger', color: '#d9534f' } };
     realm.rooms = [
         { id: 'tut_r_eldara', name: 'Eldara', cat: 'city', x: 15000, y: 15200, notes: 'The elven city under the great tree. The party starts at its inn.\nDouble-click to open the city map.', characters: [], targetMapId: 'map_tut_city', icon: 'Gate', image: A + 'scene_eldara.jpg' },
-        { id: 'tut_r_hills', name: 'Rugged Hills', cat: 'wild', x: 15300, y: 15040, notes: 'Two days of bad road. The raiders who have been hitting the caravans hole up somewhere in here.', characters: [] },
+        { id: 'tut_r_hills', name: 'Rugged Hills', cat: 'wild', x: 15300, y: 15040, notes: 'Two days of bad road. The raiders who have been hitting the caravans hole up somewhere in here. Double-click for the hill road battle map (the ambush).', characters: [], targetMapId: 'map_tut_hillroad', icon: 'Camp' },
         { id: 'tut_r_hideout', name: "Raiders' Hideout", cat: 'danger', x: 15560, y: 15200, notes: 'A timber house on a rock shelf with a cellar and a lookout floor. Double-click to open the ground floor; the stairs inside lead to the other floors.', characters: [{ id: 'tut_c_grukk', name: 'Grukk', info: 'Orc. Runs the raiders. Keeps the ledger in the office.', portrait: A + 'orc_sq.jpg' }], targetMapId: 'map_tut_ground', icon: 'Door', image: A + 'scene_hideout.jpg' },
         { id: 'tut_r_fort', name: 'Old Fort', cat: 'danger', x: 15300, y: 15400, notes: 'A ruined hillfort the raiders use as a fallback. Something older than raiders lives in the walls.', characters: [], targetMapId: 'map_tut_fort', icon: 'Tower' }
     ];
@@ -68,10 +68,10 @@ function buildTutorialCampaign() {
     city.meta.homeX = 15000; city.meta.homeY = 15000; city.meta.lastView = 'data'; city.meta.gridType = 'off';
     city.cats = { civic: { label: 'Civic', color: '#e0a54f' }, holy: { label: 'Temple', color: '#b98cff' }, trade: { label: 'Trade', color: '#4db3d3' } };
     city.rooms = [
-        { id: 'tut_palace', name: 'Palace', cat: 'civic', x: 14980, y: 14840, notes: 'The court of King Thalindor sits in the roots of the great tree. He wants the raiders gone before the harvest caravans roll.\nThis room has a scene image and a character with a portrait: hover its play-map shape.', characters: [{ id: 'tut_c_king', name: 'King Thalindor Starseeker', info: 'Patient, proud, and short of soldiers. Pays in favours before gold.', portrait: A + 'king_sq.jpg' }, { id: 'tut_c_golems', name: 'The Wardens', info: 'Two elven golems that never leave the throne room.', portrait: A + 'golems_sq.jpg' }], image: A + 'scene_throne.jpg' },
-        { id: 'tut_temple', name: 'Temple', cat: 'holy', x: 15300, y: 14840, notes: 'Crystal-lit hall of the Moon. Healing for a donation; blessings for a promise.', characters: [{ id: 'tut_c_priestess', name: 'High Priestess Elandra Moonshadow', info: 'Knows the fort is older than the city and what sleeps under it.', portrait: A + 'priestess_sq.jpg' }], image: A + 'scene_temple.jpg' },
-        { id: 'tut_smith', name: 'Blacksmith', cat: 'trade', x: 14800, y: 15220, notes: 'Elion will reforge anything the party brings back from the hideout.', characters: [{ id: 'tut_c_smith', name: 'Master Blacksmith Elion Flameheart', info: 'Grumbles. Sold the raiders their axes without knowing.', portrait: A + 'smith_sq.jpg' }], image: A + 'scene_forge.jpg' },
-        { id: 'tut_library', name: 'Library', cat: 'civic', x: 15300, y: 15100, notes: 'Maps of the hills, if anyone asks nicely.', characters: [] },
+        { id: 'tut_palace', name: 'Palace', cat: 'civic', x: 14980, y: 14840, notes: 'The court of King Thalindor sits in the roots of the great tree. He wants the raiders gone before the harvest caravans roll.\nThis room has a scene image and a character with a portrait: hover its play-map shape.', characters: [{ id: 'tut_c_king', name: 'King Thalindor Starseeker', info: 'Patient, proud, and short of soldiers. Pays in favours before gold.', portrait: A + 'king_sq.jpg' }, { id: 'tut_c_golems', name: 'The Wardens', info: 'Two elven golems that never leave the throne room.', portrait: A + 'golems_sq.jpg' }], image: A + 'scene_throne.jpg', targetMapId: 'map_tut_throne', icon: 'Gate' },
+        { id: 'tut_temple', name: 'Temple', cat: 'holy', x: 15300, y: 14840, notes: 'Crystal-lit hall of the Moon. Healing for a donation; blessings for a promise.', characters: [{ id: 'tut_c_priestess', name: 'High Priestess Elandra Moonshadow', info: 'Knows the fort is older than the city and what sleeps under it.', portrait: A + 'priestess_sq.jpg' }], image: A + 'scene_temple.jpg', targetMapId: 'map_tut_temple', icon: 'Door' },
+        { id: 'tut_smith', name: 'Blacksmith', cat: 'trade', x: 14800, y: 15220, notes: 'Elion will reforge anything the party brings back from the hideout.', characters: [{ id: 'tut_c_smith', name: 'Master Blacksmith Elion Flameheart', info: 'Grumbles. Sold the raiders their axes without knowing.', portrait: A + 'smith_sq.jpg' }], image: A + 'scene_forge.jpg', targetMapId: 'map_tut_forge', icon: 'Door' },
+        { id: 'tut_library', name: 'Library', cat: 'civic', x: 15300, y: 15100, notes: 'Maps of the hills, if anyone asks nicely. Maelis has no portrait: her token on any map is a circle with her initials until you give her one.', characters: [{ id: 'tut_c_maelis', name: 'Archivist Maelis', info: 'Keeps the hill surveys. Will trade a map for the return of an overdue book.' }] },
         { id: 'tut_emporium', name: 'Emporium', cat: 'trade', x: 15560, y: 14980, notes: 'Everything the caravans still bring in, at raid prices. Liriel buys the raiders\' loot through a third hand \u2014 the ledger in the hideout names her.', characters: [{ id: 'tut_c_liriel', name: 'Liriel Aurethiel', info: 'Charming, rich, and the Emporium buyer on Grukk\'s ledger. Never in the shop when trouble arrives.', portrait: A + 'liriel_sq.jpg' }], image: A + 'scene_emporium.jpg' },
         { id: 'tut_inn', name: 'The Inn', cat: 'trade', x: 15000, y: 15400, notes: 'Where the party meets. Double-click to open its battle map (a square grid).', characters: [{ id: 'tut_c_innkeeper', name: 'Paethorin Baethelor', info: 'Innkeeper. Owes the Emporium money and knows it is dirty.', portrait: A + 'innkeeper_sq.jpg' }, { id: 'tut_c_chef', name: 'Nessa', info: 'Wood-elf cook. Hears everything the caravan drivers say.', portrait: A + 'chef_sq.jpg' }], targetMapId: 'map_tut_inn', icon: 'Door', image: A + 'scene_inn.jpg' }
     ];
@@ -202,6 +202,117 @@ function buildTutorialCampaign() {
         hexTok(O + 140, O + 300, pic('spriggan_hex.png', { id: 'tut_wb_spriggan', charName: 'Old Thornback', name: 'Old Thornback', charStats: 'Spriggan. Hidden in the trees until the party gets close.', hidden: true }))
     ];
 
+    /* ---- Palace throne room: an indoor hex map built from shapes (no picture needed) ---- */
+    var throne = createNewMap('Palace \u2014 Throne Room');
+    throne.id = 'map_tut_throne';
+    throne.meta.parentId = city.id;
+    throne.meta.homeX = 15000; throne.meta.homeY = 15000; throne.meta.lastView = 'visual'; throne.meta.gridType = 'hex';
+    throne.cats = { civic: { label: 'Civic', color: '#e0a54f' } };
+    throne.rooms = [
+        { id: 'tut_th_hall', name: 'Throne room', cat: 'civic', x: 15000, y: 15000, notes: 'Roots for pillars, a dais one yard up, and two golems that do not blink. The king hears the party here.', characters: [] },
+        { id: 'tut_th_ante', name: 'Antechamber', cat: 'civic', x: 14700, y: 15000, notes: 'Where petitioners wait. Weapons stay here.', characters: [] }
+    ];
+    throne.links = [['tut_th_ante', 'tut_th_hall', 'oneway', { label: 'The doors open inward' }]];
+    throne.whiteboard = [
+        { id: 'tut_wb_thfloor', type: 'rect', x: 14640, y: 14740, w: 720, h: 520, color: '#232331', layer: 'back', nodeId: 'tut_th_hall', name: 'Hall floor' },
+        { id: 'tut_wb_thante', type: 'rect', x: 14440, y: 14880, w: 200, h: 240, color: '#1e1e29', layer: 'back', nodeId: 'tut_th_ante', name: 'Antechamber floor' },
+        { id: 'tut_wb_thdais', type: 'rect', x: 15140, y: 14880, w: 200, h: 240, color: 'rgba(224,165,79,0.22)', layer: 'back-mid', name: 'Dais (1 yd up)' },
+        { id: 'tut_wb_thlabel', type: 'text', x: 14640, y: 14680, w: 620, h: 40, color: 'transparent', text: '<b>Palace \u2014 Throne Room</b> (hex grid, built from shapes) \u2014 the dais is a yard up: the king\'s +1', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_thp1', type: 'circle', x: 14800, y: 14800, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
+        { id: 'tut_wb_thp2', type: 'circle', x: 14800, y: 15160, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
+        { id: 'tut_wb_thp3', type: 'circle', x: 15000, y: 14800, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
+        { id: 'tut_wb_thp4', type: 'circle', x: 15000, y: 15160, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
+        hexTok(15240, 15000, pic('king_hex.png', { id: 'tut_wb_king', charName: 'King Thalindor Starseeker', name: 'King Thalindor', charStats: 'On the dais: Elevation +1. An NPC \u2014 the GM moves him.', charRef: 'tut_c_king', elevation: 1, posture: 'sitting' })),
+        hexTok(15240, 14900, pic('golems_hex.png', { id: 'tut_wb_warden1', charName: 'Warden', name: 'Warden', charStats: 'Elven golem. Does not move unless the king does.', elevation: 1 })),
+        hexTok(15240, 15100, pic('golems_hex.png', { id: 'tut_wb_warden2', charName: 'Second Warden', name: 'Second Warden', charStats: 'Elven golem.', elevation: 1 })),
+        hexTok(14700, 14950, pic('bren_hex.png', { id: 'tut_wb_bren3', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter.' })),
+        hexTok(14700, 15050, pic('tharic_hex.png', { id: 'tut_wb_tharic3', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
+        hexTok(14760, 15000, pic('sage_hex.png', { id: 'tut_wb_sage3', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.' })),
+        hexTok(15100, 15000, { id: 'tut_wb_thsteps', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The Wardens turn their heads as one. \u201cKneel,\u201d says nobody, and everyone does.', name: 'Dais steps' })
+    ];
+
+    /* ---- Temple: a square-grid hall from shapes ---- */
+    var temple = createNewMap('Temple \u2014 Crystal Hall');
+    temple.id = 'map_tut_temple';
+    temple.meta.parentId = city.id;
+    temple.meta.homeX = 15000; temple.meta.homeY = 15000; temple.meta.lastView = 'visual'; temple.meta.gridType = 'square';
+    temple.cats = { holy: { label: 'Temple', color: '#b98cff' } };
+    temple.rooms = [
+        { id: 'tut_te_hall', name: 'Crystal hall', cat: 'holy', x: 15000, y: 15000, notes: 'Moonlight through crystal. A donation at the altar buys healing; a promise buys a blessing.', characters: [] }
+    ];
+    temple.links = [];
+    temple.whiteboard = [
+        { id: 'tut_wb_tefloor', type: 'rect', x: 14700, y: 14750, w: 600, h: 500, color: '#26233a', layer: 'back', nodeId: 'tut_te_hall', name: 'Hall floor' },
+        { id: 'tut_wb_telabel', type: 'text', x: 14700, y: 14690, w: 600, h: 40, color: 'transparent', text: '<b>Temple \u2014 Crystal Hall</b> (square grid, built from shapes) \u2014 the altar is a trigger zone', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_tealtar', type: 'trigger', x: 15200, y: 14950, w: 100, h: 100, color: 'transparent', eventMessage: 'The crystals brighten. Whoever stands here feels the Moon\'s regard \u2014 healed of one wound, or bound to one promise.', name: 'Altar' },
+        { id: 'tut_wb_tec1', type: 'circle', x: 14750, y: 14800, w: 30, h: 30, color: '#e0a54f', layer: 'back-mid', name: 'Candle stand', opacity: 0.7 },
+        { id: 'tut_wb_tec2', type: 'circle', x: 14750, y: 15170, w: 30, h: 30, color: '#e0a54f', layer: 'back-mid', name: 'Candle stand', opacity: 0.7 },
+        sqTok(15150, 14950, pic('priestess_sq.jpg', { id: 'tut_wb_priestess', charName: 'High Priestess Elandra Moonshadow', name: 'Elandra Moonshadow', charStats: 'High Priestess. NPC.', charRef: 'tut_c_priestess' })),
+        sqTok(14800, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren4', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter.' })),
+        sqTok(14850, 15000, pic('sage_sq.jpg', { id: 'tut_wb_sage4', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard. Two Elandras in one room \u2014 charName tells them apart.' }))
+    ];
+
+    /* ---- The forge ---- */
+    var forge = createNewMap("Blacksmith's Forge");
+    forge.id = 'map_tut_forge';
+    forge.meta.parentId = city.id;
+    forge.meta.homeX = 15000; forge.meta.homeY = 15000; forge.meta.lastView = 'visual'; forge.meta.gridType = 'square';
+    forge.cats = { trade: { label: 'Trade', color: '#4db3d3' } };
+    forge.rooms = [
+        { id: 'tut_fo_floor', name: 'Forge floor', cat: 'trade', x: 15000, y: 15000, notes: 'Two anvils, one fire, and Elion between them. Anything from the hideout can be reforged here.', characters: [] }
+    ];
+    forge.links = [];
+    forge.whiteboard = [
+        { id: 'tut_wb_fofloor', type: 'rect', x: 14750, y: 14800, w: 500, h: 400, color: '#2c2622', layer: 'back', nodeId: 'tut_fo_floor', name: 'Forge floor' },
+        { id: 'tut_wb_folabel', type: 'text', x: 14750, y: 14740, w: 500, h: 40, color: 'transparent', text: '<b>Blacksmith\'s Forge</b> (square grid) \u2014 the fire is a trigger zone; the anvils are plain shapes', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_fofire', type: 'trigger', x: 15150, y: 14850, w: 100, h: 100, color: 'transparent', eventMessage: 'The forge fire roars up. Elion: \u201cMind your eyebrows.\u201d', name: 'Forge fire' },
+        { id: 'tut_wb_fofireshape', type: 'rect', x: 15150, y: 14850, w: 100, h: 100, color: 'rgba(217,83,79,0.35)', layer: 'back-mid', name: 'Fire' },
+        { id: 'tut_wb_foanvil1', type: 'rect', x: 14900, y: 14950, w: 50, h: 30, color: '#6a6a7d', layer: 'back-mid', name: 'Anvil' },
+        { id: 'tut_wb_foanvil2', type: 'rect', x: 15000, y: 15100, w: 50, h: 30, color: '#6a6a7d', layer: 'back-mid', name: 'Anvil' },
+        sqTok(15050, 14950, pic('smith_sq.jpg', { id: 'tut_wb_smith', charName: 'Master Blacksmith Elion Flameheart', name: 'Elion', charStats: 'Blacksmith. NPC.', charRef: 'tut_c_smith' })),
+        sqTok(14800, 15050, pic('tharic_sq.jpg', { id: 'tut_wb_tharic4', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight, here about a dent.' }))
+    ];
+
+    /* ---- Hill road: an outdoor hex map from shapes, with the ambush ---- */
+    var road = createNewMap('Hill Road');
+    road.id = 'map_tut_hillroad';
+    road.meta.parentId = realm.id;
+    road.meta.homeX = 15000; road.meta.homeY = 15000; road.meta.lastView = 'visual'; road.meta.gridType = 'hex';
+    road.cats = { wild: { label: 'Wilderness', color: '#5cb87a' }, danger: { label: 'Danger', color: '#d9534f' } };
+    road.rooms = [
+        { id: 'tut_hr_ford', name: 'The ford', cat: 'wild', x: 14800, y: 15000, notes: 'Knee-deep, cold, loud. Nobody hears an ambush being set.', characters: [] },
+        { id: 'tut_hr_bend', name: 'Ambush bend', cat: 'danger', x: 15200, y: 15000, notes: 'Rocks above the road on both sides. The archer is 2 yards up on the left; the raiders come from the trees on the right.', characters: [] }
+    ];
+    road.links = [['tut_hr_ford', 'tut_hr_bend', 'route', { label: 'Half a mile uphill' }]];
+    road.whiteboard = [
+        { id: 'tut_wb_hrgrass', type: 'rect', x: 14500, y: 14700, w: 1000, h: 600, color: '#243424', layer: 'back', name: 'Hillside' },
+        { id: 'tut_wb_hrroad', type: 'rect', x: 14500, y: 14960, w: 1000, h: 80, color: '#5a4a3a', layer: 'back-mid', nodeId: 'tut_hr_bend', name: 'The road', rot: -8 },
+        { id: 'tut_wb_hrford', type: 'rect', x: 14560, y: 14900, w: 120, h: 200, color: 'rgba(77,179,211,0.35)', layer: 'back-mid', nodeId: 'tut_hr_ford', name: 'The ford' },
+        { id: 'tut_wb_hrlabel', type: 'text', x: 14500, y: 14640, w: 620, h: 40, color: 'transparent', text: '<b>Hill Road</b> (hex grid, outdoors, built from shapes) \u2014 the ambush waits at the bend', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_hrrock', type: 'hexagon', x: 15150, y: 14780, w: 120, h: 104, color: '#4a4a5a', layer: 'back-mid', name: 'Rock (2 yd up)' },
+        { id: 'tut_wb_hrtree1', type: 'circle', x: 15300, y: 15120, w: 90, h: 90, color: '#2f5a33', layer: 'back-mid', name: 'Trees' },
+        { id: 'tut_wb_hrtree2', type: 'circle', x: 15380, y: 15180, w: 110, h: 110, color: '#2f5a33', layer: 'back-mid', name: 'Trees' },
+        hexTok(15210, 14832, pic('minotaur_archer_hex.png', { id: 'tut_wb_hrarcher', charName: 'Rock archer', name: 'Rock archer', charStats: 'On the rock above the bend: Elevation +2. Hidden until the first arrow.', elevation: 2, hidden: true })),
+        hexTok(15330, 15140, pic('orc_hex.png', { id: 'tut_wb_hrgrukk', charName: 'Grukk', name: 'Grukk', charStats: 'Leads the ambush in person. Hidden in the trees.', hidden: true, charRef: 'tut_c_grukk' })),
+        hexTok(15390, 15190, pic('minotaur_soldier_hex.png', { id: 'tut_wb_hrhorn', charName: 'Horn', name: 'Horn', charStats: 'Hidden in the trees.', hidden: true })),
+        hexTok(14700, 15000, pic('bren_hex.png', { id: 'tut_wb_bren5', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter, wet to the knee.' })),
+        hexTok(14760, 15030, pic('tharic_hex.png', { id: 'tut_wb_tharic5', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
+        hexTok(14700, 15060, pic('sage_hex.png', { id: 'tut_wb_sage5', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.' })),
+        hexTok(15100, 15000, { id: 'tut_wb_hrambush', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'An arrow from the rock above. Grukk and Horn come out of the trees. Reveal the three hidden tokens (select each \u2192 Visible to players) and start combat from the right-click menu.', name: 'Ambush point' })
+    ];
+
+    /* ---- Campaign Cast: raiders to drop by the handful (play map right-click → Cast) ---- */
+    camp.cast = {
+        tut_cast_raider: { id: 'tut_cast_raider', name: 'Raider', kind: 'image', src: A + 'orc_hex.png', w: 60, h: 52, color: 'transparent', charStats: 'A raider. Drop one, or five at once.', shape: '', savedAt: Date.now() },
+        tut_cast_guard: { id: 'tut_cast_guard', name: 'Minotaur guard', kind: 'image', src: A + 'minotaur_soldier_hex.png', w: 60, h: 52, color: 'transparent', charStats: 'Hired muscle.', shape: '', savedAt: Date.now() },
+        tut_cast_slime: { id: 'tut_cast_slime', name: 'Slime', kind: 'image', src: A + 'slime_hex.png', w: 60, h: 52, color: 'transparent', charStats: 'It divides when hit.', shape: '', savedAt: Date.now() }
+    };
+    /* ---- Handouts: what the GM can show players (they land in each player's Journal) ---- */
+    camp.handouts = {
+        tut_h_ledger: { id: 'tut_h_ledger', kind: 'text', title: "Grukk's ledger", caption: 'Found in the hideout office', text: 'Caravan of the 3rd \u2014 12 bales, 4 casks, to L.A. at the Emporium, paid in silver.\nCaravan of the 9th \u2014 the Ironfist wagon. Keep the swords.\nHorn owes me two nights.', createdAt: Date.now() },
+        tut_h_hideout: { id: 'tut_h_hideout', kind: 'image', title: 'The hideout', caption: 'What the caravan driver saw from the road', src: A + 'scene_hideout.jpg', createdAt: Date.now() }
+    };
+
     /* ---- the session plan ---- */
     var plan = createNewPlanner('Session 1 \u2014 The Hill Road');
     plan.id = 'plan_tut_session1';
@@ -217,7 +328,7 @@ function buildTutorialCampaign() {
         { type: 'text', content: 'The survivors raft downriver to the <b>Old Fort</b>. Old Thornback the spriggan is nobody\'s friend.' }
     ];
 
-    [realm, city, inn, ground, basement, top, fort, plan].forEach(function(it) { camp.items[it.id] = it; });
+    [realm, city, inn, throne, temple, forge, ground, basement, top, fort, road, plan].forEach(function(it) { camp.items[it.id] = it; });
     camp.activeItemId = realm.id;
     return camp;
 }
@@ -268,7 +379,7 @@ function openLeft() { var sb = document.getElementById('campaignSidebar'); if (s
 
 var STEPS = [
     { target: null, title: 'Welcome to Waypoint',
-      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city, its inn on a square grid, a three-floor raiders\' hideout on hex grids, an old fort, and a session plan. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
+      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city (throne room, temple, forge, inn), a hill road, a three-floor raiders\' hideout, an old fort, and a session plan \u2014 hex and square grids, drawn maps and maps built from shapes. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
     { target: '#campaignSelect', title: 'Campaigns',
       html: 'Everything belongs to a campaign. This picker switches between them; the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial.' },
@@ -289,17 +400,26 @@ var STEPS = [
       html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, undo, then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i>',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
-      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it.',
+      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click empty board for the <b>Campaign Cast</b> \u2014 saved tokens (a raider, a guard, a slime) to drop one at a time or five at once.',
       before: function() { openItem('map_tut_ground'); goView('visual'); } },
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
       html: '<b>The Inn</b> runs on a <b>square grid</b>: 50 px cells over a drawn tavern whose own squares line up with them, and the tokens are square pictures that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The square at the door is a trigger zone. Pick the grid per map with the grid button \u2014 the city map above uses none at all.',
       before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
+    { target: '#imgLibBtn', title: 'The picture library',
+      html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s own art ships with the app rather than in your saves, so it is not listed here; your pictures will be.',
+      before: function() { openItem('map_tut_inn'); goView('visual'); } },
     { target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',
       html: 'Add blocks from the toolbar: headings, prose, callouts, titled tables and flowcharts. <b>Render</b> shows the finished page; <b>Export As</b> turns it into an image, PDF or HTML.',
       before: function() { openItem('plan_tut_session1'); } },
+    { target: '#handoutsBtn', title: 'Handouts and the journal',
+      html: 'Pictures and text to show your players \u2014 a letter, a face, a place. The Tutorial campaign has two ready: <b>Grukk\'s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player, and it lands in their <b>Journal</b> (the book icon beside this), where they keep notes on it and can share it with the party. A room can carry a handout that arrives when a player reaches it.' },
+    { target: '#saveAsBtn', title: 'Export and import',
+      html: 'Share or back up at any scope: this map or planner, all maps, all play maps, all planners, this campaign, or everything. Exports that use pictures arrive as a <b>.zip</b> with the pictures bundled; <b>Import</b> takes those zips or plain .json and <b>merges by id</b> or replaces. Merging is how another author hands you a module without touching the rest of your campaign.' },
+    { target: '#searchMapsSidebarBtn', title: 'Finding things',
+      html: 'The search buttons beside Planners and Maps filter their lists. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
     { target: '#netBtn', title: 'Multiplayer',
       html: 'Host a table from here: players join with a room code, follow the map you are on, move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items. Pause, whisper, summon, run combat and hand out handouts from the same place.' },
     { target: '#settingsBtn', title: 'Settings',

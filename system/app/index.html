@@ -190,14 +190,14 @@ window.addEventListener('unhandledrejection', function(e) {
 
   <div id="legalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
       <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 620px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column;">
-          <h2 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="legalTitle">Terms of Use</span> <button id="legalCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h2>
+          <h2 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="legalTitle">Terms of Use</span> <button id="legalCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h2>
           <div id="legalBody" style="overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.6; color:var(--ink); text-align:left; padding-right:8px;">Loading&hellip;</div>
       </div>
   </div>
 
   <div id="helpModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
       <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 780px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
-          <h2 style="margin-top:0; margin-bottom:14px; color:var(--gold); display:flex; justify-content:space-between;">Help & Tutorials <button id="helpCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h2>
+          <h2 style="margin-top:0; margin-bottom:14px; color:var(--gold); display:flex; justify-content:space-between;">Help & Tutorials <button id="helpCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h2>
           <div style="display:flex; gap:16px; flex:1; min-height:0;">
               <div id="helpNav">
                   <button data-help="start" class="active">&#128640; Getting Started</button>
@@ -871,7 +871,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <div id="netModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width: 420px; max-width:92vw; max-height:88vh; overflow-y:auto; box-sizing:border-box;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between;">Multiplayer <button id="netCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between;">Multiplayer <button id="netCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <p id="netStatus" style="color:var(--dim); font-size:13px; margin:4px 0 14px;">Not in a session.</p>
         <div style="border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
             <div class="net-section-label" style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Host (be the GM)</div>
@@ -936,7 +936,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- An update that needs the installer: the steps, before anything downloads -->
 <div id="installerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100002; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px 24px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:94vw; max-height:88vh; overflow-y:auto; line-height:1.55;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="installerTitle">This update needs the installer</span> <button id="installerCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="installerTitle">This update needs the installer</span> <button id="installerCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <p id="installerIntroNormal" style="margin:0 0 10px;"><b><span id="installerVersion">This update</span></b> changes Waypoint's core, which the one-click update cannot replace. It comes as the full installer instead. Nothing has downloaded yet.</p>
         <p id="installerIntroCore" style="margin:0 0 10px; display:none;">Waypoint's app files just updated in place, but its <b>core</b> &mdash; the part a one-click update cannot replace &mdash; is older. Snapshots, and updates like this one in future, need the new core, and it comes as the full installer. Nothing has downloaded yet; Waypoint keeps working as it is until you do this.</p>
         <p style="margin:0 0 6px; color:var(--dim); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;">What happens when you press Continue</p>
@@ -959,7 +959,7 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 <div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
 
         <details class="set-group" data-group="profile">
             <summary>Profile</summary>
@@ -1106,7 +1106,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <div id="sheetViewModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:92vw; max-height:84vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="sheetViewTitle">Character</span> <button id="sheetViewCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="sheetViewTitle">Character</span> <button id="sheetViewCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="sheetViewBody" style="overflow-y:auto; flex:1; padding-right:6px;"></div>
         <div style="color:var(--dim); font-size:10.5px; margin-top:10px;">Read-only view of the attached ShadowBase sheet. Edit on shadow-base.com, re-export, and re-attach.</div>
     </div>
@@ -1122,7 +1122,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <div id="imgLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:78vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <input type="text" id="imgLibSearch" placeholder="Filter by name or map&hellip;" style="width:100%; box-sizing:border-box; margin-bottom:8px;">
         <div id="imgLibCats" class="journal-from-row" style="margin-bottom:8px;"></div>
         <div id="imgLibGrid" style="overflow-y:auto; flex:1;"></div>
@@ -1149,11 +1149,11 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Handouts (GM) -->
 <div id="handoutsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:82vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Handouts <button id="handoutsCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Handouts <button id="handoutsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:12px; line-height:1.45; margin-bottom:10px;">Pictures you show your players: a place they have found, a face, a letter. Shown handouts are saved into each player's own Journal, where they can add notes and look again any time &mdash; even with no session running. Attach one to a room (in the room's Properties) and a player whose token enters that room sees it on their own.</div>
         <div style="display:flex; gap:8px; margin-bottom:10px;"><button class="tool" id="handoutNewBtn">+ Picture handout</button><button class="tool" id="handoutNewTextBtn" title="A written handout: a letter, a briefing, a recap">+ Text handout</button></div>
         <div id="handoutPick" style="display:none;">
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;"><input type="text" id="handoutPickSearch" placeholder="Filter pictures&hellip;" style="flex:1;"><button class="tool ghost modal-close" id="handoutPickClose" title="Close">&times;</button></div>
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;"><input type="text" id="handoutPickSearch" placeholder="Filter pictures&hellip;" style="flex:1;"><button class="tool ghost modal-close" id="handoutPickClose" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></div>
             <div id="handoutPickGrid" style="overflow-y:auto; flex:1;"></div>
         </div>
         <div id="handoutTagRow" class="journal-from-row" style="display:none; margin-bottom:8px;"></div>
@@ -1163,7 +1163,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- A handout on screen (fresh reveal, or from the journal) -->
 <div id="handoutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100001; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:18px; border:1px solid var(--gold); border-radius:8px; max-width:92vw; max-height:92vh; display:flex; flex-direction:column; gap:10px; align-items:center;">
-        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:12px;"><h3 id="handoutTitle" style="margin:0; color:var(--gold);">Handout</h3><button id="handoutCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:12px;"><h3 id="handoutTitle" style="margin:0; color:var(--gold);">Handout</h3><button id="handoutCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></div>
         <img id="handoutImg" alt="" style="max-width:88vw; max-height:70vh; object-fit:contain; border-radius:6px; background:#000;">
         <div id="handoutText" style="display:none; max-width:min(88vw, 760px); max-height:70vh; overflow-y:auto; white-space:pre-wrap; line-height:1.55; color:var(--ink); text-align:left; padding:4px 10px; user-select:text;"></div>
         <div id="handoutCaption" style="max-width:88vw; color:var(--ink); line-height:1.5; white-space:pre-wrap; text-align:center;"></div>
@@ -1174,7 +1174,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Session log (GM) -->
 <div id="sessionLogModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:640px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Session Log <button id="sessionLogClose" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Session Log <button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
             <select id="sessionLogKind" class="field" style="flex:1;"><option value="">Everything</option><option value="session">Sessions</option><option value="player">Players</option><option value="handout">Handouts</option><option value="travel">Travel</option><option value="chat">Chat</option><option value="share">Shares</option><option value="table">Table (pause, travel lock)</option></select>
             <button class="tool ghost" id="sessionLogSave" title="Save the whole log as a text file">Save as text</button>
@@ -1193,7 +1193,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Combat roster (GM) -->
 <div id="combatModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Combat &mdash; <span id="combatMapName" style="color:var(--ink); font-weight:500;"></span> <button id="combatCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Combat &mdash; <span id="combatMapName" style="color:var(--ink); font-weight:500;"></span> <button id="combatCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Tick who is in the fight and give each an initiative &mdash; higher goes first, ties keep their place. Drag a row (or use the arrows) to set the order by hand. Only the tokens in a live target pair on this map come ticked &mdash; whoever is targeting and whoever they target; everything else waits for your tick.</div>
         <div id="combatRows" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:4px; min-height:80px;"></div>
         <div style="display:flex; gap:6px; margin-top:10px; align-items:center;"><input id="combatAddName" class="field" placeholder="Something without a token (a trap, a turret, a swarm)&hellip;" style="flex:1;"><button class="tool ghost" id="combatAddBtn">+ Add row</button></div>
@@ -1203,7 +1203,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Campaign Cast (GM) -->
 <div id="castModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:560px; max-width:94vw; max-height:84vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Campaign Cast <button id="castCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Campaign Cast <button id="castCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Characters saved to this campaign. Right-click empty space on any play map to drop copies — one, or five at a time — instead of building the same NPC again or importing it.</div>
         <div id="castList" style="overflow-y:auto; flex:1;"></div>
     </div>
@@ -1211,14 +1211,14 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Journal (everyone) -->
 <div id="journalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:760px; max-width:94vw; height:84vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Journal <button id="journalCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Journal <button id="journalCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <input id="journalSearch" class="field" type="search" placeholder="Search — titles, captions, handout text, your notes" style="margin-bottom:10px;" autocomplete="off">
         <div id="journalList" style="overflow-y:auto; flex:1;"></div>
     </div>
 </div>
 <div id="playersModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Player History &amp; Bans <button id="playersCloseBtn" class="tool ghost modal-close" title="Close">&times;</button></h3>
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Player History &amp; Bans <button id="playersCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="playersList" style="overflow-y:auto; flex:1;"></div>
         <div style="color:var(--dim); font-size:10.5px; margin-top:10px; line-height:1.5;">History and bans belong to this campaign and are saved with it. Banned players are refused before any approval prompt; Forget makes a player go through first-time approval again.</div>
     </div>
@@ -1239,7 +1239,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="chatPanel" style="display:none; position:fixed; bottom:20px; right:20px; width:320px; max-height:420px; z-index:90000; background:var(--panel2); border:1px solid var(--gold); border-radius:10px; box-shadow:var(--shadow); flex-direction:column;">
     <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--edge);">
         <span style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Table Chat</span>
-        <button class="tool ghost modal-close" id="chatCloseBtn" title="Close">&times;</button>
+        <button class="tool ghost modal-close" id="chatCloseBtn" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button>
     </div>
     <div id="chatLog" style="flex:1; overflow-y:auto; padding:10px 12px; font-size:13px; min-height:120px; max-height:280px;"></div>
     <div style="padding:8px; border-top:1px solid var(--edge); display:flex; flex-direction:column; gap:6px;">

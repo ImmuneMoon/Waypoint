@@ -92,7 +92,13 @@ function buildTutorialCampaign() {
         district('tut_wb_d_emporium', 'tut_emporium', 780, 510, 220, 110),
         district('tut_wb_d_library', 'tut_library', 670, 660, 200, 110),
         district('tut_wb_d_smith', 'tut_smith', 290, 680, 240, 110),
-        district('tut_wb_d_inn', 'tut_inn', 250, 900, 160, 110)
+        district('tut_wb_d_inn', 'tut_inn', 250, 900, 160, 110),
+        { id: 'tut_wb_citylabel', type: 'text', x: O, y: O - 60, w: 640, h: 40, color: 'transparent', text: '<b>Eldara</b> (no grid) \u2014 tokens go wherever you drop them; hover a district for its room', fontSize: 14, layer: 'front' },
+        // Free placement: no cell to seat in, so any size and any spot works
+        pic('bren_sq.jpg', { id: 'tut_wb_bren6', x: O + 330, y: O + 880, w: 44, h: 44, charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter. On a gridless map a token is any size you like \u2014 these are 44 px.', layer: 'middle' }),
+        pic('tharic_sq.jpg', { id: 'tut_wb_tharic6', x: O + 372, y: O + 896, w: 44, h: 44, charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.', layer: 'middle' }),
+        pic('sage_sq.jpg', { id: 'tut_wb_sage6', x: O + 350, y: O + 936, w: 44, h: 44, charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Wizard.', layer: 'middle' }),
+        pic('liriel_sq.jpg', { id: 'tut_wb_liriel', x: O + 690, y: O + 560, w: 44, h: 44, charName: 'Liriel Aurethiel', name: 'Liriel', charStats: 'Emporium keeper. NPC, out on the market street.', layer: 'middle', charRef: 'tut_c_liriel' })
     ];
 
     /* ---- The Inn: SQUARE grid over a drawn tavern (its own 50 px squares line up with the app's) ---- */
@@ -379,7 +385,7 @@ function openLeft() { var sb = document.getElementById('campaignSidebar'); if (s
 
 var STEPS = [
     { target: null, title: 'Welcome to Waypoint',
-      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city (throne room, temple, forge, inn), a hill road, a three-floor raiders\' hideout, an old fort, and a session plan \u2014 hex and square grids, drawn maps and maps built from shapes. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
+      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city (throne room, temple, forge, inn), a hill road, a three-floor raiders\' hideout, an old fort, and a session plan \u2014 hex and square grids and no grid at all, drawn maps and maps built from shapes. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
     { target: '#campaignSelect', title: 'Campaigns',
       html: 'Everything belongs to a campaign. This picker switches between them; the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial.' },
@@ -405,6 +411,9 @@ var STEPS = [
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
       html: '<b>The Inn</b> runs on a <b>square grid</b>: 50 px cells over a drawn tavern whose own squares line up with them, and the tokens are square pictures that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The square at the door is a trigger zone. Pick the grid per map with the grid button \u2014 the city map above uses none at all.',
       before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
+    { target: '#whiteboardWrap', title: 'No grid at all',
+      html: '<b>Eldara</b> has no grid: an overview map where pictures, shapes and tokens sit wherever you drop them, at any size \u2014 region maps, city streets, ship decks, theatre-of-mind scenes. <b>Snap</b> still helps: in <b>Items</b> mode a dragged item glues flush to its neighbours instead of to cells. Rulers still work \u2014 set <b>Map Scale</b> in the measure options (1 cell = 100 yd, 2 km\u2026) so distances read right for the map. The tinted district shapes are linked to rooms: hover one for its card, double-click the Inn\'s to travel.',
+      before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',
       html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s own art ships with the app rather than in your saves, so it is not listed here; your pictures will be.',
       before: function() { openItem('map_tut_inn'); goView('visual'); } },

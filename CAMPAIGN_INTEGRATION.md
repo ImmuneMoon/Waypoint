@@ -19,6 +19,7 @@ Briefing for anyone (human or AI) generating campaign content for the Waypoint a
   Waypoint.exe                     launcher (starts system\Waypoint-Core.exe)
   saves/data.json                  THE ENTIRE APP STATE — this is your integration target
   saves/images/<mapId>/<file>      images placed on whiteboards
+  saves/images/tutorial/<file>     the Tutorial campaign's pictures (copied from the app's assets by the tour; app-managed, deletable in-app)
   saves/backups/                   automatic launch snapshots of data.json (newest 10) — read-only for you
   system/app/                      frontend source (index.html, style.css, scripts/*.js)
   system/resources/app/main.js     Electron shell: HTTP server on port 3000 + /api endpoints
@@ -204,6 +205,7 @@ Both canvases are 30,000 × 30,000 world units; **cluster content around the cen
 - **Viewer preferences are not in the save**: grid opacity, rulers on/off, minimap, units, and zoom all live in each user's local storage. Never write them into `data.json`.
 - **Data-map "Clear the board"** exists in-app now (rooms + links wiped with confirmation, undoable). If a manifest asks for a map to be emptied, the GM can do it in one click — you don't need to ship an empty-map merge.
 - **The Tutorial campaign (1.4.6)** — the app creates a campaign with the fixed id `camp_tutorial` (name "Tutorial") for its interactive tour, and the user may keep building on it or discard it from Help → Tutorial. Never use that id for a drop, and don't ship content into it: a "Rebuild" from the Help pane replaces the whole campaign. `wp_tourSeen`, `wp_linkType` and the blast/stance keys are viewer preferences in `saves/preferences.json`, never authored.
+- **Picture categories** live in `appState.imageCats` = `{ list: [names], by: { "/saves/images/…": [names] }, shelf: { name: true } }` (1.4.6 adds `shelf`: a category on its own shelf is left out of the library's All view). App-managed; never authored in a drop.
 - **Categories** are per-map. Reuse a consistent palette across maps for the same concepts. (1.1.1) The campaign object may carry `catLibrary: { "<libId>": { label, color } }` — the GM's saved palette, matched to map categories by label (case-insensitive). If you ship a consistent palette, also write it into `catLibrary` so the GM can add it to new maps with one click; never remove entries the GM saved.
 - **Dark theme**: play map background is near-black (#15151c). Use light stroke colors for `path` items and legible colors for shapes.
 

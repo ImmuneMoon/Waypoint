@@ -243,6 +243,25 @@ const server = http.createServer((req, res) => {
         return;
     }
     
+    if (url.pathname === '/api/delete-image' && req.method === 'POST') {
+        // Delete one picture file under saves/images (the Image Library's Delete picture). The save itself is
+        // untouched: anything still referencing the path simply shows a broken picture until re-pointed.
+        let body = '';
+        req.on('data', c => body += c.toString());
+        req.on('end', () => {
+            try {
+                const p = String((JSON.parse(body || '{}') || {}).path || '').replace(/^\/saves\//, '');
+                const segs = p.split('/').filter(Boolean);
+                const bad = segs.length < 2 || segs[0] !== 'images' || segs.some(s => s === '.' || s === '..' || s.includes('\\') || s.includes(':'));
+                if (bad) { res.writeHead(400); return res.end('{"error":"bad path"}'); }
+                const file = path.join(savesDir, ...segs);
+                if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('{"error":"no such picture"}'); }
+                fs.unlinkSync(file);
+                res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
+            } catch (e) { res.writeHead(500); res.end('{"error":"delete failed"}'); }
+        });
+        return;
+    }
     if (url.pathname === '/api/upload-exact' && req.method === 'POST') {
         // Import bundles restore images at their exact original paths so the
         // imported items' references still resolve. Restricted to images/.

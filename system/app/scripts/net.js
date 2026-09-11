@@ -246,9 +246,10 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
 // room notes / character dossier info never ship, GM-note cards never ship,
 // and hidden whiteboard items are reduced to a position-only stub.
 // Token stance from a player: a finite elevation in yards, a posture from the seven
-var POSTURE_SET = { standing: 1, crouching: 1, sitting: 1, kneeling: 1, crawling: 1, prone: 1, supine: 1 };
+var POSTURE_SET = { standing: 1, crouching: 1, sitting: 1, kneeling: 1, crawling: 1, 'lying-prone': 1, 'lying-face-up': 1 };
+var POSTURE_OLD = { prone: 'lying-prone', supine: 'lying-face-up' };   // 1.4.6 pre-release ids, still read
 function cleanElevation(v) { v = Math.round(Number(v) * 10) / 10; return isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; }
-function cleanPosture(v) { v = String(v || 'standing').toLowerCase(); return POSTURE_SET[v] ? v : 'standing'; }
+function cleanPosture(v) { v = String(v || 'standing').toLowerCase(); v = POSTURE_OLD[v] || v; return POSTURE_SET[v] ? v : 'standing'; }
 function sanitizeItem(item) {
     if (!item) return item;
     if (item.type === 'planner') return null;
@@ -580,7 +581,7 @@ function setPausedLocal(on) {
 // and again whenever the GM flips one. Clients keep them in net.stance (whiteboard.js
 // reads it ahead of their own local preference while the session runs).
 net.stance = null;
-net.stanceFlags = function() { var f = { elevation: false, posture: false }; try { f.elevation = localStorage.getItem('wp_elevation') === 'on'; f.posture = localStorage.getItem('wp_posture') === 'on'; } catch (e) {} return f; };
+net.stanceFlags = function() { var f = { elevation: true, posture: true }; try { f.elevation = localStorage.getItem('wp_elevation') !== 'off'; f.posture = localStorage.getItem('wp_posture') !== 'off'; } catch (e) {} return f; };   // on until switched off
 function cleanStance(s) { return { elevation: !!(s && s.elevation), posture: !!(s && s.posture) }; }
 net.broadcastStance = function() { if (!net.active || net.role !== 'host') return; broadcast({ type: 'stance', flags: net.stanceFlags() }, null); };
 

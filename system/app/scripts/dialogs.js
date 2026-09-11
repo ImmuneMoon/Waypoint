@@ -316,7 +316,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       updateSidebarNav(); render(); save(true);
 
-      setTimeout(function(){ document.getElementById('centerBtn').click(); }, 10);
+      setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
 
   });
 
@@ -615,7 +615,7 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
                   camp.activeItemId = this.dataset.id;
                   state.selId = null; state.selWbId = null; state.linkStart = null;
                   updateSidebarNav(); render(); save(true);
-                  setTimeout(function(){ if(document.getElementById('centerBtn')) document.getElementById('centerBtn').click(); }, 10);
+                  setTimeout(function(){ if(document.getElementById('centerBtn')) if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
               });
           });
       }
@@ -695,7 +695,7 @@ if(_el_searchMapsBtn) _el_searchMapsBtn.addEventListener('click', function() {
 
                   updateSidebarNav(); render(); save(true);
 
-                  setTimeout(function(){ document.getElementById('centerBtn').click(); }, 10);
+                  setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
 
               });
 
@@ -779,7 +779,7 @@ export {
                   state.appState.activeCampaignId = this.dataset.id;
                   state.selId = null; state.selWbId = null; state.linkStart = null;
                   updateCampaignSelect(); updateSidebarNav(); render(); save(true);
-                  setTimeout(function() { var cb = document.getElementById('centerBtn'); if (cb) cb.click(); }, 10);
+                  setTimeout(function() { if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
               });
           });
       }

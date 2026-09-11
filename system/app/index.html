@@ -209,6 +209,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <button data-help="mp-gm">&#127760; Multiplayer: Hosting</button>
                   <button data-help="mp-player">&#127918; Multiplayer: Joining</button>
                   <button data-help="keys">&#9000;&#65039; Shortcuts</button>
+                  <button data-help="roadmap">&#128301; Coming up</button>
               </div>
               <div style="flex:1; overflow-y:auto; min-width:0; padding-right:8px;">
 
@@ -427,6 +428,30 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
                       </ul>
                       <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
+                  </div>
+
+                  <div class="help-pane" data-pane="roadmap" style="display:none;">
+                      <h4>Where Waypoint is heading</h4>
+                      <p>Notes on features that are planned or partly in place, so you know what is a stopgap and what is coming. Plans change with play; this list is kept current with the app.</p>
+                      <h4>Character sheets in the app</h4>
+                      <ul>
+                          <li>Tokens already attach a <b>shadow-base.com</b> sheet (View, Export JSON, posture and elevation seeded from it). The intent is a full <b>VTT character sheet</b> for every PC and NPC inside Waypoint, so actions at the table come from the character rather than from toolbar tools.</li>
+                      </ul>
+                      <h4>Blasts thrown from the sheet</h4>
+                      <ul>
+                          <li>The toolbar <b>&#128165; Blast</b> tool is a <b>stopgap</b>. Grenades will be thrown by the character &mdash; PC or NPC &mdash; from their character sheet: the throwing token's cell and height are the origin, the weapon on the sheet gives the radius. The distance maths and the per-token labels stay as they are.</li>
+                          <li>The preset radii (Frag, Concussion, Sonic, Ion, Plasma) are <b>not permanent</b>: they will be defined <b>per campaign</b>, from that campaign's own weapons, and <b>customizable</b>.</li>
+                      </ul>
+                      <h4>Multiplayer</h4>
+                      <ul>
+                          <li>Sync currently sends a whole map item when anything in it changes. A lighter <b>per-change sync</b> is on the list so busy boards with many tokens stay snappy over the wire.</li>
+                          <li>A cross-network field test at a real table is still owed before the connection notes in <b>Multiplayer: Hosting</b> are called final.</li>
+                      </ul>
+                      <h4>Campaign content</h4>
+                      <ul>
+                          <li>Waypoint's drops come from the campaign book side. The tighter <b>book &rarr; app</b> bridge (rules that the app enforces because they are printed, such as straight-line blast distance) keeps growing as chapters settle.</li>
+                      </ul>
+                      <div class="help-tip">Something missing from this list that you need at your table? The <b>&#9432; About</b> panel has the contact address.</div>
                   </div>
 
                   <div class="help-pane" data-pane="keys" style="display:none;">

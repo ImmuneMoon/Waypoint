@@ -61,6 +61,9 @@ Tutorial
   same tab (or at the end of the tour); it can be rebuilt fresh any time.
   On a brand-new save the tour starts by itself, once; everyone else
   finds it under Help → Tutorial.
+- Help also has a Coming up tab: the intended features on record (character
+  sheets in the app, blasts thrown from the sheet with per-campaign,
+  customizable presets, lighter multiplayer sync), kept with each release.
 
 Text boxes
 - With the Text tool armed, clicking an existing text box edits it in place

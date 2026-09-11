@@ -951,6 +951,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // Shape/text placement: a shape was picked from the menu — click places it,
           // drag draws the box it should fill.
           if (e.button === 0 && wrapEl === wbWrap && window.wpPlace && !window.isDrawingMode) {
+              if (window.wpPlace.type === 'text') {
+                  // the text tool on an existing text box edits it instead of stacking a new one
+                  var tbT = wrapEl.getBoundingClientRect();
+                  var txT = (e.clientX - tbT.left + wrapEl.scrollLeft) / state.zoomLevel, tyT = (e.clientY - tbT.top + wrapEl.scrollTop) / state.zoomLevel;
+                  var amT = getActiveMap(), hitT = null, hitZ = -Infinity;
+                  ((amT && amT.whiteboard) || []).forEach(function(w) {
+                      if (w.type !== 'text' || w.locked) return;
+                      if (txT < w.x || tyT < w.y || txT > w.x + (w.w || 100) || tyT > w.y + (w.h || 40)) return;
+                      var elT = state.wbEls[w.id], zT = elT ? (parseInt(elT.style.zIndex, 10) || 0) : 0;
+                      if (zT >= hitZ) { hitZ = zT; hitT = w; }
+                  });
+                  if (hitT) {
+                      if (window.wpPlaceDisarm) window.wpPlaceDisarm();
+                      e.preventDefault();
+                      setTimeout(function() { if (window.wpEditTextBox) window.wpEditTextBox(hitT.id); }, 0);
+                      return;
+                  }
+              }
               var pb = wrapEl.getBoundingClientRect();
               var P = window.__place = {
                   on: true,

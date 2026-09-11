@@ -62,6 +62,14 @@ Tutorial
   On a brand-new save the tour starts by itself, once; everyone else
   finds it under Help → Tutorial.
 
+Text boxes
+- With the Text tool armed, clicking an existing text box edits it in place
+  (the caret lands at the end) instead of dropping a new box on top of it.
+  Double-click still works in the Select tool.
+- While a text box is being edited the caret can be placed anywhere in it,
+  including the space above and below the words, and text can be
+  highlighted; the box goes back to its centred layout when you click away.
+
 Fixes
 - Grouped items no longer drift apart when moved. On release the grid
   snap (and, on hex maps, the seating of hex items into their cell) moved

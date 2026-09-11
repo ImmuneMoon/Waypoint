@@ -54,15 +54,19 @@ function buildTutorialCampaign() {
         { id: 'tut_hoard',    name: "Wyrm's Hoard", cat: 'danger', x: 15300, y: 15100, notes: 'The wyrm sleeps on a bed of coin. Roll for stealth.', characters: [{ id: 'tut_c_wyrm', name: 'Cave Wyrm', info: 'Old, half-blind, hoards more than gold.' }] }
     ];
     cave.links = [['tut_entrance', 'tut_hoard']];
+    // Hex-cell items sit on the flat-top lattice: cell centres at x = 45q + 15, y = 52(r + q/2)
+    // (see CAMPAIGN_INTEGRATION.md); a 60×52 item's top-left is the centre minus (30, 26).
+    function hexAt(q, r, props) { return Object.assign({ x: 45 * q + 15 - 30, y: 52 * (r + q / 2) - 26, w: 60, h: 52 }, props); }
+    var q0 = 333, r0 = 124;   // the cell near (15000, 15106)
     cave.whiteboard = [
         { id: 'tut_wb_floor',  type: 'rect', x: 14790, y: 14934, w: 420, h: 312, color: '#262633', layer: 'back', nodeId: 'tut_entrance', name: 'Entrance floor' },
         { id: 'tut_wb_hoard',  type: 'rect', x: 15240, y: 14934, w: 420, h: 312, color: '#2a2230', layer: 'back', nodeId: 'tut_hoard', name: 'Hoard floor' },
         { id: 'tut_wb_label',  type: 'text', x: 14800, y: 14860, w: 360, h: 40, color: 'transparent', text: '<b>Wyrm\'s Cave</b> — drag the tokens, hover them, right-click one', fontSize: 14, layer: 'front' },
-        { id: 'tut_wb_hero',   type: 'circle', x: 14874, y: 15048, w: 60, h: 52, color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — drag me. Right-click for conditions, posture, elevation.' },
-        { id: 'tut_wb_ally',   type: 'circle', x: 14964, y: 15100, w: 60, h: 52, color: '#5cb87a', layer: 'middle', isChar: true, charName: 'Torvin', name: 'Torvin', charStats: 'A friend with a lantern.' },
-        { id: 'tut_wb_wyrm',   type: 'circle', x: 15414, y: 15100, w: 60, h: 52, color: '#d9534f', layer: 'middle', isChar: true, charName: 'Cave Wyrm', name: 'Cave Wyrm', charStats: 'Old and half-blind. Hidden from players until you reveal it.', hidden: true, posture: 'lying-prone' },
-        { id: 'tut_wb_ledge',  type: 'hexagon', x: 15144, y: 15048, w: 60, h: 52, color: '#3a3a4a', layer: 'back-mid', name: 'Ledge' },
-        { id: 'tut_wb_trap',   type: 'trigger', shape: 'hexagon', x: 15234, y: 15152, w: 60, h: 52, color: 'transparent', eventMessage: 'The floor gives way — a pit trap! The wyrm stirs.', name: 'Pit trap' }
+        hexAt(q0, r0,          { id: 'tut_wb_hero', type: 'circle', color: '#4db3d3', layer: 'middle', isChar: true, charName: 'Hero', name: 'Hero', charStats: 'Your character — drag me. Right-click for conditions, posture, elevation.' }),
+        hexAt(q0 + 2, r0,      { id: 'tut_wb_ally', type: 'circle', color: '#5cb87a', layer: 'middle', isChar: true, charName: 'Torvin', name: 'Torvin', charStats: 'A friend with a lantern.' }),
+        hexAt(q0 + 14, r0 - 7, { id: 'tut_wb_wyrm', type: 'circle', color: '#d9534f', layer: 'middle', isChar: true, charName: 'Cave Wyrm', name: 'Cave Wyrm', charStats: 'Old and half-blind. Hidden from players until you reveal it.', hidden: true, posture: 'lying-prone' }),
+        hexAt(q0 + 6, r0 - 4,  { id: 'tut_wb_ledge', type: 'hexagon', color: '#3a3a4a', layer: 'back-mid', name: 'Ledge' }),
+        hexAt(q0 + 8, r0 - 3,  { id: 'tut_wb_trap', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The floor gives way — a pit trap! The wyrm stirs.', name: 'Pit trap' })
     ];
 
     var plan = createNewPlanner('Session 1 — Into the Cave');

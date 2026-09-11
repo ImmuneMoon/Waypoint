@@ -159,6 +159,8 @@
   #edges line.edge.secret{stroke-dasharray:2 6;stroke-linecap:round;stroke:var(--link-route)}
   #edges line.edge.oneway{stroke:var(--link)}
   #edges .edge-arrow{fill:var(--link)}
+  #edges line.hit{stroke:transparent;stroke-width:18;stroke-dasharray:none;pointer-events:stroke;cursor:pointer}
+  #edges line.edge.sel{stroke:var(--gold);opacity:1;stroke-width:3.5}
   /* The chip on each link: its type glyph; click for the type menu. Faint until hovered, full in Link Mode. */
   .edge-del{
     position:absolute;transform:translate(-50%,-50%);min-width:22px;height:20px;border-radius:10px;
@@ -168,6 +170,13 @@
   }
   .edge-del:hover{opacity:1;border-color:var(--gold);color:var(--gold)}
   body.linkmode .edge-del{opacity:1;border-color:var(--blue);color:var(--ink)}
+  /* hidden until the line is hovered; a labelled or selected line keeps its chip, Link Mode shows them all */
+  body:not(.linkmode) .edge-del:not(.labelled):not(.sel):not(.near):not(:hover){opacity:0}
+  .edge-del.near{opacity:1}
+  .edge-del.labelled{opacity:.9;color:var(--ink)}
+  .edge-del.sel{opacity:1;border-color:var(--gold);color:var(--gold);box-shadow:0 0 0 2px rgba(224,165,79,.3)}
+  body.net-client .edge-del{pointer-events:none;opacity:.9}
+  body.net-client #edges line.hit{pointer-events:none}
   body.data-pan .edge-del{pointer-events:none}
 
   .room{

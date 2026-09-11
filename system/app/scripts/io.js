@@ -696,6 +696,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               e.preventDefault();
 
+          } else if (state.viewMode === 'data' && state.selLink != null && m.links && m.links[state.selLink]) {
+              m.links.splice(state.selLink, 1); state.selLink = null;
+              save(); render(); toast('Link removed.');
+              e.preventDefault();
           } else if (state.viewMode === 'data' && state.selId) {
 
               m.rooms = m.rooms.filter(x => x.id !== state.selId);

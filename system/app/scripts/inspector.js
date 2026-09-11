@@ -46,6 +46,38 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 
 
+  /* ---------- link (line) inspector ----------
+     A data-map line is links[i] = [roomA, roomB, type, { label, notes }]: the type draws the
+     line, the label rides on its chip (players see it), the notes are GM prep (never sent). */
+  function getLinkInspectorHtml(lk, i, activeMap) {
+      var T = window.wpLinkTypes || {};
+      var meta = (lk[3] && typeof lk[3] === 'object') ? lk[3] : {};
+      var ra = activeMap.rooms.find(function(x) { return x.id === lk[0]; }), rb = activeMap.rooms.find(function(x) { return x.id === lk[1]; });
+      var cur = T[lk[2]] ? (lk[2] || '') : '';
+      var html = '<h2>' + esc(meta.label || 'Link') + ' <span class="muted" style="font-weight:normal; font-size:11px;">' + (meta.label ? 'Link' : 'between two rooms') + '</span></h2>';
+      html += '<div class="field"><label>Between</label><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><b>' + esc(ra ? (ra.name || '(unnamed)') : '?') + '</b>'
+          + '<button class="tool ghost" id="lkSwap" title="Swap the two ends (the direction matters for a one-way link)" style="padding:2px 8px;">' + (cur === 'oneway' ? '&rarr;' : '&harr;') + '</button><b>' + esc(rb ? (rb.name || '(unnamed)') : '?') + '</b></div></div>';
+      html += '<div class="field"><label for="lkType">Line type</label><select id="lkType">' + Object.keys(T).map(function(t) { return '<option value="' + t + '"' + (t === cur ? ' selected' : '') + '>' + T[t].label + ' \u2014 ' + T[t].hint + '</option>'; }).join('') + '</select></div>';
+      html += '<div class="field"><label for="lkLabel">Label <span class="muted">(drawn on the line &mdash; players see it)</span></label><input type="text" id="lkLabel" maxlength="80" value="' + esc(meta.label || '') + '" placeholder="Half a day on foot, ferry, sewer grate\u2026"></div>';
+      html += '<div class="field"><label for="lkNotes">Notes <span class="muted">(GM only &mdash; never sent to players)</span></label><textarea id="lkNotes" rows="7" placeholder="What travelling this way involves: distance, danger, cost, who watches it, what it takes to find it\u2026">' + esc(meta.notes || '') + '</textarea></div>';
+      html += '<div class="muted" style="margin:-4px 0 10px;">Right-click the chip on the line for a quick type menu. <kbd>Delete</kbd> removes the selected link.</div>';
+      html += '<button id="lkRemove" class="tool ghost danger" style="width:100%;">Remove link</button>';
+      return html;
+  }
+  function attachLinkInspectorEvents(lk, i, activeMap) {
+      function meta() { if (lk[2] === undefined) lk[2] = ''; if (!lk[3] || typeof lk[3] !== 'object') lk[3] = {}; return lk[3]; }
+      function tidy() { if (lk[3] && !lk[3].label && !lk[3].notes) lk.length = 3; if (lk.length === 3 && !lk[2]) lk.length = 2; }
+      var t = document.getElementById('lkType');
+      if (t) t.addEventListener('change', function() { var v = this.value; if (v) lk[2] = v; else if (lk[3]) lk[2] = ''; else lk.length = 2; save(); render(); });
+      var l = document.getElementById('lkLabel');
+      if (l) l.addEventListener('input', function() { meta().label = this.value.slice(0, 80); tidy(); save(); renderDataMap(); });
+      var n = document.getElementById('lkNotes');
+      if (n) n.addEventListener('input', function() { meta().notes = this.value; tidy(); save(); });
+      var sw = document.getElementById('lkSwap');
+      if (sw) sw.addEventListener('click', function() { var a = lk[0]; lk[0] = lk[1]; lk[1] = a; save(); render(); });
+      var rm = document.getElementById('lkRemove');
+      if (rm) rm.addEventListener('click', function() { activeMap.links.splice(i, 1); state.selLink = null; save(); render(); import('./io.js').then(function(m) { m.toast('Link removed.'); }); });
+  }
   function getRoomInspectorHtml(r, activeMap) {
 
       activeMap = activeMap || getActiveMap();
@@ -563,6 +595,11 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
         if (!activeMap.meta) activeMap.meta = { title: 'Map' };
 
         var r = state.selId ? activeMap.rooms.find(x=>x.id===state.selId) : null;
+        var lkSel = (!r && state.selLink != null && activeMap.links && activeMap.links[state.selLink]) ? activeMap.links[state.selLink] : null;
+        if (lkSel) {
+          inspector.innerHTML = getLinkInspectorHtml(lkSel, state.selLink, activeMap);
+          attachLinkInspectorEvents(lkSel, state.selLink, activeMap);
+        } else
 
         if(r){
 

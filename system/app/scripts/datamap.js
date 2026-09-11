@@ -173,6 +173,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       
 
+      // A fat invisible twin takes the clicks: click selects the link, right-click opens the quick menu
+      var hit=document.createElementNS('http://www.w3.org/2000/svg','line');
+      hit.setAttribute('x1',cA.x);hit.setAttribute('y1',cA.y);hit.setAttribute('x2',cB.x);hit.setAttribute('y2',cB.y);
+      hit.setAttribute('class','hit');
+      hit.addEventListener('click', function(ev){ ev.stopPropagation(); selectLink(i); });
+      hit.addEventListener('contextmenu', function(ev){ ev.preventDefault(); ev.stopPropagation(); openEdgeMenu(ev, i); });
+      svg.appendChild(hit);
       var ln=document.createElementNS('http://www.w3.org/2000/svg','line');
 
       ln.setAttribute('x1',cA.x);ln.setAttribute('y1',cA.y);
@@ -180,7 +187,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       ln.setAttribute('x2',cB.x);ln.setAttribute('y2',cB.y);
 
       var lt = LINK_TYPES[lk[2]] ? (lk[2] || '') : '';
-      ln.setAttribute('class', 'edge' + (lt ? ' ' + lt : ''));
+      ln.setAttribute('class', 'edge' + (lt ? ' ' + lt : '') + (state.selLink === i ? ' sel' : ''));
       if (lt === 'oneway') {   // stop at the card's edge so the arrowhead shows
           ensureArrowMarker(svg);
           var dxA = cB.x - cA.x, dyA = cB.y - cA.y, hwA = b.offsetWidth / 2 + 4, hhA = b.offsetHeight / 2 + 4;
@@ -195,14 +202,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var del=document.createElement('div');
 
-      del.className='edge-del' + (lt ? ' t-' + lt : ''); del.textContent = LINK_TYPES[lt].glyph;
+      var lmeta = linkMeta(lk);
+      del.className='edge-del' + (lt ? ' t-' + lt : '') + (lmeta.label ? ' labelled' : '') + (state.selLink === i ? ' sel' : '');
+      del.textContent = LINK_TYPES[lt].glyph + (lmeta.label ? '\u2002' + lmeta.label : '');
 
       del.style.left=((cA.x+cB.x)/2)+'px'; del.style.top=((cA.y+cB.y)/2)+'px';
 
-      del.title = LINK_TYPES[lt].label + ' \u2014 click to change the line type or remove the link';
+      del.title = LINK_TYPES[lt].label + (lmeta.notes ? ' \u2014 ' + lmeta.notes : '') + ' \u2014 click to open in Properties, right-click for the quick menu';
 
       del.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
-      del.addEventListener('click', function(ev){ ev.stopPropagation(); openEdgeMenu(ev, i); });
+      del.addEventListener('click', function(ev){ ev.stopPropagation(); selectLink(i); });
+      del.addEventListener('contextmenu', function(ev){ ev.preventDefault(); ev.stopPropagation(); openEdgeMenu(ev, i); });
+      // the chip only shows while the line is hovered (a labelled or selected line keeps it)
+      hit.addEventListener('pointerenter', function(){ del.classList.add('near'); });
+      hit.addEventListener('pointerleave', function(){ del.classList.remove('near'); });
 
       canvas.appendChild(del);
 
@@ -312,6 +325,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (svg.querySelector('#edgeArrow')) return;
       svg.insertAdjacentHTML('afterbegin', '<defs><marker id="edgeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="edge-arrow"></path></marker></defs>');
   }
+  function linkMeta(lk) { return (lk && lk[3] && typeof lk[3] === 'object') ? lk[3] : {}; }
+  // Select a line: the Properties panel shows its type, label, notes and endpoints
+  function selectLink(i) {
+      state.selLink = i; state.selId = null; state.linkStart = null;
+      render();
+      if (window.wpSyncRightPanel) window.wpSyncRightPanel();
+  }
+  window.wpLinkTypes = LINK_TYPES;
+  window.wpSelectLink = selectLink;
   function syncLinkMenu() {
       document.querySelectorAll('#linkTypeRow .draw-style-btn').forEach(function(b) { b.classList.toggle('active', (b.dataset.type || '') === (state.linkType || '')); });
   }
@@ -868,11 +890,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     var a=state.linkStart, b=el.dataset.id; state.linkStart=null;
                     var existing = activeMap.links.findIndex(l=> (l[0]===a&&l[1]===b)||(l[0]===b&&l[1]===a));
                     if(existing>=0) { activeMap.links.splice(existing,1); import('./io.js').then(m=>m.toast('Link removed.')); }
-                    else { activeMap.links.push(state.linkType ? [a, b, state.linkType] : [a, b]); import('./io.js').then(m=>m.toast((LINK_TYPES[state.linkType || ''] || LINK_TYPES['']).label + ' link added.')); }
+                    else { activeMap.links.push(state.linkType ? [a, b, state.linkType] : [a, b]); state.selLink = activeMap.links.length - 1; if (window.wpSyncRightPanel) setTimeout(window.wpSyncRightPanel, 0); import('./io.js').then(m=>m.toast((LINK_TYPES[state.linkType || ''] || LINK_TYPES['']).label + ' link added \u2014 label it in Properties.')); }
                     render(); save();
                 }
               } else {
-                state.selId=el.dataset.id; render();
+                state.selId=el.dataset.id; state.selLink = null; render();
               }
           } else {
               // Clicked without moving in visual mode
@@ -910,7 +932,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (e.button !== 1 && e.target !== wrapEl && e.target.id !== 'canvas' && e.target.id !== 'edges' && e.target.id !== 'whiteboard') { if (!((window.isDrawingMode && wrapEl === wbWrap) || window.isPanMode)) return; }
 
-          if (wrapEl === wrap) { state.selId = null; state.linkStart = null; }
+          if (wrapEl === wrap) { state.selId = null; state.selLink = null; state.linkStart = null; }
 
           else { state.selWbId = null; state.selWbIds = []; }   // empty-board click clears a multi-selection too
 
@@ -1377,7 +1399,7 @@ if(_el_snapBtn) {
 
   function removeLinkAt(i) {
 
-      getActiveMap().links.splice(i,1); save(); render(); toast('Link removed');
+      getActiveMap().links.splice(i,1); state.selLink = null; save(); render(); toast('Link removed');
 
   }
 

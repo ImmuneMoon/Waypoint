@@ -260,6 +260,11 @@ function sanitizeItem(item) {
         delete r.handoutId;
         (r.characters || []).forEach(function(c) { delete c.info; delete c.ref; });
     });
+    // link labels are visible; link notes are GM prep
+    m.links = (m.links || []).map(function(lk) {
+        if (!(lk[3] && typeof lk[3] === 'object')) return lk;
+        var keep = lk.slice(0, 3); if (lk[3].label) keep.push({ label: lk[3].label }); return keep;
+    });
     m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor; }).map(function(w) {
         if (!w.hidden) {
             // attached character sheets are GM bookkeeping (and heavy) — never on the wire

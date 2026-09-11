@@ -3146,7 +3146,7 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
   /* Properties sidebar: closed by default, opens when something is selected (a
      room on the data map, an item on the play map) and closes again when the
      selection clears. A hand toggle (the ▶/◀ button) wins until the selection changes. */
-  window.wpSelKey = function() { return state.viewMode === 'data' ? (state.selId ? 'r:' + state.selId : '') : (state.selWbId ? 'w:' + state.selWbId : ''); };
+  window.wpSelKey = function() { return state.viewMode === 'data' ? (state.selId ? 'r:' + state.selId : (state.selLink != null ? 'l:' + state.selLink : '')) : (state.selWbId ? 'w:' + state.selWbId : ''); };
   window.wpSyncRightPanel = function() {
       var sb = document.getElementById('sidebar'), btn = document.getElementById('toggleRightBtn');
       if (!sb || !btn || btn.style.display === 'none') return;

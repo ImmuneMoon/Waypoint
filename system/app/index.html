@@ -1103,7 +1103,12 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="imgLibCats" class="journal-from-row" style="margin-bottom:8px;"></div>
         <div id="imgLibGrid" style="overflow-y:auto; flex:1;"></div>
         <div id="imgLibPreview" style="display:none;">
-            <div class="ilp-stage"><img id="imgLibPreviewImg" alt=""></div>
+            <div class="ilp-stage">
+                <button class="ilp-nav ilp-prev" id="imgLibPrevBtn" title="Previous picture (←)">&#8249;</button>
+                <img id="imgLibPreviewImg" alt="">
+                <button class="ilp-nav ilp-next" id="imgLibNextBtn" title="Next picture (→)">&#8250;</button>
+                <div class="ilp-count" id="imgLibPreviewCount"></div>
+            </div>
             <div class="ilp-side">
                 <div id="imgLibPreviewName" class="ilp-name"></div>
                 <div id="imgLibPreviewMeta" class="ilp-meta"></div>

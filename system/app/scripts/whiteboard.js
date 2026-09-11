@@ -2881,6 +2881,23 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map';
       pv.dataset.src = src;
       grid.style.display = 'none'; pv.style.display = 'flex';
+      // arrows step through the pictures in the order the grid shows them
+      var listN = imgPreviewList(), at = listN.indexOf(src);
+      var prevB = document.getElementById('imgLibPrevBtn'), nextB = document.getElementById('imgLibNextBtn'), cnt = document.getElementById('imgLibPreviewCount');
+      if (prevB) prevB.disabled = at <= 0;
+      if (nextB) nextB.disabled = at < 0 || at >= listN.length - 1;
+      if (cnt) cnt.textContent = at >= 0 ? (at + 1) + ' / ' + listN.length : '';
+  }
+  // The pictures currently in the grid (the search / category filter applied), in grid order
+  function imgPreviewList() {
+      var grid = document.getElementById('imgLibGrid'); if (!grid) return [];
+      return Array.prototype.map.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(c) { return c.dataset.src; });
+  }
+  function imgPreviewStep(dir) {
+      var pv = document.getElementById('imgLibPreview'); if (!pv || pv.style.display === 'none') return;
+      var list = imgPreviewList(), at = list.indexOf(pv.dataset.src), to = at + dir;
+      if (at < 0 || to < 0 || to >= list.length) return;
+      openImgPreview(list[to]);
   }
   function closeImgPreview() {
       var pv = document.getElementById('imgLibPreview'), grid = document.getElementById('imgLibGrid'); if (!pv || !grid) return;
@@ -2891,6 +2908,15 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   (function wireImgPreview() {
       var pv = document.getElementById('imgLibPreview'); if (!pv) return;
       document.getElementById('imgLibPreviewBack').addEventListener('click', closeImgPreview);
+      var prevB = document.getElementById('imgLibPrevBtn'), nextB = document.getElementById('imgLibNextBtn');
+      if (prevB) prevB.addEventListener('click', function() { imgPreviewStep(-1); });
+      if (nextB) nextB.addEventListener('click', function() { imgPreviewStep(1); });
+      document.addEventListener('keydown', function(e) {
+          if (pv.style.display === 'none') return;
+          if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
+          if (e.key === 'ArrowLeft') { e.preventDefault(); imgPreviewStep(-1); }
+          else if (e.key === 'ArrowRight') { e.preventDefault(); imgPreviewStep(1); }
+      });
       document.getElementById('imgLibPreviewAdd').addEventListener('click', function() {
           var src = pv.dataset.src; if (!src) return;
           if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; cb(src); return; }

@@ -18,6 +18,32 @@ import { showConfirm } from './dialogs.js';
 var TUTORIAL_VERSION = '1.4.6';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
+var TUTORIAL_ART_CAT = 'Tutorial art';
+var TUTORIAL_ART_URL = '/saves/images/tutorial/';   // the pictures the demo uses, copied from assets/tutorial into the saves folder
+var TUTORIAL_ART_FILES = ["bren_hex.png","bren_sq.jpg","chef_hex.png","chef_sq.jpg","golems_hex.png","golems_sq.jpg","innkeeper_hex.png","innkeeper_sq.jpg","king_hex.png","king_sq.jpg","liriel_hex.png","liriel_sq.jpg","map_basement.jpg","map_eldara.jpg","map_fort.jpg","map_ground.jpg","map_inn.jpg","map_top.jpg","minotaur_archer_hex.png","minotaur_archer_sq.jpg","minotaur_soldier_hex.png","minotaur_soldier_sq.jpg","orc_hex.png","orc_sq.jpg","priestess_hex.png","priestess_sq.jpg","sage_hex.png","sage_sq.jpg","scene_eldara.jpg","scene_emporium.jpg","scene_forge.jpg","scene_hideout.jpg","scene_inn.jpg","scene_temple.jpg","scene_throne.jpg","slime_hex.png","slime_sq.jpg","smith_hex.png","smith_sq.jpg","spriggan_hex.png","spriggan_sq.jpg","tharic_hex.png","tharic_sq.jpg"];
+/* The tour's pictures ship inside the app (assets/tutorial) but the demo campaign uses copies in
+   saves/images/tutorial: that way they sit in the Image Library like any other picture — tagged
+   "Tutorial art" on its own shelf (not under All) — and can be deleted, one by one or with the
+   category, when the user is done with them. Rebuilding the campaign restores any that are missing. */
+function installTutorialArt(done) {
+    fetch('/api/list-images').then(function(r) { return r.json(); }).catch(function() { return []; }).then(function(list) {
+        var have = {}; (list || []).forEach(function(i) { have[i.path] = true; });
+        var missing = TUTORIAL_ART_FILES.filter(function(f) { return !have[TUTORIAL_ART_URL + f]; });
+        var copy = function(f) {
+            return fetch('assets/tutorial/' + f).then(function(r) { return r.ok ? r.blob() : null; }).then(function(b) {
+                if (!b) return;
+                return fetch('/api/upload-exact?path=' + encodeURIComponent('images/tutorial/' + f), { method: 'POST', body: b });
+            }).catch(function() {});
+        };
+        // a few at a time keeps the shell's file API happy
+        var i = 0;
+        function next() { if (i >= missing.length) return Promise.resolve(); var batch = missing.slice(i, i + 4); i += 4; return Promise.all(batch.map(copy)).then(next); }
+        return next().then(function() {
+            if (window.wpImgCatEnsure) window.wpImgCatEnsure(TUTORIAL_ART_CAT, TUTORIAL_ART_FILES.map(function(f) { return TUTORIAL_ART_URL + f; }), true);
+            if (done) done(missing.length);
+        });
+    });
+}
 
 function render() { if (window.appRender) window.appRender(); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -25,7 +51,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function
 /* ---------- the demo campaign ---------- */
 // Ids are fixed so the tour can find its pieces and a rebuild replaces the old copy cleanly.
 function buildTutorialCampaign() {
-    var A = 'assets/tutorial/';                    // shipped with the app, so every install has it
+    var A = TUTORIAL_ART_URL;                       // copies of the shipped art in the saves folder (see installTutorialArt)
     var camp = createNewCampaign(TUTORIAL_NAME);
     camp.id = TUTORIAL_CAMP_ID;
     // Hex-cell items sit on the flat-top lattice (cell centres x = 45q + 15, y = 52(r + q/2)); the same
@@ -351,6 +377,7 @@ function ensureTutorialCampaign(rebuild) {
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+    installTutorialArt(function(copied) { camp.tutorialArt = 'installed'; save(true); if (copied) render(); });
     return camp;
 }
 
@@ -415,7 +442,7 @@ var STEPS = [
       html: '<b>Eldara</b> has no grid: an overview map where pictures, shapes and tokens sit wherever you drop them, at any size \u2014 region maps, city streets, ship decks, theatre-of-mind scenes. <b>Snap</b> still helps: in <b>Items</b> mode a dragged item glues flush to its neighbours instead of to cells. Rulers still work \u2014 set <b>Map Scale</b> in the measure options (1 cell = 100 yd, 2 km\u2026) so distances read right for the map. The tinted district shapes are linked to rooms: hover one for its card, double-click the Inn\'s to travel.',
       before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',
-      html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s own art ships with the app rather than in your saves, so it is not listed here; your pictures will be.',
+      html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Tutorial art</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
       before: function() { openItem('map_tut_inn'); goView('visual'); } },
     { target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
@@ -436,7 +463,7 @@ var STEPS = [
     { target: '#helpBtn', title: 'Help is always here',
       html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. <b>Ctrl + K</b> jumps to any map, planner or room by name.' },
     { target: null, title: 'That\'s the tour', finish: true,
-      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way.' }
+      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Tutorial art</b> until you delete them there.' }
 ];
 
 var tour = { i: -1, overlay: null, spot: null, card: null, active: false };
@@ -576,6 +603,20 @@ function saveIsFresh() {
         });
     });
 }
+// A Tutorial campaign that exists but never had its art installed (made before 1.4.6's picture
+// library changes) gets it on launch — once. Deleting the category afterwards is respected.
+(function artOnLoad() {
+    var tries = 0;
+    var t = setInterval(function() {
+        tries++;
+        var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
+        if (!loaded && tries < 40) return;
+        clearInterval(t);
+        var tc = loaded && tutorialCampaign();
+        if (!tc || tc.tutorialArt === 'installed') return;
+        installTutorialArt(function() { tc.tutorialArt = 'installed'; save(true); render(); });
+    }, 300);
+})();
 (function autoStart() {
     if (/[?&]stream=1/.test(location.search)) return;
     var seen = false; try { seen = localStorage.getItem('wp_tourSeen') === '1'; } catch (e) {}

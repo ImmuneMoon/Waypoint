@@ -31,11 +31,6 @@ Blast tool
 - Rulers: with Token elevation on, a ruler between two tokens at different
   heights prints the 3D figure as a second number.
 
-Pictures
-- Folders under saves\images whose name starts with an underscore are
-  left out of the Image Library and the handout pickers — a parking spot
-  for duplicates or retired art that you are not ready to delete.
-
 Maps
 - New Parent Map: right-click a map in the sidebar to wrap it in a new map.
   The existing map moves under the new one (taking the same place in the

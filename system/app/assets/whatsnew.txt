@@ -55,8 +55,9 @@ Tutorial
   called Tutorial to your save — an elven realm with a city (scene images,
   portraits), its inn on a square grid over a drawn tavern, a three-floor
   raiders' hideout on hex grids with stair portals and archers up at +4,
-  an old fort, and a session plan — then walks you through the app in
-  sixteen steps with a spotlight over the real controls: campaigns, the map
+  an old fort, a hill road, a throne room, a temple and a forge, a cast and
+  handouts, and a session plan — then walks you through the app in twenty
+  steps with a spotlight over the real controls: campaigns, the map
   tree, both faces of a map, linking, portals, the play map tools and
   tokens, planners, multiplayer, settings. Esc leaves it at any time. The
   Tutorial campaign is yours to keep and build on, or to discard from the

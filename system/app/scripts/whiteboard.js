@@ -2726,7 +2726,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       (_imgLibCache || []).forEach(function(im) { var ns = imgCatsOf(im.path); if (ns.length) ns.forEach(function(n) { counts[n] = (counts[n] || 0) + 1; }); else none++; });
       if (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && c.list.indexOf(_imgLibCat) < 0) _imgLibCat = '';
       var html = '<span class="journal-chip-label">Show</span>'
-          + '<button class="journal-from' + (!_imgLibCat ? ' active' : '') + '" data-cat="">All <span class="journal-count">' + (_imgLibCache || []).length + '</span></button>'
+          + '<button class="journal-from' + (!_imgLibCat ? ' active' : '') + '" data-cat="">All <span class="journal-count">' + (_imgLibCache || []).filter(function(im) { return !imgCatsOf(im.path).some(function(n) { return c.shelf[n]; }); }).length + '</span></button>'
           + '<button class="journal-from' + (_imgLibCat === '__bymap' ? ' active' : '') + '" data-cat="__bymap" title="Every picture, grouped under the map it belongs to">By map</button>'
           + c.list.map(function(n) { return '<button class="journal-from' + (_imgLibCat === n ? ' active' : '') + '" data-cat="' + esc(n) + '">' + esc(n) + ' <span class="journal-count">' + (counts[n] || 0) + '</span></button>'; }).join('')
           + '<button class="journal-from' + (_imgLibCat === '__none' ? ' active' : '') + '" data-cat="__none">No category <span class="journal-count">' + none + '</span></button>'
@@ -2854,7 +2854,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   function renderImgLib(filter) {
       var grid = document.getElementById('imgLibGrid');
       if (!grid || !_imgLibCache) return;
-      grid.dataset.cast = (!_imgLibPick && state.viewMode === 'visual') ? '1' : '';
+      // The Campaign Cast shows inside a shelf category (the tutorial's "Default") and nowhere else
+      grid.dataset.cast = (!_imgLibPick && state.viewMode === 'visual' && !!(_imgLibCat && imgCats().shelf[_imgLibCat])) ? '1' : '';
       var q = (filter || '').toLowerCase();
       var camp = getActiveCampaign();
       // players' journals live under images/journal/ — not campaign art, keep them out of the library
@@ -2869,7 +2870,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           var label = folderLabel(im.folder), cat = imgCatOf(im.path);
           var byMap = _imgLibCat === '__bymap';
           if (_imgLibCat === '__none' ? cat : (_imgLibCat && !byMap && !imgCatHas(im.path, _imgLibCat))) return;
-          if (!_imgLibCat && imgCatsOf(im.path).some(function(n) { return imgCats().shelf[n]; })) return;   // shelved categories show only under their own name
+          if ((!_imgLibCat || byMap) && imgCatsOf(im.path).some(function(n) { return imgCats().shelf[n]; })) return;   // shelved pictures show under their own category only
           if (q && im.name.toLowerCase().indexOf(q) === -1 && label.toLowerCase().indexOf(q) === -1 && (cat || '').toLowerCase().indexOf(q) === -1) return;
           var key = byMap ? label : '';
           (byFolder[key] = byFolder[key] || []).push(im);

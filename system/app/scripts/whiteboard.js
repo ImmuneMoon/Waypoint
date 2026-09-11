@@ -2700,6 +2700,14 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       (paths || []).forEach(function(p) { var a = imgCatsOf(p); if (a.indexOf(name) < 0) { a.push(name); imgCatWrite(p, a); } });
       if (shelf) c.shelf[name] = true;
   };
+  // Rename a category everywhere (list, tags, shelf); a no-op when it does not exist or the new name is taken
+  window.wpImgCatRename = function(oldName, newName) {
+      var c = imgCats(); if (c.list.indexOf(oldName) < 0 || c.list.indexOf(newName) >= 0) return false;
+      c.list[c.list.indexOf(oldName)] = newName;
+      Object.keys(c.by).forEach(function(p) { var arr = Array.isArray(c.by[p]) ? c.by[p] : [c.by[p]]; c.by[p] = arr.map(function(n) { return n === oldName ? newName : n; }); });
+      if (c.shelf[oldName]) { delete c.shelf[oldName]; c.shelf[newName] = true; }
+      return true;
+  };
   // Where a picture is used: play-map items, room scenes, portraits, handouts — across every campaign
   function imgUsage(src) {
       var n = 0, maps = {};
@@ -2716,15 +2724,14 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var row = document.getElementById('imgLibCats'); if (!row) return;
       var c = imgCats(), counts = {}, none = 0;
       (_imgLibCache || []).forEach(function(im) { var ns = imgCatsOf(im.path); if (ns.length) ns.forEach(function(n) { counts[n] = (counts[n] || 0) + 1; }); else none++; });
-      if (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && _imgLibCat !== '__cast' && c.list.indexOf(_imgLibCat) < 0) _imgLibCat = '';
+      if (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && c.list.indexOf(_imgLibCat) < 0) _imgLibCat = '';
       var html = '<span class="journal-chip-label">Show</span>'
           + '<button class="journal-from' + (!_imgLibCat ? ' active' : '') + '" data-cat="">All <span class="journal-count">' + (_imgLibCache || []).length + '</span></button>'
           + '<button class="journal-from' + (_imgLibCat === '__bymap' ? ' active' : '') + '" data-cat="__bymap" title="Every picture, grouped under the map it belongs to">By map</button>'
-          + (!_imgLibPick && state.viewMode === 'visual' ? '<button class="journal-from' + (_imgLibCat === '__cast' ? ' active' : '') + '" data-cat="__cast" title="Saved tokens for this campaign: click one to drop a copy on the play map">&#9733; Cast <span class="journal-count">' + Object.keys(castOf(getActiveCampaign() || {}) || {}).length + '</span></button>' : '')
           + c.list.map(function(n) { return '<button class="journal-from' + (_imgLibCat === n ? ' active' : '') + '" data-cat="' + esc(n) + '">' + esc(n) + ' <span class="journal-count">' + (counts[n] || 0) + '</span></button>'; }).join('')
           + '<button class="journal-from' + (_imgLibCat === '__none' ? ' active' : '') + '" data-cat="__none">No category <span class="journal-count">' + none + '</span></button>'
           + '<button class="journal-from img-cat-new" data-act="new" title="Make a category">+ New</button>'
-          + (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' && _imgLibCat !== '__cast' ? '<button class="journal-from img-cat-tool" data-act="shelf" title="Own shelf: its pictures show here only, not under All">' + (imgCats().shelf[_imgLibCat] ? 'Own shelf: on' : 'Own shelf: off') + '</button><button class="journal-from img-cat-tool" data-act="rename" title="Rename this category">Rename</button><button class="journal-from img-cat-tool danger" data-act="delete" title="Remove this category — its pictures stay, just untagged">Delete</button>' : '');
+          + (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap' ? '<button class="journal-from img-cat-tool" data-act="shelf" title="Own shelf: its pictures show here only, not under All">' + (imgCats().shelf[_imgLibCat] ? 'Own shelf: on' : 'Own shelf: off') + '</button><button class="journal-from img-cat-tool" data-act="rename" title="Rename this category">Rename</button><button class="journal-from img-cat-tool danger" data-act="delete" title="Remove this category — its pictures stay, just untagged">Delete</button>' : '');
       row.innerHTML = html;
   }
   // act: 'add' (tag with another), 'move' (drop the current view's category, tag with the chosen one), 'remove'
@@ -2847,7 +2854,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   function renderImgLib(filter) {
       var grid = document.getElementById('imgLibGrid');
       if (!grid || !_imgLibCache) return;
-      grid.dataset.cast = (!_imgLibPick && state.viewMode === 'visual' && _imgLibCat === '__cast') ? '1' : '';   // the cast has its own chip; it never rides on top of All
+      grid.dataset.cast = (!_imgLibPick && state.viewMode === 'visual') ? '1' : '';
       var q = (filter || '').toLowerCase();
       var camp = getActiveCampaign();
       // players' journals live under images/journal/ — not campaign art, keep them out of the library
@@ -2861,7 +2868,6 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       _imgLibCache.forEach(function(im) {
           var label = folderLabel(im.folder), cat = imgCatOf(im.path);
           var byMap = _imgLibCat === '__bymap';
-          if (_imgLibCat === '__cast') return;   // the Cast chip shows only the cast
           if (_imgLibCat === '__none' ? cat : (_imgLibCat && !byMap && !imgCatHas(im.path, _imgLibCat))) return;
           if (!_imgLibCat && imgCatsOf(im.path).some(function(n) { return imgCats().shelf[n]; })) return;   // shelved categories show only under their own name
           if (q && im.name.toLowerCase().indexOf(q) === -1 && label.toLowerCase().indexOf(q) === -1 && (cat || '').toLowerCase().indexOf(q) === -1) return;
@@ -2880,7 +2886,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           });
           html += '</div>';
       });
-      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + (_imgLibCat === '__cast' ? '' : _imgLibCat && _imgLibCat !== '__bymap' ? 'Nothing in this category yet — right-click a picture under All and add it here.' : 'No images match.') + '</div>';
+      grid.innerHTML = (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + (_imgLibCat && _imgLibCat !== '__bymap' ? 'Nothing in this category yet — right-click a picture under All and add it here.' : 'No images match.') + '</div>';
   }
 
   var _el_importCharBtn = document.getElementById('importCharBtn');
@@ -3930,7 +3936,7 @@ function castLibraryHtml(filter) {
     if (!list.length) return q ? '' : '<div class="img-lib-folder" style="color:var(--dim); font-size:11px;">&#9733; Campaign Cast — empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use.</div>';
     return '<div class="img-lib-folder" style="color:var(--gold);">&#9733; Campaign Cast <span style="color:var(--dim); font-weight:normal;">— click to place a copy at the centre of your view</span></div>'
         + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + '">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop five copies">&times;5</button></div>'; }).join('') + '</div>'
-        + '';
+        + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
 function viewCentre() {
     var wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;

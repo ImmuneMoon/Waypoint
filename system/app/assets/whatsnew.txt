@@ -55,7 +55,7 @@ Tutorial
   called Tutorial to your save — an elven realm with a city (scene images,
   portraits), its inn on a square grid over a drawn tavern, a three-floor
   raiders' hideout on hex grids with stair portals and archers up at +4,
-  an old fort, a hill road, a throne room, a temple and a forge, a cast and
+  an old fort, a hill road, a throne room, a temple and a forge, and
   handouts, and a session plan — then walks you through the app in twenty-one
   steps (hex, square and gridless maps included) with a spotlight over the real controls: campaigns, the map
   tree, both faces of a map, linking, portals, the play map tools and
@@ -80,7 +80,7 @@ Pictures
   1.4.6 core — older cores are walked through the installer.)
 - A category can sit on its own shelf: its pictures then show only under that
   category, not under All. The Tutorial campaign's art arrives that way, as
-  "Tutorial art", so it never crowds your own pictures; delete the pictures
+  "Default", so it never crowds your own pictures; delete the pictures
   or the category when you are done with them.
 
 Text boxes

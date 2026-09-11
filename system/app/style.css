@@ -142,7 +142,8 @@
   .tool:hover{border-color:var(--gold);color:var(--ink)}
   .tool.ghost{background:transparent}
   /* the × that closes a panel: a square with the glyph dead centre */
-  .tool.modal-close { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; font-size: 18px; border-radius: 7px; flex: 0 0 auto; }
+  .tool.modal-close { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 0; border-radius: 7px; flex: 0 0 auto; }
+  .tool.modal-close svg { display: block; }
   .tool.modal-close:hover { color: var(--gold); }
   .tool.on{background:var(--gold);color:#1a1a1a;border-color:var(--gold);font-weight:700}
   .tool.danger:hover{border-color:var(--red);color:var(--red)}

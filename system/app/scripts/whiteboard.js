@@ -3946,16 +3946,17 @@ function viewCentre() {
 }
 function castMenuHtml(camp) {
     var list = Object.values(castOf(camp)).sort(function(a, b) { return a.name.localeCompare(b.name); });
-    var html = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">Campaign Cast</div>';
-    if (!list.length) html += '<div class="menu-item" style="color:var(--dim); cursor:default; font-size:12px;">Empty — right-click a character token and choose Save to Campaign Cast.</div>';
-    list.slice(0, 14).forEach(function(c) {
-        html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" style="display:flex; align-items:center; gap:8px;">'
+    // One row; the members live in a flyout so the rest of the menu keeps its size whatever the cast holds
+    if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it">&#9733; Campaign Cast <span style="color:var(--dim); font-size:11px;">— empty</span></div>';
+    var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span>&#9733; Campaign Cast</span><span style="color:var(--dim); font-size:11px;">' + list.length + '</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
+    if (list.length > 8) html += '<input type="text" class="cm-filter" placeholder="Filter the cast\u2026">';
+    list.forEach(function(c) {
+        html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" data-name="' + esc((c.name || '').toLowerCase()) + '" style="display:flex; align-items:center; gap:8px;">'
               + (c.src ? '<img src="' + esc(c.src) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '&#9733;')
               + '<span style="flex:1;">' + esc(c.name) + '</span>'
               + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop five copies here" style="padding:1px 7px; font-size:10.5px;">&times;5</button></div>';
     });
-    if (list.length > 14) html += '<div class="menu-item" style="color:var(--dim); cursor:default; font-size:11px;">' + (list.length - 14) + ' more in Manage Cast…</div>';
-    html += '<div class="menu-item cm-session" data-act="cast-manage">&#9998; Manage Cast…</div>';
+    html += '<div class="menu-divider"></div><div class="menu-item cm-session" data-act="cast-manage">&#9998; Manage Cast…</div></div></div>';
     return html;
 }
 /* ---------- combat: roster panel (GM) and the turn strip (everyone) ---------- */
@@ -4170,6 +4171,28 @@ function tableMenuParts(e, role) {
         }
     }
     function wire(cMenu) {
+        // The cast flyout: opens on hover or click, flips to the left / slides up when it would leave the window
+        Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-cast-open'), function(row) {
+            var sub = row.querySelector('.cm-sub');
+            function fit() {
+                if (!sub) return;
+                sub.classList.remove('flip'); sub.style.top = '';
+                var r = sub.getBoundingClientRect();
+                if (r.right > window.innerWidth - 6) sub.classList.add('flip');
+                if (r.bottom > window.innerHeight - 6) sub.style.top = (-(r.bottom - window.innerHeight + 8)) + 'px';
+            }
+            row.addEventListener('mouseenter', fit);
+            row.addEventListener('click', function(ce) { ce.stopPropagation(); row.classList.toggle('open'); fit(); });
+            var filter = row.querySelector('.cm-filter');
+            if (filter) {
+                filter.addEventListener('click', function(ce) { ce.stopPropagation(); });
+                filter.addEventListener('keydown', function(ce) { ce.stopPropagation(); });
+                filter.addEventListener('input', function() {
+                    var q = filter.value.trim().toLowerCase();
+                    Array.prototype.forEach.call(sub.querySelectorAll('.cm-cast-row'), function(r2) { r2.style.display = (!q || (r2.dataset.name || '').indexOf(q) >= 0) ? '' : 'none'; });
+                });
+            }
+        });
         Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-cast-five'), function(b5) {
             b5.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; castPlace(b5.dataset.cid, pt.x, pt.y, 5); });
         });

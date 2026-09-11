@@ -2939,6 +2939,9 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   if (_el_imgLibSearch) _el_imgLibSearch.addEventListener('input', function() { renderImgLib(this.value); });
 
   var _el_imgLibGrid = document.getElementById('imgLibGrid');
+  // The copies box beside the Campaign Cast heading
+  if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('input', function(e) { var b = e.target.closest('.cast-batch'); if (b && b.value >= 1 && b.value <= 50) setCastBatch(b.value); });
+  if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('change', function(e) { var b = e.target.closest('.cast-batch'); if (b) b.value = setCastBatch(b.value); });
 
   if (_el_imgLibGrid) _el_imgLibGrid.addEventListener('click', function(e) {
       var cell = e.target.closest('.img-lib-cell');
@@ -2948,7 +2951,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           var amC = getActiveMap();
           if (!amC || amC.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
           var ctr = viewCentre();
-          castPlace(cell.dataset.cid, ctr.x, ctr.y, five ? 5 : 1);
+          castPlace(cell.dataset.cid, ctr.x, ctr.y, five ? castBatch() : 1);
           document.getElementById('imgLibModal').style.display = 'none';
           return;
       }
@@ -3935,8 +3938,8 @@ function castLibraryHtml(filter) {
     var q = (filter || '').toLowerCase();
     var list = Object.values(castOf(camp)).filter(function(c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
     if (!list.length) return q ? '' : '<div class="img-lib-folder" style="color:var(--dim); font-size:11px;">&#9733; Campaign Cast — empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use.</div>';
-    return '<div class="img-lib-folder" style="color:var(--gold);">&#9733; Campaign Cast <span style="color:var(--dim); font-weight:normal;">— click to place a copy at the centre of your view</span></div>'
-        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + '">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop five copies">&times;5</button></div>'; }).join('') + '</div>'
+    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><label class="cast-batch-wrap" title="How many copies the \u00d7 button on a cell drops (1\u201350)">Copies <input type="number" class="cast-batch" min="1" max="50" value="' + castBatch() + '"></label><span style="color:var(--dim); font-weight:normal;">\u2014 click a face to place one at the centre of your view, its \u00d7 button for the batch</span></div>'
+        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + '">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
         + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
 function viewCentre() {
@@ -3944,17 +3947,26 @@ function viewCentre() {
     if (!wrap) return { x: 15000, y: 15000 };
     return { x: (wrap.scrollLeft + wrap.clientWidth / 2) / z, y: (wrap.scrollTop + wrap.clientHeight / 2) / z };
 }
+// How many copies the ×N buttons drop (cast flyout and the library's cast cells); remembered per install
+function castBatch() { var n = 1; try { n = parseInt(localStorage.getItem('wp_castBatch') || '1', 10); } catch (e) {} return (n >= 1 && n <= 50) ? n : 1; }
+function setCastBatch(v) {
+    var n = parseInt(v, 10); if (!(n >= 1 && n <= 50)) return castBatch();
+    try { localStorage.setItem('wp_castBatch', String(n)); } catch (e) {}
+    Array.prototype.forEach.call(document.querySelectorAll('.cm-cast-five, .cast-cell-five'), function(b) { b.textContent = '\u00d7' + n; b.title = 'Drop ' + n + ' copies' + (b.classList.contains('cm-cast-five') ? ' here' : ''); });
+    return n;
+}
 function castMenuHtml(camp) {
     var list = Object.values(castOf(camp)).sort(function(a, b) { return a.name.localeCompare(b.name); });
     // One row; the members live in a flyout so the rest of the menu keeps its size whatever the cast holds
     if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it">&#9733; Campaign Cast <span style="color:var(--dim); font-size:11px;">— empty</span></div>';
     var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span>&#9733; Campaign Cast</span><span style="color:var(--dim); font-size:11px;">' + list.length + '</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
-    if (list.length > 8) html += '<input type="text" class="cm-filter" placeholder="Filter the cast\u2026">';
+    html += '<div class="cm-sub-head">' + (list.length > 8 ? '<input type="text" class="cm-filter" placeholder="Filter the cast\u2026">' : '<span style="flex:1; color:var(--dim); font-size:11px;">One copy per click</span>')
+          + '<label class="cm-batch-wrap" title="How many copies the \u00d7 button drops (1\u201350)">\u00d7<input type="number" class="cm-batch" min="1" max="50" value="' + castBatch() + '"></label></div>';
     list.forEach(function(c) {
         html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" data-name="' + esc((c.name || '').toLowerCase()) + '" style="display:flex; align-items:center; gap:8px;">'
               + (c.src ? '<img src="' + esc(c.src) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '&#9733;')
               + '<span style="flex:1;">' + esc(c.name) + '</span>'
-              + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop five copies here" style="padding:1px 7px; font-size:10.5px;">&times;5</button></div>';
+              + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies here" style="padding:1px 7px; font-size:10.5px;">&times;' + castBatch() + '</button></div>';
     });
     html += '<div class="menu-divider"></div><div class="menu-item cm-session" data-act="cast-manage">&#9998; Manage Cast…</div></div></div>';
     return html;
@@ -4192,9 +4204,17 @@ function tableMenuParts(e, role) {
                     Array.prototype.forEach.call(sub.querySelectorAll('.cm-cast-row'), function(r2) { r2.style.display = (!q || (r2.dataset.name || '').indexOf(q) >= 0) ? '' : 'none'; });
                 });
             }
+            var headEl = row.querySelector('.cm-sub-head');
+            if (headEl) headEl.addEventListener('click', function(ce) { ce.stopPropagation(); });
+            var batch = row.querySelector('.cm-batch');
+            if (batch) {
+                batch.addEventListener('keydown', function(ce) { ce.stopPropagation(); });
+                batch.addEventListener('input', function() { if (batch.value >= 1 && batch.value <= 50) setCastBatch(batch.value); });
+                batch.addEventListener('change', function() { batch.value = setCastBatch(batch.value); });
+            }
         });
         Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-cast-five'), function(b5) {
-            b5.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; castPlace(b5.dataset.cid, pt.x, pt.y, 5); });
+            b5.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; castPlace(b5.dataset.cid, pt.x, pt.y, castBatch()); });
         });
         Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-session'), function(it) {
             it.addEventListener('click', function(ce) {

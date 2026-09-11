@@ -241,7 +241,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
 
-                      el.contentEditable = "true";
+                      el.contentEditable = "true"; el.classList.add('editing');
 
                       el.style.cursor = 'text';
 
@@ -251,7 +251,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   el.addEventListener('blur', function(e) {
 
-                      el.contentEditable = "false";
+                      el.contentEditable = "false"; el.classList.remove('editing');
 
                       el.style.cursor = 'grab';
 
@@ -3419,7 +3419,7 @@ function armPlacement(type, props, label) {
     document.body.classList.add('placing');
     // The tool that armed placement stays lit until the shape lands or Esc
     ['shapeTextBtn', 'shapeMenuBtn'].forEach(function(id) { var b = document.getElementById(id); if (b) b.classList.toggle('active', id === (type === 'text' ? 'shapeTextBtn' : 'shapeMenuBtn')); });
-    toast('Click the board to place the ' + label + ', or drag to size it. Esc cancels.');
+    toast(type === 'text' ? 'Click the board to place a text box (drag to size it), or click an existing text box to edit it. Esc cancels.' : 'Click the board to place the ' + label + ', or drag to size it. Esc cancels.');
 }
 function disarmPlacement() {
     window.wpPlace = null;
@@ -3447,6 +3447,16 @@ document.querySelectorAll('.shape-size-btn').forEach(function(b) {
 });
 syncShapeSizeButtons();
 
+// The text tool on an existing text box edits it in place (datamap.js hit-tests the click)
+window.wpPlaceDisarm = disarmPlacement;
+window.wpEditTextBox = function(id) {
+    if (!state.wbEls[id]) return false;
+    state.selWbId = id; state.selWbIds = [id]; render();
+    var el = state.wbEls[id]; if (!el) return false;
+    el.contentEditable = 'true'; el.classList.add('editing'); el.style.cursor = 'text'; el.focus();
+    try { var rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); } catch (e) {}   // caret at the end
+    return true;
+};
 window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var P = window.wpPlace;
     disarmPlacement();

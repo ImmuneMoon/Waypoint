@@ -65,6 +65,10 @@ Tutorial
   sheets in the app, blasts thrown from the sheet with per-campaign,
   customizable presets, lighter multiplayer sync), kept with each release.
 
+Play map
+- Hovering an item that is linked to a room now shows the room's notes on the
+  card as well (for the GM only; players still never receive notes).
+
 Text boxes
 - With the Text tool armed, clicking an existing text box edits it in place
   (the caret lands at the end) instead of dropping a new box on top of it.

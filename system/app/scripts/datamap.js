@@ -834,18 +834,27 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         try{el.releasePointerCapture(e.pointerId);}catch(_){}
         if(moved){
           if(state.snap && modeStr === 'data'){
-              var sn = getSnapCoords(item.x, item.y); item.x=sn.x; item.y=sn.y;
-              el.style.left=item.x+'px'; el.style.top=item.y+'px';
+              // snap the dragged room, and carry every other dragged room by the same amount
+              var snD = getSnapCoords(item.x, item.y), sdxD = snD.x - item.x, sdyD = snD.y - item.y;
+              multiDrag.forEach(function(md) { md.item.x += sdxD; md.item.y += sdyD; var melD = md.el || state.els[md.item.id]; if (melD) { melD.style.left = md.item.x + 'px'; melD.style.top = md.item.y + 'px'; } });
               renderDataMap();
           }
-          if (modeStr === 'visual' && state.gridType === 'hex' && (item.type === 'hexagon' || item.shape === 'hexagon' || item.isChar)) {
+          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.isChar || md.item.type === 'hexagon' || md.item.shape === 'hexagon'; })) {
               // Hex-shaped items and character tokens ALWAYS seat into a cell on hex
               // maps — every one in the drag, not just the one under the pointer.
+              // One hex item in the drag is the reference (the one under the pointer if it is one, else the
+              // first): it seats into its cell, every non-hex member (a text box grouped with a teleport
+              // point, a floor, a prop) follows by the same correction, and the other hex items seat
+              // into their own cells. The group never loosens, whichever member was dragged.
+              var isHexy = function(it) { return it.isChar || it.type === 'hexagon' || it.shape === 'hexagon'; };
+              var refMd = multiDrag.find(function(md) { return md.item === item && isHexy(item); }) || multiDrag.find(function(md) { return isHexy(md.item); });
+              var seatBefore = { x: refMd.item.x, y: refMd.item.y };
+              window.wpSeatHex(refMd.item);
+              var seatDx = refMd.item.x - seatBefore.x, seatDy = refMd.item.y - seatBefore.y;
               multiDrag.forEach(function(md) {
-                  if (window.wpSeatHex(md.item) || md.item === item) {
-                      var mel = md.el || state.wbEls[md.item.id];
-                      if (mel) { mel.style.left = md.item.x + 'px'; mel.style.top = md.item.y + 'px'; }
-                  }
+                  if (md !== refMd) { if (isHexy(md.item)) window.wpSeatHex(md.item); else { md.item.x += seatDx; md.item.y += seatDy; } }
+                  var mel = md.el || state.wbEls[md.item.id];
+                  if (mel) { mel.style.left = md.item.x + 'px'; mel.style.top = md.item.y + 'px'; }
                   if (md.item !== item && modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(md.item, true);
               });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
@@ -854,8 +863,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               // neighbor mid-drag keeps its flush/aligned position on release.
               var glued = doSmartSnapping.last || {};
               var sn = getSnapCoords(item.x, item.y);
-              if (!glued.x) item.x = sn.x;
-              if (!glued.y) item.y = sn.y;
+              // the same correction for every item in the drag: a group never loosens on release
+              var sdx = glued.x ? 0 : sn.x - item.x, sdy = glued.y ? 0 : sn.y - item.y;
+              multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           }
           if(modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true); // final, post-snap position

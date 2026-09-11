@@ -2809,8 +2809,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                   cc.list = cc.list.filter(function(x) { return x !== del; }); delete cc.shelf[del];
                   Object.keys(cc.by).forEach(function(p) { imgCatWrite(p, imgCatsOf(p).filter(function(x) { return x !== del; })); });
                   _imgLibCat = ''; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
-                  // A shelf category is usually a set that arrived together (the tutorial's art): offer to remove the files too
-                  if (wasShelf && members.length) {
+                  // Offer to remove the pictures' files as well (the category itself is only a tag)
+                  if (members.length) {
                       var used = members.filter(function(p) { return imgUsage(p).count > 0; }).length;
                       showConfirm('Also delete the ' + members.length + ' picture file' + (members.length === 1 ? '' : 's') + ' that were in "' + del + '" from your saves folder? This cannot be undone.' + (used ? '\n\n' + used + ' of them ' + (used === 1 ? 'is' : 'are') + ' still used on a map or in a handout and would show as broken pictures there.' : '\n\nNone of them is used anywhere.'), function(yesFiles) {
                           if (!yesFiles) return;

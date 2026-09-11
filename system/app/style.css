@@ -966,6 +966,7 @@
   .journal-sent:empty { display: none; }
   .journal-sentrow { border-style: dashed; }
   .journal-from-row { display: flex; gap: 4px; flex-wrap: wrap; margin: -2px 0 8px; align-items: center; }
+  #imgLibCats .img-cat-tools { flex-basis: 100%; display: flex; gap: 4px; align-items: center; margin-top: 2px; }
   .journal-chip-label { color: var(--dim); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; margin-right: 4px; }
   .journal-clear { margin-left: auto; padding: 1px 9px; font-size: 11px; }
   .journal-from { background: transparent; color: var(--dim); border: 1px solid var(--edge); border-radius: 12px; padding: 1px 9px; font-size: 11px; cursor: pointer; font-family: inherit; }

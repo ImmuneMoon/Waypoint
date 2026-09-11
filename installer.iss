@@ -38,7 +38,7 @@ CloseApplications=no
 [Files]
 ; Everything except: build/dev files, the user's own saves and campaign notes,
 ; per-install settings (system\userdata), logs, and scratch.
-Source: "*"; DestDir: "{app}"; Excludes: "installer.iss,system\Dark Logo.ico,system\Globe Logo.ico,system\Temp-icon.ico,system\fcw_icon.ico,system\nucleus_icon.ico,Waypoint_Setup.exe,Waypoint.lnk,CAMPAIGN_INTEGRATION.md,log.txt,*.zip,*.sha256,manifest.json,RELEASE_NOTES.md,READ ME FIRST*,saves,saves\*,system\userdata,system\userdata\*,system\app.prev,system\app.prev\*,system\app.new,system\app.new\*,scratch,scratch\*,dist,dist\*,tools,tools\*,dev-saves,dev-saves\*,.git,.git\*,.gitignore"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; DestDir: "{app}"; Excludes: "installer.iss,Not used,Not used\*,system\Dark Logo.ico,system\Globe Logo.ico,system\Temp-icon.ico,system\fcw_icon.ico,system\nucleus_icon.ico,Waypoint_Setup.exe,Waypoint.lnk,CAMPAIGN_INTEGRATION.md,log.txt,*.zip,*.sha256,manifest.json,RELEASE_NOTES.md,READ ME FIRST*,saves,saves\*,system\userdata,system\userdata\*,system\app.prev,system\app.prev\*,system\app.new,system\app.new\*,scratch,scratch\*,dist,dist\*,tools,tools\*,dev-saves,dev-saves\*,.git,.git\*,.gitignore"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\Waypoint"; Filename: "{app}\Waypoint.exe"; Tasks: startmenuicon

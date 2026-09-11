@@ -18,6 +18,7 @@ Waypoint_Setup.exe
 *.zip
 
 # --- local clutter ---
+Not used/
 scratch/
 log.txt
 Waypoint.lnk

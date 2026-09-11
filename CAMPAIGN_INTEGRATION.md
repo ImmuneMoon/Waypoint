@@ -84,7 +84,8 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
     "surface": { "label": "Surface · Public", "color": "#e0a54f" }
   },
   "rooms": [ /* data-map nodes, below */ ],
-  "links": [ ["roomIdA","roomIdB"], ["roomIdC","roomIdD","route"] ],  // 3rd element = line type (1.4.6): omitted = solid path, "route" = dashed, "secret" = dotted, "oneway" = arrow from the first room to the second
+  "links": [ ["roomIdA","roomIdB"], ["roomIdC","roomIdD","route"],   // 3rd element = line type (1.4.6): omitted/"" = solid path, "route" = dashed, "secret" = dotted, "oneway" = arrow from the first room to the second
+             ["roomIdA","roomIdD","secret",{"label":"Sewer grate","notes":"GM only"}] ],  // optional 4th element (1.4.6): label is drawn on the line and SENT to players; notes are GM prep, never sent. Keep the 3rd element ("" for a plain path) whenever the 4th is present
   "whiteboard": [ /* whiteboard items, below */ ]
 }
 ```

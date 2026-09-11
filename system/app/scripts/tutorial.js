@@ -42,7 +42,12 @@ function buildTutorialCampaign() {
         { id: 'tut_woods',    name: 'Blackpine Woods', cat: 'wild', x: 15520, y: 15200, notes: 'Dark, quiet, and full of shortcuts only the locals know.', characters: [{ id: 'tut_c_hermit', name: 'Hermit Pell', info: 'Knows the hidden path to the cave.' }] },
         { id: 'tut_cave',     name: "Wyrm's Cave", cat: 'danger', x: 15520, y: 15400, notes: 'Double-click this node to travel into the cave map. The dotted line into it is a secret path.', characters: [], targetMapId: 'map_tut_cave', icon: 'Cave' }
     ];
-    valley.links = [['tut_millbrook', 'tut_oldroad'], ['tut_oldroad', 'tut_woods', 'route'], ['tut_woods', 'tut_cave', 'secret'], ['tut_millbrook', 'tut_woods', 'oneway']];
+    valley.links = [
+        ['tut_millbrook', 'tut_oldroad', '', { label: 'Half a day on foot', notes: 'Safe by day. At night the raiders watch the ford.' }],
+        ['tut_oldroad', 'tut_woods', 'route', { label: 'Cart track', notes: 'A route, not a doorway: travel takes time. Random encounter on a 1.' }],
+        ['tut_woods', 'tut_cave', 'secret', { label: "Pell's path", notes: 'Only Hermit Pell knows it. Survival DC 15 to find it without him.' }],
+        ['tut_millbrook', 'tut_woods', 'oneway', { label: 'Downstream ferry', notes: 'The ferry only runs downstream; the way back is the Old Road.' }]
+    ];
 
     var cave = createNewMap("Wyrm's Cave");
     cave.id = 'map_tut_cave';
@@ -145,7 +150,7 @@ var STEPS = [
       html: 'The <b>Data Map</b> is the node view for your notes and connections; the <b>Play Map</b> is the battle map with tokens. This switch flips between them, and each map remembers which face you left it on.',
       before: function() { openItem('map_tut_valley'); goView('data'); } },
     { target: '#dataFloatingToolbar', title: 'Data map tools',
-      html: '<b>Add Room</b> drops a node. <b>↔ Link Mode</b> connects two rooms — pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Click the small chip on any line to change its type or remove it. The valley already shows one of each.' },
+      html: '<b>Add Room</b> drops a node. <b>↔ Link Mode</b> connects two rooms — pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Click a line or its chip to open it in <b>Properties</b>: a label that is drawn on the line (players see it), GM-only notes about the journey, the type, the direction, and Remove. The valley\'s lines are already labelled.' },
     { target: '#canvasWrap', title: 'Rooms and portals',
       html: 'Drag rooms around; click one to edit it on the right. <b>Wyrm\'s Cave</b> carries a cave icon because it is a <b>portal</b>: double-click it to travel into the cave map, and use the breadcrumb at the top to climb back out. In multiplayer, players travel by dropping their token on a portal.',
       before: function() { openItem('map_tut_valley'); goView('data'); } },

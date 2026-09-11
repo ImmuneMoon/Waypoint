@@ -44,6 +44,11 @@ Data maps
   carries a small chip at its middle: click it, in any tool, to change the
   line type or remove the link. Done linking (or the Select tool) leaves
   Link Mode.
+- Lines have Properties. Click a line (or its chip) and the right panel
+  shows its type, a label that is drawn on the line for everyone to see,
+  GM-only notes about the route, a swap for its direction, and Remove.
+  Delete removes the selected link. Right-click the chip for the quick
+  type menu.
 
 Tutorial
 - Help now has a Tutorial tab. Start it and Waypoint adds a small campaign

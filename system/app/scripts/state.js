@@ -24,6 +24,7 @@ export const state = {
 
     selWbId: null,
     selWbIds: [],
+    selLink: null,     // index into the active map's links when a data-map line is selected
     drawColor: '#e9e9f0',
     drawStrokeWidth: 3,
     drawStraight: false,

@@ -1,6 +1,34 @@
 WAYPOINT 1.4.7 — What's New
 ============================
 
+Sidebar
+- Drag a map or planner in the sidebar to re-order it. Drop on the top or
+  bottom third of another row to land above or below it (a gold line shows
+  where it will land); the middle third still nests, as before. Nested
+  maps or planners come along with the row that moved and the order is
+  saved with the campaign.
+
+Text boxes
+- The Properties panel of a selected text box has a Content editor with the
+  same toolbar the planner's text blocks use: bold, italic, underline,
+  strikethrough, bulleted and numbered lists, clear-format, and the symbol
+  tray (arrows, dashes, checks, quotes). Edits show on the canvas as you
+  type. Double-clicking the box on the canvas still edits it directly.
+- The Alignment field is now Text Alignment, laid out as a two-row grid
+  with Horizontal and Vertical sub-captions so the buttons line up and
+  each row's purpose reads at a glance.
+
+Fixes
+- Editing a text box on the canvas after the Properties panel was open no
+  longer risks the next keystroke in the Content editor overwriting the
+  fresh words: the editor refreshes from the box when focus enters it.
+- The Content editor flushes to disk immediately on blur, so a crash or a
+  window close within a fraction of a second of leaving the field cannot
+  drop the edit.
+
+WAYPOINT 1.4.6 — What's New
+============================
+
 Tokens
 - Elevation and posture. Two new switches in Settings → Table give every
   character token a height in yards (a ledge at +3, a catwalk at +5, a pit
@@ -97,7 +125,7 @@ Pictures
   move together, or tags the whole set with a category in one go.
 - Delete a picture from the Image Library: open its preview and press Delete
   picture. Waypoint says where it is still used before it asks. (Needs the
-  1.4.7 core — older cores are walked through the installer.)
+  1.4.6 core — older cores are walked through the installer.)
 - A category can sit on its own shelf: its pictures then show only under that
   category, not under All. The Tutorial campaign's art arrives that way, as
   "Default", so it never crowds your own pictures; delete the pictures

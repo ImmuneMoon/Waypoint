@@ -462,7 +462,7 @@ var STEPS = [
     { target: '#settingsBtn', title: 'Settings',
       html: 'Your name and table picture, light or dark theme, measurement units, the minimap and rulers, the <b>Token elevation</b> and <b>Token posture</b> switches, journal options and updates. Table settings travel with your saves folder.' },
     { target: '#helpBtn', title: 'Help is always here',
-      html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. <b>Ctrl + K</b> jumps to any map, planner or room by name.' },
+      html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.' },
     { target: null, title: 'That\'s the tour', finish: true,
       html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Default</b> until you delete them there.' }
 ];

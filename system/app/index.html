@@ -198,6 +198,7 @@ window.addEventListener('unhandledrejection', function(e) {
   <div id="helpModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
       <div style="background:var(--bg2); padding:24px; border:1px solid var(--gold); border-radius:8px; width: 780px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
           <h2 style="margin-top:0; margin-bottom:14px; color:var(--gold); display:flex; justify-content:space-between;">Help & Tutorials <button id="helpCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h2>
+          <div style="margin-bottom:12px;"><input id="helpSearch" type="search" autocomplete="off" spellcheck="false" placeholder="Search all help topics…" aria-label="Search help topics"></div>
           <div style="display:flex; gap:16px; flex:1; min-height:0;">
               <div id="helpNav">
                   <button data-help="start" class="active">&#128640; Getting Started</button>
@@ -213,10 +214,11 @@ window.addEventListener('unhandledrejection', function(e) {
               </div>
               <div style="flex:1; overflow-y:auto; min-width:0; padding-right:8px;">
 
+                  <div id="helpSearchResults" style="display:none;"></div>
                   <div class="help-pane" data-pane="start">
                       <h4>What Waypoint is</h4>
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> (locations with two faces: a node-based <b>Data Map</b> for your notes and a freeform <b>Play Map</b> for the battle map) and <b>Planners</b> (document pages for session plans). Everything lives in the left sidebar.</p>
-                      <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign that you can keep and build on.</p>
+                      <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign that you can keep and build on &mdash; or type in the <b>search box</b> above to jump straight to any topic.</p>
                       <h4>Your first map</h4>
                       <ol>
                           <li>Press <b>+</b> next to <b>Maps</b> in the left sidebar and name it.</li>

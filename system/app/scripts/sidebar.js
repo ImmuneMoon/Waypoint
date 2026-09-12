@@ -31,7 +31,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapChildren, getMapAncestors, isMapDescendantOf, findLandingRoom, landingPoint } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapParentId, getMapChildren, getMapAncestors, isMapDescendantOf, findLandingRoom, landingPoint } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
 
@@ -83,7 +83,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!it || !target || it === target) return;
       if (it.type !== target.type) { toast('Maps re-order among maps, planners among planners.'); return; }
       if (isMapDescendantOf(camp, targetId, dragId)) { toast("An item can't be moved into its own child."); return; }
-      var parentId = (target.meta && target.meta.parentId) || null;
+      var parentId = getMapParentId(camp, target);   // normalized: matches how getMapChildren groups, so a dangling/cross-type raw parentId on the neighbor can't desync the two
       it.meta.parentId = parentId;
       var sibs = getMapChildren(camp, parentId, it.type).filter(function(x) { return x !== it; });
       var at = sibs.indexOf(target);
@@ -92,6 +92,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       sibs.splice(insertAt, 0, it);
       sibs.forEach(function(s, i) { s.meta.sortIndex = (i + 1) * 10; });
       save(true); updateSidebarNav();
+  }
+
+  // Move a map or planner one slot up (dir -1) or down (dir +1) among its same-type siblings.
+  // Reuses reorderMap, so the whole nest under the moved row travels with it and the order is saved.
+  function moveItem(id, dir) {
+      var camp = getActiveCampaign(); if (!camp) return;
+      var it = camp.items[id]; if (!it || (it.type !== 'map' && it.type !== 'planner')) return;
+      var sibs = getMapChildren(camp, getMapParentId(camp, it), it.type);
+      var at = sibs.indexOf(it); if (at < 0) return;
+      var swap = sibs[at + dir];
+      if (!swap) { toast(dir < 0 ? 'Already at the top.' : 'Already at the bottom.'); return; }
+      reorderMap(id, swap.id, dir < 0 ? 'before' : 'after');
   }
 
   function reparentMap(id, newParentId) {
@@ -215,6 +227,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (one) one.addEventListener('click', function() { go(false); });
       if (nest) nest.addEventListener('click', function() { go(true, true); });
       if (unnest) unnest.addEventListener('click', function() { go(true, false); });
+  })();
+  // Right-click → Move Up / Move Down. Wired once to the static menu items; the open handler
+  // in updateSidebarNav decides which are shown and greys out the ends of a list.
+  (function wireMoveMenu() {
+      var up = document.getElementById('ctxMoveUp'), down = document.getElementById('ctxMoveDown'), menu = document.getElementById('sidebarContextMenu');
+      function go(dir) {
+          return function() {
+              if (!menu) return;
+              menu.style.display = 'none';   // close on any click, like every other menu item
+              if (this.classList.contains('disabled')) return;   // greyed at the end of a list: no-op
+              moveItem(menu.dataset.id, dir);
+          };
+      }
+      if (up) up.addEventListener('click', go(-1));
+      if (down) down.addEventListener('click', go(1));
   })();
   function updateSidebarNav() {
 
@@ -350,6 +377,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 if (childBtn) {
                     childBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';
                     if (it) childBtn.textContent = it.type === 'planner' ? '+ New Child Planner' : '+ New Child Map';
+                }
+                // Move Up / Move Down: shown for any map or planner, greyed at the ends of its sibling list.
+                var isOrderable = !!(it && (it.type === 'map' || it.type === 'planner'));
+                var moveUp = document.getElementById('ctxMoveUp'), moveDown = document.getElementById('ctxMoveDown');
+                if (moveUp && moveDown) {
+                    moveUp.style.display = moveDown.style.display = isOrderable ? 'block' : 'none';
+                    if (isOrderable) {
+                        var sibsCtx = getMapChildren(activeC, getMapParentId(activeC, it), it.type);
+                        var atCtx = sibsCtx.indexOf(it);
+                        moveUp.classList.toggle('disabled', atCtx <= 0);
+                        moveDown.classList.toggle('disabled', atCtx < 0 || atCtx >= sibsCtx.length - 1);
+                    }
                 }
                 var parentBtn = document.getElementById('ctxNewParentItem');
                 if (parentBtn) {

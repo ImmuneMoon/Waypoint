@@ -1138,6 +1138,8 @@
       color: var(--ink);
   }
   
+  #sidebarContextMenu .menu-item.disabled { opacity: 0.4; cursor: default !important; }
+  #sidebarContextMenu .menu-item.disabled:hover { background: transparent; }
   #sidebarContextMenu .menu-item.danger:hover {
       background: var(--red);
       color: #fff !important;

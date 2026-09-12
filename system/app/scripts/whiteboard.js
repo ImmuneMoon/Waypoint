@@ -3460,6 +3460,8 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
   window.wpOpenHelp = function(pane, anchorId) {
       var modal = document.getElementById('helpModal'); if (!modal) return;
       modal.style.display = 'flex';
+      var _hs = document.getElementById('helpSearch'), _hr = document.getElementById('helpSearchResults');
+      if (_hs) _hs.value = ''; if (_hr) { _hr.style.display = 'none'; _hr.innerHTML = ''; }
       var nav = document.getElementById('helpNav');
       if (nav) nav.querySelectorAll('[data-help]').forEach(function(b) { b.classList.toggle('active', b.dataset.help === pane); });
       document.querySelectorAll('#helpModal .help-pane').forEach(function(p) { p.style.display = (p.dataset.pane === pane) ? 'block' : 'none'; });
@@ -3476,6 +3478,108 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           p.style.display = (p.dataset.pane === btn.dataset.help) ? 'block' : 'none';
       });
   });
+
+  // Smart search across every Help pane: type to get ranked matches, click one (or Enter) to jump to it.
+  (function wireHelpSearch() {
+      var input = document.getElementById('helpSearch');
+      var results = document.getElementById('helpSearchResults');
+      var nav = document.getElementById('helpNav');
+      if (!input || !results || !nav) return;
+      var index = null, current = [];
+
+      function esc(s) { return String(s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+      function paneLabel(id) {
+          var b = nav.querySelector('[data-help="' + id + '"]');
+          return b ? b.textContent.replace(/^[^A-Za-z0-9]+/, '').trim() : id;   // drop the leading emoji
+      }
+      function buildIndex() {
+          index = [];
+          document.querySelectorAll('#helpModal .help-pane').forEach(function(pane) {
+              var id = pane.dataset.pane, label = paneLabel(id), heading = label;
+              pane.querySelectorAll('h4, p, li, .help-tip').forEach(function(el) {
+                  var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                  if (!text) return;
+                  var isH4 = el.tagName === 'H4';
+                  if (isH4) heading = text;
+                  index.push({ paneId: id, paneLabel: label, heading: heading, el: el, text: text, lc: text.toLowerCase(), isH4: isH4 });
+              });
+          });
+      }
+      // Highlight on the raw text and escape as we build, so matches wrap safely regardless of content.
+      function highlight(text, terms) {
+          var lc = text.toLowerCase(), ranges = [];
+          terms.forEach(function(t) { if (!t) return; var from = 0, i; while ((i = lc.indexOf(t, from)) >= 0) { ranges.push([i, i + t.length]); from = i + t.length; } });
+          if (!ranges.length) return esc(text);
+          ranges.sort(function(a, b) { return a[0] - b[0]; });
+          var merged = [ranges[0].slice()];
+          for (var k = 1; k < ranges.length; k++) { var last = merged[merged.length - 1]; if (ranges[k][0] <= last[1]) last[1] = Math.max(last[1], ranges[k][1]); else merged.push(ranges[k].slice()); }
+          var out = '', pos = 0;
+          merged.forEach(function(r) { out += esc(text.slice(pos, r[0])) + '<mark>' + esc(text.slice(r[0], r[1])) + '</mark>'; pos = r[1]; });
+          return out + esc(text.slice(pos));
+      }
+      function snippet(text, terms) {
+          var lc = text.toLowerCase(), pos = -1;
+          terms.forEach(function(t) { var i = lc.indexOf(t); if (i >= 0 && (pos < 0 || i < pos)) pos = i; });
+          if (pos < 0) pos = 0;
+          var start = Math.max(0, pos - 40), end = Math.min(text.length, pos + 120);
+          return (start > 0 ? '… ' : '') + highlight(text.slice(start, end), terms) + (end < text.length ? ' …' : '');
+      }
+      function showActivePane() {
+          var active = nav.querySelector('[data-help].active');
+          var id = active ? active.dataset.help : 'start';
+          document.querySelectorAll('#helpModal .help-pane').forEach(function(p) { p.style.display = (p.dataset.pane === id) ? 'block' : 'none'; });
+      }
+      function headingMatch(e, terms) { var h = e.heading.toLowerCase(); return terms.every(function(t) { return h.indexOf(t) >= 0; }); }
+      function run() {
+          var terms = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          if (!terms.length) { results.style.display = 'none'; results.innerHTML = ''; showActivePane(); return; }
+          if (!index) buildIndex();
+          document.querySelectorAll('#helpModal .help-pane').forEach(function(p) { p.style.display = 'none'; });
+          current = index.filter(function(e) { return terms.every(function(t) { return e.lc.indexOf(t) >= 0; }); });
+          var phrase = terms.join(' ');   // rank exact-phrase hits, then heading hits, then the rest
+          function score(e) {
+              return (e.heading.toLowerCase().indexOf(phrase) >= 0 ? 0 : 8) + (headingMatch(e, terms) ? 0 : 4) + (e.lc.indexOf(phrase) >= 0 ? 0 : 2);
+          }
+          current.sort(function(a, b) { var d = score(a) - score(b); return d !== 0 ? d : a.text.length - b.text.length; });
+          var max = 40, shown = current.slice(0, max);
+          if (!shown.length) {
+              results.innerHTML = '<div class="help-noresult">No help topics match “' + esc(input.value.trim()) + '”. Try fewer or different words.</div>';
+          } else {
+              results.innerHTML = shown.map(function(e, i) {
+                  var body = e.isH4
+                      ? '<span class="hr-heading">' + highlight(e.text, terms) + '</span>'
+                      : '<span class="hr-heading">' + esc(e.heading) + '</span><div class="hr-snip">' + snippet(e.text, terms) + '</div>';
+                  return '<div class="help-result" data-i="' + i + '"><span class="hr-pane">' + esc(e.paneLabel) + '</span>' + body + '</div>';
+              }).join('') + (current.length > max ? '<div class="help-noresult">Showing the first ' + max + ' of ' + current.length + ' matches — keep typing to narrow.</div>' : '');
+          }
+          results.style.display = 'block';
+          results.scrollTop = 0;
+      }
+      function openHit(e) {
+          input.value = '';
+          results.style.display = 'none'; results.innerHTML = '';
+          nav.querySelectorAll('[data-help]').forEach(function(b) { b.classList.toggle('active', b.dataset.help === e.paneId); });
+          document.querySelectorAll('#helpModal .help-pane').forEach(function(p) { p.style.display = (p.dataset.pane === e.paneId) ? 'block' : 'none'; });
+          setTimeout(function() {
+              e.el.scrollIntoView({ block: 'center', behavior: 'auto' });
+              e.el.classList.remove('help-hit'); void e.el.offsetWidth; e.el.classList.add('help-hit');
+              setTimeout(function() { e.el.classList.remove('help-hit'); }, 1800);
+          }, 30);
+      }
+      input.addEventListener('input', run);
+      input.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Escape' && input.value) { ev.stopPropagation(); input.value = ''; run(); }
+          else if (ev.key === 'Enter') { var first = results.querySelector('.help-result'); if (first) first.click(); }
+      });
+      results.addEventListener('click', function(ev) {
+          var row = ev.target.closest('.help-result'); if (!row) return;
+          var e = current[parseInt(row.dataset.i, 10)]; if (e) openHit(e);
+      });
+      // A nav click abandons an active search; opening Help focuses the box.
+      nav.addEventListener('click', function() { if (input.value || results.style.display !== 'none') { input.value = ''; results.style.display = 'none'; results.innerHTML = ''; } });
+      var helpBtn = document.getElementById('helpBtn');
+      if (helpBtn) helpBtn.addEventListener('click', function() { setTimeout(function() { try { input.focus(); input.select(); } catch (e) {} }, 40); });
+  })();
 
   var _el_aboutBtn = document.getElementById('aboutBtn');
 

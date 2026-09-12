@@ -860,6 +860,18 @@
   .help-pane ol, .help-pane ul { margin:6px 0 12px; padding-left:20px; }
   .help-pane li { margin-bottom:6px; }
   .help-tip { border-left:3px solid var(--gold); background:rgba(224,165,79,0.07); padding:8px 12px; border-radius:0 5px 5px 0; font-size:12px; line-height:1.55; margin:14px 0 4px; color:var(--ink); }
+  #helpSearch { width:100%; box-sizing:border-box; padding:9px 12px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:6px; font-size:13.5px; font-family:inherit; }
+  #helpSearch:focus { outline:none; border-color:var(--gold); }
+  #helpSearch::placeholder { color:var(--dim); }
+  .help-result { padding:9px 12px; border:1px solid var(--edge); border-radius:6px; margin-bottom:8px; cursor:pointer; background:var(--panel); }
+  .help-result:hover { border-color:var(--gold); background:var(--panel2); }
+  .help-result .hr-pane { display:inline-block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--gold); margin-right:8px; vertical-align:middle; }
+  .help-result .hr-heading { font-size:12.5px; font-weight:600; color:var(--ink); }
+  .help-result .hr-snip { font-size:12px; line-height:1.5; color:var(--dim); margin-top:4px; }
+  #helpSearchResults mark { background:color-mix(in srgb, var(--gold) 32%, transparent); color:inherit; border-radius:2px; padding:0 1px; }
+  .help-noresult { font-size:12.5px; color:var(--dim); padding:10px 2px; }
+  .help-pane .help-hit { animation:helpHitFlash 1.7s ease-out; border-radius:4px; }
+  @keyframes helpHitFlash { from { background:color-mix(in srgb, var(--gold) 32%, transparent); } to { background:transparent; } }
 
   .pane-toggle {
     position: absolute; top: 50%; transform: translateY(-50%);

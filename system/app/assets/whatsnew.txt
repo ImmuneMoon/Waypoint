@@ -32,6 +32,11 @@ Blast tool
   heights prints the 3D figure as a second number.
 
 Maps
+- Sidebar drag-and-drop reorders maps and planners. Drag a row onto the top
+  or bottom third of another row to drop it above or below there (the gold
+  line shows where it will land); the middle third still nests, as before.
+  Any nested maps or planners come along with the row that moved. The order
+  is saved with the campaign.
 - New Parent Map: right-click a map in the sidebar to wrap it in a new map.
   The existing map moves under the new one (taking the same place in the
   tree the old one had), and the new map's data map starts with a portal

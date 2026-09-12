@@ -75,6 +75,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   // Move a map or planner under a new same-type parent (or to top level with null).
 
+  // Manual sibling order for maps / planners. When a user drags one above/below another, renumber every
+  // sibling so the moved one lands in the right slot; siblings without an index up to that point pick one up.
+  function reorderMap(dragId, targetId, position) {
+      var camp = getActiveCampaign(); if (!camp) return;
+      var it = camp.items[dragId], target = camp.items[targetId];
+      if (!it || !target || it === target) return;
+      if (it.type !== target.type) { toast('Maps re-order among maps, planners among planners.'); return; }
+      if (isMapDescendantOf(camp, targetId, dragId)) { toast("An item can't be moved into its own child."); return; }
+      var parentId = (target.meta && target.meta.parentId) || null;
+      it.meta.parentId = parentId;
+      var sibs = getMapChildren(camp, parentId, it.type).filter(function(x) { return x !== it; });
+      var at = sibs.indexOf(target);
+      if (at < 0) return;
+      var insertAt = position === 'after' ? at + 1 : at;
+      sibs.splice(insertAt, 0, it);
+      sibs.forEach(function(s, i) { s.meta.sortIndex = (i + 1) * 10; });
+      save(true); updateSidebarNav();
+  }
+
   function reparentMap(id, newParentId) {
 
       var camp = getActiveCampaign();
@@ -378,13 +397,27 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             el.addEventListener('dragstart', function(e) {
                 e.dataTransfer.setData('text/plain', this.dataset.id);
                 e.dataTransfer.effectAllowed = 'move';
+                this.classList.add('dragging');
             });
-            el.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('drag-over'); });
-            el.addEventListener('dragleave', function() { this.classList.remove('drag-over'); });
+            el.addEventListener('dragend', function() { this.classList.remove('dragging'); document.querySelectorAll('.sidebar-item.drag-over, .sidebar-item.drag-before, .sidebar-item.drag-after').forEach(function(x) { x.classList.remove('drag-over', 'drag-before', 'drag-after'); }); });
+            el.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                var r = this.getBoundingClientRect(), y = e.clientY - r.top, h = r.height;
+                var pos = y < h * 0.28 ? 'before' : y > h * 0.72 ? 'after' : 'inside';
+                this.classList.toggle('drag-before', pos === 'before');
+                this.classList.toggle('drag-after',  pos === 'after');
+                this.classList.toggle('drag-over',   pos === 'inside');
+                this.dataset.dropPos = pos;
+            });
+            el.addEventListener('dragleave', function() { this.classList.remove('drag-over', 'drag-before', 'drag-after'); delete this.dataset.dropPos; });
             el.addEventListener('drop', function(e) {
                 e.preventDefault(); e.stopPropagation();
-                this.classList.remove('drag-over');
-                reparentMap(e.dataTransfer.getData('text/plain'), this.dataset.id);
+                var pos = this.dataset.dropPos || 'inside';
+                this.classList.remove('drag-over', 'drag-before', 'drag-after');
+                delete this.dataset.dropPos;
+                var dragId = e.dataTransfer.getData('text/plain');
+                if (pos === 'inside') reparentMap(dragId, this.dataset.id);
+                else reorderMap(dragId, this.dataset.id, pos);
             });
         });
 

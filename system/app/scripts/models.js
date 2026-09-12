@@ -164,7 +164,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           .filter(function(it) { return it.type === type && getMapParentId(camp, it) === parentId; })
 
-          .sort(function(a, b) { return (a.meta.title || '').localeCompare(b.meta.title || ''); });
+          .sort(function(a, b) {
+              var ai = (a.meta && typeof a.meta.sortIndex === 'number') ? a.meta.sortIndex : null;
+              var bi = (b.meta && typeof b.meta.sortIndex === 'number') ? b.meta.sortIndex : null;
+              if (ai !== null && bi !== null) return ai - bi;
+              if (ai !== null) return -1;
+              if (bi !== null) return 1;
+              return (a.meta.title || '').localeCompare(b.meta.title || '');
+          });
 
   }
 

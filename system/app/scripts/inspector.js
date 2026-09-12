@@ -38,7 +38,7 @@ import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
 
 import { showPrompt, showConfirm, isCampaignNameTaken, getUniqueCampaignTitle, promptForCampaignName, isItemNameTaken, getUniqueItemTitle, promptForItemName } from './dialogs.js';
 
-import { renderPlanner, renderPlannerPreview } from './planner.js';
+import { renderPlanner, renderPlannerPreview, RTE_CMDS, RTE_SYMS, rteSyncBar } from './planner.js';
 
 import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attachPanning, isLinkMode, setLinkMode, removeLinkAt } from './datamap.js';
 
@@ -1575,7 +1575,13 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var bgHtml = Object.keys(TEXT_BG).map(function(k) {
           return '<div class="color-btn' + (k.toLowerCase() === bgCur ? ' on' : '') + (k === 'transparent' ? ' clear' : '') + '" data-bg="' + k + '" title="' + TEXT_BG[k] + '" style="background:' + k + '"></div>';
       }).join('') + '<label class="color-btn custom" title="Custom background"><input type="color" id="wbTextBgCustom" value="' + (/^#[0-9a-f]{6}$/i.test(w.bg || '') ? w.bg : '#15151c') + '"></label>';
-      return '<div class="field"><label for="wbTextFont">Font</label><select id="wbTextFont" style="width:100%;">' + fontOpts + '</select></div>' +
+      var _rteBar = RTE_CMDS.map(function(k) {
+          if (k.sep) return '<span class="rte-sep"></span>';
+          if (k.sym) return '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';
+          return '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>';
+      }).join('');
+      return '<div class="field"><label>Content</label><div class="rte" id="wbTextContentRte"><div class="rte-bar">' + _rteBar + '</div><div class="rte-body" contenteditable="true" id="wbTextContentBody" data-placeholder="Type here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + (w.text || '') + '</div></div><div class="muted" style="margin-top:3px;">A live edit of the box\'s words. Bold / italic / lists / symbols — the same set as the planner\'s text blocks. Double-clicking the box on the canvas still works.</div></div>' +
+             '<div class="field"><label for="wbTextFont">Font</label><select id="wbTextFont" style="width:100%;">' + fontOpts + '</select></div>' +
              '<div class="field"><label for="wbTextSize">Text Size <span class="muted" id="wbTextSizeVal">' + (w.fontSize || 16) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbTextSize" min="8" max="96" value="' + (w.fontSize || 16) + '" style="flex:1"><input type="number" id="wbTextSizeNum" min="8" max="200" value="' + (w.fontSize || 16) + '" style="width:56px" aria-label="Text size in pixels"></div></div>' +
              '<div class="field"><label>Alignment</label><div style="display:flex; gap:4px; margin-bottom:4px;">' + ab('left', '&#8676;', 'Align left') + ab('center', '&#8596;', 'Center') + ab('right', '&#8677;', 'Align right') + ab('justify', '&#8801;', 'Justify') + '</div>' +
              '<div style="display:flex; gap:4px;">' + vb('top', '&#8679;', 'Top') + vb('middle', '&#8597;', 'Middle') + vb('bottom', '&#8681;', 'Bottom') + '</div></div>' +
@@ -1585,6 +1591,44 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   }
   function wireTextStyle(w) {
       var el = state.wbEls && state.wbEls[w.id];
+      var contentBody = document.getElementById('wbTextContentBody');
+      if (contentBody) {
+          contentBody.addEventListener('input', function() {
+              w.text = this.innerHTML;
+              var host = state.wbEls && state.wbEls[w.id];
+              if (host && host.contentEditable !== 'true') host.innerHTML = w.text || 'Text...';
+              rteSyncBar(this);
+          });
+          contentBody.addEventListener('keydown', function(e) { e.stopPropagation(); });
+          contentBody.addEventListener('paste', function(e) {   // plain text only — no styles from elsewhere
+              e.preventDefault();
+              var t = (e.clipboardData || window.clipboardData).getData('text/plain');
+              try { document.execCommand('insertText', false, t); } catch (err) {}
+          });
+          contentBody.addEventListener('blur', function() { save(); });
+          contentBody.addEventListener('focus', function() { rteSyncBar(this); });
+          var contentBar = contentBody.parentNode.querySelector('.rte-bar');
+          if (contentBar) {
+              contentBar.addEventListener('mousedown', function(e) { e.preventDefault(); });   // keep the selection
+              contentBar.addEventListener('click', function(e) {
+                  var b = contentBar.parentNode.querySelector('.rte-body');
+                  var sym = e.target.closest && e.target.closest('.rte-sym');
+                  if (sym) {
+                      b.focus();
+                      try { document.execCommand('insertText', false, sym.dataset.sym); } catch (err) {}
+                      var wrap = contentBar.querySelector('.rte-symwrap'); if (wrap) wrap.classList.remove('open');
+                      b.dispatchEvent(new Event('input', { bubbles: true }));
+                      return;
+                  }
+                  var symBtn = e.target.closest && e.target.closest('.rte-symbtn');
+                  if (symBtn) { symBtn.parentNode.classList.toggle('open'); return; }
+                  var btn = e.target.closest && e.target.closest('.rte-btn'); if (!btn) return;
+                  b.focus();
+                  try { document.execCommand(btn.dataset.cmd, false, null); } catch (err) {}
+                  b.dispatchEvent(new Event('input', { bubbles: true }));
+              });
+          }
+      }
       var fontSel = document.getElementById('wbTextFont');
       if (fontSel) fontSel.addEventListener('change', function() {
           if (this.value) w.font = this.value; else delete w.font;

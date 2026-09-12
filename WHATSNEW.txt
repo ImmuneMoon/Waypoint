@@ -99,6 +99,11 @@ Pictures
   or the category when you are done with them.
 
 Text boxes
+- The Properties panel of a selected text box has a Content editor with the
+  same toolbar the planner's text blocks use — bold, italic, underline,
+  strikethrough, bulleted and numbered lists, clear formatting, and the
+  symbol tray (arrows, dashes, checks, quotes). Edits show on the canvas as
+  you type. Double-clicking the box on the canvas still edits it directly.
 - With the Text tool armed, clicking an existing text box edits it in place
   (the caret lands at the end) instead of dropping a new box on top of it.
   Double-click still works in the Select tool.

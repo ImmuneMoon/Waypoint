@@ -1086,7 +1086,13 @@ export {
 
     renderPlanner,
 
-    renderPlannerPreview
+    renderPlannerPreview,
+
+    RTE_CMDS,
+
+    RTE_SYMS,
+
+    rteSyncBar
 
 };
 

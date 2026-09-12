@@ -72,19 +72,20 @@ Play map
 - The Campaign Cast in the play map's right-click menu is one row now
   (★ Campaign Cast, with the count). Hover or click it for the members —
   every one of them, scrollable, with a filter once the list is long — and
-  Manage Cast at the foot. A long cast used to stretch the menu past the
-  screen and bury the session items under it.
-- Copies: a number box beside the Image Library's filter (and at the top of
-  the cast flyout) sets how many copies a picture's × button drops, 1 to 50,
-  starting at 1; the choice is remembered. Every picture cell has the ×
-  button on hover, cast members included, and the preview's Add to map
-  places the same number.
+  Manage Cast at the foot, and a Copies box at the top so a member's ×
+  button drops that many at once. A long cast used to stretch the menu past
+  the screen and bury the session items under it.
 - Hovering an item that is linked to a room now shows the room's notes on the
   card as well (for the GM only; players still never receive notes).
 - Trigger zones have a hover card too: their name and the message they fire
   (GM only).
 
 Pictures
+- Copies: a number box beside the Image Library's filter sets how many
+  copies a picture's × button drops, 1 to 50, starting at 1; the choice is
+  remembered. Every picture cell has the × button on hover (cast members
+  included) and drops the batch in a block at the centre of your view, and
+  the preview's Add to map places the same number.
 - Pick several pictures at once in the Image Library: Ctrl-click cells
   (Shift-click for a run, Ctrl+A for everything shown). A bar at the foot
   then adds them all to the play map in a block, already selected so they

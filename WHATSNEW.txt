@@ -1,3 +1,18 @@
+WAYPOINT 1.4.8 — What's New
+============================
+
+Sidebar
+- Right-click a map or planner and pick Move Up or Move Down to re-order
+  it one step among its siblings — the same ordering as the drag handle,
+  now without the drag. Anything nested under the row comes along, and the
+  arrows grey out at the top and bottom of a list.
+
+Fixes
+- In the light theme, the New Parent, New Child and Rename entries in the
+  map/planner right-click menu were near-white text on the light menu and
+  hard to read; they now use the theme's normal text color, like the rest
+  of the menu.
+
 WAYPOINT 1.4.7 — What's New
 ============================
 

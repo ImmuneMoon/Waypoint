@@ -412,7 +412,7 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    release needs a newer shell, the button becomes Get Installer instead. A quiet check runs a
    few seconds after launch; a newer version raises the header Update button and a notice. */
 var _upd = { info: null, shellOld: null, shell: null };
-var SHELL_WANTED = '1.4.6';   // 1.4.6 adds /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer
+var SHELL_WANTED = '1.4.7';   // 1.4.6 adds /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer
 var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
 function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
 // Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the

@@ -1605,8 +1605,13 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               var t = (e.clipboardData || window.clipboardData).getData('text/plain');
               try { document.execCommand('insertText', false, t); } catch (err) {}
           });
-          contentBody.addEventListener('blur', function() { save(); });
-          contentBody.addEventListener('focus', function() { rteSyncBar(this); });
+          contentBody.addEventListener('blur', function() { save(true); });
+          contentBody.addEventListener('focus', function() {
+              // Refresh from the item — the on-canvas editor may have committed a newer value while the panel stayed put
+              var fresh = w.text || '';
+              if (this.innerHTML !== fresh) this.innerHTML = fresh;
+              rteSyncBar(this);
+          });
           var contentBar = contentBody.parentNode.querySelector('.rte-bar');
           if (contentBar) {
               contentBar.addEventListener('mousedown', function(e) { e.preventDefault(); });   // keep the selection

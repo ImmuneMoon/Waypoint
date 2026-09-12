@@ -1105,6 +1105,13 @@
 
 
 
+/* Text-alignment field: two labelled rows on one grid so the buttons align vertically */
+  .field.text-align .tal-grid { display: grid; grid-template-columns: 74px 1fr; gap: 6px 8px; align-items: center; margin-top: 4px; }
+  .field.text-align .tal-cap { color: var(--dim); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+  .field.text-align .tal-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .field.text-align .tal-row.tal-v { grid-template-columns: repeat(4, 1fr); }
+  .field.text-align .ts-align, .field.text-align .ts-valign { padding: 4px 0 !important; }
+
 /* Sidebar reorder / reparent drop indicators */
   .sidebar-item.drag-over { outline: 2px dashed var(--gold); outline-offset: -2px; background: rgba(212,175,55,0.08); }
   .sidebar-item.drag-before { box-shadow: inset 0 3px 0 0 var(--gold); }

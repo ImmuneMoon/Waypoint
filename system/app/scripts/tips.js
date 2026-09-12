@@ -80,6 +80,7 @@ var BY_TEXT = {
     'pen color': 'Color of the stroke. The pen palette plus a custom color wheel.',
     'fill color': 'Fill for the shape — tints let the map show through. Custom wheel at the end.',
     'alignment': 'Where the text sits inside its box: left / center / right / justified, and top / middle / bottom.',
+    'text alignment': 'Where the text sits inside its box. Horizontal: left / center / right / justified. Vertical: top / middle / bottom.',
     'box background': 'A backdrop behind the text so it reads over busy art. None keeps it transparent.',
     'shadowbase sheet shadow base com': 'A character sheet from shadow-base.com attached to this token: view it at the table, or export a site-ready file with this token’s art as the portrait.',
     'player owner can move this token': 'The player allowed to drag this token in multiplayer.',

@@ -450,7 +450,7 @@ function coreNudge(firstTime) {
     }
     updateUI();
     if (firstTime) {
-        var seenKey = 'wp_coreSeen', cur = String(window.wpAppVersion || '');
+        var seenKey = 'wp_coreSeen', cur = String(SHELL_WANTED);   // once per required-core bump, not once per app version — otherwise every hot update re-pops the walk-through while the user is deferring the installer
         var seen = null; try { seen = localStorage.getItem(seenKey); } catch (e) {}
         if (seen !== cur) { try { localStorage.setItem(seenKey, cur); } catch (e) {} setTimeout(function() { showInstallerSteps(coreInfo()); }, 800); }
     }

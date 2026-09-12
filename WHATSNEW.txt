@@ -19,6 +19,10 @@ Text boxes
   each row's purpose reads at a glance.
 
 Fixes
+- The 'core needs the installer' walk-through auto-opens once per required-core
+  bump, not once per app version. Ordinary app hot-updates no longer re-pop
+  the dialog while you are deferring the installer; the header button and the
+  banner still remind you until the core is updated.
 - Editing a text box on the canvas after the Properties panel was open no
   longer risks the next keystroke in the Content editor overwriting the
   fresh words: the editor refreshes from the box when focus enters it.

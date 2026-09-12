@@ -1123,7 +1123,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="imgLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:720px; max-width:94vw; height:78vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Image Library <button id="imgLibCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
-        <input type="text" id="imgLibSearch" placeholder="Filter by name or map&hellip;" style="width:100%; box-sizing:border-box; margin-bottom:8px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+            <input type="text" id="imgLibSearch" placeholder="Filter by name or map&hellip;" style="flex:1; min-width:0; box-sizing:border-box;">
+            <label class="cast-batch-wrap" title="How many copies a picture's &times; button (or Add to map in the preview) places, 1 to 50 &mdash; remembered">Copies <input type="number" id="imgLibCopies" class="cast-batch" min="1" max="50" value="1"></label>
+        </div>
         <div id="imgLibCats" class="journal-from-row" style="margin-bottom:8px;"></div>
         <div id="imgLibGrid" style="overflow-y:auto; flex:1;"></div>
         <div id="imgLibPreview" style="display:none;">
@@ -1144,7 +1147,7 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <div id="imgCatMenu" class="shape-menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"></div>
         <div id="imgLibSelBar" style="display:none; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;"></div>
-        <div style="color:var(--dim); font-size:11px; margin-top:10px;">Click an image for a large preview, then Add to map. Ctrl-click to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to add it to a category.</div>
+        <div style="color:var(--dim); font-size:11px; margin-top:10px;">Click an image for a large preview, then Add to map. Ctrl-click to pick several (Shift-click for a run), then add them all or tag them at once. Right-click one to add it to a category. The &times; on a picture drops the number set in Copies.</div>
     </div>
 </div>
 

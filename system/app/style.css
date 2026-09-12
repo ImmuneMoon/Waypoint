@@ -1196,8 +1196,8 @@
 
   /* Campaign Cast cells in the image library */
   .cast-cell { position: relative; outline: 1px solid rgba(224,165,79,0.35); }
-  .cast-cell .cast-cell-five { position: absolute; top: 4px; right: 4px; padding: 0 6px; font-size: 10px; opacity: 0; }
-  .cast-cell:hover .cast-cell-five { opacity: 1; }
+  .cast-cell .cast-cell-five, .img-lib-cell .img-cell-batch { position: absolute; top: 4px; right: 4px; padding: 0 6px; font-size: 10px; opacity: 0; }
+  .cast-cell:hover .cast-cell-five, .img-lib-cell:hover .img-cell-batch { opacity: 1; }
 
   /* Dragging a party icon onto the map */
   .party-tok { cursor: grab; touch-action: none; -webkit-user-drag: none; user-select: none; }

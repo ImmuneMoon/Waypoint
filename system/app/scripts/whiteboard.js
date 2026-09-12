@@ -2854,6 +2854,11 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           if (act === 'add' || act === 'move' || act === 'remove') imgCatChange(src, act, cat);
       });
       document.addEventListener('pointerdown', function(e) { if (menu.style.display !== 'none' && !e.target.closest('#imgCatMenu')) hideImgCatMenu(); }, true);
+      var copiesBox = document.getElementById('imgLibCopies');
+      if (copiesBox) {
+          copiesBox.addEventListener('input', function() { if (copiesBox.value >= 1 && copiesBox.value <= 50) setCastBatch(copiesBox.value); });
+          copiesBox.addEventListener('change', function() { copiesBox.value = setCastBatch(copiesBox.value); });
+      }
       var selBar = document.getElementById('imgLibSelBar');
       if (selBar) selBar.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
@@ -2906,7 +2911,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               _imgLibOrder.push(im.path);
               html += '<div class="img-lib-cell' + (_imgLibSel[im.path] ? ' picked' : '') + '" data-src="' + im.path + '" title="' + im.name + (imgCatOf(im.path) ? ' \u00b7 ' + esc(imgCatOf(im.path)) : '') + ' \u2014 right-click to add it to a category; Ctrl-click to pick several">' +
                   '<img src="' + encodeURI(im.path) + '" loading="lazy">' + catTag +
-                  '<div class="img-lib-name">' + im.name + '</div></div>';
+                  '<div class="img-lib-name">' + im.name + '</div>' + (_imgLibPick ? '' : '<button class="tool ghost img-cell-batch" data-src="' + im.path + '" title="Drop ' + castBatch() + ' cop' + (castBatch() === 1 ? 'y' : 'ies') + ' at the centre of your view">&times;' + castBatch() + '</button>') + '</div>';
           });
           html += '</div>';
       });
@@ -2979,6 +2984,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   window.wpPickImage = async function(cb) {
       _imgLibPick = cb;
       _imgLibSel = {}; _imgLibLastPick = null;
+      var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       document.getElementById('imgLibModal').style.display = 'flex';
       document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
       try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) { _imgLibCache = []; }
@@ -2988,6 +2994,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
 
   if (_el_imgLibBtn) _el_imgLibBtn.addEventListener('click', async function() {
       _imgLibSel = {}; _imgLibLastPick = null;
+      var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       document.getElementById('imgLibModal').style.display = 'flex';
       document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
       try {
@@ -3016,6 +3023,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var cell = e.target.closest('.img-lib-cell');
       if (!cell) return;
       if (!_imgLibPick && !cell.classList.contains('cast-cell') && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); imgSelToggle(cell, e); return; }
+      var batchBtn = e.target.closest('.img-cell-batch');
+      if (batchBtn) { e.stopPropagation(); var copies = []; for (var ci = 0; ci < castBatch(); ci++) copies.push(batchBtn.dataset.src); placeImagesBlock(copies); return; }
       if (cell.classList.contains('cast-cell')) {
           var five = e.target.closest('.cast-cell-five');
           var amC = getActiveMap();
@@ -3040,8 +3049,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var catBtn = document.getElementById('imgLibPreviewCat'), fromV = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
       if (catBtn) { catBtn.innerHTML = fromV ? 'Add / move category\u2026' : 'Add to category\u2026'; catBtn.title = fromV ? 'Add another category, move it out of ' + fromV + ', or take it out' : 'Tag this picture with a category (it can be in several)'; }
       var add = document.getElementById('imgLibPreviewAdd');
-      add.textContent = _imgLibPick ? 'Use this picture' : 'Add to map';
-      add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map';
+      add.textContent = _imgLibPick ? 'Use this picture' : (castBatch() > 1 ? 'Add \u00d7' + castBatch() + ' to map' : 'Add to map');
+      add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map (the number in Copies)';
       pv.dataset.src = src;
       grid.style.display = 'none'; pv.style.display = 'flex';
       // arrows step through the pictures in the order the grid shows them
@@ -3107,6 +3116,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; cb(src); return; }
           var am = getActiveMap();
           if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
+          if (castBatch() > 1) { var many = []; for (var mi = 0; mi < castBatch(); mi++) many.push(src); placeImagesBlock(many); return; }
           addWbItem('image', { w: 300, h: 300, src: src, color: 'transparent' });
           closeImgPreview();
           document.getElementById('imgLibModal').style.display = 'none';
@@ -4007,8 +4017,8 @@ function castLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp) return '';
     var q = (filter || '').toLowerCase();
     var list = Object.values(castOf(camp)).filter(function(c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
-    if (!list.length) return q ? '' : '<div class="img-lib-folder" style="color:var(--dim); font-size:11px;">&#9733; Campaign Cast — empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use.</div>';
-    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face to place one at the centre of your view, its \u00d7 button for the batch set in Copies</span><label class="cast-batch-wrap" title="How many copies the \u00d7 button on a cell drops (1\u201350)">Copies <input type="number" class="cast-batch" min="1" max="50" value="' + castBatch() + '"></label></div>'
+    if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
+    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face to place one at the centre of your view, its \u00d7 button for the number set in Copies</span></div>'
         + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + '">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
         + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
@@ -4022,7 +4032,10 @@ function castBatch() { var n = 1; try { n = parseInt(localStorage.getItem('wp_ca
 function setCastBatch(v) {
     var n = parseInt(v, 10); if (!(n >= 1 && n <= 50)) return castBatch();
     try { localStorage.setItem('wp_castBatch', String(n)); } catch (e) {}
-    Array.prototype.forEach.call(document.querySelectorAll('.cm-cast-five, .cast-cell-five'), function(b) { b.textContent = '\u00d7' + n; b.title = 'Drop ' + n + ' copies' + (b.classList.contains('cm-cast-five') ? ' here' : ''); });
+    Array.prototype.forEach.call(document.querySelectorAll('.cm-cast-five, .cast-cell-five, .img-cell-batch'), function(b) { b.textContent = '\u00d7' + n; b.title = 'Drop ' + n + ' cop' + (n === 1 ? 'y' : 'ies') + (b.classList.contains('cm-cast-five') ? ' here' : ' at the centre of your view'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.cast-batch, .cm-batch'), function(i) { if (i.value !== String(n)) i.value = n; });
+    var addBtn = document.getElementById('imgLibPreviewAdd'), pvEl = document.getElementById('imgLibPreview');
+    if (addBtn && pvEl && pvEl.style.display !== 'none' && !_imgLibPick) addBtn.textContent = n > 1 ? 'Add \u00d7' + n + ' to map' : 'Add to map';
     return n;
 }
 function castMenuHtml(camp) {

@@ -7,6 +7,11 @@ Sidebar
   now without the drag. Anything nested under the row comes along, and the
   arrows grey out at the top and bottom of a list.
 
+Help
+- The Help window (the ? button) now has a search box at the top: type any
+  keyword to find matching topics across every section, ranked, with the words
+  highlighted — click a result to jump straight to it.
+
 Fixes
 - In the light theme, the New Parent, New Child and Rename entries in the
   map/planner right-click menu were near-white text on the light menu and

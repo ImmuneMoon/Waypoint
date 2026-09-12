@@ -15,7 +15,7 @@ import { save, toast } from './io.js';
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.4.6';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.4.8';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
@@ -418,7 +418,7 @@ var STEPS = [
     { target: '#campaignSelect', title: 'Campaigns',
       html: 'Everything belongs to a campaign. This picker switches between them; the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial.' },
     { target: '#mapNavList', title: 'Maps nest like places',
-      html: '<b>Eldara Realm</b> holds the city <b>Eldara</b>, which holds <b>The Inn</b>; the <b>Raiders\' Hideout</b> holds its <b>Basement</b> and <b>Top Floor</b>. World \u2192 region \u2192 building \u2192 room, as deep as you like. Drag a map onto another to nest it. Right-click a map for <b>New Parent Map</b> (a new map that wraps it, with a portal node already placed) or <b>New Child Map</b> (a map inside it).' },
+      html: '<b>Eldara Realm</b> holds the city <b>Eldara</b>, which holds <b>The Inn</b>; the <b>Raiders\' Hideout</b> holds its <b>Basement</b> and <b>Top Floor</b>. World \u2192 region \u2192 building \u2192 room, as deep as you like. Drag a map onto another to nest it. Right-click a map for <b>New Parent Map</b> (a new map that wraps it, with a portal node already placed) or <b>New Child Map</b> (a map inside it). To re-order instead of nesting, drop a map on the top or bottom third of another (a gold line shows where it lands), or right-click and pick <b>↑ Move Up</b> / <b>↓ Move Down</b> to move it one step among its siblings — whatever is nested under it comes along.' },
     { target: '#viewModeSelect', title: 'Two faces of every map',
       html: 'The <b>Data Map</b> is the node view for your notes and connections; the <b>Play Map</b> is the battle map with tokens. This switch flips between them, and each map remembers which face you left it on.',
       before: function() { openItem('map_tut_city'); goView('data'); } },
@@ -446,7 +446,7 @@ var STEPS = [
       html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Default</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
       before: function() { openItem('map_tut_inn'); goView('visual'); } },
     { target: '#plannerNavList', title: 'Planners',
-      html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps. <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
+      html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps, and re-order them the same way (drag onto the top or bottom of a row, or right-click <b>↑ Move Up</b> / <b>↓ Move Down</b>). <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',
       html: 'Add blocks from the toolbar: headings, prose, callouts, titled tables and flowcharts. <b>Render</b> shows the finished page; <b>Export As</b> turns it into an image, PDF or HTML.',

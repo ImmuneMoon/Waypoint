@@ -1,4 +1,4 @@
-WAYPOINT 1.4.6 — What's New
+WAYPOINT 1.4.7 — What's New
 ============================
 
 Tokens
@@ -97,7 +97,7 @@ Pictures
   move together, or tags the whole set with a category in one go.
 - Delete a picture from the Image Library: open its preview and press Delete
   picture. Waypoint says where it is still used before it asks. (Needs the
-  1.4.6 core — older cores are walked through the installer.)
+  1.4.7 core — older cores are walked through the installer.)
 - A category can sit on its own shelf: its pictures then show only under that
   category, not under All. The Tutorial campaign's art arrives that way, as
   "Default", so it never crowds your own pictures; delete the pictures

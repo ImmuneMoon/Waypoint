@@ -869,7 +869,11 @@ if (_hList) {
         var camp = getActiveCampaign(); var h = camp && handoutsOf(camp)[row.dataset.id]; if (!h) return;
         if (e.target.classList.contains('handout-title')) h.title = e.target.value.slice(0, 120);
         if (e.target.classList.contains('handout-caption')) h.caption = e.target.value.slice(0, 4000);
-        if (e.target.classList.contains('handout-text')) h.text = e.target.value.slice(0, 60000);
+        if (e.target.classList.contains('handout-text')) {
+            h.text = e.target.value.slice(0, 60000);
+            var _thumb = row.querySelector('.handout-thumb-text');   // keep the preview thumbnail in step as you type (no full re-render, so the caret stays put)
+            if (_thumb) _thumb.textContent = String(h.text || '').slice(0, 140);
+        }
         if (e.target.classList.contains('handout-tags')) { h.tags = tagList(e.target.value); if (!h.tags.length) delete h.tags; clearTimeout(_hList._tg); _hList._tg = setTimeout(function() { renderHandoutTags(camp); }, 600); }
         clearTimeout(_hList._t); _hList._t = setTimeout(function() { save(true); }, 400);
     });

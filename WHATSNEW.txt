@@ -12,7 +12,15 @@ Help
   keyword to find matching topics across every section, ranked, with the words
   highlighted — click a result to jump straight to it.
 
+Handouts
+- Give a handout to one player: the new Give-to dropdown lists everyone
+  registered in the campaign, by character, so you can prepare a handout before
+  the session — a connected player gets it at once, and anyone offline receives
+  it the next time they join (the row shows who it is queued for).
+
 Fixes
+- Editing a text handout now updates its preview thumbnail as you type, instead
+  of keeping the old text until the panel was reopened.
 - In the light theme, the New Parent, New Child and Rename entries in the
   map/planner right-click menu were near-white text on the light menu and
   hard to read; they now use the theme's normal text color, like the rest

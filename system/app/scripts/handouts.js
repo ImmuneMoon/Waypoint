@@ -765,15 +765,24 @@ function renderHandouts() {
     renderHandoutTags(camp);
     var hs = Object.values(handoutsOf(camp)).sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
     if (handoutTag) hs = hs.filter(function(h) { return (h.tags || []).indexOf(handoutTag) >= 0; });
-    var roster = (net.active && net.role === 'host') ? Object.values(net.roster) : [];
     if (!hs.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">No handouts yet. Press <b>New handout</b> and pick a picture from your campaign — a place, a face, a letter. Then show it to the table, to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
     var rooms = [];
     Object.values(camp.items).forEach(function(m) { if (m.type !== 'map') return; (m.rooms || []).forEach(function(r) { if (r.handoutId) rooms.push({ hid: r.handoutId, label: (r.name || 'room') + ' · ' + (m.meta && m.meta.title || m.id) }); }); });
+    // Give-to targets: only THIS campaign's registered players (camp.players never crosses campaigns),
+    // labelled by the character they play. Connected players get a handout at once; others when they join.
+    var givePlayers = Object.keys(camp.players || {})
+        .filter(function(pid) { return !(camp.bannedPlayers && camp.bannedPlayers[pid]); })
+        .map(function(pid) { var p = camp.players[pid] || {}; return { id: pid, label: p.charName ? (p.charName + ' — ' + (p.name || pid)) : (p.name || pid) }; })
+        .sort(function(a, b) { return a.label.localeCompare(b.label); });
+    var giveOpts = '<option value="">Give to…</option><option value="*">Anyone (the whole table)</option>'
+        + givePlayers.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.label) + '</option>'; }).join('');
     list.innerHTML = hs.map(function(h) {
         var seen = Object.keys(camp.handoutReveals).filter(function(pid) { return camp.handoutReveals[pid] && camp.handoutReveals[pid][h.id]; })
             .map(function(pid) { var p = (camp.players || {})[pid]; return p && p.name ? p.name : pid; });
         var attached = rooms.filter(function(r) { return r.hid === h.id; }).map(function(r) { return r.label; });
-        var who = roster.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; }).join('');
+        var queued = Object.keys(h.giveTo || {})   // assigned to a specific player but not delivered yet
+            .filter(function(pid) { return !(camp.handoutReveals[pid] && camp.handoutReveals[pid][h.id]); })
+            .map(function(pid) { var p = (camp.players || {})[pid] || {}; return p.charName || p.name || pid; });
         var thumb = h.kind === 'text'
             ? '<div class="handout-thumb handout-thumb-text" title="Preview">' + esc(String(h.text || '').slice(0, 140)) + '</div>'
             : '<img class="handout-thumb" src="' + encodeURI(h.src || '') + '" alt="" title="Preview">';
@@ -783,14 +792,13 @@ function renderHandouts() {
             (h.kind === 'text' ? '<textarea class="field handout-text" placeholder="The text the players read">' + esc(h.text || '') + '</textarea>' : '') +
             '<textarea class="field handout-caption" placeholder="' + (h.kind === 'text' ? 'Short note under it (optional)' : 'Caption the players see (optional)') + '">' + esc(h.caption || '') + '</textarea>' +
             '<input class="field handout-tags" value="' + esc((h.tags || []).join(', ')) + '" placeholder="Tags — faces, places, letters… (comma-separated; players see them and can search by them)" title="Tags sort the panel and travel with the handout">' +
-            '<div class="handout-meta">' + (seen.length ? 'Seen by ' + esc(seen.join(', ')) : 'Not shown to anyone yet') + (attached.length ? ' · attached to ' + esc(attached.join('; ')) : '') + '</div>' +
+            '<div class="handout-meta">' + (seen.length ? 'Seen by ' + esc(seen.join(', ')) : 'Not shown to anyone yet') + (queued.length ? ' · queued for ' + esc(queued.join(', ')) : '') + (attached.length ? ' · attached to ' + esc(attached.join('; ')) : '') + '</div>' +
             '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
-            '<button class="tool" data-act="table" title="Show it to everyone connected now">Show to table</button>' +
-            (roster.length ? '<select class="handout-who" title="Pick a player, then press Send"><option value="">Show to one player…</option>' + who + '</select>' : '') +
+            '<button class="tool" data-act="table" title="Show it to everyone connected right now">Show to table</button>' +
+            (givePlayers.length ? '<select class="handout-give" title="Give this handout to one player, or to the whole table. A connected player gets it now; anyone else the next time they join.">' + giveOpts + '</select><button class="tool handout-give-btn" data-act="give" disabled title="Give the handout to the chosen recipient">Give</button>' : '') +
             '<button class="tool ghost" data-act="preview">Preview</button>' +
             '<button class="tool ghost danger" data-act="delete" title="Remove this handout (players keep what they were already shown)">Delete</button>' +
-            (roster.length ? '<button class="tool handout-send" data-act="send" disabled title="Show it to the player picked in the dropdown">Send</button>' : '') +
             '</div></div></div>';
     }).join('');
 }
@@ -885,8 +893,8 @@ if (_hList) {
             if (hA) { if (box.checked) hA.autoOnJoin = true; else delete hA.autoOnJoin; save(true); toast(box.checked ? 'Every player gets this when they next connect.' : 'No longer given automatically.'); }
             return;
         }
-        var sel = e.target.closest && e.target.closest('.handout-who'); if (!sel) return;
-        var sendBtn = sel.parentNode.querySelector('.handout-send'); if (sendBtn) sendBtn.disabled = !sel.value;
+        var sel = e.target.closest && e.target.closest('.handout-give'); if (!sel) return;
+        var giveBtn = sel.parentNode.querySelector('.handout-give-btn'); if (giveBtn) giveBtn.disabled = !sel.value;
     });
     _hList.addEventListener('click', function(e) {
         var b = e.target.closest && e.target.closest('[data-act]'); var thumb = e.target.closest && e.target.closest('.handout-thumb');
@@ -895,10 +903,23 @@ if (_hList) {
         if (thumb || (b && b.dataset.act === 'preview')) { showHandout({ title: h.title, caption: h.caption, src: h.kind === 'text' ? null : h.src, text: h.kind === 'text' ? h.text : '' }); return; }
         if (!b) return;
         if (b.dataset.act === 'table') { net.revealHandout(h.id, null); }
-        else if (b.dataset.act === 'send') {
-            var selS = row.querySelector('.handout-who'); var pidS = selS && selS.value; if (!pidS) return;
-            net.revealHandout(h.id, [pidS]);
-            selS.value = ''; b.disabled = true;
+        else if (b.dataset.act === 'give') {
+            var selG = row.querySelector('.handout-give'); var val = selG && selG.value; if (!val) return;
+            if (val === '*') {                       // the whole table: now (if connected) and to each as they join
+                h.autoOnJoin = true; save(true);
+                if (net.active && net.role === 'host') net.revealHandout(h.id, null);
+                else toast('“' + (h.title || 'This handout') + '” will go to every player — anyone connected now, and each player as they join.');
+            } else {
+                var connected = net.active && net.role === 'host' && Object.keys(net.roster || {}).some(function(k) { return net.roster[k] && net.roster[k].id === val; });
+                if (connected) {                      // deliver right away
+                    net.revealHandout(h.id, [val]);
+                } else {                              // offline: queue it for their next join
+                    h.giveTo = h.giveTo || {}; h.giveTo[val] = Date.now(); save(true);
+                    var pg = (camp.players || {})[val] || {};
+                    toast('Queued “' + (h.title || 'handout') + '” for ' + (pg.charName || pg.name || 'that player') + ' — they get it the next time they connect.');
+                }
+            }
+            renderHandouts();
         }
         else if (b.dataset.act === 'delete') {
             delete handoutsOf(camp)[h.id];

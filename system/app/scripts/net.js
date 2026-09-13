@@ -1223,9 +1223,11 @@ net.revealHandout = function(hid, pids) {
 // Everything already revealed to this player, sent again (their journal keeps one copy per handout)
 function sendMissedHandouts(conn, prof) {
     var camp = getActiveCampaign(); if (!camp) return;
-    // Handouts marked "give to every player when they join" that this player has not had yet
+    // Handouts marked for everyone on join (autoOnJoin) OR assigned to this specific player
+    // (h.giveTo{pid}) that this player has not had yet — camp.giveTo is per-campaign, so it never
+    // reaches a player in a different campaign.
     Object.values(camp.handouts || {}).forEach(function(h, i) {
-        if (!h.autoOnJoin) return;
+        if (!h.autoOnJoin && !(h.giveTo && h.giveTo[prof.id])) return;
         if (camp.handoutReveals && camp.handoutReveals[prof.id] && camp.handoutReveals[prof.id][h.id]) return;
         setTimeout(function() { if (conn.open) net.revealHandout(h.id, [prof.id]); }, 3000 + i * 600);
     });

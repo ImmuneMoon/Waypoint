@@ -18,7 +18,23 @@ Handouts
   the session — a connected player gets it at once, and anyone offline receives
   it the next time they join (the row shows who it is queued for).
 
+Navigation
+- Fit to Content: the target (Center) button's menu now has a "Fit to Content"
+  entry, and Shift+1 does the same from the keyboard — it zooms and pans so the
+  whole map (or just your current selection) fits the screen at once. Handy for
+  large overview maps that never framed properly before.
+- Hold Space and drag to pan the map from any tool, without switching to the
+  hand tool or risking a stray selection (middle-mouse drag still pans too).
+- The minimap now dims while you're not using it, so it stops hiding the
+  top-left corner of the map; hover it (or drag on it) to bring it fully back.
+
 Fixes
+- Hover info cards can no longer grow larger than the window: a card with a
+  scene image and long notes is capped and kept on screen instead of running
+  off the edge.
+- Character tokens now commit small drags when zoomed in, and stay grabbable
+  when zoomed far out — the click-vs-drag threshold and the resize-handle
+  corner both scale with the zoom level now.
 - Editing a text handout now updates its preview thumbnail as you type, instead
   of keeping the old text until the panel was reopened.
 - In the light theme, the New Parent, New Child and Rename entries in the

@@ -47,19 +47,26 @@ These belong to the same "full VTT" vision but are independent features, not sta
 - **Fog of war / dynamic vision** — hiding unexplored or out-of-sight parts of a play map from players while the GM reveals as they go, optionally with token line-of-sight. Its own subsystem: a per-map reveal mask (and later a vision model), sanitized on the wire like everything else. A meaningful piece of work in its own right, unrelated to the formula engine; worth its own assessment when it comes up.
 - **Sound & effects** — ambient loops and one-shot sound cues plus play-map visual FX, already listed on the in-app roadmap ("Coming up"). Independent of the rules engine: the GM triggers cues, players hear/see them over the existing session wire.
 
-## Feature toggles — baseline vs optional (design note, 2026-09-17)
+## Settings & capability framework — build this first (added 2026-09-17)
 
-The whiteboard and the core features (maps, tokens, planners, handouts, multiplayer) are the **baseline and are always on**. Every higher VTT operation — sound & effects, fog of war / vision, dice rolls, character sheets, the rules engine — is **optional and individually toggleable**, so a table, or a single player on a low-spec machine, can run just the whiteboard experience.
+Before any optional VTT feature is worth building, the **on/off framework that gates them** has to exist. It is the foundation the "Related VTT pillars" and Stages 2–5 all plug into: each new feature becomes one more toggle in it. The **full spec — data model, multiplayer notifications, open questions — is in [`VTT_SETTINGS_SPEC.md`](VTT_SETTINGS_SPEC.md)**; the essentials:
 
-Two levels, GM over player:
+**Baseline vs optional.** The whiteboard and core (maps, tokens, planners, handouts, multiplayer) are the always-on **baseline**. Every higher VTT operation — sound & effects, fog of war / vision, dice, character sheets, the rules engine — is **optional and individually toggleable**, so a table, or a single player on a low-spec machine, can run just the whiteboard. The existing **elevation, posture and minimap** toggles are **reclassified** as the first VTT sub-toggles under this framework (they exist today as standalone `wp_*` settings).
 
-- **GM / host** sets which optional features are enabled for the table — a capability set carried on the campaign/session and sent to players like the rest of the sanitized state.
-- **Each player** can then _further disable_ any enabled feature for their own instance only (it does not affect anyone else): turn off sounds, skip fog rendering, hide the dice UI, and so on — a per-client preference.
-- **A player can never enable something the GM has disabled.** The GM's set is the ceiling; the player's is a subset of it.
+**Master toggle.** A per-campaign **"VTT integration"** master, **default ON**. While on, it exposes the individual feature toggles and lets any user set them for a campaign (by loading that campaign and setting them there). Off = the plain whiteboard experience, VTT features hidden and inactive.
 
-**Security invariant:** a local opt-out drops only the client-side _effect or cost_, never the GM's control. A player who turns fog of war off for performance still sees GM-hidden areas as clouded/absent and hidden items as nothing at all — visibility stays host-enforced and sanitized on the wire, exactly as today. The toggle changes what the client spends effort rendering, not what it is allowed to know.
+**Three preference tiers.**
+- **Global default** — a user's default VTT set for _new_ campaigns.
+- **Per-campaign** — each campaign's own set, editable without touching the global default; a new campaign copies the global default at creation, and later per-campaign edits never bleed back to the global default or to other campaigns.
+- **Player-local** — a per-client further-disable in multiplayer that never leaves that client.
 
-Implementation shape (when built): reuse the existing `wp_*` settings + `preferences.json` mirror for the per-client toggles (as the elevation / posture / minimap / dev-console toggles already do), and add a GM capability set on the campaign/session that gates them. Baseline features have no toggle.
+**Global → campaign propagation.** Changing the global default affects **only campaigns created afterward**; existing campaigns are untouched **unless the GM explicitly opts selected ones into a push** at the time of the change.
+
+**Multiplayer — the GM's set is the ceiling.** The campaign's GM-set toggles ride the sanitized snapshot. While joined a player may **further-disable** but can **never enable** a feature the GM turned off, and the campaign's settings **never alter the player's own personal/global preferences** — joining is a temporary constraint that lifts when they leave. On join — **and again only when the GM has _changed_ the settings, never every join** — the player gets a notice that: lists features the GM enabled which they lack, lists which of their enabled features will be disabled for the campaign, and offers to **sync** (declinable). The **session settings** always show, plainly, which features the GM has enabled and disabled for that campaign.
+
+**Security invariant.** A local opt-out drops only the client-side _effect or cost_, never the GM's control: a player who turns fog off still sees hidden areas clouded/absent and hidden items as nothing — visibility stays host-enforced and wire-sanitized. The toggle changes what the client spends effort rendering, not what it is allowed to know.
+
+**Implementation shape.** Reuse the `wp_*` settings + `preferences.json` mirror for per-client prefs (as elevation / posture / minimap / the dev-console toggle already do); store the campaign's set on the campaign object so it travels with the save and the multiplayer snapshot; keep the player-local disables client-only (exclude them from the campaign push, the way `turn_` credentials are already excluded from the prefs mirror). Baseline features carry no toggle. Being user-facing, the finished UI needs tour + Help coverage per the standing rule.
 
 ## What makes it hard
 
@@ -69,12 +76,13 @@ Implementation shape (when built): reuse the existing `wp_*` settings + `prefere
 
 ## Totals and order
 
+- **The settings & capability framework above is the agreed near-term first build** (spec: [`VTT_SETTINGS_SPEC.md`](VTT_SETTINGS_SPEC.md)). It reclassifies toggles that already exist and is the gate every later feature plugs into, and it needs neither the formula engine nor any new subsystem — mostly Settings UI, a field on the campaign object, and the multiplayer join notice.
 - Stage 1 alone: one release.
 - Stages 2 through 5 in order: two to three months of steady work, each stage shipping on its own. Stage 2 plus stage 4 already give a working homebrew engine before any sheet builder exists.
-- Sensible first move if it ever goes ahead: stage 1 plus the formula engine as a hidden foundation, then the system editor on top. Do not start with the sheet builder.
+- Sensible first move for the _rules_ side if it goes ahead: stage 1 plus the formula engine as a hidden foundation, then the system editor on top. Do not start with the sheet builder.
 
 ## Status
 
 Idea only. Talked over with a user; no work started as of 2026-09-08.
 
-_2026-09-17 — still not started. The building blocks this leans on have all shipped since: the planner rich-text block editor (Stages 1/3), Image Library categories and multi-pick, and the Campaign Cast (Stage 5). So the "which exist" claims now rest on more finished ground. Fog of war / vision and sound & effects are tracked above as related VTT pillars._
+_2026-09-17 — still not started. The building blocks this leans on have all shipped since: the planner rich-text block editor (Stages 1/3), Image Library categories and multi-pick, and the Campaign Cast (Stage 5). So the "which exist" claims now rest on more finished ground. Fog of war / vision and sound & effects are tracked above as related VTT pillars. The **settings & capability framework** (above) is now fully spec'd in [`VTT_SETTINGS_SPEC.md`](VTT_SETTINGS_SPEC.md) and is the agreed next thing to build — still no code as of 2026-09-17._

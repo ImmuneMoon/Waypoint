@@ -1006,6 +1006,9 @@ window.appToast = toast;
 // you just read. Any unsaved in-memory edit is intentionally discarded. (Works in the packaged shell too.)
 window.wpReloadFromDisk = function() { clearTimeout(saveTimeout); load(); };
 
+// Dev/console: force an immediate save now, skipping the ~500ms debounce (io.js save(true)).
+window.wpSave = save;
+
 
 
 

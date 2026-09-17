@@ -661,11 +661,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         if(e.button!==undefined && e.button!==0) return;
         if(typeof window.isDrawingMode !== 'undefined' && window.isDrawingMode) return;
         if((window.isEraserMode || window.isMeasureMode) && modeStr !== 'data') return; // Eraser/measure handle their own input
-        if(window.isPanMode) return; // hand tool (either view): the wrap pans, items never drag
+        if(window.isPanMode || window.wpSpacePan) return; // hand tool (either view) OR held Space: the wrap pans, items never drag
         if(e.target.contentEditable === "true") return; // Let user select text
         // if clicking on resize handle native area (bottom right corner approx)
         var rect = el.getBoundingClientRect();
-        if (e.clientX > rect.right - 15 && e.clientY > rect.bottom - 15) return; 
+        var hz = Math.min(15, rect.width * 0.33, rect.height * 0.33);   // resize-handle zone scaled to the item's ON-SCREEN size (capped 15px) — a fixed 15px swallowed small tokens at low zoom and made them ungrabbable
+        if (e.clientX > rect.right - hz && e.clientY > rect.bottom - hz) return; 
 
         var activeMap = getActiveMap();
         if(modeStr === 'data') item = activeMap.rooms.find(x=>x.id===el.dataset.id);
@@ -787,7 +788,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         lastPX = e.clientX; lastPY = e.clientY;
         var dx = (e.clientX - startX) / state.zoomLevel;
         var dy = (e.clientY - startY) / state.zoomLevel;
-        if(Math.abs(dx)>3||Math.abs(dy)>3) moved=true;
+        if(Math.abs(e.clientX - startX)>3||Math.abs(e.clientY - startY)>3) moved=true;   // click-vs-drag slop in SCREEN px so it stays 3px at any zoom (dx/dy are world px = screen/zoom)
         
         var primaryDrag = multiDrag.find(m => m.item.id === item.id) || multiDrag[0];
         if(!primaryDrag) return;
@@ -937,6 +938,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       wrapEl.addEventListener('pointerdown', function(e) {
 
           if (e.button !== undefined && e.button !== 0 && e.button !== 1) return; // Only left or middle click
+
+          // Space held: pan from any tool over any target, reusing the shared pan closure below
+          // (pointermove/pointerup already consume isPanning/startX/startY/scrollLeft/scrollTop). This
+          // runs before the eraser/draw/marquee/place branches so Space overrides whatever tool is active.
+          if (window.wpSpacePan && e.button === 0) {
+              isPanning = true;
+              startX = e.pageX - wrapEl.offsetLeft; startY = e.pageY - wrapEl.offsetTop;
+              scrollLeft = wrapEl.scrollLeft; scrollTop = wrapEl.scrollTop;
+              wrapEl.classList.add('dragging-pan'); e.preventDefault();
+              return;
+          }
 
           if ((window.isEraserMode || window.isMeasureMode) && wrapEl === wbWrap && e.button === 0) return; // Eraser/measure handle left-drags themselves
 
@@ -1337,6 +1349,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   attachPanning(wbWrap);
 
+  // Hold Space to pan from any tool (Figma/Photoshop-style): a temporary hand that grabs the board,
+  // not its items — release restores the current tool and selection. Middle-drag and the hand tool
+  // still pan too; this just makes a left-button pan reachable without leaving Select/Move (which
+  // trackpads and two-button mice otherwise can't do over a busy map). CSS drives the grab cursor.
+  window.wpSpacePan = false;
+  window.addEventListener('keydown', function(e) {
+      if (e.code !== 'Space' || e.repeat || window.wpSpacePan) return;
+      var t = e.target;   // don't hijack Space from typing or a focused control (button activation, checkbox…)
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.tagName === 'BUTTON' || t.tagName === 'A' || t.isContentEditable)) return;
+      var modalUp = Array.prototype.some.call(document.querySelectorAll('[id$="Modal"]'), function(m){ return m.style.display && m.style.display !== 'none'; });
+      if (modalUp) return;   // a dialog is open; leave Space to it
+      window.wpSpacePan = true; document.body.classList.add('space-pan'); e.preventDefault();   // no page scroll
+  });
+  window.addEventListener('keyup', function(e) {
+      if (e.code !== 'Space' || !window.wpSpacePan) return;
+      window.wpSpacePan = false; document.body.classList.remove('space-pan');
+  });
+  window.addEventListener('blur', function() { window.wpSpacePan = false; document.body.classList.remove('space-pan'); });   // never get stuck if focus leaves mid-hold
+
 
 
 
@@ -1509,6 +1540,13 @@ if(_el_dataCenterItemsBtn) _el_dataCenterItemsBtn.addEventListener('click', func
         wrap.scrollTop = (curCenterY * state.zoomLevel) - wrap.clientHeight/2;
         toast('Camera centered on items.');
     }
+    if(_el_dataCenterMenu) _el_dataCenterMenu.classList.remove('show');
+});
+
+var _el_dataFitBtn = document.getElementById('dataFitBtn');
+if(_el_dataFitBtn) _el_dataFitBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if(window.wpFitView) window.wpFitView(false);   // frame every room (zoom + pan)
     if(_el_dataCenterMenu) _el_dataCenterMenu.classList.remove('show');
 });
 

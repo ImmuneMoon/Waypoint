@@ -68,11 +68,26 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var _el_zoomInBtn = document.getElementById('zoomInBtn');
 
-if(_el_zoomInBtn) _el_zoomInBtn.addEventListener('click', function() { setZoom(Math.round((state.zoomLevel + 0.05) * 100) / 100); });
+  // Zoom -/+ buttons: a single click steps once; press-and-hold auto-repeats (350ms before it kicks in, then every 70ms).
+  function _zoomStep(dir){ return function(){ setZoom(Math.round((state.zoomLevel + dir * 0.05) * 100) / 100); }; }
+  function holdRepeat(btn, step){
+    if(!btn) return;
+    var to=null, iv=null;
+    function stop(){ if(to){clearTimeout(to);to=null;} if(iv){clearInterval(iv);iv=null;} }
+    btn.addEventListener('pointerdown', function(e){
+      if(e.button!==undefined && e.button!==0) return;   // left button / touch only
+      e.preventDefault(); step(); stop();                // first step immediately (replaces the old click)
+      to=setTimeout(function(){ iv=setInterval(step, 70); }, 350);
+      try{ btn.setPointerCapture(e.pointerId); }catch(_){}
+    });
+    ['pointerup','pointerleave','pointercancel'].forEach(function(ev){ btn.addEventListener(ev, stop); });
+    window.addEventListener('blur', stop);
+  }
+  holdRepeat(_el_zoomInBtn, _zoomStep(1));
 
   var _el_zoomOutBtn = document.getElementById('zoomOutBtn');
 
-if(_el_zoomOutBtn) _el_zoomOutBtn.addEventListener('click', function() { setZoom(Math.round((state.zoomLevel - 0.05) * 100) / 100); });
+  holdRepeat(_el_zoomOutBtn, _zoomStep(-1));
 
   // Zoom level is typed directly into the input; Enter/blur applies, Escape reverts.
 
@@ -1046,7 +1061,65 @@ export function restoreCameraPosition() {
 
 window.appSetZoom = setZoom;
 
+// Dev/automation read-only snapshot — ids and primitives only (no live refs to mutate), matching the
+// existing sandbox testing hooks; harmless to ship. Lets a harness ask the running app what it holds
+// instead of scraping the DOM or reading data.json off disk. Read live at call time, so it's safe even
+// before a campaign has loaded.
+window.wpDebug = { getState: function() {
+    var camp = getActiveCampaign();
+    return {
+        activeCampaignId: (state.appState && state.appState.activeCampaignId) || null,
+        activeItemId: camp ? (camp.activeItemId || null) : null,
+        mapIds: camp ? Object.keys(camp.items).filter(function(id){ return camp.items[id].type === 'map'; }) : [],
+        plannerIds: camp ? Object.keys(camp.items).filter(function(id){ return camp.items[id].type === 'planner'; }) : [],
+        viewMode: state.viewMode,
+        zoomLevel: state.zoomLevel,
+        selId: state.selId,
+        selWbId: state.selWbId,
+        selWbIds: (state.selWbIds || []).slice(),
+        netRole: (window.wpNet && window.wpNet.active) ? window.wpNet.role : 'offline',
+        version: window.wpAppVersion || null
+    };
+} };
 
+
+
+// Frame the content: walk the bounding box of the active map's items (or just the selection) and set
+// BOTH zoom and pan so the whole box fits the viewport with a margin. "Center on Items" only ever panned,
+// so anything larger than the screen still ran off the edges — this is the missing zoom half. Reached from
+// the 🎯 Center menu (Fit to Content) and Shift+1. pad is in world units; setZoom re-centres on the OLD view,
+// so the scroll must be written AFTER it. Same bbox walk and w||100/h||100 fallbacks as Center-on-Items.
+function fitView(selectionOnly) {
+    var m = getActiveMap(); if(!m || m.type === 'planner') return;
+    var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
+    if(!wrap || !wrap.clientWidth || !wrap.clientHeight) return;    // no laid-out viewport to fit into — leave the camera alone
+    var items = (state.viewMode === 'data' ? m.rooms : m.whiteboard) || [];
+    if(selectionOnly) {
+        var sel = state.viewMode === 'data'
+            ? (state.selId ? [state.selId] : [])
+            : ((state.selWbIds && state.selWbIds.length) ? state.selWbIds : (state.selWbId ? [state.selWbId] : []));
+        if(sel.length) items = items.filter(function(i){ return sel.indexOf(i.id) !== -1; });
+    }
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    items.forEach(function(i) {
+        if(i.x < minX) minX = i.x;
+        if(i.y < minY) minY = i.y;
+        if(i.x + (i.w||100) > maxX) maxX = i.x + (i.w||100);
+        if(i.y + (i.h||100) > maxY) maxY = i.y + (i.h||100);
+    });
+    if(minX === Infinity) { toast('Nothing to frame.'); return; }
+    var pad = 80;                                                   // world-unit breathing room around the box
+    var bw = Math.max(maxX - minX, 1), bh = Math.max(maxY - minY, 1);
+    var z = Math.min(wrap.clientWidth / (bw + pad*2), wrap.clientHeight / (bh + pad*2));
+    if(z < 0.1) z = 0.1; if(z > 4) z = 4;                          // same clamp setZoom enforces
+    setZoom(z);
+    var cx = minX + (maxX - minX)/2, cy = minY + (maxY - minY)/2;
+    wrap.scrollLeft = (cx * state.zoomLevel) - wrap.clientWidth/2;
+    wrap.scrollTop = (cy * state.zoomLevel) - wrap.clientHeight/2;
+    renderRulers();
+    toast(selectionOnly ? 'Framed selection.' : 'Fit to content.');
+}
+window.wpFitView = fitView;
 
 var _el_saveAsBtn = document.getElementById('saveAsBtn');
 if(_el_saveAsBtn) _el_saveAsBtn.addEventListener('click', function(e) {

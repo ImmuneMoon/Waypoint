@@ -600,6 +600,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (typing) return;
 
+      // Shift+1 frames the content — the selection if there is one, else the whole map. This is
+      // navigation, not an edit, so it sits ABOVE the spectator guard (players can frame too). With
+      // Shift held e.key is the shifted glyph ('!'), so match the physical key via e.code.
+      if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'Digit1') {
+          var anySelF = state.viewMode === 'data' ? !!state.selId : !!((state.selWbIds && state.selWbIds.length) || state.selWbId);
+          if (window.wpFitView) { e.preventDefault(); window.wpFitView(anySelF); }
+          return;
+      }
+
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return; // spectators: no edit shortcuts
 
       if (e.ctrlKey || e.metaKey) {
@@ -990,6 +999,12 @@ export function toast(msg) {
 // Every module's local toast() shim delegates to window.appToast — hook it up here.
 
 window.appToast = toast;
+
+// Dev/power-user: drop any queued autosave and re-read data.json from disk via the existing load()
+// path, so an externally rebuilt save appears without the stop/write/restart dance. Clearing the
+// debounce first is what makes disk win — otherwise the pending in-memory POST re-clobbers the file
+// you just read. Any unsaved in-memory edit is intentionally discarded. (Works in the packaged shell too.)
+window.wpReloadFromDisk = function() { clearTimeout(saveTimeout); load(); };
 
 
 

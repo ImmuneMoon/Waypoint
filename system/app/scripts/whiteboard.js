@@ -437,8 +437,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       tt.style.top = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop + 28) + 'px';
                       // keep the card on screen: flip to the left of the pointer, or above it, when the edge is near
                       var ttR = tt.getBoundingClientRect(), ttW = window.innerWidth, ttH = window.innerHeight;
-                      if (ttR.right > ttW - 8) tt.style.left = (e.clientX - wrapBox.left + document.getElementById('whiteboardWrap').scrollLeft - ttR.width - 14) + 'px';
-                      if (ttR.bottom > ttH - 8) tt.style.top = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop - ttR.height - 14) + 'px';
+                      var _sL = document.getElementById('whiteboardWrap').scrollLeft, _pX = e.clientX - wrapBox.left + _sL; var _L = (ttR.right > ttW - 8) ? (_pX - ttR.width - 14) : (_pX + 20); tt.style.left = Math.max(_sL + 8, Math.min(_L, _sL + wrapBox.width - ttR.width - 8)) + 'px';   // flip near the right edge, then clamp into the VISIBLE content range (account for wrap scroll)
+                      var _sT = document.getElementById('whiteboardWrap').scrollTop, _pY = e.clientY - wrapBox.top + _sT; var _T = (ttR.bottom > ttH - 8) ? (_pY - ttR.height - 14) : (_pY + 28); _T = Math.max(_sT + 8, Math.min(_T, _sT + wrapBox.height - 8 - Math.min(ttR.height, wrapBox.height - 16))); tt.style.top = _T + 'px'; if (tt.firstElementChild) tt.firstElementChild.style.maxHeight = (_sT + wrapBox.height - _T - 8) + 'px';   // clamp top into the visible range, then cap the card's height to the space below it so a tall card (or one whose image is still loading) can never spill past the board
 
                   }
 
@@ -487,10 +487,27 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (isHexTrigger || (item.type === 'trigger' && item.shape === 'diamond')) {
 
-              el.style.background = 'rgba(224,165,79,0.3)';
+              // A PORTAL (links to another map) shows its destination colour, bright, with a bold ring so it
+              // reads clearly on a painted battle-map; a plain trigger zone keeps the faint gold tint.
+              var _pRoom = item.nodeId ? activeMap.rooms.find(function (x) { return x.id === item.nodeId; }) : null;
+              var _isPortal = !!item.targetMapId || !!(_pRoom && _pRoom.targetMapId);
+
+              if (_isPortal) {
+
+                  var _pc = item.portalColor || '#5ac8fa';
+                  el.style.background = withAlpha(_pc, 0.55);
+                  el.style.boxShadow = 'inset 0 0 0 4px ' + _pc;
+
+              } else {
+
+                  el.style.background = 'rgba(224,165,79,0.3)';
+                  el.style.boxShadow = '';
+
+              }
 
           } else {
 
+              el.style.boxShadow = '';
               el.style.background = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : (item.color || '');
 
           }
@@ -573,7 +590,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           else { el.style.display = ''; el.classList.toggle('wb-absent', absentOwner); }
           var combatR = window.wpNet && window.wpNet.active && window.wpNet.combats && window.wpNet.combats[activeMap.id];
           el.classList.toggle('wb-turn', !!(combatR && combatR.rows[combatR.turn] && combatR.rows[combatR.turn].tokId === item.id));
-          if (state.selWbIds && state.selWbIds.includes(item.id) && state.selWbIds.length > 1) { el.style.boxShadow = '0 0 0 2px var(--gold)'; } else { el.style.boxShadow = 'none'; }
+          if (state.selWbIds && state.selWbIds.includes(item.id) && state.selWbIds.length > 1) { el.style.boxShadow = '0 0 0 2px var(--gold)'; } else { el.style.boxShadow = _isPortal ? ('inset 0 0 0 4px ' + _pc) : 'none'; }   // keep the portal ring when not multi-selected
 
           
 
@@ -3323,6 +3340,13 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
           wrap.scrollTop = (curCenterY * state.zoomLevel) - wrap.clientHeight/2;
           toast('Camera centered on items.');
       }
+      if(_el_wbCenterMenu) _el_wbCenterMenu.classList.remove('show');
+  });
+
+  var _el_wbFitBtn = document.getElementById('wbFitBtn');
+  if(_el_wbFitBtn) _el_wbFitBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if(window.wpFitView) window.wpFitView(false);   // frame everything (zoom + pan)
       if(_el_wbCenterMenu) _el_wbCenterMenu.classList.remove('show');
   });
 

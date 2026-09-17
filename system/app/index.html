@@ -229,7 +229,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Getting around fast</h4>
                       <ul>
                           <li><kbd>Ctrl + K</kbd> opens quick-jump: type any map, planner, or room name and hit Enter to go straight there.</li>
-                          <li>The <b>minimap</b> (bottom-right corner) shows where your content is &mdash; click anywhere on it to fly the camera there.</li>
+                          <li>The <b>minimap</b> (top-left corner) shows where your content is &mdash; click anywhere on it to fly the camera there. It dims when idle and the chevron collapses it.</li>
                           <li>Drag the thin gutters beside either sidebar to resize the panels.</li>
                       </ul>
                       <h4>Saving &amp; backups</h4>
@@ -258,7 +258,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Tools</h4>
                       <ul>
                           <li><b>&#10138; Select / Move</b> (default) &mdash; click rooms to edit them, drag to move, drag a box to select several.</li>
-                          <li><b>&#9995; Pan</b> &mdash; drag anywhere to move the map itself; rooms never move while it's active. (Middle-click drag pans in any tool.)</li>
+                          <li><b>&#9995; Pan</b> &mdash; drag anywhere to move the map itself; rooms never move while it's active. (Middle-click drag &mdash; or hold <kbd>Space</kbd> and drag &mdash; pans in any tool.)</li>
                           <li><b>&#8596; Link Mode</b> &mdash; lit gold while active; click two rooms to connect them. Its menu picks the <b>line type</b> for new links: a solid <b>Path</b>, a dashed <b>Route</b>, a dotted <b>Secret</b> way, or a <b>One-way</b> arrow from the first room to the second. <b>Done linking</b> (or the Select tool) leaves it.</li>
                           <li><b>&#128465; Clear the board</b> &mdash; removes every room and link on this map after a confirmation (Undo brings them back).</li>
                       </ul>
@@ -295,7 +295,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>The <b>New item opacity</b> slider in the Shapes and Pen menus sets the transparency new items are created with.</li>
                           <li>Click to select; drag the corner handle to resize (hold <kbd>Shift</kbd> &mdash; or turn on <b>Lock proportions</b> in the selection toolbar &mdash; to keep the width/height ratio; resizing one member of a <b>group</b> scales the whole group); drag the blue dot to rotate. Arrow keys nudge the selection (<kbd>Shift</kbd> for bigger steps).</li>
                           <li><b>&#9999;&#65039; Draw</b> sketches freehand (click it again for color, stroke size, straight-line mode, and opacity). <b>&#129533; Eraser</b> rubs out only what its circle passes over &mdash; the rest of the stroke stays. Click the eraser again for its size and mode: <b>Precise</b> trims strokes exactly to the circle, <b>Segments</b> removes whole point-to-point pieces.</li>
-                          <li><b>&#127919; Center</b> menu: jump to the canvas center, to all items, or <b>Center on Character</b> &mdash; your own token in multiplayer, or the selected one as GM.</li>
+                          <li><b>&#127919; Center</b> menu: jump to the canvas center, to all items, <b>Fit to Content</b> (<kbd>Shift</kbd>+<kbd>1</kbd> &mdash; zoom-and-pan so everything, or just the selection, fits the screen), or <b>Center on Character</b> &mdash; your own token in multiplayer, or the selected one as GM.</li>
                           <li>Drop a <b>&#9889; Trigger Zone</b> and give it an Event Message &mdash; it fires when a character token is dragged inside. The button picks a shape to fit the grid (hex on hex maps, square on square grids); change it any time under <b>Trigger Shape</b>.</li>
                           <li>Any item can be a <b>portal</b>: Properties &rarr; <b>Portal to Map</b>. On a nested map the parent is offered first (&#11014; Back to&hellip;), so a way home takes one click &mdash; no node needed.</li>
                       </ul>
@@ -462,7 +462,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <div class="help-pane" data-pane="keys" style="display:none;">
                       <h4>Mouse</h4>
                       <ul>
-                          <li><kbd>Middle Click + Drag</kbd> &nbsp; Pan</li>
+                          <li><kbd>Middle Click + Drag</kbd> &nbsp; Pan (or hold <kbd>Space</kbd> and drag with the left button, from any tool)</li>
                           <li><kbd>Mouse Wheel</kbd> &nbsp; Zoom toward the pointer, 5% a tick (<kbd>Shift + Wheel</kbd> scrolls; click the zoom % to type one)</li>
                           <li><kbd>Double Click</kbd> &nbsp; Edit a text block / travel through a portal</li>
                           <li><kbd>Right Click</kbd> &nbsp; Item menu (lock, hide, layers, opacity, above-grid)</li>
@@ -473,12 +473,13 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><kbd>Ctrl + Z</kbd> / <kbd>Ctrl + Y</kbd> &nbsp; Undo / Redo</li>
                           <li><kbd>Ctrl + C</kbd> / <kbd>Ctrl + X</kbd> / <kbd>Ctrl + V</kbd> &nbsp; Copy / cut / paste play map items (or paste an image from outside)</li>
                           <li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room</li>
+                          <li><kbd>Shift + 1</kbd> &nbsp; Fit to content &mdash; frame the selection if there is one, else the whole map</li>
                           <li><kbd>Arrow Keys</kbd> &nbsp; Nudge the selection 1px (<kbd>Shift</kbd> = 10px)</li>
                           <li><kbd>Delete</kbd> or <kbd>Backspace</kbd> &nbsp; Delete the selected item</li>
                       </ul>
                       <h4>Toolbar</h4>
                       <ul>
-                          <li><b>&#127919; Center</b> &nbsp; Reset the camera (to the canvas, or to fit your items)</li>
+                          <li><b>&#127919; Center</b> &nbsp; Recenter on the canvas or your items, or <b>Fit to Content</b> to zoom-and-pan everything into view (also <kbd>Shift</kbd>+<kbd>1</kbd>)</li>
                           <li><b>&#129522; Snap</b> &nbsp; Toggle grid snapping (remembered between launches)</li>
                       </ul>
                   </div>
@@ -508,6 +509,7 @@ window.addEventListener('unhandledrejection', function(e) {
                 <div class="shape-menu" id="dataCenterMenu" style="bottom:100%; top:auto; flex-direction:column; min-width: 130px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
                     <button class="wb-tool-btn" id="dataCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Canvas</button>
                     <button class="wb-tool-btn" id="dataCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Items</button>
+                    <button class="wb-tool-btn" id="dataFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame every room (Shift+1)">Fit to Content</button>
                 </div>
             </div>
             <button class="wb-tool-btn" id="dataUndoBtn" title="Undo" style="opacity:0.5; pointer-events:none;">&#8617;</button>
@@ -542,6 +544,7 @@ window.addEventListener('unhandledrejection', function(e) {
                     <button class="wb-tool-btn" id="wbCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Canvas</button>
                     <button class="wb-tool-btn" id="wbCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Items</button>
                     <button class="wb-tool-btn" id="wbCenterCharBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Jump the camera to your character token">Center on Character</button>
+                    <button class="wb-tool-btn" id="wbFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame everything — or just the selection (Shift+1)">Fit to Content</button>
                 </div>
             </div>
             <button class="wb-tool-btn" id="wbUndoBtn" title="Undo" style="opacity:0.5; pointer-events:none;">&#8617;</button>

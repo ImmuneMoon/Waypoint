@@ -40,6 +40,13 @@ This is where the difficulty starts, and it is about the data model, not the UI.
 - The GM crafts item templates and a library; players build characters from the sheet using the library; the rules validate them: point budgets, prerequisites, caps. Validation is more formulas: a cost formula per item and a budget on the system.
 - Difficulty: medium. The library UI is like the Image Library and the Campaign Cast, which exist.
 
+## Related VTT pillars (added 2026-09-17)
+
+These belong to the same "full VTT" vision but are independent features, not stages of the formula/rules work above — they can ship before, after, or between the stages. Neither exists yet in the app (confirmed by a code scan 2026-09-17):
+
+- **Fog of war / dynamic vision** — hiding unexplored or out-of-sight parts of a play map from players while the GM reveals as they go, optionally with token line-of-sight. Its own subsystem: a per-map reveal mask (and later a vision model), sanitized on the wire like everything else. A meaningful piece of work in its own right, unrelated to the formula engine; worth its own assessment when it comes up.
+- **Sound & effects** — ambient loops and one-shot sound cues plus play-map visual FX, already listed on the in-app roadmap ("Coming up"). Independent of the rules engine: the GM triggers cues, players hear/see them over the existing session wire.
+
 ## What makes it hard
 
 - The formula engine has to be right, well tested, and give plain error messages. Everything else stands on it.
@@ -55,3 +62,5 @@ This is where the difficulty starts, and it is about the data model, not the UI.
 ## Status
 
 Idea only. Talked over with a user; no work started as of 2026-09-08.
+
+_2026-09-17 — still not started. The building blocks this leans on have all shipped since: the planner rich-text block editor (Stages 1/3), Image Library categories and multi-pick, and the Campaign Cast (Stage 5). So the "which exist" claims now rest on more finished ground. Fog of war / vision and sound & effects are tracked above as related VTT pillars._

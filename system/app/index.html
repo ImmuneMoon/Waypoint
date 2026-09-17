@@ -73,6 +73,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/stream.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
+<script type="module" src="scripts/devconsole.js"></script>
 <script src="scripts/tooltips.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
@@ -1285,6 +1286,15 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="menu-item ctx-map-only" id="ctxUnlockNest" style="padding:8px 16px; cursor:pointer;" title="Open this map and every map nested under it to players again.">&#128275; Unlock this and every map under it</div>
     <div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
+</div>
+
+<!-- Developer console — press ~ to drop it down; type JS (page globals in scope) and Enter to run. See scripts/devconsole.js -->
+<div id="devConsole" style="display:none;">
+    <div id="devConsoleLog" role="log" aria-live="polite"></div>
+    <div id="devConsoleRow">
+        <span id="devConsolePrompt">&rsaquo;</span>
+        <input type="text" id="devConsoleInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Developer console input">
+    </div>
 </div>
 </body>
 </html>

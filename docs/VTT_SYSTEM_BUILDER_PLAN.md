@@ -47,6 +47,20 @@ These belong to the same "full VTT" vision but are independent features, not sta
 - **Fog of war / dynamic vision** — hiding unexplored or out-of-sight parts of a play map from players while the GM reveals as they go, optionally with token line-of-sight. Its own subsystem: a per-map reveal mask (and later a vision model), sanitized on the wire like everything else. A meaningful piece of work in its own right, unrelated to the formula engine; worth its own assessment when it comes up.
 - **Sound & effects** — ambient loops and one-shot sound cues plus play-map visual FX, already listed on the in-app roadmap ("Coming up"). Independent of the rules engine: the GM triggers cues, players hear/see them over the existing session wire.
 
+## Feature toggles — baseline vs optional (design note, 2026-09-17)
+
+The whiteboard and the core features (maps, tokens, planners, handouts, multiplayer) are the **baseline and are always on**. Every higher VTT operation — sound & effects, fog of war / vision, dice rolls, character sheets, the rules engine — is **optional and individually toggleable**, so a table, or a single player on a low-spec machine, can run just the whiteboard experience.
+
+Two levels, GM over player:
+
+- **GM / host** sets which optional features are enabled for the table — a capability set carried on the campaign/session and sent to players like the rest of the sanitized state.
+- **Each player** can then _further disable_ any enabled feature for their own instance only (it does not affect anyone else): turn off sounds, skip fog rendering, hide the dice UI, and so on — a per-client preference.
+- **A player can never enable something the GM has disabled.** The GM's set is the ceiling; the player's is a subset of it.
+
+**Security invariant:** a local opt-out drops only the client-side _effect or cost_, never the GM's control. A player who turns fog of war off for performance still sees GM-hidden areas as clouded/absent and hidden items as nothing at all — visibility stays host-enforced and sanitized on the wire, exactly as today. The toggle changes what the client spends effort rendering, not what it is allowed to know.
+
+Implementation shape (when built): reuse the existing `wp_*` settings + `preferences.json` mirror for the per-client toggles (as the elevation / posture / minimap / dev-console toggles already do), and add a GM capability set on the campaign/session that gates them. Baseline features have no toggle.
+
 ## What makes it hard
 
 - The formula engine has to be right, well tested, and give plain error messages. Everything else stands on it.

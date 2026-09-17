@@ -79,6 +79,8 @@ function syncPanel() {
     if (evState) evState.textContent = localStorage.getItem('wp_elevation') !== 'off' ? 'on' : 'off';
     var poState = ui('setPostureState');
     if (poState) poState.textContent = localStorage.getItem('wp_posture') !== 'off' ? 'on' : 'off';
+    var dcState = ui('setDevConsoleState');
+    if (dcState) dcState.textContent = localStorage.getItem('wp_devconsole') === 'on' ? 'on' : 'off';
     var ryState = ui('setRelayState');
     if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') === '1' ? 'on — relay only' : 'off — direct first';
     var go = ui('setGridOpacity');
@@ -281,6 +283,15 @@ if (_rlBtn) _rlBtn.addEventListener('click', function() {
         syncPanel();
         toast(def[0] + (on ? ' off \u2014 chips hidden, the values are kept.' : ' on.'));
     });
+});
+
+var _dcBtn = ui('setDevConsoleBtn');
+if (_dcBtn) _dcBtn.addEventListener('click', function() {
+    var on = localStorage.getItem('wp_devconsole') === 'on';
+    try { localStorage.setItem('wp_devconsole', on ? 'off' : 'on'); } catch (e) {}
+    if (on && window.wpDevConsole) window.wpDevConsole.close();   // turning it off: close the console if it's open
+    syncPanel();
+    toast('Developer console ' + (on ? 'off.' : 'on — press ~ to open it (type /help inside).'));
 });
 
 var _op = ui('setOpacity');

@@ -1085,6 +1085,11 @@ window.addEventListener('unhandledrejection', function(e) {
             <div class="set-field-label">Default opacity for new items <span id="setOpacityVal" style="color:var(--dim);"></span></div>
             <input type="range" id="setOpacity" min="10" max="100" style="width:100%;">
         </div>
+        <div style="margin-bottom:12px;">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Developer console <span id="setDevConsoleState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setDevConsoleBtn" style="width:100%;">Toggle Developer Console</button>
+            <div style="color:var(--dim); font-size:10.5px; line-height:1.5; margin-top:6px;">When on, press <b>~</b> to drop a JavaScript console for inspecting and scripting the app &mdash; for debugging and power users. Off by default.</div>
+        </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setSnapNowBtn" title="Copy the save as it is right now into saves/backups. Kept until you delete it.">Snapshot the Save Now</button>

@@ -1,11 +1,11 @@
 // In-app developer console. OFF by default — enable it in Settings ▸ Advanced (which sets wp_devconsole=on);
 // then press ~ (backtick) anywhere outside a text field to drop it down. Type a JavaScript expression or
 // statement and Enter runs it, with the page's globals in scope — window.wpDebug.getState(),
-// window.wpReloadFromDisk(), window.wpFitView(), window.wpNet, and the rest. Meta-commands: /help (or /?)
-// lists the pertinent app commands, /clear clears. Up/Down walk the history (localStorage), Esc — or ~ on an
-// empty line — closes it. A power/dev tool: it only runs what YOU type, matching the other sandbox hooks.
-// Self-contained: no imports, no app state touched beyond the window globals. The wpDevConsole.* API stays
-// callable from scripts even when the ~ key is gated off.
+// window.wpReloadFromDisk(), window.wpFitView(), window.wpNet, and the rest. Meta-commands: /help lists the
+// commands, /help <name> explains one (any wp* global works, e.g. /help wpSeatHex), /clear clears. Up/Down
+// walk the history (localStorage), Esc — or ~ on an empty line — closes it. A power/dev tool: it only runs
+// what YOU type, matching the other sandbox hooks. Self-contained: no imports, no app state touched beyond
+// window globals. The wpDevConsole.* API stays callable from scripts even when the ~ key is gated off.
 (function () {
     var panel = null, logEl = null, input = null, seeded = false;
     var hist = [], histIdx = 0;
@@ -40,25 +40,127 @@
         try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); }   // circular / non-serialisable
     }
 
-    // /help — the pertinent app commands, plus any other wp* globals detected live so the list can't go stale.
-    function help() {
-        var CMDS = [
-            ['/help  or  /?', 'this list'],
-            ['/clear', 'clear the console (also wpDevConsole.clear())'],
-            ['wpDebug.getState()', 'read-only snapshot: active campaign/item, map & planner ids, view, zoom, selection, net role, version'],
-            ['wpReloadFromDisk()', 'drop the pending autosave and re-read data.json from disk (an external rebuild shows up)'],
-            ['wpFitView(sel)', 'zoom + pan to frame every item — or just the selection when sel is true (same as Shift+1)'],
-            ['wpNet', 'multiplayer state — wpNet.active, wpNet.role ("host" / "client")'],
-            ['wpAppVersion', 'the running app version string'],
-            ['wpDevConsole', 'open() · close() · toggle() · clear() this console']
-        ];
-        addLine('Commands (this is a real JS console — any window global works too):', 'dc-note');
-        var w = 0; CMDS.forEach(function (c) { if (c[0].length > w) w = c[0].length; });
-        CMDS.forEach(function (c) { addLine('  ' + c[0] + new Array(w - c[0].length + 3).join(' ') + c[1], 'dc-out'); });
+    // The headline commands get a full multi-line detail (shown by /help and /help <name>).
+    var HELP = [
+        { name: '/help', short: 'this list, or  /help <name>  for detail on one command or global',
+          detail: '/help            list the headline commands.\n/help <name>     explain one command or wp* global in full, e.g.  /help wpFitView  or  /help seathex\n/?               same as /help.' },
+        { name: '/clear', short: 'clear the console log (history is kept)',
+          detail: 'Clears everything printed so far — same as wpDevConsole.clear(). Your Up/Down command history is untouched.' },
+        { name: 'wpDebug.getState()', short: 'read-only snapshot of what the app is showing now',
+          detail: 'Returns a plain object (ids and primitives only — no live refs to mutate):\n  activeCampaignId, activeItemId   the campaign, and the open map or planner\n  mapIds, plannerIds               ids in the active campaign\n  viewMode, zoomLevel              "data" | "visual", and the current zoom\n  selId / selWbId / selWbIds       the current selection (data map / play map)\n  netRole                          "host" | "client" | "offline"\n  version                          the running app version\nExample:  wpDebug.getState().mapIds.length' },
+        { name: 'wpReloadFromDisk()', short: 're-read data.json from disk, dropping the pending autosave',
+          detail: 'Clears the ~500ms autosave debounce, then reloads data.json through the app’s normal load path and\nre-renders. Use it when something outside the app rebuilt the save, so the open tab picks up the new\nfile instead of overwriting it on the next autosave. Any unsaved in-memory edit is discarded.' },
+        { name: 'wpFitView(sel)', short: 'zoom + pan to frame everything, or just the selection',
+          detail: 'wpFitView(false)   frame every item on the active map.\nwpFitView(true)    frame only the current selection.\nComputes a fit-zoom (clamped 0.1–4, with an 80-unit margin) then centres. Same as the Fit to Content\nmenu item and the Shift+1 shortcut.' },
+        { name: 'wpNet', short: 'the multiplayer object',
+          detail: 'wpNet.active   true while you are hosting or joined.\nwpNet.role     "host" | "client".\nAlso holds the P2P internals (peers, snapshot, broadcast helpers). Reading is safe; calling internals\ncan affect a live session, so be careful mid-game.' },
+        { name: 'wpAppVersion', short: 'the running app version string',
+          detail: 'e.g.  "1.4.8"  in the packaged app, or  "1.4.8-dev"  on the dev server.' },
+        { name: 'wpDevConsole', short: 'control this console from code',
+          detail: 'wpDevConsole.open() · .close() · .toggle() · .clear() · .help()\nThe ~ key is gated by Settings ▸ Advanced, but these methods work whether or not the toggle is on.' }
+    ];
+
+    // One-liners for every other wp* global, so /help <name> explains it. Anything here but absent at runtime
+    // is simply never shown; anything present but missing here falls back to a live type+arity description.
+    var DESC = {
+        wpApplyGridOpacity: 'Apply the current grid-opacity setting to the board grid.',
+        wpApplyRememberedView: "Restore a map's remembered face (Data vs Play) - item.meta.lastView.",
+        wpApplyTips: 'Re-attach the fast hover tooltips (scripts/tips.js).',
+        wpAutoRoom: 'Auto-create/seat a room node on the data map (datamap.js).',
+        wpBlasts: 'Return the current blast (area-of-effect) templates on the play map. [sandbox hook]',
+        wpBuildExport: 'Build an export payload (this map / all maps / campaign / everything) - io.js buildExport.',
+        wpCastSaveCharacter: 'Save a character/token into the campaign Cast.',
+        wpCheckShell: 'Check whether the Electron core (shell) is older than SHELL_WANTED and needs the installer.',
+        wpCheckUpdates: 'Run the app update check (GitHub latest vs the running version).',
+        wpClampMenu: 'Position a fixed pop-up menu so it stays on-screen (flips near the right/bottom edge).',
+        wpCloseImgPreview: "Close the Image Library's large preview.",
+        wpCmdkOpen: 'Open the Ctrl+K quick-jump palette.',
+        wpCreateMapFromRoomImage: "Build a new map from a room's scene image.",
+        wpDuplicateWb: 'Duplicate the selected play-map items (same as Ctrl+D).',
+        wpEditTextBox: 'Open the in-place editor for a text box, by id.',
+        wpEraserCursorHide: "Hide the eraser's circle cursor.",
+        wpFilePrefs: 'The shared table preferences backed by saves/preferences.json.',
+        wpFitToGrid: 'Size the selection to whole grid cells and seat it (square or hex).',
+        wpFocusCharacter: 'Jump the camera to a character token and select it (the party-strip action).',
+        wpHandoutList: "List the current campaign's handouts.",
+        wpHandoutPayload: "Build a handout's wire payload for sending to players.",
+        wpHideTooltip: 'Hide the play-map hover card (#wbTooltip).',
+        wpImgCatEnsure: 'Ensure an Image Library category exists.',
+        wpImgCatRename: 'Rename an Image Library category.',
+        wpJournalAddNote: 'Add a note to your Journal (title + text).',
+        wpJournalDefaultPage: "The Journal's default landing-page setting.",
+        wpJournalReceive: 'Receive a revealed handout into the Journal.',
+        wpLinkTypes: 'The data-map link styles - path / route / secret / one-way.',
+        wpMeasureKind: "The measure sub-mode - 'ruler' or 'blast'.",
+        wpNewOpacityProps: 'The default opacity props applied to newly placed items.',
+        wpOpenCombat: 'Open the combat / turn-order roster for a map.',
+        wpOpenHelp: 'Open the Help modal (optionally to a pane + anchor).',
+        wpPickImage: 'Open the Image Library to pick a picture.',
+        wpPlace: 'The current shape/image placement state (the armed placement tool).',
+        wpPlaceCommit: 'Commit a placement at the given box (px, py, pw, ph, sx, sy).',
+        wpPlaceDisarm: 'Cancel placement mode.',
+        wpPlannerFind: 'Find text within the open planner.',
+        wpPrefsPush: 'Push the wp_* settings to saves/preferences.json.',
+        wpRefreshBlasts: 'Recompute and redraw the blast templates (e.g. after an elevation/posture change).',
+        wpRenderCombatStrip: 'Render the bottom combat turn strip.',
+        wpRenderHandouts: 'Render the GM Handouts list.',
+        wpRenderNotepad: 'Render the shared table notepad.',
+        wpRenderPartyStrip: 'Render the party strip (player character tokens).',
+        wpRenderRulers: 'Redraw the coordinate rulers.',
+        wpSeatFacings: 'Re-seat token facings (hex facing snapping).',
+        wpSeatHex: 'Seat a token into its hex cell.',
+        wpSelKey: "The current selection's camera key, e.g. 'r:<id>' (data) or 'w:<id>' (play).",
+        wpSelectLink: 'Select a data-map link line by index.',
+        wpShowInstallerSteps: 'Open the installer-steps dialog (the core-update walk-through).',
+        wpShowWhatsNew: 'Open the What’s New view.',
+        wpSnapFacing: "Snap a token's rotation to its facing step.",
+        wpSnapNewHexItem: 'Seat a newly placed item on a hex grid.',
+        wpSpacePan: 'Flag - true while Space is held to pan the board from any tool.',
+        wpSpawnTokenForCharacter: 'Drop a play-map token for a character. [sandbox hook]',
+        wpStance: "On clients, the GM's elevation/posture visibility flags.",
+        wpSyncRightPanel: 'Open/close the right Properties panel to match the current selection.',
+        wpTurnToken: "Rotate a token's facing by N steps (+1 = clockwise).",
+        wpTutorial: 'The interactive tutorial controller (ensure / start / rebuild / discard).',
+        wpUpdateHandles: 'Reposition the resize/rotate handles on the current selection.',
+        wpUpdateSelToolbar: 'Re-render and counter-scale the floating selection toolbar.',
+        wpUploadImage: 'Upload an image file into the saves folder.',
+        wpVersionReady: 'Promise that resolves with the newest known app version.',
+        wpWithAlpha: 'Apply an alpha to a color (text / background opacity).',
+        wpWithRenderedPlanner: 'Run a callback with a planner fully rendered (used by exports).'
+    };
+
+    function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+    // /help — list the headline commands; /help <name> — explain the matching command(s) or wp* global(s) in
+    // full. Any real wp* global with no hand-written entry falls back to a live type + arg-count description,
+    // so every global answers. The "Other app globals" line is auto-detected and can never go stale.
+    function help(query) {
+        query = (query || '').trim();
+        if (query) {
+            var q = norm(query), out = [];
+            HELP.forEach(function (c) { if (norm(c.name).indexOf(q) >= 0) out.push({ name: c.name, body: c.detail }); });
+            Object.keys(DESC).forEach(function (k) { if (norm(k).indexOf(q) >= 0) out.push({ name: k, body: DESC[k] }); });
+            if (!out.length) {
+                var live = Object.keys(window).filter(function (k) { return /^wp[A-Z]/.test(k) && norm(k).indexOf(q) >= 0; }).sort();
+                if (live.length) {
+                    live.forEach(function (k) {
+                        var v = window[k], kind = typeof v === 'function' ? ('function, ' + v.length + ' arg(s)') : typeof v;
+                        addLine(k, 'dc-cmd'); addLine('  ' + kind + ' — internal app global (no note yet). Inspect it by typing:  ' + k, 'dc-out');
+                    });
+                    return;
+                }
+                addLine('No command or global matches “' + query + '”. Type /help for the list.', 'dc-err'); return;
+            }
+            out.forEach(function (c) { addLine(c.name, 'dc-cmd'); addLine('  ' + String(c.body).replace(/\n/g, '\n  '), 'dc-out'); });
+            return;
+        }
+        addLine('Commands (a real JS console — any window global works too).  /help <name> explains one:', 'dc-note');
+        var w = 0; HELP.forEach(function (c) { if (c.name.length > w) w = c.name.length; });
+        HELP.forEach(function (c) { addLine('  ' + c.name + new Array(w - c.name.length + 3).join(' ') + c.short, 'dc-out'); });
         try {
             var known = { wpDebug: 1, wpReloadFromDisk: 1, wpFitView: 1, wpNet: 1, wpAppVersion: 1, wpDevConsole: 1 };
             var others = Object.keys(window).filter(function (k) { return /^wp[A-Z]/.test(k) && !known[k]; }).sort();
-            if (others.length) addLine('Other app globals: ' + others.join(', '), 'dc-note');
+            if (others.length) addLine('Other app globals (each explained by /help <name>): ' + others.join(', '), 'dc-note');
         } catch (e) {}
     }
 
@@ -67,7 +169,7 @@
         panel.style.display = 'flex';
         if (!seeded) {
             addLine('Waypoint dev console — runs JavaScript with the page globals in scope.', 'dc-note');
-            addLine('Type  /help  for the command list.   Esc — or ~ on an empty line — closes.', 'dc-note');
+            addLine('Type  /help  for commands, or  /help <name>  to explain one.   Esc closes.', 'dc-note');
             seeded = true;
         }
         setTimeout(function () { if (input) input.focus(); }, 0);
@@ -83,8 +185,8 @@
             try { localStorage.setItem('wp_devconsole_hist', JSON.stringify(hist)); } catch (e) {}
         }
         histIdx = hist.length;
-        var slash = /^\/(help|clear|\?)\s*$/i.exec(cmd.trim());   // meta-commands, not JS — a regex literal like /x/.test(y) still evals
-        if (slash) { if (slash[1].toLowerCase() === 'clear') clear(); else help(); return; }
+        var slash = /^\/(help|clear|\?)(?:\s+(.*))?$/i.exec(cmd.trim());   // meta-commands, not JS — a regex literal like /x/.test(y) still evals
+        if (slash) { if (slash[1].toLowerCase() === 'clear') clear(); else help(slash[2]); return; }
         var r;
         try { r = (0, eval)(cmd); } catch (e) { addLine(String((e && e.stack) || e), 'dc-err'); return; }   // indirect eval → global scope, so window.* is reachable
         if (r && typeof r.then === 'function') {

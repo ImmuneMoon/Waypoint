@@ -656,6 +656,25 @@
   #minimap { opacity: 0.5; transition: opacity .15s ease; }
   #minimap:hover, #minimap:active, #minimap.mm-collapsed { opacity: 1; }
 
+  /* Developer console (see scripts/devconsole.js) — a drop-down JS console toggled with ~. Always dark
+     since it's a debug surface; accents follow the theme's gold/red. Hidden until summoned. */
+  #devConsole {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100020;
+    display: none; flex-direction: column; height: 42vh; max-height: 460px;
+    background: rgba(10, 12, 16, 0.96); border-bottom: 2px solid var(--gold);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    font-family: ui-monospace, "Cascadia Code", "Consolas", "Courier New", monospace; font-size: 12.5px;
+  }
+  #devConsoleLog { flex: 1; overflow-y: auto; padding: 10px 12px; color: #cfd3da; white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
+  #devConsole .dc-line { margin: 0 0 4px; }
+  #devConsole .dc-cmd { color: #8fd0ff; }
+  #devConsole .dc-out { color: #d7dbe2; }
+  #devConsole .dc-err { color: #ff8a8a; }
+  #devConsole .dc-note { color: #8a8f98; }
+  #devConsoleRow { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.35); }
+  #devConsolePrompt { color: var(--gold); font-weight: bold; }
+  #devConsoleInput { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #eef1f5; font-family: inherit; font-size: inherit; }
+
   /* Ctrl+K quick-jump */
   .cmdk-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; font-size: 13px; color: var(--ink); }
   .cmdk-row.active, .cmdk-row:hover { background: var(--panel); }

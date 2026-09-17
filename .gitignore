@@ -28,3 +28,6 @@ Thumbs.db
 desktop.ini
 dev-saves/
 dist/
+
+# --- Claude Code local config (machine/session-specific paths) ---
+.claude/

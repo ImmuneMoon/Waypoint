@@ -261,7 +261,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><b>&#10138; Select / Move</b> (default) &mdash; click rooms to edit them, drag to move, drag a box to select several.</li>
                           <li><b>&#9995; Pan</b> &mdash; drag anywhere to move the map itself; rooms never move while it's active. (Middle-click drag &mdash; or hold <kbd>Space</kbd> and drag &mdash; pans in any tool.)</li>
                           <li><b>&#8596; Link Mode</b> &mdash; lit gold while active; click two rooms to connect them. Its menu picks the <b>line type</b> for new links: a solid <b>Path</b>, a dashed <b>Route</b>, a dotted <b>Secret</b> way, or a <b>One-way</b> arrow from the first room to the second. <b>Done linking</b> (or the Select tool) leaves it.</li>
-                          <li><b>&#128465; Clear the board</b> &mdash; removes every room and link on this map after a confirmation (Undo brings them back).</li>
+                          <li><b>&#128465; Clear the board</b> &mdash; removes every room and link on this map after a confirmation (this map's Undo brings them back).</li>
                       </ul>
                       <h4>Rooms (nodes)</h4>
                       <ol>
@@ -353,6 +353,12 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Use the planner toolbar to add blocks: headings, prose, callouts, tables, and flowcharts. Blocks can be reordered and edited in place.</li>
                           <li>Planners nest under planners just like maps, and <b>re-order</b> the same way &mdash; drag onto the top or bottom of a row, or right-click &rarr; <b>&#8593; Move Up</b> / <b>&#8595; Move Down</b>. Keep one parent per module with a child page per scene.</li>
                       </ol>
+                      <h4>Undo and redo</h4>
+                      <ul>
+                          <li>Every planner keeps <b>its own</b> history: the <b>&#8617; &#8618;</b> buttons in the planner toolbar take back the last edit on this page &mdash; a deleted block, row or node comes back where it was, at the same scroll position &mdash; and never touch another planner or a map.</li>
+                          <li>Inside a text field, <kbd>Ctrl + Z</kbd> is first the browser's own text undo (your typing, character by character). Once that field has nothing left to take back &mdash; nothing typed in it since the page was last rebuilt &mdash; the same key reaches the planner's history. Outside a field it always does.</li>
+                          <li><b>Not undoable:</b> renaming, re-ordering, re-parenting, the scene status, creating a page, and deleting one. Deleting takes a <b>safety copy</b> of your save first (Settings &rarr; Advanced &rarr; Snapshots), so nothing is lost for good.</li>
+                      </ul>
                       <div class="help-tip">Diagram blocks render with an internet connection. In multiplayer, planners are never sent to players &mdash; they are yours alone.</div>
                   </div>
 
@@ -471,7 +477,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       </ul>
                       <h4>Keyboard</h4>
                       <ul>
-                          <li><kbd>Ctrl + Z</kbd> / <kbd>Ctrl + Y</kbd> &nbsp; Undo / Redo</li>
+                          <li><kbd>Ctrl + Z</kbd> / <kbd>Ctrl + Y</kbd> &nbsp; Undo / Redo &mdash; for the map or planner you are looking at (each keeps its own history; a pan, a click or a map switch is never a step, and in a planner text field the browser's text undo runs first)</li>
                           <li><kbd>Ctrl + C</kbd> / <kbd>Ctrl + X</kbd> / <kbd>Ctrl + V</kbd> &nbsp; Copy / cut / paste play map items (or paste an image from outside)</li>
                           <li><kbd>Ctrl + K</kbd> &nbsp; Quick-jump to any map, planner, or room</li>
                           <li><kbd>Shift + 1</kbd> &nbsp; Fit to content &mdash; frame the selection if there is one, else the whole map</li>
@@ -513,8 +519,8 @@ window.addEventListener('unhandledrejection', function(e) {
                     <button class="wb-tool-btn" id="dataFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame every room (Shift+1)">Fit to Content</button>
                 </div>
             </div>
-            <button class="wb-tool-btn" id="dataUndoBtn" title="Undo" style="opacity:0.5; pointer-events:none;">&#8617;</button>
-            <button class="wb-tool-btn" id="dataRedoBtn" title="Redo" style="opacity:0.5; pointer-events:none;">&#8618;</button>
+            <button class="wb-tool-btn" id="dataUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;">&#8617;</button>
+            <button class="wb-tool-btn" id="dataRedoBtn" title="Redo (this map)" style="opacity:0.5; pointer-events:none;">&#8618;</button>
             <div class="wb-tool-sep"></div>
             <button class="wb-tool-btn active" id="dataMoveBtn" title="Select / Move (drag rooms, box-select)">&#10138;</button>
             <button class="wb-tool-btn" id="dataPanBtn" title="Pan (drag the map around; rooms never move)">&#9995;</button>
@@ -548,8 +554,8 @@ window.addEventListener('unhandledrejection', function(e) {
                     <button class="wb-tool-btn" id="wbFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame everything — or just the selection (Shift+1)">Fit to Content</button>
                 </div>
             </div>
-            <button class="wb-tool-btn" id="wbUndoBtn" title="Undo" style="opacity:0.5; pointer-events:none;">&#8617;</button>
-            <button class="wb-tool-btn" id="wbRedoBtn" title="Redo" style="opacity:0.5; pointer-events:none;">&#8618;</button>
+            <button class="wb-tool-btn" id="wbUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;">&#8617;</button>
+            <button class="wb-tool-btn" id="wbRedoBtn" title="Redo (this map)" style="opacity:0.5; pointer-events:none;">&#8618;</button>
             <div class="wb-tool-sep"></div>
           <div style="position:relative;">
               <button class="wb-tool-btn" id="wbGridBtn" title="Grid Options">&#8862;</button>
@@ -800,6 +806,8 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
         <div id="plannerPreviewWrap">
           <div id="plannerFindBar"><span id="plannerTools" class="hdr-group" data-label="Planner" style="display:none;">
+      <button class="tool ghost icon" id="plannerUndoBtn" title="Undo (this planner)" style="opacity:0.5; pointer-events:none;">&#8617;</button>
+      <button class="tool ghost icon" id="plannerRedoBtn" title="Redo (this planner)" style="opacity:0.5; pointer-events:none;">&#8618;</button>
       <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render Preview </button>
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">&#9654; Next</option><option value="played">&#9989; Played</option><option value="skipped">&#9197; Skipped</option></select>
     </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">

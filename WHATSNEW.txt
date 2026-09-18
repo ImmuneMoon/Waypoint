@@ -1,6 +1,29 @@
 WAYPOINT 1.4.9 — What's New
 ============================
 
+Undo
+- Each map and each planner now has its own undo and redo. Ctrl+Z takes back
+  the last edit on the item you are looking at — never a pan, a click, a map
+  switch or an edit on another map — and Ctrl+Y puts it back. The buttons in
+  the map toolbars work the same way, for that map only.
+- Planners have Undo and Redo buttons of their own, in the planner toolbar: a
+  deleted block, row or flowchart node comes back where it was, at the same
+  scroll position. Inside a text field, Ctrl+Z is first the browser's own text
+  undo; once that field has nothing left to take back, the same key reaches the
+  planner's history.
+- Campaign-level things — the cast, handouts, players, the session log, your
+  settings — are never part of undo any more, so undoing a map edit cannot
+  quietly roll one of them back.
+- Deleting a map or planner is still not undoable, but a safety copy of the
+  save is taken first (Settings ▸ Advanced ▸ Snapshots), for campaigns too.
+  Renaming, re-ordering, re-parenting, locking and the scene status are not
+  undo steps either.
+- While hosting, an undo reaches the players at once, and a player's own token
+  and drawings stay where the player put them — a GM undo never snaps them
+  back, and a GM's drag of a player-owned token is not undoable during the
+  session. Walking a character through a portal (a move between two maps) and
+  bringing a token over from another map clear both maps' undo at that point.
+
 Fixes
 - After leaving a GM's game, pressing Undo could put the GM's campaign into
   your own save and hide your campaigns. That can no longer happen: Undo does

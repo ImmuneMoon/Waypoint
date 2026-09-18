@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -248,9 +248,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       });
 
+      rebaseHistory(activeMap);   // the legacy upgrade and block defaults above are clean-ups, never an undo step
+
       blockContainer.innerHTML = html;
 
-      
+
 
       // Attach listeners
 
@@ -347,7 +349,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-grow')).forEach(function(el) {
           var grow = function() { el.style.height = 'auto'; el.style.height = Math.max(31, el.scrollHeight) + 'px'; };
-          el.addEventListener('input', grow); el.addEventListener('keydown', function(e) { e.stopPropagation(); }); grow();
+          el.addEventListener('input', grow); el.addEventListener('keydown', function(e) { if (fieldUndoChord(e)) return; e.stopPropagation(); }); grow();
       });
       Array.from(blockContainer.querySelectorAll('.fc-dir')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].dir = this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.fc-space')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].space = this.value; save(true); renderPlannerPreview(); }));
@@ -501,7 +503,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               am.blocks[this.dataset.idx].content = this.innerHTML;
               save(false); renderPlannerPreview(); rteSyncBar(this);
           });
-          body.addEventListener('keydown', function(e) { e.stopPropagation(); });
+          body.addEventListener('keydown', function(e) { if (fieldUndoChord(e)) return; e.stopPropagation(); });
           body.addEventListener('paste', function(e) {   // plain text only — no styles from elsewhere
               e.preventDefault();
               var t = (e.clipboardData || window.clipboardData).getData('text/plain');
@@ -644,7 +646,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function fcApplyNudges(box, svg, b) {
       if (!b.nodePos && !b.nodeSize) return;
       if (!b.nodePos) b.nodePos = {};
-      if (b.nodePosSig !== fcSig(b)) { delete b.nodePos; delete b.nodeSize; delete b.nodePosSig; save(true); return; }   // the chart changed shape: fresh layout
+      if (b.nodePosSig !== fcSig(b)) { withoutHistory(getActiveMap(), function() { delete b.nodePos; delete b.nodeSize; delete b.nodePosSig; }); save(true); return; }   // the chart changed shape: fresh layout (a clean-up, not a step)
       Object.keys(b.nodePos).forEach(function(nid) {
           var g = svg.querySelector('g.node[id^="flowchart-' + nid + '-"]'); if (!g) return;
           var p = b.nodePos[nid]; g.setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
@@ -690,8 +692,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // the corner handle writes inline width/height; remember those
           var w = parseInt(box.style.width, 10), h = parseInt(box.style.height, 10);
           if (!w && !h) return;
-          if (w && w !== b.boxW) b.boxW = w;
-          if (h && h !== b.boxH) b.boxH = h;
+          if ((!w || w === b.boxW) && (!h || h === b.boxH)) return;
+          withoutHistory(getActiveMap(), function() {   // a remembered box size is layout, not an undo step
+              if (w && w !== b.boxW) b.boxW = w;
+              if (h && h !== b.boxH) b.boxH = h;
+          });
           clearTimeout(box._saveT); box._saveT = setTimeout(function() { save(true); }, 400);
       });
       ro.observe(box);
@@ -1005,6 +1010,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   
 
   var _el_renderPlannerBtn = document.getElementById('renderPlannerBtn');
+
+// This planner's own undo / redo (each planner keeps its own stack); mousedown is swallowed so the field
+// being edited keeps its focus and caret
+var _el_plannerUndoBtn = document.getElementById('plannerUndoBtn'), _el_plannerRedoBtn = document.getElementById('plannerRedoBtn');
+if (_el_plannerUndoBtn) { _el_plannerUndoBtn.addEventListener('mousedown', function(e) { e.preventDefault(); }); _el_plannerUndoBtn.addEventListener('click', function() { undo(); }); }
+if (_el_plannerRedoBtn) { _el_plannerRedoBtn.addEventListener('mousedown', function(e) { e.preventDefault(); }); _el_plannerRedoBtn.addEventListener('click', function() { redo(); }); }
 
 var _el_plannerStatus = document.getElementById('plannerStatus');
 if (_el_plannerStatus) _el_plannerStatus.addEventListener('change', function() {

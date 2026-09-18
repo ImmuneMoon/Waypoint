@@ -10,7 +10,7 @@
 import { state } from './state.js';
 import { net } from './net.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
-import { save, toast } from './io.js';
+import { save, toast, historyBarrier } from './io.js';
 import { esc } from './inspector.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -923,7 +923,9 @@ if (_hList) {
         }
         else if (b.dataset.act === 'delete') {
             delete handoutsOf(camp)[h.id];
-            Object.values(camp.items).forEach(function(m) { if (m.type === 'map') (m.rooms || []).forEach(function(r) { if (r.handoutId === h.id) delete r.handoutId; }); });
+            var swept = [];   // every map that lost a room's handout: undo there must not re-attach a handout that is gone
+            Object.values(camp.items).forEach(function(m) { if (m.type === 'map') (m.rooms || []).forEach(function(r) { if (r.handoutId === h.id) { delete r.handoutId; if (swept.indexOf(m.id) < 0) swept.push(m.id); } }); });
+            if (swept.length) historyBarrier(swept);
             save(true); renderHandouts(); toast('Handout removed. Players keep what they were already shown.');
         }
     });

@@ -31,7 +31,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapParentId, getMapChildren, getMapAncestors, isMapDescendantOf, findLandingRoom, landingPoint } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapParentId, getMapChildren, getMapAncestors, isMapDescendantOf, isTreeItem, findLandingRoom, landingPoint } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
 
@@ -98,7 +98,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // Reuses reorderMap, so the whole nest under the moved row travels with it and the order is saved.
   function moveItem(id, dir) {
       var camp = getActiveCampaign(); if (!camp) return;
-      var it = camp.items[id]; if (!it || (it.type !== 'map' && it.type !== 'planner')) return;
+      var it = camp.items[id]; if (!isTreeItem(it)) return;
       var sibs = getMapChildren(camp, getMapParentId(camp, it), it.type);
       var at = sibs.indexOf(it); if (at < 0) return;
       var swap = sibs[at + dir];
@@ -114,7 +114,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var item = camp.items[id];
 
-      if (!item || (item.type !== 'map' && item.type !== 'planner')) return;
+      if (!isTreeItem(item)) return;
 
       newParentId = newParentId || null;
 
@@ -126,7 +126,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           var target = camp.items[newParentId];
 
-          if (!target || target.type !== item.type) { toast('Maps nest under maps, planners under planners.'); return; }
+          if (!target || target.type !== item.type) { toast('Maps nest under maps, planners under planners, pages under pages.'); return; }
 
           if (isMapDescendantOf(camp, newParentId, id)) { toast("An item can't be nested inside its own child."); return; }
 
@@ -286,18 +286,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           var caret = hasKids
 
-              ? '<span class="caret' + (collapsed ? '' : ' down') + '" data-id="' + item.id + '" title="' + (collapsed ? 'Expand' : 'Collapse') + '">&#9654;</span>'
+              ? '<span class="caret' + (collapsed ? '' : ' down') + '" data-id="' + esc(item.id) + '" title="' + (collapsed ? 'Expand' : 'Collapse') + '">&#9654;</span>'
 
               : '<span class="caret-spacer"></span>';
 
           var guides = '';
           for (var g = 1; g <= depth; g++) guides += '<span class="tree-guide" style="left:' + (10 + (g - 1) * 14 + 5) + 'px;"></span>';   // under the parent's caret
-          return '<div class="sidebar-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + item.id + '" data-depth="' + depth + '" draggable="true"' +
+          return '<div class="sidebar-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + esc(item.id) + '" data-depth="' + depth + '" draggable="true"' +
 
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
                  guides + caret + (item.type === 'planner' && item.meta.status ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '✅' : '⏭') + '</span>' : '') +
                  (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — they cannot travel here until you unlock it">&#128274;</span>' : '') +
+                 (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only — players cannot read this page">&#128274;</span>' : '') +
                  '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
 
                  '</div>';
@@ -334,6 +335,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       pNav.innerHTML = treeHtml('planner') || '<div class="nav-empty">No planners yet — press + above to write your first session plan.</div>';
 
+      var dNav = document.getElementById('docNavList');
+      if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet — press + above to write a rules or reference page your players can read.</div>';
+      // A joined player with nothing to read: the whole left panel steps aside (style.css body.net-client.no-handbook)
+      document.body.classList.toggle('no-handbook', !!(window.wpNet && window.wpNet.foreign) && !Object.values(camp.items).some(function(it) { return it.type === 'doc'; }));
+
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
 
 
@@ -351,6 +357,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         document.querySelectorAll('.sidebar-item').forEach(el => {
             el.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
+                if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // a joined player's tree is read-only
                 var menu = document.getElementById('sidebarContextMenu');
                 if(!menu) return;
                 menu.style.display = 'block';
@@ -376,11 +383,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 }
                 var childBtn = document.getElementById('ctxNewChildItem');
                 if (childBtn) {
-                    childBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';
-                    if (it) childBtn.textContent = it.type === 'planner' ? '+ New Child Planner' : '+ New Child Map';
+                    childBtn.style.display = isTreeItem(it) ? 'block' : 'none';
+                    if (it) childBtn.textContent = it.type === 'planner' ? '+ New Child Planner' : it.type === 'doc' ? '+ New Child Page' : '+ New Child Map';
                 }
                 // Move Up / Move Down: shown for any map or planner, greyed at the ends of its sibling list.
-                var isOrderable = !!(it && (it.type === 'map' || it.type === 'planner'));
+                var isOrderable = isTreeItem(it);
                 var moveUp = document.getElementById('ctxMoveUp'), moveDown = document.getElementById('ctxMoveDown');
                 if (moveUp && moveDown) {
                     moveUp.style.display = moveDown.style.display = isOrderable ? 'block' : 'none';
@@ -393,9 +400,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 }
                 var parentBtn = document.getElementById('ctxNewParentItem');
                 if (parentBtn) {
-                    parentBtn.style.display = (it && (it.type === 'map' || it.type === 'planner')) ? 'block' : 'none';
-                    if (it) parentBtn.innerHTML = it.type === 'planner' ? '&#8593; New Parent Planner' : '&#8593; New Parent Map';
+                    parentBtn.style.display = isTreeItem(it) ? 'block' : 'none';
+                    if (it) parentBtn.innerHTML = it.type === 'planner' ? '&#8593; New Parent Planner' : it.type === 'doc' ? '&#8593; New Parent Page' : '&#8593; New Parent Map';
                 }
+                // Handbook page: the players switch (the same flip as the editor's button)
+                var isDocCtx = !!(it && it.type === 'doc');
+                menu.querySelectorAll('.ctx-doc-only').forEach(function(x) { x.style.display = isDocCtx ? 'block' : 'none'; });
+                var plBtn = document.getElementById('ctxDocPlayers');
+                if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '&#128065; Show to players' : '&#128274; Hide from players';
             });
             el.addEventListener('click', function(e) {
 
@@ -407,6 +419,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 }
 
                 var activeC = getActiveCampaign();
+                var itC = activeC && activeC.items[this.dataset.id];
+                if (itC && itC.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(this.dataset.id); return; }   // a joined player reads a page in the panel; activeItemId stays on the map
                 if (activeC) {
                     activeC.activeItemId = this.dataset.id;
                     state.selId = null; state.selWbId = null; state.linkStart = null;
@@ -420,10 +434,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             el.addEventListener('dblclick', function(e) {
                 if (e.target.closest('.caret')) return;
                 e.preventDefault(); e.stopPropagation();
+                if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // never rename a received copy
                 var activeC = getActiveCampaign();
                 var it = activeC && activeC.items[this.dataset.id];
                 if (!it || !it.meta) return;
-                promptForItemName(it.meta.title || '', 'Rename ' + (it.type === 'planner' ? 'planner' : 'map') + ':', it.id, function(title) {
+                promptForItemName(it.meta.title || '', 'Rename ' + (it.type === 'planner' ? 'planner' : it.type === 'doc' ? 'page' : 'map') + ':', it.id, function(title) {
                     it.meta.title = title;
                     it.meta.updated = Date.now();
                     save(); updateSidebarNav(); render();
@@ -433,8 +448,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         });
 
         // Drag an item onto another (same-type) item to nest it there
-        document.querySelectorAll('#mapNavList .sidebar-item, #plannerNavList .sidebar-item').forEach(el => {
+        document.querySelectorAll('#mapNavList .sidebar-item, #plannerNavList .sidebar-item, #docNavList .sidebar-item').forEach(el => {
             el.addEventListener('dragstart', function(e) {
+                if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { e.preventDefault(); return; }   // a joined player's tree is read-only
                 e.dataTransfer.setData('text/plain', this.dataset.id);
                 e.dataTransfer.effectAllowed = 'move';
                 this.classList.add('dragging');
@@ -452,6 +468,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             el.addEventListener('dragleave', function() { this.classList.remove('drag-over', 'drag-before', 'drag-after'); delete this.dataset.dropPos; });
             el.addEventListener('drop', function(e) {
                 e.preventDefault(); e.stopPropagation();
+                if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;
                 var pos = this.dataset.dropPos || 'inside';
                 this.classList.remove('drag-over', 'drag-before', 'drag-after');
                 delete this.dataset.dropPos;
@@ -469,7 +486,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   (function() {
 
-      [['planners', 'plannerNavList'], ['maps', 'mapNavList']].forEach(function(pair) {
+      [['planners', 'plannerNavList'], ['handbook', 'docNavList'], ['maps', 'mapNavList']].forEach(function(pair) {
 
           var key = pair[0], nav = document.getElementById(pair[1]);
 
@@ -505,7 +522,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       // Collapse-all / expand-all for the nested accordions inside each section
 
-      [['collapseAllPlannersBtn', 'planner'], ['collapseAllMapsBtn', 'map']].forEach(function(pair) {
+      [['collapseAllPlannersBtn', 'planner'], ['collapseAllDocsBtn', 'doc'], ['collapseAllMapsBtn', 'map']].forEach(function(pair) {
 
           var btn = document.getElementById(pair[0]), type = pair[1];
 
@@ -541,7 +558,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   // Dropping on a list background un-nests (moves the item to top level).
 
-  ['mapNavList', 'plannerNavList'].forEach(function(navId) {
+  ['mapNavList', 'plannerNavList', 'docNavList'].forEach(function(navId) {
 
       var nav = document.getElementById(navId);
 
@@ -556,6 +573,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           e.preventDefault();
 
           this.classList.remove('drag-over');
+
+          if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;
 
           reparentMap(e.dataTransfer.getData('text/plain'), null);
 

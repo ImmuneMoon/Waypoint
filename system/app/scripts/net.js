@@ -253,6 +253,7 @@ function cleanPosture(v) { v = String(v || 'standing').toLowerCase(); v = POSTUR
 function sanitizeItem(item) {
     if (!item) return item;
     if (item.type === 'planner') return null;
+    if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item));
     (m.rooms || []).forEach(function(r) {
@@ -291,11 +292,15 @@ function sanitizeAppState(s) {
         delete camp.pinnedMaps;
         delete camp.sessionLog;
         Object.keys(camp.items).forEach(function(id) {
+            if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];
             else camp.items[id] = it;
         });
-        if (!camp.items[camp.activeItemId]) camp.activeItemId = Object.keys(camp.items)[0] || null;
+        // a client's active item is always a map: the host's own open page or planner is not its business, and a
+        // join before the GM viewed any map (stage null) lands on a map too — a page must never open the editor there
+        var actS = camp.items[camp.activeItemId];
+        if (!actS || actS.type !== 'map') camp.activeItemId = Object.keys(camp.items).find(function(id) { return camp.items[id].type === 'map'; }) || null;
     });
     return c;
 }
@@ -460,7 +465,7 @@ function applyStage(stage) {
     net.applyingRemote = true;
     state.appState.activeCampaignId = stage.campId;
     var camp = state.appState.campaigns[stage.campId];
-    if (camp.items[stage.itemId]) camp.activeItemId = stage.itemId;
+    if (camp.items[stage.itemId] && camp.items[stage.itemId].type === 'map') camp.activeItemId = stage.itemId;   // only ever a map
     state.viewMode = 'visual';
     state.selId = null; state.selWbId = null; state.selWbIds = [];
     // Personal travel names a landing room: open the map looking at it
@@ -491,11 +496,15 @@ function activeItemPatch() {
 function applyItem(msg) {
     var camp = state.appState.campaigns[msg.campId];
     if (!camp) return;
+    var incoming = msg.item;
+    if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalised before it is stored (a hostile host can send shapes, not just markup)
+    if (!incoming || typeof incoming !== 'object') return;
     net.applyingRemote = true;
-    camp.items[msg.itemId] = msg.item;
+    camp.items[msg.itemId] = incoming;
     var myActive = getActiveCampaign();
-    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
+    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && incoming.type === 'map') render();
     updateSidebarNav();
+    if (incoming.type === 'doc') { try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {} }   // never let the reader wedge applyingRemote
     net.applyingRemote = false;
 }
 
@@ -576,6 +585,16 @@ function applySnapshot(msg) {
     Object.values(msg.appState.campaigns || {}).forEach(function (c) { c._foreign = mark; });
     state.appState = msg.appState;
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
+    // handbook pages are normalised before anything renders them, and the active item is a map (never a page: guard 1 client-side)
+    Object.values(state.appState.campaigns || {}).forEach(function(cS) {
+        Object.keys(cS.items || {}).forEach(function(id) {
+            var itS = cS.items[id];
+            if (itS && itS.type === 'doc') { var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(itS, { keepHidden: true }) : null; if (cd) cS.items[id] = cd; else delete cS.items[id]; }
+        });
+        var actS = cS.items && cS.items[cS.activeItemId];
+        if (!actS || actS.type !== 'map') cS.activeItemId = Object.keys(cS.items || {}).find(function(id) { return cS.items[id].type === 'map'; }) || null;
+    });
+    try { if (window.wpDocForeign) window.wpDocForeign(true); } catch (e) {}   // the reader's mermaid runs strict from here
     net.snapshotGen++;
     if (window.wpResetHistory) window.wpResetHistory();   // the pre-join state must never be re-installed while foreign
     net.applyingRemote = false;
@@ -631,9 +650,11 @@ function quickHash(s) {
    fallback whenever a delta would not be smaller. Players → host keeps the whole-item message: the
    host filters it field by field anyway. */
 var _lastSent = {};   // itemId → the sanitized item as last broadcast by this host
+function uniqueIds(list) { var seen = {}; return Array.isArray(list) && list.every(function(x) { if (!x || typeof x.id !== 'string' || !x.id || seen[x.id]) return false; seen[x.id] = 1; return true; }); }
 function itemDelta(itemId, clean) {
     var base = _lastSent[itemId];
-    if (!base || clean.type !== 'map' || base.type !== 'map') return null;      // no baseline: send whole
+    if (!base || clean.type !== base.type || (clean.type !== 'map' && clean.type !== 'doc')) return null;      // no baseline: send whole
+    if (clean.type === 'doc' && !(uniqueIds(clean.blocks) && uniqueIds(base.blocks))) return null;             // block deltas key on ids
     var d = { type: 'itemDelta', itemId: itemId }, any = false;
     function coll(key) {
         var was = {}, now = {}, set = [], del = [], added = false;
@@ -648,9 +669,9 @@ function itemDelta(itemId, clean) {
             any = true;
         }
     }
-    coll('whiteboard'); coll('rooms');
+    if (clean.type === 'doc') coll('blocks'); else { coll('whiteboard'); coll('rooms'); }
     ['links', 'meta', 'cats'].forEach(function(k) { if (JSON.stringify(clean[k]) !== JSON.stringify(base[k])) { d[k] = clean[k]; any = true; } });
-    var known = { type: 1, id: 1, whiteboard: 1, rooms: 1, links: 1, meta: 1, cats: 1 };
+    var known = { type: 1, id: 1, whiteboard: 1, rooms: 1, links: 1, meta: 1, cats: 1, blocks: 1 };
     var other = Object.keys(clean).concat(Object.keys(base)).some(function(k) { return !known[k] && JSON.stringify(clean[k]) !== JSON.stringify(base[k]); });
     if (other) return null;                                                     // an unusual key changed: send whole
     return any ? d : false;                                                     // false = nothing changed at all
@@ -660,7 +681,7 @@ function applyItemDelta(msg) {
     var it = camp.items[msg.itemId];
     if (!it) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it: ask for the whole thing
     net.applyingRemote = true;
-    ['whiteboard', 'rooms'].forEach(function(key) {
+    (it.type === 'doc' ? ['blocks'] : ['whiteboard', 'rooms']).forEach(function(key) {   // a page has blocks, a map has the rest — a delta never adds the other kind
         var ch = msg[key]; if (!ch) return;
         var list = it[key] = it[key] || [];
         var at = {}; list.forEach(function(x, i) { at[x.id] = i; });
@@ -670,8 +691,13 @@ function applyItemDelta(msg) {
         if (ch.order) { var pos = {}; ch.order.forEach(function(id, i) { pos[id] = i; }); it[key].sort(function(a, b) { return (pos[a.id] === undefined ? 1e9 : pos[a.id]) - (pos[b.id] === undefined ? 1e9 : pos[b.id]); }); }
     });
     ['links', 'meta', 'cats'].forEach(function(k) { if (msg[k] !== undefined) it[k] = msg[k]; });
+    if (it.type === 'doc') {   // re-normalised after every delta, then the reader (if it shows this page) follows
+        var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(it, { keepHidden: true }) : null;
+        if (cd) camp.items[msg.itemId] = cd; else delete camp.items[msg.itemId];
+        try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {}
+    }
     var myActive = getActiveCampaign();
-    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
+    if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && it.type === 'map') render();
     updateSidebarNav();
     net.applyingRemote = false;
 }
@@ -687,6 +713,14 @@ net.sendItem = function(campId, itemId, onlyConn) {
     if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(full).length * 0.9) msg = d; }
     broadcast(msg, null);
     _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
+};
+// Host: an item leaves every admitted player's copy — a deleted map or planner, a page turned GM-only.
+// The send baseline goes too, so the next send after off→on is whole. Never through broadcast(): admitted only.
+net.itemGone = function(campId, itemId) {
+    delete _lastSent[itemId];
+    if (!(net.active && net.role === 'host')) return;
+    var msg = { type: 'itemGone', campId: campId, itemId: itemId };
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
 };
 net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta; net._handleMessage = handleMessage;   // sandbox testing hooks
 
@@ -1677,6 +1711,17 @@ function handleMessage(msg, conn) {
         }
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
         applyItemDelta(msg);
+    } else if (msg.type === 'itemGone' && net.role === 'client') {
+        if (conn.peer !== net.syncedPeer) return;   // only the synced host may take things away
+        var campG = state.appState.campaigns[msg.campId];
+        if (campG && campG.items && campG.items[msg.itemId]) {
+            net.applyingRemote = true;
+            delete campG.items[msg.itemId];
+            if (campG.activeItemId === msg.itemId) { campG.activeItemId = Object.keys(campG.items).find(function(id) { return campG.items[id].type === 'map'; }) || null; state.selId = null; state.selWbId = null; state.selWbIds = []; }
+            try { if (window.wpDocGone) window.wpDocGone(msg.campId, msg.itemId); } catch (e) {}
+            updateSidebarNav(); render();
+            net.applyingRemote = false;
+        }
     } else if (msg.type === 'needItem' && net.role === 'host') {
         net.sendItem(msg.campId, msg.itemId, conn);
     } else if (msg.type === 'stage' && net.role === 'client') {
@@ -2170,6 +2215,7 @@ function handleAssetArrival(msg) {
         assetCache[msg.path] = URL.createObjectURL(blob);
     } catch (e) { return; }
     delete assetPending[msg.path];
+    try { document.dispatchEvent(new CustomEvent('wp-asset', { detail: { path: msg.path } })); } catch (e) {}   // the handbook reader patches its pictures in place
     clearTimeout(assetRenderTimer);
     assetRenderTimer = setTimeout(function() { if (state.viewMode === 'visual') render(); }, 150);
 }

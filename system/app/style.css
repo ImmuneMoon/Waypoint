@@ -77,7 +77,6 @@
   #netBtn.net-live{border-color:var(--green);color:var(--green);box-shadow:0 0 6px rgba(92,184,122,0.5)}
 
   /* ---- player (client) spectator lockdown ---- */
-  body.net-client #campaignSidebar, body.net-client #toggleLeftBtn,
   body.net-client #sidebar, body.net-client #toggleRightBtn,
   body.net-client #viewModeSelect, body.net-client #mapBreadcrumb,
   body.net-client #dataFloatingToolbar,
@@ -104,6 +103,11 @@
   /* GM's view of a token whose owner is elsewhere in the world */
   .wb-item.wb-absent { opacity: 0.3 !important; filter: grayscale(0.8); }
   body.net-client .gm-only { display: none !important; }
+  body.net-client header .hdr-group[data-label="Campaign"] { display: none !important; }   /* its buttons are all hidden above: no empty labelled pill */
+  /* A joined player's left panel is the Handbook alone: the other sections are hidden by class, and the whole
+     panel steps aside when the hosted campaign has no readable page (sidebar.js sets no-handbook) */
+  body.net-client #campaignSidebar .sidebar-section:not(.sb-handbook) { display: none !important; }
+  body.net-client.no-handbook #campaignSidebar, body.net-client.no-handbook #toggleLeftBtn { display: none !important; }
 
   /* segmented view-mode switch */
   .seg-control{
@@ -1110,35 +1114,60 @@
   .grouped-fields .tool.x-btn { width: 31px; height: 31px; padding: 0; flex: 0 0 31px; display: flex; align-items: center; justify-content: center; }
   #plannerPreviewWrap { width: 50%; padding: 20px; overflow-y: auto; background: var(--bg); color: var(--ink); }
   
-  #plannerPreviewWrap .wrap { max-width: 1020px; margin: 0 auto; }
-  #plannerPreviewWrap h1 { font-size: 30px; letter-spacing: .3px; margin: 0 0 2px; color: var(--ink); }
-  #plannerPreviewWrap h1 .sub { display: block; font-size: 15px; font-weight: 400; color: var(--gold); letter-spacing: .5px; margin-top: 6px; }
-  #plannerPreviewWrap h2 { font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--gold); margin: 38px 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--edge); }
-  #plannerPreviewWrap p.lede { color: var(--dim); max-width: 76ch; }
-  #plannerPreviewWrap .oneline { background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 15px; color: var(--dim); margin-top: 14px; }
-  #plannerPreviewWrap .oneline b { color: var(--ink); }
-  #plannerPreviewWrap .diagram { background: #fbfbfd; border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin: 14px 0 6px; overflow-x: auto; text-align: center; }
+  .doc-view .wrap { max-width: 1020px; margin: 0 auto; }
+  .doc-view h1 { font-size: 30px; letter-spacing: .3px; margin: 0 0 2px; color: var(--ink); }
+  .doc-view h1 .sub { display: block; font-size: 15px; font-weight: 400; color: var(--gold); letter-spacing: .5px; margin-top: 6px; }
+  .doc-view h2 { font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--gold); margin: 38px 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--edge); }
+  .doc-view p.lede { color: var(--dim); max-width: 76ch; }
+  .doc-view .oneline { background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 12px 15px; color: var(--dim); margin-top: 14px; }
+  .doc-view .oneline b { color: var(--ink); }
+  .doc-view .diagram { background: #fbfbfd; border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin: 14px 0 6px; overflow-x: auto; text-align: center; }
   /* Flowchart box: drag the corner to resize (remembered), scroll inside when zoomed, drag nodes to nudge */
-  #plannerPreviewWrap .diagram.fc-box { resize: both; overflow: auto; min-height: 80px; min-width: 120px; max-width: 100%; box-sizing: border-box; text-align: left; }
-  #plannerPreviewWrap .diagram.fc-box svg[data-zoomed] { max-width: none !important; }
-  #plannerPreviewWrap .diagram.fc-box g.node { cursor: move; }
-  #plannerPreviewWrap .diagram.fc-box g.node:hover { filter: brightness(1.15); }
+  .doc-view .diagram.fc-box { resize: both; overflow: auto; min-height: 80px; min-width: 120px; max-width: 100%; box-sizing: border-box; text-align: left; }
+  .doc-view .diagram.fc-box svg[data-zoomed] { max-width: none !important; }
+  .doc-view .diagram.fc-box g.node { cursor: move; }
+  .doc-view .diagram.fc-box g.node:hover { filter: brightness(1.15); }
   /* per-node resize handle: shows on hover, bottom-right corner of the node's box */
-  #plannerPreviewWrap .diagram.fc-box g.node rect.fc-handle { fill: #e0a54f; stroke: var(--bg); stroke-width: 1; cursor: nwse-resize; opacity: 0; transition: opacity .12s; }
-  #plannerPreviewWrap .diagram.fc-box g.node:hover rect.fc-handle { opacity: 1; }
-  #plannerPreviewWrap .node { margin: 26px 0; }
-  #plannerPreviewWrap .node h3 { margin: 0 0 3px; font-size: 18px; color: var(--ink); }
-  #plannerPreviewWrap .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }
-  #plannerPreviewWrap .must { color: var(--dim); margin: 2px 0 10px; font-size: 14px; }
-  #plannerPreviewWrap .must b { color: var(--ink); }
-  #plannerPreviewWrap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 14px; background: var(--panel); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
-  #plannerPreviewWrap th { background: var(--panel2); color: var(--gold); text-align: left; font-size: 11px; letter-spacing: .8px; text-transform: uppercase; padding: 9px 12px; }
-  #plannerPreviewWrap td { padding: 10px 12px; border-top: 1px solid var(--edge); vertical-align: top; }
-  #plannerPreviewWrap td:first-child { font-weight: 600; color: var(--ink); }
-  #plannerPreviewWrap .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }
-  #plannerPreviewWrap .flare b { color: var(--ink); }
-  #plannerPreviewWrap .callout { border-left: 3px solid var(--gold); background: var(--panel2); padding: 11px 15px; border-radius: 0 8px 8px 0; color: var(--dim); margin-top: 14px; font-style: italic; }
+  .doc-view .diagram.fc-box g.node rect.fc-handle { fill: #e0a54f; stroke: var(--bg); stroke-width: 1; cursor: nwse-resize; opacity: 0; transition: opacity .12s; }
+  .doc-view .diagram.fc-box g.node:hover rect.fc-handle { opacity: 1; }
+  .doc-view .node { margin: 26px 0; }
+  .doc-view .node h3 { margin: 0 0 3px; font-size: 18px; color: var(--ink); }
+  .doc-view .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }
+  .doc-view .must { color: var(--dim); margin: 2px 0 10px; font-size: 14px; }
+  .doc-view .must b { color: var(--ink); }
+  .doc-view table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 14px; background: var(--panel); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .doc-view th { background: var(--panel2); color: var(--gold); text-align: left; font-size: 11px; letter-spacing: .8px; text-transform: uppercase; padding: 9px 12px; }
+  .doc-view td { padding: 10px 12px; border-top: 1px solid var(--edge); vertical-align: top; }
+  .doc-view td:first-child { font-weight: 600; color: var(--ink); }
+  .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }
+  .doc-view .flare b { color: var(--ink); }
+  .doc-view .callout { border-left: 3px solid var(--gold); background: var(--panel2); padding: 11px 15px; border-radius: 0 8px 8px 0; color: var(--dim); margin-top: 14px; font-style: italic; }
   
+  /* Handbook pages (docrender.js) — the GM's preview, the player's reader and the HTML export share .doc-view */
+  .doc-view h3.doc-h3 { font-size: 16px; margin: 22px 0 6px; color: var(--ink); letter-spacing: .2px; }
+  .doc-view hr.doc-rule { border: 0; border-top: 1px solid var(--edge); margin: 22px 0; }
+  .doc-view .doc-section.doc-cols-2 { column-count: 2; column-gap: 28px; }
+  .doc-view .doc-section.doc-cols-3 { column-count: 3; column-gap: 24px; }
+  .doc-view .doc-clear { clear: both; }
+  .doc-view .doc-img.fl-left, .doc-view .callout.fl-left, .doc-view .flare.fl-left, .doc-view .doc-tablewrap.fl-left, .doc-view .diagram.fl-left { float: left; margin: 4px 22px 12px 0; }
+  .doc-view .doc-img.fl-right, .doc-view .callout.fl-right, .doc-view .flare.fl-right, .doc-view .doc-tablewrap.fl-right, .doc-view .diagram.fl-right { float: right; margin: 4px 0 12px 22px; }
+  .doc-view .doc-span { column-span: all; }
+  .doc-view .doc-img, .doc-view .doc-tablewrap, .doc-view .diagram { break-inside: avoid; }
+  .doc-view .doc-img-empty .doc-noimg { border: 1px dashed var(--edge); border-radius: 6px; padding: 26px 10px; text-align: center; color: var(--dim); font-size: 12px; font-style: italic; }
+  .doc-view pre.doc-code { background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12.5px; }
+  .doc-view a { color: var(--blue); }
+  /* #docPlayersBtn takes the toolbar's own .tool.on look (gold fill, dark text) while players can read */
+
+  /* The Handbook reader: a page over the play map for a joined player (handbook.js) */
+  #docReaderModal { position: fixed; top: 52px; left: 0; bottom: 0; width: min(760px, 72vw); z-index: 99990; background: var(--bg); border-right: 1px solid var(--gold); box-shadow: 6px 0 24px rgba(0,0,0,0.45); flex-direction: column; }
+  #docReaderModal .doc-reader-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--edge); background: var(--bg2); }
+  #docReaderModal .doc-reader-head h3 { margin: 0; color: var(--gold); font-size: 14px; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #docReaderBody { flex: 1; overflow-y: auto; padding: 20px 24px; color: var(--ink); user-select: text; }
+  #docReaderBody .diagram.fc-box { resize: none; }
+  #docReaderBody .diagram.fc-box g.node { cursor: default; }   /* the reader shows the chart as arranged; nothing drags */
+  body.doc-reader-open #toast { z-index: 99995; }   /* "You arrive." and chat toasts stay visible over the panel */
+  body.stream-mode #docReaderModal { display: none !important; }
+
   @media print {
       header, .sidebar, #plannerEditor, .tool, .canvas-controls { display: none !important; }
       #plannerFindBar { display: none !important; }
@@ -1271,8 +1300,8 @@
   .b-table .row-h input { min-width: 70px; }
 
   /* Planner: plain table mode of the node block */
-  #plannerPreviewWrap .node.plain-table { border-left: none; padding-left: 0; background: transparent; }
-  #plannerPreviewWrap .node.plain-table h3 { font-size: 15px; }
+  .doc-view .node.plain-table { border-left: none; padding-left: 0; background: transparent; }
+  .doc-view .node.plain-table h3 { font-size: 15px; }
 
   /* Header icon groups: a labelled pill per purpose */
   .hdr-group { position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 3px 6px 3px 6px; margin-left: 10px; border: 1px solid var(--edge); border-radius: 10px; background: rgba(0,0,0,0.12); }
@@ -1291,9 +1320,9 @@
   .si-status.si-skipped { opacity: .6; }
   #plannerStatus { margin-left: 0; }
   /* Planner → map link */
-  #plannerPreviewWrap .pv-linkrow { margin: 4px 0 8px; }
-  #plannerPreviewWrap .pv-link { color: var(--blue); text-decoration: none; border: 1px solid var(--edge); border-radius: 6px; padding: 3px 9px; font-size: 12.5px; display: inline-block; }
-  #plannerPreviewWrap .pv-link:hover { border-color: var(--gold); color: var(--gold); }
+  .doc-view .pv-linkrow { margin: 4px 0 8px; }
+  .doc-view .pv-link { color: var(--blue); text-decoration: none; border: 1px solid var(--edge); border-radius: 6px; padding: 3px 9px; font-size: 12.5px; display: inline-block; }
+  .doc-view .pv-link:hover { border-color: var(--gold); color: var(--gold); }
 
   /* Pinned / Recent maps above the Maps tree */
   #mapQuick { padding: 2px 6px 6px; border-bottom: 1px solid var(--edge); margin-bottom: 4px; }

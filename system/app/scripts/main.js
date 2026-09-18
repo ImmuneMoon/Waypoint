@@ -1,6 +1,6 @@
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors, isDocLike } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth, resetHistory } from './io.js';
 
@@ -163,7 +163,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       
 
-      var isPlanner = (activeMap.type === 'planner');
+      // A joined player never reaches the editor on a received page: the page opens in the reader over the
+      // map instead and the map render goes on (handbook.js; guard 3 of HANDBOOK_PLAN.md 3.3 — the other two
+      // are in net.js, so this one should never fire, and if it does the editor still stays shut)
+      if (activeMap.type === 'doc' && window.wpNet && window.wpNet.foreign) {
+          var campF = getActiveCampaign(), docIdF = activeMap.id;
+          campF.activeItemId = Object.keys(campF.items).find(function(id) { return campF.items[id].type === 'map'; }) || null;
+          if (window.wpOpenDoc) window.wpOpenDoc(docIdF);
+          activeMap = getActiveMap();
+          if (!activeMap) return;
+      }
+      var isPlanner = isDocLike(activeMap);   // planners and handbook pages share the block editor
 
       
 
@@ -313,9 +323,9 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
 
       if(!activeMap) return;
 
-      if(activeMap.type !== 'planner') {
+      if(!isDocLike(activeMap)) {
 
-          toast('HTML export is available for Planner documents.');
+          toast('HTML export is available for planners and handbook pages.');
 
           return;
 
@@ -332,7 +342,7 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
 
               '<style>body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;} #plannerPreviewWrap{width:auto;max-width:1020px;margin:0 auto;}</style>' +
 
-              '</head><body><div id="plannerPreviewWrap">' + content + '</div></body></html>';
+              '</head><body><div id="plannerPreviewWrap" class="doc-view">' + content + '</div></body></html>';
 
           downloadFile(title + '.html', new Blob([htmlOutput], {type: 'text/html'}));
           toast('HTML exported.');
@@ -361,7 +371,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       var target;
 
-      if(activeMap.type === 'planner') {
+      if(isDocLike(activeMap)) {
 
           target = document.getElementById('plannerPreviewWrap');
 
@@ -939,13 +949,13 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         scored.sort(function(a, b) { return a[0] - b[0]; });
         _cmdkShown = scored.slice(0, 50).map(function(p) { return p[1]; });
         _cmdkIdx = 0;
-        var icons = { map: '🗺️', planner: '📑', room: '📍' };
+        var icons = { map: '🗺️', planner: '📑', doc: '📖', room: '📍' };
         var list = document.getElementById('cmdkList');
         list.innerHTML = _cmdkShown.length
             ? _cmdkShown.map(function(en, i) {
                 return '<div class="cmdk-row' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">' +
-                    '<span>' + (icons[en.kind] || '•') + '</span><span>' + en.label + '</span>' +
-                    '<span class="cmdk-sub">' + en.sub + '</span></div>';
+                    '<span>' + (icons[en.kind] || '•') + '</span><span>' + esc(en.label) + '</span>' +
+                    '<span class="cmdk-sub">' + esc(en.sub) + '</span></div>';
               }).join('')
             : '<div class="cmdk-empty">No matches.</div>';
     }
@@ -971,10 +981,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     }
     function cmdkGoNow(en) {
         if (!state.appState.campaigns[en.campId] || !state.appState.campaigns[en.campId].items[en.itemId]) return;
-        state.appState.activeCampaignId = en.campId;
         var camp = state.appState.campaigns[en.campId];
-        camp.activeItemId = en.itemId;
         var it = camp.items[en.itemId];
+        if (it.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(en.itemId); return; }   // a joined player reads a page in the panel; the map stays
+        state.appState.activeCampaignId = en.campId;
+        camp.activeItemId = en.itemId;
         if (window.wpApplyRememberedView) window.wpApplyRememberedView();
         if (en.roomId && it.type === 'map') {
             state.viewMode = 'data';
@@ -1155,6 +1166,7 @@ window.wpDebug = { getState: function() {
         activeItemId: camp ? (camp.activeItemId || null) : null,
         mapIds: camp ? Object.keys(camp.items).filter(function(id){ return camp.items[id].type === 'map'; }) : [],
         plannerIds: camp ? Object.keys(camp.items).filter(function(id){ return camp.items[id].type === 'planner'; }) : [],
+        docIds: camp ? Object.keys(camp.items).filter(function(id){ return camp.items[id].type === 'doc'; }) : [],
         viewMode: state.viewMode,
         zoomLevel: state.zoomLevel,
         selId: state.selId,

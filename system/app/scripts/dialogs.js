@@ -30,7 +30,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, createNewDoc, isTreeItem, getActiveCampaign, getActiveMap } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, resetHistory, takeSafetyCopy } from './io.js';
 
@@ -466,6 +466,20 @@ if(_el_newPlannerBtn) _el_newPlannerBtn.addEventListener('click', function() {
 
   });
 
+  // New handbook page (1.5.0): the same flow as a planner, opened in the editor
+  var _el_newDocBtn = document.getElementById('newDocBtn');
+  if(_el_newDocBtn) _el_newDocBtn.addEventListener('click', function() {
+      var initial = getUniqueItemTitle("My New Page", null);
+      promptForItemName(initial, "Enter new page name:", null, function(title) {
+          var newDoc = createNewDoc(title);
+          var camp = getActiveCampaign();
+          camp.items[newDoc.id] = newDoc;
+          camp.activeItemId = newDoc.id;
+          state.selId = null; state.selWbId = null; state.linkStart = null;
+          updateSidebarNav(); render(); save(true);
+      });
+  });
+
 
 
   var _el_ctxNewChildItem = document.getElementById('ctxNewChildItem');
@@ -476,11 +490,11 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
       if(!camp) return;
       var parentId = menu.dataset.id;
       var parent = camp.items[parentId];
-      if(!parent || (parent.type !== 'map' && parent.type !== 'planner')) return;
-      var isPlannerParent = parent.type === 'planner';
-      var initial = getUniqueItemTitle(isPlannerParent ? "New Page" : "New Area", null);
-      promptForItemName(initial, "Enter a name for the new nested " + (isPlannerParent ? "planner" : "map") + ":", null, function(title) {
-          var newItem = isPlannerParent ? createNewPlanner(title) : createNewMap(title);
+      if(!isTreeItem(parent)) return;
+      var FACTORY = { map: createNewMap, planner: createNewPlanner, doc: createNewDoc }, KIND = { map: 'map', planner: 'planner', doc: 'page' }, FIRST = { map: 'New Area', planner: 'New Page', doc: 'New Section' };
+      var initial = getUniqueItemTitle(FIRST[parent.type], null);
+      promptForItemName(initial, "Enter a name for the new nested " + KIND[parent.type] + ":", null, function(title) {
+          var newItem = FACTORY[parent.type](title);
           newItem.meta.parentId = parentId;
           parent.meta.collapsed = false;
           camp.items[newItem.id] = newItem;
@@ -499,11 +513,12 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
       var camp = getActiveCampaign();
       if (!camp) return;
       var childId = menu.dataset.id, child = camp.items[childId];
-      if (!child || (child.type !== 'map' && child.type !== 'planner')) return;
-      var isPl = child.type === 'planner';
-      var initial = getUniqueItemTitle(isPl ? 'New Section' : 'New Region', null);
-      promptForItemName(initial, 'Name the new ' + (isPl ? 'planner' : 'map') + ' that will hold \u201c' + (child.meta.title || '') + '\u201d:', null, function(title) {
-          var parent = isPl ? createNewPlanner(title) : createNewMap(title);
+      if (!isTreeItem(child)) return;
+      var isPl = child.type !== 'map';   // planners and pages alike: no portal node
+      var kindP = child.type === 'planner' ? 'planner' : child.type === 'doc' ? 'page' : 'map';
+      var initial = getUniqueItemTitle(child.type === 'map' ? 'New Region' : child.type === 'doc' ? 'New Chapter' : 'New Section', null);
+      promptForItemName(initial, 'Name the new ' + kindP + ' that will hold \u201c' + (child.meta.title || '') + '\u201d:', null, function(title) {
+          var parent = child.type === 'planner' ? createNewPlanner(title) : child.type === 'doc' ? createNewDoc(title) : createNewMap(title);
           var grand = child.meta && child.meta.parentId;
           if (grand && camp.items[grand]) parent.meta.parentId = grand;   // the new item steps into the child's old place
           child.meta = child.meta || {};
@@ -517,7 +532,7 @@ if(_el_ctxNewChildItem) _el_ctxNewChildItem.addEventListener('click', function()
           camp.activeItemId = parent.id;
           state.selId = null; state.selWbId = null; state.linkStart = null;
           updateSidebarNav(); render(); save(true);
-          toast('\u201c' + title + '\u201d now holds \u201c' + (child.meta.title || (isPl ? 'the planner' : 'the map')) + '\u201d' + (isPl ? '.' : ' \u2014 the node on its data map is a portal into it.'));
+          toast('\u201c' + title + '\u201d now holds \u201c' + (child.meta.title || (child.type === 'doc' ? 'the page' : isPl ? 'the planner' : 'the map')) + '\u201d' + (isPl ? '.' : ' \u2014 the node on its data map is a portal into it.'));
       });
   });
 
@@ -536,6 +551,22 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       });
   });
   
+
+  // Handbook page: the players switch from the tree (the same flip as #docPlayersBtn in the editor).
+  // Off while hosting removes the page from every player now; on sends it straight away.
+  var _el_ctxDocPlayers = document.getElementById('ctxDocPlayers');
+  if (_el_ctxDocPlayers) _el_ctxDocPlayers.addEventListener('click', function() {
+      var menu = document.getElementById('sidebarContextMenu'); menu.style.display = 'none';
+      var camp = getActiveCampaign(); var it = camp && camp.items[menu.dataset.id];
+      if (!it || it.type !== 'doc') return;
+      it.meta = it.meta || {};
+      var off = it.meta.players !== false;
+      it.meta.players = !off;
+      if (off && window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, it.id);
+      save(true); updateSidebarNav(); if (camp.activeItemId === it.id) render();
+      if (!off && window.wpNet && window.wpNet.pushItems) window.wpNet.pushItems([it.id]);
+      toast(off ? '\u201c' + (it.meta.title || 'Page') + '\u201d is GM only now.' : 'Players can read \u201c' + (it.meta.title || 'Page') + '\u201d.');
+  });
 
   var _el_ctxDeleteItem = document.getElementById('ctxDeleteItem');
   if(_el_ctxDeleteItem) _el_ctxDeleteItem.addEventListener('click', function() {
@@ -559,6 +590,7 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
                   });
               }
               delete camp.items[id];
+              if (window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, id);   // hosting: the item leaves every player's copy too
               if (camp.activeItemId === id) { camp.activeItemId = Object.keys(camp.items)[0] || null; state.viewMode = 'data'; }
               updateSidebarNav(); render(); save(true);
               if (window.appRestoreCamera) window.appRestoreCamera();
@@ -590,7 +622,9 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
 
           if(yes) takeSafetyCopy().then(function() {
 
-              delete camp.items[camp.activeItemId];
+              var goneId = camp.activeItemId;
+              delete camp.items[goneId];
+              if (window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(camp.id, goneId);   // hosting: the item leaves every player's copy too
 
               camp.activeItemId = Object.keys(camp.items)[0];
 
@@ -644,6 +678,48 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
       inp.onkeyup = updateList;
       updateList();
       var closeBtn = document.getElementById('plannerSearchClose');
+      if(closeBtn) closeBtn.onclick = function() { m.style.display = 'none'; };
+  });
+
+  // Handbook page search: like the planner search; a joined player's result opens the reader, never the editor
+  var _el_searchDocsBtn = document.getElementById('searchDocsBtn');
+  if(_el_searchDocsBtn) _el_searchDocsBtn.addEventListener('click', function() {
+      var camp = getActiveCampaign();
+      if(!camp) return;
+      var m = document.getElementById('docSearchModal');
+      var inp = document.getElementById('docSearchInput');
+      var res = document.getElementById('docSearchResults');
+      if (!m || !inp || !res) return;
+      m.style.display = 'flex';
+      inp.value = '';
+      inp.focus();
+      function updateList() {
+          var q = inp.value.toLowerCase();
+          var html = '';
+          var keys = Object.keys(camp.items).filter(k => camp.items[k].type === 'doc');
+          keys.sort((a,b) => String(camp.items[a].meta.title || '').localeCompare(String(camp.items[b].meta.title || '')));
+          keys.forEach(k => {
+              var p = camp.items[k];
+              var title = p.meta.title || '';
+              if (title.toLowerCase().indexOf(q) !== -1 || q === '') {
+                  html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + esc(k) + '">' + (p.meta.players === false ? '&#128274; ' : '') + esc(title) + '</button>';
+              }
+          });
+          if (!html) html = '<div class="muted">No pages found.</div>';
+          res.innerHTML = html;
+          res.querySelectorAll('button').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  m.style.display = 'none';
+                  if (window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(this.dataset.id); return; }   // a received page is read, not edited
+                  camp.activeItemId = this.dataset.id;
+                  state.selId = null; state.selWbId = null; state.linkStart = null;
+                  updateSidebarNav(); render(); save(true);
+              });
+          });
+      }
+      inp.onkeyup = updateList;
+      updateList();
+      var closeBtn = document.getElementById('docSearchClose');
       if(closeBtn) closeBtn.onclick = function() { m.style.display = 'none'; };
   });
 
@@ -789,8 +865,8 @@ export {
           keys.forEach(function(k) {
               var c = state.appState.campaigns[k], name = c.name || 'Unnamed Campaign';
               if (q && name.toLowerCase().indexOf(q) === -1) return;
-              var nMaps = Object.values(c.items || {}).filter(function(i) { return i.type === 'map'; }).length, nPl = Object.values(c.items || {}).filter(function(i) { return i.type === 'planner'; }).length;
-              html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + k + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span style="color:var(--gold); font-size:11px;">current</span>' : '') + '<span style="color:var(--dim); font-size:11px; float:right;">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + '</span></button>';
+              var nMaps = Object.values(c.items || {}).filter(function(i) { return i.type === 'map'; }).length, nPl = Object.values(c.items || {}).filter(function(i) { return i.type === 'planner'; }).length, nPg = Object.values(c.items || {}).filter(function(i) { return i.type === 'doc'; }).length;
+              html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + k + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span style="color:var(--gold); font-size:11px;">current</span>' : '') + '<span style="color:var(--dim); font-size:11px; float:right;">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + (nPg ? ' · ' + nPg + ' page' + (nPg === 1 ? '' : 's') : '') + '</span></button>';
           });
           if (!html) html = '<div class="muted">No campaigns match.</div>';
           res.innerHTML = html;

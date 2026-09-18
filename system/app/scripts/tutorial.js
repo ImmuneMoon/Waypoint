@@ -10,12 +10,12 @@
    TUTORIAL_VERSION is shown on the Help pane so a stale tour is easy to spot. */
 
 import { state } from './state.js';
-import { createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign } from './models.js';
+import { createNewCampaign, createNewMap, createNewPlanner, createNewDoc, getActiveCampaign } from './models.js';
 import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy } from './io.js';
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.4.9';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.5.0';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
@@ -362,9 +362,29 @@ function buildTutorialCampaign() {
         { type: 'text', content: 'The survivors raft downriver to the <b>Old Fort</b>. Old Thornback the spriggan is nobody\'s friend.' }
     ];
 
-    [realm, city, inn, throne, temple, forge, ground, basement, top, fort, road, plan].forEach(function(it) { camp.items[it.id] = it; });
+    /* ---- the handbook page: what players read at the table ---- */
+    var book = tutorialHandbookPage();
+
+    [realm, city, inn, throne, temple, forge, ground, basement, top, fort, road, plan, book].forEach(function(it) { camp.items[it.id] = it; });
     camp.activeItemId = realm.id;
     return camp;
+}
+
+// The Tutorial's one handbook page (1.5.0). Built apart from the campaign so an older Tutorial gains it on
+// its next ensure — every install that ran a 1.4.x tour has a Tutorial without one, and the tour step
+// points at it.
+function tutorialHandbookPage() {
+    var book = createNewDoc('House rules');
+    book.id = 'doc_tut_handbook';
+    book.blocks = [
+        { id: 'b_tut_h1', type: 'h1', title: 'House rules', sub: 'What the table agreed on' },
+        { id: 'b_tut_lede', type: 'lede', content: 'A handbook page is for the things every player should be able to look up mid-game: rules, a quick reference, the setting primer. Players read it from their own Handbook tree while the map keeps running.' },
+        { id: 'b_tut_h2', type: 'h2', title: 'At the table' },
+        { id: 'b_tut_t1', type: 'text', content: '<p><b>Inspiration</b> is spent, never banked: use it on the roll you earned it for or lose it at the end of the scene.</p><p>A natural 20 on a save also shrugs off one lingering effect of your choice.</p>' },
+        { id: 'b_tut_tbl', type: 'table', title: 'Travel pace', cols: ['Pace', 'Per hour', 'Effect'], rows: [{ col1: 'Fast', col2: '4 miles', col3: '\u22125 to passive Perception' }, { col1: 'Normal', col2: '3 miles', col3: '\u2014' }, { col1: 'Slow', col2: '2 miles', col3: 'Able to use stealth' }] },
+        { id: 'b_tut_call', type: 'callout', content: 'Only pages left on <b>Players can read</b> reach the table. Try the switch in the toolbar: this page vanishes from every player at once, and comes back when you turn it on again.' }
+    ];
+    return book;
 }
 
 function tutorialCampaign() { return state.appState.campaigns[TUTORIAL_CAMP_ID] || null; }
@@ -382,6 +402,7 @@ function ensureTutorialCampaign(rebuild) {
         state.appState.campaigns[TUTORIAL_CAMP_ID] = camp;
         resetHistory(TUTORIAL_CAMP_ID);   // fixed ids: no stack from an earlier copy may attach to the fresh one
     }
+    if (!camp.items.doc_tut_handbook) camp.items.doc_tut_handbook = tutorialHandbookPage();   // a Tutorial from before 1.5.0: the page the tour points at
     if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
@@ -480,6 +501,9 @@ var STEPS = [
     { target: '#plannerTools', title: 'Writing a planner',
       html: 'Add blocks from the toolbar: headings, prose, callouts, titled tables and flowcharts. The <b>&#8617; &#8618;</b> buttons are this planner\'s own <b>undo and redo</b> — a deleted block, row or node comes back where it was; inside a text field <kbd>Ctrl</kbd>+<kbd>Z</kbd> first takes back your typing, then reaches the same history. <b>Render</b> shows the finished page; <b>Export As</b> turns it into an image, PDF or HTML.',
       before: function() { openItem('plan_tut_session1'); } },
+    { target: '#docNavList', title: 'Handbook',
+      html: 'Rules and reference pages <b>your players can read</b> at the table \u2014 house rules, a quick reference, a setting primer. Written in the same editor as a planner and nested and re-ordered the same way, but sent to every player at your table who then reads it in a panel over the map. The <b>&#128065; Players can read</b> switch in the toolbar (or a right-click on the page) keeps a page to yourself; a locked page shows &#128274; in the tree and never leaves your machine. The Tutorial has one page, <b>House rules</b>, open now.',
+      before: function() { openLeft(); openItem('doc_tut_handbook'); } },
     { target: '#handoutsBtn', title: 'Handouts and the journal',
       html: 'Pictures and text to show your players \u2014 a letter, a face, a place. The Tutorial campaign has two ready: <b>Grukk\'s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player, and it lands in their <b>Journal</b> (the book icon beside this), where they keep notes on it and can share it with the party. A room can carry a handout that arrives when a player reaches it.' },
     { target: '#saveAsBtn', title: 'Export and import',
@@ -487,7 +511,7 @@ var STEPS = [
     { target: '#searchMapsSidebarBtn', title: 'Finding things',
       html: 'The search buttons beside Planners and Maps filter their lists. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
     { target: '#netBtn', title: 'Multiplayer',
-      html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden.' },
+      html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden.' },
     { target: '#settingsBtn', title: 'Settings',
       html: 'Your name and table picture, light or dark theme, measurement units, rulers and grid opacity, the <b>VTT features</b> (next), journal options and updates. Table settings travel with your saves folder.',
       before: function() { closeSettingsForTour(); } },

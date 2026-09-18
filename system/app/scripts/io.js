@@ -95,10 +95,15 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             if (m.id !== id) { m.id = id; fix('item id repaired'); }
             if (!m.type) { m.type = Array.isArray(m.blocks) ? 'planner' : 'map'; fix('item type inferred'); }
             if (!m.meta || typeof m.meta !== 'object') { m.meta = {}; fix('meta created'); }
-            if (typeof m.meta.title !== 'string' || !m.meta.title) { m.meta.title = m.title || m.name || (m.type === 'planner' ? 'Planner' : 'Map'); fix('title defaulted'); }
+            if (typeof m.meta.title !== 'string' || !m.meta.title) { m.meta.title = m.title || m.name || (m.type === 'planner' ? 'Planner' : m.type === 'doc' ? 'Page' : 'Map'); fix('title defaulted'); }
             if ('gridFront' in m.meta) { delete m.meta.gridFront; fix('obsolete gridFront removed'); }
             if (m.type === 'planner') {
                 if (!Array.isArray(m.blocks)) { m.blocks = []; fix('planner blocks created'); }
+                return;
+            }
+            if (m.type === 'doc') {   // a handbook page: blocks only, never the map arrays (the cleanup classifier tests !m.rooms)
+                if (!Array.isArray(m.blocks)) { m.blocks = []; fix('page blocks created'); }
+                m.blocks.forEach(function(b) { if (b && typeof b === 'object' && !b.id) { b.id = 'b_' + Math.random().toString(36).slice(2, 8); fix('block id added'); } });
                 return;
             }
             if (!Array.isArray(m.rooms)) { m.rooms = []; fix('rooms created'); }
@@ -204,6 +209,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         if (window.wpNet && !overtaken()) {   // our own campaign again (the stream window never owns one): the ceiling goes with the GM's campaign
             window.wpNet.foreign = !!window.wpStream; window.wpNet.stance = null; window.wpNet.stanceCamps = null; window.wpNet.gmId = '';
         }
+        if (window.wpDocForeign) window.wpDocForeign(!!(window.wpNet && window.wpNet.foreign));   // the handbook reader closes and mermaid goes back to the app's own mode
         if (canPersistLocal()) sweepRecents(state.appState);   // recent-map keys for campaigns not in this save go (a joined table's ids never stay)
 
 
@@ -343,7 +349,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
   // Meta keys that are never in a snapshot — always taken from the live item. A new content key is
   // undoable by default; a new view, structure or governance key (a per-map table toggle, say) goes HERE.
-  var META_LIVE = { title: 1, updated: 1, parentId: 1, sortIndex: 1, collapsed: 1, playerLock: 1, status: 1,
+  var META_LIVE = { title: 1, updated: 1, parentId: 1, sortIndex: 1, collapsed: 1, playerLock: 1, status: 1, players: 1,
                     lastX: 1, lastY: 1, lastZoom: 1, lastWbX: 1, lastWbY: 1, lastWbZoom: 1, lastView: 1, readerView: 1 };
 
   var HIST_BTN_IDS = { dataUndoBtn: 1, dataRedoBtn: 1, wbUndoBtn: 1, wbRedoBtn: 1, plannerUndoBtn: 1, plannerRedoBtn: 1 };
@@ -817,7 +823,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item);
 
-      var spot = item.type === 'planner' ? rememberPlannerSpot() : null;
+      var spot = (item.type === 'planner' || item.type === 'doc') ? rememberPlannerSpot() : null;
 
       applyContent(item, parsed);
 
@@ -1396,13 +1402,13 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
           var one = {}; one[it.id] = clone(it);
           payload = mergeShell(one);
           base = slugName(it.meta && it.meta.title);
-      } else if (scope === 'maps' || scope === 'planners') {
-          var t = scope === 'maps' ? 'map' : 'planner';
+      } else if (scope === 'maps' || scope === 'planners' || scope === 'docs') {
+          var t = scope === 'maps' ? 'map' : scope === 'planners' ? 'planner' : 'doc';
           var items = {};
           Object.values(camp.items).forEach(function(i) { if (i.type === t) items[i.id] = clone(i); });
-          if (!Object.keys(items).length) { toast('This campaign has no ' + scope + '.'); return null; }
+          if (!Object.keys(items).length) { toast('This campaign has no ' + (scope === 'docs' ? 'handbook pages' : scope) + '.'); return null; }
           payload = mergeShell(items);
-          base = slugName(camp.name) + '-' + scope;
+          base = slugName(camp.name) + '-' + (scope === 'docs' ? 'handbook' : scope);
       } else if (scope === 'whiteboards') {
           // Whiteboard-only copies: rooms/links stripped, ids suffixed _wb so a
           // merge-import never overwrites the full map they came from.
@@ -1462,7 +1468,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       }
   }
 
-  var _exportScopeBtns = { exportItemBtn: 'item', exportMapsBtn: 'maps', exportWbsBtn: 'whiteboards', exportPlannersBtn: 'planners', exportCampaignBtn: 'campaign', exportBtn: 'all' };
+  var _exportScopeBtns = { exportItemBtn: 'item', exportMapsBtn: 'maps', exportWbsBtn: 'whiteboards', exportPlannersBtn: 'planners', exportDocsBtn: 'docs', exportCampaignBtn: 'campaign', exportBtn: 'all' };
   Object.keys(_exportScopeBtns).forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('click', function() { exportScope(_exportScopeBtns[id]); });
@@ -1476,7 +1482,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       var row = document.getElementById('exportItemBtn');
       if (!row) return;
       row.style.display = it ? '' : 'none';
-      if (it) row.innerHTML = '&#128190; Export This ' + (it.type === 'planner' ? 'Planner' : 'Map');
+      if (it) row.innerHTML = '&#128190; Export This ' + (it.type === 'planner' ? 'Planner' : it.type === 'doc' ? 'Page' : 'Map');
   });
 
   

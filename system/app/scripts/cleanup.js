@@ -39,11 +39,12 @@ function isStub(w) {
 // Fingerprints (what the sanitizer leaves) and local marks (what only local work makes) for one campaign
 function inspectCampaign(camp) {
     var fp = { F1: 0, F2: 0, F3: 0, F4: 0 }, lm = { planner: 0, notes: 0, info: 0, keys: 0, gm: 0, hidden: 0, map: 0 };
-    var maps = 0, rooms = 0, planners = 0, cleanMaps = 0;
+    var maps = 0, rooms = 0, planners = 0, docs = 0, cleanMaps = 0;
     var playersEmpty = !nonEmpty(camp.players);
     STRIPPED.forEach(function(k) { if (nonEmpty(camp[k])) lm.keys++; });   // empty {} comes from read-only UI code and proves nothing
     Object.values(camp.items || {}).forEach(function(m) {
         if (!isObj(m)) return;
+        if (m.type === 'doc') { docs++; return; }   // handbook pages travel to players: neither a local mark nor a fingerprint
         if (m.type === 'planner' || (Array.isArray(m.blocks) && !m.rooms)) { planners++; lm.planner++; return; }   // planners never ship
         maps++;
         var before = fp.F1 + fp.F2 + fp.F3 + fp.F4, content = 0;
@@ -69,7 +70,7 @@ function inspectCampaign(camp) {
     var fpCount = fp.F1 + fp.F2 + fp.F3 + fp.F4;
     if (fpCount > 0) lm.map = cleanMaps;   // a built-up map with no fingerprint beside fingerprinted ones reads as local work
     var lmCount = lm.planner + lm.notes + lm.info + lm.keys + lm.gm + lm.hidden + lm.map;
-    return { fp: fp, fpCount: fpCount, lm: lm, lmCount: lmCount, maps: maps, rooms: rooms, planners: planners };
+    return { fp: fp, fpCount: fpCount, lm: lm, lmCount: lmCount, maps: maps, rooms: rooms, planners: planners, docs: docs };
 }
 
 // Every /saves/images/… reference inside a campaign's items
@@ -170,15 +171,16 @@ function pickRecovery(fileState, cls, currentCamps) {
     return out;
 }
 
-// Remove one campaign from a state; its planner pages (always the player's) move into "Recovered notes" first.
-// Returns the keys of the moved pages, so a campaign put back later can take them home again.
-function removeCampaign(s, id) {
+// Remove one campaign from a state; its planner pages (always the player's) move into "Recovered notes" first,
+// and its handbook pages too when the removal is the player's own answer (own) — a CERTAIN copy's pages came
+// from the GM and go with it. Returns the keys of the moved pages, so a campaign put back later can take them home.
+function removeCampaign(s, id, own) {
     var camps = campaignsOf(s), c = camps[id];
     if (!c) return [];
     var moved = [];
     Object.keys(c.items || {}).forEach(function(k) {
         var it = c.items[k];
-        if (!isObj(it) || it.type !== 'planner') return;
+        if (!isObj(it) || !(it.type === 'planner' || (own && it.type === 'doc'))) return;
         var rec = camps[RECOVERED_ID];
         if (!rec) { rec = camps[RECOVERED_ID] = { id: RECOVERED_ID, name: 'Recovered notes', items: {}, activeItemId: null }; }
         var copy = JSON.parse(JSON.stringify(it));
@@ -318,8 +320,8 @@ function askOwnership(camp, info, opts) {
     opts = opts || {};
     var name = nameOf(camp), counts = info || inspectCampaign(camp || {});
     var html = '<p style="margin:0 0 10px;">Is <b>' + esc(name) + '</b> yours? It looks like it may have come from a game you joined, but we’re not sure — so we won’t touch it without asking.</p>'
-        + '<p style="margin:0 0 6px; color:var(--dim);">It has ' + counts.maps + ' map' + (counts.maps === 1 ? '' : 's') + ', ' + counts.rooms + ' room' + (counts.rooms === 1 ? '' : 's') + ' and ' + counts.planners + ' planner page' + (counts.planners === 1 ? '' : 's') + '.</p>'
-        + (counts.planners ? '<p style="margin:0; color:var(--dim); font-size:12px;">Any planner pages in it are yours and will be kept either way.</p>' : '');
+        + '<p style="margin:0 0 6px; color:var(--dim);">It has ' + counts.maps + ' map' + (counts.maps === 1 ? '' : 's') + ', ' + counts.rooms + ' room' + (counts.rooms === 1 ? '' : 's') + ' and ' + counts.planners + ' planner page' + (counts.planners === 1 ? '' : 's') + (counts.docs ? ' and ' + counts.docs + ' handbook page' + (counts.docs === 1 ? '' : 's') : '') + '.</p>'
+        + (counts.planners ? '<p style="margin:0; color:var(--dim); font-size:12px;">Any planner pages in it are yours and will be kept either way.' + (counts.docs ? ' Its handbook pages are kept if you say it is not yours (they could be your own writing).' : '') + '</p>' : counts.docs ? '<p style="margin:0; color:var(--dim); font-size:12px;">Its handbook pages are kept in "Recovered notes" if you say it is not yours.</p>' : '');
     var buttons = opts.isImport
         ? [{ label: 'Not mine — skip it', value: 'remove', cls: 'ghost' }, { label: 'It’s mine — bring it in', value: 'keep' }]
         : [{ label: 'Not mine — remove it', value: 'remove', cls: 'ghost danger' }, { label: 'It’s mine — keep it', value: 'keep' }];
@@ -423,7 +425,7 @@ async function stageA(data, hooks, run) {
     for (var i = 0; i < askIds.length; i++) {
         var aid = askIds[i], ans = await askOwnership(camps[aid], cls.info[aid], {});
         if (ans === 'keep') { camps[aid]._keptByUser = Date.now(); delete camps[aid]._foreign; kept++; }
-        else if (ans === 'remove') { removeCampaign(data, aid); askRemoved++; }
+        else if (ans === 'remove') { removeCampaign(data, aid, true); askRemoved++; }
         else later++;
     }
     if (askIds.length) run.workingTimer = setTimeout(showWorking, 400);

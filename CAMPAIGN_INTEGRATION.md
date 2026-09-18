@@ -2,7 +2,8 @@
 
 Briefing for anyone (human or AI) generating campaign content for the Waypoint app in this folder. Waypoint is a local-first Electron app for TTRPG campaign management: node-based **data maps**, freeform **play maps** that mirror them, and document-style **planners**. All state lives in one JSON file.
 
-**Current app version: 1.1.1** (2026-09-04, first tester-feedback release). What changed for authoring since 1.1.0 — details in the marked sections below:
+**Current app version: 1.5.0** (2026-09-18; this header was stale at 1.1.1 until then). What changed for authoring since 1.1.0 — details in the marked sections below:
+- **Handbook pages (1.5.0):** a third item type, `type: "doc"` — rules and reference pages that reach joined players over the wire (see the Page item section and the multiplayer rules below).
 - **Hex grid is FLAT-TOP** (changed 2026-09-05): a flat side faces up. A cell is **60 px wide × 52 px tall** (s = 30; columns 45 px apart, rows 52 px apart); cell centres sit at `x = 45q + 15, y = 52(r + q/2)` for integer q, r. Hex-sized items/tokens: `w: 60, h: 52`, positioned so their centre is a cell centre. Items saved at the old point-up size (`52 × 60`) are resized and re-seated automatically when the save loads, so old drops still work, but new drops should use the new size and lattice.
 - **Tokens follow rooms**: dropping a character token on a `nodeId`-linked shape moves its `room.characters` entry into that room (see the caveat for hidden-presence NPCs).
 - **Naming (1.1.1):** the app now calls the drawn scene the **Play Map** (it was "Whiteboard" in the UI). The save key is unchanged: map items still carry their scene in `whiteboard: [...]`. Player tokens also gained an optional `front` (0 top / 90 right / 180 bottom / 270 left — which side of the art is forward; a small gold arrow marks it) and turn in grid steps while a grid is on.
@@ -49,21 +50,21 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
     "camp_...": {
       "id": "camp_...",
       "name": "Campaign Name",
-      "activeItemId": "map_... or plan_...",   // which item opens on launch
+      "activeItemId": "map_..., plan_... or doc_...",   // which item opens on launch
       "players": {                              // OPTIONAL, app-managed multiplayer registry:
         "u_abc123": { "name": "Johann", "charName": "Johann Vekk" }
       },                                        // — carry it through untouched; never author or edit it
       "vtt": { "v": 1, "master": true,          // OPTIONAL, app-managed (1.4.9): the campaign's VTT feature switches
         "features": { "elevation": true, "posture": true, "minimap": true } },   // — carry it through untouched; never author it (a campaign without it is filled from the app's default on load)
-      "items": {                                // FLAT dict of maps and planners
-        "<id>": { /* map or planner, below */ }
+      "items": {                                // FLAT dict of maps, planners and pages
+        "<id>": { /* map, planner or page, below */ }
       }
     }
   }
 }
 ```
 
-**IDs**: any unique string works. The app generates `camp_<ms>`, `map_<ms>`, `plan_<ms>` (Date.now) and `r<6 random chars>` / `wb<...>` — when generating many items in one pass, do NOT use bare timestamps (collisions); use descriptive slugs like `map_manaan_ahto` — they're stable, readable, and valid.
+**IDs**: any unique string works. The app generates `camp_<ms>`, `map_<ms>`, `plan_<ms>` (Date.now), `doc_r<6 random chars>` and `r<6 random chars>` / `wb<...>` — when generating many items in one pass, do NOT use bare timestamps (collisions); use descriptive slugs like `map_manaan_ahto` — they're stable, readable, and valid.
 
 ### Map item
 
@@ -178,18 +179,35 @@ Block types (exact fields):
 - `{ "type": "node", "title": "...", "tag": "...", "must": "...", "cols": ["Check", "DC", "On success"], "rows": [{ "col1": "...", "col2": "...", "col3": "..." }] }` — titled table (the app's signature "node box"). `cols` is OPTIONAL (1–8 header strings; the table renders exactly that many columns, rows use col1..colN); omit it for the default Action / Why / Cost / Returns via
 - `{ "type": "flowchart", "nodes": [{ "id": "n1", "text": "...", "shape": "rect|rounded|pill|diamond|hex", "color": "gold|blue|green|red|violet|neutral" }], "edges": [{ "from": "n1", "to": "n2", "text": "", "style": "solid|dotted" }] }` — builder that compiles to mermaid
 
+### Page item (handbook pages, 1.5.0)
+
+```jsonc
+{
+  "type": "doc",
+  "id": "doc_...",
+  "meta": { "title": "House rules", "updated": 0,
+            "parentId": "doc_...",       // OPTIONAL: pages nest under pages, exactly like planners
+            "players": true },           // "players can read": absent or true = sent to joined players; false = GM only
+  "blocks": [ /* rendered top-to-bottom; EVERY block carries a unique "id" ("b_...") — the wire sends block deltas keyed on it */ ]
+}
+```
+
+A page is a **player-facing** document: what the GM previews is exactly what a joined player reads. Its block roster is the player-safe subset of the planner's plus three of its own — `h1`, `h2`, `h3` (`{ "title" }`), the prose blocks `text` / `lede` / `oneline` / `callout` / `flare` (`content` = HTML, reduced on render to p, br, b/strong, i/em, u, s, ul/ol/li, code, pre and `a href="http(s)…"`; anything else becomes plain text), `image` (`src` must be a `/saves/images/...` path; `caption`, `alt`), `table` (`{ "title", "cols": [...], "rows": [...] }` — rows as `{ "col1": ... }` objects like a planner node or as arrays; at most 8 columns, cells are text), `rule` (a horizontal line), `diagram` and `flowchart` (as in planners; lines beginning `click`, `callback`, `href` or `linkStyle` are removed for players). **Not allowed on a page:** `node` (scene nodes), `raw`, GM notes of any kind — a block of another type is dropped when the page is sent. Caps: 300-character titles, 2,000-character cells, 64 KB per prose block, 500 blocks and 2 MB per page (a longer page reaches players truncated with a notice). An optional `layout` object on `image`, `callout`, `flare`, `table`, `diagram` and `flowchart` (`{ "width": 25|33|50|66|75|100, "float": "none"|"left"|"right", "dx": -200..200, "dy": -200..200, "span": false }`) and `cols` (1–3) on `h2` describe the flowing layout; the editor controls for them ship in a later 1.5.0 build, the renderer honours them already.
+
 ## Multiplayer-aware authoring (what players can and cannot see)
 
 Waypoint now runs GM-hosted P2P sessions: players join with a room code, follow the GM's map, and receive a **sanitized** copy of the campaign. The host strips GM-only content before anything leaves the machine. Author with this split in mind:
 
 **Never sent to players** (safe for spoilers, secrets, GM prep):
 - Planners — entire items, never transmitted.
+- Pages with `"players": false`, and every page of a campaign other than the hosted one.
 - `room.notes` and `room.characters[].info` / `.ref`.
 - Text items with `gmNoteFor`.
 - The content of `hidden` play map items (players get a position-only grey stub until revealed).
 
 **Sent to players** (player-safe wording only):
 - Room **names**, categories, node layout, links, warp icons.
+- Handbook pages of the hosted campaign whose `players` switch is not false — sanitized (block roster, text-only titles and cells, allow-listed prose, `/saves/images/` pictures only, mermaid link directives removed) on the host and again on the player's machine.
 - All visible play map content: shapes, images, text items without `gmNoteFor`, token names and `charStats` tooltips, token `elevation` / `posture` (1.4.6; the hosted campaign's VTT features — ⚙ Settings ▸ VTT features, its `vtt` block — are the most players see of the chips, and a player may switch one off for themselves), `room.image` scene art and character `portrait`s (shown in hover tooltips of linked items).
 
 Practical rules: put twists and DC tables in `room.notes` or planners, never in a visible text item or a room name ("Ambush Corridor" spoils itself); pre-set `"hidden": true` on reveal items; give every PC token a consistent `charName` so player control binds correctly. In-session the GM can pause the table, whisper, and pin the table to a map — none of that needs authoring support.

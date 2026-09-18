@@ -1,6 +1,27 @@
 WAYPOINT 1.5.0 — What's New
 ============================
 
+Handbook
+- A third kind of item beside maps and planners: Handbook pages — rules,
+  quick reference, a setting primer — written in the same block editor as a
+  planner (plus sub-headings, plain tables and a horizontal line; no scene
+  nodes, raw HTML or GM notes on a page), nested and re-ordered like planners,
+  searched, exported (Export This Page / Export All Pages) and covered by the
+  planner's undo.
+- Players at your table receive the pages you leave on "Players can read"
+  (the default; the switch is in the planner toolbar and the page's right-click
+  menu) and read them from a Handbook tree of their own — the only section of
+  the left panel they see — in a panel over the play map, so the session keeps
+  running underneath. Esc or × closes it. Your edits reach an open page as you
+  type; turning a page GM only removes it from every player at once; only the
+  hosted campaign's pages travel.
+- Everything a player receives from a page is cleaned twice (on your machine
+  before it is sent and on theirs before it is shown): text, never markup;
+  links only to http(s); pictures only from the campaign; diagrams in a
+  stricter mode. A deleted map, planner or page now leaves players' copies too.
+- The Tutorial gains a House rules page, and the tour and Help cover the
+  Handbook. Planner flowcharts and pages share one compiler.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

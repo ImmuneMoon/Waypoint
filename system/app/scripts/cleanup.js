@@ -311,8 +311,9 @@ function showWorking() {
 }
 function hideWorking() { var d = document.getElementById('cleanupWorkingModal'); if (d) d.remove(); }
 
-// The one question the player sees: "Is «name» yours?" -> 'keep' | 'remove' | 'later'
-// opts.isImport: the campaign is in a file being imported (bring in / skip, no "later")
+// The one question the player sees: "Is «name» yours?" -> 'keep' | 'remove'. It has to be answered:
+// Esc and the backdrop do nothing, so the cleanup never finishes with a campaign left undecided.
+// opts.isImport: the campaign is in a file being imported (bring in / skip)
 function askOwnership(camp, info, opts) {
     opts = opts || {};
     var name = nameOf(camp), counts = info || inspectCampaign(camp || {});
@@ -321,8 +322,8 @@ function askOwnership(camp, info, opts) {
         + (counts.planners ? '<p style="margin:0; color:var(--dim); font-size:12px;">Any planner pages in it are yours and will be kept either way.</p>' : '');
     var buttons = opts.isImport
         ? [{ label: 'Not mine — skip it', value: 'remove', cls: 'ghost' }, { label: 'It’s mine — bring it in', value: 'keep' }]
-        : [{ label: 'Decide later', value: 'later', cls: 'ghost' }, { label: 'Not mine — remove it', value: 'remove', cls: 'ghost danger' }, { label: 'It’s mine — keep it', value: 'keep' }];
-    return showDialog({ id: 'cleanupAskModal', title: 'Is this campaign yours?', html: html, buttons: buttons, escape: opts.isImport ? 'remove' : 'later' });
+        : [{ label: 'Not mine — remove it', value: 'remove', cls: 'ghost danger' }, { label: 'It’s mine — keep it', value: 'keep' }];
+    return showDialog({ id: 'cleanupAskModal', title: 'Is this campaign yours?', html: html, buttons: buttons, escape: opts.isImport ? 'remove' : undefined });
 }
 
 // After an automatic removal: what went, what came back. One secondary action puts ticked campaigns back from page memory.

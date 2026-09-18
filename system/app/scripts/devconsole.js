@@ -44,7 +44,9 @@
         { name: '/help', short: 'this list, or  /help <name>  for detail on one command or global',
           detail: '/help            list the headline commands.\n/help <name>     explain one command or wp* global in full, e.g.  /help wpFitView  or  /help seathex\n/?               same as /help.' },
         { name: '/roll <expr>', short: 'roll dice with the full formula syntax, e.g.  /roll 2d20kh1 + 5 >= 16   (also /r)',
-          detail: 'Roll a formula and show every die, the total and, for a check, the margin. Spreadsheet-style, case-insensitive:\n  /roll 2d6+3            /roll d20 + 5 >= 16        /roll 4d6kh3 (keep the highest 3)\n  /roll 2d20kh1 + 5      /roll 3d6 <= 12 (roll-under)   /roll 10d6cs>=5 (count the 5s and 6s)\n  /roll 2d6! + 3 (exploding)   /roll d20r1 (reroll 1s once)   /roll 4dF   /roll d%\nAlso kl / dh / dl, rr (reroll until), (Level)d6, d(Faces), floor / ceil / round / abs / min / max / clamp / mod / if, and / or / not.\nPut a space after /roll. Names like STR are not set in the console yet — they come with the character sheets.\nBare /roll rolls a d20.' },
+          detail: 'Roll a formula and show every die, the total and, for a check, the margin. Spreadsheet-style, case-insensitive:\n  /roll 2d6+3            /roll d20 + 5 >= 16        /roll 4d6kh3 (keep the highest 3)\n  /roll 2d20kh1 + 5      /roll 3d6 <= 12 (roll-under)   /roll 10d6cs>=5 (count the 5s and 6s)\n  /roll 2d6! + 3 (exploding)   /roll d20r1 (reroll 1s once)   /roll 4dF   /roll d%\nAlso kl / dh / dl, rr (reroll until), (Level)d6, d(Faces), floor / ceil / round / abs / min / max / clamp / mod / if, and / or / not.\nPut a space after /roll. Names like STR are not set in the console yet — they come with the character sheets.\nBare /roll rolls a d20. /roll stays private to this console; /table posts to the table.' },
+        { name: '/table <expr>', short: 'roll at the table (chat card for everyone, like /roll in Table Chat)',
+          detail: 'Rolls through the table dice (wpDice.roll): at a hosted table everyone gets the card and the session log a line; at a joined table the GM rolls it for you; solo it is a local card in the chat panel. Same syntax as /roll.' },
         { name: '/state', short: 'print wpDebug.getState()',
           detail: 'Pretty-prints the app state snapshot — the same object as typing  wpDebug.getState().' },
         { name: '/fit [sel]', short: 'frame everything, or  /fit sel  for the selection',
@@ -87,6 +89,9 @@
         wpCloseImgPreview: "Close the Image Library's large preview.",
         wpCmdkOpen: 'Open the Ctrl+K quick-jump palette.',
         wpCreateMapFromRoomImage: "Build a new map from a room's scene image.",
+        wpDice: 'Dice at the table (scripts/dice.js): roll(expr, {priv}), openPanel / closePanel, renderCard(entry), line(entry), history(); onDeny / onRolled / landed are the hooks net.js calls.',
+        wpDiceCore: 'The dice validators and maths (scripts/dicecore.js): cleanRollReq, cleanRoll, cleanDeny, replay, checkTableRoll, parseCommand, verdictOf, critOf, cardText, RateLimit, LIMITS.',
+        wpDiceSync: 'Re-check the Dice feature for the campaign or table on screen: shows or hides the roller (called by the VTT toggle fan-out).',
         wpDocForeign: 'Handbook reader: (on) closes the reader and switches mermaid to strict while someone else\'s campaign is on screen; (off) restores the app\'s own mode (handbook.js).',
         wpDocGone: "Handbook reader: (campId, itemId) closes the reader with a toast when the GM hid or deleted the page on screen.",
         wpDocImport: 'Markdown in and out (scripts/docimport.js): openImport({kind, mode, parentId, files}), importFile(file), exportMarkdown(item), detectBundle(entries), TEMPLATE.',
@@ -214,6 +219,11 @@
         }
         addLine('🎲 ' + window.wpFormula.describe(res), 'dc-out');
     }
+    function doTable(arg) {
+        if (!window.wpDice) { addLine('wpDice is not available.', 'dc-err'); return; }
+        var r = window.wpDice.roll(arg, { source: 'chat' });
+        addLine(r.error ? r.error : (r.pending ? 'Sent to the GM.' : 'Rolled at the table.'), r.error ? 'dc-err' : 'dc-note');
+    }
     function doState() {
         if (!window.wpDebug) { addLine('wpDebug is not available yet.', 'dc-err'); return; }
         addLine(fmt(window.wpDebug.getState()), 'dc-out');
@@ -235,6 +245,7 @@
         help: function (a) { help(a); }, '?': function (a) { help(a); },
         clear: function () { clear(); },
         roll: function (a) { doRoll(a); }, r: function (a) { doRoll(a); },
+        table: function (a) { doTable(a); },
         state: function () { doState(); },
         fit: function (a) { if (window.wpFitView) window.wpFitView(/^s/i.test(a)); else addLine('wpFitView is not available.', 'dc-err'); },
         reload: function () { if (window.wpReloadFromDisk) { window.wpReloadFromDisk(); addLine('Reloaded from disk.', 'dc-note'); } else addLine('wpReloadFromDisk is not available.', 'dc-err'); },

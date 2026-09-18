@@ -278,7 +278,12 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     elevation: ['Elevation on.', 'Elevation off \u2014 chips hidden, the values are kept.'],
     posture: ['Posture on.', 'Posture off \u2014 chips hidden, the values are kept.'],
     minimap: ['Minimap on.', 'Minimap off for this campaign.'],
-    sound: ['Sound on.', 'Sound off for this campaign \u2014 the table falls silent.']
+    sound: ['Sound on.', 'Sound off for this campaign \u2014 the table falls silent.'],
+    dice: ['Dice on.', 'Dice off for this campaign \u2014 nobody rolls at the table.']
+};
+var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
+    dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
+    sound: 'For you it silences the table; the GM and the others still hear it.'
 };
 function vttFeatures() { return (window.wpVtt && window.wpVtt.FEATURES) || []; }
 function syncVttPanel() {
@@ -313,6 +318,7 @@ function syncVttPanel() {
             row.style.opacity = gmOn ? '' : '.55';
             if (help) help.style.display = 'none';
             if (role) { role.style.display = ''; role.textContent = !gmOn ? 'The GM has this off for the table.' : lo ? 'Off for you at this table \u2014 your own settings are unchanged.' : 'On at this table. Switch it off for yourself here; your own settings are unchanged.'; }
+            if (role && gmOn && VTT_ROLE[f.id]) role.textContent += ' ' + VTT_ROLE[f.id];
         } else {
             var on = v.campaignOn(f.id, camp);
             var extra = (f.id === 'minimap' && on && localStorage.getItem('wp_minimap') === 'closed') ? ' \u2014 collapsed in the corner' : '';

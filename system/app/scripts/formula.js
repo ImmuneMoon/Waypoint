@@ -769,6 +769,13 @@ function evaluate(text, options) {
     return evaluateAst(p.ast, options);
 }
 function names(text) { var p = parse(text); return p.ok ? p.names : []; }
+// The breakdown as tokens for a renderer: strings, and { die: <dice record>, text } for each dice group (cap = dice shown per group)
+function parts(result, cap) {
+    if (!result || !result.ok || !result.breakdown) return [];
+    var b = result.breakdown, out = [], n = cap > 0 ? cap : 40;
+    for (var i = 0; i < b.template.length; i++) { var p = b.template[i]; if (typeof p === 'string') out.push(p); else out.push({ die: b.dice[p.d], text: diceList(b.dice[p.d], n) }); }
+    return out;
+}
 function describe(result, opts) {
     if (!result || !result.ok || !result.breakdown) return '';
     var b = result.breakdown, max = opts && opts.maxChars > 0 ? opts.maxChars : 0;
@@ -778,7 +785,7 @@ function describe(result, opts) {
     return b.summary;
 }
 
-var API = { parse: parse, evaluate: evaluate, evaluateAst: evaluateAst, names: names, describe: describe, fromDraws: fromDraws, LIMITS: LIMITS, VERSION: VERSION };
+var API = { parse: parse, evaluate: evaluate, evaluateAst: evaluateAst, names: names, describe: describe, parts: parts, fromDraws: fromDraws, LIMITS: LIMITS, VERSION: VERSION };
 if (typeof window !== 'undefined') window.wpFormula = API;
 
-export { parse, evaluate, evaluateAst, names, describe, fromDraws, LIMITS, VERSION };
+export { parse, evaluate, evaluateAst, names, describe, parts, fromDraws, LIMITS, VERSION };

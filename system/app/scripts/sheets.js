@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, fmtNum } from './systemcore.js';
+import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, fmtNum, initRoll } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -188,6 +188,7 @@ function fieldNode(f, c, e, gm, own) {
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
+    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll; rb.disabled = !canRoll(c); rb.addEventListener('click', function() { if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, f.roll, f.label || f.key); }); lab.appendChild(rb); }   // the field's own roll (1.5.0)
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
@@ -222,8 +223,20 @@ function fieldNode(f, c, e, gm, own) {
     return box;
 }
 function rollNode(r, c) {
-    var b = el('button', 'tool sheet-roll', r.label); b.title = r.formula + ' (rolls from the sheet arrive in the next step of 1.5.0)'; b.disabled = true;
+    var b = el('button', 'tool sheet-roll', r.label); var can = canRoll(c); b.title = r.formula + (can ? '' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
+    b.addEventListener('click', function() { if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, r.formula, r.label); });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
+}
+// A roll from this character's sheet: the dice feature on, and for a player their own character
+function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return true; }
+// The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
+function hasInitRoll() { var sys = systemOf(getActiveCampaign()); return !!(sys && initRoll(sys)); }
+function rollInit(charId) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = sys ? initRoll(sys) : null;
+    if (!c || !r) return { error: 'No initiative roll in this system (tick Initiative on a roll in the System editor).' };
+    if (!window.wpDice || !window.wpDice.rollFor) return { error: 'Dice are not available.' };
+    if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
+    return window.wpDice.rollFor(charId, r.formula, r.label || 'Initiative', { source: 'combat' });
 }
 // One value changed on the open sheet: the GM applies it here; a player asks the host and shows it meanwhile
 function commit(c, f, value) {
@@ -255,7 +268,7 @@ function revertLast() {
     toast('Reverted.');
 }
 // net.js hooks: a character arrived, changed or went
-function charChanged(id) { if (sheetOpen && (id === null || sheetOpen === id)) renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); }
+function charChanged(id) { if (sheetOpen && (id === null || sheetOpen === id)) renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
 // the token's owner select moved (inspector.js): the character follows, and every token of it
 function ownerFromToken(w) {
     var camp = getActiveCampaign(), c = w && w.charId ? charById(w.charId, camp) : null; if (!c || c.npc) return;
@@ -579,4 +592,4 @@ setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
-    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, LIMITS: LIMITS };

@@ -1992,17 +1992,28 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'roll-req' && net.role === 'host') {
         // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
-        var q = Dq.cleanRollReq(msg); if (!q) return;
+        var q = Dq.cleanRollReq(msg); if (!q) { var ridBad = Dq.cleanRid(msg); if (ridBad) { try { conn.send({ type: 'roll-deny', rid: ridBad, reason: 'error', message: 'That roll could not be read.' }); } catch (e) {} } return; }
         var denyQ = function(reason, r) { var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) {} };
         if (!diceLimit) diceLimit = Dq.RateLimit(Dq.LIMITS);
         var lim = diceLimit.allow(conn.peer, Date.now());
         if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
         if (window.wpVtt && !window.wpVtt.on('dice')) { denyQ('off'); return; }
-        if (Fq.names(q.expr).length) { denyQ('names'); return; }
-        var resQ = Fq.evaluate(q.expr);
+        var chQ = null, varsQ = null, SQ = SC();
+        if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
+            var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = campQ && campQ.chars && campQ.chars[q.charId];
+            if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || !SQ || !campQ.system) { denyQ('char'); return; }
+            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ) : null;
+            if (!viewQ || !chvQ) { denyQ('char'); return; }
+            chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq);
+        }
+        if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
+        var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
+        if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
+        if (q.label) recQ.label = q.label;
+        if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) {} pushRoll(recQ, resQ, 'whisper'); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global'); }
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
@@ -2562,22 +2573,30 @@ net.diceRoll = function(expr, o) {
     if (net.stream) return { error: 'Not from the stream window.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: D.denyText('off') };
     expr = D.cleanExpr(expr); if (!expr) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + D.LIMITS.expr + ' characters).' };
-    if (F.names(expr).length) return { error: D.denyText('names') };
+    if (F.names(expr).length && !o.charId) return { error: D.denyText('names') };   // names come from a character's sheet (1.5.0)
     if (net.active && net.role === 'client') {
         if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open) return { error: 'Not at the table yet.' };
         if (_dicePending) return { error: 'Waiting for the GM to roll the last one.' };
         var rid = 'q' + Math.random().toString(36).slice(2, 10), req = { type: 'roll-req', rid: rid, expr: expr };
         if (o.priv) req.priv = 'gm';
+        if (o.charId) req.charId = o.charId;
+        if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
         _dicePending = { rid: rid, expr: expr, timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
-    var res = F.evaluate(expr);
+    var campR = getActiveCampaign(), SR = SC(), chR = null, varsR = null;   // a character makes its sheet's names available (character sheets, 1.5.0)
+    if (o.charId) { chR = campR && campR.chars && campR.chars[o.charId]; if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F); }
+    var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
     var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
+    if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
+    if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
+    if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);
     var hosting = net.active && net.role === 'host', toName = '';
     if (o.priv) rec.priv = 'gm';
+    else if (hosting && rec.names && SR && SR.gmOnlyNames(campR.system, rec.names).length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + SR.gmOnlyNames(campR.system, rec.names).join(', ') + ').'); }   // a public roll never carries a GM-only value
     else if (hosting) {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
         var target = toKey ? net.conns.find(function(c) { return c.peer === toKey; }) : null;
@@ -2587,7 +2606,7 @@ net.diceRoll = function(expr, o) {
     if (hosting && scope === 'global') sendTable(rec, null);
     pushRoll(rec, res, scope, { toName: toName });
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
-    return { ok: true };
+    return { ok: true, value: res.value, priv: !!rec.priv };
 };
 
 /* ---------- table chat ---------- */

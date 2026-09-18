@@ -119,6 +119,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   }
 
+  // A handbook page (1.5.0): rules and reference the players at the table can read. Written in the
+  // planner editor, nested and reordered like planners; meta.players (default on) is the "players can
+  // read" switch; every block carries an id because the wire sends block deltas keyed on it.
+  function createNewDoc(title) {
+    return {
+      type: 'doc',
+      id: 'doc_' + uid(),
+      meta: { title: title || 'New Page', updated: Date.now(), players: true },
+      blocks: [
+          { id: 'b_' + uid(), type: 'h1', title: title || 'New Page', sub: '' },
+          { id: 'b_' + uid(), type: 'text', content: 'Start writing...' }
+      ]
+    };
+  }
+  // Planners and pages share the block editor; maps, planners and pages share the sidebar trees.
+  function isDocLike(item) { return !!item && (item.type === 'planner' || item.type === 'doc'); }
+  function isTreeItem(item) { return !!item && (item.type === 'map' || item.type === 'planner' || item.type === 'doc'); }
+
 
 
   function getActiveCampaign() {
@@ -267,6 +285,12 @@ export {
     createNewMap,
 
     createNewPlanner,
+
+    createNewDoc,
+
+    isDocLike,
+
+    isTreeItem,
 
     getActiveCampaign,
 

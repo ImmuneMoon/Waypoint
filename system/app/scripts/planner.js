@@ -30,7 +30,9 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
+
+import { renderDoc, compileFlowchart, DOC_BLOCKS } from './docrender.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord } from './io.js';
 
@@ -50,9 +52,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var activeMap = getActiveMap();
       if (!activeMap) return;
       // This document remembers its own reading-view state
-      if (activeMap.type === 'planner') {
+      if (isDocLike(activeMap)) {
           var rv = !!(activeMap.meta && activeMap.meta.readerView);
           if (rv !== plannerFullscreen) { plannerFullscreen = rv; applyPlannerFullscreen(); }
+      }
+      // Page or planner: one Add Block select whose options carry data-for="planner" / "doc" (none = both),
+      // the scene status is a planner thing, the players switch a page thing
+      var isDocEd = activeMap.type === 'doc';
+      var addSel = document.getElementById('addBlockSelect');
+      if (addSel) Array.from(addSel.options).forEach(function(o) { var f = o.dataset.for; o.hidden = !!(f && f !== (isDocEd ? 'doc' : 'planner')); });
+      var stSelD = document.getElementById('plannerStatus'); if (stSelD) stSelD.style.display = isDocEd ? 'none' : '';
+      var plBtnD = document.getElementById('docPlayersBtn');
+      if (plBtnD) {
+          plBtnD.style.display = isDocEd ? '' : 'none';
+          var onP = !(activeMap.meta && activeMap.meta.players === false);
+          plBtnD.innerHTML = onP ? '&#128065; Players can read' : '&#128274; GM only';
+          plBtnD.classList.toggle('on', onP);
+          plBtnD.title = onP ? 'Players at your table receive this page and read it from their Handbook. Click to keep it to yourself.' : 'Only you see this page. Click to let players read it.';
       }
 
       
@@ -121,9 +137,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               html += '<input type="text" class="field b-sub" value="'+esc(b.sub||'')+'" placeholder="Subtitle" data-idx="'+idx+'" style="width:100%;">';
 
-          } else if (b.type === 'h2') {
+          } else if (b.type === 'h2' || b.type === 'h3') {
 
-              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="Section Header" data-idx="'+idx+'" style="width:100%;">';
+              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(b.type === 'h3' ? 'Sub-heading' : 'Section Header')+'" data-idx="'+idx+'" style="width:100%;">';
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
 
@@ -140,13 +156,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               html += '<textarea class="field b-content" placeholder="Raw HTML..." data-idx="'+idx+'" style="width:100%; height:120px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
 
+          } else if (b.type === 'rule') {
+              html += '<div style="color:var(--dim); font-size:12px;">A horizontal line across the page. Nothing to edit; move or delete it with the buttons above.</div>';
           } else if (b.type === 'diagram') {
 
               html += '<textarea class="field b-content" placeholder="Mermaid flowchart code..." data-idx="'+idx+'" style="width:100%; height:150px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
 
-          } else if (b.type === 'node') {
-              var plain = b.mode === 'table';
-              html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label></div>';
+          } else if (b.type === 'node' || b.type === 'table') {
+              var plain = b.mode === 'table' || b.type === 'table';   // a page's table block is the node grid in table mode, without the mode switch
+              if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label></div>';
               html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(plain ? 'Table title (optional)' : 'Node Title')+'" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
               if (!plain) {
                   html += '<input type="text" class="field b-sub" value="'+esc(b.tag||'')+'" placeholder="Tag (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
@@ -296,7 +314,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-ncols')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(8, parseInt(this.value, 10) || 1));
-          var cols = (Array.isArray(bb.cols) && bb.cols.length > 0) ? bb.cols.slice() : (bb.mode === 'table' ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
+          var cols = (Array.isArray(bb.cols) && bb.cols.length > 0) ? bb.cols.slice() : ((bb.mode === 'table' || bb.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
           while (cols.length < n) cols.push('Column ' + (cols.length + 1));
           cols = cols.slice(0, n);
           bb.cols = cols;
@@ -304,7 +322,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function() {
           var bb = activeMap.blocks[this.dataset.idx];
-          if (!Array.isArray(bb.cols) || !bb.cols.length) bb.cols = bb.mode === 'table' ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via'];
+          if (!Array.isArray(bb.cols) || !bb.cols.length) bb.cols = (bb.mode === 'table' || bb.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via'];
           bb.cols[this.dataset.ci] = this.value;
           save(false); renderPlannerPreview();
       }));
@@ -402,7 +420,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // full width, run the export, then put the view back the way it was.
   window.wpWithRenderedPlanner = async function(fn) {
       var am = getActiveMap();
-      if (!am || am.type !== 'planner') { await fn(); return; }
+      if (!isDocLike(am)) { await fn(); return; }
       var was = plannerFullscreen;
       // nothing of the bar over the preview (controls, find box, highlights) belongs in an export
       var bar = document.getElementById('plannerFindBar'), barParent = bar && bar.parentNode, barNext = bar && bar.nextSibling;
@@ -545,12 +563,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      units) together with a signature of the node ids, and thrown away when the set of nodes
      changes, since the chart is laid out afresh then. Edges touching a nudged node are redrawn
      as straight lines between node centres. */
-  function fcBlockOf(box) { var am = getActiveMap(); var i = parseInt(box.dataset.fc, 10); return am && am.blocks ? am.blocks[i] : null; }
+  function fcBlockOf(box) { var am = box._fcDoc || getActiveMap(); var i = parseInt(box.dataset.fc, 10); return am && am.blocks ? am.blocks[i] : null; }   // _fcDoc: the reader's page (handbook.js)
   function fcNodeId(g) { return String(g.id || '').replace(/^flowchart-/, '').replace(/-\d+$/, ''); }
   function fcTranslate(g) { var m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/.exec(g.getAttribute('transform') || ''); return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 }; }
   function fcSig(b) { return (b.nodes || []).map(function(n) { return n.id; }).sort().join(','); }
-  function fcApplyZoom(idx) {
-      var box = document.querySelector('#plannerPreview .fc-box[data-fc="' + idx + '"]'); if (!box) return;
+  function fcApplyZoom(idx) { var box = document.querySelector('#plannerPreview .fc-box[data-fc="' + idx + '"]'); if (box) fcApplyZoomBox(box); }
+  function fcApplyZoomBox(box) {
       var svg = box.querySelector('svg'); if (!svg) return;
       var b = fcBlockOf(box); var z = (b && b.zoom) || 1;
       var vb = (svg.getAttribute('viewBox') || '0 0 0 0').split(/[\s,]+/).map(Number);
@@ -731,6 +749,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           fcWireResize(box, b);
       });
   }
+  // The reader (handbook.js) shows a page's flowcharts as the GM arranged them: fit, zoom, sizes and
+  // nudges applied from the block, nothing wired (no handles, no dragging, no saving).
+  window.wpFcPostProcess = function(root, doc) {
+      Array.from(root.querySelectorAll('.fc-box')).forEach(function(box) {
+          box._fcDoc = doc;
+          var svg = box.querySelector('svg'); var b = fcBlockOf(box); if (!svg || !b) return;
+          fcFitViewBox(svg);
+          fcApplyZoomBox(box);
+          fcApplySizes(svg, b);
+          if (b.nodePos && b.nodePosSig === fcSig(b)) Object.keys(b.nodePos).forEach(function(nid) {
+              var g = svg.querySelector('g.node[id^="flowchart-' + nid + '-"]'); if (!g) return;
+              var p = b.nodePos[nid]; g.setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
+              fcRedrawEdges(svg, nid);
+          });
+          fcFitViewBox(svg);
+          fcApplyZoomBox(box);
+      });
+  };
   /* ---- find in planner ----
      Highlights in the rendered preview only (the editor boxes are left alone). Text nodes are
      matched on a normalised copy (lower case, accents stripped) with an index map back to the
@@ -819,7 +855,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (pr) pr.addEventListener('click', function() { pfGo(pfState.cur - 1); });
       document.addEventListener('keydown', function(e) {
           if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'f') return;
-          var am = getActiveMap(); if (!am || am.type !== 'planner') return;
+          var am = getActiveMap(); if (!isDocLike(am)) return;
           e.preventDefault(); box.focus(); box.select();
       });
   })();
@@ -837,7 +873,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var preview = document.getElementById('plannerPreview');
 
-      
+      if (activeMap.type === 'doc') {   // a page renders through the shared renderer (docrender.js): escaped text, sanitized prose — what a player gets
+          preview.innerHTML = renderDoc(activeMap, { mermaid: !!window.mermaid, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
+          runPreviewMermaid();
+          return;
+      }
 
       var html = '<div class="wrap">';
 
@@ -920,65 +960,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '</div>';
 
           } else if (b.type === 'flowchart') {
-              // Mermaid reads ( ) [ ] { } | as shape and edge markers, so free text goes inside
-              // quotes; inside quotes only " and # need escaping (mermaid's #quot; / #35; entities).
-              var mmText = function(t) { return '"' + String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>') + '"'; };
-              var mmId = function(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; };
-              var spc = { compact: [18, 28], normal: [50, 50], wide: [90, 90] }[b.space || 'normal'] || [50, 50];
-              var m = '%%{init: {"flowchart": {"nodeSpacing": ' + spc[0] + ', "rankSpacing": ' + spc[1] + ', "htmlLabels": true}}}%%\n';
-              m += 'flowchart ' + (/^(TD|LR|BT|RL)$/.test(b.dir || '') ? b.dir : 'TD') + '\n';
-
-              m += 'classDef gold fill:#302517,stroke:#e0a54f,color:#fff\n';
-
-              m += 'classDef blue fill:#1a272e,stroke:#4db3d3,color:#fff\n';
-
-              m += 'classDef green fill:#1a3022,stroke:#5cb87a,color:#fff\n';
-
-              m += 'classDef red fill:#361f1e,stroke:#d9534f,color:#fff\n';
-
-              m += 'classDef violet fill:#281f3b,stroke:#b98cff,color:#fff\n';
-
-              m += 'classDef neutral fill:#26262a,stroke:#c9c9d4,color:#fff\n';
-
-              
-
-              if (b.nodes) {
-
-                  b.nodes.forEach(function(n) {
-
-                      var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2,5)));
-                      var txt = mmText(n.text || 'Node');
-
-                      var s1 = '[', s2 = ']';
-
-                      if (n.shape === 'rounded') { s1 = '('; s2 = ')'; }
-
-                      else if (n.shape === 'pill') { s1 = '(['; s2 = '])'; }
-
-                      else if (n.shape === 'diamond') { s1 = '{'; s2 = '}'; }
-
-                      else if (n.shape === 'hex') { s1 = '{{'; s2 = '}}'; }
-
-                      m += id + s1 + txt + s2 + ':::' + (n.color || 'neutral') + '\n';
-
-                  });
-
-              }
-
-              if (b.edges) {
-
-                  b.edges.forEach(function(e) {
-
-                      if (!e.from || !e.to) return;
-
-                      var line = e.style === 'dotted' ? '-.->' : '-->';
-                      if (e.text) line += '|' + mmText(e.text) + '|';
-                      m += mmId(e.from) + ' ' + line + ' ' + mmId(e.to) + '\n';
-
-                  });
-
-              }
-
+              var m = compileFlowchart(b);   // docrender.js: one compiler for planners and pages
               var boxStyle = (b.boxW ? 'width:' + b.boxW + 'px;' : '') + (b.boxH ? 'height:' + b.boxH + 'px;' : '');
               html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + m + '</pre></div>';
 
@@ -993,18 +975,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       
 
       preview.innerHTML = html;
-
-      
-
-      if (window.mermaid) {
-          var runMermaid = function(tries) {
-              var pane = document.getElementById('plannerPreview');
-              if (pane && pane.clientWidth === 0 && tries < 40) { setTimeout(function() { runMermaid(tries + 1); }, 60); return; }   // wait until laid out, else labels measure wrong
-              try { Promise.resolve(mermaid.run({ querySelector: '.mermaid' })).then(fcPostProcess).catch(function() {}); } catch(e) { }
-          };
-          runMermaid(0);
-      }
-
+      runPreviewMermaid();
+  }
+  function runPreviewMermaid() {
+      if (!window.mermaid) return;
+      var runMermaid = function(tries) {
+          var pane = document.getElementById('plannerPreview');
+          if (pane && pane.clientWidth === 0 && tries < 40) { setTimeout(function() { runMermaid(tries + 1); }, 60); return; }   // wait until laid out, else labels measure wrong
+          try { Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}); } catch(e) { }
+      };
+      runMermaid(0);
   }
 
   
@@ -1029,10 +1009,23 @@ if (_el_plannerStatus) _el_plannerStatus.addEventListener('change', function() {
     save(true); updateSidebarNav();
     toast(this.value === 'next' ? 'Marked as the next scene.' : this.value === 'played' ? 'Marked played.' : this.value === 'skipped' ? 'Marked skipped.' : 'Status cleared.');
 });
+// Handbook page: the "players can read" switch. Off while hosting removes the page from every player
+// now (itemGone clears the send baseline too); on again sends it with this save (onLocalSave).
+var _el_docPlayersBtn = document.getElementById('docPlayersBtn');
+if (_el_docPlayersBtn) _el_docPlayersBtn.addEventListener('click', function() {
+    var am = getActiveMap(); if (!am || am.type !== 'doc') return;
+    am.meta = am.meta || {};
+    var off = am.meta.players !== false;
+    if (off) am.meta.players = false; else am.meta.players = true;
+    var campD = getActiveCampaign();
+    if (off && window.wpNet && window.wpNet.itemGone) window.wpNet.itemGone(campD.id, am.id);
+    save(true); updateSidebarNav(); renderPlanner();
+    toast(off ? 'GM only — players no longer receive this page.' : 'Players can read this page.');
+});
 if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function() {
     plannerFullscreen = !plannerFullscreen;
     var amR = getActiveMap();
-    if (amR && amR.type === 'planner') { amR.meta = amR.meta || {}; amR.meta.readerView = plannerFullscreen; save(); }   // remembered per document
+    if (isDocLike(amR)) { amR.meta = amR.meta || {}; amR.meta.readerView = plannerFullscreen; save(); }   // remembered per document
 
     renderPlannerPreview();
 
@@ -1082,7 +1075,8 @@ if(_el_addBlockSelect) _el_addBlockSelect.addEventListener('change', function() 
 
       if (!activeMap.blocks) activeMap.blocks = [];
 
-      activeMap.blocks.push(this.value === 'table' ? { id: 'b_'+uid(), type: 'node', mode: 'table' } : { id: 'b_'+uid(), type: this.value });
+      if (activeMap.type === 'doc' && DOC_BLOCKS.indexOf(this.value) < 0) { toast('That block is for planners.'); this.value = ''; return; }   // pages hold player-safe blocks only
+      activeMap.blocks.push(this.value === 'table' && activeMap.type !== 'doc' ? { id: 'b_'+uid(), type: 'node', mode: 'table' } : this.value === 'table' ? { id: 'b_'+uid(), type: 'table', cols: ['Item', 'Detail', 'Notes'], rows: [] } : { id: 'b_'+uid(), type: this.value });
 
       this.value = '';
 

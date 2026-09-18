@@ -56,7 +56,12 @@ var BY_ID = {
     netPassInput: 'Optional extra lock: players must type this along with the room code.',
     netCodeInput: 'The six-character code your GM gave you.',
     netJoinPassInput: 'Only needed if the GM set a session password.',
-    elementSearchInput: 'Filter the list by name.'
+    elementSearchInput: 'Filter the list by name.',
+    newDocBtn: 'A new handbook page: rules or reference your players can read at the table.',
+    searchDocsBtn: 'Find a page by name.',
+    collapseAllDocsBtn: 'Collapse or expand every nested page.',
+    docPlayersBtn: 'Whether players at your table receive this page. Off while hosting removes it from them at once.',
+    exportDocsBtn: 'Every handbook page in this campaign as one file (pictures bundled).'
 };
 
 var BY_TEXT = {
@@ -87,6 +92,7 @@ var BY_TEXT = {
     'player owner can move this token': 'The player allowed to drag this token in multiplayer.',
     // sidebar
     'planners': 'Document pages: session plans, encounter tables, flowcharts, notes. Nest them under each other. Never sent to players.',
+    'handbook': 'Rules and reference pages for your table. Players read the pages you leave open to them, in a panel over the map; a page can be GM only.',
     'maps': 'Your locations. Each map has a data view (rooms and links) and a play map (the drawn scene). Drag one onto another to nest it.',
     'campaigns': 'Separate games, each with its own maps and planners.',
     // settings

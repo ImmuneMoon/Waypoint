@@ -11,9 +11,11 @@ const path = require('path');
 const mod = path.join(__dirname, '..', 'system', 'app', 'scripts', 'cleanup.js');
 
 /* ---- the sanitizer, as net.js has it ---- */
+let DOC = null;   // docrender.js, loaded before the first sanitize call
 function sanitizeItem(item) {
     if (!item) return item;
     if (item.type === 'planner') return null;
+    if (item.type === 'doc') return DOC ? DOC.cleanDoc(item) : null;
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item));
     (m.rooms || []).forEach(function(r) {
@@ -49,11 +51,13 @@ function sanitizeAppState(s) {
         delete camp.pinnedMaps;
         delete camp.sessionLog;
         Object.keys(camp.items).forEach(function(id) {
+            if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }
             var it = sanitizeItem(camp.items[id]);
             if (it === null) delete camp.items[id];
             else camp.items[id] = it;
         });
-        if (!camp.items[camp.activeItemId]) camp.activeItemId = Object.keys(camp.items)[0] || null;
+        var actS = camp.items[camp.activeItemId];
+        if (!actS || actS.type !== 'map') camp.activeItemId = Object.keys(camp.items).find(function(id) { return camp.items[id].type === 'map'; }) || null;
     });
     return c;
 }
@@ -64,13 +68,16 @@ function room(id, notes) { return { id, x: 100, y: 100, name: id, notes: notes =
 function tok(id, extra) { return Object.assign({ id, type: 'image', src: '/saves/images/m1/' + id + '.png', x: 10, y: 10, w: 60, h: 52, z: 10, color: 'transparent', isChar: true }, extra); }
 function playMap(id, title, rooms, wb, extra) { return Object.assign({ id, type: 'map', meta: { title, updated: 1000 }, rooms, links: [['r1', 'r2', 'road', { label: 'Road', notes: 'a GM link note' }]], whiteboard: wb, cats: {} }, extra); }
 function planner(id) { return { id, type: 'planner', meta: { title: 'Notes ' + id, updated: 1000 }, blocks: [{ type: 'h1', title: 'Notes', sub: '' }] }; }
+function page(id, extra) { return Object.assign({ id, type: 'doc', meta: { title: 'Page ' + id, updated: 1000, players: true }, blocks: [{ id: 'b1', type: 'h1', title: 'Rules', sub: '' }, { id: 'b2', type: 'text', content: '<p>read me</p>' }] }, extra || {}); }
 function gmCampaign(id, name) {
     return {
         id, name, activeItemId: 'm1',
         items: {
             m1: playMap('m1', 'Town', [room('r1'), room('r2')], [tok('t_pc', { ownerId: 'u_player' }), tok('t_npc'), tok('t_hidden', { hidden: true }), { id: 'shape', type: 'rect', x: 0, y: 0, w: 50, h: 50, z: 10, color: 'var(--panel2)' }]),
             m2: playMap('m2', 'Battle', [], [tok('t_a'), tok('t_b', { sheet: { hp: 10 } }), tok('t_h2', { hidden: true })]),   // a hidden monster: a battle map with none would read as local work (4.3, last local mark)
-            p1: planner('p1')
+            p1: planner('p1'),
+            d1: page('d1'),
+            dh: page('dh', { meta: { title: 'Secret', updated: 1000, players: false } })
         },
         players: { u_player: { name: 'Pat' } }, handouts: { h1: { title: 'Map' } }, cast: { c1: { name: 'Cast' } }
     };
@@ -94,6 +101,7 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
 (async () => {
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
     const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep } = await import(url);
+    DOC = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js')).replace(/\\/g, '/'));
     const KNOWN = { images: [] };          // list-images answered: nothing on disk
     const UNKNOWN = { images: null };      // list-images failed
     const M0 = sanitizeAppState(gmState());
@@ -115,6 +123,19 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
     // clean GM save shape
     c = classifyState(gmState(), KNOWN);
     check('clean GM save (planners, players, notes, imageCats) all OWN', all(c, 'OWN') && c.whole === false, tiersOf(c));
+
+    // handbook pages (1.5.0): the hosted campaign's visible pages travel cleaned, hidden pages and other campaigns' pages do not
+    check('sanitizer: hosted campaign keeps its visible page (cleaned), loses the hidden one; other campaigns lose theirs', M0.campaigns.camp_a.items.d1 && M0.campaigns.camp_a.items.d1.meta.players === true && !M0.campaigns.camp_a.items.dh && !M0.campaigns.camp_b.items.d1 && !M0.campaigns.camp_b.items.dh, JSON.stringify(Object.keys(M0.campaigns.camp_a.items)) + ' ' + JSON.stringify(Object.keys(M0.campaigns.camp_b.items)));
+    { const s2 = gmState(); s2.campaigns.camp_a.activeItemId = 'd1'; s2.campaigns.camp_b.activeItemId = 'p1'; const m2 = sanitizeAppState(s2);
+      check('sanitizer: a client\'s active item is always a map (open page or planner on the host → first map)', m2.campaigns.camp_a.activeItemId === 'm1' && m2.campaigns.camp_b.activeItemId === 'm1', m2.campaigns.camp_a.activeItemId + ' ' + m2.campaigns.camp_b.activeItemId); }
+    check('a page in a GM campaign is neither a local mark nor a fingerprint', inspectCampaign(gmCampaign('x', 'X')).docs === 2 && inspectCampaign(M0.campaigns.camp_a).docs === 1 && inspectCampaign(M0.campaigns.camp_a).lmCount === 0);
+    { const withPages = clone(M0); withPages.campaigns.camp_p = { id: 'camp_p', name: 'Pages only', activeItemId: 'pd', items: { pd: page('pd') } };
+      const cp = classifyState(withPages, KNOWN);
+      check('a page-only own campaign is OWN, and beside it the GM copies are asked about, never removed unasked', cp.tiers.camp_p === 'OWN' && cp.tiers.camp_a !== 'CERTAIN' && cp.tiers.camp_b !== 'CERTAIN', tiersOf(cp)); }
+    { const own = clone(gmState()); const movedOwn = removeCampaign(own, 'camp_a', true);
+      check('removeCampaign as the player\'s own answer rescues pages beside planners', movedOwn.indexOf('p1') >= 0 && movedOwn.indexOf('d1') >= 0 && movedOwn.indexOf('dh') >= 0 && own.campaigns.camp_recovered.items.d1 && own.campaigns.camp_recovered.items.dh, JSON.stringify(movedOwn));
+      const cert = clone(gmState()); const movedCert = removeCampaign(cert, 'camp_a');
+      check('removeCampaign of a CERTAIN copy drops its pages with it (planners still rescued)', movedCert.join() === 'p1' && !cert.campaigns.camp_recovered.items.d1, JSON.stringify(movedCert)); }
 
     // mixed
     let mixed = clone(M0); mixed.campaigns.camp_new = ownCampaign('camp_new', 'My new one');

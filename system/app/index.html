@@ -67,6 +67,7 @@ window.addEventListener('unhandledrejection', function(e) {
 })();
 </script>
 <script type="module" src="scripts/formula.js"></script>
+<script type="module" src="scripts/docrender.js"></script>
 <script type="module" src="scripts/vtt.js"></script>
 <script type="module" src="scripts/main.js"></script>
 <script type="module" src="scripts/net.js"></script>
@@ -74,6 +75,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/tips.js"></script>
 <script type="module" src="scripts/stream.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
+<script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/devconsole.js"></script>
 <script src="scripts/tooltips.js"></script>
@@ -81,9 +83,12 @@ window.addEventListener('unhandledrejection', function(e) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+  // The full mermaid config is published: handbook.js re-initialises with securityLevel 'strict' while a
+  // joined player has someone else's campaign on screen (initialize() rebuilds the whole config from it).
+  window.wpMermaidConfig = { startOnLoad: false, securityLevel: 'loose', flowchart: { curve: 'basis', useMaxWidth: true } };
   document.addEventListener("DOMContentLoaded", function() {
       if (window.mermaid) {
-          mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', flowchart: { curve: 'basis', useMaxWidth: true } });
+          mermaid.initialize(window.wpMermaidConfig);
       }
   });
 </script>
@@ -126,6 +131,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <div class="menu-item" id="exportMapsBtn" title="Every map in this campaign, data + play map, with images">&#128506;&#65039; Export All Maps</div>
           <div class="menu-item" id="exportWbsBtn" title="Play Map-only copies of this campaign's maps, with images">&#127912; Export All Play Maps</div>
           <div class="menu-item" id="exportPlannersBtn" title="Every planner in this campaign">&#128209; Export All Planners</div>
+         <div class="menu-item" id="exportDocsBtn" title="Every handbook page in this campaign">&#128214; Export All Pages</div>
           <div class="menu-divider"></div>
           <div class="menu-item" id="exportCampaignBtn" title="This campaign on its own &mdash; every map and planner, its players, handouts and cast, with images bundled. Imports as this campaign.">&#127981; Export This Campaign</div>
           <div class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled">&#128230; Export Everything</div>
@@ -210,6 +216,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <button data-help="whiteboard">&#127912; Play Map</button>
                   <button data-help="grids">&#11041; Grids &amp; Measuring</button>
                   <button data-help="planners">&#128209; Planners</button>
+                  <button data-help="handbook">&#128214; Handbook</button>
                   <button data-help="mp-gm">&#127760; Multiplayer: Hosting</button>
                   <button data-help="mp-player">&#127918; Multiplayer: Joining</button>
                   <button data-help="keys">&#9000;&#65039; Shortcuts</button>
@@ -370,7 +377,26 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Inside a text field, <kbd>Ctrl + Z</kbd> is first the browser's own text undo (your typing, character by character). Once that field has nothing left to take back &mdash; nothing typed in it since the page was last rebuilt &mdash; the same key reaches the planner's history. Outside a field it always does.</li>
                           <li><b>Not undoable:</b> renaming, re-ordering, re-parenting, the scene status, creating a page, and deleting one. Deleting takes a <b>safety copy</b> of your save first (Settings &rarr; Advanced &rarr; Snapshots), so nothing is lost for good.</li>
                       </ul>
-                      <div class="help-tip">Diagram blocks render with an internet connection. In multiplayer, planners are never sent to players &mdash; they are yours alone.</div>
+                      <div class="help-tip">Diagram blocks render with an internet connection. In multiplayer, planners are never sent to players &mdash; they are yours alone. For pages your players <i>can</i> read, see <b>Handbook</b>.</div>
+                  </div>
+
+                  <div class="help-pane" data-pane="handbook" style="display:none;">
+                      <h4>What a page is</h4>
+                      <p>A <b>Handbook</b> page is a rules or reference document for your table &mdash; house rules, a quick-reference sheet, a primer on the setting &mdash; written in the same block editor as a planner and nested and re-ordered the same way. The difference is who reads it: <b>players at your table receive the pages you leave open to them</b> and read them from a Handbook tree of their own, in a panel over the play map, while the session keeps running underneath.</p>
+                      <ol>
+                          <li>Press <b>+</b> next to <b>Handbook</b> in the left panel and name the page.</li>
+                          <li>Add blocks from <b>+ Add Block&hellip;</b>: title, sections and sub-headings, prose, lead text, callouts, pictures, plain tables, a horizontal line, flowcharts and diagrams. Everything on a page is player-safe by design &mdash; there are no scene nodes, raw HTML or GM notes on a page; keep those in planners.</li>
+                          <li>The preview on the right shows exactly what a player gets. Double-click a block in it to jump to that block in the editor.</li>
+                      </ol>
+                      <h4>Players can read / GM only</h4>
+                      <ul>
+                          <li>Every page has a switch in the planner toolbar &mdash; <b>&#128065; Players can read</b> (the default) or <b>&#128274; GM only</b> &mdash; and the same choice by right-clicking the page in the tree. A GM-only page shows a small lock in the tree and never leaves your machine.</li>
+                          <li>While hosting, turning a page GM only removes it from every player at once (their reader closes if it was open); turning it back on sends it again. Edits to an open page reach players as you type.</li>
+                          <li>Only the pages of the <b>campaign you are hosting</b> reach the table. Your other campaigns' pages stay home whatever their switch says.</li>
+                      </ul>
+                      <h4>What players see</h4>
+                      <p>A joined player's left panel shows only the Handbook tree: the readable pages of your campaign, in your order and nesting. Clicking one opens it in a panel over the map; <kbd>Esc</kbd> or the &times; closes it; the map, tokens and chat keep working beside it. Players cannot edit, rename, move or save a page &mdash; it is a copy that lives only while they are at your table. Pictures on a page reach them the same way play-map images do. Flowcharts render as you arranged them; diagram blocks render with an internet connection, in a stricter mode that ignores link and click directives.</p>
+                      <div class="help-tip">Pages are for rules and reference, not for secrets: a page a player can read is a page every player at the table can read. Keep the twist in a planner or a room note.</div>
                   </div>
 
                   <div class="help-pane" data-pane="mp-gm" style="display:none;">
@@ -381,7 +407,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Click <b>&#127760;</b> in the header and enter your display name.</li>
                           <li><b>Players arrive at</b> shows where joiners will land &mdash; leave it on <b>Follow me</b> or pick a specific map to pin the table there (handy for a staging area while you prep elsewhere). Once the campaign has had players, <b>Player's last location</b> is offered and is the default: each player comes back to the map they were last on and stays put until they travel or you summon them, so a split party picks up where it left off. <b>New players start at</b> appears under it and says where someone joining for the first time lands (Follow me, or a map of your choice).</li>
                           <li>Press <b>Host Session</b>. A short <b>room code</b> appears &mdash; send it to your players however you like, then <b>close the window</b>: the session keeps running while you work, and the &#127760; button reopens it whenever you need the roster, pause, or summon.</li>
-                          <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Your planners, room notes, and character dossiers are <b>never sent</b> to them.</li>
+                          <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Your planners, room notes, and character dossiers are <b>never sent</b> to them; <b>Handbook</b> pages you leave open to players are.</li>
                       </ol>
                       <h4>Give each player a token</h4>
                       <ol>
@@ -400,6 +426,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><b>Chat:</b> click <b>&#128172;</b> to message everyone, or pick one player to send a private whisper.</li>
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
+                          <li><b>Handbook:</b> the pages of the hosted campaign that are not marked <b>GM only</b> reach every player, who read them in a panel over the map. Turning a page GM only mid-session takes it away from them at once; your edits to an open page arrive as you type. Pages of your other campaigns never travel.</li>
                           <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
                           <li><b>One campaign per session:</b> the table is the campaign you host. Switching campaigns in any way &mdash; the picker in the &#127760; panel or the sidebar, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; asks first and, on yes, ends the session for everyone before switching. Cancel changes nothing.</li>
                       </ul>
@@ -439,6 +466,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><b>Your token:</b> if the GM assigned you one, just drag it. It snaps to the grid on hex maps. You can't move anyone else's.</li>
                           <li><b>Doors &amp; stairs:</b> double-click a portal marker to travel through on your own &mdash; the GM can summon the party back together.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
+                          <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
                       </ul>
                       <h4>What you'll see</h4>
                       <ul>
@@ -515,6 +543,10 @@ window.addEventListener('unhandledrejection', function(e) {
         <div class="sidebar-section">
             <h3><span class="section-title" data-section="planners" data-label="Planners" title="Collapse/expand this section">&#9662; Planners</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllPlannersBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchPlannersBtn" style="padding:2px 6px; margin:0;" title="Search Planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost" id="newPlannerBtn" style="padding:2px 6px; margin:0;" title="Create new Planner" aria-label="Create new Planner"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
             <div id="plannerNavList"></div>
+        </div>
+        <div class="sidebar-section sb-handbook">
+            <h3><span class="section-title" data-section="handbook" data-label="Handbook" title="Collapse/expand this section">&#9662; Handbook</span> <div style="display:flex; gap:4px;"><button class="tool ghost gm-only" id="collapseAllDocsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchDocsBtn" style="padding:2px 6px; margin:0;" title="Search Pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost gm-only" id="newDocBtn" style="padding:2px 6px; margin:0;" title="Create new Page" aria-label="Create new Page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
+            <div id="docNavList"></div>
         </div>
         <div class="sidebar-section">
             <h3><span class="section-title" data-section="maps" data-label="Maps" title="Collapse/expand this section">&#9662; Maps</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllMapsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested maps"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchMapsSidebarBtn" style="padding:2px 6px; margin:0;" title="Search Maps"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost" id="newMapSidebarBtn" style="padding:2px 6px; margin:0;" title="Create new Map" aria-label="Create new Map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
@@ -805,25 +837,29 @@ window.addEventListener('unhandledrejection', function(e) {
                   <option value="" disabled selected>+ Add Block...</option>
                   <option value="h1">Header (H1)</option>
                   <option value="h2">Section (H2)</option>
+                  <option value="h3" data-for="doc">Sub-heading (H3)</option>
                   <option value="lede">Lead Text</option>
                   <option value="oneline">One-line Summary</option>
-                  <option value="node">Scene Node (title, must-resolve, routes)</option>
+                  <option value="node" data-for="planner">Scene Node (title, must-resolve, routes)</option>
                   <option value="table">Table (plain grid)</option>
                   <option value="flare">Flare / Callout</option>
+                  <option value="callout" data-for="doc">Callout (gold-edged note)</option>
                   <option value="image">Image</option>
+                  <option value="rule" data-for="doc">Horizontal Line</option>
                   <option value="flowchart">Flowchart Builder</option>
                   <option value="diagram">Mermaid Diagram (Code)</option>
                   <option value="text">Standard Text</option>
-                  <option value="raw">Raw HTML</option>
+                  <option value="raw" data-for="planner">Raw HTML</option>
               </select>
           </div>
         </div>
-        <div id="plannerPreviewWrap">
+        <div id="plannerPreviewWrap" class="doc-view">
           <div id="plannerFindBar"><span id="plannerTools" class="hdr-group" data-label="Planner" style="display:none;">
       <button class="tool ghost icon" id="plannerUndoBtn" title="Undo (this planner)" style="opacity:0.5; pointer-events:none;">&#8617;</button>
       <button class="tool ghost icon" id="plannerRedoBtn" title="Redo (this planner)" style="opacity:0.5; pointer-events:none;">&#8618;</button>
       <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render Preview </button>
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">&#9654; Next</option><option value="played">&#9989; Played</option><option value="skipped">&#9197; Skipped</option></select>
+      <button class="tool ghost" id="docPlayersBtn" style="display:none;" title="Whether players at your table receive this page">&#128065; Players can read</button>
     </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
         <input type="search" id="plannerFind" placeholder="Find (Ctrl+F)" autocomplete="off" spellcheck="false">
         <span id="plannerFindCount"></span>
@@ -886,6 +922,17 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="plannerSearchResults" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:5px; max-height: 50vh;"></div>
         <div style="display:flex; justify-content:flex-end; margin-top:15px;">
             <button class="tool ghost" id="plannerSearchClose">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="docSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3 style="margin-top:0; color:var(--gold);">Search Pages</h3>
+        <input type="text" id="docSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
+        <div id="docSearchResults" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:5px; max-height: 50vh;"></div>
+        <div style="display:flex; justify-content:flex-end; margin-top:15px;">
+            <button class="tool ghost" id="docSearchClose">Close</button>
         </div>
     </div>
 </div>
@@ -1279,6 +1326,13 @@ window.addEventListener('unhandledrejection', function(e) {
         <div id="handoutsList" style="overflow-y:auto; flex:1;"></div>
     </div>
 </div>
+<!-- The Handbook reader: a page open over the play map for a joined player (handbook.js). The id ends in
+     "Modal" on purpose: the play map's click-away guard exempts [id$="Modal"], so reading keeps the selection. -->
+<div id="docReaderModal" style="display:none;">
+    <div class="doc-reader-head"><h3 id="docReaderTitle">Page</h3><button id="docReaderClose" class="tool ghost modal-close" title="Close (Esc)" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="docReaderBody" class="doc-view"></div>
+</div>
+
 <!-- A handout on screen (fresh reveal, or from the journal) -->
 <div id="handoutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100001; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:18px; border:1px solid var(--gold); border-radius:8px; max-width:92vw; max-height:92vh; display:flex; flex-direction:column; gap:10px; align-items:center;">
@@ -1384,6 +1438,8 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="menu-item ctx-planner-only ctx-status" data-status="played" style="padding:8px 16px; cursor:pointer;">&#9989; Mark Played</div>
     <div class="menu-item ctx-planner-only ctx-status" data-status="skipped" style="padding:8px 16px; cursor:pointer;">&#9197; Mark Skipped</div>
     <div class="menu-item ctx-planner-only ctx-status" data-status="" style="padding:8px 16px; cursor:pointer; color:var(--dim);">Clear status</div>
+    <div class="menu-divider ctx-doc-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
+    <div class="menu-item ctx-doc-only" id="ctxDocPlayers" style="padding:8px 16px; cursor:pointer;" title="Whether players at your table receive this page. Hidden pages never leave your machine; while hosting, hiding one removes it from every player at once.">&#128274; Hide from players</div>
     <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-map-only" id="ctxLockItem" style="padding:8px 16px; cursor:pointer;" title="Players cannot travel to a locked map — portals, warps and room links into it are refused. You can still summon or bring them there.">&#128274; Lock for players</div>
     <div class="menu-item ctx-map-only" id="ctxLockNest" style="padding:8px 16px; cursor:pointer;" title="Lock this map together with every map nested under it — a whole module at once.">&#128274; Lock this and every map under it</div>

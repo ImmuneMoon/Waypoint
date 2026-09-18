@@ -542,9 +542,11 @@ function itemDelta(itemId, clean) {
         (base[key] || []).forEach(function(x) { was[x.id] = quickHash(JSON.stringify(x)); });
         (clean[key] || []).forEach(function(x) { var h = quickHash(JSON.stringify(x)); now[x.id] = 1; if (was[x.id] !== h) { set.push(x); if (was[x.id] === undefined) added = true; } });
         Object.keys(was).forEach(function(id) { if (!now[id]) del.push(id); });
-        if (set.length || del.length) {
+        var seq = (clean[key] || []).map(function(x) { return x.id; });
+        var reordered = seq.join('\n') !== (base[key] || []).map(function(x) { return x.id; }).join('\n');   // a pure re-order (an undo, a z-order move) travels too
+        if (set.length || del.length || reordered) {
             d[key] = { set: set, del: del };
-            if (added || del.length) d[key].order = (clean[key] || []).map(function(x) { return x.id; });   // list order matters for stacking
+            if (added || del.length || reordered) d[key].order = seq;   // list order matters for stacking
             any = true;
         }
     }
@@ -755,11 +757,13 @@ function hostTravel(conn, traveler, portal, fromMap) {
     var destMap = tCamp.items[pRoom.targetMapId];
     var landSrc = portal.targetMapId ? { id: null, name: portal.name, targetRoomId: portal.targetRoomId } : pRoom;
     var landRoom = findLandingRoom(landSrc, destMap);
+    if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before either map is written for the player
     traveler.location = pRoom.targetMapId;
     traveler.detached = true;
     renderRoster();
     var left = (fromMap.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === traveler.id; });
     if (left) { stepOffPortal(left, portal, fromMap); var cleanFrom = sanitizeItem(fromMap); if (cleanFrom) broadcast({ type: 'item', campId: tCamp.id, itemId: fromMap.id, item: cleanFrom }, null); }
+    if (left) { net.applyingRemote = true; save(true); net.applyingRemote = false; }   // the step-off reaches disk now, not on the GM's next save
     ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
     // a token already on the destination stays where the GM left it, unless it is still on the landing node
     var landPtD = landRoom && landingPoint(destMap, landRoom), nodeEl = landPtD && landPtD.wbItemId ? (destMap.whiteboard || []).find(function(o) { return o.id === landPtD.wbItemId; }) : null;
@@ -771,6 +775,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
         var cleanD = sanitizeItem(destMap); if (cleanD) broadcast({ type: 'item', campId: tCamp.id, itemId: destMap.id, item: cleanD }, null);
     }
+    if (window.wpHistBarrier) window.wpHistBarrier([fromMap.id, destMap.id]);   // a move between two maps: neither side can be undone past it
     broadcastRoster();
     if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) {} }
     var destTitle = (tCamp.items[pRoom.targetMapId].meta || {}).title || pRoom.targetMapId;
@@ -869,6 +874,7 @@ function offlinePlayerTravel(item, map) {
     var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
+    if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
     var mine = dest.whiteboard.find(function(w) { return w.isChar && w.ownerId === item.ownerId; }), placed = false;
     if (!mine) {
@@ -883,6 +889,7 @@ function offlinePlayerTravel(item, map) {
         mine.x = spot2.x; mine.y = spot2.y;
     }
     stepOffPortal(item, portal, map);
+    if (window.wpHistBarrier) window.wpHistBarrier([map.id, dest.id]);   // a move between two maps: neither side can be undone past it
     net.applyingRemote = true; save(true); net.applyingRemote = false;
     if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
     if (window.appRender) window.appRender();
@@ -903,6 +910,7 @@ function npcTravel(item, map) {
     var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
+    if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
     var key = item.charName || '';
     var there = key ? dest.whiteboard.find(function(w) { return w.isChar && !w.ownerId && w.charName === key; }) : null, placed = false;
@@ -923,6 +931,7 @@ function npcTravel(item, map) {
     // the token left behind stays in its room, off the portal, out of the players' sight
     stepOffPortal(item, portal, map);
     item.hidden = true;
+    if (window.wpHistBarrier) window.wpHistBarrier([map.id, dest.id]);   // a move between two maps: neither side can be undone past it
     net.applyingRemote = true; save(true); net.applyingRemote = false;
     if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
     if (window.appRender) window.appRender();
@@ -939,6 +948,7 @@ function handlePos(msg, conn) {
         if (net.paused) return;                    // frozen table: client motion is dropped
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
+        if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
         // Host is the authority on cells: seat the token here too, in case the
@@ -1297,6 +1307,7 @@ function ensurePlayerToken(pid, mapId, landRoomId) {
     if (!camp) return false;
     var map = camp.items[mapId];
     if (!map || map.type !== 'map') return false;
+    if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before a token is spawned or adopted for the player
     var pl = (camp.players || {})[pid] || {};
     var changed = false;
     var mine = (map.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === pid; });
@@ -1504,6 +1515,7 @@ function handleMessage(msg, conn) {
         if (net.role === 'host') {
             if (net.paused) return;   // frozen table: client edits are dropped
             var profile = net.roster[conn.peer];
+            if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's patch lands
             var changed = applyClientItemFiltered(msg, profile);
             if (changed) {
                 setTimeout(function() { checkRoomHandouts(state.appState.campaigns[msg.campId].items[msg.itemId]); }, 50);

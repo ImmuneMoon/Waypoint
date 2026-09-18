@@ -1394,7 +1394,8 @@
   #plannerFind { width: 100%; max-width: 190px; min-width: 70px; flex: 1 1 auto; padding: 5px 9px; font-size: 12.5px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); color: var(--ink); outline: none; }
   #plannerFind:focus { border-color: var(--gold); }
   #plannerFindCount { color: var(--dim); font-size: 11px; min-width: 42px; text-align: center; }
-  #plannerFindWrap .tool.icon { width: 26px; height: 26px; font-size: 9px; }
+  #plannerFindBar .tool.icon { width: 26px; height: 26px; font-size: 9px; }   /* the find arrows and the planner's undo / redo alike */
+  #plannerUndoBtn, #plannerRedoBtn { font-size: 13px; }
   #plannerPreview mark.pf-hit { background: rgba(224,165,79,0.35); color: inherit; border-radius: 3px; padding: 0 1px; }
   #plannerPreview mark.pf-hit.pf-cur { background: var(--gold); color: #1a1408; box-shadow: 0 0 0 2px rgba(224,165,79,0.45); }
 

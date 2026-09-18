@@ -2,7 +2,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth, resetHistory } from './io.js';
 
 import { classifyState, askOwnership, cleanupInfo } from './cleanup.js';
 
@@ -273,9 +273,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }
 
+      updateUndoBtn();   // the six undo / redo buttons show the item now open
+
   }
 
-  
+
 
   var plannerEditorNeedsInit = true;
 
@@ -424,6 +426,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   var pendingImportImages = null; // zip bundles: [{name:'images/<mapId>/<file>', data:Uint8Array}]
 
   function finishImport(msg) {
+
+      resetHistory();   // items were replaced under their own ids, in any campaign: no stack may outlive that
 
       pendingImport = null;
 

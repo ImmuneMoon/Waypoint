@@ -11,11 +11,11 @@
 
 import { state } from './state.js';
 import { createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign } from './models.js';
-import { save, toast, canPersistLocal } from './io.js';
+import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy } from './io.js';
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.4.8';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.4.9';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
@@ -374,6 +374,7 @@ function ensureTutorialCampaign(rebuild) {
     if (!camp || rebuild) {
         camp = buildTutorialCampaign();
         state.appState.campaigns[TUTORIAL_CAMP_ID] = camp;
+        resetHistory(TUTORIAL_CAMP_ID);   // fixed ids: no stack from an earlier copy may attach to the fresh one
     }
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
@@ -385,22 +386,25 @@ function ensureTutorialCampaign(rebuild) {
 function discardTutorialCampaign(done) {
     var camp = tutorialCampaign();
     if (!camp) { toast('There is no Tutorial campaign to discard.'); if (done) done(false); return; }
-    showConfirm('Discard the Tutorial campaign? Everything in it is deleted — including anything you built on top of it. This cannot be undone.', function(yes) {
+    showConfirm('Discard the Tutorial campaign? Everything in it is deleted — including anything you built on top of it. This cannot be undone (a safety copy is taken first).', function(yes) {
         if (!yes) { if (done) done(false); return; }
-        delete state.appState.campaigns[TUTORIAL_CAMP_ID];
-        var rest = Object.keys(state.appState.campaigns);
-        if (!rest.length) {   // it was the only campaign: leave the user with a fresh one, never an empty app
-            var fresh = createNewCampaign('New Campaign');
-            var first = createNewMap('New Map');
-            fresh.items[first.id] = first; fresh.activeItemId = first.id;
-            state.appState.campaigns[fresh.id] = fresh;
-            rest = [fresh.id];
-        }
-        if (state.appState.activeCampaignId === TUTORIAL_CAMP_ID || !state.appState.campaigns[state.appState.activeCampaignId]) state.appState.activeCampaignId = rest[0];
-        state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
-        updateCampaignSelect(); updateSidebarNav(); render(); save(true);
-        toast('Tutorial campaign discarded.');
-        if (done) done(true);
+        takeSafetyCopy().then(function() {   // a campaign delete: the safety copy first, then the stacks go with it
+            delete state.appState.campaigns[TUTORIAL_CAMP_ID];
+            resetHistory(TUTORIAL_CAMP_ID);
+            var rest = Object.keys(state.appState.campaigns);
+            if (!rest.length) {   // it was the only campaign: leave the user with a fresh one, never an empty app
+                var fresh = createNewCampaign('New Campaign');
+                var first = createNewMap('New Map');
+                fresh.items[first.id] = first; fresh.activeItemId = first.id;
+                state.appState.campaigns[fresh.id] = fresh;
+                rest = [fresh.id];
+            }
+            if (state.appState.activeCampaignId === TUTORIAL_CAMP_ID || !state.appState.campaigns[state.appState.activeCampaignId]) state.appState.activeCampaignId = rest[0];
+            state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
+            updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+            toast('Tutorial campaign discarded.');
+            if (done) done(true);
+        });
     });
 }
 
@@ -431,7 +435,7 @@ var STEPS = [
       html: 'Whatever you select is edited here: a room\'s name, category colour, scene image, GM-only notes and the characters found there, each with a portrait. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears; the arrow on its edge toggles it by hand.',
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); } },
     { target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, undo, then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i> <b>Framing &amp; panning:</b> the &#127919; centre button includes <b>Fit to Content</b> (<kbd>Shift</kbd>+<kbd>1</kbd>) to zoom-and-pan the whole map into view &mdash; or just your selection when something is selected; hold <kbd>Space</kbd> and drag to pan from any tool, and middle-drag or the hand tool pan too.',
+      html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, <b>undo and redo for this map</b> (every map and planner keeps its own history — <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back the last edit on the one you are looking at, never a pan, a click or another map), then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i> <b>Framing &amp; panning:</b> the &#127919; centre button includes <b>Fit to Content</b> (<kbd>Shift</kbd>+<kbd>1</kbd>) to zoom-and-pan the whole map into view &mdash; or just your selection when something is selected; hold <kbd>Space</kbd> and drag to pan from any tool, and middle-drag or the hand tool pan too.',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
       html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click a token and <b>Save to Campaign Cast</b> keeps a copy you can drop again from the play map\'s right-click menu, one at a time, or several at once with the \u00d7 box in the flyout.',
@@ -449,7 +453,7 @@ var STEPS = [
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps, and re-order them the same way (drag onto the top or bottom of a row, or right-click <b>↑ Move Up</b> / <b>↓ Move Down</b>). <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',
-      html: 'Add blocks from the toolbar: headings, prose, callouts, titled tables and flowcharts. <b>Render</b> shows the finished page; <b>Export As</b> turns it into an image, PDF or HTML.',
+      html: 'Add blocks from the toolbar: headings, prose, callouts, titled tables and flowcharts. The <b>&#8617; &#8618;</b> buttons are this planner\'s own <b>undo and redo</b> — a deleted block, row or node comes back where it was; inside a text field <kbd>Ctrl</kbd>+<kbd>Z</kbd> first takes back your typing, then reaches the same history. <b>Render</b> shows the finished page; <b>Export As</b> turns it into an image, PDF or HTML.',
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#handoutsBtn', title: 'Handouts and the journal',
       html: 'Pictures and text to show your players \u2014 a letter, a face, a place. The Tutorial campaign has two ready: <b>Grukk\'s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player, and it lands in their <b>Journal</b> (the book icon beside this), where they keep notes on it and can share it with the party. A room can carry a handout that arrives when a player reaches it.' },
@@ -580,7 +584,10 @@ function syncPane() {
     var s = document.getElementById('tourStartBtn'); if (s) s.addEventListener('click', startTour);
     var o = document.getElementById('tourOpenBtn'); if (o) o.addEventListener('click', function() { ensureTutorialCampaign(false); var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none'; toast('Tutorial campaign opened.'); });
     var r = document.getElementById('tourRebuildBtn'); if (r) r.addEventListener('click', function() {
-        showConfirm('Rebuild the Tutorial campaign from scratch? Anything you added to it is lost.', function(yes) { if (!yes) return; ensureTutorialCampaign(true); syncPane(); toast('Tutorial campaign rebuilt.'); });
+        showConfirm('Rebuild the Tutorial campaign from scratch? Anything you added to it is lost (a safety copy is taken first).', function(yes) {
+            if (!yes) return;
+            takeSafetyCopy().then(function() { ensureTutorialCampaign(true); syncPane(); toast('Tutorial campaign rebuilt.'); });   // a rebuild replaces the campaign: the safety copy first, like the discard
+        });
     });
     var d = document.getElementById('tourDiscardBtn'); if (d) d.addEventListener('click', function() { discardTutorialCampaign(function() { syncPane(); }); });
     var nav = document.getElementById('helpNav'); if (nav) nav.addEventListener('click', function(e) { var b = e.target.closest('[data-help]'); if (b && b.dataset.help === 'tutorial') syncPane(); });

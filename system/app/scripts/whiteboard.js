@@ -1853,6 +1853,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (loc.map !== am) { loc.map.whiteboard = (loc.map.whiteboard || []).filter(function(w) { return w !== tok; }); am.whiteboard = am.whiteboard || []; am.whiteboard.push(tok); }
           tok.x = x - (tok.w || 60) / 2; tok.y = y - (tok.h || 52) / 2;
           if (window.wpSeatHex) window.wpSeatHex(tok, am);
+          if (loc.map !== am && window.wpHistBarrier) window.wpHistBarrier([loc.map.id, am.id]);   // a move between two maps: neither side can be undone past it
           import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast((tok.charName || tok.name || 'Character') + (loc.map !== am ? ' brought over.' : ' moved.')); });
       }
       var pDrag = null;   // { key, sx, sy, ghost, moved }
@@ -3212,7 +3213,7 @@ if(_el_imgFileIn) _el_imgFileIn.addEventListener('change', function(e) {
 
 if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
 
-      showConfirm('Are you sure you want to clear the entire play map? This cannot be undone.', function(yes) {
+      showConfirm('Clear the entire play map? (This map\'s Undo can bring it back.)', function(yes) {
 
           if(yes) {
 

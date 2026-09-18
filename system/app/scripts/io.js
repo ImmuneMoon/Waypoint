@@ -274,13 +274,14 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             restoreCameraPosition();
         })();
 
-        lastHistoryState = JSON.stringify(state.appState);
+        pushHistory();   // seeds every item's baseline from the migrated, cleaned state; nothing is a step until something changes
 
         updateUndoBtn();
 
         if (migrated.changed) {
 
-            // Persist the upgraded shape once; the launch backup holds the original
+            // Persist the upgraded shape once; the launch backup holds the original. The baselines were
+            // just taken from the upgraded shape, so this save records no step.
             save(true);
 
             toast('Save upgraded from an older Waypoint version ✓ (original kept in saves/backups)');
@@ -301,13 +302,36 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
 
 
-  var undoStack = [];
+  /* ---------- undo / redo: one history per map and per planner ----------
+     Keyed campId + '/' + itemId, module-private, never on the item and never on the wire. An entry
+     is the JSON of one item's CONTENT — rooms, links, whiteboard, cats, blocks and the content-ish
+     meta keys; structure, view memory, governance and identity (META_LIVE) always come from the
+     live item, and nothing campaign-level (players, handouts, session log, settings) is ever in it.
+     pushHistory() diffs every item of the active campaign against its own baseline (h.last) and
+     puts a step on the one that changed, so a pan, a click, a map switch or a save of the session
+     log records nothing. A restore is applied in place on the same objects and persists through the
+     normal save(). Nothing is recorded or restored while this window holds someone else's campaign. */
 
-  var redoStack = [];
-
-  var lastHistoryState = null;
+  var histories = {};   // key -> { campId, itemId, undo:[], redo:[], last:string, bytes:number, lru:number }
 
   var isUndoing = false;
+
+  var savePending = false;   // a debounced save() is waiting: set in save(), cleared in doSave after pushHistory read it
+
+  var typeSlot = { el: null, key: null, lastT: 0, chunkStart: 0 };   // the one text field whose keystrokes fold into a step
+
+  var nativeProbe = null;    // the planner field whose Ctrl+Z / Ctrl+Y was handed to the browser first (one per document, like its undo stack)
+
+  var nativeEdit = false;    // the browser's own text undo / redo changed a field: the next pass moves the baseline, never records a step
+
+  var HIST_DEPTH = 50, HIST_BUDGET_BYTES = 64 * 1024 * 1024;
+
+  // Meta keys that are never in a snapshot — always taken from the live item. A new content key is
+  // undoable by default; a new view, structure or governance key (a per-map table toggle, say) goes HERE.
+  var META_LIVE = { title: 1, updated: 1, parentId: 1, sortIndex: 1, collapsed: 1, playerLock: 1, status: 1,
+                    lastX: 1, lastY: 1, lastZoom: 1, lastWbX: 1, lastWbY: 1, lastWbZoom: 1, lastView: 1, readerView: 1 };
+
+  var HIST_BTN_IDS = { dataUndoBtn: 1, dataRedoBtn: 1, wbUndoBtn: 1, wbRedoBtn: 1, plannerUndoBtn: 1, plannerRedoBtn: 1 };
 
   // "May this window write to this disk right now?" One answer for every write to disk.
   function canPersistLocal() {
@@ -319,14 +343,163 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       return true;
   }
 
-  // Wipe the history; nothing can be pushed until load() seeds the baseline again
-  function resetHistory() {
-      undoStack = []; redoStack = [];
-      lastHistoryState = null;
-      updateUndoBtn();
+  function itemKey(camp, id) { return camp.id + '/' + id; }
+
+  // The content of one item as a string: every own key but id / type / meta, plus the meta keys not in META_LIVE
+  function project(item) {
+
+      var c = {}, m = {};
+
+      Object.keys(item).forEach(function(k) { if (k !== 'id' && k !== 'type' && k !== 'meta') c[k] = item[k]; });
+
+      Object.keys(item.meta || {}).forEach(function(k) { if (!META_LIVE[k]) m[k] = item.meta[k]; });
+
+      return JSON.stringify({ c: c, m: m });
+
   }
 
-  function historyDepth() { return { undo: undoStack.length, redo: redoStack.length }; }
+  // Put a projection back on the SAME item and meta objects (planner handlers close over them)
+  function applyContent(item, parsed) {
+
+      Object.keys(item).forEach(function(k) { if (k !== 'id' && k !== 'type' && k !== 'meta' && !(k in parsed.c)) delete item[k]; });
+
+      Object.keys(parsed.c).forEach(function(k) { item[k] = parsed.c[k]; });
+
+      item.meta = item.meta || {};
+
+      Object.keys(item.meta).forEach(function(k) { if (!META_LIVE[k] && !(k in parsed.m)) delete item.meta[k]; });
+
+      Object.keys(parsed.m).forEach(function(k) { item.meta[k] = parsed.m[k]; });
+
+  }
+
+  function seed(cur, campId, itemId) { return { campId: campId, itemId: itemId, undo: [], redo: [], last: cur, bytes: 0, lru: 0 }; }
+
+  // V8 keeps a string with any non-Latin-1 character at two bytes a character, and the save has plenty
+  function histBytes(h) {
+
+      var n = 0;
+
+      h.undo.forEach(function(s) { n += s.length * 2; });
+
+      h.redo.forEach(function(s) { n += s.length * 2; });
+
+      h.bytes = n;
+
+      return n;
+
+  }
+
+  function pushStep(h, snap) {
+
+      h.undo.push(snap);
+
+      while (h.undo.length > HIST_DEPTH) h.undo.shift();
+
+      histBytes(h);
+
+      h.lru = Date.now();
+
+  }
+
+  // The campaign an item belongs to — the active one nearly always
+  function campOf(item) {
+
+      var a = getActiveCampaign();
+
+      if (a && a.items && a.items[item.id] === item) return a;
+
+      var camps = (state.appState && state.appState.campaigns) || {}, found = null;
+
+      Object.keys(camps).some(function(cid) { var c = camps[cid]; if (c && c.items && c.items[item.id] === item) { found = c; return true; } return false; });
+
+      return found;
+
+  }
+
+  function activeHistory() {
+
+      var camp = getActiveCampaign(), item = getActiveMap();
+
+      return (camp && item) ? histories[itemKey(camp, item.id)] || null : null;
+
+  }
+
+  // Drop the histories of items and campaigns that no longer exist, so a discarded Tutorial's stacks can
+  // never attach to a rebuilt one (its ids are fixed) and a deleted campaign leaves nothing behind
+  function pruneDeadKeys() {
+
+      var camps = (state.appState && state.appState.campaigns) || {};
+
+      Object.keys(histories).forEach(function(key) {
+
+          var h = histories[key], camp = camps[h.campId];
+
+          if (!camp || !camp.items || !camp.items[h.itemId]) delete histories[key];
+
+      });
+
+  }
+
+  // Over budget: evict the oldest entry (undo first, then redo) of the least recently pushed item that
+  // is not the active one, falling back to the active one only when nothing else holds entries
+  function enforceBudget() {
+
+      var keys = Object.keys(histories), total = 0;
+
+      keys.forEach(function(k) { total += histories[k].bytes; });
+
+      if (total <= HIST_BUDGET_BYTES) return;
+
+      var camp = getActiveCampaign(), activeKey = (camp && camp.activeItemId) ? itemKey(camp, camp.activeItemId) : null;
+
+      while (total > HIST_BUDGET_BYTES) {
+
+          var pick = null;
+
+          keys.forEach(function(k) { var h = histories[k]; if (k === activeKey || !(h.undo.length || h.redo.length)) return; if (!pick || h.lru < pick.lru) pick = h; });
+
+          if (!pick && activeKey && histories[activeKey] && (histories[activeKey].undo.length || histories[activeKey].redo.length)) pick = histories[activeKey];
+
+          if (!pick) return;
+
+          var gone = pick.undo.length ? pick.undo.shift() : pick.redo.shift();
+
+          total -= gone.length * 2; pick.bytes -= gone.length * 2;
+
+      }
+
+  }
+
+  // Keystrokes in one field fold into the same step for up to 2 s between them and 10 s in all
+  function canCoalesce(key, now) {
+
+      if (typeSlot.el && !typeSlot.el.isConnected) closeChunk();   // the editor was rebuilt: never pin a detached field
+
+      return !!(typeSlot.el && typeSlot.key === key && now - typeSlot.lastT < 2000 && now - typeSlot.chunkStart < 10000);
+
+  }
+
+  function closeChunk() { typeSlot.el = null; typeSlot.key = null; }
+
+  // Wipe every history (no argument) or one campaign's; nothing can be popped until the next pass seeds again
+  function resetHistory(campId) {
+
+      if (campId) Object.keys(histories).forEach(function(k) { if (histories[k].campId === campId) delete histories[k]; });
+
+      else histories = {};
+
+      savePending = false;
+
+      nativeEdit = false;
+
+      closeChunk();
+
+      updateUndoBtn();
+
+  }
+
+  function historyDepth() { var h = activeHistory(); return { undo: h ? h.undo.length : 0, redo: h ? h.redo.length : 0 }; }
 
   function setHistoryBtn(id, enabled) {
 
@@ -340,128 +513,436 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
   }
 
+  // The six buttons show the ACTIVE item's stacks
   function updateUndoBtn() {
 
-      setHistoryBtn('dataUndoBtn', undoStack.length > 0);
+      var h = activeHistory(), canUndo = !!(h && h.undo.length), canRedo = !!(h && h.redo.length);
 
-      setHistoryBtn('wbUndoBtn', undoStack.length > 0);
+      ['dataUndoBtn', 'wbUndoBtn', 'plannerUndoBtn'].forEach(function(id) { setHistoryBtn(id, canUndo); });
 
-      setHistoryBtn('dataRedoBtn', redoStack.length > 0);
-
-      setHistoryBtn('wbRedoBtn', redoStack.length > 0);
+      ['dataRedoBtn', 'wbRedoBtn', 'plannerRedoBtn'].forEach(function(id) { setHistoryBtn(id, canRedo); });
 
   }
 
 
 
+  // The diff pass, run by every save: whichever item's content moved since its baseline gets the step.
+  // Every item of the campaign is looked at, not just the active one — the debounced save can fire
+  // after a map switch, and a few sites (travel, spawn, handout sweeps) write into maps that are not open.
   function pushHistory() {
 
-      if (isUndoing || !lastHistoryState) return;
+      if (isUndoing) return;
 
-      var currentStr = JSON.stringify(state.appState);
+      var native = nativeEdit;   // read once per pass, whatever the pass decides
 
-      if (currentStr !== lastHistoryState) {
+      nativeEdit = false;
 
-          undoStack.push(lastHistoryState);
+      if (!canPersistLocal()) return;   // someone else's campaign is never recorded
 
-          if (undoStack.length > 20) undoStack.shift();
+      var camp = getActiveCampaign();
 
-          redoStack = [];
+      if (!camp || !camp.items) return;
 
-          lastHistoryState = currentStr;
+      var remote = !!(window.wpNet && window.wpNet.applyingRemote), now = Date.now();
 
-          updateUndoBtn();
+      pruneDeadKeys();
 
-      }
+      Object.keys(camp.items).forEach(function(id) {
 
-  }
+          var item = camp.items[id];
 
+          if (!item) return;
 
+          var key = itemKey(camp, id), cur = project(item), h = histories[key];
 
-  function applyHistoryState(stateStr, msg) {
+          if (!h) { histories[key] = seed(cur, camp.id, id); return; }   // lazy seed: new, imported, first seen
 
-      // An entry that came from someone else's table is dropped, never installed
-      var parsed = JSON.parse(stateStr);
+          if (cur === h.last) return;
 
-      if (parsed._foreign || Object.values(parsed.campaigns || {}).some(function(c) { return c && c._foreign; })) { updateUndoBtn(); return; }
+          // A player's change is never a GM step: move the baseline, keep redo. The one exception is the
+          // GM's own debounced edit on the open item that a remote save is flushing (savePending still set).
+          if (remote && !(savePending && id === camp.activeItemId)) { h.last = cur; return; }
 
-      isUndoing = true;
+          // The browser took back (or re-did) typing in the open planner's field: that is the user's undo,
+          // not new work — the baseline moves, redo is kept, and the field's chunk stays open for what follows
+          if (native && id === camp.activeItemId) { h.last = cur; if (typeSlot.el) { typeSlot.key = key; typeSlot.lastT = now; typeSlot.chunkStart = now; } return; }
 
-      state.appState = parsed;
+          if (canCoalesce(key, now)) { h.last = cur; typeSlot.lastT = now; return; }
 
-      lastHistoryState = stateStr;
+          h.redo = [];
+
+          pushStep(h, h.last);
+
+          h.last = cur;
+
+          if (typeSlot.el) { typeSlot.key = key; typeSlot.lastT = now; typeSlot.chunkStart = now; }   // a typing step opens a chunk; a drag or a click does not
+
+          else typeSlot.key = null;
+
+      });
+
+      enforceBudget();
 
       updateUndoBtn();
 
+  }
 
 
-      // Update UI
 
-      updateCampaignSelect();
+  // Move an item's baseline to its current content without a step — for render-time clean-ups (legacy
+  // planner upgrades, block defaults, flowchart layout resets). Pending typing is recorded first so it
+  // is never folded into the clean-up.
+  function setBaseline(item) {
 
-      updateSidebarNav();
+      var camp = item ? campOf(item) : null;
+
+      if (!camp) return;
+
+      var key = itemKey(camp, item.id), cur = project(item);
+
+      if (histories[key]) histories[key].last = cur; else histories[key] = seed(cur, camp.id, item.id);
+
+  }
+
+  function rebaseHistory(item) {
+
+      if (!item) return;
+
+      if (savePending) pushHistory();
+
+      setBaseline(item);
+
+  }
+
+  // The pass before fn() records any pending typing; after fn() only the baseline moves — a second pass
+  // here would see the clean-up itself as a diff while that save is still pending
+  function withoutHistory(item, fn) { pushHistory(); fn(); setBaseline(item); }
+
+  // A point you cannot undo past on those items: their stacks are wiped and their baselines taken now.
+  // Called by the code that writes two maps at once (bring-over, portal travel, a handout sweep), after
+  // the mutation and before its save.
+  function historyBarrier(ids) {
+
+      var camp = getActiveCampaign();
+
+      if (!camp || !camp.items) return;
+
+      closeChunk();   // typing that continues after the barrier is a fresh step, never folded into one that was wiped
+
+      (ids || []).forEach(function(id) {
+
+          var item = camp.items[id];
+
+          if (item) histories[itemKey(camp, id)] = seed(project(item), camp.id, id);
+
+      });
+
+      updateUndoBtn();
+
+  }
+
+  // A debounced local save is waiting: record it as its own step and write it now. Called by net.js
+  // before a player's change lands in a map, so no step ever holds a player's move.
+  function flushHistory() {
+
+      if (!savePending) return;
+
+      clearTimeout(saveTimeout); savePending = false;
+
+      pushHistory();
+
+      save(true);   // the edit came off the debounce timer; nothing else guarantees it reaches disk
+
+  }
+
+
+
+  /* Host in session: a restore never moves a player's own token, never erases a drawing they made and
+     never revives one they erased. Mirrors the client write whitelist in net.js applyClientItemFiltered.
+     ownerId is the host's word, including its absence (ensurePlayerToken demotes duplicates by deleting
+     it); hidden stays from the snapshot (a GM hide / unhide is undoable; players cannot write it). */
+  function mergeLivePlayerState(snapC, live) {
+
+      var liveList = live.whiteboard || [];
+
+      var snapList = Array.isArray(snapC.whiteboard) ? snapC.whiteboard : [];
+
+      var liveById = {}, snapById = {}, liveOwned = {}, out = [];
+
+      liveList.forEach(function(w) { if (w && w.id) { liveById[w.id] = w; if (w.isChar && w.ownerId) liveOwned[w.ownerId] = 1; } });
+
+      snapList.forEach(function(w) { if (w && w.id) snapById[w.id] = w; });
+
+      snapList.forEach(function(s) {
+
+          var l = s && s.id ? liveById[s.id] : null;
+
+          if (!l) {
+
+              if (s && s.type === 'path' && s.byPlayer) return;   // the player erased it: stays erased
+
+              // A GM-deleted token whose player has since been given another one on this map comes back
+              // under GM control (sheet intact): a player never ends up with two tokens they both own
+              if (s && s.isChar && s.ownerId && liveOwned[s.ownerId]) delete s.ownerId;
+
+              out.push(s);   // anything else absent live was a GM delete: it comes back (a token with its sheet)
+
+              return;
+
+          }
+
+          if (l.ownerId) s.ownerId = l.ownerId; else delete s.ownerId;
+
+          if (l.ownerId) {
+
+              if (l.type === 'path' && l.byPlayer) { out.push(JSON.parse(JSON.stringify(l))); return; }   // their stroke as they have it now
+
+              ['x', 'y', 'rot', 'front', 'elevation', 'posture'].forEach(function(k) { if (l[k] !== undefined) s[k] = l[k]; else delete s[k]; });
+
+          }
+
+          out.push(s);
+
+      });
+
+      // Owned elements that arrived since the snapshot (spawned, drawn) stay, at their live index
+      liveList.forEach(function(l, i) {
+
+          if (!l || !l.id || snapById[l.id] || !l.ownerId) return;
+
+          out.splice(Math.min(i, out.length), 0, JSON.parse(JSON.stringify(l)));
+
+      });
+
+      snapC.whiteboard = out;
+
+  }
+
+  // Where the planner was being looked at, so a restore lands the eye and the caret back where they were
+  function rememberPlannerSpot() {
+
+      var ed = document.getElementById('plannerEditorWrap'), pw = document.getElementById('plannerPreviewWrap');
+
+      var a = document.activeElement, spot = { ed: ed ? ed.scrollTop : 0, pw: pw ? pw.scrollTop : 0, field: null };
+
+      if (a && a.dataset && a.dataset.idx !== undefined && a.closest && a.closest('#plannerBlocks')) {
+
+          spot.field = { idx: a.dataset.idx, cls: a.className, ri: a.dataset.ri, ci: a.dataset.ci, ni: a.dataset.ni, sel: (typeof a.selectionStart === 'number') ? a.selectionStart : null };
+
+      }
+
+      return spot;
+
+  }
+
+  function restorePlannerSpot(spot) {
+
+      var ed = document.getElementById('plannerEditorWrap'), pw = document.getElementById('plannerPreviewWrap');
+
+      var pwTop = function() { if (pw) pw.scrollTop = spot.pw; };
+
+      pwTop(); setTimeout(pwTop, 300);   // again once mermaid has re-laid out the preview
+
+      if (ed) ed.scrollTop = spot.ed;
+
+      var f = spot.field;
+
+      if (!f) return;
+
+      var el = Array.prototype.find.call(document.querySelectorAll('#plannerBlocks [data-idx="' + f.idx + '"]'), function(x) {
+
+          return x.className === f.cls && x.dataset.ri === f.ri && x.dataset.ci === f.ci && x.dataset.ni === f.ni;
+
+      });
+
+      if (!el) return;
+
+      try {
+
+          el.focus({ preventScroll: true });
+
+          if (f.sel !== null && typeof el.setSelectionRange === 'function') { var p = Math.min(f.sel, (el.value || '').length); el.setSelectionRange(p, p); }
+
+          else if (el.isContentEditable) { var r = document.createRange(); r.selectNodeContents(el); r.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+      } catch (e) {}
+
+      if (ed) ed.scrollTop = spot.ed;
+
+  }
+
+
+
+  // Undo or redo one step on the ACTIVE item. The restore goes through save(), so disk and (while
+  // hosting) the table both get it; a hosting save is wrapped in applyingRemote so onLocalSave's
+  // room-handout check cannot reveal a handout the restore re-attached, and the item is sent directly.
+  function stepHistory(dir) {
+
+      if (!canPersistLocal()) return;   // not while another table's campaign is on screen (the buttons come here too)
+
+      var flushed = false;
+
+      if (savePending) { clearTimeout(saveTimeout); savePending = false; pushHistory(); flushed = true; }   // real pending typing becomes its step; never a forced one
+
+      var camp = getActiveCampaign(), item = getActiveMap();
+
+      var h = (camp && item) ? histories[itemKey(camp, item.id)] : null;
+
+      var from = h && h[dir];
+
+      if (!from || !from.length) { if (flushed) save(true); return; }   // the flushed edit still has to reach disk (Ctrl+Y right after typing)
+
+      var snap = from.pop();
+
+      if (dir === 'undo') h.redo.push(h.last); else pushStep(h, h.last);
+
+      var parsed = JSON.parse(snap);
+
+      var hosting = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host');
+
+      if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item);
+
+      var spot = item.type === 'planner' ? rememberPlannerSpot() : null;
+
+      applyContent(item, parsed);
+
+      if (hosting && item.type === 'map' && window.wpAutoRoom) (item.whiteboard || []).forEach(function(w) { if (w.isChar && w.ownerId) window.wpAutoRoom(w, item); });   // room membership follows the token
+
+      closeChunk();
 
       state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
 
       render();
 
+      isUndoing = true;
 
+      try {
 
-      // Save the restored state to disk immediately without pushing to history
+          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); }
 
-      if (!canPersistLocal()) { toast(msg); setTimeout(function(){ isUndoing = false; }, 100); return; }
+          else save(true);
 
-      fetch('/api/data', {
+      } finally { isUndoing = false; }
 
-          method: 'POST',
+      h.last = project(item);   // taken AFTER render + save, so a render-time clean-up can never differ from the baseline
 
-          headers: { 'Content-Type': 'application/json' },
+      histBytes(h);
 
-          body: stateStr
+      if (spot) restorePlannerSpot(spot);
 
-      })
+      updateUndoBtn();
 
-      .then(res => {
-
-          if(res.ok) saveNote.innerHTML = 'Saved to disk <b>&#10003;</b>';
-
-      })
-
-      .catch(() => { saveNote.innerHTML = 'Network error saving.'; });
-
-
-
-      toast(msg);
-
-      setTimeout(function(){ isUndoing = false; }, 100);
+      toast(dir === 'undo' ? 'Undo' : 'Redo');
 
   }
 
+  function undo() { stepHistory('undo'); }
 
+  function redo() { stepHistory('redo'); }
 
-  function undo() {
+  // Ctrl+Z / Ctrl+Y with a planner field focused. The browser's own text undo runs while the field has
+  // typing to take back; when it has none — nothing typed since the editor was last rebuilt, or the
+  // native stack just ran dry — the chord reaches the planner's history instead. Returns true when the
+  // chord was taken over (callers that stop propagation check it first).
+  function fieldUndoChord(e) {
 
-      if (!canPersistLocal()) return;   // not while another table's campaign is on screen
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
 
-      if (undoStack.length === 0) return;
+      var k = String(e.key || '').toLowerCase();
 
-      redoStack.push(JSON.stringify(state.appState));
+      var dir = (k === 'z' && !e.shiftKey) ? 'undo' : (k === 'y' || (k === 'z' && e.shiftKey)) ? 'redo' : null;
 
-      applyHistoryState(undoStack.pop(), 'Undo successful.');
+      if (!dir) return false;
+
+      var t = e.target;
+
+      if (!t || !t.closest || !t.closest('#plannerBlocks')) return false;
+
+      if (!canPersistLocal()) return false;
+
+      if (t._wpNativeDirty) {
+
+          // let the browser try; if no text moved anywhere (its undo stack is one per document, so the
+          // 'input' may land on another field) this field is spent and the press falls through. A dry
+          // redo leaves the flag: the field's own undo is still there to take.
+          nativeProbe = t;
+
+          setTimeout(function() { if (nativeProbe !== t) return; nativeProbe = null; if (dir === 'undo') t._wpNativeDirty = false; stepHistory(dir); }, 0);
+
+          return false;
+
+      }
+
+      e.preventDefault(); e.stopPropagation();
+
+      stepHistory(dir);
+
+      return true;
 
   }
 
+  /* Text coalescing, seen in the capture phase so fields that stop propagation (rich text boxes, flowchart
+     labels) count too: an 'input' on a text field makes it the typing slot; a pointer down elsewhere, the
+     field losing focus, a change / cut / paste from another field or a drop anywhere closes the chunk, so
+     the next edit is its own step. The history buttons are not edits and leave the chunk alone. */
+  function isTextField(t) {
 
+      if (!t || !t.tagName) return false;
 
-  function redo() {
+      if (t.tagName === 'TEXTAREA' || t.isContentEditable) return true;
 
-      if (!canPersistLocal()) return;
+      return t.tagName === 'INPUT' && !/^(checkbox|radio|file|button|submit)$/i.test(t.type || 'text');
 
-      if (redoStack.length === 0) return;
+  }
 
-      undoStack.push(JSON.stringify(state.appState));
+  document.addEventListener('input', function(e) {
 
-      applyHistoryState(redoStack.pop(), 'Redo successful.');
+      var t = e.target;
+
+      if (!t) return;
+
+      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { nativeProbe = null; nativeEdit = true; }   // the browser answered the chord, whichever field it landed on
+
+      if (!isTextField(t)) { closeChunk(); return; }
+
+      if (e.inputType !== 'historyUndo' && e.inputType !== 'historyRedo') t._wpNativeDirty = true;
+
+      if (typeSlot.el !== t) { typeSlot.el = t; typeSlot.key = null; }
+
+  }, true);
+
+  document.addEventListener('pointerdown', function(e) {
+
+      var t = e.target, b = t && t.closest ? t.closest('button') : null;
+
+      if (b && HIST_BTN_IDS[b.id]) return;
+
+      if (typeSlot.el && t !== typeSlot.el && !(typeSlot.el.contains && typeSlot.el.contains(t))) {
+
+          if (savePending) pushHistory();   // typing still on the debounce timer is its own step before whatever this click does (a block delete, say)
+
+          closeChunk();
+
+      }
+
+  }, true);
+
+  document.addEventListener('focusout', function(e) { if (typeSlot.el && e.target === typeSlot.el) closeChunk(); }, true);
+
+  document.addEventListener('change', function(e) { if (e.target !== typeSlot.el) closeChunk(); }, true);
+
+  ['cut', 'paste', 'drop'].forEach(function(ev) { document.addEventListener(ev, function() { closeChunk(); }, true); });
+
+  // A safety copy before something that cannot be undone (an item or campaign delete); Settings ▸ Advanced ▸
+  // Snapshots lists it. Resolves either way — a core older than 1.3.6 has no such route and answers 404,
+  // which is fine — and within 3 s regardless, so a core that never answers cannot hold the delete up.
+  function takeSafetyCopy() {
+
+      if (!canPersistLocal()) return Promise.resolve();
+
+      var timer = new Promise(function(done) { setTimeout(done, 3000); });
+
+      try { return Promise.race([fetch('/api/backup-now', { method: 'POST' }).then(function() {}, function() {}), timer]); } catch (e) { return Promise.resolve(); }
 
   }
 
@@ -492,10 +973,13 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             } else {
                 saveNote.innerHTML = 'GM\'s campaign &mdash; not saved here';
             }
+            savePending = false;
             return;
         }
 
         pushHistory();   // below the return: a GM's table is never recorded
+
+        savePending = false;   // cleared AFTER the pass: pushHistory reads it (a remote save flushing the GM's own pending edit)
 
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host') {
 
@@ -538,6 +1022,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         clearTimeout(saveTimeout);
 
         saveTimeout = setTimeout(doSave, 500);
+
+        savePending = true;
 
     }
 
@@ -641,7 +1127,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 
-      if (typing) return;
+      if (typing) { fieldUndoChord(e); return; }   // a planner field with nothing of its own to undo hands the chord to the planner's history
 
       // Shift+1 frames the content — the selection if there is one, else the whole map. This is
       // navigation, not an edit, so it sits ABOVE the spectator guard (players can frame too). With
@@ -1029,13 +1515,27 @@ export {
 
     resetHistory,
 
-    historyDepth
+    historyDepth,
+
+    historyBarrier,
+
+    rebaseHistory,
+
+    withoutHistory,
+
+    fieldUndoChord,
+
+    takeSafetyCopy
 
 };
 
 // Modules without an import edge to io.js (net, sidebar, planner, inspector, shadowbase) reach the gate here
 window.wpCanPersistLocal = canPersistLocal;
 window.wpResetHistory = resetHistory;
+window.wpHistFlush = flushHistory;     // net.js: before a player's change lands in a map
+window.wpHistBarrier = historyBarrier; // net.js / whiteboard.js: after a write that spans two maps
+// Dev/console: the per-item undo picture, { 'campId/itemId': { undo, redo, bytes } }, for sandbox checks
+window.wpHist = { peek: function() { var out = {}; Object.keys(histories).forEach(function(k) { var h = histories[k]; out[k] = { undo: h.undo.length, redo: h.redo.length, bytes: h.bytes }; }); return out; } };
 
 
 

@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, resetHistory, takeSafetyCopy } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
 
@@ -374,11 +374,15 @@ if(_el_delCampBtn) _el_delCampBtn.addEventListener('click', function() {
 
       if(keys.length <= 1) { toast("Cannot delete the last campaign."); return; }
 
-      showConfirm("Are you sure you want to delete this campaign? This cannot be undone.", function(yes) {
+      showConfirm("Are you sure you want to delete this campaign? This cannot be undone (a safety copy is taken first).", function(yes) {
 
-          if(yes) {
+          if(yes) takeSafetyCopy().then(function() {
 
-              delete state.appState.campaigns[state.appState.activeCampaignId];
+              var goneId = state.appState.activeCampaignId;
+
+              delete state.appState.campaigns[goneId];
+
+              resetHistory(goneId);   // its maps' and planners' stacks go with it
 
               state.appState.activeCampaignId = Object.keys(state.appState.campaigns)[0];
 
@@ -386,7 +390,7 @@ if(_el_delCampBtn) _el_delCampBtn.addEventListener('click', function() {
 
               updateCampaignSelect(); updateSidebarNav(); render(); save(true);
 
-          }
+          });
 
       });
 
@@ -526,8 +530,8 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       var keys = Object.keys(camp.items);
       if(keys.length <= 1) { toast("Cannot delete the last item in a campaign."); return; }
       
-      showConfirm("Are you sure you want to delete this item? This cannot be undone.", function(yes) {
-          if(yes) {
+      showConfirm("Are you sure you want to delete this item? This cannot be undone (a safety copy is taken first).", function(yes) {
+          if(yes) takeSafetyCopy().then(function() {
               // Promote any nested children to the deleted item's parent
               var removed = camp.items[id];
               if (removed) {
@@ -540,7 +544,7 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
               if (camp.activeItemId === id) { camp.activeItemId = Object.keys(camp.items)[0] || null; state.viewMode = 'data'; }
               updateSidebarNav(); render(); save(true);
               if (window.appRestoreCamera) window.appRestoreCamera();
-          }
+          });
       });
   });
   
@@ -564,9 +568,9 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
 
       if(keys.length <= 1) { toast("Cannot delete the last item in a campaign."); return; }
 
-      showConfirm("Are you sure you want to delete this item? This cannot be undone.", function(yes) {
+      showConfirm("Are you sure you want to delete this item? This cannot be undone (a safety copy is taken first).", function(yes) {
 
-          if(yes) {
+          if(yes) takeSafetyCopy().then(function() {
 
               delete camp.items[camp.activeItemId];
 
@@ -576,7 +580,7 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
 
               updateSidebarNav(); render(); save(true);
 
-          }
+          });
 
       });
 

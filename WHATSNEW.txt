@@ -74,6 +74,9 @@ Fixes
   exists. If it is not sure about a campaign, it asks you by name. Your
   Journal is untouched. Files you exported yourself are outside Waypoint's
   reach — delete those by hand if they came from someone else's game.
+- Cancel (or Esc) on End Session, Leave Session and Clear Session Log now
+  really cancels; before, the action went ahead anyway. And a player's copy
+  of the roster can no longer replace the host's.
 
 WAYPOINT 1.4.8 — What's New
 ============================

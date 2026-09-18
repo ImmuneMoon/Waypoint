@@ -225,6 +225,13 @@ function cleanLayout(l, ctx) {
     if (out.width === 100 && out.float === 'none' && !out.dx && !out.dy && !out.span) return null;   // the default: nothing to carry
     return out;
 }
+// The block's layout object; a picture placed before the layout controls existed carries the
+// planner's own `width` field, which counts as its width here so nothing on a page changes size.
+function effectiveLayout(b) {
+    var l = b && b.layout;
+    if ((!l || typeof l !== 'object') && b && b.type === 'image' && isFinite(Number(b.width)) && Number(b.width) > 0 && Number(b.width) < 100) l = { width: Number(b.width) };
+    return l && typeof l === 'object' ? l : null;
+}
 var LAYOUT_OK = { image: 1, callout: 1, flare: 1, table: 1, diagram: 1, flowchart: 1 };
 var NO_FLOAT_IN_COLS = { callout: 1, flare: 1 };
 function cleanBlock(b, used, ctx) {
@@ -275,7 +282,7 @@ function cleanBlock(b, used, ctx) {
         default:   // prose
             o.content = sanitizeHtml(str(b.content, LIMITS.html));
     }
-    if (LAYOUT_OK[b.type]) { var l = cleanLayout(b.layout, { cols: ctx.cols, noFloat: !!NO_FLOAT_IN_COLS[b.type] }); if (l) o.layout = l; }
+    if (LAYOUT_OK[b.type]) { var l = cleanLayout(effectiveLayout(b), { cols: ctx.cols, noFloat: !!NO_FLOAT_IN_COLS[b.type] }); if (l) o.layout = l; }
     return o;
 }
 // opts.keepHidden: keep a page whose players switch is off (the client normalising what it received,
@@ -305,7 +312,7 @@ function cleanDoc(doc, opts) {
 
 /* ---------- renderDoc ---------- */
 function layoutAttrs(b, cls) {
-    var l = b.layout, classes = cls || '', style = '';
+    var l = effectiveLayout(b), classes = cls || '', style = '';
     if (l) {
         if (l.float === 'left') classes += ' fl-left'; else if (l.float === 'right') classes += ' fl-right';
         if (l.span) classes += ' doc-span';
@@ -365,7 +372,7 @@ function renderDoc(doc, opts) {
                 break;
             }
             case 'flowchart': {
-                var l = b.layout || {}, boxStyle = (b.boxW ? 'width:' + Math.round(Number(b.boxW)) + 'px;' : '') + (b.boxH ? 'height:' + Math.round(Number(b.boxH)) + 'px;' : '');
+                var l = effectiveLayout(b) || {}, boxStyle = (b.boxW ? 'width:' + Math.round(Number(b.boxW)) + 'px;' : '') + (b.boxH ? 'height:' + Math.round(Number(b.boxH)) + 'px;' : '');
                 if (l.dx || l.dy) boxStyle += 'position:relative;left:' + (l.dx || 0) + 'px;top:' + (l.dy || 0) + 'px;';
                 var fcls = 'diagram fc-box' + (l.float === 'left' ? ' fl-left' : l.float === 'right' ? ' fl-right' : '') + (l.span ? ' doc-span' : '');
                 blk += '<div class="' + fcls + '" data-fc="' + i + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(compileFlowchart(b))) + '</pre></div>';

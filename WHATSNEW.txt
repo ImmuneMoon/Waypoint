@@ -8,6 +8,13 @@ Handbook
   nodes, raw HTML or GM notes on a page), nested and re-ordered like planners,
   searched, exported (Export This Page / Export All Pages) and covered by the
   planner's undo.
+- Layout: pictures, callouts, flares, tables, diagrams and flowcharts on a
+  page take a width, float left or right with the text wrapping around
+  them, a pixel nudge, or the full width of a multi-column section; a
+  section heading splits what follows into 1–3 columns. In the preview,
+  drag a picture to nudge it and its corner to resize it (one undo step per
+  drag). A page flows like a web page: a player's narrower window, the print
+  path and the HTML export reflow the same content.
 - Players at your table receive the pages you leave on "Players can read"
   (the default; the switch is in the planner toolbar and the page's right-click
   menu) and read them from a Handbook tree of their own — the only section of

@@ -483,7 +483,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
           btn.addEventListener('click', function() {
               var gone = r.characters.splice(this.dataset.idx, 1)[0];
               // Its stand-in token goes too — unless a player owns it or a sheet is attached
-              if (gone) activeMap.whiteboard = (activeMap.whiteboard || []).filter(function(t) { return !(t.charRef === gone.id && !t.ownerId && !t.sheet); });
+              if (gone) activeMap.whiteboard = (activeMap.whiteboard || []).filter(function(t) { return !(t.charRef === gone.id && !t.ownerId && !t.sheet && !t.charId); });
               save(); render();
           });
 
@@ -910,6 +910,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         return '<option value="'+pid+'"'+(w.ownerId===pid?' selected':'')+'>'+esc(playersKnown[pid])+'</option>';
                     }).join('');
                     html += '<div class="field"><label for="wbOwner">Player Owner (can move this token)</label><select id="wbOwner">'+ownerOpts+'</select></div>';
+                    if (window.wpSheets) html += window.wpSheets.charSelectHtml(w);   // character sheets (1.5.0): which campaign character this token stands for
                     // ShadowBase sheet: attach the site's character JSON and this token
                     // round-trips it — Export re-emits it with the token's art as portrait
                     var sheetLabel = w.sheet
@@ -1136,7 +1137,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         }
                     } else delete w.ownerId;
                     save(); toast(this.value ? 'Token assigned — this player now plays ' + (w.charName || 'this character') + ' everywhere.' : 'Token set to GM control.');
+                    if (window.wpSheets && w.charId) window.wpSheets.ownerFromToken(w);   // the character follows, and every token of it
                 });
+                if (window.wpSheets) window.wpSheets.wireCharSelect(w, renderInspector);
             }
             var _el_wbStatus = document.getElementById('wbStatus');
             if (_el_wbStatus) _el_wbStatus.addEventListener('change', function() {

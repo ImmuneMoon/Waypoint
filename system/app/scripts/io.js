@@ -163,6 +163,13 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             var csys = c.system ? window.wpSystemCore.cleanSystem(c.system, { F: window.wpFormula, gmView: true }) : null;
             if (csys) c.system = csys; else delete c.system;
         }
+        if (c.chars && typeof c.chars === 'object' && window.wpSystemCore) {   // characters (1.5.0): cleaned against the system, owners stamped on their tokens
+            if (!c.system) delete c.chars;
+            else {
+                var outCh = {}; Object.keys(c.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(c.chars[id], c.system); if (cc && cc.id === id) outCh[id] = cc; }); c.chars = outCh;
+                Object.values(c.items || {}).forEach(function(m) { if (!m || m.type !== 'map') return; (m.whiteboard || []).forEach(function(w) { if (!w || !w.charId) return; var ch = outCh[w.charId]; if (!ch) return; if (ch.ownerId) w.ownerId = ch.ownerId; else delete w.ownerId; }); });
+            }
+        }
     });
 
     // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each
@@ -1136,7 +1143,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       wbClipboard.forEach(function(src) {
           var it = clone(src);
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
-          delete it.ownerId;
+          delete it.ownerId; delete it.charId;   // pasted tokens are new creatures
           if (it.groupId) {
               if (!gidMap[it.groupId]) gidMap[it.groupId] = 'group_' + Date.now() + Math.random().toString(36).slice(2, 6);
               it.groupId = gidMap[it.groupId];

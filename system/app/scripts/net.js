@@ -304,6 +304,49 @@ function sanitizeAppState(s) {
 // The GM can pin the table to a specific map ("Players arrive at" in the Host
 // panel); otherwise the stage follows whatever map the GM is viewing.
 net.stageOverride = null;
+// "Player's last location": each player comes back to the map they were last on and arrives
+// detached (a split-party start); a first-timer lands on the fallback ("New players start at",
+// '' = follow the GM). The mode is offered once the campaign has somewhere to send a player back
+// to, and is the default there until the GM picks otherwise for that campaign. All of it is
+// session-scoped, like stageOverride.
+net.stageMode = null;        // 'last', or null for the stage select's other choices
+net.stageFallback = null;    // map id, or null for Follow me
+net.stagePicked = {};        // campaign id -> { mode, fallback } the GM chose for it this session
+
+// The map this player was last on in the hosted campaign, if it still exists and is open to
+// players: a map the GM has locked counts as gone, like a deleted one, so the player lands on the
+// fallback instead of behind the lock. The host reads only its own record here — never a
+// location the client claims.
+function playerLastMap(camp, pid) {
+    var rec = camp && camp.players && pid ? camp.players[pid] : null;
+    var it = rec && rec.lastMap ? camp.items[rec.lastMap] : null;
+    return it && it.type === 'map' && !(it.meta && it.meta.playerLock) ? it.id : null;
+}
+function hasLastLocations(camp) {
+    return !!(camp && camp.players && Object.keys(camp.players).some(function(pid) { return playerLastMap(camp, pid); }));
+}
+// Resolves the mode for the campaign on screen before a session: what the GM chose for it, else
+// "Player's last location" when the campaign has one. Every campaign switch passes through here
+// (the panel re-renders on any of them), so another campaign's mode never lingers and the GM's
+// own choice per campaign comes back. Mid-session the mode changes only by the GM's hand.
+function defaultStageMode(camp) {
+    if (!camp || (net.active && net.role === 'host')) return;
+    var pick = net.stagePicked[camp.id];
+    net.stageMode = pick ? pick.mode : (hasLastLocations(camp) ? 'last' : null);
+    net.stageFallback = pick ? pick.fallback : null;
+}
+// Where a joining player lands: under "Player's last location" their own last map, else the
+// fallback map — detached either way — and otherwise the GM's stage, following as usual.
+function landingFor(prof) {
+    var camp = getActiveCampaign();
+    if (net.stageMode === 'last' && camp) {
+        var own = playerLastMap(camp, prof.id);
+        if (own) return { stage: { campId: camp.id, itemId: own }, detached: true };
+        var fb = net.stageFallback ? camp.items[net.stageFallback] : null;
+        if (fb && fb.type === 'map') return { stage: { campId: camp.id, itemId: fb.id }, detached: true };
+    }
+    return { stage: currentStage(), detached: false };
+}
 
 function currentStage() {
     var camp = getActiveCampaign();
@@ -336,9 +379,19 @@ function refreshStageSelect() {
         : (net.lastMapStageObj && camp.items[net.lastMapStageObj.itemId] && camp.items[net.lastMapStageObj.itemId].meta.title) || 'your current map';
     var maps = Object.values(camp.items).filter(function(m) { return m.type === 'map'; });
     maps.sort(function(a, b) { return String((a.meta && a.meta.title) || '').localeCompare(String((b.meta && b.meta.title) || '')); });
-    sel.innerHTML = '<option value="">Follow me — ' + escText(followTitle) + '</option>' +
-        maps.map(function(m) { return '<option value="' + m.id + '">' + escText((m.meta && m.meta.title) || m.id) + '</option>'; }).join('');
-    sel.value = (net.stageOverride && camp.items[net.stageOverride]) ? net.stageOverride : '';
+    var mapOpts = maps.map(function(m) { return '<option value="' + m.id + '">' + escText((m.meta && m.meta.title) || m.id) + '</option>'; }).join('');
+    defaultStageMode(camp);
+    // the mode in force stays listed even if the last map it relied on has since been deleted
+    var lastOpt = (hasLastLocations(camp) || net.stageMode === 'last') ? '<option value="last">Player\'s last location</option>' : '';
+    sel.innerHTML = lastOpt + '<option value="">Follow me — ' + escText(followTitle) + '</option>' + mapOpts;
+    sel.value = net.stageMode === 'last' ? 'last' : (net.stageOverride && camp.items[net.stageOverride]) ? net.stageOverride : '';
+    // "New players start at" shows only under "Player's last location"
+    var fbRow = ui('netStageFallbackRow'), fbSel = ui('netStageFallbackSelect');
+    if (fbRow) fbRow.style.display = net.stageMode === 'last' ? '' : 'none';
+    if (fbSel && net.stageMode === 'last') {
+        fbSel.innerHTML = '<option value="">Follow me — ' + escText(followTitle) + '</option>' + mapOpts;
+        fbSel.value = (net.stageFallback && camp.items[net.stageFallback]) ? net.stageFallback : '';
+    }
 }
 
 var _campSel = ui('netCampSelect');
@@ -349,6 +402,7 @@ if (_campSel) _campSel.addEventListener('change', function() {
     net.guardCampaignSwitch(function() {
         state.appState.activeCampaignId = pick;
         net.stageOverride = null;   // the pinned map belonged to the previous campaign
+        net.stageMode = null; net.stageFallback = null;   // so did the mode and the fallback; refreshStageSelect defaults them for this one
         net.applyingRemote = false;
         save();
         updateCampaignSelect();
@@ -363,15 +417,42 @@ if (_campSel) _campSel.addEventListener('change', function() {
 
 var _stageSel = ui('netStageSelect');
 if (_stageSel) _stageSel.addEventListener('change', function() {
-    net.stageOverride = this.value || null;
     var camp = getActiveCampaign();
+    var wasLast = net.stageMode === 'last';
+    net.stageMode = this.value === 'last' ? 'last' : null;
+    net.stageOverride = (this.value && this.value !== 'last') ? this.value : null;
+    if (camp) net.stagePicked[camp.id] = { mode: net.stageMode, fallback: net.stageFallback };   // the GM chose: no more defaulting for this campaign
+    refreshStageSelect();   // the fallback row appears or goes
+    var hosting = net.active && net.role === 'host';
+    if (net.stageMode === 'last') {
+        if (hosting) {
+            // connected players keep their place: the GM's browsing no longer moves them
+            Object.values(net.roster).forEach(function(p) { if (p) p.detached = true; });
+            renderRoster();
+            broadcastRoster();
+            toast('Players stay where they are; Summon All gathers them.');
+        } else toast('Players will come back to the map they were last on.');
+        return;
+    }
     var target = net.stageOverride && camp ? camp.items[net.stageOverride] : null;
-    if (net.active && net.role === 'host') {
+    if (hosting) {
+        if (wasLast) {   // back with the GM: everyone follows again and the stage change below moves them
+            Object.values(net.roster).forEach(function(p) { if (p) p.detached = false; });
+            net.lastStage = null;
+        }
         net.onLocalSave();   // stage key changed → followers are moved and tokens ensured
         toast(target ? 'Table pinned to ' + ((target.meta && target.meta.title) || net.stageOverride) + '.' : 'Table follows your map again.');
     } else if (target) {
         toast('Players will arrive at ' + ((target.meta && target.meta.title) || net.stageOverride) + '.');
     }
+});
+var _stageFbSel = ui('netStageFallbackSelect');
+if (_stageFbSel) _stageFbSel.addEventListener('change', function() {
+    net.stageFallback = this.value || null;
+    var campF = getActiveCampaign();
+    if (campF) net.stagePicked[campF.id] = { mode: net.stageMode, fallback: net.stageFallback };   // kept with the mode, per campaign
+    var fbMap = net.stageFallback && campF ? campF.items[net.stageFallback] : null;
+    toast(fbMap ? 'New players will start on ' + ((fbMap.meta && fbMap.meta.title) || net.stageFallback) + '.' : 'New players will follow you.');
 });
 function applyStage(stage) {
     if (!stage || !state.appState.campaigns[stage.campId]) return;
@@ -1434,9 +1515,9 @@ function denyJoin(conn, reason) {
 
 function admitPlayer(conn, prof) {
     if (!conn.open) return;
-    var stageNow = currentStage();
-    prof.location = stageNow ? stageNow.itemId : null;
-    prof.detached = false;
+    var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
+    prof.location = land.stage ? land.stage.itemId : null;
+    prof.detached = land.detached;
     net.roster[conn.peer] = prof;
     renderRoster();
     toast((prof.name || 'A player') + ' joined.');
@@ -1459,9 +1540,10 @@ function admitPlayer(conn, prof) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
     }
     var stage = currentStage();
-    net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
-    if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
+    // a follow still in its grace window moves everyone once it fires; marking the stage seen now would cancel it
+    if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
+    if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: land.stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     broadcastRoster();
 }
@@ -1889,6 +1971,7 @@ function startHosting(forceFresh) {
         return;
     }
     leaveSession(true);
+    defaultStageMode(getActiveCampaign());   // hosting without opening the panel first still starts on the default
     var resumed = !forceFresh ? recentHostCode() : null;
     var code = resumed || makeCode();
     var gen = resumed ? net._hostGen : 0;
@@ -2037,6 +2120,7 @@ function leaveSession(silent) {
     renderRoster();
     if (!silent) {
         net.stageOverride = null;
+        net.stageMode = null; net.stageFallback = null; net.stagePicked = {};   // the next session starts from the defaults again
         setStatus('Not in a session.');
         toast(wasClient ? 'Left the session — restoring your own campaign.' : wasHost ? 'Session ended for everyone — the room code is retired.' : 'Left the session.');
         if (wasHost) { logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }

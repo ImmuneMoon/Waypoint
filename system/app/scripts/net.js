@@ -1590,7 +1590,7 @@ function admitPlayer(conn, prof) {
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
-        var recent = chatLog.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60);
+        var recent = chatLog.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: m.roll } : m; });
         if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) {} }
     }, 1200);
     var camp = getActiveCampaign();
@@ -1665,6 +1665,7 @@ function handleMessage(msg, conn) {
         if (net.roster[conn.peer]) return;   // already admitted: a repeat hello is ignored
         if (msg.profile && typeof msg.profile !== 'object') return;
         var prof = msg.profile || { id: conn.peer, name: 'Player' };
+        if (prof.id === net.myId) { denyJoin(conn, 'That player identity is the GM\'s own.'); return; }   // a claimed GM id would render as "You" on the GM's screen
         // Peer-supplied avatar: accept only a small image data URL, else drop it
         if (prof.avatar && !(typeof prof.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(prof.avatar) && prof.avatar.length <= 200000)) {
             delete prof.avatar;
@@ -1822,6 +1823,7 @@ function handleMessage(msg, conn) {
         handlePos(msg, conn);
     } else if (msg.type === 'end' && net.role === 'client') {
         net.leaving = true;   // deliberate teardown from the GM: no auto-reconnect
+        diceSessionReset(true);   // the table is over: its chat and rolls go with it (the teardown below is the silent path)
         setStatus('Session ended by the GM.');
         var nm = ui('netModal');
         if (nm) nm.style.display = 'flex';
@@ -1832,6 +1834,38 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSound) return;
         if (msg.type === 'sounds') { if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return; window.wpSound.onList(msg); }
         else window.wpSound.onCue(msg);
+    } else if (msg.type === 'roll-req' && net.role === 'host') {
+        // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
+        var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
+        var q = Dq.cleanRollReq(msg); if (!q) return;
+        var denyQ = function(reason, r) { var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) {} };
+        if (!diceLimit) diceLimit = Dq.RateLimit(Dq.LIMITS);
+        var lim = diceLimit.allow(conn.peer, Date.now());
+        if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
+        if (window.wpVtt && !window.wpVtt.on('dice')) { denyQ('off'); return; }
+        if (Fq.names(q.expr).length) { denyQ('names'); return; }
+        var resQ = Fq.evaluate(q.expr);
+        if (!resQ.ok) { denyQ('error', resQ); return; }
+        var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
+        var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
+        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) {} pushRoll(recQ, resQ, 'whisper'); }
+        else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global'); }
+        logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
+    } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
+        // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        var Dr = DC(), Fr = window.wpFormula; if (!Dr || !Fr) return;
+        if (msg.type === 'roll-deny') {
+            if (!_dicePending) return;
+            var dn = Dr.cleanDeny(msg, _dicePending.expr.length); if (!dn || dn.rid !== _dicePending.rid) return;
+            var pend = _dicePending; clearTimeout(pend.timer); _dicePending = null;
+            if (window.wpDice) window.wpDice.onDeny(dn, pend.expr);
+            return;
+        }
+        var rc = Dr.cleanRoll(msg); if (!rc) return;
+        if (_dicePending && rc.rid === _dicePending.rid) { clearTimeout(_dicePending.timer); _dicePending = null; if (window.wpDice) window.wpDice.onRolled(rc); }
+        var rp = Dr.replay(rc, Fr, Fr.VERSION);
+        pushRoll(rc, rp.ok ? rp.result : null, rc.priv || rc.to ? 'whisper' : 'global', { bad: rp.ok ? null : rp.reason });
     } else if (msg.type === 'asset-req' && net.role === 'host') {
         handleAssetRequest(msg, conn);
     } else if (msg.type === 'asset-part' && net.role === 'client') {
@@ -1840,7 +1874,9 @@ function handleMessage(msg, conn) {
         handleAssetArrival(msg);
     } else if (msg.type === 'chat') {
         if (net.role === 'host') {
-            // player comments are table-wide: relay to everyone else
+            // player comments are table-wide: relay to everyone else (typed, capped, on the host's clock so late joiners sort them with the rolls)
+            if (typeof msg.text !== 'string' || !msg.from || typeof msg.from !== 'object') return;
+            msg.text = msg.text.slice(0, 2000); msg.ts = Date.now(); delete msg.roll;
             pushChat(msg);
             broadcast(msg, conn);
             if (msg.scope !== 'whisper') logEvent('chat', ((msg.from && msg.from.name) || 'Player') + ': ' + String(msg.text || '').slice(0, 300));
@@ -1848,10 +1884,22 @@ function handleMessage(msg, conn) {
             pushChat(msg);
         }
     } else if (msg.type === 'chat-history' && net.role === 'client') {
-        var hist = Array.isArray(msg.log) ? msg.log.filter(function(m) { return m && m.from && typeof m.text === 'string'; }).slice(-60) : [];
-        var have = {}; chatLog.forEach(function(m) { have[(m.ts || 0) + '|' + (m.from && m.from.id) + '|' + m.text] = true; });
+        var histD = window.wpDiceCore, histF = window.wpFormula;
+        var hist = Array.isArray(msg.log) ? msg.log.filter(function(m) { return m && m.from && (typeof m.text === 'string' || m.roll); }).slice(-60) : [];
+        var have = {}; chatLog.forEach(function(m) { have[m.roll ? 'r|' + m.roll.id : (m.ts || 0) + '|' + (m.from && m.from.id) + '|' + m.text] = true; });
         var added = 0;
-        hist.forEach(function(m) { var k = (m.ts || 0) + '|' + m.from.id + '|' + m.text; if (!have[k]) { chatLog.push({ from: { id: String(m.from.id || ''), name: String(m.from.name || '').slice(0, 60), gm: !!m.from.gm }, text: String(m.text).slice(0, 2000), scope: 'global', ts: m.ts || Date.now() }); added++; } });
+        hist.forEach(function(m) {
+            if (m.roll) {   // a roll entry: the record is validated and replayed exactly like a live one
+                if (!histD || !histF) return;
+                var hr = histD.cleanRoll(m.roll); if (!hr || hr.priv || hr.to || have['r|' + hr.id]) return;
+                have['r|' + hr.id] = true;
+                var hp = histD.replay(hr, histF, histF.VERSION);
+                chatLog.push({ from: hr.from, text: '', scope: 'global', ts: hr.ts, roll: hr, res: hp.ok ? hp.result : null, rollBad: hp.ok ? null : hp.reason }); added++;
+                return;
+            }
+            var k = (m.ts || 0) + '|' + m.from.id + '|' + m.text;
+            if (!have[k]) { have[k] = true; chatLog.push({ from: { id: String(m.from.id || ''), name: String(m.from.name || '').slice(0, 60), gm: !!m.from.gm }, text: String(m.text).slice(0, 2000), scope: 'global', ts: m.ts || Date.now() }); added++; }
+        });
         chatLog.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
         while (chatLog.length > 200) chatLog.shift();
         if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none') { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
@@ -1920,6 +1968,7 @@ function wireConn(conn) {
     conn.on('close', function() {
         net.conns = net.conns.filter(function(c) { return c !== conn; });
         delete assetInflight[conn.peer];
+        if (diceLimit) diceLimit.forget(conn.peer);
         var p = net.roster[conn.peer];
         delete net.roster[conn.peer];
         renderRoster();
@@ -2045,6 +2094,7 @@ function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase()
 net._hostGen = 0;
 function startHosting(forceFresh) {
     _lastSent = {};   // a new table starts from the snapshot, not from anything sent before
+    diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     if (forceFresh) net._hostGen = 0;
     cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table
@@ -2190,6 +2240,7 @@ function leaveSession(silent) {
     if (!silent) cancelReconnect();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
     net.peer = null; net.conns = []; net.roster = {}; net.active = false; net.role = null; net.code = null; net.lastStage = null;
+    diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
     net.syncedPeer = null;
@@ -2327,6 +2378,60 @@ function handleAssetArrival(msg) {
     assetRenderTimer = setTimeout(function() { if (state.viewMode === 'visual') render(); }, 150);
 }
 
+/* ---------- dice: rolls at the table (dicecore.js validates and replays; dice.js draws the card) ----------
+   The host makes every roll: a player sends { roll-req, rid, expr, priv? }, the host evaluates once and sends the
+   record { roll, id, from, expr, draws, v, ts, priv?, to?, rid? } to the admitted peers (or to one), and every
+   machine replays expr + draws through its own engine. Nothing rendered travels; nothing a client says is trusted. */
+var diceLimit = null, _dicePending = null, _diceSlowSaid = {};
+function DC() { return window.wpDiceCore || null; }
+function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
+    net.conns.forEach(function(c) { if (c !== exceptConn && c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+}
+function diceFrom(prof, gm) { return { id: String((prof && prof.id) || 'x').slice(0, 60), name: String((prof && prof.name) || (gm ? 'GM' : 'Player')).slice(0, 60), gm: !!gm }; }
+function pushRoll(rec, res, scope, opts) {
+    pushChat({ from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res, rollBad: res ? null : ((opts && opts.bad) || 'error'), toName: opts && opts.toName ? opts.toName : '' });
+}
+function diceSessionReset(clearChat) {
+    if (_dicePending) { clearTimeout(_dicePending.timer); _dicePending = null; }
+    if (diceLimit) diceLimit.reset();
+    _diceSlowSaid = {};
+    if (clearChat) { chatLog = []; chatUnread = 0; renderChat(); }   // the table that is over keeps its chat and its rolls to itself
+}
+// Roll from here: a client asks the host; a host or a solo GM rolls at once. Returns { ok } or { error, pos?, len? }.
+net.diceRoll = function(expr, o) {
+    o = o || {}; var D = DC(), F = window.wpFormula;
+    if (!D || !F) return { error: 'Dice are not available.' };
+    if (net.stream) return { error: 'Not from the stream window.' };
+    if (window.wpVtt && !window.wpVtt.on('dice')) return { error: D.denyText('off') };
+    expr = D.cleanExpr(expr); if (!expr) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + D.LIMITS.expr + ' characters).' };
+    if (F.names(expr).length) return { error: D.denyText('names') };
+    if (net.active && net.role === 'client') {
+        if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open) return { error: 'Not at the table yet.' };
+        if (_dicePending) return { error: 'Waiting for the GM to roll the last one.' };
+        var rid = 'q' + Math.random().toString(36).slice(2, 10), req = { type: 'roll-req', rid: rid, expr: expr };
+        if (o.priv) req.priv = 'gm';
+        _dicePending = { rid: rid, expr: expr, timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
+        try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
+        return { ok: true, pending: true };
+    }
+    var res = F.evaluate(expr);
+    if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
+    var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
+    var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
+    var hosting = net.active && net.role === 'host', toName = '';
+    if (o.priv) rec.priv = 'gm';
+    else if (hosting) {
+        var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
+        var target = toKey ? net.conns.find(function(c) { return c.peer === toKey; }) : null;
+        if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(rec); } catch (e) {} }
+    }
+    var scope = rec.priv || rec.to ? 'whisper' : 'global';
+    if (hosting && scope === 'global') sendTable(rec, null);
+    pushRoll(rec, res, scope, { toName: toName });
+    logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
+    return { ok: true };
+};
+
 /* ---------- table chat ---------- */
 var chatLog = [];   // {from:{id,name}, text, scope:'global'|'whisper', ts}
 var chatUnread = 0;
@@ -2349,20 +2454,27 @@ function chatTime(ts) {
     var d = new Date(ts);
     return (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
 }
+function chatEntryNode(m) {   // one text entry, built from nodes: nothing from the wire is ever parsed as HTML
+    var whisper = m.scope === 'whisper', wrap = document.createElement('div');
+    wrap.style.cssText = whisper ? 'margin-bottom:7px; border-left:2px solid var(--violet); padding-left:7px; font-style:italic;' : 'margin-bottom:7px;';
+    var who = document.createElement('b'); who.style.color = playerColor(m.from); who.textContent = m.from.id === net.myId ? 'You' : (m.from.name || 'Player'); wrap.appendChild(who);
+    if (m.from.gm) { var g = document.createElement('span'); g.className = 'chat-gm'; g.textContent = 'GM'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(g); }
+    if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = 'whisper'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }
+    var tm = document.createElement('span'); tm.className = 'chat-time'; tm.textContent = chatTime(m.ts); wrap.appendChild(tm);
+    wrap.appendChild(document.createElement('br'));
+    wrap.appendChild(document.createTextNode(String(m.text || '')));
+    return wrap;
+}
 function renderChat() {
     var log = ui('chatLog');
     if (!log) return;
-    log.innerHTML = chatLog.map(function(m) {
-        var who = m.from.id === net.myId ? 'You' : escText(m.from.name || 'Player');
-        var gmBadge = m.from.gm ? ' <span style="background:var(--gold); color:#1a1a22; font-size:9px; padding:0 4px; border-radius:3px; font-weight:700; vertical-align:1px;">GM</span>' : '';
-        var whisper = m.scope === 'whisper';
-        var wrapStyle = whisper
-            ? 'margin-bottom:7px; border-left:2px solid var(--violet); padding-left:7px; font-style:italic;'
-            : 'margin-bottom:7px;';
-        var tag = whisper ? ' <span style="color:var(--violet); font-size:10px; font-style:normal;">whisper</span>' : '';
-        return '<div style="' + wrapStyle + '"><b style="color:' + playerColor(m.from) + ';">' + who + '</b>' + gmBadge + tag +
-            ' <span style="color:var(--dim); font-size:10px; float:right;">' + chatTime(m.ts) + '</span><br>' + escText(m.text) + '</div>';
-    }).join('');
+    var frag = document.createDocumentFragment();
+    chatLog.forEach(function(m) {
+        var node = null;
+        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
+        if (node) frag.appendChild(node);
+    });
+    log.textContent = ''; log.appendChild(frag);
     log.scrollTop = log.scrollHeight;
     var badge = ui('chatBadge');
     if (badge) {
@@ -2377,10 +2489,12 @@ function pushChat(m) {
     if (!panel || panel.style.display === 'none') {
         if (m.from.id !== net.myId) {
             chatUnread++;
-            toast((m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60));
+            var line = m.roll ? (window.wpDice ? window.wpDice.line(m) : 'a roll') : (m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60);
+            toast(String(line).slice(0, 120));
         }
     }
     renderChat();
+    if (m.roll && window.wpDice) window.wpDice.landed(m);   // this machine's own dice cue, if wanted
 }
 function refreshChatRecipients() {
     var sel = ui('chatTo');
@@ -2397,6 +2511,8 @@ function sendChat() {
     var input = ui('chatInput');
     var text = (input.value || '').trim();
     if (!text) return;
+    var cmd = DC() ? DC().parseCommand(text) : null;   // /roll, /r, /gmroll, /gr work with or without a session
+    if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { priv: cmd.cmd === 'gmroll', source: 'chat' }) : net.diceRoll(cmd.expr, { priv: cmd.cmd === 'gmroll' }); if (rr.error) toast(rr.error); return; }
     if (!net.active) { toast('Chat needs an active multiplayer session.'); return; }
     input.value = '';
     var me = getProfile();
@@ -2584,7 +2700,8 @@ setTimeout(function() {
    teardown, but its label read like a player's exit). Players keep Leave Session. */
 function syncSessionButtons() {
     var cbtn = ui('chatBtn');
-    if (cbtn) { cbtn.classList.toggle('needs-session', !net.active); cbtn.dataset.tip = net.active ? 'Table chat' : 'Table chat — needs a session (host or join one first)'; cbtn.removeAttribute('title'); }
+    var diceOn = !!(window.wpVtt && window.wpVtt.on('dice'));
+    if (cbtn) { cbtn.classList.toggle('needs-session', !net.active && !diceOn); cbtn.dataset.tip = net.active ? 'Table chat and dice' : diceOn ? 'Table chat and dice — chat needs a session; dice roll here anyway' : 'Table chat — needs a session (host or join one first)'; cbtn.removeAttribute('title'); }
     var hosting = !!(net.active && net.role === 'host');
     var endB = ui('netEndBtn'), leaveB = ui('netLeaveBtn');
     if (endB) endB.style.display = hosting ? 'block' : 'none';
@@ -2634,6 +2751,7 @@ net.pushItems = function(ids) {
     (ids || []).forEach(function(id) { var it = camp.items[id]; if (!it) return; var clean = sanitizeItem(it); if (clean) broadcast({ type: 'item', campId: camp.id, itemId: id, item: clean }, null); });
 };
 net.logEvent = logEvent;
+net.syncSessionButtons = syncSessionButtons;
 (function() {
     var b = ui('netCombatBtn'); if (!b) return;
     b.addEventListener('click', function() {
@@ -2645,7 +2763,7 @@ net.logEvent = logEvent;
     });
 })();
 // Session Log window
-var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', table: 'Table' };
+var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table' };
 function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 net.openSessionLog = function() {
     var m = ui('sessionLogModal'), list = ui('sessionLogList'), sel = ui('sessionLogKind'); if (!m || !list) return;

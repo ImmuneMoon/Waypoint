@@ -133,6 +133,9 @@ function throwing() { return () => { throw new Error('no draws allowed'); }; }
     check('and()/or() variadic', val('and(1, 1, 0)') === false && val('or(0, 0, 1)') === true);
     check('spreadsheet AND inside if', txt('if(and(STR >= 10, DEX >= 10), 1, 0)', [], { vars: { STR: 12, DEX: 8 } }) === 'if(and(STR (12) >= 10, DEX (8) >= 10), 1, 0) = 0');
 
+    check('parts: strings and die tokens, in order', (() => { const r = ev('2d6 + 3', { random: scripted([4, 5]) }); const p = F.parts(r); return p.length === 3 && p[0] === '2d6 [' && p[1].text === '4, 5' && p[1].die.count === 2 && p[2] === '] + 3 = 12' && F.parts({ ok: false }).length === 0; })());
+    check('parts: the cap shortens a group', (() => { const r = ev('6d6', { random: scripted([1, 2, 3, 4, 5, 6]) }); return F.parts(r, 2)[1].text === '1, 2, … (4 more)'; })());
+
     /* ---- group 4: dice ---- */
     check('d20 + 5', txt('d20 + 5', [14]) === 'd20 [14] + 5 = 19');
     check('4d6kh3', txt('4d6kh3', [6, 4, 3, 1]) === '4d6kh3 [6, 4, 3, (1)] = 13');

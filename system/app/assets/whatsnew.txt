@@ -84,6 +84,26 @@ Sound
   browser tab one click on the page is needed before sound may play; the
   speaker pulses until then.
 
+Dice
+- Roll at the table: type /roll 2d6 + 3 in Table Chat (or /r), or open the
+  dice roller beside the message box: quick buttons for d4 to d100, a Roll
+  button, and the up arrow for your last twenty rolls. The GM's machine makes
+  every roll and everyone sees the same card: the formula, every die with
+  what was kept or dropped, the total, or for a check the margin, and a mark
+  on a lone d20 showing 20 or 1. The full syntax (4d6kh3, 2d6!, d20r1,
+  10d6cs>=5, 4dF, d%, checks like d20 + 5 >= 16) is in Help ▸ Dice.
+- Private rolls: /gmroll (or /gr) rolls for the GM's eyes only; a player's
+  /gmroll rolls to the GM; a whisper target picked in the chat panel makes
+  the GM's /roll private to that player. Every table roll lands in the
+  session log under Dice. Rolls work without a session too, as a local card.
+- The bundled Dice cue plays on each roll for those who want it (the Sound
+  box in the roller). Dice is a VTT feature: per campaign in Settings ▸ VTT
+  features, your campaign the ceiling at a table; a player who turns it off
+  for themselves loses the roller and the sound, not the cards.
+- Table chat now clears when a session ends or a new one starts, so a new
+  table never sees the last one's lines; the dev console keeps /roll local
+  and gains /table <expr> to post a roll from there.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

@@ -76,6 +76,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/stream.js"></script>
 <script type="module" src="scripts/soundcore.js"></script>
 <script type="module" src="scripts/sound.js"></script>
+<script type="module" src="scripts/dicecore.js"></script>
+<script type="module" src="scripts/dice.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
@@ -225,6 +227,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <button data-help="handbook">&#128214; Handbook</button>
                   <button data-help="mp-gm">&#127760; Multiplayer: Hosting</button>
                   <button data-help="mp-player">&#127918; Multiplayer: Joining</button>
+                  <button data-help="dice">&#127922; Dice</button>
                   <button data-help="keys">&#9000;&#65039; Shortcuts</button>
                   <button data-help="roadmap">&#128301; Coming up</button>
               </div>
@@ -360,7 +363,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. They are set <b>per campaign</b>; in a session your campaign's settings are the most your players see.</p>
                       <h4 id="helpVtt">VTT settings</h4>
                       <ul>
-                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap and sound are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
+                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap, sound and dice are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
                           <li><b>Default for new campaigns.</b> The same section holds the default a campaign starts with. Changing it touches no existing campaign; <b>Apply to existing campaigns&hellip;</b> copies it onto the campaigns you tick (nothing is ticked to begin with). The default lives with your preferences (the saves folder's <b>preferences.json</b>) and is cleared by Reset Local Preferences; the campaigns are not.</li>
                           <li><b>In a session, the GM's campaign is the ceiling.</b> Players see at most what the hosted campaign has on. A GM change mid-session reaches the table at once, with a short notice on each player's screen.</li>
                           <li><b>Off for me.</b> At a table, a player can switch a feature the GM has on <b>off for themselves</b> in the same section (&ldquo;Turn off for me&rdquo;), never on when the GM has it off. The choice is remembered per table (that campaign, that GM) and never touches the player's own default or campaigns.</li>
@@ -470,8 +473,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
                           <li><b>Handbook:</b> the pages of the hosted campaign that are not marked <b>GM only</b> reach every player, who read them in a panel over the map. Turning a page GM only mid-session takes it away from them at once; your edits to an open page arrive as you type. Pages of your other campaigns never travel.</li>
-                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
+                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, dice, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
                           <li><b>Sound:</b> the &#127925; panel's ambient loop and cues play on every player's machine at your Master volume. Your uploaded files travel to each player over the connection (4 MB each, one at a time, the playing loop first); the bundled set never needs to (every install has it). A bundled sound you <b>Hide</b> leaves your lists and the table's list alike &mdash; players stop hearing it if it was playing &mdash; and <b>Show hidden</b> brings it back. A player can turn the table's sound off for themselves, never on when you have it off.</li>
+                          <li><b>Dice:</b> anyone at the table rolls with <b>/roll</b> in Table Chat or the &#127922; roller beside the message box; your machine makes every roll and everyone sees the same card, and every table roll lands in the session log under <b>Dice</b>. <b>/gmroll</b> is yours alone, a player's <b>/gmroll</b> comes to you only, and a whisper target makes your <b>/roll</b> private to that player. Help &#9656; Dice has the syntax. Dice is a VTT feature: off for the campaign, nobody rolls.</li>
                           <li><b>One campaign per session:</b> the table is the campaign you host. Switching campaigns in any way &mdash; the picker in the &#127760; panel or the sidebar, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; asks first and, on yes, ends the session for everyone before switching. Cancel changes nothing.</li>
                       </ul>
                       <h4>Who gets in</h4>
@@ -512,6 +516,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
                           <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
                           <li><b>Sound:</b> the GM's ambient loop and cues play on your machine. The <b>&#128266;</b> speaker in the Table pill has your own volume, a mute, and <b>Off for me at this table</b>. In a browser tab, one click on the page is needed before sound may play; the speaker pulses until then.</li>
+                          <li><b>Dice:</b> <b>/roll 2d6 + 3</b> in Table Chat, or the &#127922; roller beside the message box; the GM's Waypoint makes the roll and everyone sees the same card. <b>/gmroll</b> rolls to the GM only. Help &#9656; Dice has the syntax; the roller's Sound box mutes the dice cue for you, and <b>&#9881; Settings &#9656; VTT features</b> can switch dice off for yourself (the cards still show).</li>
                       </ul>
                       <h4>What you'll see</h4>
                       <ul>
@@ -521,7 +526,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Journal (&#128214;):</b> everything a GM has shown you, saved on this computer with its caption. Add notes under each handout, or press <b>+ Note</b> to write your own pages in a campaign's section; it all works with no session running.</li>
                           <li><b>Targeting:</b> click a character token that isn't yours to mark it as your target &mdash; everyone sees a small copy of your own token on it (several targeters line up in the middle and wrap into rows). Click it again, or press <b>Esc</b>, to clear. One target at a time.</li>
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
-                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
+                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound, dice. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
                       </ul>
                       <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
                   </div>
@@ -534,7 +539,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>A handbook for your campaign.</b> Write the rules of your game inside Waypoint, and let players read them at the table.</li>
                           <li><b>Your rules, no coding.</b> Set up the attributes, skills, resources, conditions and item types your game uses, and how they relate &mdash; a light homebrew or a granular system alike.</li>
                           <li><b>Character sheets, built by you.</b> Lay out the sheet the way your game needs it. Every PC and NPC gets one in Waypoint, on its token, and players fill theirs in on the play map. Today's <b>shadow-base.com</b> attach is the first bridge of this kind, not the final shape.</li>
-                          <li><b>Dice that follow the rules.</b> Roll straight from the sheet, with the result and its breakdown shown to the table and kept in the session log.</li>
+                          <li><b>Roll from the sheet.</b> Dice arrived in 1.5.0 (Help &#9656; Dice); once character sheets exist, a roll starts from a sheet field with its modifiers filled in.</li>
                           <li><b>Item libraries.</b> Build the gear and abilities of your world; players build their characters from them, with the rules watching point budgets and prerequisites for you.</li>
                       </ul>
                       <h4>Blasts thrown from the sheet</h4>
@@ -553,6 +558,34 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <div class="help-tip">Something missing from this list that you need at your table? The <b>&#9432; About</b> panel has the contact address.</div>
                   </div>
 
+                  <div class="help-pane" data-pane="dice" style="display:none;">
+                      <h4>Rolling at the table</h4>
+                      <ul>
+                          <li>Type <b>/roll 2d6 + 3</b> (or <b>/r</b>) in <b>Table Chat</b>, or press <b>&#127922;</b> beside the message box for the roller: a formula field (<kbd>Enter</kbd> rolls, <kbd>&uarr;</kbd> and <kbd>&darr;</kbd> walk your last twenty rolls), quick buttons for d4 to d100, and <b>Roll</b>. A bare <b>/roll</b> is a d20.</li>
+                          <li><b>One roll, one card for everyone.</b> The GM's machine makes every roll at the table; each player's Waypoint replays the same dice and shows the same card &mdash; the formula, every die with what was kept, dropped, rerolled or exploded, and the total, or for a check the margin ("success by 3"). A lone d20 showing 20 or 1 is marked. Rolls work without a session too, as a card only you see.</li>
+                          <li>Every table roll is written to the <b>session log</b> under <b>Dice</b> (on the GM's side).</li>
+                      </ul>
+                      <h4>The syntax</h4>
+                      <ul>
+                          <li><code>2d6 + 3</code> &mdash; two six-sided dice plus three. <code>d20</code>, <code>d%</code> (percentile), <code>4dF</code> (fudge dice).</li>
+                          <li><code>4d6kh3</code> keep the highest 3 &middot; <code>2d20kl1</code> keep the lowest &middot; <code>dh1</code> / <code>dl1</code> drop the highest / lowest.</li>
+                          <li><code>2d6!</code> exploding (a top face rolls again and adds) &middot; <code>d20r1</code> reroll a 1 once &middot; <code>d6rr&lt;=2</code> reroll while 2 or under.</li>
+                          <li><code>10d6cs&gt;=5</code> count the dice showing 5 or more (successes).</li>
+                          <li><code>d20 + 5 &gt;= 16</code> a check: the card says success or failure and by how much &middot; <code>3d6 &lt;= 12</code> roll-under.</li>
+                          <li><code>floor</code>, <code>ceil</code>, <code>round</code>, <code>abs</code>, <code>min</code>, <code>max</code>, <code>clamp</code>, <code>mod</code>, <code>if(cond, a, b)</code>, <code>and</code> / <code>or</code> / <code>not</code>; <code>(Level)d6</code> and <code>d(Faces)</code> take a computed count or faces. Case does not matter; modifiers must touch the dice (<code>4d6kh3</code>, not <code>4d6 kh3</code>).</li>
+                          <li>Names such as <b>STR</b> or <b>Skill.Stealth</b> arrive with the character sheets; for now they are refused with a note. A table roll is at most 300 characters and 200 dice.</li>
+                      </ul>
+                      <h4>Private rolls</h4>
+                      <ul>
+                          <li><b>/gmroll</b> (or <b>/gr</b>): the GM rolls for their eyes only (still logged); a player rolls <b>to the GM</b> &mdash; the player and the GM see it, the table does not. The roller's <b>Private</b> / <b>To the GM only</b> box does the same.</li>
+                          <li>With a whisper target picked in the chat panel, the GM's <b>/roll</b> goes to that one player.</li>
+                      </ul>
+                      <h4>Sound and settings</h4>
+                      <ul>
+                          <li>The bundled <b>Dice</b> cue plays on your own machine on every roll while the roller's <b>Sound</b> box is ticked and Sound is on for you; nothing travels the wire for it.</li>
+                          <li><b>Dice</b> is a VTT feature (<b>&#9881; Settings &#9656; VTT features</b>): off for the campaign, nobody rolls at that table and the roller is hidden. At a table a player may switch it <b>off for themselves</b>: their roller and dice sound go, the cards still show. Table chat clears when a session ends or a new one starts.</li>
+                      </ul>
+                  </div>
                   <div class="help-pane" data-pane="keys" style="display:none;">
                       <h4>Mouse</h4>
                       <ul>
@@ -1207,6 +1240,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Ambient loops and one-shot cues from the &#127925; Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library and its files are kept. Set per campaign; in a session, this campaign's setting is the most your players hear.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
+            <div class="set-vtt-row" data-vtt="dice" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Dice <span id="setDiceState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setDiceBtn" style="width:100%;">Toggle Dice</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Rolls at the table: /roll in Table Chat and the &#127922; roller beside it; the GM's machine makes every roll and everyone sees the same card, kept in the session log. Off hides the roller and nobody rolls at this campaign's table. Set per campaign; in a session, this campaign's setting is the most your players get.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
             </div>
             </div>
             <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
@@ -1231,6 +1270,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Sound <span id="setVttGlobalSoundState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalSoundBtn" style="width:100%;">Toggle Default Sound</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Dice <span id="setVttGlobalDiceState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalDiceBtn" style="width:100%;">Toggle Default Dice</button>
                 </div>
                 <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
             </div>
@@ -1298,7 +1341,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setSnapNowBtn" title="Copy the save as it is right now into saves/backups. Kept until you delete it.">Snapshot the Save Now</button>
-            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, panel sizes, folded sections, the VTT default for new campaigns, your per-table VTT choices, the sound volumes, the Sound panel's position and any bundled sounds you hid) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, panel sizes, folded sections, the VTT default for new campaigns, your per-table VTT choices, the sound volumes, the Sound panel's position, any bundled sounds you hid and the dice-sound switch) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
             </div>
                 <div style="margin-top:14px;">
                 <div class="set-field-label">Snapshots of the save</div>
@@ -1409,7 +1452,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:640px; max-width:94vw; height:80vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Session Log <button id="sessionLogClose" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-            <select id="sessionLogKind" class="field" style="flex:1;"><option value="">Everything</option><option value="session">Sessions</option><option value="player">Players</option><option value="handout">Handouts</option><option value="travel">Travel</option><option value="chat">Chat</option><option value="share">Shares</option><option value="table">Table (pause, travel lock)</option></select>
+            <select id="sessionLogKind" class="field" style="flex:1;"><option value="">Everything</option><option value="session">Sessions</option><option value="player">Players</option><option value="handout">Handouts</option><option value="travel">Travel</option><option value="chat">Chat</option><option value="dice">Dice</option><option value="share">Shares</option><option value="table">Table (pause, travel lock)</option></select>
             <button class="tool ghost" id="sessionLogSave" title="Save the whole log as a text file">Save as text</button>
             <button class="tool ghost danger" id="sessionLogClear" title="Empty the log (asks first)">Clear</button>
         </div>
@@ -1503,6 +1546,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
 </div>
 
+<!-- Dice (1.5.0): the roller beside Table Chat; the wire is net.js, the card and the panel dice.js -->
+<div id="dicePanel" style="display:none;">
+    <div class="dice-head"><span class="notepad-title">&#127922; Roll</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="diceHelpBtn" title="The dice syntax (Help &#9656; Dice)">?</button><button class="tool ghost notepad-btn" id="diceCloseBtn" title="Close">&times;</button></div>
+    <input type="text" id="diceExpr" class="field" placeholder="2d6 + 3 &middot; d20 + 5 >= 16 &middot; 4d6kh3" spellcheck="false" autocomplete="off" maxlength="300" title="A formula: dice like 2d6, modifiers like kh3 or !, checks like >= 16. Enter rolls; the up arrow brings back your last rolls.">
+    <div class="dice-quick"><button data-die="d4">d4</button><button data-die="d6">d6</button><button data-die="d8">d8</button><button data-die="d10">d10</button><button data-die="d12">d12</button><button data-die="d20">d20</button><button data-die="d100">d100</button><button data-op="+">+</button><button data-op="-">&minus;</button></div>
+    <div id="diceErr" class="dice-err" style="display:none;"></div>
+    <div class="dice-row"><label id="dicePrivLbl"><input type="checkbox" id="dicePriv"> <span id="dicePrivText">Private</span></label><label title="Play the bundled Dice cue on this machine on every roll"><input type="checkbox" id="diceSoundChk"> Sound</label><span style="flex:1;"></span><button class="tool" id="diceRollBtn" title="Roll (Enter)">Roll</button></div>
+</div>
 <div id="chatPanel" style="display:none; position:fixed; bottom:20px; right:20px; width:320px; max-height:420px; z-index:90000; background:var(--panel2); border:1px solid var(--gold); border-radius:10px; box-shadow:var(--shadow); flex-direction:column;">
     <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--edge);">
         <span style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Table Chat</span>
@@ -1512,7 +1563,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="padding:8px; border-top:1px solid var(--edge); display:flex; flex-direction:column; gap:6px;">
         <select id="chatTo" style="display:none; width:100%; box-sizing:border-box;"><option value="">Everyone</option></select>
         <div style="display:flex; gap:6px;">
-            <input type="text" id="chatInput" placeholder="Message..." style="flex:1; box-sizing:border-box;">
+            <input type="text" id="chatInput" placeholder="Message... (or /roll 2d6 + 3)" style="flex:1; box-sizing:border-box;">
+            <button class="tool ghost icon" id="diceBtn" title="Roll dice &mdash; or type /roll 2d6 + 3 in the box">&#127922;</button>
             <button class="tool" id="chatSendBtn">Send</button>
         </div>
     </div>

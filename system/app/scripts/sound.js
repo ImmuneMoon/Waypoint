@@ -104,10 +104,10 @@ function stopAmbient(fadeMs) {
     if (ctx) ramp(old.gain, 0.0001, sec); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, sec * 1000 + 100);
     emit(); streamPost();
 }
-function playCue(entry, gainOverride) {
+function playCue(entry, gainOverride, quiet) {
     return bufferFor(entry).then(function(rec) {
         var a = ac(); if (!a) return;
-        if (a.state === 'suspended') { showGate(); return; }   // a cue older than the gate is dropped, only the loop waits
+        if (a.state === 'suspended') { if (!quiet) showGate(); return; }   // a cue older than the gate is dropped, only the loop waits; a quiet cue never raises the gate
         while (cues.length >= LIMITS.overlap) { var oldest = cues.shift(); try { oldest.src.stop(); } catch (e) {} }
         var g = a.createGain(); g.gain.value = Math.max(0.0001, gainOverride !== undefined && isClient() ? gainOverride * (muted ? 0 : local) : effGain(entry)); g.connect(a.destination);
         var src = a.createBufferSource(); src.buffer = rec.buffer; src.connect(g);
@@ -428,6 +428,15 @@ listeners.push(function() { renderInd(); syncPanelState(); });
 document.addEventListener('DOMContentLoaded', function() { renderInd(); });
 setTimeout(renderInd, 0);
 
+// A bundled default on THIS machine only (the dice cue on a roll): by id from the local manifest, never the host's list, never a
+// wire cue, never the autoplay gate; silent when Sound is off here or the default is missing.
+function localCue(id) {
+    if (!featureOn()) return Promise.resolve(false);
+    return defaultsLoaded.then(function() {
+        var d = Object.prototype.hasOwnProperty.call(defaults, id) ? defaults[id] : null; if (!d) return false;
+        return playCue({ id: id, def: true, name: d.name, path: 'assets/sounds/' + d.file, kind: 'cue', gain: 1, size: 0, dur: d.dur }, 1, true).then(function() { return true; });
+    }).catch(function() { return false; });
+}
 window.wpSound = {
     play: function(idOrEntry, opts) { var e = typeof idOrEntry === 'string' ? entryById(idOrEntry) : idOrEntry; if (!e) return false; if (e.kind === 'loop') (isHost() ? hostPlayAmbient : playAmbient)(e); else (isHost() ? hostCue : playCue)(e); return true; },
     stop: function(what, fade) { if (what === 'ambient' || what === undefined) { if (isHost()) hostStopAmbient(); else stopAmbient(fade); } else stopAll(fade); },
@@ -435,5 +444,6 @@ window.wpSound = {
     now: status, onChange: function(fn) { listeners.push(fn); }, refresh: refresh,
     listMessage: listMessage, onList: onList, onCue: onCue, onSnapshot: onSnapshot, tableLeft: tableLeft, sessionEnded: sessionEnded, foreign: foreign,
     openPanel: openPanel, closePanel: closePanel, openLib: openLib, defaults: function() { return defaults; }, LIMITS: LIMITS,
-    addFiles: uploadFiles   // the library's upload path, for the sandbox harness (a FileList or an array of File)
+    addFiles: uploadFiles,  // the library's upload path, for the sandbox harness (a FileList or an array of File)
+    local: localCue
 };

@@ -388,7 +388,7 @@ function tutorialHandbookPage() {
 }
 
 function tutorialCampaign() { return state.appState.campaigns[TUTORIAL_CAMP_ID] || null; }
-function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true } }; }
+function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true } }; }
 // A session is exactly one campaign: opening, rebuilding or discarding the Tutorial while hosting is a campaign switch,
 // so it asks first and ends the session on yes (net.js guardCampaignSwitch). Off a session it simply runs.
 function guardSwitch(switching, fn) { if (switching && window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn); else fn(); }
@@ -515,12 +515,15 @@ var STEPS = [
     { target: '#searchMapsSidebarBtn', title: 'Finding things',
       html: 'The search buttons beside Planners and Maps filter their lists. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
     { target: '#netBtn', title: 'Multiplayer',
-      html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden.' },
+      html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden. Dice roll from Table Chat: <b>/roll 2d6 + 3</b>, or the &#127922; roller beside the message box (next).' },
+    { target: '#diceBtn', title: 'Dice',
+      html: 'Roll from <b>Table Chat</b>: type <b>/roll 2d6 + 3</b>, or open this roller &mdash; quick dice buttons, <kbd>Enter</kbd> to roll, <kbd>&uarr;</kbd> for your last rolls. At a table the GM&rsquo;s machine makes every roll and everyone sees the same card: every die, what was kept or dropped, the total or the check&rsquo;s margin. <b>Private</b> keeps a roll to yourself (a player&rsquo;s goes to the GM), and every table roll lands in the session log. The full syntax is in Help &#9656; Dice. Dice is a VTT feature, per campaign.',
+      before: function() { var cp = document.getElementById('chatPanel'); if (cp && cp.style.display === 'none') { var cb = document.getElementById('chatBtn'); if (cb) cb.click(); } } },
     { target: '#settingsBtn', title: 'Settings',
       html: 'Your name and table picture, light or dark theme, measurement units, rulers and grid opacity, the <b>VTT features</b> (next), journal options and updates. Table settings travel with your saves folder.',
-      before: function() { closeSettingsForTour(); } },
+      before: function() { closeSettingsForTour(); var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); } },
     { target: '#setVttCampBlock', title: 'VTT features, per campaign',
-      html: '<b>Token elevation</b>, <b>Token posture</b>, the <b>Minimap</b> and <b>Sound</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
+      html: '<b>Token elevation</b>, <b>Token posture</b>, the <b>Minimap</b>, <b>Sound</b> and <b>Dice</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
       before: function() { openSettingsForTour(); } },
     { target: '#helpBtn', title: 'Help is always here',
       html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.',
@@ -627,6 +630,7 @@ function endTour() {
     if (tour.overlay) tour.overlay.style.display = 'none';
     document.body.classList.remove('tour-on');
     closeSettingsForTour();   // the VTT step may have left Settings open
+    var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
 }
 
 /* ---------- Help → Tutorial pane wiring ---------- */

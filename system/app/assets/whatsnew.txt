@@ -15,6 +15,16 @@ Handbook
   drag a picture to nudge it and its corner to resize it (one undo step per
   drag). A page flows like a web page: a player's narrower window, the print
   path and the HTML export reflow the same content.
+- Import and export: a Markdown file (with its pictures picked alongside, or
+  zipped with them; Google Docs' Markdown export works as is) becomes a planner
+  or a handbook page — Import… in the planner toolbar appends to the open
+  document, the file button in the Planners and Handbook headers makes a new
+  one, and the header Import button takes .md files and zips too. A preview
+  lists every block (flip a type, untick a block) and nothing is written until
+  you press Import: one undo step, Cancel leaves nothing behind. Save Markdown
+  on the Export menu writes any planner or page back out (a zip when it has
+  pictures), and Help ▸ Handbook ▸ Import and export holds the format with a
+  template to download.
 - Players at your table receive the pages you leave on "Players can read"
   (the default; the switch is in the planner toolbar and the page's right-click
   menu) and read them from a Handbook tree of their own — the only section of

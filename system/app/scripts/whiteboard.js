@@ -3157,6 +3157,14 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && pv.style.display !== 'none') { e.stopPropagation(); closeImgPreview(); } }, true);
   })();
 
+  // One upload for every picture that enters the app from the renderer — the play-map drop, the planner's
+  // Upload button and the Markdown importer: resolves to the /saves/images/… URL, rejects on failure.
+  function uploadBlob(mapId, name, blob) {
+      if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return Promise.reject(new Error('not while at someone else\'s table'));
+      return fetch('/api/upload?mapId=' + encodeURIComponent(mapId) + '&filename=' + encodeURIComponent(name || 'picture.png'), { method: 'POST', body: blob })
+          .then(function(res) { return res.json(); }).then(function(d) { if (!d || !d.url) throw new Error('upload failed'); return d.url; });
+  }
+  window.wpUploadBlob = uploadBlob;
   function uploadImageFile(f, cx, cy) {
 
       if(!f || !f.type.startsWith('image/')) return;
@@ -3165,13 +3173,9 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
 
       toast('Uploading image...');
 
-      fetch('/api/upload?mapId=' + encodeURIComponent(getActiveCampaign().activeItemId) + '&filename=' + encodeURIComponent(f.name), {
+      uploadBlob(getActiveCampaign().activeItemId, f.name, f)
 
-          method: 'POST', body: f
-
-      })
-
-      .then(res => res.json())
+      .then(url => ({ url: url }))
 
       .then(data => {
 

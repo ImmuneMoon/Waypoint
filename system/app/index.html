@@ -76,6 +76,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/stream.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
+<script type="module" src="scripts/docimport.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/devconsole.js"></script>
 <script src="scripts/tooltips.js"></script>
@@ -126,6 +127,7 @@ window.addEventListener('unhandledrejection', function(e) {
           <div class="menu-item" id="exportImgBtn" title="Export current view as PNG">&#128444;&#65039; Save as Image</div>
           <div class="menu-item" id="exportPdfBtn" title="Export as PDF / Print">&#128196; Save PDF</div>
           <div class="menu-item" id="exportHtmlBtn" title="Export as HTML">&#127760; Save HTML</div>
+          <div class="menu-item" id="exportMdBtn" title="The open planner or handbook page as Markdown (its pictures bundled in a .zip)">&#128221; Save Markdown</div>
           <div class="menu-divider"></div>
           <div class="menu-item" id="exportItemBtn" title="Just the open map or planner (its images come along in a .zip)">&#128190; Export This Map</div>
           <div class="menu-item" id="exportMapsBtn" title="Every map in this campaign, data + play map, with images">&#128506;&#65039; Export All Maps</div>
@@ -138,7 +140,8 @@ window.addEventListener('unhandledrejection', function(e) {
         </div>
       </div>
       <button class="tool ghost" id="importBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Import </button>
-      <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed" hidden>
+      <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed,.md,.markdown,text/markdown,.txt,text/plain" hidden>
+     <input type="file" id="docImportFile" accept=".md,.markdown,.txt,.zip,image/*" multiple hidden>
       <div class="header-sep"></div>
       <button class="tool" id="updateBtn" style="display:none;" title="A newer Waypoint is available — click to update"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM16 12l-4-4-4 4M12 16V8"/></svg> Update </button>
       <div class="hdr-group" data-label="Table">
@@ -377,6 +380,8 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Inside a text field, <kbd>Ctrl + Z</kbd> is first the browser's own text undo (your typing, character by character). Once that field has nothing left to take back &mdash; nothing typed in it since the page was last rebuilt &mdash; the same key reaches the planner's history. Outside a field it always does.</li>
                           <li><b>Not undoable:</b> renaming, re-ordering, re-parenting, the scene status, creating a page, and deleting one. Deleting takes a <b>safety copy</b> of your save first (Settings &rarr; Advanced &rarr; Snapshots), so nothing is lost for good.</li>
                       </ul>
+                      <h4>Import and export</h4>
+                      <p>A planner can come in from a <b>Markdown</b> file &mdash; <b>Import&hellip;</b> in the planner toolbar appends to the open planner, the file button beside <b>+</b> in the Planners header makes a new one, and the header <b>Import</b> button takes a <code>.md</code> too &mdash; with a preview of every block before anything is written; <code>### Scene: Name</code> opens a scene node. <b>Save Markdown</b> on the Export menu writes it back out. The format is under <b>Handbook &rsaquo; Import and export</b>.</p>
                       <div class="help-tip">Diagram blocks render with an internet connection. In multiplayer, planners are never sent to players &mdash; they are yours alone. For pages your players <i>can</i> read, see <b>Handbook</b>.</div>
                   </div>
 
@@ -400,6 +405,33 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Spanning all columns keeps a block in the flow, so the float control switches off while span is on.</li>
                           <li>Inside a two- or three-column section a callout or flare cannot float and keeps at least half the column: a third of a narrow column is a few dozen pixels.</li>
                           <li>A large upward nudge on a floated picture can overlap the text above it; the preview shows exactly what players get, so look before you leave it.</li>
+                      </ul>
+                      <h4 id="helpMdGuide">Import and export</h4>
+                      <p>A page or a planner can come in from a <b>Markdown</b> file and go back out as one. Three ways in: <b>Import&hellip;</b> in the planner toolbar appends to the open document; the file button beside <b>+</b> in the Planners and Handbook headers makes a new one; the header <b>Import</b> button takes a <code>.md</code> (or a zip that holds one) and asks which it becomes. Pictures come along when you pick them together with the file, or zip the file with its <code>images</code> folder; Google Docs&rsquo; <b>File &rsaquo; Download &rsaquo; Markdown</b> embeds them and works as is. A preview lists every block first &mdash; flip a type, untick what you don&rsquo;t want &mdash; and nothing is written until you press Import (one undo step). <b>Save Markdown</b> on the Export menu writes the open planner or page back out, as a zip when it has pictures. Word users: export to Markdown first (Google Docs does it directly).</p>
+                      <pre class="help-code" style="font-size:12px; line-height:1.45; white-space:pre-wrap;">---
+title: House rules              # the title (else the first heading, else the file name)
+subtitle: What the table agreed on
+players: true                   # pages; planners use status: next | played | skipped
+---
+# House rules                   # ONE of these = the title; an *italic-only* line under it = subtitle
+&gt; [!lede] A short, large introduction.
+## At the table {cols=2}        # each ## is a section; {cols=2} or {cols=3} on a page
+Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt;/u&gt;, `code`,
+[links](https://example.com), - bullets, 1. numbers (nest two spaces in).
+### Sub-heading                 # a page; in a planner "### Scene: Name" opens a scene node
+&gt; A plain quote is a callout.   &gt; [!flare] / &gt; [!oneline] / ::: type &hellip; ::: pick the others
+**Travel pace**                 # a bold line right above a table is its title
+| Pace | Per hour | Effect |    # first row = headers, at most 8 columns, plain text in cells
+|------|----------|--------|
+![The basement](images/map.jpg){width=33 float=right dx=0 dy=0}   # span takes every column
+```flowchart / ```mermaid / other ```code   # a builder flowchart (simple subset), a diagram, code
+---                             # a line on a page; ends the text block in a planner</pre>
+                      <p style="margin-top:6px;"><button class="tool ghost" id="helpMdTemplateBtn" title="Save handbook-template.md, a page in this format to start from">&#128190; Download the template</button></p>
+                      <ul>
+                          <li>Everything between two headings becomes <b>one</b> text block; a rule (<code>---</code>) splits it.</li>
+                          <li>Raw HTML in a file never becomes a raw block: the tags a page allows (bold, italic, underline, lists, links to http(s)) survive, the rest is dropped and its text kept.</li>
+                          <li>Scene nodes are planner-only: <code>### Scene: The docks</code> with <code>**Tag:**</code>, <code>**Must resolve:**</code> and <code>Map: title / room</code> lines under it, then a table of routes.</li>
+                          <li>Not read: footnotes, task boxes, setext (<code>====</code>) headings, nested quotes, links that are not http(s). Diagrams draw with an internet connection.</li>
                       </ul>
                       <h4>What players see</h4>
                       <p>A joined player's left panel shows only the Handbook tree: the readable pages of your campaign, in your order and nesting. Clicking one opens it in a panel over the map; <kbd>Esc</kbd> or the &times; closes it; the map, tokens and chat keep working beside it. Players cannot edit, rename, move or save a page &mdash; it is a copy that lives only while they are at your table. Pictures on a page reach them the same way play-map images do. Flowcharts render as you arranged them; diagram blocks render with an internet connection, in a stricter mode that ignores link and click directives.</p>
@@ -548,11 +580,11 @@ window.addEventListener('unhandledrejection', function(e) {
   <div class="layout-wrapper">
     <div id="campaignSidebar">
         <div class="sidebar-section">
-            <h3><span class="section-title" data-section="planners" data-label="Planners" title="Collapse/expand this section">&#9662; Planners</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllPlannersBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchPlannersBtn" style="padding:2px 6px; margin:0;" title="Search Planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost" id="newPlannerBtn" style="padding:2px 6px; margin:0;" title="Create new Planner" aria-label="Create new Planner"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
+            <h3><span class="section-title" data-section="planners" data-label="Planners" title="Collapse/expand this section">&#9662; Planners</span> <div style="display:flex; gap:4px;"><button class="tool ghost" id="collapseAllPlannersBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchPlannersBtn" style="padding:2px 6px; margin:0;" title="Search Planners"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost" id="plannerFromFileBtn" style="padding:2px 6px; margin:0;" title="New planner from a Markdown file"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zM14 3v6h6M12 11v7M9 15l3 3 3-3"/></svg></button><button class="tool ghost" id="newPlannerBtn" style="padding:2px 6px; margin:0;" title="Create new Planner" aria-label="Create new Planner"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
             <div id="plannerNavList"></div>
         </div>
         <div class="sidebar-section sb-handbook">
-            <h3><span class="section-title" data-section="handbook" data-label="Handbook" title="Collapse/expand this section">&#9662; Handbook</span> <div style="display:flex; gap:4px;"><button class="tool ghost gm-only" id="collapseAllDocsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchDocsBtn" style="padding:2px 6px; margin:0;" title="Search Pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost gm-only" id="newDocBtn" style="padding:2px 6px; margin:0;" title="Create new Page" aria-label="Create new Page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
+            <h3><span class="section-title" data-section="handbook" data-label="Handbook" title="Collapse/expand this section">&#9662; Handbook</span> <div style="display:flex; gap:4px;"><button class="tool ghost gm-only" id="collapseAllDocsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchDocsBtn" style="padding:2px 6px; margin:0;" title="Search Pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button><button class="tool ghost gm-only" id="docFromFileBtn" style="padding:2px 6px; margin:0;" title="New page from a Markdown file"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zM14 3v6h6M12 11v7M9 15l3 3 3-3"/></svg></button><button class="tool ghost gm-only" id="newDocBtn" style="padding:2px 6px; margin:0;" title="Create new Page" aria-label="Create new Page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div></h3>
             <div id="docNavList"></div>
         </div>
         <div class="sidebar-section">
@@ -867,6 +899,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render Preview </button>
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">&#9654; Next</option><option value="played">&#9989; Played</option><option value="skipped">&#9197; Skipped</option></select>
       <button class="tool ghost" id="docPlayersBtn" style="display:none;" title="Whether players at your table receive this page">&#128065; Players can read</button>
+      <button class="tool ghost" id="plannerImportBtn" title="Import a Markdown file (pick its pictures with it, or a zip of both) into this document">&#128229; Import&hellip;</button>
     </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
         <input type="search" id="plannerFind" placeholder="Find (Ctrl+F)" autocomplete="off" spellcheck="false">
         <span id="plannerFindCount"></span>
@@ -1404,6 +1437,19 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
 </div>
 
+<!-- Import a Markdown file into a planner or a handbook page: the preview before anything is written (docimport.js) -->
+<div id="docImportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width:min(640px, 94vw); max-height:88vh; display:flex; flex-direction:column; gap:10px;">
+        <h3 style="margin:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Import document <button class="tool ghost" id="docImportGuide" style="font-size:12px;" title="The Markdown the importer understands, in Help">Formatting guide</button></h3>
+        <p id="docImportSummary" style="color:var(--ink); font-size:13px; margin:0;"></p>
+        <div id="docImportRows" style="overflow-y:auto; flex:1; min-height:80px; max-height:44vh; border:1px solid var(--edge); border-radius:6px; padding:4px;"></div>
+        <div id="docImportNotes" style="max-height:18vh; overflow-y:auto;"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--dim);">Into <select id="docImportTarget" class="tool"></select></label>
+            <span style="display:flex; gap:8px;"><button class="tool ghost" id="docImportCancel">Cancel</button><button class="tool" id="docImportGo">Import</button></span>
+        </div>
+    </div>
+</div>
 <div id="importChoiceModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 380px;">
         <h3 style="margin-top:0; color:var(--gold);">Import Data</h3>

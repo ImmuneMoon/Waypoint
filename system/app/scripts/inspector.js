@@ -888,11 +888,18 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
                         [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((w.front && [0, 90, 180, 270].indexOf(w.front) < 0) ? [[w.front, w.front + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + ((w.front || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
                     html += '<div class="field"><label for="wbFaceMode">Turning</label><select id="wbFaceMode"><option value="art"' + (w.faceMode !== 'arrow' ? ' selected' : '') + '>Art turns with the arrow</option><option value="arrow"' + (w.faceMode === 'arrow' ? ' selected' : '') + '>Arrow only (art stays upright)</option></select></div>';
-                    // Elevation (yards) and posture — only while the viewer toggles are on (Settings → Table)
+                    // Elevation (yards) and posture — only while the campaign's VTT features are on (Settings ▸ VTT features; at a table, the GM's setting and the player's own "off for me")
                     var stanceApi = window.wpStance, elevOnI = !!(stanceApi && stanceApi.on('elevation')), postOnI = !!(stanceApi && stanceApi.on('posture'));
                     if (elevOnI) html += '<div class="field"><label for="wbElev">Elevation <span class="muted">(yards above the ground; a pit is negative)</span></label><input type="number" id="wbElev" step="1" value="' + stanceApi.tokenElevation(w) + '"></div>';
                     if (postOnI) html += '<div class="field"><label for="wbPosture">Posture</label><select id="wbPosture">' + stanceApi.POSTURES.map(function(p) { return '<option value="' + p + '"' + (stanceApi.tokenPosture(w) === p ? ' selected' : '') + '>' + stanceApi.POSTURE_LABEL[p] + '</option>'; }).join('') + '</select></div>';
-                    if (!elevOnI && !postOnI) html += '<div class="muted" style="margin:-4px 0 10px;">Elevation and posture are off &mdash; turn them on in &#9881; Settings &rarr; Table.</div>';
+                    if (!elevOnI && !postOnI) {
+                        var vttI = window.wpVtt, whyE = vttI ? vttI.whyOff('elevation') : 'own', whyP = vttI ? vttI.whyOff('posture') : 'own';
+                        var offNote = (whyE === 'gm' && whyP === 'gm') ? 'The GM has elevation and posture off at this table.'
+                            : (whyE === 'local' && whyP === 'local') ? 'Elevation and posture are off for you at this table &mdash; &#9881; Settings &#9656; VTT features.'
+                            : (whyE === 'own' && whyP === 'own') ? 'Elevation and posture are off for this campaign &mdash; turn them on in &#9881; Settings &#9656; VTT features.'
+                            : 'Elevation and posture are off at this table &mdash; one by the GM, one by you (&#9881; Settings &#9656; VTT features).';
+                        html += '<div class="muted" style="margin:-4px 0 10px;">' + offNote + '</div>';
+                    }
                     html += '<div class="field"><label for="wbStatus">Condition</label><select id="wbStatus"><option value=""' + (!w.status ? ' selected' : '') + '>Alive</option><option value="down"' + (w.status === 'down' ? ' selected' : '') + '>Incapacitated (red X)</option><option value="dead"' + (w.status === 'dead' ? ' selected' : '') + '>Dead (skull, darkened)</option></select></div>';
                     // Multiplayer ownership: known players from this campaign + anyone connected now
                     var playersKnown = {};

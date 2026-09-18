@@ -15,11 +15,12 @@ var wb = document.getElementById('whiteboard');
 var _lastMeasureMapId = null;
 
 /* ---- token stance: elevation (yards) + posture (handbook ch. 9) ----
-   Two viewer toggles (Settings → Table: wp_elevation / wp_posture, both ON from first launch)
-   decide whether the chips draw and whether the blast template measures in 3D. The
-   values stay on the token either way, so switching a toggle back on restores them.
-   In a session the GM's toggles govern the player copy: net.stance arrives with the
-   snapshot and again whenever the GM flips one. */
+   Two VTT features (Settings ▸ VTT features, set per campaign — camp.vtt — and on from the
+   first launch) decide whether the chips draw and whether the blast template measures in 3D.
+   The values stay on the token either way, so switching a feature back on restores them.
+   In a session the GM's campaign settings are the ceiling for the player copy: they arrive
+   with the snapshot and again whenever the GM flips one, and a player may switch a feature
+   off for themselves on top. stanceOn delegates to the one gate, window.wpVtt.on (vtt.js). */
 // The ids are the website's (shadow-base.com details.posture); the 1.4.6 pre-release ids
 // prone / supine and the handbook's long names are still accepted on read.
 var POSTURES = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'];
@@ -39,9 +40,9 @@ function normalizePosture(v) {
 function tokenElevation(it) { var e = Number(it && it.elevation); return isFinite(e) ? e : 0; }
 function tokenPosture(it) { return normalizePosture(it && it.posture); }
 function stanceOn(which) {   // 'elevation' | 'posture'
-    var n = window.wpNet;
-    if (n && n.active && n.role === 'client' && n.stance) return !!n.stance[which];
-    try { return localStorage.getItem('wp_' + which) !== 'off'; } catch (e) { return true; }   // on until switched off
+    var v = window.wpVtt;
+    if (v) return v.on(which);
+    try { return localStorage.getItem('wp_' + which) !== 'off'; } catch (e) { return true; }   // vtt.js absent: the 1.4.6 keys, on until switched off
 }
 function setTokenElevation(it, v) { v = Math.round(Number(v) * 10) / 10; if (!isFinite(v) || v === 0) delete it.elevation; else it.elevation = Math.max(-999, Math.min(999, v)); }
 function setTokenPosture(it, v) { v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v; }
@@ -729,7 +730,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (stEl) stEl.remove();
           el.classList.toggle('tok-dead', stv === 'dead');
           el.classList.toggle('tok-down', stv === 'down');
-          // Stance chips (Settings → Table toggles): a small row at the bottom of the token,
+          // Stance chips (Settings ▸ VTT features, per campaign): a small row at the bottom of the token,
           // inside its own cell so one-token-per-hex still reads at grid scale.
           var elevV = item.isChar && stanceOn('elevation') ? tokenElevation(item) : 0;
           var postV = item.isChar && stanceOn('posture') ? tokenPosture(item) : 'standing';
@@ -2576,7 +2577,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var ftIn = document.getElementById('blastFt'); if (ftIn && document.activeElement !== ftIn) ftIn.value = ft;
       var elIn = document.getElementById('blastElev'); if (elIn && document.activeElement !== elIn) elIn.value = b ? (b.elev || 0) : 0;
       var elRow = document.getElementById('blastElevRow'); if (elRow) elRow.style.display = stanceOn('elevation') ? '' : 'none';
-      var flat = document.getElementById('blastFlatNote'); if (flat) flat.style.display = stanceOn('elevation') ? 'none' : '';
+      var flat = document.getElementById('blastFlatNote');
+      if (flat) {
+          flat.style.display = stanceOn('elevation') ? 'none' : '';
+          var why = window.wpVtt ? window.wpVtt.whyOff('elevation') : 'own';   // whose setting keeps it flat
+          flat.textContent = why === 'gm' ? 'Token elevation is off at this table (the GM\'s setting): flat hex distance.'
+              : why === 'local' ? 'Token elevation is off for you at this table (⚙ Settings ▸ VTT features): flat hex distance.'
+              : 'Token elevation is off for this campaign (⚙ Settings ▸ VTT features): flat hex distance.';
+      }
       var which = document.getElementById('blastWhich'); if (which) which.textContent = b ? 'Changes apply to the last blast placed (' + blasts.length + ' on this map).' : 'Click a cell on the map to place a blast.';
   }
   function setBlastShape(ft, name) {
@@ -3460,7 +3468,9 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           imgLibModal: 'imgLibCloseBtn',
           settingsModal: 'settingsCloseBtn',
           playersModal: 'playersCloseBtn',
-          sheetViewModal: 'sheetViewCloseBtn'
+          sheetViewModal: 'sheetViewCloseBtn',
+          vttNoticeModal: 'vttNoticeKeepBtn',   // the backdrop means "Keep mine"
+          vttPushModal: 'vttPushCancelBtn'
       };
       Object.keys(overlayClose).forEach(function(oid) {
           var overlay = document.getElementById(oid);
@@ -3950,7 +3960,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
       var alpha = 0.55;
 
-      // Viewer's own grid strength (Settings → Table); local only, never synced
+      // Viewer's own grid strength (Settings ▸ Table); local only, never synced
       if (window.wpApplyGridOpacity) window.wpApplyGridOpacity();
 
       if (type === 'square') {

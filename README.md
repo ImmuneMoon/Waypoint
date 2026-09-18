@@ -18,7 +18,7 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 **Assets.** Images dropped on a map are stored under `saves/images/<map>/`. An in-app library lists everything the campaign holds. Portraits and tokens are shared between maps.
 
-**Settings that stay put.** Units, snap, pen, eraser, opacities, minimap, rulers, and panel layout are remembered, and mirrored into `saves/preferences.json` so they follow the campaign folder rather than one machine.
+**Settings that stay put.** Units, snap, pen, eraser, opacities, rulers, and panel layout are remembered, and mirrored into `saves/preferences.json` so they follow the campaign folder rather than one machine. The VTT features (token elevation, token posture, the minimap) are set per campaign and live in the save itself; only your default for new campaigns is a preference.
 
 ## Installing (players and GMs)
 

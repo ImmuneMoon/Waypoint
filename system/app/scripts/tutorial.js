@@ -54,6 +54,7 @@ function buildTutorialCampaign() {
     var A = TUTORIAL_ART_URL;                       // copies of the shipped art in the saves folder (see installTutorialArt)
     var camp = createNewCampaign(TUTORIAL_NAME);
     camp.id = TUTORIAL_CAMP_ID;
+    camp.vtt = tutorialVtt();   // every VTT feature on: the tour points at chips and the minimap, so they must render
     // Hex-cell items sit on the flat-top lattice (cell centres x = 45q + 15, y = 52(r + q/2)); the same
     // rounding the app's own seating uses, so nothing needs re-seating on load.
     function hexCentre(x, y) {
@@ -367,6 +368,11 @@ function buildTutorialCampaign() {
 }
 
 function tutorialCampaign() { return state.appState.campaigns[TUTORIAL_CAMP_ID] || null; }
+function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true } }; }
+// A session is exactly one campaign: opening, rebuilding or discarding the Tutorial while hosting is a campaign switch,
+// so it asks first and ends the session on yes (net.js guardCampaignSwitch). Off a session it simply runs.
+function guardSwitch(switching, fn) { if (switching && window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn); else fn(); }
+function hosting() { var n = window.wpNet; return !!(n && n.active && n.role === 'host'); }
 
 // Creates the Tutorial campaign (or rebuilds it when asked) and makes it active
 function ensureTutorialCampaign(rebuild) {
@@ -376,6 +382,7 @@ function ensureTutorialCampaign(rebuild) {
         state.appState.campaigns[TUTORIAL_CAMP_ID] = camp;
         resetHistory(TUTORIAL_CAMP_ID);   // fixed ids: no stack from an earlier copy may attach to the fresh one
     }
+    if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);
@@ -388,6 +395,7 @@ function discardTutorialCampaign(done) {
     if (!camp) { toast('There is no Tutorial campaign to discard.'); if (done) done(false); return; }
     showConfirm('Discard the Tutorial campaign? Everything in it is deleted — including anything you built on top of it. This cannot be undone (a safety copy is taken first).', function(yes) {
         if (!yes) { if (done) done(false); return; }
+        guardSwitch(hosting() && state.appState.activeCampaignId === TUTORIAL_CAMP_ID, function() {   // discarding the hosted campaign moves the app onto another
         takeSafetyCopy().then(function() {   // a campaign delete: the safety copy first, then the stacks go with it
             delete state.appState.campaigns[TUTORIAL_CAMP_ID];
             resetHistory(TUTORIAL_CAMP_ID);
@@ -405,6 +413,7 @@ function discardTutorialCampaign(done) {
             toast('Tutorial campaign discarded.');
             if (done) done(true);
         });
+        });
     });
 }
 
@@ -412,6 +421,22 @@ function discardTutorialCampaign(done) {
 // Each step: target (selector or null for a centred card), title, html, before() to put the
 // app in the right state first. Targets are ids from index.html wherever possible.
 function goView(mode) { var b = document.querySelector('#viewModeSelect .seg-btn[data-mode="' + mode + '"]'); if (b && !b.classList.contains('active')) b.click(); }
+// The VTT step spotlights a block inside Settings: open the modal with the group unfolded, and put the group's
+// remembered fold back when the tour moves on (either way) or ends. The spotlight sits above the modal.
+var _vttGroupWas = null;
+function vttGroup() { return document.querySelector('#settingsModal details.set-group[data-group="vtt"]'); }
+function openSettingsForTour() {
+    var sb = document.getElementById('settingsBtn'); if (sb) sb.click();   // syncs the panel and shows the modal
+    var g = vttGroup(); if (!g) return;
+    if (_vttGroupWas === null) { var saved = null; try { saved = JSON.parse(localStorage.getItem('wp_setGroups') || 'null'); } catch (e) {} _vttGroupWas = !!(saved && saved.vtt); }
+    g.open = true;
+}
+function closeSettingsForTour() {
+    var m = document.getElementById('settingsModal'); if (m) m.style.display = 'none';
+    if (_vttGroupWas === null) return;
+    var g = vttGroup(); if (g) g.open = _vttGroupWas;   // the toggle listener rewrites wp_setGroups
+    _vttGroupWas = null;
+}
 function openItem(id) { var camp = getActiveCampaign(); if (!camp || !camp.items[id]) return; if (camp.items[id].type === 'map') navigateToMap(id); else { camp.activeItemId = id; state.selId = null; state.selWbId = null; state.selWbIds = []; updateSidebarNav(); render(); } }
 function openLeft() { var sb = document.getElementById('campaignSidebar'); if (sb && sb.classList.contains('collapsed')) { var t = document.getElementById('toggleLeftBtn'); if (t) t.click(); } }
 
@@ -438,7 +463,7 @@ var STEPS = [
       html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, <b>undo and redo for this map</b> (every map and planner keeps its own history — <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back the last edit on the one you are looking at, never a pan, a click or another map), then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, and <b>Import Character</b> for a shadow-base.com sheet. <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i> <b>Framing &amp; panning:</b> the &#127919; centre button includes <b>Fit to Content</b> (<kbd>Shift</kbd>+<kbd>1</kbd>) to zoom-and-pan the whole map into view &mdash; or just your selection when something is selected; hold <kbd>Space</kbd> and drag to pan from any tool, and middle-drag or the hand tool pan too.',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
-      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both live in Settings \u2192 Table. In a session a player can right-click <i>their own</i> token for the same rows, and your switches decide what they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click a token and <b>Save to Campaign Cast</b> keeps a copy you can drop again from the play map\'s right-click menu, one at a time, or several at once with the \u00d7 box in the flyout.',
+      html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both are VTT features, set per campaign in Settings \u25b8 VTT features. In a session a player can right-click <i>their own</i> token for the same rows, and your campaign\'s settings are the most they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click a token and <b>Save to Campaign Cast</b> keeps a copy you can drop again from the play map\'s right-click menu, one at a time, or several at once with the \u00d7 box in the flyout.',
       before: function() { openItem('map_tut_ground'); goView('visual'); } },
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
       html: '<b>The Inn</b> runs on a <b>square grid</b>: 50 px cells over a drawn tavern whose own squares line up with them, and the tokens are square pictures that fill one cell each. Drag one with Snap on and it seats in a cell; <b>&#8862; Fit to grid</b> in the selection toolbar sizes any selection to whole cells on either grid type. The square at the door is a trigger zone. Pick the grid per map with the grid button \u2014 the city map above uses none at all.',
@@ -462,11 +487,16 @@ var STEPS = [
     { target: '#searchMapsSidebarBtn', title: 'Finding things',
       html: 'The search buttons beside Planners and Maps filter their lists. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
     { target: '#netBtn', title: 'Multiplayer',
-      html: 'Host a table from here: players join with a room code, follow the map you are on, move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items. Pause, whisper, summon, run combat and hand out handouts from the same place.' },
+      html: 'Host a table from here: players join with a room code, follow the map you are on, move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden.' },
     { target: '#settingsBtn', title: 'Settings',
-      html: 'Your name and table picture, light or dark theme, measurement units, the minimap and rulers, the <b>Token elevation</b> and <b>Token posture</b> switches, journal options and updates. Table settings travel with your saves folder.' },
+      html: 'Your name and table picture, light or dark theme, measurement units, rulers and grid opacity, the <b>VTT features</b> (next), journal options and updates. Table settings travel with your saves folder.',
+      before: function() { closeSettingsForTour(); } },
+    { target: '#setVttCampBlock', title: 'VTT features, per campaign',
+      html: '<b>Token elevation</b>, <b>Token posture</b> and the <b>Minimap</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
+      before: function() { openSettingsForTour(); } },
     { target: '#helpBtn', title: 'Help is always here',
-      html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.' },
+      html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.',
+      before: function() { closeSettingsForTour(); } },
     { target: null, title: 'That\'s the tour', finish: true,
       html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Default</b> until you delete them there.' }
 ];
@@ -553,19 +583,22 @@ function next(dir) { show(tour.i + dir, dir); }
 
 function startTour() {
     if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
-    ensureDom();
-    try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
-    var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
-    tour.active = true;
-    tour.overlay.style.display = 'block';
-    document.body.classList.add('tour-on');
-    show(0, 1);
+    guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the tour opens the Tutorial campaign
+        ensureDom();
+        try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
+        var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
+        tour.active = true;
+        tour.overlay.style.display = 'block';
+        document.body.classList.add('tour-on');
+        show(0, 1);
+    });
 }
 function endTour() {
     if (!tour.active) return;
     tour.active = false; tour.i = -1;
     if (tour.overlay) tour.overlay.style.display = 'none';
     document.body.classList.remove('tour-on');
+    closeSettingsForTour();   // the VTT step may have left Settings open
 }
 
 /* ---------- Help → Tutorial pane wiring ---------- */
@@ -582,11 +615,15 @@ function syncPane() {
 }
 (function wire() {
     var s = document.getElementById('tourStartBtn'); if (s) s.addEventListener('click', startTour);
-    var o = document.getElementById('tourOpenBtn'); if (o) o.addEventListener('click', function() { ensureTutorialCampaign(false); var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none'; toast('Tutorial campaign opened.'); });
+    var o = document.getElementById('tourOpenBtn'); if (o) o.addEventListener('click', function() {
+        guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() { ensureTutorialCampaign(false); var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none'; toast('Tutorial campaign opened.'); });
+    });
     var r = document.getElementById('tourRebuildBtn'); if (r) r.addEventListener('click', function() {
         showConfirm('Rebuild the Tutorial campaign from scratch? Anything you added to it is lost (a safety copy is taken first).', function(yes) {
             if (!yes) return;
-            takeSafetyCopy().then(function() { ensureTutorialCampaign(true); syncPane(); toast('Tutorial campaign rebuilt.'); });   // a rebuild replaces the campaign: the safety copy first, like the discard
+            guardSwitch(hosting(), function() {   // a rebuild replaces the campaign and opens it: a switch while hosting either way
+                takeSafetyCopy().then(function() { ensureTutorialCampaign(true); syncPane(); toast('Tutorial campaign rebuilt.'); });   // the safety copy first, like the discard
+            });
         });
     });
     var d = document.getElementById('tourDiscardBtn'); if (d) d.addEventListener('click', function() { discardTutorialCampaign(function() { syncPane(); }); });

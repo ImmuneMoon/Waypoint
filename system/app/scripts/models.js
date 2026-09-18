@@ -62,7 +62,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       items: {},
 
-      activeItemId: null
+      activeItemId: null,
+
+      // VTT features: a copy of the default for new campaigns (Settings ▸ VTT features), the campaign's own from here on
+      vtt: window.wpVtt ? window.wpVtt.globalVtt() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true } }
 
     };
 

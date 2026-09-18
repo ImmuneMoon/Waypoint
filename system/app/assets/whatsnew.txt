@@ -1,6 +1,35 @@
 WAYPOINT 1.4.9 — What's New
 ============================
 
+VTT settings
+- Token elevation, token posture and the minimap are now VTT features, set
+  per campaign in Settings ▸ VTT features and saved with the campaign — a
+  restore or an import brings a campaign's settings back with it. A VTT
+  integration master switch per campaign turns the whole lot off for the
+  plain whiteboard and keeps the choices for when it goes back on.
+- The same section holds the default for new campaigns. Changing it touches
+  no existing campaign; "Apply to existing campaigns…" copies it onto the
+  ones you tick, nothing pre-ticked. The old Elevation and Posture switches
+  become that default the first time it is read, so nothing flips on update.
+- In a session the GM's campaign is the ceiling: players see at most what the
+  hosted campaign has on, a change mid-session reaches them at once with a
+  short notice, and the Multiplayer panel shows what the table runs with. A
+  player's own elevation or posture edit is accepted only while that feature
+  is on for the campaign.
+- At a table a player can turn a feature the GM has on off for themselves,
+  never on when the GM has it off. The choice is remembered per table and
+  never touches their own defaults or campaigns. On joining a table whose
+  settings differ from your own default, one window lists what is on there
+  but off for you (your own default carries in, so those start off for you:
+  Use the table's settings or Keep mine) and what the GM has off; it shows
+  again only when the GM has changed the settings since you last saw them.
+- One campaign per session: while hosting, anything that would put another
+  campaign on screen — the campaign picker, a search result, Ctrl+K, New or
+  Delete Campaign, Import Replace, the tutorial — asks first and, on yes,
+  ends the session for everyone before switching. Cancel changes nothing.
+- The tour has a step on the VTT features, and Help explains them under
+  Grids & Measuring ▸ VTT settings.
+
 Undo
 - Each map and each planner now has its own undo and redo. Ctrl+Z takes back
   the last edit on the item you are looking at — never a pan, a click, a map
@@ -25,6 +54,10 @@ Undo
   bringing a token over from another map clear both maps' undo at that point.
 
 Fixes
+- A GM's elevation and posture settings now hold on the player's screen
+  through a reconnect gap instead of flickering back on between retries, and
+  a previous table's settings no longer govern your own campaign while you
+  wait for a GM to let you in.
 - After leaving a GM's game, pressing Undo could put the GM's campaign into
   your own save and hide your campaigns. That can no longer happen: Undo does
   nothing while you are in someone's game, and nothing from a game you joined

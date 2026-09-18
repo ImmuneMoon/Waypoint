@@ -497,6 +497,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           if (!existing) {
 
               state.appState.campaigns[ic.id] = ic;
+              if (ic.system && window.wpSystemCore && window.wpFormula) { var nsys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true }); if (nsys) ic.system = nsys; else delete ic.system; }   // character sheets (1.5.0)
 
               Object.keys(ic.items).forEach(function(id) {
                   var it = ic.items[id];
@@ -519,6 +520,11 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           if (ic.name) existing.name = ic.name;
 
+          // the system (character sheets, 1.5.0): the imported one replaces when it is at least as new, cleaned like a file's; preset ids are stable, so values keep their fields
+          if (ic.system && typeof ic.system === 'object' && window.wpSystemCore && window.wpFormula) {
+              var isys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true });
+              if (isys && (!existing.system || (Number(isys.updated) || 0) >= (Number(existing.system.updated) || 0))) existing.system = isys;
+          }
           // the sound index merges by id (1.5.0): an imported entry replaces the same id, new ids are added
           if (ic.sounds && typeof ic.sounds === 'object' && Array.isArray(ic.sounds.list)) {
               var es = existing.sounds && typeof existing.sounds === 'object' && Array.isArray(existing.sounds.list) ? existing.sounds : (existing.sounds = { v: 1, list: [] });

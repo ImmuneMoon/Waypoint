@@ -45,6 +45,10 @@ function inspectCampaign(camp) {
     var maps = 0, rooms = 0, planners = 0, docs = 0, cleanMaps = 0;
     var playersEmpty = !nonEmpty(camp.players);
     STRIPPED.forEach(function(k) { if (k === 'imageCats' ? catsNonEmpty(camp[k]) : k === 'sounds' ? soundsNonEmpty(camp[k]) : nonEmpty(camp[k])) lm.keys++; });   // empty {} comes from read-only UI code and proves nothing
+    if (isObj(camp.system)) {   // character sheets (1.5.0): the system TRAVELS as the players' view, so only a GM-only field or roll is a local mark; an all-visible system proves nothing
+        var sf = Array.isArray(camp.system.fields) ? camp.system.fields : [], sr = Array.isArray(camp.system.rolls) ? camp.system.rolls : [];
+        if (sf.some(function(f) { return isObj(f) && f.vis === 'gm'; }) || sr.some(function(r) { return isObj(r) && r.vis === 'gm'; })) lm.gm++;
+    }
     Object.values(camp.items || {}).forEach(function(m) {
         if (!isObj(m)) return;
         if (m.type === 'doc') { docs++; return; }   // handbook pages travel to players: neither a local mark nor a fingerprint

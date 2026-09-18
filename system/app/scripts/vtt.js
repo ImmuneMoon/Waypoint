@@ -23,7 +23,8 @@ var FEATURES = [
     { id: 'posture',   label: 'Token posture',   legacyKey: 'wp_posture' },
     { id: 'minimap',   label: 'Minimap',         legacyKey: null },         // on unless switched off; no 1.4.6 key
     { id: 'sound',     label: 'Sound',           legacyKey: null },         // 1.5.0: ambient loops and cues at the table
-    { id: 'dice',      label: 'Dice',            legacyKey: null }          // 1.5.0: rolls at the table
+    { id: 'dice',      label: 'Dice',            legacyKey: null },         // 1.5.0: rolls at the table
+    { id: 'sheets',    label: 'Character sheets', legacyKey: null }         // 1.5.0: the system, characters and their sheets
 ];
 var GLOBAL_KEY = 'wp_vtt_global', LOCAL_KEY = 'wp_vtt_local', MAX_TABLES = 50;
 var KEY_RE = /^[A-Za-z0-9_-]{1,160}$/;   // the part of a table key after "t:", and a campaign id in a stance map
@@ -300,6 +301,7 @@ function setLocal(id, off) {
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
     if (window.wpDiceSync) window.wpDiceSync();
+    if (window.wpSheetsSync) window.wpSheetsSync();
     return true;
 }
 
@@ -338,6 +340,7 @@ function joined() {
     if (window.appRender) window.appRender();
     if (window.wpSoundSync) window.wpSoundSync();
     if (window.wpDiceSync) window.wpDiceSync();
+    if (window.wpSheetsSync) window.wpSheetsSync();
     scheduleNotice(key, s);
 }
 function tableChanged(prevCampId) { void prevCampId; joined(); }
@@ -417,6 +420,7 @@ function syncToTable() {
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
     if (window.wpDiceSync) window.wpDiceSync();
+    if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpSettingsSync) window.wpSettingsSync();
     toast(_noticeA.length ? 'Using the table\'s settings for ' + _noticeA.map(labelOf).join(', ') + '.' : 'Using the table\'s settings.');
 }
@@ -450,6 +454,7 @@ function ceilingChanged(prev, campId) {
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
     if (window.wpDiceSync) window.wpDiceSync();
+    if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpSettingsSync) window.wpSettingsSync();
 }
 
@@ -461,6 +466,7 @@ function changed(reason) {
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
     if (window.wpDiceSync) window.wpDiceSync();
+    if (window.wpSheetsSync) window.wpSheetsSync();
     var cm = document.getElementById('contextMenu');
     if (cm && cm.style.display !== 'none' && cm.querySelector('.cm-stance')) cm.style.display = 'none';   // its rows would be stale
     var n = net(); if (n && n.syncStance) n.syncStance();

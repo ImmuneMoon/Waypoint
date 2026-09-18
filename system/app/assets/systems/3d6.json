@@ -1,0 +1,56 @@
+{
+  "v": 1,
+  "name": "Basic 3d6",
+  "preset": "3d6",
+  "updated": 0,
+  "fields": [
+    { "id": "f_st", "key": "ST", "label": "Strength", "kind": "number", "def": 10, "min": 1, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_dx", "key": "DX", "label": "Dexterity", "kind": "number", "def": 10, "min": 1, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_iq", "key": "IQ", "label": "Intelligence", "kind": "number", "def": 10, "min": 1, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_ht", "key": "HT", "label": "Health", "kind": "number", "def": 10, "min": 1, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_hp", "key": "HP", "label": "Hit points", "kind": "resource", "maxFormula": "ST", "def": "max", "min": -50, "edit": "owner", "vis": "all", "hover": true },
+    { "id": "f_fp", "key": "FP", "label": "Fatigue points", "kind": "resource", "maxFormula": "HT", "def": "max", "min": -10, "edit": "owner", "vis": "all", "hover": true },
+    { "id": "f_will", "key": "Will", "label": "Will", "kind": "formula", "formula": "IQ", "vis": "all", "hover": false },
+    { "id": "f_per", "key": "Per", "label": "Perception", "kind": "formula", "formula": "IQ", "vis": "all", "hover": false },
+    { "id": "f_speed", "key": "Speed", "label": "Basic Speed", "kind": "formula", "formula": "(HT + DX) / 4", "vis": "all", "hover": false },
+    { "id": "f_move", "key": "Move", "label": "Basic Move", "kind": "formula", "formula": "floor(Speed)", "vis": "all", "hover": false },
+    { "id": "f_dodge", "key": "Dodge", "label": "Dodge", "kind": "formula", "formula": "floor(Speed) + 3", "vis": "all", "hover": true },
+    { "id": "f_sk_brawl", "key": "Skill.Brawling", "label": "Brawling", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Brawling" },
+    { "id": "f_sk_guns", "key": "Skill.Guns", "label": "Guns", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Guns" },
+    { "id": "f_sk_stealth", "key": "Skill.Stealth", "label": "Stealth", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Stealth" },
+    { "id": "f_sk_firstaid", "key": "Skill.FirstAid", "label": "First aid", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.FirstAid" },
+    { "id": "f_sk_climb", "key": "Skill.Climbing", "label": "Climbing", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Climbing" },
+    { "id": "f_sk_fasttalk", "key": "Skill.FastTalk", "label": "Fast-talk", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.FastTalk" },
+    { "id": "f_sk_pilot", "key": "Skill.Piloting", "label": "Piloting", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Piloting" },
+    { "id": "f_sk_comp", "key": "Skill.Computers", "label": "Computer operation", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Computers" },
+    { "id": "f_sk_lock", "key": "Skill.Lockpicking", "label": "Lockpicking", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Lockpicking" },
+    { "id": "f_sk_search", "key": "Skill.Search", "label": "Search", "kind": "skill", "base": "", "def": 10, "min": 0, "max": 30, "step": 1, "edit": "owner", "vis": "all", "hover": false, "roll": "3d6 <= Skill.Search" },
+    { "id": "f_combatreflexes", "key": "CombatReflexes", "label": "Combat Reflexes", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_luck", "key": "Luck", "label": "Luck", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_fit", "key": "Fit", "label": "Fit", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_stunned", "key": "Stunned", "label": "Stunned", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": true },
+    { "id": "f_traits", "key": "Traits", "label": "Advantages and disadvantages", "kind": "notes", "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_notes", "key": "Notes", "label": "Notes", "kind": "notes", "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_gmnotes", "key": "GMnotes", "label": "GM notes", "kind": "notes", "edit": "gm", "vis": "gm", "hover": false }
+  ],
+  "rolls": [
+    { "id": "r_init", "label": "Initiative (Basic Speed)", "formula": "Speed", "vis": "all", "init": true },
+    { "id": "r_st", "label": "ST check", "formula": "3d6 <= ST", "vis": "all" },
+    { "id": "r_dx", "label": "DX check", "formula": "3d6 <= DX", "vis": "all" },
+    { "id": "r_iq", "label": "IQ check", "formula": "3d6 <= IQ", "vis": "all" },
+    { "id": "r_ht", "label": "HT check", "formula": "3d6 <= HT", "vis": "all" },
+    { "id": "r_will", "label": "Will check", "formula": "3d6 <= Will", "vis": "all" },
+    { "id": "r_per", "label": "Perception check", "formula": "3d6 <= Per", "vis": "all" },
+    { "id": "r_dodge", "label": "Dodge", "formula": "3d6 <= Dodge", "vis": "all" }
+  ],
+  "sheet": {
+    "sections": [
+      { "id": "s_attr", "title": "Attributes", "cols": 4, "fields": [ { "id": "f_st", "w": 1 }, { "id": "f_dx", "w": 1 }, { "id": "f_iq", "w": 1 }, { "id": "f_ht", "w": 1 } ] },
+      { "id": "s_secondary", "title": "Secondary", "cols": 3, "fields": [ { "id": "f_hp", "w": 1 }, { "id": "f_fp", "w": 1 }, { "id": "f_will", "w": 1 }, { "id": "f_per", "w": 1 }, { "id": "f_speed", "w": 1 }, { "id": "f_move", "w": 1 }, { "id": "f_dodge", "w": 1 }, { "roll": "r_init", "w": 1 }, { "roll": "r_dodge", "w": 1 } ] },
+      { "id": "s_skills", "title": "Skills", "cols": 2, "fields": [ { "id": "f_sk_brawl", "w": 1 }, { "id": "f_sk_guns", "w": 1 }, { "id": "f_sk_stealth", "w": 1 }, { "id": "f_sk_firstaid", "w": 1 }, { "id": "f_sk_climb", "w": 1 }, { "id": "f_sk_fasttalk", "w": 1 }, { "id": "f_sk_pilot", "w": 1 }, { "id": "f_sk_comp", "w": 1 }, { "id": "f_sk_lock", "w": 1 }, { "id": "f_sk_search", "w": 1 } ] },
+      { "id": "s_checks", "title": "Checks", "cols": 3, "fields": [ { "roll": "r_st", "w": 1 }, { "roll": "r_dx", "w": 1 }, { "roll": "r_iq", "w": 1 }, { "roll": "r_ht", "w": 1 }, { "roll": "r_will", "w": 1 }, { "roll": "r_per", "w": 1 } ] },
+      { "id": "s_traits", "title": "Advantages", "cols": 4, "fields": [ { "id": "f_combatreflexes", "w": 1 }, { "id": "f_luck", "w": 1 }, { "id": "f_fit", "w": 1 }, { "id": "f_stunned", "w": 1 }, { "id": "f_traits", "w": "row" } ] },
+      { "id": "s_notes", "title": "Notes", "cols": 1, "fields": [ { "id": "f_notes", "w": "row" }, { "id": "f_gmnotes", "w": "row" } ] }
+    ]
+  }
+}

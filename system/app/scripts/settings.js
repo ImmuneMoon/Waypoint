@@ -162,6 +162,16 @@ if (_streamBtn) _streamBtn.addEventListener('click', function() {
     if (!w) { toast('Could not open the window — allow pop-ups for Waypoint.'); return; }
     toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
 });
+// Stream window plays the table's ambient (wp_streamSound, off by default: it usually shares the GM's speakers).
+// The stream window reads the key at load and on the storage event; the ambient itself travels over BroadcastChannel('waypoint').
+var _streamSnd = ui('setStreamSoundChk');
+if (_streamSnd) {
+    try { _streamSnd.checked = localStorage.getItem('wp_streamSound') === 'on'; } catch (e) {}
+    _streamSnd.addEventListener('change', function() {
+        try { localStorage.setItem('wp_streamSound', _streamSnd.checked ? 'on' : 'off'); } catch (e) {}
+        toast(_streamSnd.checked ? 'The stream window plays the table\'s ambient sound.' : 'The stream window is silent.');
+    });
+}
 
 /* Relay server (TURN): the GM's own relay for players who cannot connect directly.
    turn_* keys deliberately sit outside the wp_ prefix so they never mirror into preferences.json. */
@@ -267,7 +277,8 @@ function shortLabel(f) { return cap(f.label.replace('Token ', '')); }
 var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     elevation: ['Elevation on.', 'Elevation off \u2014 chips hidden, the values are kept.'],
     posture: ['Posture on.', 'Posture off \u2014 chips hidden, the values are kept.'],
-    minimap: ['Minimap on.', 'Minimap off for this campaign.']
+    minimap: ['Minimap on.', 'Minimap off for this campaign.'],
+    sound: ['Sound on.', 'Sound off for this campaign \u2014 the table falls silent.']
 };
 function vttFeatures() { return (window.wpVtt && window.wpVtt.FEATURES) || []; }
 function syncVttPanel() {

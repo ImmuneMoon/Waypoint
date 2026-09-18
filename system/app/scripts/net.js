@@ -292,6 +292,7 @@ function sanitizeAppState(s) {
         delete camp.pinnedMaps;
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
+        delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
         Object.keys(camp.items).forEach(function(id) {
             if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
             var it = sanitizeItem(camp.items[id]);
@@ -602,6 +603,7 @@ function applySnapshot(msg) {
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     setTravelLockLocal(!!msg.travelLocked);
     net.stance = cleanStance(msg.stance);
+    net.sounds = null; net.soundNow = null; if (window.wpSound) window.wpSound.onSnapshot();   // the snapshot is the authority: the 'sounds' message that follows re-arms the table's sound
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
     net.combats = cleanCombats(msg.combats);
@@ -730,6 +732,7 @@ net.onLocalSave = function() {
     var patch = activeItemPatch();
     if (net.role === 'host') {
         net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
+        net.syncSounds();   // the sound index changed with this save? the list follows the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -804,6 +807,8 @@ net.stanceCamps = null;
 net.gmId = '';               // the host's profile id, from the snapshot: keys the player's per-table choices
 net.syncedPeer = null;       // the connection the snapshot came from: the only peer whose 'stance' counts
 net.snapshotGen = 0;         // bumped by every snapshot and every load(): a load that a snapshot overtook must not undo it
+net.sounds = null;           // the table's playable sounds (a client, from the host's 'sounds' message): transport memory, null until it arrives
+net.soundNow = null;         // the ambient the host reported playing, by id
 net.stanceFlags = function() {
     if (window.wpVtt) return window.wpVtt.hostFlags();
     var f = { elevation: true, posture: true }; try { f.elevation = localStorage.getItem('wp_elevation') !== 'off'; f.posture = localStorage.getItem('wp_posture') !== 'off'; } catch (e) {} return f;   // vtt.js absent: the 1.4.6 keys
@@ -829,6 +834,31 @@ net.syncStance = function() {
     net._lastStanceSig = s;
     net.broadcastStance();
     if (window.wpSettingsSync) window.wpSettingsSync();
+};
+// The hosted campaign's sounds reach the table as a list (uploads by path, bundled defaults by id, what is playing
+// now): to one peer at admit, to every admitted peer on a save that changed the index, and straight from the
+// library (hiding a default never passes through save()). Never broadcast(): admitted peers only. The signature
+// covers the list, not the master or the playing loop — those travel as cues, and a late joiner reads them at admit.
+net._lastSoundSig = null;
+function soundSig(msg) { return quickHash(JSON.stringify({ c: msg.campId, l: msg.list })); }
+net.soundsMessage = function() { return window.wpSound && window.wpSound.listMessage ? window.wpSound.listMessage() : null; };
+net.syncSounds = function(force) {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.soundsMessage(); if (!msg) return;
+    var s = soundSig(msg);
+    if (!force && s === net._lastSoundSig) return;
+    net._lastSoundSig = s;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
+// A cue for the table: start a loop, fire a one-shot, stop, or a volume. Ids only; the path is the entry's own on
+// the player's side (a player fetches nothing a cue names).
+net.sendSound = function(cue) {
+    if (!net.active || net.role !== 'host' || !cue || typeof cue.act !== 'string') return;
+    var msg = { type: 'sound', act: cue.act };
+    if (cue.id !== undefined) msg.id = cue.id;
+    if (cue.gain !== undefined) msg.gain = cue.gain;
+    if (cue.fade !== undefined) msg.fade = cue.fade;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
 };
 // A session is exactly one campaign. Anything that would put another campaign on screen while hosting
 // asks first, and on yes ends the session for everyone before going ahead; Cancel and Esc do nothing.
@@ -1580,6 +1610,7 @@ function admitPlayer(conn, prof) {
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
     try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: land.stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
+    var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     broadcastRoster();
 }
 
@@ -1795,8 +1826,16 @@ function handleMessage(msg, conn) {
         var nm = ui('netModal');
         if (nm) nm.style.display = 'flex';
         toast('The GM ended the session — restoring your own campaign.');
+    } else if ((msg.type === 'sounds' || msg.type === 'sound') && net.role === 'client') {
+        // the hosted campaign's sound list and its cues: only from the synced host, only after the snapshot, validated in sound.js.
+        // A host has no branch for these: a player never triggers a sound on anyone.
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSound) return;
+        if (msg.type === 'sounds') { if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return; window.wpSound.onList(msg); }
+        else window.wpSound.onCue(msg);
     } else if (msg.type === 'asset-req' && net.role === 'host') {
         handleAssetRequest(msg, conn);
+    } else if (msg.type === 'asset-part' && net.role === 'client') {
+        handleAssetPart(msg);
     } else if (msg.type === 'asset' && net.role === 'client') {
         handleAssetArrival(msg);
     } else if (msg.type === 'chat') {
@@ -1880,6 +1919,7 @@ function wireConn(conn) {
     });
     conn.on('close', function() {
         net.conns = net.conns.filter(function(c) { return c !== conn; });
+        delete assetInflight[conn.peer];
         var p = net.roster[conn.peer];
         delete net.roster[conn.peer];
         renderRoster();
@@ -2024,6 +2064,7 @@ function startHosting(forceFresh) {
     var peer = new Peer(roomPeerId(code, gen), peerOpts());
     net.peer = peer; net.role = 'host'; net.code = code;
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
+    net._lastSoundSig = null;    // and the sound list
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;
@@ -2152,6 +2193,9 @@ function leaveSession(silent) {
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
     net.syncedPeer = null;
+    net.sounds = null; net.soundNow = null;   // transport memory, unlike the ceiling: the next table sends its own list
+    resetAssetTransfers();                    // in-flight sound requests and their waiters die with the connection
+    if (window.wpSound) window.wpSound.tableLeft(wasClient);
     net.targets = {};
     net.combats = {}; combatAsked = {};
     net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
@@ -2176,13 +2220,17 @@ function leaveSession(silent) {
 }
 
 /* ---------- asset sync: clients pull images from the host over the data channel ---------- */
-var assetCache = {};    // path -> blob URL
+var assetCache = {};    // path -> blob URL (pictures, pulled on render)
 var assetPending = {};  // path -> true
 var assetRenderTimer = null;
+var assetWaiters = {};  // path -> { promise, resolve, reject, timer, parts, n, bytes }: sounds, pulled by net.fetchAsset and answered in parts
+var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
+var ASSET_PART = 256 * 1024, AUDIO_CAP = 4 * 1024 * 1024, ASSET_WAIT = 45000;
+function isAudioPath(p) { return typeof p === 'string' && p.indexOf('/saves/images/audio/') === 0; }
 
 function assetMime(path) {
     var ext = (path.split('.').pop() || '').toLowerCase();
-    return { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml' }[ext] || 'application/octet-stream';
+    return { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', mp3: 'audio/mpeg', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', webm: 'audio/webm' }[ext] || 'application/octet-stream';
 }
 
 // Resolve an image path for display. Host/solo: the path itself.
@@ -2200,17 +2248,75 @@ net.assetSrc = function(path) {
     return 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 };
 
+function answerAsset(conn, path, error) { try { conn.send({ type: 'asset', path: path, error: error }); } catch (e) {} }
 function handleAssetRequest(msg, conn) {
-    // Serve only campaign images, never arbitrary paths
-    if (typeof msg.path !== 'string' || msg.path.indexOf('/saves/images/') !== 0 || msg.path.indexOf('..') !== -1) return;
+    // Serve only campaign images and sounds, never arbitrary paths
+    if (typeof msg.path !== 'string' || msg.path.length > 400 || msg.path.indexOf('/saves/images/') !== 0 || msg.path.indexOf('..') !== -1) return;
+    if (isAudioPath(msg.path)) {
+        // a sound: one in flight per peer, a 4 MB cap, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
+        if (assetInflight[conn.peer]) { answerAsset(conn, msg.path, 'busy'); return; }
+        assetInflight[conn.peer] = msg.path;
+        var done = function() { if (assetInflight[conn.peer] === msg.path) delete assetInflight[conn.peer]; };
+        fetch(encodeURI(msg.path)).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
+            if (!conn.open) { done(); return; }
+            if (!buf) { answerAsset(conn, msg.path, 'missing'); done(); return; }
+            if (buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); done(); return; }
+            var n = Math.max(1, Math.ceil(buf.byteLength / ASSET_PART)), i = 0;
+            (function pump() {
+                if (!conn.open) { done(); return; }
+                var end = Math.min(buf.byteLength, (i + 1) * ASSET_PART);
+                try { conn.send({ type: 'asset-part', path: msg.path, i: i, n: n, data: new Uint8Array(buf.slice(i * ASSET_PART, end)) }); }
+                catch (e) { answerAsset(conn, msg.path, 'busy'); done(); return; }
+                i++;
+                if (i < n) setTimeout(pump, 15); else done();
+            })();
+        }).catch(function() { answerAsset(conn, msg.path, 'missing'); done(); });
+        return;
+    }
     fetch(msg.path).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
         if (!buf || !conn.open) return;
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) {}
     }).catch(function() {});
 }
 
+// A sound file from the host, for sound.js: one request, answered in parts (or with an error) and reassembled here.
+// sound.js serialises its requests; the host allows one in flight per peer anyway. Rejects: offline, bad path, too-big, busy, missing, timeout, left.
+net.fetchAsset = function(path, size) {
+    if (!net.active || net.role !== 'client' || net.stream) return Promise.reject(new Error('offline'));
+    if (!isAudioPath(path) || path.indexOf('..') !== -1 || path.length > 400) return Promise.reject(new Error('bad path'));
+    if (Number(size) > AUDIO_CAP) return Promise.reject(new Error('too-big'));
+    if (assetWaiters[path]) return assetWaiters[path].promise;
+    var w = { parts: [], n: 0, bytes: 0 };
+    w.promise = new Promise(function(resolve, reject) {
+        w.resolve = resolve; w.reject = reject;
+        var c = net.conns[0];
+        if (!c || !c.open) { reject(new Error('offline')); return; }
+        w.timer = setTimeout(function() { if (assetWaiters[path] === w) delete assetWaiters[path]; reject(new Error('timeout')); }, ASSET_WAIT);
+        assetWaiters[path] = w;
+        try { c.send({ type: 'asset-req', path: path }); } catch (e) { clearTimeout(w.timer); delete assetWaiters[path]; reject(new Error('busy')); }
+    });
+    return w.promise;
+};
+function handleAssetPart(msg) {
+    var w = typeof msg.path === 'string' ? assetWaiters[msg.path] : null; if (!w) return;   // unsolicited: dropped, nothing kept
+    var i = msg.i | 0, n = msg.n | 0, data = msg.data;
+    if (!data || n < 1 || n > 64 || i < 0 || i >= n || (w.n && w.n !== n)) return;
+    var len = data.byteLength || data.length || 0; if (!len) return;
+    w.n = n; if (!w.parts[i]) w.bytes += len;
+    if (w.bytes > AUDIO_CAP) { clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error('too-big')); return; }
+    w.parts[i] = data;
+    for (var k = 0; k < n; k++) if (!w.parts[k]) return;
+    clearTimeout(w.timer); delete assetWaiters[msg.path];
+    try { w.resolve(new Blob(w.parts, { type: assetMime(msg.path) })); } catch (e) { w.reject(e); }
+}
+function resetAssetTransfers() {
+    Object.keys(assetWaiters).forEach(function(p) { var w = assetWaiters[p]; clearTimeout(w.timer); try { w.reject(new Error('left')); } catch (e) {} });
+    assetWaiters = {}; assetPending = {}; assetInflight = {};
+}
+
 function handleAssetArrival(msg) {
-    if (!msg.path || !msg.data) return;
+    if (typeof msg.path === 'string' && assetWaiters[msg.path]) { var w = assetWaiters[msg.path]; clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error(typeof msg.error === 'string' ? msg.error.slice(0, 40) : 'failed')); return; }   // the only 'asset' answer to a sound request is a refusal (the bytes come as asset-part)
+    if (!msg.path || !msg.data || !assetPending[msg.path]) return;   // unsolicited: never cached
     try {
         var blob = new Blob([msg.data], { type: msg.mime || assetMime(msg.path) });
         assetCache[msg.path] = URL.createObjectURL(blob);

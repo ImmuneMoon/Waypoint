@@ -519,6 +519,11 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           if (ic.name) existing.name = ic.name;
 
+          // the sound index merges by id (1.5.0): an imported entry replaces the same id, new ids are added
+          if (ic.sounds && typeof ic.sounds === 'object' && Array.isArray(ic.sounds.list)) {
+              var es = existing.sounds && typeof existing.sounds === 'object' && Array.isArray(existing.sounds.list) ? existing.sounds : (existing.sounds = { v: 1, list: [] });
+              ic.sounds.list.forEach(function(sn) { if (!sn || typeof sn !== 'object' || typeof sn.id !== 'string') return; var k = -1; es.list.forEach(function(o, i) { if (o && o.id === sn.id) k = i; }); if (k >= 0) es.list[k] = sn; else es.list.push(sn); });
+          }
           // the picture library's per-campaign bookkeeping merges too (brought-in pictures and categories)
           if (Array.isArray(ic.pictures)) { existing.pictures = Array.isArray(existing.pictures) ? existing.pictures : []; ic.pictures.forEach(function(p) { if (existing.pictures.indexOf(p) < 0) existing.pictures.push(p); }); }
           if (ic.imageCats && typeof ic.imageCats === 'object') {

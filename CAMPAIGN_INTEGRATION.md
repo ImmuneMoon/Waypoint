@@ -21,6 +21,7 @@ Briefing for anyone (human or AI) generating campaign content for the Waypoint a
   saves/data.json                  THE ENTIRE APP STATE — this is your integration target
   saves/images/<mapId>/<file>      images placed on whiteboards
   saves/images/tutorial/<file>     the Tutorial campaign's pictures (copied from the app's assets by the tour; app-managed, deletable in-app)
+  saves/images/audio/<campId>/<file>  sounds added through the Sound Library (1.5.0; app-managed, indexed in the campaign's `sounds` key)
   saves/backups/                   automatic launch snapshots of data.json (newest 10) — read-only for you
   system/app/                      frontend source (index.html, style.css, scripts/*.js)
   system/resources/app/main.js     Electron shell: HTTP server on port 3000 + /api endpoints
@@ -58,6 +59,7 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
         "features": { "elevation": true, "posture": true, "minimap": true } },   // — carry it through untouched; never author it (a campaign without it is filled from the app's default on load)
       "pictures": ["/saves/images/<folder>/<file>"],   // OPTIONAL, app-managed (1.5.0): pictures brought in from another campaign by reference — carry through untouched
       "imageCats": { "list": ["Villains"], "by": { "/saves/images/<folder>/<file>": ["Villains"] }, "shelf": {} },   // OPTIONAL, app-managed (1.5.0): this campaign's picture categories (the app-level imageCats holds the SHARED ones) — carry through untouched, never author
+      "sounds": { "v": 1, "list": [{ "id": "s_x", "name": "Rain", "path": "/saves/images/audio/<campId>/<file>", "kind": "loop", "gain": 1, "size": 0, "dur": 0 }] },   // OPTIONAL, app-managed (1.5.0): the campaign's sound index (uploads under saves/images/audio/<campId>/; a "from" key marks a reference to another campaign's file); never on the wire — carry through untouched, never author
       "items": {                                // FLAT dict of maps, planners and pages
         "<id>": { /* map, planner or page, below */ }
       }

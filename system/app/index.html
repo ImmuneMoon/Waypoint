@@ -74,6 +74,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/settings.js"></script>
 <script type="module" src="scripts/tips.js"></script>
 <script type="module" src="scripts/stream.js"></script>
+<script type="module" src="scripts/soundcore.js"></script>
+<script type="module" src="scripts/sound.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
@@ -147,6 +149,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <div class="hdr-group" data-label="Table">
         <button class="tool ghost icon" id="netBtn" title="Multiplayer &mdash; host or join a session" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg><span id="netDot" aria-hidden="true"></span></button>
         <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 1 1 21 11.5z"/></svg><span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
+        <button class="tool ghost icon" id="soundInd" title="Sound &mdash; your volume and mute" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg><span class="snd-bars" aria-hidden="true"><i></i><i></i><i></i></span></button>
       </div>
       <div class="hdr-group" data-label="Journal">
         <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8"/></svg></button>
@@ -304,6 +307,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Pick a shape or <b>T</b> text from the <b>Shapes</b> menu, then <b>click</b> the board to drop it there &mdash; or <b>drag</b> to draw exactly the box it should fill (hexagons resize like any other shape). <kbd>Esc</kbd> cancels. The <b>New shape size</b> switch in that menu picks <b>Free</b> (default size on click, exact box on drag) or <b>Grid cell</b> (every new shape arrives exactly one cell in size and seats into the cell &mdash; handy for hex tokens and tiles). <b>&#128444;&#65039;</b> adds an image, or just drag an image file from your computer onto the board.</li>
                           <li>Text boxes: <kbd>Double Click</kbd> on the canvas to edit the words, or select the box and type in the <b>Content</b> editor in Properties &mdash; the same rich-text toolbar as a planner's text block (bold, italic, underline, strikethrough, bulleted and numbered lists, clear formatting, and the symbol tray), with your edits shown on the canvas as you type. The color swatch (toolbar or Properties) sets the <b>text color</b>, and <b>Text Alignment</b> in Properties places the words horizontally and vertically within the box.</li>
                           <li><b>&#128452;&#65039; Image Library</b> shows <b>this campaign's pictures</b> by default &mdash; every picture uploaded from its maps, planners and pages, used by them, or brought in &mdash; with <b>Shared</b> (the tutorial art), <b>Unfiled</b> (pictures whose map, planner or page is gone) and <b>All campaigns</b> a chip away. <b>Import from another campaign&hellip;</b> lets you pick pictures from another campaign, Shared or Unfiled (Ctrl-click several) and bring them in: nothing is copied, this campaign simply remembers them. Categories are per campaign (right-click a picture to tag it, <b>+ New</b> for a new one, the tools on a chip rename, shelve or delete it); <b>Make shared</b> turns one into a category every campaign sees, marked &#9671;. Click a picture for a large preview, then Add to map.</li>
+                          <li><b>&#127925; Sound</b> (GM only) opens a small panel that stays open while you run the scene: <b>Ambient</b> loops as chips (click one to crossfade to it, &#9632; fades it out) and <b>Cues</b> as buttons (click to fire once; up to four overlap). Every player at the table hears what you play at your <b>Master</b> volume; <b>Mute mine</b> silences your own speakers only. <b>Library&hellip;</b> holds this campaign's sounds &mdash; <b>Add sounds&hellip;</b> uploads MP3, OGG, M4A or WebM files (4 MB each; loops up to two minutes, cues cut after thirty seconds; OGG loops cleanly, MP3 clicks at the seam), each with a name, a Loop / Cue switch, a gain, a preview and Delete; <b>Shared</b> is the bundled set (hidden per install rather than deleted); <b>Import from another campaign&hellip;</b> brings another campaign's sounds in by reference, nothing copied. Files live in <b>saves/images/audio/</b> and travel to each player over the connection one at a time, the playing loop first, so a player who joins mid-scene hears the loop once its file has crossed. Sound is a VTT feature (&#9881; Settings &#9656; VTT features): off for the campaign, nothing plays at the table. Everyone has the <b>&#128266;</b> speaker in the Table pill for their own volume and mute; in a browser tab, one click on the page is needed before it may play sound.</li>
                           <li><kbd>Ctrl + C</kbd> / <kbd>Ctrl + X</kbd> / <kbd>Ctrl + V</kbd> copy, cut, and paste selected items; pasting a screenshot or copied image from outside the app drops it at your cursor.</li>
                           <li>The <b>New item opacity</b> slider in the Shapes and Pen menus sets the transparency new items are created with.</li>
                           <li>Click to select; drag the corner handle to resize (hold <kbd>Shift</kbd> &mdash; or turn on <b>Lock proportions</b> in the selection toolbar &mdash; to keep the width/height ratio; resizing one member of a <b>group</b> scales the whole group); drag the blue dot to rotate. Arrow keys nudge the selection (<kbd>Shift</kbd> for bigger steps).</li>
@@ -356,7 +360,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. They are set <b>per campaign</b>; in a session your campaign's settings are the most your players see.</p>
                       <h4 id="helpVtt">VTT settings</h4>
                       <ul>
-                          <li><b>Per campaign.</b> Token elevation, token posture and the minimap are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
+                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap and sound are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
                           <li><b>Default for new campaigns.</b> The same section holds the default a campaign starts with. Changing it touches no existing campaign; <b>Apply to existing campaigns&hellip;</b> copies it onto the campaigns you tick (nothing is ticked to begin with). The default lives with your preferences (the saves folder's <b>preferences.json</b>) and is cleared by Reset Local Preferences; the campaigns are not.</li>
                           <li><b>In a session, the GM's campaign is the ceiling.</b> Players see at most what the hosted campaign has on. A GM change mid-session reaches the table at once, with a short notice on each player's screen.</li>
                           <li><b>Off for me.</b> At a table, a player can switch a feature the GM has on <b>off for themselves</b> in the same section (&ldquo;Turn off for me&rdquo;), never on when the GM has it off. The choice is remembered per table (that campaign, that GM) and never touches the player's own default or campaigns.</li>
@@ -466,7 +470,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
                           <li><b>Handbook:</b> the pages of the hosted campaign that are not marked <b>GM only</b> reach every player, who read them in a panel over the map. Turning a page GM only mid-session takes it away from them at once; your edits to an open page arrive as you type. Pages of your other campaigns never travel.</li>
-                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
+                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
+                          <li><b>Sound:</b> the &#127925; panel's ambient loop and cues play on every player's machine at your Master volume. Your uploaded files travel to each player over the connection (4 MB each, one at a time, the playing loop first); the bundled set never needs to. A player can turn the table's sound off for themselves, never on when you have it off.</li>
                           <li><b>One campaign per session:</b> the table is the campaign you host. Switching campaigns in any way &mdash; the picker in the &#127760; panel or the sidebar, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; asks first and, on yes, ends the session for everyone before switching. Cancel changes nothing.</li>
                       </ul>
                       <h4>Who gets in</h4>
@@ -506,6 +511,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Doors &amp; stairs:</b> double-click a portal marker to travel through on your own &mdash; the GM can summon the party back together.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
                           <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
+                          <li><b>Sound:</b> the GM's ambient loop and cues play on your machine. The <b>&#128266;</b> speaker in the Table pill has your own volume, a mute, and <b>Off for me at this table</b>. In a browser tab, one click on the page is needed before sound may play; the speaker pulses until then.</li>
                       </ul>
                       <h4>What you'll see</h4>
                       <ul>
@@ -515,7 +521,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Journal (&#128214;):</b> everything a GM has shown you, saved on this computer with its caption. Add notes under each handout, or press <b>+ Note</b> to write your own pages in a campaign's section; it all works with no session running.</li>
                           <li><b>Targeting:</b> click a character token that isn't yours to mark it as your target &mdash; everyone sees a small copy of your own token on it (several targeters line up in the middle and wrap into rows). Click it again, or press <b>Esc</b>, to clear. One target at a time.</li>
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
-                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
+                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
                       </ul>
                       <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
                   </div>
@@ -536,9 +542,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>The toolbar <b>&#128165; Blast</b> tool is a <b>stopgap</b>. Grenades will be thrown by the character &mdash; PC or NPC &mdash; from their own sheet, with the weapon they carry deciding the blast.</li>
                           <li>The preset explosive types &mdash; their names (Frag, Concussion, Sonic, Ion, Plasma) and their radii &mdash; are <b>not permanent</b>: they will be defined <b>per campaign</b>, from that campaign's own weapons, and <b>customizable</b>.</li>
                       </ul>
-                      <h4>Sound &amp; effects</h4>
+                      <h4>Visual effects</h4>
                       <ul>
-                          <li><b>Sounds and special effects on the play map.</b> Ambient loops and one-shot sound cues for a scene, and visual effects on the VTT &mdash; so a spell, a blast, or a door opening lands with more than a token sliding across the grid.</li>
+                          <li><b>Visual effects on the play map.</b> Sound arrived in 1.5.0 (the &#127925; panel); next, effects on the VTT &mdash; so a spell, a blast, or a door opening lands with more than a token sliding across the grid.</li>
                       </ul>
                       <h4>Campaign content</h4>
                       <ul>
@@ -768,6 +774,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   </div>
               </div>
           </div>
+
+          <button class="wb-tool-btn gm-only" id="soundBtn" title="Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)">&#127925;</button>
 
           <div class="wb-tool-sep"></div>
 
@@ -1193,6 +1201,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The small overview map in the corner of the board. Off hides it for this campaign; the &#9662; on the box itself only folds it away and is yours alone.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
+            <div class="set-vtt-row" data-vtt="sound" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Sound <span id="setSoundState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setSoundBtn" style="width:100%;">Toggle Sound</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Ambient loops and one-shot cues from the &#127925; Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library and its files are kept. Set per campaign; in a session, this campaign's setting is the most your players hear.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
             </div>
             </div>
             <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
@@ -1213,6 +1227,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Minimap <span id="setVttGlobalMinimapState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalMinimapBtn" style="width:100%;">Toggle Default Minimap</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Sound <span id="setVttGlobalSoundState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalSoundBtn" style="width:100%;">Toggle Default Sound</button>
                 </div>
                 <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
             </div>
@@ -1241,6 +1259,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-field-label" style="margin-top:14px;">Stream window</div>
             <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, exactly as players see it (no GM notes, hidden items stay hidden). Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map to focus in its corner menu.">&#128250; Open Stream Window</button>
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows what players see and updates as you play.</div>
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="Off by default: the stream window usually shares your own speakers. On, it plays the ambient loop the table hears (cues stay with the main window)."><input type="checkbox" id="setStreamSoundChk"> Stream window plays the table's ambient sound</label>
             </div>
             <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you.">Reset Multiplayer Identity</button>
             <!-- Relay-only connections: hidden until Waypoint has a working TURN relay again (openrelay.metered.ca stopped allocating, Sept 2026). The code path in net.js/peerOpts() is complete. -->
@@ -1279,7 +1298,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setSnapNowBtn" title="Copy the save as it is right now into saves/backups. Kept until you delete it.">Snapshot the Save Now</button>
-            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, panel sizes, folded sections, the VTT default for new campaigns and your per-table VTT choices) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, panel sizes, folded sections, the VTT default for new campaigns, your per-table VTT choices, the sound volumes, the Sound panel's position and any bundled sounds you hid) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
             </div>
                 <div style="margin-top:14px;">
                 <div class="set-field-label">Snapshots of the save</div>
@@ -1403,6 +1422,27 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="notepadHead"><span class="notepad-title">&#128221; Table notepad</span><span id="notepadWho" class="notepad-who"></span><button class="tool ghost notepad-btn" id="notepadMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="notepadCloseBtn" title="Put it away for everyone">&times;</button></div>
     <textarea id="notepadText" class="field" spellcheck="false"></textarea>
     <div class="notepad-foot"><span class="notepad-hint">Gone at the end of the session.</span><span style="display:flex; gap:4px;"><button class="tool ghost danger notepad-btn" id="notepadClearBtn" title="Wipe the text for everyone (asks first); the notepad stays open">Clear</button><button class="tool ghost notepad-btn" id="notepadSaveBtn" title="Copy the text into your Journal as a note of your own">Save to my Journal</button></span></div>
+</div>
+<!-- Sound (1.5.0): the speaker's popover (everyone), the autoplay gate, the GM's panel and library -->
+<div id="soundPop" style="display:none;">
+    <div id="soundNow" class="snd-now">Nothing playing</div>
+    <label class="snd-pop-row" title="Your own speakers only">Volume <input type="range" id="soundVolume" min="0" max="100" value="80"></label>
+    <label class="snd-pop-row"><input type="checkbox" id="soundMuteChk"> Mute for me</label>
+    <label class="snd-pop-row" id="soundOffRow" style="display:none;" title="Turn the table's sound off for yourself (never on when the GM has it off); remembered for this table"><input type="checkbox" id="soundOffChk"> Off for me at this table</label>
+</div>
+<div id="soundGate" style="display:none;" title="Browsers play sound only after you have clicked on the page"><span>&#128266; Click anywhere to enable sound at this table</span></div>
+<div id="soundPanel" style="display:none;">
+    <div id="soundHead"><span class="notepad-title">&#127925; Sound</span><span class="notepad-who" id="soundWho"></span><button class="tool ghost notepad-btn" id="soundMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="soundCloseBtn" title="Close the panel (what is playing keeps playing)">&times;</button></div>
+    <div id="soundBody"></div>
+</div>
+<div id="soundLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+    <div class="snd-lib-box" style="background:var(--panel2); padding:18px 22px; border:1px solid var(--gold); border-radius:8px;">
+        <div class="snd-lib-head"><h3 style="margin:0; color:var(--gold);">&#127925; Sound Library</h3><span style="flex:1;"></span><button class="tool" id="soundLibUpload" title="Add sound files from your computer: MP3, OGG, M4A or WebM, up to 4 MB each; loops up to two minutes, cues cut after thirty seconds">&#8853; Add sounds&hellip;</button><button class="tool ghost" id="soundLibClose" title="Close">&times;</button></div>
+        <input type="file" id="soundLibFile" accept=".mp3,.ogg,.oga,.m4a,.webm,.opus,audio/*" multiple style="display:none;">
+        <div id="soundLibChips" class="journal-from-row"></div>
+        <div id="soundLibRows" class="snd-lib-rows"></div>
+        <div id="soundLibFoot" class="snd-lib-foot"></div>
+    </div>
 </div>
 <!-- Combat roster (GM) -->
 <div id="combatModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">

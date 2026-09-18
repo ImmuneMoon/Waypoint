@@ -63,34 +63,34 @@ const j = o => JSON.stringify(o);
     function eff() { return V.FEATURES.map(f => f.id + (V.on(f.id) ? 1 : 0)).join(''); }
 
     /* ---- the roster ---- */
-    check('roster is elevation, posture, minimap with labels', V.FEATURES.map(f => f.id).join(',') === 'elevation,posture,minimap' && V.FEATURES.every(f => typeof f.label === 'string' && f.label));
-    check('minimap has no legacy key; elevation and posture keep theirs', V.FEATURES[2].legacyKey === null && V.FEATURES[0].legacyKey === 'wp_elevation' && V.FEATURES[1].legacyKey === 'wp_posture');
+    check('roster is elevation, posture, minimap with labels', V.FEATURES.map(f => f.id).join(',') === 'elevation,posture,minimap,sound' && V.FEATURES.every(f => typeof f.label === 'string' && f.label));
+    check('minimap and sound have no legacy key; elevation and posture keep theirs', V.FEATURES[2].legacyKey === null && V.FEATURES[3].legacyKey === null && V.FEATURES[3].id === 'sound' && V.FEATURES[0].legacyKey === 'wp_elevation' && V.FEATURES[1].legacyKey === 'wp_posture');
 
     /* ---- solo ---- */
     store.clear();
     net(null);
-    world([camp('A', { v: 1, master: true, features: { elevation: false, posture: true, minimap: true } })], 'A');
+    world([camp('A', { v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true } })], 'A');
     check('solo: mode', V.mode() === 'solo' && !V.locked());
-    check('solo: C over the on-screen campaign', eff() === 'elevation0posture1minimap1');
+    check('solo: C over the on-screen campaign', eff() === 'elevation0posture1minimap1sound1');
     check('solo: unknown id → global → legacy → true', V.on('fog') === true);
-    check('solo: hostFlags = C of the active campaign', j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: true }));
-    world([camp('A', { v: 1, master: false, features: { elevation: true, posture: true, minimap: true } })], 'A');
-    check('master off: every feature off, hostFlags all false (no master on the wire)', eff() === 'elevation0posture0minimap0' && Object.values(V.hostFlags()).every(x => x === false));
+    check('solo: hostFlags = C of the active campaign', j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: true, sound: true }));
+    world([camp('A', { v: 1, master: false, features: { elevation: true, posture: true, minimap: true, sound: true } })], 'A');
+    check('master off: every feature off, hostFlags all false (no master on the wire)', eff() === 'elevation0posture0minimap0sound0' && Object.values(V.hostFlags()).every(x => x === false));
     check('master off: the values are kept', state.appState.campaigns.A.vtt.features.elevation === true);
 
     /* ---- the fallback when camp.vtt is missing or damaged ---- */
     store.clear();
     world([camp('B')], 'B');
-    check('no camp.vtt, no keys: on', eff() === 'elevation1posture1minimap1');
+    check('no camp.vtt, no keys: on', eff() === 'elevation1posture1minimap1sound1');
     localStorage.setItem('wp_elevation', 'off');
-    check('no camp.vtt: the legacy key is the seed', eff() === 'elevation0posture1minimap1');
+    check('no camp.vtt: the legacy key is the seed', eff() === 'elevation0posture1minimap1sound1');
     world([camp('B', { v: 1, master: true, features: { elevation: 'yes', posture: null } })], 'B');
-    check('non-boolean feature values fall back per feature', eff() === 'elevation0posture1minimap1');
+    check('non-boolean feature values fall back per feature', eff() === 'elevation0posture1minimap1sound1');
     ['null', '5', '[]', '{"features":null}', 'off', '{"features":{"elevation":"on"}}'].forEach(raw => {
         localStorage.setItem('wp_vtt_global', raw);
         check('malformed wp_vtt_global ' + raw + ' falls back to legacy, never throws', V.globalOn('elevation') === false && V.globalOn('posture') === true && V.globalOn('minimap') === true);
     });
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: true, minimap: true } }));
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: true, minimap: true, sound: true } }));
     check('a global master false makes every globalOn false', !V.globalOn('elevation') && !V.globalOn('minimap'));
     check('globalVtt keeps master and features apart', V.globalVtt().master === false && V.globalVtt().features.elevation === true);
 
@@ -98,15 +98,15 @@ const j = o => JSON.stringify(o);
     store.clear();
     localStorage.setItem('wp_elevation', 'off');
     let c = camp('C');
-    check('fill adds vtt from the default (legacy elevation off) and reports a change', V.fill(c) === true && j(c.vtt) === j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true } }));
+    check('fill adds vtt from the default (legacy elevation off) and reports a change', V.fill(c) === true && j(c.vtt) === j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true } }));
     check('fill on a filled campaign is a no-op', V.fill(c) === false);
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: false, minimap: true } }));
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: false, minimap: true, sound: true } }));
     c = camp('D', { v: 1, features: { elevation: true, posture: true, extra: 'kept' } });
     check('fill adds a missing master from the default master, the missing minimap from the default feature, keeps unknown keys',
         V.fill(c) === true && c.vtt.master === false && c.vtt.features.minimap === true && c.vtt.features.elevation === true && c.vtt.features.posture === true && c.vtt.features.extra === 'kept', j(c.vtt));
     check('a missing feature key takes the default feature value, not the master-folded one', c.vtt.features.minimap === true);
     // the lazy read-time fallback reads exactly what fill() would write, so a campaign never flips at the fill
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: false, minimap: true } }));
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: false, minimap: true, sound: true } }));
     c = camp('D2', { v: 1, master: true, features: {} });
     const lazyE = V.campaignOn('elevation', c), lazyP = V.campaignOn('posture', c), lazyVtt = j(V.campaignVtt(c));
     V.fill(c);
@@ -116,19 +116,19 @@ const j = o => JSON.stringify(o);
     const lazyM = V.campaignOn('elevation', c);
     V.fill(c);
     check('a missing master reads the default master folded in, the same before and after the fill', lazyM === false && V.campaignOn('elevation', c) === false && c.vtt.master === false && c.vtt.features.elevation === true);
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true } }));
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true } }));
     c = camp('D4', { v: 1, master: true, features: {} });
     check('a missing key under an on master with an on default master: per-feature default', V.campaignOn('elevation', c) === false && V.campaignOn('posture', c) === true);
     const legacyBefore = localStorage.getItem('wp_elevation');
     check('the legacy key is never written by a fill', localStorage.getItem('wp_elevation') === legacyBefore);
-    check('allOn is every roster feature on', j(V.allOn()) === j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true } }));
-    world([camp('E', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true } }), camp('F')], 'E');
+    check('allOn is every roster feature on', j(V.allOn()) === j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true } }));
+    world([camp('E', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true } }), camp('F')], 'E');
     check('fillAll fills only the campaign that needs it', V.fillAll(state.appState) === true && state.appState.campaigns.F.vtt && state.appState.campaigns.E.vtt.features.elevation === true);
 
     /* ---- a fake fourth feature ---- */
     V.FEATURES.push({ id: 'fog', label: 'Fog of war', legacyKey: null });
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true } }));
-    c = camp('G', { v: 1, master: true, features: { elevation: true, posture: false, minimap: false, extra: 1 } });
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true } }));
+    c = camp('G', { v: 1, master: true, features: { elevation: true, posture: false, minimap: false, sound: true, extra: 1 } });
     const before = j(c.vtt.features);
     check('fourth feature: fill adds only the new key (default on), other keys untouched', V.fill(c) === true && c.vtt.features.fog === true && j(Object.assign({}, c.vtt.features, { fog: undefined })) === j(Object.assign(JSON.parse(before), { fog: undefined })), j(c.vtt));
     world([c], 'G');
@@ -139,7 +139,7 @@ const j = o => JSON.stringify(o);
 
     /* ---- setGlobal touches no campaign; setCampaign touches one ---- */
     store.clear(); saves = 0;
-    world([camp('H', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true } }), camp('I')], 'H');
+    world([camp('H', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true } }), camp('I')], 'H');
     check('setGlobal writes the seed and materialises campaigns first', V.setGlobal('elevation', false) === true && JSON.parse(localStorage.getItem('wp_vtt_global')).features.elevation === false && state.appState.campaigns.I.vtt.features.elevation === true);
     check('an existing campaign keeps its own after a global change', V.campaignOn('elevation', state.appState.campaigns.H) === true && V.campaignOn('elevation', state.appState.campaigns.I) === true);
     check('setCampaign changes the campaign on screen only', V.setCampaign('posture', false) === true && state.appState.campaigns.H.vtt.features.posture === false && state.appState.campaigns.I.vtt.features.posture === true && saves >= 2);
@@ -148,22 +148,22 @@ const j = o => JSON.stringify(o);
 
     /* ---- host ---- */
     net({ active: true, role: 'host' });
-    world([camp('J', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false } })], 'J');
-    check('host: mode, not locked, C, hostFlags = what players receive', V.mode() === 'host' && !V.locked() && eff() === 'elevation0posture1minimap0' && j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: false }));
+    world([camp('J', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true } })], 'J');
+    check('host: mode, not locked, C, hostFlags = what players receive', V.mode() === 'host' && !V.locked() && eff() === 'elevation0posture1minimap0sound1' && j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: false, sound: true }));
     check('hostSig covers the hosted id and every campaign', V.hostSig().indexOf('J|') === 0 && V.hostSig().indexOf('J:elevation0posture1minimap0') > 0);
     check('host: setLocal refused', V.setLocal('posture', true) === false);
 
     /* ---- awaiting approval after a previous table ---- */
-    net({ active: true, role: 'client', foreign: false, stance: { elevation: false, posture: false, minimap: false } });
-    world([camp('K', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true } })], 'K');
-    check('awaiting: mode, locked, C over the OWN campaign (a stale stance is ignored)', V.mode() === 'awaiting' && V.locked() && eff() === 'elevation1posture1minimap1' && V.ceiling() === null);
+    net({ active: true, role: 'client', foreign: false, stance: { elevation: false, posture: false, minimap: false, sound: true } });
+    world([camp('K', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true } })], 'K');
+    check('awaiting: mode, locked, C over the OWN campaign (a stale stance is ignored)', V.mode() === 'awaiting' && V.locked() && eff() === 'elevation1posture1minimap1sound1' && V.ceiling() === null);
     check('awaiting: setCampaign refused, setLocal refused', V.setCampaign('elevation', false) === false && V.setLocal('elevation', true) === false);
 
     /* ---- joined ---- */
     store.clear();
-    const gmA = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm1', stance: { elevation: true, posture: false, minimap: true }, stanceCamps: null });
-    world([camp('X', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false } })], 'X');   // the snapshot's camp.vtt is never the authority
-    check('joined: mode client, locked, G not C', V.mode() === 'client' && V.locked() && eff() === 'elevation1posture0minimap1');
+    const gmA = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm1', stance: { elevation: true, posture: false, minimap: true, sound: true }, stanceCamps: null });
+    world([camp('X', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true } })], 'X');   // the snapshot's camp.vtt is never the authority
+    check('joined: mode client, locked, G not C', V.mode() === 'client' && V.locked() && eff() === 'elevation1posture0minimap1sound1');
     check('joined: table key t:campId__gmId', V.tableKey() === 't:X__u_gm1');
     check('joined: unknown id in the ceiling branch is off', V.on('fog') === false);
     check('joined: setLocal on a GM-off feature refused', V.setLocal('posture', true) === false);
@@ -173,39 +173,39 @@ const j = o => JSON.stringify(o);
     const rec = JSON.parse(localStorage.getItem('wp_vtt_local'));
     check('wp_vtt_local record shape: off, decided, seen, pending, t under the t: key', rec.v === 1 && j(rec.tables['t:X__u_gm1'].off) === '["elevation"]' && j(rec.tables['t:X__u_gm1'].decided) === '["elevation"]' && typeof rec.tables['t:X__u_gm1'].t === 'number');
     check('joined: turn back on for me', V.setLocal('elevation', false) === true && V.on('elevation') === true);
-    gmA.stanceCamps = Object.create(null); gmA.stanceCamps.X = { elevation: false, posture: true, minimap: true }; gmA.stanceCamps.Y = { elevation: true, posture: true, minimap: false };
-    check('joined: stanceCamps[onScreen] beats the legacy stance', eff() === 'elevation0posture1minimap1');
+    gmA.stanceCamps = Object.create(null); gmA.stanceCamps.X = { elevation: false, posture: true, minimap: true, sound: true }; gmA.stanceCamps.Y = { elevation: true, posture: true, minimap: false, sound: true };
+    check('joined: stanceCamps[onScreen] beats the legacy stance', eff() === 'elevation0posture1minimap1sound1');
     state.appState.activeCampaignId = 'Y'; state.appState.campaigns.Y = camp('Y');
-    check('joined: a stage onto Y reads Y\'s flags and Y\'s table key', eff() === 'elevation1posture1minimap0' && V.tableKey() === 't:Y__u_gm1');
+    check('joined: a stage onto Y reads Y\'s flags and Y\'s table key', eff() === 'elevation1posture1minimap0sound1' && V.tableKey() === 't:Y__u_gm1');
     state.appState.activeCampaignId = 'X';
-    check('cleanStanceCamps: roster ids only, hostile ids dropped, absent map null', (() => { const m = V.cleanStanceCamps({ X: { elevation: 0, posture: 1, junk: true }, 'bad id!': {}, '': {} }); return m && j(m.X) === j({ elevation: false, posture: true, minimap: true }) && !('bad id!' in m) && Object.keys(m).length === 1 && V.cleanStanceCamps(null) === null; })());
+    check('cleanStanceCamps: roster ids only, hostile ids dropped, absent map null', (() => { const m = V.cleanStanceCamps({ X: { elevation: 0, posture: 1, junk: true }, 'bad id!': {}, '': {} }); return m && j(m.X) === j({ elevation: false, posture: true, minimap: true, sound: true }) && !('bad id!' in m) && Object.keys(m).length === 1 && V.cleanStanceCamps(null) === null; })());
     // an OWN "__proto__" key, as JSON off the wire gives it (an object literal would only set the prototype)
     check('cleanStanceCamps: an own __proto__ campaign id lands as a plain flags entry on the null-prototype map, Object.prototype untouched', (() => {
         const m = V.cleanStanceCamps(JSON.parse('{"__proto__":{"elevation":true,"posture":false},"X":{"elevation":false}}'));
-        return m && Object.keys(m).length === 2 && Object.prototype.hasOwnProperty.call(m, '__proto__') && j(m['__proto__']) === j({ elevation: true, posture: false, minimap: true })
+        return m && Object.keys(m).length === 2 && Object.prototype.hasOwnProperty.call(m, '__proto__') && j(m['__proto__']) === j({ elevation: true, posture: false, minimap: true, sound: true })
             && Object.getPrototypeOf(m) === null && Object.prototype.elevation === undefined && ({}).posture === undefined;
     })());
 
     /* ---- foreign but disconnected (reconnect gap) ---- */
     gmA.active = false;
-    check('reconnect gap: ceiling retained', V.mode() === 'client' && eff() === 'elevation0posture1minimap1');
+    check('reconnect gap: ceiling retained', V.mode() === 'client' && eff() === 'elevation0posture1minimap1sound1');
 
     /* ---- leaving: load() clears foreign and the stance ---- */
     gmA.foreign = false; gmA.stance = null; gmA.stanceCamps = null; gmA.gmId = '';
-    world([camp('X', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false } })], 'X');
-    check('after load(): solo, C over the own campaign, no ceiling, no table key', V.mode() === 'solo' && V.ceiling() === null && eff() === 'elevation0posture1minimap0' && V.tableKey() === '');
+    world([camp('X', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true } })], 'X');
+    check('after load(): solo, C over the own campaign, no ceiling, no table key', V.mode() === 'solo' && V.ceiling() === null && eff() === 'elevation0posture1minimap0sound1' && V.tableKey() === '');
 
     /* ---- the stream window ---- */
-    net({ active: true, role: 'client', foreign: true, stream: true, stance: { elevation: false, posture: false, minimap: false } });
+    net({ active: true, role: 'client', foreign: true, stream: true, stance: { elevation: false, posture: false, minimap: false, sound: true } });
     localStorage.setItem('wp_vtt_local', j({ v: 1, tables: { 't:X__': { off: ['posture'], decided: [], seen: '', pending: '', t: 1 } } }));
-    check('stream: C over the disk campaign, the stance and local-off never applied, group hidden (mode stream)', V.mode() === 'stream' && V.ceiling() === null && eff() === 'elevation0posture1minimap0' && V.locked());
+    check('stream: C over the disk campaign, the stance and local-off never applied, group hidden (mode stream)', V.mode() === 'stream' && V.ceiling() === null && eff() === 'elevation0posture1minimap0sound1' && V.locked());
 
     /* ---- an old host: two-key stance payload ---- */
-    check('cleanFlags: an absent minimap means ON; present keys are booleans', j(V.cleanFlags({ elevation: true, posture: 0 })) === j({ elevation: true, posture: false, minimap: true }));
-    check('cleanFlags: no payload at all is every feature on', j(V.cleanFlags(undefined)) === j({ elevation: true, posture: true, minimap: true }));
+    check('cleanFlags: an absent minimap means ON; present keys are booleans', j(V.cleanFlags({ elevation: true, posture: 0 })) === j({ elevation: true, posture: false, minimap: true, sound: true }));
+    check('cleanFlags: no payload at all is every feature on', j(V.cleanFlags(undefined)) === j({ elevation: true, posture: true, minimap: true, sound: true }));
     net({ active: true, role: 'client', foreign: true, gmId: '', notepad: { gmId: 'u_old' }, stance: V.cleanFlags({ elevation: false, posture: true }) });
     world([camp('X')], 'X');
-    check('old host: minimap on, elevation off; table key falls back to notepad.gmId', eff() === 'elevation0posture1minimap1' && V.tableKey() === 't:X__u_old');
+    check('old host: minimap on, elevation off; table key falls back to notepad.gmId', eff() === 'elevation0posture1minimap1sound1' && V.tableKey() === 't:X__u_old');
     net({ active: true, role: 'client', foreign: true, stance: V.cleanFlags({}) });
     check('old host with no gmId anywhere: campId-only key', V.tableKey() === 't:X');
     // a hostile campaign id off the wire: JSON.parse gives an OWN "__proto__" key, as a snapshot would
@@ -215,8 +215,8 @@ const j = o => JSON.stringify(o);
 
     /* ---- the join notice: signature, seeding, decided ---- */
     store.clear(); toasts.length = 0;
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true } }));   // the player's own default: elevation off
-    const gmB = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm2', stance: { elevation: true, posture: false, minimap: true } });   // the table: elevation on, posture off
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true } }));   // the player's own default: elevation off
+    const gmB = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm2', stance: { elevation: true, posture: false, minimap: true, sound: true } });   // the table: elevation on, posture off
     world([camp('T')], 'T');
     V.joined();
     let t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
@@ -231,11 +231,11 @@ const j = o => JSON.stringify(o);
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('Keep mine: elevation stays off and is decided; the modal is hidden', j(t.off) === '["elevation"]' && j(t.decided) === '["elevation"]' && el('vttNoticeModal').style.display === 'none');
     // the GM flips elevation off then on: a decided id is never re-seeded or re-shown as new
-    let prev = gmB.stance; gmB.stance = { elevation: false, posture: false, minimap: true };
+    let prev = gmB.stance; gmB.stance = { elevation: false, posture: false, minimap: true, sound: true };
     V.ceilingChanged(prev, 'T');
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('mid-session change: one toast naming it, acked (no modal up)', toasts[toasts.length - 1] === 'The GM turned Token elevation off for this table.' && t.seen === V.sig(gmB.stance) && t.pending === '');
-    prev = gmB.stance; gmB.stance = { elevation: true, posture: false, minimap: true };
+    prev = gmB.stance; gmB.stance = { elevation: true, posture: false, minimap: true, sound: true };
     V.ceilingChanged(prev, 'T');
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('flip back: decided elevation is not re-seeded twice and stays off; toast says on', j(t.off) === '["elevation"]' && toasts[toasts.length - 1] === 'The GM turned Token elevation on for this table.');
@@ -246,9 +246,9 @@ const j = o => JSON.stringify(o);
     check('a stance for another campaign is stored only (no toast, no seed for this table)', toasts.length === n0);
     // the GM newly turns on a feature the player's own default has off and that is not decided here: it starts
     // off for the player, the toast says so, and the signature is NOT acked — the next join offers the sync
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: false, minimap: true } }));
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: false, minimap: true, sound: true } }));
     const seenBefore = t.seen;
-    prev = gmB.stance; gmB.stance = { elevation: true, posture: true, minimap: true };
+    prev = gmB.stance; gmB.stance = { elevation: true, posture: true, minimap: true, sound: true };
     V.ceilingChanged(prev, 'T');
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('GM newly on + own default off: seeded into off, pending = sig, seen unchanged, feature off for me',
@@ -262,34 +262,34 @@ const j = o => JSON.stringify(o);
     check('Keep mine after that: posture decided and still off; acked', j(t.decided) === '["elevation","posture"]' && j(t.off) === '["elevation","posture"]' && t.seen === V.sig(gmB.stance) && t.pending === '');
     // a modal up at the change: no ack, pending instead
     document.querySelectorAll = sel => (sel === '[id$="Modal"]' ? [{ style: { display: 'flex' } }] : []);
-    prev = gmB.stance; gmB.stance = { elevation: true, posture: true, minimap: false };
+    prev = gmB.stance; gmB.stance = { elevation: true, posture: true, minimap: false, sound: true };
     V.ceilingChanged(prev, 'T');
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm2'];
     check('change under a modal: pending set, seen left as it was', t.pending === V.sig(gmB.stance) && t.seen !== t.pending);
     document.querySelectorAll = () => [];
     // two features newly on at once, both off in the player's default: the toast names both as off for you
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: false, minimap: true } }));
-    const gmE = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm5', stance: { elevation: false, posture: false, minimap: true } });
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: false, minimap: true, sound: true } }));
+    const gmE = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm5', stance: { elevation: false, posture: false, minimap: true, sound: true } });
     world([camp('T')], 'T');
     V.joined();
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm5'];
     check('a table matching the defaults after a stale ceiling: nothing seeded, acked silently', j(t.off) === '[]' && t.seen === V.sig(gmE.stance) && t.pending === '');
-    prev = gmE.stance; gmE.stance = { elevation: true, posture: true, minimap: true };
+    prev = gmE.stance; gmE.stance = { elevation: true, posture: true, minimap: true, sound: true };
     V.ceilingChanged(prev, 'T');
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm5'];
     check('two newly on: both seeded, pending kept for the next join, toast lists both',
         j(t.off) === '["elevation","posture"]' && t.pending === V.sig(gmE.stance) && t.seen !== t.pending
         && toasts[toasts.length - 1] === 'The GM changed this table\'s VTT features — Token elevation on, Token posture on — Token elevation, Token posture off for you (your default has them off; ⚙ Settings ▸ VTT features to turn them on).', toasts[toasts.length - 1]);
     // matching settings: silent, seen recorded
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true } }));
-    const gmC = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm3', stance: { elevation: true, posture: true, minimap: true } });
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true } }));
+    const gmC = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm3', stance: { elevation: true, posture: true, minimap: true, sound: true } });
     V.joined();
     t = JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm3'];
     check('matching settings: nothing seeded, seen recorded silently, no pending', j(t.off) === '[]' && t.seen === V.sig(gmC.stance) && t.pending === '');
     // Use the table's settings: only A's ids leave off; the default and campaigns untouched
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: false, minimap: true } }));
-    const gmD = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm4', stance: { elevation: true, posture: true, minimap: false } });
-    world([camp('T', { v: 1, master: true, features: { elevation: false, posture: false, minimap: false } })], 'T');
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: false, posture: false, minimap: true, sound: true } }));
+    const gmD = net({ active: true, role: 'client', foreign: true, gmId: 'u_gm4', stance: { elevation: true, posture: true, minimap: false, sound: true } });
+    world([camp('T', { v: 1, master: true, features: { elevation: false, posture: false, minimap: false, sound: true } })], 'T');
     V.joined();
     const gBefore = localStorage.getItem('wp_vtt_global'), campBefore = j(state.appState.campaigns.T.vtt);
     check('own default off carries in: both seeded', j(JSON.parse(localStorage.getItem('wp_vtt_local')).tables['t:T__u_gm4'].off) === '["elevation","posture"]' && V.on('posture') === false);
@@ -303,7 +303,7 @@ const j = o => JSON.stringify(o);
     const many = { v: 1, tables: {} };
     for (let i = 0; i < 50; i++) many.tables['t:c' + i + '__g'] = { off: [], decided: [], seen: '', pending: '', t: 1000 + i };
     localStorage.setItem('wp_vtt_local', j(many));
-    net({ active: true, role: 'client', foreign: true, gmId: 'u_new', stance: { elevation: true, posture: true, minimap: true } });
+    net({ active: true, role: 'client', foreign: true, gmId: 'u_new', stance: { elevation: true, posture: true, minimap: true, sound: true } });
     world([camp('N')], 'N');
     V.setLocal('elevation', true);
     const keys = Object.keys(JSON.parse(localStorage.getItem('wp_vtt_local')).tables);
@@ -311,7 +311,7 @@ const j = o => JSON.stringify(o);
     // a damaged wp_vtt_local reads as empty and is rebuilt
     localStorage.setItem('wp_vtt_local', '{"tables":{"__proto__":{"off":["elevation"]},"nope":{"off":["elevation"]},"t:N__u_new":{"off":["posture","bogus"],"decided":5}}}');
     check('malformed wp_vtt_local: only well-formed table keys and known ids survive', V.localOff('posture') === true && V.localOff('elevation') === false);
-    net({ active: true, role: 'client', foreign: true, gmId: 'u_new', stance: { elevation: true, posture: true, minimap: true } });
+    net({ active: true, role: 'client', foreign: true, gmId: 'u_new', stance: { elevation: true, posture: true, minimap: true, sound: true } });
     localStorage.setItem('wp_vtt_local', 'garbage');
     check('unparsable wp_vtt_local reads as {}', V.localOff('posture') === false);
 

@@ -10,7 +10,7 @@
    classifyState offline. Dialogs are built here in the DOM; the app's markup is not needed. */
 
 var STUB_KEYS = { id: 1, type: 1, hidden: 1, x: 1, y: 1, w: 1, h: 1, rot: 1, layer: 1, locked: 1 };   // a sanitized hidden item (net.js sanitizeItem)
-var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog', 'pictures', 'imageCats'];   // never on the wire (imageCats here = the campaign's own categories, 1.5.0)
+var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog', 'pictures', 'imageCats', 'sounds'];   // never on the wire (imageCats here = the campaign's own categories; sounds = the sound index, 1.5.0)
 var TUTORIAL_ID = 'camp_tutorial';          // one id on every install: never recorded, never judged by name
 var RECOVERED_ID = 'camp_recovered';        // where a removed campaign's planner pages land
 var NAME_RE = /^(data|keep)-[A-Za-z0-9_-]+\.json$/;   // the shell's own rule for backup names
@@ -26,6 +26,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repla
 function nonEmpty(v) { return Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object') ? Object.keys(v).length > 0 : !!v; }
 // a category store { list, by, shelf } with nothing in it is empty, whatever its shape (a reader must never create one, but a save may carry one)
 function catsNonEmpty(c) { return !!c && typeof c === 'object' && (nonEmpty(c.list) || nonEmpty(c.by) || nonEmpty(c.shelf)); }
+function soundsNonEmpty(s) { return !!s && typeof s === 'object' && nonEmpty(s.list); }   // a sound index { v, list } with nothing in it proves nothing either
 function isObj(v) { return !!v && typeof v === 'object'; }
 function campaignsOf(s) { return isObj(s) && isObj(s.campaigns) ? s.campaigns : {}; }
 function nameOf(c) { return (c && typeof c.name === 'string' && c.name) || 'Campaign'; }
@@ -43,7 +44,7 @@ function inspectCampaign(camp) {
     var fp = { F1: 0, F2: 0, F3: 0, F4: 0 }, lm = { planner: 0, notes: 0, info: 0, keys: 0, gm: 0, hidden: 0, map: 0 };
     var maps = 0, rooms = 0, planners = 0, docs = 0, cleanMaps = 0;
     var playersEmpty = !nonEmpty(camp.players);
-    STRIPPED.forEach(function(k) { if (k === 'imageCats' ? catsNonEmpty(camp[k]) : nonEmpty(camp[k])) lm.keys++; });   // empty {} comes from read-only UI code and proves nothing
+    STRIPPED.forEach(function(k) { if (k === 'imageCats' ? catsNonEmpty(camp[k]) : k === 'sounds' ? soundsNonEmpty(camp[k]) : nonEmpty(camp[k])) lm.keys++; });   // empty {} comes from read-only UI code and proves nothing
     Object.values(camp.items || {}).forEach(function(m) {
         if (!isObj(m)) return;
         if (m.type === 'doc') { docs++; return; }   // handbook pages travel to players: neither a local mark nor a fingerprint

@@ -3723,7 +3723,8 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           playersModal: 'playersCloseBtn',
           sheetViewModal: 'sheetViewCloseBtn',
           vttNoticeModal: 'vttNoticeKeepBtn',   // the backdrop means "Keep mine"
-          vttPushModal: 'vttPushCancelBtn'
+          vttPushModal: 'vttPushCancelBtn',
+          soundLibModal: 'soundLibClose'
       };
       Object.keys(overlayClose).forEach(function(oid) {
           var overlay = document.getElementById(oid);

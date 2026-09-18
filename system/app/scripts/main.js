@@ -2,7 +2,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -612,6 +612,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
               if(!data || Object.keys(data).length === 0) return;
 
+              // A file that carries the origin marker is a player's view of a GM's table, not a campaign
+              if (data._foreign || Object.values(data.campaigns || {}).some(function(c) { return c && c._foreign; })) { toast('That file is a view of someone else\'s table, not a campaign — nothing was brought in from it.'); return; }
+
               if (data.maps && !data.campaigns) {
 
                   // Legacy single-campaign format: import as a fresh campaign alongside existing ones
@@ -1078,6 +1081,8 @@ window.wpDebug = { getState: function() {
         selWbId: state.selWbId,
         selWbIds: (state.selWbIds || []).slice(),
         netRole: (window.wpNet && window.wpNet.active) ? window.wpNet.role : 'offline',
+        history: historyDepth(),
+        foreignMarked: !!(state.appState && state.appState._foreign),
         version: window.wpAppVersion || null
     };
 } };

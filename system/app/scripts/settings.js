@@ -362,7 +362,7 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
         return;
     }
     if (e.target.closest('.snap-restore')) {
-        if (window.wpNet && window.wpNet.active) { toast('End or leave the session first — a restore replaces the whole save.'); return; }
+        if (window.wpNet && (window.wpNet.active || window.wpNet.foreign)) { toast('End or leave the session first — a restore replaces the whole save.'); return; }
         d.showConfirm('Restore the save from ' + when + '? Every campaign goes back to how it was then. The save as it is now is snapshotted first, then Waypoint reloads.', async function() {
             try {
                 var r = await fetch('/api/restore-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: file }) });
@@ -508,7 +508,8 @@ function runHotUpdate() {
             btns.forEach(function(b) { if (b) b.disabled = true; });
             fetch('/api/update-apply', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
                 if (!r.ok) throw new Error(r.error || 'update failed');
-                toast('Updated to ' + r.version + ' — reloading…');
+                toast('Updated to ' + r.version + ' — reloading… If you had a Stream window open, close and reopen it.');
+                try { new BroadcastChannel('waypoint').postMessage({ type: 'reload' }); } catch (e) {}   // a stream window on the new code reloads itself
                 setTimeout(function() { location.reload(); }, 900);
             }).catch(function(e) { btns.forEach(function(b) { if (b) b.disabled = false; }); toast('Update failed: ' + (e.message || e)); });
         });

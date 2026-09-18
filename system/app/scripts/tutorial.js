@@ -11,7 +11,7 @@
 
 import { state } from './state.js';
 import { createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign } from './models.js';
-import { save, toast } from './io.js';
+import { save, toast, canPersistLocal } from './io.js';
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
@@ -548,7 +548,7 @@ function show(i, dir) {
 function next(dir) { show(tour.i + dir, dir); }
 
 function startTour() {
-    if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
+    if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
     ensureDom();
     try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
     var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
@@ -609,6 +609,7 @@ function saveIsFresh() {
 (function artOnLoad() {
     var tries = 0;
     var t = setInterval(function() {
+        if (window.__wpCleanupBusy) return;   // the cleanup is deciding what the save holds: keep waiting
         tries++;
         var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
         if (!loaded && tries < 40) return;
@@ -625,6 +626,7 @@ function saveIsFresh() {
     if (seen) return;
     var tries = 0;
     var t = setInterval(function() {
+        if (window.__wpCleanupBusy) return;   // the cleanup is deciding what the save holds: keep waiting
         tries++;
         var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
         if (!loaded && tries < 40) return;          // wait for load() (up to ~12 s), then give up quietly

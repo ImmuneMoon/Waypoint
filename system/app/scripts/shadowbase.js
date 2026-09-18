@@ -9,7 +9,7 @@
    The stored sheet never keeps a portrait when the token has art of its own —
    portraits are ~500KB data URLs and the token image IS the portrait. */
 
-import { toast, save } from './io.js';
+import { toast, save, canPersistLocal } from './io.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
 
 function dl(name, text) {
@@ -206,6 +206,7 @@ export function importCharacterToken(file) {
     var camp = getActiveCampaign();
     var map = getActiveMap();
     if (!camp || !map || map.type !== 'map') { toast('Open a play map first.'); return; }
+    if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }   // the portrait upload would land under the GM's map id
     file.text().then(async function(txt) {
         var j;
         try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }

@@ -102,4 +102,6 @@ if (on) {
     }
     setTimeout(tick, 400);
     setInterval(tick, 1000);
+    // A hot update in the main window reloads this one too, so it never runs old code
+    try { new BroadcastChannel('waypoint').onmessage = function(e) { if (e.data && e.data.type === 'reload') location.reload(); }; } catch (e) {}
 }

@@ -352,6 +352,8 @@ if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value
 
               if (!f) return;
 
+              if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
+
               toast('Uploading image...');
 
               fetch('/api/upload?mapId=' + encodeURIComponent(getActiveCampaign().activeItemId) + '&filename=' + encodeURIComponent(f.name), { method: 'POST', body: f })
@@ -508,6 +510,8 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
                   var f = this.files[0];
 
                   if (!f) return;
+
+                  if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
 
                   toast('Uploading portrait...');
 

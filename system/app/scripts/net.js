@@ -1688,7 +1688,7 @@ function handleMessage(msg, conn) {
         chatLog.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
         while (chatLog.length > 200) chatLog.shift();
         if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none') { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
-    } else if (msg.type === 'roster') {
+    } else if (msg.type === 'roster' && net.role === 'client') {   // the host owns the roster; a player's copy never replaces it
         net.roster = msg.roster || {};
         net.away = msg.away || {};
         renderRoster();
@@ -2358,7 +2358,8 @@ if (_endBtn) _endBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') { syncSessionButtons(); return; }
     var n = net.conns.length;
     import('./dialogs.js').then(function(d) {
-        d.showConfirm('End the session for everyone?' + (n ? ' ' + n + ' player' + (n === 1 ? '' : 's') + ' will be told the session ended and returned to their own campaigns.' : '') + ' The room code is retired.', function() {
+        d.showConfirm('End the session for everyone?' + (n ? ' ' + n + ' player' + (n === 1 ? '' : 's') + ' will be told the session ended and returned to their own campaigns.' : '') + ' The room code is retired.', function(yes) {
+            if (!yes) return;   // Cancel and Esc keep the table running
             leaveSession(false);
             ui('netModal').style.display = 'none';
         });
@@ -2452,7 +2453,7 @@ net.openSessionLog = function() {
     });
     var clearB = ui('sessionLogClear'); if (clearB) clearB.addEventListener('click', function() {
         var camp = getActiveCampaign(); if (!camp || !(camp.sessionLog || []).length) return;
-        (function() { showConfirm('Clear the session log for ' + (camp.name || 'this campaign') + '? ' + camp.sessionLog.length + ' lines go. Save it as text first if you want to keep it.', function() { camp.sessionLog = []; save(true); net.openSessionLog(); }); })();
+        (function() { showConfirm('Clear the session log for ' + (camp.name || 'this campaign') + '? ' + camp.sessionLog.length + ' lines go. Save it as text first if you want to keep it.', function(yes) { if (!yes) return; camp.sessionLog = []; save(true); net.openSessionLog(); }); })();
     });
 })();
 net.togglePause = function() { var b = ui('netPauseBtn'); if (b) b.click(); };
@@ -2463,7 +2464,8 @@ if (!net.leaveSession) net.leaveSession = leaveSession;
 net.leaveSessionConfirm = function() {
     if (!net.active && !net.foreign) return;
     import('./dialogs.js').then(function(d) {
-        d.showConfirm('Leave the session? Your own campaign comes back on screen. You can rejoin with the same room code.', function() {
+        d.showConfirm('Leave the session? Your own campaign comes back on screen. You can rejoin with the same room code.', function(yes) {
+            if (!yes) return;   // Cancel and Esc stay at the table
             leaveSession(false);
             var nm = ui('netModal'); if (nm) nm.style.display = 'none';
         });

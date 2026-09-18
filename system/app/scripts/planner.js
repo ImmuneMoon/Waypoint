@@ -48,6 +48,31 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
+  // Page layout (HANDBOOK_PLAN 2.3): every image, callout, flare, table, diagram and flowchart block on a
+  // page may carry layout { width, float, dx, dy, span }; a Section (H2) carries cols. The editor greys
+  // what a section forbids (span => no float; a callout or flare inside a multi-column section neither
+  // floats nor drops under half the column) and docrender.cleanDoc applies the same rules on the wire.
+  var LAYOUT_TYPES = { image: 1, callout: 1, flare: 1, table: 1, diagram: 1, flowchart: 1 };
+  var LAYOUT_NOFLOAT_COLS = { callout: 1, flare: 1 };
+  var LAYOUT_WIDTHS = [25, 33, 50, 66, 75, 100];
+  function blockLayout(b) {
+      var l = b.layout && typeof b.layout === 'object' ? b.layout : {};
+      var w = LAYOUT_WIDTHS.indexOf(+l.width) >= 0 ? +l.width : (b.type === 'image' && LAYOUT_WIDTHS.indexOf(+b.width) >= 0 ? +b.width : 100);   // a picture placed before the layout row keeps its planner width
+      return { width: w, float: l.float === 'left' || l.float === 'right' ? l.float : 'none', dx: Math.max(-200, Math.min(200, Math.round(+l.dx || 0))), dy: Math.max(-200, Math.min(200, Math.round(+l.dy || 0))), span: l.span === true };
+  }
+  function layoutRowHtml(idx, b, secCols) {
+      var l = blockLayout(b), inCols = secCols > 1, narrow = inCols && LAYOUT_NOFLOAT_COLS[b.type], noFloat = l.span || narrow;
+      var widths = narrow ? [50, 66, 75, 100] : LAYOUT_WIDTHS;
+      var h = '<div class="blk-layout fc-opts"><span class="lay-title">Layout</span>';
+      h += '<label title="Width, as a share of the column the block sits in">Width <select class="b-lay-w" data-idx="' + idx + '">' + widths.map(function(w) { return '<option value="' + w + '"' + (Math.max(l.width, widths[0]) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>';
+      h += '<label class="' + (noFloat ? 'off' : '') + '" title="' + (l.span ? 'A block spanning all columns stays in the flow' : narrow ? 'A callout or flare inside a multi-column section stays in the flow' : 'Float: the text wraps around the block') + '">Float <select class="b-lay-f" data-idx="' + idx + '"' + (noFloat ? ' disabled' : '') + '>' + [['none', 'None'], ['left', 'Left'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((noFloat ? 'none' : l.float) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>';
+      h += '<label title="Nudge sideways, in pixels, without changing how the text wraps">X <input type="number" class="b-lay-dx" data-idx="' + idx + '" value="' + l.dx + '" min="-200" max="200" step="4"></label>';
+      h += '<label title="Nudge up or down, in pixels">Y <input type="number" class="b-lay-dy" data-idx="' + idx + '" value="' + l.dy + '" min="-200" max="200" step="4"></label>';
+      h += '<label class="' + (inCols ? '' : 'off') + '" title="' + (inCols ? 'Take the full width of this multi-column section' : 'Takes effect inside a section with 2 or 3 columns') + '"><input type="checkbox" class="b-lay-span" data-idx="' + idx + '"' + (l.span ? ' checked' : '') + '> Span all columns</label>';
+      if (b.type === 'image') h += '<span class="lay-note">Or drag the picture in the preview to nudge it, and its bottom-right corner to resize it.</span>';
+      return h + '</div>';
+  }
+
   function renderPlanner() {
       var activeMap = getActiveMap();
       if (!activeMap) return;
@@ -121,7 +146,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var html = '';
 
+      var secCols = 1;   // the column count of the section a block sits in (its layout row depends on it)
       activeMap.blocks.forEach(function(b, idx) {
+          if (b.type === 'h1') secCols = 1; else if (b.type === 'h2') secCols = Math.max(1, Math.min(3, Math.round(Number(b.cols) || 1)));
 
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
 
@@ -140,6 +167,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'h2' || b.type === 'h3') {
 
               html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(b.type === 'h3' ? 'Sub-heading' : 'Section Header')+'" data-idx="'+idx+'" style="width:100%;">';
+              if (isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="Everything under this section, up to the next section or title, flows in this many columns">Columns <select class="b-h2cols" data-idx="'+idx+'">' + [1, 2, 3].map(function(n) { return '<option value="' + n + '"' + (secCols === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>';
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
 
@@ -149,8 +177,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div class="b-img-row"><div class="b-img-thumb">' + (b.src ? '<img src="' + esc(b.src) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
                     + '<div class="b-img-ctl"><div class="fc-opts"><button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
                     + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
-                    + '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
-                    + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label></div>'
+                    + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
+                    + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
                     + '<input type="text" class="field b-caption" value="' + esc(b.caption || '') + '" placeholder="Caption (optional)" data-idx="' + idx + '" style="width:100%; margin-top:6px;"></div></div>';
           } else if (b.type === 'raw') {
 
@@ -262,6 +290,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           }
 
+          if (isDocEd && LAYOUT_TYPES[b.type]) html += layoutRowHtml(idx, b, secCols);
           html += '</div>';
 
       });
@@ -292,6 +321,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-imga')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].align = this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].caption = this.value; save(true); renderPlannerPreview(); }));
+      // Page layout row (pages only). Selects and the checkbox are one undo step each; the nudge boxes coalesce like text.
+      var layOf = function(el) { var bb = activeMap.blocks[el.dataset.idx]; if (!bb.layout || typeof bb.layout !== 'object') bb.layout = blockLayout(bb); return bb; };
+      Array.from(blockContainer.querySelectorAll('.b-lay-w')).forEach(el => el.addEventListener('change', function() { layOf(this).layout.width = +this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-lay-f')).forEach(el => el.addEventListener('change', function() { layOf(this).layout.float = this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-lay-dx, .b-lay-dy')).forEach(el => el.addEventListener('input', function() { var bb = layOf(this); bb.layout[this.classList.contains('b-lay-dx') ? 'dx' : 'dy'] = Math.max(-200, Math.min(200, Math.round(+this.value || 0))); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-lay-span')).forEach(el => el.addEventListener('change', function() { var bb = layOf(this); bb.layout.span = this.checked; if (this.checked) bb.layout.float = 'none'; save(true); renderPlanner(); }));
+      Array.from(blockContainer.querySelectorAll('.b-h2cols')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].cols = Math.max(1, Math.min(3, parseInt(this.value, 10) || 1)); save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx][activeMap.blocks[this.dataset.idx].type==='node'?'tag':'sub'] = this.value; save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].must = this.value; save(false); renderPlannerPreview(); }));
@@ -1042,6 +1078,41 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       var a = e.target.closest && e.target.closest('.pv-link'); if (!a) return;
       e.preventDefault(); e.stopPropagation();
       navigateToMap(a.dataset.map, a.dataset.room || null);
+  });
+  // Page layout by hand (pages only): drag a picture in the preview to nudge it (dx / dy), drag its
+  // bottom-right corner to resize it (the width snaps to the select's steps). One save at pointerup is
+  // one undo step per drag; io.js's capture listener closes any typing chunk at the pointerdown.
+  if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('pointerdown', function(e) {
+      if (e.button !== 0) return;
+      var am = getActiveMap(); if (!am || am.type !== 'doc') return;
+      var fig = e.target.closest && e.target.closest('.doc-img'); if (!fig) return;
+      var blk = fig.closest('.pv-blk'); var b = blk && am.blocks[+blk.dataset.blk]; if (!b || b.type !== 'image') return;
+      e.preventDefault();
+      if (!b.layout || typeof b.layout !== 'object') b.layout = blockLayout(b);
+      var r = fig.getBoundingClientRect(), resize = (r.right - e.clientX) < 18 && (r.bottom - e.clientY) < 18;
+      var colW = (fig.parentNode.getBoundingClientRect().width || r.width) || 1;   // the column the picture sits in (its .pv-blk)
+      var x0 = e.clientX, y0 = e.clientY, dx0 = b.layout.dx || 0, dy0 = b.layout.dy || 0, w0 = b.layout.width || 100, moved = false;
+      fig.classList.add('lay-drag');
+      var onMove = function(ev) {
+          var mx = ev.clientX - x0, my = ev.clientY - y0;
+          if (Math.abs(mx) > 2 || Math.abs(my) > 2) moved = true;
+          if (resize) {
+              var pct = (r.width + mx) / colW * 100, best = LAYOUT_WIDTHS.reduce(function(a, s) { return Math.abs(s - pct) < Math.abs(a - pct) ? s : a; }, 100);
+              fig.style.width = best + '%'; fig.dataset.layW = best;
+          } else {
+              var nx = Math.max(-200, Math.min(200, dx0 + mx)), ny = Math.max(-200, Math.min(200, dy0 + my));
+              fig.style.position = 'relative'; fig.style.left = nx + 'px'; fig.style.top = ny + 'px'; fig.dataset.layX = nx; fig.dataset.layY = ny;
+          }
+      };
+      var onUp = function() {
+          window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+          fig.classList.remove('lay-drag');
+          if (!moved) { renderPlannerPreview(); return; }
+          if (resize) b.layout.width = +fig.dataset.layW || w0;
+          else { b.layout.dx = Math.round(+fig.dataset.layX || 0); b.layout.dy = Math.round(+fig.dataset.layY || 0); }
+          save(true); renderPlanner();
+      };
+      window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
   });
   if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('dblclick', function(e) {
 

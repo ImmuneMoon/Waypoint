@@ -394,6 +394,13 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>While hosting, turning a page GM only removes it from every player at once (their reader closes if it was open); turning it back on sends it again. Edits to an open page reach players as you type.</li>
                           <li>Only the pages of the <b>campaign you are hosting</b> reach the table. Your other campaigns' pages stay home whatever their switch says.</li>
                       </ul>
+                      <h4>Layout</h4>
+                      <p>A page <b>flows like a web page</b>, not a fixed sheet: a player's narrower window, the print path and the HTML export all reflow the same content. The layout row under a picture, callout, flare, table, diagram or flowchart sets its <b>width</b> (a quarter to the full column), whether it <b>floats</b> left or right with the text wrapping around it, a <b>nudge</b> in pixels from where the flow put it, and <b>span all columns</b> inside a multi-column section. A <b>Section (H2)</b> block takes 1, 2 or 3 columns for everything under it up to the next section or title. In the preview, <b>drag a picture</b> to nudge it and drag its <b>bottom-right corner</b> to resize it; each drag is one undo step.</p>
+                      <ul>
+                          <li>Spanning all columns keeps a block in the flow, so the float control switches off while span is on.</li>
+                          <li>Inside a two- or three-column section a callout or flare cannot float and keeps at least half the column: a third of a narrow column is a few dozen pixels.</li>
+                          <li>A large upward nudge on a floated picture can overlap the text above it; the preview shows exactly what players get, so look before you leave it.</li>
+                      </ul>
                       <h4>What players see</h4>
                       <p>A joined player's left panel shows only the Handbook tree: the readable pages of your campaign, in your order and nesting. Clicking one opens it in a panel over the map; <kbd>Esc</kbd> or the &times; closes it; the map, tokens and chat keep working beside it. Players cannot edit, rename, move or save a page &mdash; it is a copy that lives only while they are at your table. Pictures on a page reach them the same way play-map images do. Flowcharts render as you arranged them; diagram blocks render with an internet connection, in a stricter mode that ignores link and click directives.</p>
                       <div class="help-tip">Pages are for rules and reference, not for secrets: a page a player can read is a page every player at the table can read. Keep the twist in a planner or a room note.</div>

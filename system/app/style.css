@@ -1157,6 +1157,17 @@
   .doc-view pre.doc-code { background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 12.5px; }
   .doc-view a { color: var(--blue); }
   /* #docPlayersBtn takes the toolbar's own .tool.on look (gold fill, dark text) while players can read */
+  /* Page layout in the GM's preview (planner.js): drag a picture to nudge it, its corner to resize it */
+  #plannerPreview .doc-img { cursor: move; position: relative; }
+  #plannerPreview .doc-img::after { content: ''; position: absolute; right: 2px; bottom: 2px; width: 12px; height: 12px; border-right: 3px solid var(--gold); border-bottom: 3px solid var(--gold); border-radius: 0 0 3px 0; opacity: 0; transition: opacity .12s; pointer-events: none; }
+  #plannerPreview .doc-img:hover::after, #plannerPreview .doc-img.lay-drag::after { opacity: .9; }
+  #plannerPreview .doc-img.lay-drag { outline: 1px dashed var(--gold); outline-offset: 3px; }
+  #plannerPreview .doc-img.lay-drag img { pointer-events: none; }
+  .blk-layout { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--edge); }
+  .blk-layout .lay-title { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin-right: 2px; }
+  .blk-layout input[type="number"] { width: 62px; }
+  .blk-layout label.off { opacity: .45; }
+  .blk-layout .lay-note { flex-basis: 100%; color: var(--dim); font-size: 11px; }
 
   /* The Handbook reader: a page over the play map for a joined player (handbook.js) */
   #docReaderModal { position: fixed; top: 52px; left: 0; bottom: 0; width: min(760px, 72vw); z-index: 99990; background: var(--bg); border-right: 1px solid var(--gold); box-shadow: 6px 0 24px rgba(0,0,0,0.45); flex-direction: column; }

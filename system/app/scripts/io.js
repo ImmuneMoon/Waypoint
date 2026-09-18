@@ -149,6 +149,11 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             c.activeItemId = Object.keys(c.items)[0] || null;
             fix('activeItemId repaired');
         }
+
+        // VTT features (1.4.9): a save from before them gets its per-campaign set once, from the default
+        // at this moment (the 1.4.6 keys for an upgrading user). Not a fix(): no "save upgraded" toast,
+        // the fill persists with the next ordinary save.
+        if (window.wpVtt) window.wpVtt.fill(c);
     });
 
     if (!data.activeCampaignId || !data.campaigns[data.activeCampaignId]) {
@@ -173,6 +178,12 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
     resetHistory();   // before the fetch: a Ctrl+Z while the disk is being read finds nothing to pop
 
+    // Ownership epoch: a snapshot that lands while the disk is being read bumps it past this value, and
+    // this load then stands down instead of putting the player's own campaign over a live table.
+    if (window.wpNet) window.wpNet.snapshotGen = (window.wpNet.snapshotGen || 0) + 1;
+    var _loadGen = window.wpNet ? window.wpNet.snapshotGen : 0;
+    var overtaken = function() { var n = window.wpNet; return !!(n && n.active && n.role === 'client' && (n.snapshotGen || 0) > _loadGen); };
+
     fetch('/api/data')
 
       .then(res => res.json())
@@ -181,6 +192,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       .then(data => {
 
+        if (overtaken()) return;   // a fresh join's snapshot arrived mid-fetch: the table stays, this load is abandoned
+
         var migrated = { changed: false };
         if(Object.keys(data).length > 0) {
             migrated = migrateAppState(data);
@@ -188,7 +201,9 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         }
         if (window.wpStream && window.wpNet && window.wpNet.sanitizeAppState) state.appState = window.wpNet.sanitizeAppState(state.appState);   // stream window: players' view only
         if (Object.keys(data).length === 0 && window.wpNet && window.wpNet.foreign && !window.wpStream) state.appState = { activeCampaignId: null, campaigns: {} };   // no save on disk: start fresh, never adopt the GM's table
-        if (window.wpNet) window.wpNet.foreign = !!window.wpStream;   // our own campaign again (the stream window never owns one)
+        if (window.wpNet && !overtaken()) {   // our own campaign again (the stream window never owns one): the ceiling goes with the GM's campaign
+            window.wpNet.foreign = !!window.wpStream; window.wpNet.stance = null; window.wpNet.stanceCamps = null; window.wpNet.gmId = '';
+        }
         if (canPersistLocal()) sweepRecents(state.appState);   // recent-map keys for campaigns not in this save go (a joined table's ids never stay)
 
 

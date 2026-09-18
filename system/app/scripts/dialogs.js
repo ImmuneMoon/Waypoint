@@ -308,15 +308,27 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
+  // A session is exactly one campaign: while hosting, every way onto another campaign asks first and ends the
+  // session on yes (net.js guardCampaignSwitch). Before net.js has loaded there is no session to guard.
+  function guardSwitch(fn, onCancel) { if (window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn, onCancel); else fn(); }
+
   campaignSelect.addEventListener('change', function() {
 
-      state.appState.activeCampaignId = this.value;
+      var pick = this.value;
 
-      state.selId = null; state.selWbId = null; state.linkStart = null;
+      if (pick === state.appState.activeCampaignId) return;
 
-      updateSidebarNav(); render(); save(true);
+      guardSwitch(function() {
 
-      setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
+          state.appState.activeCampaignId = pick;
+
+          state.selId = null; state.selWbId = null; state.linkStart = null;
+
+          updateSidebarNav(); render(); save(true);
+
+          setTimeout(function(){ if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
+
+      }, updateCampaignSelect);   // cancelled: the picker shows the hosted campaign again
 
   });
 
@@ -330,15 +342,19 @@ if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
 
       promptForCampaignName(initial, "Enter new campaign name:", null, function(title) {
 
-          var newCamp = createNewCampaign(title);
+          guardSwitch(function() {   // the new campaign becomes the active one: a switch while hosting
 
-          state.appState.campaigns[newCamp.id] = newCamp;
+              var newCamp = createNewCampaign(title);
 
-          state.appState.activeCampaignId = newCamp.id;
+              state.appState.campaigns[newCamp.id] = newCamp;
 
-          state.selId = null; state.selWbId = null; state.linkStart = null;
+              state.appState.activeCampaignId = newCamp.id;
 
-          updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+              state.selId = null; state.selWbId = null; state.linkStart = null;
+
+              updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+
+          });
 
       });
 
@@ -376,7 +392,9 @@ if(_el_delCampBtn) _el_delCampBtn.addEventListener('click', function() {
 
       showConfirm("Are you sure you want to delete this campaign? This cannot be undone (a safety copy is taken first).", function(yes) {
 
-          if(yes) takeSafetyCopy().then(function() {
+          if(!yes) return;
+
+          guardSwitch(function() { takeSafetyCopy().then(function() {   // deleting the hosted campaign moves the app onto another: the session ends first
 
               var goneId = state.appState.activeCampaignId;
 
@@ -390,7 +408,7 @@ if(_el_delCampBtn) _el_delCampBtn.addEventListener('click', function() {
 
               updateCampaignSelect(); updateSidebarNav(); render(); save(true);
 
-          });
+          }); });
 
       });
 
@@ -779,11 +797,14 @@ export {
           res.querySelectorAll('button').forEach(function(btn) {
               btn.addEventListener('click', function() {
                   m.style.display = 'none';
-                  if (this.dataset.id === state.appState.activeCampaignId) return;
-                  state.appState.activeCampaignId = this.dataset.id;
-                  state.selId = null; state.selWbId = null; state.linkStart = null;
-                  updateCampaignSelect(); updateSidebarNav(); render(); save(true);
-                  setTimeout(function() { if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
+                  var pick = this.dataset.id;
+                  if (pick === state.appState.activeCampaignId) return;
+                  guardSwitch(function() {
+                      state.appState.activeCampaignId = pick;
+                      state.selId = null; state.selWbId = null; state.linkStart = null;
+                      updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+                      setTimeout(function() { if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
+                  });
               });
           });
       }

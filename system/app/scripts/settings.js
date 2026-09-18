@@ -71,14 +71,9 @@ function syncPanel() {
     document.querySelectorAll('.set-unit-btn').forEach(function(b) {
         b.classList.toggle('active', b.dataset.unit === (state.measureUnit || 'imperial'));
     });
-    var mmState = ui('setMinimapState');
-    if (mmState) mmState.textContent = localStorage.getItem('wp_minimap') === 'closed' ? 'hidden' : 'shown';
     var rlState = ui('setRulersState');
     if (rlState) rlState.textContent = localStorage.getItem('wp_rulers') === 'off' ? 'hidden' : 'shown';
-    var evState = ui('setElevationState');
-    if (evState) evState.textContent = localStorage.getItem('wp_elevation') !== 'off' ? 'on' : 'off';
-    var poState = ui('setPostureState');
-    if (poState) poState.textContent = localStorage.getItem('wp_posture') !== 'off' ? 'on' : 'off';
+    syncVttPanel();   // elevation, posture, minimap: per campaign, the default, or the GM's ceiling at a table
     var dcState = ui('setDevConsoleState');
     if (dcState) dcState.textContent = localStorage.getItem('wp_devconsole') === 'on' ? 'on' : 'off';
     var ryState = ui('setRelayState');
@@ -134,7 +129,7 @@ if (_avFile) _avFile.addEventListener('change', function() {
 var _joinAv = ui('netJoinAvatar');
 if (_joinAv) _joinAv.addEventListener('click', function() { ui('setAvatarFile').click(); });
 var _netBtn2 = ui('netBtn');
-if (_netBtn2) _netBtn2.addEventListener('click', renderAvatarPreview);
+if (_netBtn2) _netBtn2.addEventListener('click', function() { renderAvatarPreview(); renderNetVttLine(); });
 var _setAvPrev = ui('setAvatarPreview');
 if (_setAvPrev) _setAvPrev.addEventListener('click', function() { ui('setAvatarFile').click(); });
 
@@ -158,14 +153,6 @@ document.querySelectorAll('.set-unit-btn').forEach(function(b) {
         });
         toast(this.dataset.unit === 'metric' ? 'Metric measurements.' : 'Imperial measurements.');
     });
-});
-
-var _mmBtn = ui('setMinimapBtn');
-if (_mmBtn) _mmBtn.addEventListener('click', function() {
-    var tog = ui('minimapToggle');
-    if (tog) tog.click();
-    else localStorage.setItem('wp_minimap', localStorage.getItem('wp_minimap') === 'closed' ? 'open' : 'closed');
-    syncPanel();
 });
 
 /* Stream window: a second window showing only the play map, as players see it, for screen-sharing */
@@ -268,22 +255,123 @@ if (_rlBtn) _rlBtn.addEventListener('click', function() {
     toast(off ? 'Rulers shown.' : 'Rulers hidden.');
 });
 
-/* Token stance: elevation (yards) and posture chips, and the blast tool's 3D figure. On from
-   the first launch — a table that runs flat switches them off once and the choice sticks. The values stay on the tokens either
-   way; in a session the GM's choice is what players see (net.broadcastStance). The keys
-   are wp_* so they mirror into saves/preferences.json with the other table settings. */
-[['Elevation', 'wp_elevation'], ['Posture', 'wp_posture']].forEach(function(def) {
-    var b = ui('set' + def[0] + 'Btn'); if (!b) return;
-    b.addEventListener('click', function() {
-        var on = localStorage.getItem(def[1]) !== 'off';
-        try { localStorage.setItem(def[1], on ? 'off' : 'on'); } catch (e) {}
-        if (window.appRender) window.appRender();
-        if (window.wpRefreshBlasts) window.wpRefreshBlasts();
-        if (window.wpNet && window.wpNet.broadcastStance) window.wpNet.broadcastStance();
+/* ---------- VTT features (vtt.js): per campaign, the default for new campaigns, and a player's view at a table ----------
+   Token elevation and posture (the chips and the blast tool's 3D figure) and the minimap. The rows keep their
+   1.4.6 ids. Solo or hosting: a row sets the campaign on screen (camp.vtt, saved with it; while hosting the
+   change reaches the table at once) and the defaults block below is editable. Waiting for a GM: locked.
+   At a table: a row shows the GM's setting and offers "off for me" — kept per table, never the campaign,
+   never the player's own defaults; the defaults block and the push button are hidden. Stream window: the
+   group is hidden. The 1.4.6 keys wp_elevation / wp_posture are read as a seed by vtt.js and never written again. */
+function cap(id) { return id.charAt(0).toUpperCase() + id.slice(1); }
+function shortLabel(f) { return cap(f.label.replace('Token ', '')); }
+var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
+    elevation: ['Elevation on.', 'Elevation off \u2014 chips hidden, the values are kept.'],
+    posture: ['Posture on.', 'Posture off \u2014 chips hidden, the values are kept.'],
+    minimap: ['Minimap on.', 'Minimap off for this campaign.']
+};
+function vttFeatures() { return (window.wpVtt && window.wpVtt.FEATURES) || []; }
+function syncVttPanel() {
+    var v = window.wpVtt, grp = document.querySelector('#settingsModal details.set-group[data-group="vtt"]');
+    if (!grp) return;
+    if (!v) { grp.style.display = 'none'; return; }
+    var m = v.mode(), client = m === 'client', awaiting = m === 'awaiting', editable = m === 'solo' || m === 'host';
+    grp.style.display = m === 'stream' ? 'none' : '';
+    if (m === 'stream') return;
+    var camp = state.appState.campaigns[state.appState.activeCampaignId] || null;
+    var lockNote = ui('setVttLocked'); if (lockNote) lockNote.style.display = awaiting ? '' : 'none';
+    var word = ui('setVttCampWord'), name = ui('setVttCampName');
+    if (word) word.textContent = client ? 'This table:' : 'This campaign:';
+    if (name) name.textContent = (camp ? (camp.name || 'Unnamed Campaign') : '\u2014') + (client ? ' \u2014 set by the GM' : '');
+    var c = client ? (v.ceiling() || {}) : null;
+    var master = client ? vttFeatures().some(function(f) { return c[f.id] === true; }) : v.campaignMaster(camp);   // a client infers it: all off is "no VTT features"
+    var mRow = ui('setVttMasterRow'), mState = ui('setVttMasterState'), mBtn = ui('setVttMasterBtn');
+    if (mRow) mRow.style.display = client ? 'none' : '';
+    if (mState) mState.textContent = master ? 'on' : 'off';
+    if (mBtn) mBtn.disabled = !editable;
+    var offNote = ui('setVttMasterOffNote');
+    if (offNote) { offNote.style.display = master ? 'none' : ''; offNote.textContent = client ? 'The GM runs this table without VTT features.' : 'VTT features are off for this campaign \u2014 plain whiteboard. Your per-feature choices are kept.'; }
+    var rows = ui('setVttRows'); if (rows) rows.style.display = master ? '' : 'none';
+    vttFeatures().forEach(function(f) {
+        var row = document.querySelector('.set-vtt-row[data-vtt="' + f.id + '"]'), st = ui('set' + cap(f.id) + 'State'), btn = ui('set' + cap(f.id) + 'Btn');
+        if (!row) return;
+        var help = row.querySelector('.set-vtt-help'), role = row.querySelector('.set-vtt-role');
+        if (client) {
+            var gmOn = c[f.id] === true, lo = v.localOff(f.id);
+            if (st) st.textContent = gmOn ? (lo ? 'GM: on \u2014 off for you' : 'GM: on') : 'GM: off';
+            if (btn) { btn.textContent = lo ? 'Turn back on for me' : 'Turn off for me'; btn.disabled = !gmOn; }
+            row.style.opacity = gmOn ? '' : '.55';
+            if (help) help.style.display = 'none';
+            if (role) { role.style.display = ''; role.textContent = !gmOn ? 'The GM has this off for the table.' : lo ? 'Off for you at this table \u2014 your own settings are unchanged.' : 'On at this table. Switch it off for yourself here; your own settings are unchanged.'; }
+        } else {
+            var on = v.campaignOn(f.id, camp);
+            var extra = (f.id === 'minimap' && on && localStorage.getItem('wp_minimap') === 'closed') ? ' \u2014 collapsed in the corner' : '';
+            if (st) st.textContent = (on ? 'on' : 'off') + extra;
+            if (btn) { btn.textContent = 'Toggle ' + shortLabel(f); btn.disabled = !editable; }
+            row.style.opacity = '';
+            if (help) help.style.display = '';
+            if (role) role.style.display = 'none';
+        }
+    });
+    var defaults = ui('setVttDefaults'); if (defaults) defaults.style.display = editable ? '' : 'none';
+    var g = v.globalVtt();
+    var gmState = ui('setVttGlobalMasterState'); if (gmState) gmState.textContent = g.master ? 'on' : 'off';
+    vttFeatures().forEach(function(f) { var s = ui('setVttGlobal' + cap(f.id) + 'State'); if (s) s.textContent = g.features[f.id] ? 'on' : 'off'; });
+    if (client && !grp.open) grp.open = true;   // so a player does not have to hunt for it; the group listener skips the write while locked
+}
+vttFeatures().forEach(function(f) {
+    var b = ui('set' + cap(f.id) + 'Btn');
+    if (b) b.addEventListener('click', function() {
+        var v = window.wpVtt; if (!v) return;
+        if (v.mode() === 'client') {   // a player's own "off for me" at this table
+            var c = v.ceiling(); if (!c || c[f.id] !== true) return;
+            var off = !v.localOff(f.id);
+            if (!v.setLocal(f.id, off)) return;
+            syncPanel();
+            toast(shortLabel(f) + (off ? ' off for you at this table \u2014 your own settings are unchanged.' : ' back on for you at this table.'));
+            return;
+        }
+        if (v.locked()) return;
+        var on = v.campaignOn(f.id);
+        if (!v.setCampaign(f.id, !on)) return;
         syncPanel();
-        toast(def[0] + (on ? ' off \u2014 chips hidden, the values are kept.' : ' on.'));
+        toast((VTT_SAID[f.id] || [shortLabel(f) + ' on.', shortLabel(f) + ' off.'])[on ? 1 : 0]);
+    });
+    var gb = ui('setVttGlobal' + cap(f.id) + 'Btn');
+    if (gb) gb.addEventListener('click', function() {
+        var v = window.wpVtt; if (!v || v.locked()) return;
+        var on = v.globalVtt().features[f.id];
+        if (!v.setGlobal(f.id, !on)) return;
+        syncPanel();
+        toast('New campaigns start with ' + shortLabel(f) + (on ? ' off' : ' on') + '. Existing campaigns keep their own.');
     });
 });
+var _vttMaster = ui('setVttMasterBtn');
+if (_vttMaster) _vttMaster.addEventListener('click', function() {
+    var v = window.wpVtt; if (!v || v.locked()) return;
+    var on = v.campaignMaster();
+    if (!v.setMaster(!on)) return;
+    syncPanel();
+    toast(on ? 'VTT integration off for this campaign \u2014 plain whiteboard. Your per-feature choices are kept.' : 'VTT integration on for this campaign.');
+});
+var _vttGlobalMaster = ui('setVttGlobalMasterBtn');
+if (_vttGlobalMaster) _vttGlobalMaster.addEventListener('click', function() {
+    var v = window.wpVtt; if (!v || v.locked()) return;
+    var on = v.globalVtt().master;
+    if (!v.setGlobalMaster(!on)) return;
+    syncPanel();
+    toast('New campaigns start with VTT integration ' + (on ? 'off' : 'on') + '. Existing campaigns keep their own.');
+});
+// One read-only line in the Multiplayer panel: what the table runs with
+function renderNetVttLine() {
+    var el = ui('netVttLine'), v = window.wpVtt; if (!el) return;
+    var m = v ? v.mode() : 'solo';
+    if (m !== 'client' && m !== 'host') { el.style.display = 'none'; return; }
+    var flags = m === 'client' ? (v.ceiling() || {}) : v.hostFlags();
+    el.textContent = 'VTT at this table' + (m === 'client' ? ' (GM)' : '') + ': ' + vttFeatures().map(function(f) { return shortLabel(f) + ' ' + (flags[f.id] ? 'on' : 'off'); }).join(' \u00b7 ');
+    el.style.display = '';
+}
+// Live refresh: net.js (snapshot, stage, stance), vtt.js (any change), the minimap's own button and campaign switches call it
+window.wpSettingsSync = function() { var m = ui('settingsModal'); if (m && m.style.display === 'flex') syncPanel(); renderNetVttLine(); };
 
 var _dcBtn = ui('setDevConsoleBtn');
 if (_dcBtn) _dcBtn.addEventListener('click', function() {
@@ -386,6 +474,7 @@ if (_prefs) _prefs.addEventListener('click', function() {
     applyGridOpacity();
     document.documentElement.style.removeProperty('--leftw');
     document.documentElement.style.removeProperty('--rightw');
+    if (window.wpVtt) window.wpVtt.changed('reset');   // the VTT default is back to the 1.4.6 keys, then on; campaigns carry their own and are untouched
     toast('Preferences reset — restart Waypoint to apply everything.');
 });
 
@@ -677,6 +766,7 @@ if (_ident) _ident.addEventListener('click', function() {
     groups.forEach(function(d) {
         if (saved && typeof saved[d.dataset.group] === 'boolean') d.open = saved[d.dataset.group];
         d.addEventListener('toggle', function() {
+            if (window.wpVtt && window.wpVtt.locked()) return;   // the VTT group is forced open at a table: not a choice to remember
             var st = {}; groups.forEach(function(g) { st[g.dataset.group] = g.open; });
             try { localStorage.setItem('wp_setGroups', JSON.stringify(st)); } catch (e) {}
         });

@@ -343,23 +343,22 @@ function refreshStageSelect() {
 
 var _campSel = ui('netCampSelect');
 if (_campSel) _campSel.addEventListener('change', function() {
-    if (!state.appState.campaigns[this.value]) return;
-    state.appState.activeCampaignId = this.value;
-    net.stageOverride = null;   // the pinned map belonged to the previous campaign
-    net.applyingRemote = false;
-    save();
-    updateCampaignSelect();
-    updateSidebarNav();
-    render();
-    if (window.appRestoreCamera) window.appRestoreCamera();
-    refreshStageSelect();
-    var c = getActiveCampaign();
-    if (net.active && net.role === 'host') {
-        net.onLocalSave();   // move followers onto the new campaign's stage
-        toast('Now hosting ' + (c ? c.name : 'campaign') + '.');
-    } else if (c) {
-        toast('Players will join ' + c.name + '.');
-    }
+    var pick = this.value;
+    if (!state.appState.campaigns[pick] || pick === state.appState.activeCampaignId) return;
+    // While hosting this is a campaign switch like any other: the session ends first (guardCampaignSwitch asks)
+    net.guardCampaignSwitch(function() {
+        state.appState.activeCampaignId = pick;
+        net.stageOverride = null;   // the pinned map belonged to the previous campaign
+        net.applyingRemote = false;
+        save();
+        updateCampaignSelect();
+        updateSidebarNav();
+        render();
+        if (window.appRestoreCamera) window.appRestoreCamera();
+        refreshStageSelect();
+        var c = getActiveCampaign();
+        if (c) toast('Players will join ' + c.name + '.');
+    }, refreshStageSelect);
 });
 
 var _stageSel = ui('netStageSelect');
@@ -376,6 +375,7 @@ if (_stageSel) _stageSel.addEventListener('change', function() {
 });
 function applyStage(stage) {
     if (!stage || !state.appState.campaigns[stage.campId]) return;
+    var prevCampId = state.appState.activeCampaignId;
     net.applyingRemote = true;
     state.appState.activeCampaignId = stage.campId;
     var camp = state.appState.campaigns[stage.campId];
@@ -394,6 +394,10 @@ function applyStage(stage) {
     render();
     if (window.appRestoreCamera) window.appRestoreCamera();
     net.applyingRemote = false;
+    // The host moved the table onto another campaign: for the player that is a new table (its own ceiling
+    // entry, its own per-table choices, the join notice if it was never seen)
+    if (prevCampId !== stage.campId && !net._snapshotting && window.wpVtt) window.wpVtt.tableChanged(prevCampId);
+    if (!net._snapshotting && window.wpSettingsSync) window.wpSettingsSync();
 }
 
 /* ---------- sync ---------- */
@@ -447,8 +451,13 @@ function applyClientItemFiltered(msg, profile) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
         }
-        // Stance (elevation in yards, posture): the owner may set them on their own token
-        var elevC = cleanElevation(w.elevation), postC = cleanPosture(w.posture);
+        // Stance (elevation in yards, posture): the owner may set them on their own token — while the
+        // patched campaign has that feature on. Off (or VTT integration off) keeps the host's value: the
+        // compare below is a no-op for that field, nothing is deleted, nothing accepted. Never strip outbound.
+        var _v = window.wpVtt;
+        var evOn = !_v || _v.campaignOn('elevation', camp), poOn = !_v || _v.campaignOn('posture', camp);
+        var elevC = evOn ? cleanElevation(w.elevation) : cleanElevation(lw.elevation),
+            postC = poOn ? cleanPosture(w.posture) : cleanPosture(lw.posture);
         if ((lw.elevation || 0) !== elevC || (lw.posture || 'standing') !== postC) {
             if (elevC) lw.elevation = elevC; else delete lw.elevation;
             if (postC !== 'standing') lw.posture = postC; else delete lw.posture;
@@ -486,26 +495,34 @@ function applySnapshot(msg) {
     Object.values(msg.appState.campaigns || {}).forEach(function (c) { c._foreign = mark; });
     state.appState = msg.appState;
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
+    net.snapshotGen++;
     if (window.wpResetHistory) window.wpResetHistory();   // the pre-join state must never be re-installed while foreign
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     setTravelLockLocal(!!msg.travelLocked);
     net.stance = cleanStance(msg.stance);
+    net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
     net.combats = cleanCombats(msg.combats);
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
     if (msg.notepad && typeof msg.notepad === 'object') applyNotepad(msg.notepad);
-    if (msg.stage) {
-        applyStage(msg.stage);
-    } else {
-        net.applyingRemote = true;
-        state.viewMode = 'visual';
-        state.selId = null; state.selWbId = null; state.selWbIds = [];
-        updateCampaignSelect();
-        updateSidebarNav();
-        render();
-        net.applyingRemote = false;
+    net._snapshotting = true;   // the stage inside a snapshot is the join itself, not a table change
+    try {
+        if (msg.stage) {
+            applyStage(msg.stage);
+        } else {
+            net.applyingRemote = true;
+            state.viewMode = 'visual';
+            state.selId = null; state.selWbId = null; state.selWbIds = [];
+            updateCampaignSelect();
+            updateSidebarNav();
+            render();
+            net.applyingRemote = false;
+        }
+    } finally {
+        net._snapshotting = false;   // a stage that throws must not leave every later stage looking like part of the join
     }
+    if (window.wpSettingsSync) window.wpSettingsSync();
 }
 
 function broadcast(msg, exceptConn) {
@@ -590,12 +607,13 @@ net.sendItem = function(campId, itemId, onlyConn) {
     broadcast(msg, null);
     _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
 };
-net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta;   // sandbox testing hooks
+net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta; net._handleMessage = handleMessage;   // sandbox testing hooks
 
 net.onLocalSave = function() {
     if (!net.active || net.applyingRemote) return;
     var patch = activeItemPatch();
     if (net.role === 'host') {
+        net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -625,6 +643,7 @@ function scheduleStageFollow() {
         var k2 = s2 ? s2.campId + '/' + s2.itemId : '';
         if (!k2 || k2 === net.lastStage) return;
         net.lastStage = k2;
+        net.syncStance();   // a campaign switch that has not saved yet: the ceiling travels before the stage
         var moved = 0;
         // only players still following the GM are moved; detached wanderers stay put
         net.conns.forEach(function(c) {
@@ -657,14 +676,57 @@ function setPausedLocal(on) {
     }
 }
 
-/* ---------- stance toggles (Settings → Table) ---------- */
-// The GM's Elevation / Posture toggles govern what players see: sent with the snapshot
-// and again whenever the GM flips one. Clients keep them in net.stance (whiteboard.js
-// reads it ahead of their own local preference while the session runs).
+/* ---------- VTT feature ceiling (Settings ▸ VTT features, per campaign) ---------- */
+// The hosted campaign's VTT features (elevation, posture, minimap — vtt.js) are the most a
+// player sees: sent with the snapshot (stance + stanceCamps) and again as a 'stance' message
+// whenever they change. Clients keep them in session memory only — net.stance (the hosted
+// campaign's flags, the 1.4.6 shape) and net.stanceCamps (one entry per campaign, so a host
+// campaign switch is right even for a player the stage has not moved yet). Both live exactly as
+// long as net.foreign does: load() nulls them when the player's own campaign comes back.
 net.stance = null;
-net.stanceFlags = function() { var f = { elevation: true, posture: true }; try { f.elevation = localStorage.getItem('wp_elevation') !== 'off'; f.posture = localStorage.getItem('wp_posture') !== 'off'; } catch (e) {} return f; };   // on until switched off
-function cleanStance(s) { return { elevation: !!(s && s.elevation), posture: !!(s && s.posture) }; }
-net.broadcastStance = function() { if (!net.active || net.role !== 'host') return; broadcast({ type: 'stance', flags: net.stanceFlags() }, null); };
+net.stanceCamps = null;
+net.gmId = '';               // the host's profile id, from the snapshot: keys the player's per-table choices
+net.syncedPeer = null;       // the connection the snapshot came from: the only peer whose 'stance' counts
+net.snapshotGen = 0;         // bumped by every snapshot and every load(): a load that a snapshot overtook must not undo it
+net.stanceFlags = function() {
+    if (window.wpVtt) return window.wpVtt.hostFlags();
+    var f = { elevation: true, posture: true }; try { f.elevation = localStorage.getItem('wp_elevation') !== 'off'; f.posture = localStorage.getItem('wp_posture') !== 'off'; } catch (e) {} return f;   // vtt.js absent: the 1.4.6 keys
+};
+// A key absent from an older host's payload means ON — never coerce a newer feature to off
+function cleanStance(s) { return window.wpVtt ? window.wpVtt.cleanFlags(s) : { elevation: !!(s && s.elevation), posture: !!(s && s.posture) }; }
+function cleanStanceCamps(m) { return window.wpVtt ? window.wpVtt.cleanStanceCamps(m) : null; }
+// Admitted players only: the ceiling names every campaign in the save
+net.broadcastStance = function() {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign();
+    var msg = { type: 'stance', flags: net.stanceFlags(), campId: camp ? camp.id : '', camps: window.wpVtt ? window.wpVtt.hostCamps() : null };
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
+// The one place the ceiling is re-sent from: every path that changes the hosted campaign or its settings
+// reaches save() → onLocalSave, and the stage timer covers a switch that has not saved yet. A signature
+// over the hosted campaign id and every campaign's flags keeps it quiet when nothing moved.
+net._lastStanceSig = null;
+net.syncStance = function() {
+    if (!net.active || net.role !== 'host' || !window.wpVtt) return;
+    var s = window.wpVtt.hostSig();
+    if (s === net._lastStanceSig) return;
+    net._lastStanceSig = s;
+    net.broadcastStance();
+    if (window.wpSettingsSync) window.wpSettingsSync();
+};
+// A session is exactly one campaign. Anything that would put another campaign on screen while hosting
+// asks first, and on yes ends the session for everyone before going ahead; Cancel and Esc do nothing.
+// onCancel lets a picker put its selection back.
+net.guardCampaignSwitch = function(fn, onCancel) {
+    if (!(net.active && net.role === 'host')) { fn(); return; }
+    showConfirm('Switching campaigns ends the session — everyone at the table is disconnected. End the session and switch?', function(yes) {
+        if (!yes) { if (onCancel) onCancel(); return; }
+        leaveSession(false);
+        var nm = ui('netModal'); if (nm) nm.style.display = 'none';
+        fn();
+    });
+};
+window.wpConfirmCampaignSwitch = net.guardCampaignSwitch;
 
 // Travel lock: no map crossings for players while it is on; everything else stays live
 // Session log: what happened at the table, on the campaign (GM data). Saved with the next save.
@@ -1399,7 +1461,8 @@ function admitPlayer(conn, prof) {
     var stage = currentStage();
     net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
+    if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     broadcastRoster();
 }
 
@@ -1507,10 +1570,13 @@ function handleMessage(msg, conn) {
         var nm2 = ui('netModal');
         if (nm2) nm2.style.display = 'flex';
     } else if (msg.type === 'snapshot' && net.role === 'client') {
-        applySnapshot(msg);
+        net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
+        net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
+        applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         setStatus('Connected — campaign synced from host.');
         toast('Campaign synced from host.');
+        if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
     } else if (msg.type === 'item') {
         if (net.role === 'host') {
             if (net.paused) return;   // frozen table: client edits are dropped
@@ -1538,8 +1604,13 @@ function handleMessage(msg, conn) {
         setPausedLocal(!!msg.on);
         toast(msg.on ? 'The GM paused the table.' : 'The table is live again.');
     } else if (msg.type === 'stance' && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply
+        var prevStance = net.stance;
         net.stance = cleanStance(msg.flags);
+        net.stanceCamps = cleanStanceCamps(msg.camps);
         render();
+        if (window.wpVtt) window.wpVtt.ceilingChanged(prevStance, typeof msg.campId === 'string' ? msg.campId.slice(0, 160) : '');
+        if (window.wpSettingsSync) window.wpSettingsSync();
     } else if (msg.type === 'travelLock' && net.role === 'client') {
         setTravelLockLocal(!!msg.on);
         toast(msg.on ? 'The GM has locked travel between maps for now.' : 'Travel between maps is open again.');
@@ -1823,6 +1894,7 @@ function startHosting(forceFresh) {
     var gen = resumed ? net._hostGen : 0;
     var peer = new Peer(roomPeerId(code, gen), peerOpts());
     net.peer = peer; net.role = 'host'; net.code = code;
+    net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;
@@ -1948,6 +2020,9 @@ function leaveSession(silent) {
     if (!silent) cancelReconnect();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
     net.peer = null; net.conns = []; net.roster = {}; net.active = false; net.role = null; net.code = null; net.lastStage = null;
+    // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
+    // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
+    net.syncedPeer = null;
     net.targets = {};
     net.combats = {}; combatAsked = {};
     net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);

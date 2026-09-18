@@ -99,7 +99,7 @@ export function normalizeForSite(j) {
 window.wpNormalizeForSite = normalizeForSite;   // sandbox testing hook
 
 // A sheet's stance seeds the token: details.posture / details.elevation (top-level accepted
-// too), each only while its Settings → Table switch is on.
+// too), each only while that VTT feature is on for the campaign (Settings ▸ VTT features).
 function seedStance(item, j) {
     var st = window.wpStance; if (!st || !j) return;
     var d = (j.details && typeof j.details === 'object') ? j.details : {};

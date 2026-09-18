@@ -90,11 +90,18 @@ var BY_TEXT = {
     'campaigns': 'Separate games, each with its own maps and planners.',
     // settings
     'profile': 'How you appear to others at a multiplayer table.',
-    'table': 'Board preferences. These are yours alone — in multiplayer every player keeps their own.',
-    'advanced': 'Defaults and resets. Nothing here touches your campaigns.',
+    'table': 'Board preferences — units, rulers, grid opacity. Yours alone: in multiplayer every player keeps their own. The VTT features (elevation, posture, minimap) have their own section below, set per campaign.',
+    'vtt features': 'Elevation, posture and the minimap, per campaign. In a session the GM\'s campaign settings are the most a player sees; a player can switch a feature off for themselves at that table, never on.',
+    'vtt integration': 'The master switch for this campaign. Off means the plain whiteboard — every VTT feature is off and hidden; the per-feature choices are kept for when it goes back on.',
+    'this campaign': 'The VTT features of the campaign on screen. Saved with the campaign; while hosting, a change reaches the table at once.',
+    'this table': 'What the GM runs this table with. Turn a feature off for yourself here; you cannot turn on one the GM has off, and nothing here changes your own defaults.',
+    'token elevation': 'A height in yards on every character token, shown as a chip; the blast tool and rulers then measure straight-line, height included. Off hides the chips and keeps the values.',
+    'token posture': 'Standing, crouching, sitting, kneeling, crawling, prone or face up on every character token, shown as a chip. Off hides the chips and keeps the values.',
+    'default for new campaigns': 'What a campaign starts with when you create it. Changing this touches no existing campaign — "Apply to existing campaigns…" copies it onto the ones you tick.',
+    'advanced': 'Defaults for new items, the developer console, snapshots and resets. Nothing here touches your campaigns: Reset Local Preferences clears your VTT default and per-table choices, never a campaign\'s own settings.',
     'display name': 'How other players see you in the roster and chat.',
     'measurement system': 'Units for the measure tool: yards/feet/miles or meters/kilometers.',
-    'minimap': 'The small overview map in the corner of the board.',
+    'minimap': 'The small overview map in the corner of the board — a VTT feature, set per campaign; the ▾ on the box itself only folds it away.',
     'coordinate rulers': 'The number strips along the top and left edges of the board.',
     'grid opacity': 'How strongly the grid draws over the map. Only on this computer — other players pick their own.',
     'default opacity for new items': 'Transparency new shapes, drawings and images start with.',
@@ -153,7 +160,7 @@ function tipFor(el) {
     for (var k in BY_CONTAINS) if (key.indexOf(k) !== -1) return BY_CONTAINS[k];
     return null;
 }
-var SELECTOR = 'h2, h4, label, .section-title, .set-section-label, .set-field-label, .draw-menu-label, .stc-title, #inspector h3, .net-section-label';
+var SELECTOR = 'h2, h4, label, .section-title, .set-section-label, .set-field-label, #settingsModal details.set-group > summary, .draw-menu-label, .stc-title, #inspector h3, .net-section-label';
 function applyTips(root) {
     (root || document).querySelectorAll(SELECTOR).forEach(function(el) {
         if (el.dataset.tipped) return;

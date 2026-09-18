@@ -437,6 +437,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       document.getElementById('importChoiceModal').style.display = 'none';
 
+      if (window.wpVtt) window.wpVtt.fillAll(state.appState);   // a file from before VTT features gets its per-campaign set; one that has it keeps it
+
       save(true);
 
       updateCampaignSelect();
@@ -547,9 +549,17 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       if (!pendingImport) return;
 
-      state.appState = pendingImport;
+      var guard = window.wpConfirmCampaignSwitch || function(fn) { fn(); };   // replacing everything while hosting ends the session first
 
-      finishImport('Imported (replaced all data).');
+      guard(function() {
+
+          if (!pendingImport) return;
+
+          state.appState = pendingImport;
+
+          finishImport('Imported (replaced all data).');
+
+      });
 
   });
 
@@ -667,17 +677,23 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
                   // Legacy single-campaign format: import as a fresh campaign alongside existing ones
 
-                  var defaultCamp = createNewCampaign('Imported Campaign');
+                  var guardL = window.wpConfirmCampaignSwitch || function(fn) { fn(); };   // it becomes the active campaign: a switch while hosting
 
-                  defaultCamp.items = data.maps;
+                  guardL(function() {
 
-                  defaultCamp.activeItemId = data.activeMapId;
+                      var defaultCamp = createNewCampaign('Imported Campaign');
 
-                  state.appState.campaigns[defaultCamp.id] = defaultCamp;
+                      defaultCamp.items = data.maps;
 
-                  state.appState.activeCampaignId = defaultCamp.id;
+                      defaultCamp.activeItemId = data.activeMapId;
 
-                  finishImport('Imported legacy campaign.');
+                      state.appState.campaigns[defaultCamp.id] = defaultCamp;
+
+                      state.appState.activeCampaignId = defaultCamp.id;
+
+                      finishImport('Imported legacy campaign.');
+
+                  });
 
               } else if (data.campaigns) {
 
@@ -801,7 +817,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var cv = document.getElementById('minimapCanvas');
         if (!box || !cv) return;
         var am = getActiveMap();
-        var show = am && am.type === 'map' && (state.viewMode === 'data' || state.viewMode === 'visual');
+        // The minimap is a VTT feature (Settings ▸ VTT features, per campaign; the GM's setting at a table): off
+        // hides the box entirely. The box's own ▾ button and wp_minimap are only the personal collapse state.
+        var show = am && am.type === 'map' && (state.viewMode === 'data' || state.viewMode === 'visual') && (!window.wpVtt || window.wpVtt.on('minimap'));
         box.style.display = show ? 'block' : 'none';
         if (!show || box.classList.contains('mm-collapsed')) return;
         var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
@@ -869,6 +887,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             localStorage.setItem('wp_minimap', box.classList.contains('mm-collapsed') ? 'closed' : 'open');
             this.textContent = box.classList.contains('mm-collapsed') ? '▴' : '▾';
             renderMinimap();
+            if (window.wpSettingsSync) window.wpSettingsSync();   // the Settings row notes "collapsed"
         });
         function jump(e) {
             var r = cv.getBoundingClientRect();
@@ -946,6 +965,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     function cmdkGo(en) {
         if (!en) return;
         cmdkClose();
+        // A jump into another campaign while hosting is a campaign switch: the session ends first (asked)
+        if (en.campId !== state.appState.activeCampaignId && window.wpConfirmCampaignSwitch) { window.wpConfirmCampaignSwitch(function() { cmdkGoNow(en); }); return; }
+        cmdkGoNow(en);
+    }
+    function cmdkGoNow(en) {
+        if (!state.appState.campaigns[en.campId] || !state.appState.campaigns[en.campId].items[en.itemId]) return;
         state.appState.activeCampaignId = en.campId;
         var camp = state.appState.campaigns[en.campId];
         camp.activeItemId = en.itemId;
@@ -965,6 +990,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         updateSidebarNav();
         render();
         restoreCameraPosition();
+        if (window.wpSettingsSync) window.wpSettingsSync();   // Ctrl+K works over an open Settings modal: its VTT rows follow the campaign
     }
 
     (function wireCmdk() {
@@ -1138,6 +1164,7 @@ window.wpDebug = { getState: function() {
         history: historyDepth(),
         foreignMarked: !!(state.appState && state.appState._foreign),
         cleanup: cleanupInfo(),
+        vtt: window.wpVtt ? window.wpVtt.debug() : null,   // { mode, campaign, global, ceiling, tableKey, localOff, effective, sig, seen, … }
         version: window.wpAppVersion || null
     };
 } };

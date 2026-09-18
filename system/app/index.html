@@ -66,6 +66,7 @@ window.addEventListener('unhandledrejection', function(e) {
     window.wpPrefsPush = push;
 })();
 </script>
+<script type="module" src="scripts/vtt.js"></script>
 <script type="module" src="scripts/main.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/settings.js"></script>
@@ -335,15 +336,24 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Choose <b>Imperial</b> or <b>Metric</b>. By default a hex cell is 1 yard across and a square is 5 feet.</li>
                           <li>For huge maps (space battles!), set <b>Map Scale</b> in the measure options &mdash; e.g. one cell = 100 yd or 2 km. Each map keeps its own scale.</li>
                           <li><b>Click any placed ruler to remove it</b> (it turns red on hover); <b>Clear rulers</b> in the measure options removes them all.</li>
-                          <li>With <b>Token elevation</b> on (&#9881; Settings &rarr; Table), a ruler between two tokens at different heights prints the straight-line <b>3D</b> figure as a second number.</li>
+                          <li>With <b>Token elevation</b> on for the campaign (&#9881; Settings &#9656; VTT features), a ruler between two tokens at different heights prints the straight-line <b>3D</b> figure as a second number.</li>
                       </ol>
                       <h4>Blast radius</h4>
                       <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Drag a blast to move it (it re-seats in a cell and, unless you set its height, takes the height of whoever stands there); right-click it to remove it. Blasts are yours alone, like rulers.</p>
                       <div class="help-tip"><b>Temporary:</b> the toolbar blast button is a stopgap. Blasts will be thrown by the character &mdash; PC or NPC &mdash; from the VTT character sheets once those are implemented, and the preset explosive types are not permanent, names and radii alike: they will be defined per campaign, from that campaign's own weapons, and customizable.</div>
                       <h4>Elevation &amp; posture</h4>
-                      <p>Two switches in <b>&#9881; Settings &rarr; Table</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. In a session your switches decide what players see.</p>
+                      <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. They are set <b>per campaign</b>; in a session your campaign's settings are the most your players see.</p>
+                      <h4 id="helpVtt">VTT settings</h4>
+                      <ul>
+                          <li><b>Per campaign.</b> Token elevation, token posture and the minimap are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
+                          <li><b>Default for new campaigns.</b> The same section holds the default a campaign starts with. Changing it touches no existing campaign; <b>Apply to existing campaigns&hellip;</b> copies it onto the campaigns you tick (nothing is ticked to begin with). The default lives with your preferences (the saves folder's <b>preferences.json</b>) and is cleared by Reset Local Preferences; the campaigns are not.</li>
+                          <li><b>In a session, the GM's campaign is the ceiling.</b> Players see at most what the hosted campaign has on. A GM change mid-session reaches the table at once, with a short notice on each player's screen.</li>
+                          <li><b>Off for me.</b> At a table, a player can switch a feature the GM has on <b>off for themselves</b> in the same section (&ldquo;Turn off for me&rdquo;), never on when the GM has it off. The choice is remembered per table (that campaign, that GM) and never touches the player's own default or campaigns.</li>
+                          <li><b>The join notice.</b> On joining a table whose settings differ from your own default, one window lists what is on at the table but off for you (your own default carries in, so those start off for you: <b>Use the table's settings</b> turns them on for you there, <b>Keep mine</b> leaves them off) and what the GM has off and hidden while you are there. It shows again only when the GM has changed the settings since you last saw them.</li>
+                          <li><b>One campaign per session.</b> While hosting, anything that would put another campaign on screen &mdash; the campaign picker, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; first asks, and on yes ends the session for everyone before switching.</li>
+                      </ul>
                       <h4>Coordinate rulers &amp; minimap</h4>
-                      <p>The number strips along the top and left edges are coordinate rulers. Turn them off (or back on) in <b>&#9881; Settings &rarr; Table</b>, alongside the minimap toggle and a <b>Grid opacity</b> slider &mdash; that slider is yours alone, so in multiplayer every player can fade the grid to taste without changing anyone else's view. Zoom steps are 5% per click or <kbd>Mouse Wheel</kbd> tick (the wheel zooms toward the pointer; hold <kbd>Shift</kbd> to scroll instead).</p>
+                      <p>The number strips along the top and left edges are coordinate rulers. Turn them off (or back on) in <b>&#9881; Settings &#9656; Table</b>, alongside a <b>Grid opacity</b> slider &mdash; both are yours alone, so in multiplayer every player can fade the grid to taste without changing anyone else's view. The minimap in the corner is a VTT feature (<b>&#9881; Settings &#9656; VTT features</b>, per campaign); the &#9662; on the box itself only folds it away and is yours alone. Zoom steps are 5% per click or <kbd>Mouse Wheel</kbd> tick (the wheel zooms toward the pointer; hold <kbd>Shift</kbd> to scroll instead).</p>
                   </div>
 
                   <div class="help-pane" data-pane="planners" style="display:none;">
@@ -389,6 +399,8 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><b>Chat:</b> click <b>&#128172;</b> to message everyone, or pick one player to send a private whisper.</li>
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
+                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
+                          <li><b>One campaign per session:</b> the table is the campaign you host. Switching campaigns in any way &mdash; the picker in the &#127760; panel or the sidebar, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; asks first and, on yes, ends the session for everyone before switching. Cancel changes nothing.</li>
                       </ul>
                       <h4>Who gets in</h4>
                       <ul>
@@ -435,6 +447,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><b>Journal (&#128214;):</b> everything a GM has shown you, saved on this computer with its caption. Add notes under each handout, or press <b>+ Note</b> to write your own pages in a campaign's section; it all works with no session running.</li>
                           <li><b>Targeting:</b> click a character token that isn't yours to mark it as your target &mdash; everyone sees a small copy of your own token on it (several targeters line up in the middle and wrap into rows). Click it again, or press <b>Esc</b>, to clear. One target at a time.</li>
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
+                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
                       </ul>
                       <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
                   </div>
@@ -676,7 +689,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <span style="font-size:11px; color:var(--dim);">where it goes off &mdash; the token in that cell's height, else the ground</span>
                       </div>
                   </div>
-                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off (&#9881; Settings &rarr; Table): flat hex distance.</div>
+                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (&#9881; Settings &#9656; VTT features): flat hex distance.</div>
                   <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>
                   <div class="draw-menu-row">
                       <button class="draw-style-btn" id="blastClearBtn" title="Remove all placed blasts">Clear blasts</button>
@@ -934,6 +947,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <input type="text" id="netJoinPassInput" placeholder="Password (only if the GM set one)" style="width:100%; box-sizing:border-box;">
         </div>
         <div id="netRoster" style="color:var(--dim); font-size:12px; margin-bottom:12px;">No players connected yet.</div>
+        <div id="netVttLine" style="display:none; color:var(--dim); font-size:11px; margin:-6px 0 10px;" title="The VTT features this table runs with — set per campaign in &#9881; Settings &#9656; VTT features (the GM's campaign decides; players can switch a feature off for themselves there)"></div>
         <button class="tool ghost" id="netPlayersBtn" style="width:100%; margin-bottom:8px;" title="Everyone who has ever joined this campaign, and who's banned from it">&#128101; Player History &amp; Bans</button>
         <button class="tool ghost danger" id="netEndBtn" style="width:100%; display:none;" title="End the session for everyone: players get a clean &quot;session ended&quot;, return to their own campaigns, and the room code is retired.">&#9209; End Session for Everyone</button>
         <button class="tool ghost danger" id="netLeaveBtn" style="width:100%;">Leave Session</button>
@@ -967,6 +981,34 @@ window.addEventListener('unhandledrejection', function(e) {
         </ol>
         <p style="margin:0 0 14px; color:var(--dim); font-size:12px;">Not ready now? Choose Not Now &mdash; the Update button stays in the top bar and you can come back to this any time.</p>
         <div style="display:flex; gap:8px; justify-content:flex-end;"><button class="tool ghost" id="installerLaterBtn">Not Now</button><button class="tool" id="installerGoBtn" title="Start the download in your browser">Continue &mdash; download the installer</button></div>
+    </div>
+</div>
+<!-- VTT features at a joined table: what the GM has on and off against the player's own defaults (scripts/vtt.js joined / showNotice).
+     Above #netModal (open at join) and #handoutModal, below #customConfirm; the id ends in Modal for the click-away guard; the backdrop and Esc mean "Keep mine". -->
+<div id="vttNoticeModal" role="dialog" aria-modal="true" aria-labelledby="vttNoticeTitle" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100003; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px 24px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:94vw; max-height:88vh; overflow-y:auto; line-height:1.55;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;"><span id="vttNoticeTitle">VTT features at this table</span> <button id="vttNoticeCloseBtn" class="tool ghost modal-close" title="Close (keep my settings)" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <p id="vttNoticeIntro" style="margin:0 0 10px; color:var(--dim); font-size:12.5px;"></p>
+        <div id="vttNoticeOffForYou" style="display:none;">
+            <div class="players-section">On at this table, off for you</div>
+            <ul id="vttNoticeListA" style="margin:0 0 6px; padding-left:22px;"></ul>
+            <p style="margin:0 0 10px; color:var(--dim); font-size:11.5px;">Your own default has these off, so they start off for you here. <b>Use the table's settings</b> turns them on for you at this table only; <b>Keep mine</b> leaves them off. You can change your mind in &#9881; Settings &#9656; VTT features.</p>
+        </div>
+        <div id="vttNoticeHidden" style="display:none;">
+            <div class="players-section">Off at this table &mdash; hidden while you're here</div>
+            <ul id="vttNoticeListB" style="margin:0 0 6px; padding-left:22px;"></ul>
+            <p style="margin:0 0 10px; color:var(--dim); font-size:11.5px;">The GM runs this table without them. They come back when you leave.</p>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;"><button class="tool ghost" id="vttNoticeKeepBtn">Keep mine</button><button class="tool" id="vttNoticeSyncBtn">Use the table's settings</button></div>
+    </div>
+</div>
+<!-- Apply the VTT default to existing campaigns: a checkbox list, nothing pre-ticked (scripts/vtt.js openPushPicker) -->
+<div id="vttPushModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+    <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column;">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Apply the VTT default to campaigns <button id="vttPushCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <div style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;">Tick the campaigns that should take the default for new campaigns as it is now &mdash; VTT integration and every feature. The others keep their own settings. Nothing is ticked to begin with.</div>
+        <div id="vttPushRows" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:4px; min-height:80px;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;"><button class="tool ghost" id="vttPushCancelBtn">Cancel</button><button class="tool" id="vttPushGoBtn">Apply to the ticked campaigns</button></div>
     </div>
 </div>
 <div id="updateBanner" role="status" style="display:none;">
@@ -1016,28 +1058,72 @@ window.addEventListener('unhandledrejection', function(e) {
             </div>
         </div>
         <div style="margin-bottom:8px;">
-            <div class="set-field-label" style="display:flex; justify-content:space-between;">Minimap <span id="setMinimapState" style="color:var(--dim);"></span></div>
-            <button class="tool ghost" id="setMinimapBtn" style="width:100%;">Toggle Minimap</button>
-        </div>
-        <div style="margin-bottom:8px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Coordinate rulers <span id="setRulersState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setRulersBtn" style="width:100%;">Toggle Rulers</button>
-        </div>
-        <div style="margin-bottom:8px;" class="gm-only">
-            <div class="set-field-label" style="display:flex; justify-content:space-between;">Token elevation <span id="setElevationState" style="color:var(--dim);"></span></div>
-            <button class="tool ghost" id="setElevationBtn" style="width:100%;">Toggle Elevation</button>
-            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Height in yards on each token (a ledge at +3, a pit at &minus;2): a chip on the token, and the &#128165; Blast tool measures straight-line, height included. Off hides the chips but keeps the values. In a session, your setting is what players see.</div>
-        </div>
-        <div style="margin-bottom:8px;" class="gm-only">
-            <div class="set-field-label" style="display:flex; justify-content:space-between;">Token posture <span id="setPostureState" style="color:var(--dim);"></span></div>
-            <button class="tool ghost" id="setPostureBtn" style="width:100%;">Toggle Posture</button>
-            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Standing, crouching, sitting, kneeling, crawling, prone or face up (handbook ch. 9): a chip on the token, seeded from an attached ShadowBase sheet. Players set their own token's posture and elevation by right-clicking it.</div>
         </div>
         <div style="margin-bottom:14px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Grid opacity <span id="setGridOpacityVal" style="color:var(--dim);"></span></div>
             <input type="range" id="setGridOpacity" min="10" max="100" style="width:100%;" title="How strongly the square/hex grid lines draw over the map">
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Only on this computer &mdash; in multiplayer every player picks their own.</div>
         </div>
+            </div>
+        </details>
+        <!-- VTT features (scripts/vtt.js + settings.js): per campaign, the default for new campaigns, and a player's view at a table.
+             The rows keep their 1.4.6 ids. Which blocks show, and what the buttons say, is decided by role in settings.js syncVttPanel. -->
+        <details class="set-group" data-group="vtt">
+            <summary>VTT features</summary>
+            <div class="set-group-body">
+            <div id="setVttLocked" style="display:none; color:var(--dim); font-size:11px; line-height:1.5; margin-bottom:8px;">Waiting to join &mdash; settings are locked.</div>
+            <div id="setVttCampBlock">
+            <div class="set-field-label" id="setVttCampLabel" style="color:var(--gold); margin-bottom:8px;"><span id="setVttCampWord">This campaign</span> <span id="setVttCampName" class="muted" style="color:var(--ink);"></span></div>
+            <div style="margin-bottom:8px;" id="setVttMasterRow">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">VTT integration <span id="setVttMasterState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setVttMasterBtn" style="width:100%;">Toggle VTT Integration</button>
+                <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">The master switch for this campaign. Off is the plain whiteboard: every VTT feature below is off and hidden, and the choices are kept for when it goes back on. In a session, this campaign's settings are the most your players can see.</div>
+            </div>
+            <div id="setVttMasterOffNote" style="display:none; font-size:11px; color:var(--dim); line-height:1.5; margin-bottom:8px;"></div>
+            <div id="setVttRows">
+            <div class="set-vtt-row" data-vtt="elevation" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Token elevation <span id="setElevationState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setElevationBtn" style="width:100%;">Toggle Elevation</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Height in yards on each token (a ledge at +3, a pit at &minus;2): a chip on the token, and the &#128165; Blast tool and rulers measure straight-line, height included. Off hides the chips but keeps the values. Set per campaign; in a session, this campaign's setting is the most your players can see.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
+            <div class="set-vtt-row" data-vtt="posture" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Token posture <span id="setPostureState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setPostureBtn" style="width:100%;">Toggle Posture</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Standing, crouching, sitting, kneeling, crawling, prone or face up (handbook ch. 9): a chip on the token, seeded from an attached ShadowBase sheet. Players set their own token's posture and elevation by right-clicking it. Set per campaign; in a session, this campaign's setting is the most your players can see.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
+            <div class="set-vtt-row" data-vtt="minimap" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Minimap <span id="setMinimapState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setMinimapBtn" style="width:100%;">Toggle Minimap</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The small overview map in the corner of the board. Off hides it for this campaign; the &#9662; on the box itself only folds it away and is yours alone.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
+            </div>
+            </div>
+            <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
+                <div class="set-field-label" style="color:var(--gold); margin-bottom:4px;">Default for new campaigns</div>
+                <div style="font-size:10.5px; color:var(--dim); line-height:1.4; margin-bottom:8px;">What a campaign starts with when you create it. Changing this touches no existing campaign &mdash; each keeps its own settings, in the save.</div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">VTT integration <span id="setVttGlobalMasterState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalMasterBtn" style="width:100%;">Toggle Default VTT Integration</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Token elevation <span id="setVttGlobalElevationState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalElevationBtn" style="width:100%;">Toggle Default Elevation</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Token posture <span id="setVttGlobalPostureState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalPostureBtn" style="width:100%;">Toggle Default Posture</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Minimap <span id="setVttGlobalMinimapState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalMinimapBtn" style="width:100%;">Toggle Default Minimap</button>
+                </div>
+                <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
+            </div>
             </div>
         </details>
         <details class="set-group" data-group="journal">
@@ -1101,7 +1187,7 @@ window.addEventListener('unhandledrejection', function(e) {
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
             <button class="tool ghost" id="setSnapNowBtn" title="Copy the save as it is right now into saves/backups. Kept until you delete it.">Snapshot the Save Now</button>
-            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, minimap, rulers, panel sizes, folded sections) here and in the saves folder's preferences.json. Your campaigns, name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
+            <button class="tool ghost" id="setResetPrefsBtn" title="Clears every remembered preference (units, snap and snap mode, pen colour/width/style, eraser, shape sizing, opacities, the minimap fold, rulers, panel sizes, folded sections, the VTT default for new campaigns and your per-table VTT choices) here and in the saves folder's preferences.json. Your campaigns — each with its own VTT settings — your name, picture and multiplayer identity are untouched.">Reset Local Preferences</button>
             </div>
                 <div style="margin-top:14px;">
                 <div class="set-field-label">Snapshots of the save</div>

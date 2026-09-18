@@ -1,0 +1,47 @@
+Waypoint bundled sounds (system/app/assets/sounds)
+=================================================
+
+Every file here is derived from a work released under the Creative Commons Zero 1.0 public domain dedication (CC0),
+https://creativecommons.org/publicdomain/zero/1.0/ . CC0 requires no attribution; the makers are credited here anyway,
+with thanks. Each file was trimmed, level-matched, loop-blended where it loops, and re-encoded to Ogg Vorbis for Waypoint.
+
+Rain (loopable) - Ylmir - https://opengameart.org/content/rain-loopable (CC0)
+  rain.ogg  "Rain" (loop, 30 s) - from 3.ogg, a 30 s section
+
+Forest Ambience - TinyWorlds - https://opengameart.org/content/forest-ambience (CC0)
+  forest.ogg  "Forest" (loop, 35 s) - from Forest_Ambience.mp3, a 35 s section
+
+Loopable Dungeon Ambience - JaggedStone - https://opengameart.org/content/loopable-dungeon-ambience (CC0)
+  dungeon.ogg  "Dungeon" (loop, 40 s) - from dungeon_ambient_1.ogg, a 40 s section
+
+Dark Cavern Ambient - Paul Wortmann - https://opengameart.org/content/dark-cavern-ambient (CC0)
+  cavern.ogg  "Cavern" (loop, 34.5 s) - from dark_cavern_ambient_002.ogg, a 35 s section
+
+Crickets Ambient Noise - loopable - Wolfgang_ - https://opengameart.org/content/crickets-ambient-noise-loopable (CC0)
+  night.ogg  "Night crickets" (loop, 11 s) - from crickets.mp3, whole
+
+wind whoosh loop - SketchMan3 - https://opengameart.org/content/wind-whoosh-loop (CC0)
+  wind.ogg  "Wind" (loop, 5.7 s) - from wind woosh loop.ogg, whole
+
+Fire Crackling - AntumDeluge - https://opengameart.org/content/fire-crackling (CC0)
+  campfire.ogg  "Campfire" (loop, 3.3 s) - from fire-1.ogg, whole
+
+RPG Audio - Kenney (kenney.nl) - https://kenney.nl/assets/rpg-audio (CC0)
+  door-open.ogg  "Door opens" (cue, 0.9 s) - from doorOpen_1.ogg
+  door-close.ogg  "Door closes" (cue, 0.7 s) - from doorClose_1.ogg
+  latch.ogg  "Latch" (cue, 0.3 s) - from metalLatch.ogg
+  coins.ogg  "Coins" (cue, 0.8 s) - from handleCoins.ogg
+  footsteps.ogg  "Footsteps" (cue, 2 s) - from footstep00-02.ogg, four steps
+  page.ogg  "Page flip" (cue, 0.7 s) - from bookFlip1.ogg
+  blade.ogg  "Blade drawn" (cue, 0.4 s) - from drawKnife1.ogg
+  creak.ogg  "Creak" (cue, 0.6 s) - from creak1.ogg
+
+Casino Audio - Kenney (kenney.nl) - https://kenney.nl/assets/casino-audio (CC0)
+  dice.ogg  "Dice" (cue, 2.2 s) - from dice-shake-1.ogg + dice-throw-1.ogg
+
+20 Sword Sound Effects (Attacks and Clashes) - StarNinjas - https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes (CC0)
+  sword.ogg  "Sword clash" (cue, 1 s) - from sword_clash.1.ogg
+
+Spell sounds - Augmentality (Brandon Morris) - https://opengameart.org/content/spell-sounds (CC0)
+  heal.ogg  "Healing" (cue, 5.5 s) - from healing.ogg, first 5.5 s
+  teleport.ogg  "Teleport" (cue, 5.5 s) - from teleport.ogg, first 5.5 s

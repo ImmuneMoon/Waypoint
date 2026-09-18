@@ -610,6 +610,7 @@ function applySnapshot(msg) {
     setTravelLockLocal(!!msg.travelLocked);
     net.stance = cleanStance(msg.stance);
     net.sounds = null; net.soundNow = null; if (window.wpSound) window.wpSound.onSnapshot();   // the snapshot is the authority: the 'sounds' message that follows re-arms the table's sound
+    if (window.wpFx) window.wpFx.onSnapshot();   // visual effects: a fresh snapshot clears any stale effect
     if (window.wpSystemCore) Object.values(state.appState.campaigns || {}).forEach(function(cs) {   // characters (1.5.0): what arrived is re-cleaned against the system that came with it
         if (!cs || !cs.chars || typeof cs.chars !== 'object') return;
         if (!cs.system) { delete cs.chars; return; }
@@ -783,6 +784,7 @@ function scheduleStageFollow() {
             if (p && p.detached) return;
             if (p) { p.location = s2.itemId; ensurePlayerToken(p.id, s2.itemId); moved++; }
             if (c.open) { try { c.send({ type: 'stage', stage: s2 }); } catch (e) {} }
+            if (c.open && net.sendFxArrival) net.sendFxArrival(c, s2.itemId);
         });
         renderRoster();
         broadcastRoster();
@@ -872,6 +874,22 @@ net.sendSound = function(cue) {
     if (cue.gain !== undefined) msg.gain = cue.gain;
     if (cue.fade !== undefined) msg.fade = cue.fade;
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
+// Visual effects (1.5.0, S3): a short-lived effect to the players ON THAT MAP (a stop reaches everyone); the host
+// makes every effect, a player never triggers one on anyone. The renderer and the presets live in fx.js / fxcore.js.
+net.sendFx = function(fx) {
+    if (!net.active || net.role !== 'host' || !fx || !window.wpFxCore) return;
+    var clean = window.wpFxCore.cleanFx(fx); if (!clean) return;
+    var msg = {}; for (var k in clean) if (Object.prototype.hasOwnProperty.call(clean, k)) msg[k] = clean[k]; msg.type = 'fx';
+    net.conns.forEach(function(c) {
+        if (!c.open || !net.roster[c.peer]) return;
+        if (clean.kind !== 'stop' && net.roster[c.peer].location !== clean.mapId) return;   // same-map reach; a stop clears everyone
+        try { c.send(msg); } catch (e) {}
+    });
+};
+net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets its running weather / held wash
+    if (!net.active || net.role !== 'host' || !conn || !conn.open || !mapId || !window.wpFx) return;
+    window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) {} });
 };
 // The hosted campaign's system (character sheets) reaches the table as the players' view — GM-only fields and rolls
 // gone, formulas that named them blanked — in the snapshot and on every save or editor Save that changed it (a
@@ -1708,6 +1726,7 @@ function admitPlayer(conn, prof) {
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
+    if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
 }
 
@@ -1989,6 +2008,11 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSound) return;
         if (msg.type === 'sounds') { if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return; window.wpSound.onList(msg); }
         else window.wpSound.onCue(msg);
+    } else if (msg.type === 'fx' && net.role === 'client') {
+        // a visual effect from the synced host only, after the snapshot, never in the stream window; re-cleaned here.
+        // A host has no branch: a player never triggers an effect on anyone.
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpFxCore || !window.wpFx) return;
+        var cfx = window.wpFxCore.cleanFx(msg); if (cfx) window.wpFx.receive(cfx);
     } else if (msg.type === 'roll-req' && net.role === 'host') {
         // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
@@ -2415,6 +2439,7 @@ function leaveSession(silent) {
     net.sounds = null; net.soundNow = null;   // transport memory, unlike the ceiling: the next table sends its own list
     resetAssetTransfers();                    // in-flight sound requests and their waiters die with the connection
     if (window.wpSound) window.wpSound.tableLeft(wasClient);
+    if (window.wpFx) window.wpFx.tableLeft();
     net.targets = {};
     net.combats = {}; combatAsked = {};
     net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
@@ -2902,6 +2927,7 @@ function summonConn(c, stage) {
     var p = net.roster[c.peer];
     if (p) { p.detached = false; p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId); }
     if (c.open) { try { c.send({ type: 'stage', stage: stage, personal: true }); } catch (e) {} }
+    if (c.open && net.sendFxArrival) net.sendFxArrival(c, stage.itemId);
     return p;
 }
 net.summonPlayer = function(peerKey) {

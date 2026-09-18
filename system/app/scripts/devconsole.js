@@ -153,6 +153,7 @@
         wpSnapNewHexItem: 'Seat a newly placed item on a hex grid.',
         wpSheets: 'Character sheets (scripts/sheets.js): open(tab) / close() the System editor, playerSystem(camp) = the view players receive, systemOf, charsOf / charList / charById, newCharacter, deleteCharacter, linkToken, newFromToken, syncOwners, openSheet(id) / closeSheet / canOpen, hoverLinesForToken, fromShadowBase(token), rollInit(charId); charChanged / charGone / editResult are the hooks net.js calls.',
         wpSheetsSync: 'Re-check the Character sheets feature for the campaign or table on screen (called by the VTT toggle fan-out).',
+        wpFx: 'Visual effects (fx.js): play(fx) / receive(fx), stopAll(), armBurst(look, r), placeBurst, blastBoom, openPanel / closePanel, stats(); the pure half is fxcore.js (window.wpFxCore).',
         wpSound: 'The sound engine (sound.js): play(id | entry), stop("ambient" | "all", fade), setVolume(0-1), setMaster(0-1), mute(bool), now(), onChange(fn), openPanel / closePanel / openLib, defaults(); listMessage / onList / onCue and the session hooks net.js calls.',
         wpSoundCore: 'The sound validators and maths (soundcore.js): cleanSoundList, cleanSoundCue, cleanEntry, isUploadPath, mixGain, seamBlend, LIMITS.',
         wpSoundSync: 'Re-check the Sound feature for the campaign or table on screen and stop playback if it is off (called by the VTT toggle fan-out).',

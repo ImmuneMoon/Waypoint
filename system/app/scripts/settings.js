@@ -172,6 +172,11 @@ if (_streamSnd) {
         toast(_streamSnd.checked ? 'The stream window plays the table\'s ambient sound.' : 'The stream window is silent.');
     });
 }
+// Visual effects (1.5.0): reduce motion on this machine (wp_fxReduced), and whether the stream window shows effects (wp_streamFx, on by default).
+var _fxRed = ui('setFxReduced');
+if (_fxRed) { try { _fxRed.checked = localStorage.getItem('wp_fxReduced') === '1'; } catch (e) {} _fxRed.addEventListener('change', function() { try { localStorage.setItem('wp_fxReduced', _fxRed.checked ? '1' : '0'); } catch (e) {} toast(_fxRed.checked ? 'Reduced motion: shake off, flashes shortened.' : 'Full motion restored.'); }); }
+var _streamFx = ui('setStreamFxChk');
+if (_streamFx) { try { _streamFx.checked = localStorage.getItem('wp_streamFx') !== '0'; } catch (e) {} _streamFx.addEventListener('change', function() { try { localStorage.setItem('wp_streamFx', _streamFx.checked ? '1' : '0'); } catch (e) {} toast(_streamFx.checked ? 'The stream window shows effects.' : 'The stream window hides effects.'); }); }
 
 /* Relay server (TURN): the GM's own relay for players who cannot connect directly.
    turn_* keys deliberately sit outside the wp_ prefix so they never mirror into preferences.json. */
@@ -280,12 +285,14 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     minimap: ['Minimap on.', 'Minimap off for this campaign.'],
     sound: ['Sound on.', 'Sound off for this campaign \u2014 the table falls silent.'],
     dice: ['Dice on.', 'Dice off for this campaign \u2014 nobody rolls at the table.'],
-    sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.']
+    sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
+    fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.']
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
     sound: 'For you it silences the table; the GM and the others still hear it.',
-    sheets: 'For you it hides sheets and the hover lines; your token still moves.'
+    sheets: 'For you it hides sheets and the hover lines; your token still moves.',
+    fx: 'For you it hides the effects; the table still sees them.'
 };
 function vttFeatures() { return (window.wpVtt && window.wpVtt.FEATURES) || []; }
 function syncVttPanel() {

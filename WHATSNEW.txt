@@ -152,6 +152,20 @@ Character sheets: the system
   Sheet… and Characters…; the Tutorial campaign carries a small system
   with Bren's sheet, and the tour opens it.
 
+Visual effects
+- A visual-effects panel on the play map (the sparkle button beside the
+  Sound button) fires short-lived effects the players on that map see: a
+  flash, screen shake, a colour wash (darkness, red mist, blinding light)
+  that holds until you clear it, a burst you place on the map (boom, magic,
+  smoke, sparks), weather that runs until you stop it (rain, snow, embers,
+  haze), and a text banner. Right-click a token for a pulse; the Blast tool
+  gains a Boom.
+- Everything is drawn on your machine — no files, nothing saved. "Sound
+  with it" fires a chosen cue alongside. Reduce motion (per machine) skips
+  shake and shortens flashes, and a hard flash guard protects against
+  strobing. Visual effects is a VTT feature (Settings > VTT features); a
+  player can switch it off for themselves and still see the map.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

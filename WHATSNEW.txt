@@ -53,6 +53,12 @@ Undo
   session. Walking a character through a portal (a move between two maps) and
   bringing a token over from another map clear both maps' undo at that point.
 
+Multiplayer
+- "Players arrive at" now offers "Player's last location" — the default once a
+  campaign has players — so each player comes back to the map they were last
+  on and stays put until they travel or the GM summons them. A second choice,
+  "New players start at", says where someone joining for the first time lands.
+
 Fixes
 - A GM's elevation and posture settings now hold on the player's screen
   through a reconnect gap instead of flickering back on between retries, and

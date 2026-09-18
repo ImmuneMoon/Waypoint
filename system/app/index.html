@@ -378,7 +378,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Host a session</h4>
                       <ol>
                           <li>Click <b>&#127760;</b> in the header and enter your display name.</li>
-                          <li><b>Players arrive at</b> shows where joiners will land &mdash; leave it on <b>Follow me</b> or pick a specific map to pin the table there (handy for a staging area while you prep elsewhere).</li>
+                          <li><b>Players arrive at</b> shows where joiners will land &mdash; leave it on <b>Follow me</b> or pick a specific map to pin the table there (handy for a staging area while you prep elsewhere). Once the campaign has had players, <b>Player's last location</b> is offered and is the default: each player comes back to the map they were last on and stays put until they travel or you summon them, so a split party picks up where it left off. <b>New players start at</b> appears under it and says where someone joining for the first time lands (Follow me, or a map of your choice).</li>
                           <li>Press <b>Host Session</b>. A short <b>room code</b> appears &mdash; send it to your players however you like, then <b>close the window</b>: the session keeps running while you work, and the &#127760; button reopens it whenever you need the roster, pause, or summon.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Your planners, room notes, and character dossiers are <b>never sent</b> to them.</li>
                       </ol>
@@ -912,7 +912,11 @@ window.addEventListener('unhandledrejection', function(e) {
             </div>
             <div style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players arrive at</div>
-                <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Follow me' keeps the table on whatever map you're viewing; picking a map pins the table there until you switch back."></select>
+                <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Player's last location' (offered once the campaign has players, and then the default) sends each player back to the map they were last on, where they stay put until they travel or you summon; 'Follow me' keeps the table on whatever map you're viewing; picking a map pins the table there until you switch back."></select>
+            </div>
+            <div id="netStageFallbackRow" style="margin-bottom:10px; display:none;">
+                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">New players start at</div>
+                <select id="netStageFallbackSelect" style="width:100%; box-sizing:border-box;" title="Where a player joining this campaign for the first time lands — they have no last location yet (a last map that was deleted or locked for players counts the same). 'Follow me' puts them on your map with you; picking a map parks them there until they travel or you summon."></select>
             </div>
             <div style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>

@@ -278,7 +278,9 @@ function sanitizeItem(item) {
 function sanitizeAppState(s) {
     var c = JSON.parse(JSON.stringify(s));
     delete c.imageCats;   // the GM's picture-library categories
+    delete c._foreign; delete c._cleanup;   // origin marker and cleanup notes stay on this machine
     Object.values(c.campaigns || {}).forEach(function(camp) {
+        delete camp._foreign; delete camp._keptByUser;
         // GM bookkeeping: the player registry, history, and ban list never ship
         delete camp.players;
         delete camp.bannedPlayers;
@@ -477,8 +479,14 @@ function playerStroke(w, pid) {
 
 function applySnapshot(msg) {
     net.applyingRemote = true;
+    // Origin marker: this state came from someone else's table. Lives in the appState so it rides
+    // through every copy; a marked state is never written to disk and never installed by undo.
+    var mark = { at: Date.now(), gm: msg.gmId || null };
+    msg.appState._foreign = mark;
+    Object.values(msg.appState.campaigns || {}).forEach(function (c) { c._foreign = mark; });
     state.appState = msg.appState;
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
+    if (window.wpResetHistory) window.wpResetHistory();   // the pre-join state must never be re-installed while foreign
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     setTravelLockLocal(!!msg.travelLocked);
@@ -1380,7 +1388,7 @@ function admitPlayer(conn, prof) {
     var stage = currentStage();
     net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (stage) ensurePlayerToken(prof.id, stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
     broadcastRoster();
 }
 
@@ -1888,6 +1896,7 @@ function joinSession(code, name, isRetry, probe) {
             setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
             toast('Could not reach the GM\'s table \u2014 see the Multiplayer panel.');
             var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex';
+            if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
         }
         conn.on('open', function() {
             var wasRetry = reconn.pending;
@@ -1911,6 +1920,8 @@ function joinSession(code, name, isRetry, probe) {
         }
         setStatus('Connection error: ' + err.type);
         toast('Could not reach that room (' + err.type + ').');
+        // Only when the join itself failed: a signalling hiccup mid-game also lands here, with the table still live
+        if (!net.active && net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
     });
 }
 
@@ -1942,7 +1953,7 @@ function leaveSession(silent) {
         setStatus('Not in a session.');
         toast(wasClient ? 'Left the session — restoring your own campaign.' : wasHost ? 'Session ended for everyone — the room code is retired.' : 'Left the session.');
         if (wasHost) { logEvent('session', 'Session ended'); net.applyingRemote = true; save(true); net.applyingRemote = false; }
-        if (wasClient) load();
+        if ((wasClient || net.foreign) && !window.wpStream) load();   // foreign without a live link (a failed re-join) still leaves this way
     }
     syncSessionButtons();
 }
@@ -2363,7 +2374,7 @@ net.endSession = function() { var b = ui('netEndBtn'); if (b) b.click(); };   //
 if (!net.leaveSession) net.leaveSession = leaveSession;
 // Leave, with a confirm (panel button and the play-map menu both use this)
 net.leaveSessionConfirm = function() {
-    if (!net.active) return;
+    if (!net.active && !net.foreign) return;
     import('./dialogs.js').then(function(d) {
         d.showConfirm('Leave the session? Your own campaign comes back on screen. You can rejoin with the same room code.', function() {
             leaveSession(false);

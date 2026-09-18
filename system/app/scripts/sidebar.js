@@ -149,6 +149,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // Pinned and recent maps, shown above the Maps tree. Recent is per campaign on this computer.
   function recentKey(camp) { return 'wp_recent_' + camp.id; }
   function noteRecent(camp) {
+      if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // another table's map ids never reach preferences.json
       var it = camp.items[camp.activeItemId]; if (!it || it.type !== 'map') return;
       try {
           var list = JSON.parse(localStorage.getItem(recentKey(camp)) || '[]').filter(function(id) { return id !== it.id && camp.items[id]; });

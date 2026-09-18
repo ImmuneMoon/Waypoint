@@ -160,6 +160,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function load() {
 
+    resetHistory();   // before the fetch: a Ctrl+Z while the disk is being read finds nothing to pop
+
     fetch('/api/data')
 
       .then(res => res.json())
@@ -172,6 +174,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             state.appState = migrated.data;
         }
         if (window.wpStream && window.wpNet && window.wpNet.sanitizeAppState) state.appState = window.wpNet.sanitizeAppState(state.appState);   // stream window: players' view only
+        if (Object.keys(data).length === 0 && window.wpNet && window.wpNet.foreign && !window.wpStream) state.appState = { activeCampaignId: null, campaigns: {} };   // no save on disk: start fresh, never adopt the GM's table
         if (window.wpNet) window.wpNet.foreign = !!window.wpStream;   // our own campaign again (the stream window never owns one)
 
         
@@ -292,7 +295,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var isUndoing = false;
 
+  // "May this window write to this disk right now?" One answer for every write to disk.
+  function canPersistLocal() {
+      var n = window.wpNet;
+      if (window.__wpNoSave) return false;                              // a restore is deciding
+      if (window.wpStream) return false;                                // the stream window never owns a save
+      if (n && (n.foreign || (n.active && n.role === 'client'))) return false;
+      if (state.appState && state.appState._foreign) return false;      // origin marker: this state came from someone else's table
+      return true;
+  }
 
+  // Wipe the history; nothing can be pushed until load() seeds the baseline again
+  function resetHistory() {
+      undoStack = []; redoStack = [];
+      lastHistoryState = null;
+      updateUndoBtn();
+  }
+
+  function historyDepth() { return { undo: undoStack.length, redo: redoStack.length }; }
 
   function setHistoryBtn(id, enabled) {
 
@@ -346,9 +366,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function applyHistoryState(stateStr, msg) {
 
+      // An entry that came from someone else's table is dropped, never installed
+      var parsed = JSON.parse(stateStr);
+
+      if (parsed._foreign || Object.values(parsed.campaigns || {}).some(function(c) { return c && c._foreign; })) { updateUndoBtn(); return; }
+
       isUndoing = true;
 
-      state.appState = JSON.parse(stateStr);
+      state.appState = parsed;
 
       lastHistoryState = stateStr;
 
@@ -370,7 +395,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       // Save the restored state to disk immediately without pushing to history
 
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { toast(msg); setTimeout(function(){ isUndoing = false; }, 100); return; }
+      if (!canPersistLocal()) { toast(msg); setTimeout(function(){ isUndoing = false; }, 100); return; }
 
       fetch('/api/data', {
 
@@ -402,6 +427,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function undo() {
 
+      if (!canPersistLocal()) return;   // not while another table's campaign is on screen
+
       if (undoStack.length === 0) return;
 
       redoStack.push(JSON.stringify(state.appState));
@@ -413,6 +440,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
   function redo() {
+
+      if (!canPersistLocal()) return;
 
       if (redoStack.length === 0) return;
 
@@ -439,13 +468,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
     var doSave = function() {
 
-        pushHistory();
-
         // Multiplayer: clients don't touch their own disk — edits go to the host. And a campaign
         // that came from a host (wpNet.foreign) never reaches this disk even after the link drops:
         // between reconnect attempts the client is briefly "inactive" but still holds the GM's table.
-        if (window.wpNet && (window.wpNet.foreign || (window.wpNet.active && window.wpNet.role === 'client'))) {
-            if (window.wpNet.active && window.wpNet.role === 'client') {
+        if (!canPersistLocal()) {
+            if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
                 window.wpNet.onLocalSave();
                 saveNote.innerHTML = 'Synced to host <b>&#10003;</b>';
             } else {
@@ -453,6 +480,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             }
             return;
         }
+
+        pushHistory();   // below the return: a GM's table is never recorded
 
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host') {
 
@@ -609,7 +638,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           return;
       }
 
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return; // spectators: no edit shortcuts
+      if (!canPersistLocal()) return; // no edit shortcuts unless this window may write
 
       if (e.ctrlKey || e.metaKey) {
 
@@ -745,7 +774,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
 
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
+      if (!canPersistLocal()) return;
 
       if (state.viewMode !== 'visual') return;
 
@@ -830,6 +859,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
 
   async function buildExport(scope) {
+      if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
       var camp = getActiveCampaign();
       if (!camp) { toast('No campaign selected.'); return null; }
       function mergeShell(items) {
@@ -838,7 +868,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       var payload = null, base = '';
       if (scope === 'all') {
-          payload = state.appState;
+          payload = clone(state.appState);
           base = 'waypoint-everything';
       } else if (scope === 'campaign') {
           // this campaign on its own: every map and planner plus its players, handouts, delivery record, cast
@@ -882,6 +912,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           base = slugName(camp.name) + '-whiteboards';
       } else return null;
 
+      // Bookkeeping keys never travel: the origin marker and the cleanup's own notes
+      delete payload._foreign; delete payload._keptByUser; delete payload._cleanup;
+      Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; });
+
       var json = JSON.stringify(payload, null, 2);
       var paths = collectImagePaths(payload);
       if (!paths.length) return { name: base + '.json', text: json };
@@ -903,6 +937,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpBuildExport = buildExport;
 
   async function exportScope(scope) {
+      if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
       var r = await buildExport(scope);
       if (!r) return;
       if (r.text) { download(r.name, r.text); toast('Exported ' + r.name); }
@@ -974,9 +1009,19 @@ export {
 
     download,
 
-    getBase64Image
+    getBase64Image,
+
+    canPersistLocal,
+
+    resetHistory,
+
+    historyDepth
 
 };
+
+// Modules without an import edge to io.js (net, sidebar, planner, inspector, shadowbase) reach the gate here
+window.wpCanPersistLocal = canPersistLocal;
+window.wpResetHistory = resetHistory;
 
 
 
@@ -1004,7 +1049,10 @@ window.appToast = toast;
 // path, so an externally rebuilt save appears without the stop/write/restart dance. Clearing the
 // debounce first is what makes disk win — otherwise the pending in-memory POST re-clobbers the file
 // you just read. Any unsaved in-memory edit is intentionally discarded. (Works in the packaged shell too.)
-window.wpReloadFromDisk = function() { clearTimeout(saveTimeout); load(); };
+window.wpReloadFromDisk = function() {
+    if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { toast('Not while you\'re at someone else\'s table.'); return; }   // still joined: your own save would replace the table
+    clearTimeout(saveTimeout); load();
+};
 
 // Dev/console: force an immediate save now, skipping the ~500ms debounce (io.js save(true)).
 window.wpSave = save;

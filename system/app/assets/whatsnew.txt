@@ -1,3 +1,12 @@
+WAYPOINT 1.4.9 — What's New
+============================
+
+Fixes
+- After leaving a GM's game, pressing Undo could put the GM's campaign into
+  your own save and hide your campaigns. That can no longer happen: Undo does
+  nothing while you are in someone's game, and nothing from a game you joined
+  can be saved on your computer.
+
 WAYPOINT 1.4.8 — What's New
 ============================
 

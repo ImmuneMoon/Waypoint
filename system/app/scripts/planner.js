@@ -263,6 +263,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-img-upload')).forEach(el => el.addEventListener('change', function() {
           var idx = +this.dataset.idx, f = this.files && this.files[0]; if (!f || !f.type.startsWith('image/')) return;
+          if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
           toast('Uploading picture…');
           fetch('/api/upload?mapId=' + encodeURIComponent(activeMap.id) + '&filename=' + encodeURIComponent(f.name), { method: 'POST', body: f })
               .then(function(r) { return r.json(); }).then(function(d) { if (d.url) { activeMap.blocks[idx].src = d.url; save(true); renderPlanner(); } else toast('Upload failed.'); })

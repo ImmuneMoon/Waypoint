@@ -3152,6 +3152,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
 
       if(!f || !f.type.startsWith('image/')) return;
 
+      if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }   // would create saves/images/<GM mapId>/
+
       toast('Uploading image...');
 
       fetch('/api/upload?mapId=' + encodeURIComponent(getActiveCampaign().activeItemId) + '&filename=' + encodeURIComponent(f.name), {

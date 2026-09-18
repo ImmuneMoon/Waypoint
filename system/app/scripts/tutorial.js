@@ -50,6 +50,38 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function
 
 /* ---------- the demo campaign ---------- */
 // Ids are fixed so the tour can find its pieces and a rebuild replaces the old copy cleanly.
+/* ---- the demo system and character (character sheets, 1.5.0): a tiny ruleset so the tour can open a real sheet ---- */
+function tutorialSystem() {
+    return { v: 1, name: 'Tutorial rules', preset: '', updated: 1,
+        fields: [
+            { id: 'f_tut_str', key: 'STR', label: 'Strength', kind: 'number', def: 10, min: 1, max: 20, step: 1, edit: 'owner', vis: 'all', hover: false, roll: 'd20 + STRmod' },
+            { id: 'f_tut_dex', key: 'DEX', label: 'Dexterity', kind: 'number', def: 10, min: 1, max: 20, step: 1, edit: 'owner', vis: 'all', hover: false },
+            { id: 'f_tut_con', key: 'CON', label: 'Constitution', kind: 'number', def: 10, min: 1, max: 20, step: 1, edit: 'owner', vis: 'all', hover: false },
+            { id: 'f_tut_strmod', key: 'STRmod', label: 'STR modifier', kind: 'formula', formula: 'floor((STR - 10) / 2)', vis: 'all', hover: false },
+            { id: 'f_tut_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10 + CON', def: 'max', min: 0, edit: 'owner', vis: 'all', hover: true },
+            { id: 'f_tut_ac', key: 'AC', label: 'Armour class', kind: 'formula', formula: '10 + floor((DEX - 10) / 2)', vis: 'all', hover: true },
+            { id: 'f_tut_sword', key: 'Skill.Sword', label: 'Sword', kind: 'skill', base: 'STRmod', def: 0, min: 0, max: 10, step: 1, edit: 'owner', vis: 'all', hover: false, roll: 'd20 + Skill.Sword' },
+            { id: 'f_tut_prone', key: 'Prone', label: 'Prone', kind: 'toggle', def: false, edit: 'owner', vis: 'all', hover: true },
+            { id: 'f_tut_notes', key: 'Notes', label: 'Notes', kind: 'notes', edit: 'owner', vis: 'all', hover: false },
+            { id: 'f_tut_gm', key: 'GMnotes', label: 'GM notes', kind: 'notes', edit: 'gm', vis: 'gm', hover: false }
+        ],
+        rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: 'd20 + floor((DEX - 10) / 2)', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (sword)', formula: 'd20 + Skill.Sword', vis: 'all' }],
+        sheet: { sections: [] } };
+}
+function tutorialCharacter(A) {
+    return { id: 'c_tut_bren', name: 'Bren of Hollowvale', ownerId: '', portrait: A + 'bren_sq.jpg', npc: false, updated: 1,
+        values: { f_tut_str: 14, f_tut_dex: 12, f_tut_con: 13, f_tut_hp: { cur: 9 }, f_tut_sword: 3, f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.' } };
+}
+// Bren's tokens on every map point at the character (one HP total across maps); idempotent, so an older Tutorial campaign gains it too
+function ensureTutorialSheet(camp) {
+    if (!camp) return false;
+    var changed = false;
+    if (!camp.system || typeof camp.system !== 'object') { camp.system = tutorialSystem(); changed = true; }
+    if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {};
+    if (!camp.chars.c_tut_bren) { camp.chars.c_tut_bren = tutorialCharacter(TUTORIAL_ART_URL); changed = true; }
+    Object.values(camp.items || {}).forEach(function(m) { if (!m || m.type !== 'map') return; (m.whiteboard || []).forEach(function(w) { if (w && /^tut_wb_bren[0-9]*$/.test(w.id) && w.charId !== 'c_tut_bren') { w.charId = 'c_tut_bren'; changed = true; } }); });
+    return changed;
+}
 function buildTutorialCampaign() {
     var A = TUTORIAL_ART_URL;                       // copies of the shipped art in the saves folder (see installTutorialArt)
     var camp = createNewCampaign(TUTORIAL_NAME);
@@ -366,6 +398,7 @@ function buildTutorialCampaign() {
     var book = tutorialHandbookPage();
 
     [realm, city, inn, throne, temple, forge, ground, basement, top, fort, road, plan, book].forEach(function(it) { camp.items[it.id] = it; });
+    ensureTutorialSheet(camp);   // the demo system and Bren's character (character sheets, 1.5.0)
     camp.activeItemId = realm.id;
     return camp;
 }
@@ -516,8 +549,12 @@ var STEPS = [
       html: 'The search buttons beside Planners and Maps filter their lists. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
     { target: '#systemBtn', title: 'The system',
       html: 'Your game&rsquo;s rules, with no code: the <b>System</b> editor holds the campaign&rsquo;s <b>fields</b> &mdash; attributes with defaults and ranges, formulas computed from them (<code>floor((STR - 10) / 2)</code>), resources with a formula for their max (HP), skills as ranks plus a base, toggles for conditions, text, notes and selects &mdash; and its <b>rolls</b> (<code>d20 + STRmod</code>). Errors show under the field as you type, with a caret; <b>Start from&hellip;</b> gives you Basic d20 or Basic 3d6 to edit; Export and Import move a system between campaigns. Players get every field you leave visible; GM-only fields never leave your machine. The <b>Layout</b> tab arranges the sheet in sections and columns (or leave it automatic); the <b>Characters</b> tab holds the campaign&rsquo;s characters; a token points at one through its Properties, and right-click &#9656; <b>Sheet&hellip;</b> opens the sheet over the play map &mdash; yours for any character, a player&rsquo;s for their own, where they fill in what you left editable.' },
+    { target: '#sheetPanel', title: 'A character sheet',
+      html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (right-click a token &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip.',
+      before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) window.wpSheets.openSheet('c_tut_bren'); } },
     { target: '#netBtn', title: 'Multiplayer',
-      html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden. Dice roll from Table Chat: <b>/roll 2d6 + 3</b>, or the &#127922; roller beside the message box (next).' },
+      html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden. Dice roll from Table Chat: <b>/roll 2d6 + 3</b>, or the &#127922; roller beside the message box (next).',
+      before: function() { if (window.wpSheets) window.wpSheets.closeSheet(); } },
     { target: '#diceBtn', title: 'Dice',
       html: 'Roll from <b>Table Chat</b>: type <b>/roll 2d6 + 3</b>, or open this roller &mdash; quick dice buttons, <kbd>Enter</kbd> to roll, <kbd>&uarr;</kbd> for your last rolls. At a table the GM&rsquo;s machine makes every roll and everyone sees the same card: every die, what was kept or dropped, the total or the check&rsquo;s margin. <b>Private</b> keeps a roll to yourself (a player&rsquo;s goes to the GM), and every table roll lands in the session log. Pick a <b>character</b> in the roller and names like <b>STR</b> come from its sheet (the sheet&rsquo;s roll buttons do this for you). The full syntax is in Help &#9656; Dice. Dice is a VTT feature, per campaign.',
       before: function() { var cp = document.getElementById('chatPanel'); if (cp && cp.style.display === 'none') { var cb = document.getElementById('chatBtn'); if (cb) cb.click(); } } },
@@ -633,6 +670,7 @@ function endTour() {
     document.body.classList.remove('tour-on');
     closeSettingsForTour();   // the VTT step may have left Settings open
     var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
+    if (window.wpSheets) window.wpSheets.closeSheet();   // and the sheet step Bren's sheet
 }
 
 /* ---------- Help → Tutorial pane wiring ---------- */
@@ -717,4 +755,4 @@ function saveIsFresh() {
     }, 300);
 })();
 
-window.wpTutorial = { start: startTour, fresh: saveIsFresh, end: endTour, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign };
+window.wpTutorial = { start: startTour, fresh: saveIsFresh, end: endTour, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet };

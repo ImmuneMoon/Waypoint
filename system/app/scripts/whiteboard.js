@@ -1922,6 +1922,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
           if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', label: '\u27A4 Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
+          if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', label: String.fromCharCode(55357, 56523) + ' ' + (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
+          if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
           menu.innerHTML = items.map(function(i) {
               return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(tok.dataset.key) + '" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
           }).join('');
@@ -1937,6 +1939,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           else if (act === 'summon') { window.wpNet.summonPlayerById(key.slice(2)); }
           else if (act === 'summonAll') { window.wpNet.summonAll(); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
+          else if (act === 'sheet') { var campS = getActiveCampaign(), locS = locateCharacter(campS, key, campS && campS.activeItemId); if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
+          else if (act === 'chars') { if (window.wpSheets) window.wpSheets.open('chars'); }
           else if (act === 'target') {
               var camp = getActiveCampaign(); var loc = locateCharacter(camp, key, camp && camp.activeItemId);
               var am = getActiveMap();

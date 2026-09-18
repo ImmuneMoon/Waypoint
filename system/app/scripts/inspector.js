@@ -923,7 +923,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         + '<button class="tool ghost" id="wbSheetAttach" style="flex:1;" title="Attach a ShadowBase character JSON to this token">' + (w.sheet ? 'Replace' : 'Attach JSON') + '</button>'
                         + '<button class="tool ghost" id="wbSheetExport" style="flex:1;" title="Download a site-ready character JSON with this token\'s art as the portrait">Export JSON</button>'
                         + (w.sheet ? '<button class="tool ghost danger" id="wbSheetDetach" style="padding:4px 10px;" title="Detach the sheet">&times;</button>' : '')
-                        + '</div></div>';
+                        + '</div>'
+                        + (w.sheet && window.wpSheets && window.wpSheets.systemOf(getActiveCampaign()) ? '<div style="margin-top:5px;"><button class="tool ghost" id="wbSheetToChar" style="width:100%;" title="Copy the sheet\'s attributes, resources and skills once into a campaign character, by the system\'s matching keys (ST or STR, DX or DEX, HT or CON, IQ or INT, HP, FP, Will, Per, Dodge, Parry, skills by name)">' + (w.charId ? 'Copy the sheet\'s values into the character' : 'Character from this sheet') + '</button></div>' : '')
+                        + '</div>';
                 }
             }
               
@@ -1117,6 +1119,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     import('./shadowbase.js').then(function(m) {
                         m.exportCharacterJson(w, campX ? campX.name : '');
                     });
+                });
+                var wbSheetToChar = document.getElementById('wbSheetToChar');
+                if (wbSheetToChar) wbSheetToChar.addEventListener('click', function() {   // character sheets (1.5.0): copy once
+                    if (!window.wpSheets || !window.wpSheets.fromShadowBase) return;
+                    var rS = window.wpSheets.fromShadowBase(w);
+                    if (rS && rS.error) { import('./io.js').then(function(m) { m.toast(rS.error); }); return; }
+                    renderInspector();
                 });
                 var wbSheetDetach = document.getElementById('wbSheetDetach');
                 if (wbSheetDetach) wbSheetDetach.addEventListener('click', function() {

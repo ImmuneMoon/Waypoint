@@ -498,6 +498,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
               state.appState.campaigns[ic.id] = ic;
               if (ic.system && window.wpSystemCore && window.wpFormula) { var nsys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true }); if (nsys) ic.system = nsys; else delete ic.system; }   // character sheets (1.5.0)
+              if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore) { if (!ic.system) delete ic.chars; else { var nch = {}; Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], ic.system); if (cc && cc.id === id) nch[id] = cc; }); ic.chars = nch; } }
 
               Object.keys(ic.items).forEach(function(id) {
                   var it = ic.items[id];
@@ -524,6 +525,11 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           if (ic.system && typeof ic.system === 'object' && window.wpSystemCore && window.wpFormula) {
               var isys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true });
               if (isys && (!existing.system || (Number(isys.updated) || 0) >= (Number(existing.system.updated) || 0))) existing.system = isys;
+          }
+          if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore && existing.system) {   // characters (1.5.0): union by id, each cleaned against the system now in place
+              existing.chars = existing.chars && typeof existing.chars === 'object' ? existing.chars : {};
+              Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], existing.system); if (cc && cc.id === id) existing.chars[id] = cc; });
+              if (window.wpSheets) window.wpSheets.syncOwners(existing);
           }
           // the sound index merges by id (1.5.0): an imported entry replaces the same id, new ids are added
           if (ic.sounds && typeof ic.sounds === 'object' && Array.isArray(ic.sounds.list)) {

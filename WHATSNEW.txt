@@ -121,8 +121,18 @@ Character sheets: the system
   your machine), editable by the player or by the GM, and can appear on the
   hover card. The visible part of the system reaches players at your table
   at once. Character sheets is a VTT feature (Settings ▸ VTT features).
-  Characters, the sheet panel on the play map and rolls from the sheet
-  follow in the next steps of 1.5.0.
+- Characters: the editor's Characters tab creates the campaign's characters
+  (a player, NPC, a portrait); a token points at one through its Properties
+  or right-click ▸ New character sheet, and any number of tokens can share
+  a character (one HP across maps). The character's player is written onto
+  its tokens, so moves and the party strip work as before. Right-click a
+  token ▸ Sheet… opens the sheet over the play map: numbers and skills with
+  totals, resources as a bar with − and +, toggles, text, notes, selects,
+  formulas read-only; every change saves at once, ↶ puts the last one back.
+- Players open their own sheet the same way and fill in what you left
+  editable; your machine checks every value and keeps it. Of other PCs they
+  see only the Hover fields, on the hover card and the party strip; NPCs
+  never leave your machine. Rolls from the sheet follow in the next step.
 
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features

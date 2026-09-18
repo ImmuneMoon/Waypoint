@@ -49,6 +49,7 @@ function inspectCampaign(camp) {
         var sf = Array.isArray(camp.system.fields) ? camp.system.fields : [], sr = Array.isArray(camp.system.rolls) ? camp.system.rolls : [];
         if (sf.some(function(f) { return isObj(f) && f.vis === 'gm'; }) || sr.some(function(r) { return isObj(r) && r.vis === 'gm'; })) lm.gm++;
     }
+    if (isObj(camp.chars) && Object.values(camp.chars).some(function(ch) { return isObj(ch) && (ch.npc === true || !ch.ownerId); })) lm.gm++;   // an NPC or an unassigned character never travels (players get owned PCs only)
     Object.values(camp.items || {}).forEach(function(m) {
         if (!isObj(m)) return;
         if (m.type === 'doc') { docs++; return; }   // handbook pages travel to players: neither a local mark nor a fingerprint

@@ -80,10 +80,13 @@ function wireStanceMenu(cMenu, items, onChange) {
 // A player's own token: the one edit menu they get (same permission line as moving it)
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
-    var rows = stanceMenuHtml(tok); if (!rows) return;
-    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + rows.replace('<div class="menu-divider"></div>', '');
+    var rows = stanceMenuHtml(tok) || '';
+    var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
+    if (!rows && !sheetRow) return;
+    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
     placeMenu(cMenu, e);
+    var ownSheet = cMenu.querySelector('.cm-sheet-own'); if (ownSheet) ownSheet.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openSheet(tok.charId); });
     wireStanceMenu(cMenu, [tok], function() { save(); render(); });
 }
 
@@ -318,16 +321,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                           var amC = getActiveMap();
                           var entry = null;
                           (amC.rooms || []).some(function(rm) { entry = (rm.characters || []).find(function(c) { return c.id === wItem.charRef; }); return !!entry; });
-                          if (entry && entry.info) cstats = (cstats ? cstats + '\n' : '') + entry.info;
+                          if (entry && entry.info) cstats = (cstats ? cstats + String.fromCharCode(10) : '') + entry.info;
                       }
-
-                      tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
-
-                                     '<div class="rn">'+esc(cname)+'</div>' +
-
-                                     '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap;">'+esc(cstats)+'</div>' + stanceLine +
-
-                                     '</div>';
+                      // built from nodes (1.5.0): the name, the stats line, the sheet's hover fields, the stance line
+                      var ttRoot = document.createElement('div'); ttRoot.className = 'room'; ttRoot.style.cssText = 'border-left-color:var(--gold); margin:0; pointer-events:none;';
+                      var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; ttRoot.appendChild(ttName);
+                      var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap;'; ttStats.textContent = cstats; ttRoot.appendChild(ttStats);
+                      var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
+                      if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
+                      if (stanceBits.length) { var ttStance = document.createElement('div'); ttStance.className = 'rc'; ttStance.style.cssText = 'color:var(--gold); font-size:11px;'; ttStance.textContent = stanceBits.join(' · '); ttRoot.appendChild(ttStance); }
+                      tt.textContent = ''; tt.appendChild(ttRoot);
 
                       tt.style.display = 'block';
 
@@ -966,7 +969,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       its.forEach(function(src) {
           var it = JSON.parse(JSON.stringify(src));
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
-          delete it.ownerId;
+          delete it.ownerId; delete it.charId;   // a copy is a new creature, not a second token of the character
           if (it.groupId) {
               if (!gidMap[it.groupId]) gidMap[it.groupId] = 'group_' + Date.now() + Math.random().toString(36).slice(2, 6);
               it.groupId = gidMap[it.groupId];
@@ -1773,7 +1776,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
           });
       }
-      var sig = list.map(function(c) { return c.key + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2); }).join(';') + '#' + am.id;
+      var sig = list.map(function(c) { return c.key + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
       strip.innerHTML = list.map(function(c) {
@@ -1781,6 +1784,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var away = atTable && c.ownerId && !present[c.ownerId];
           var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '');
           var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (c.noToken ? ' \u2014 no token yet' : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
+          if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" title="' + esc(tip) + '">';
           var ini = String(c.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
           return '<span class="' + cls + ' party-ini" data-key="' + esc(c.key) + '" title="' + esc(tip) + '">' + esc(ini) + '</span>';
@@ -1981,7 +1985,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!state.selWbId && !(state.selWbIds && state.selWbIds.length)) return;
       var t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #cmdkModal, input, select, textarea, [contenteditable="true"]')) return;
+      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, #soundPanel, #dicePanel, #cmdkModal, input, select, textarea, [contenteditable="true"]')) return;
       state.selWbId = null; state.selWbIds = [];
       if (window.appRender) window.appRender();
   }, true);
@@ -3724,7 +3728,8 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           sheetViewModal: 'sheetViewCloseBtn',
           vttNoticeModal: 'vttNoticeKeepBtn',   // the backdrop means "Keep mine"
           vttPushModal: 'vttPushCancelBtn',
-          soundLibModal: 'soundLibClose'
+          soundLibModal: 'soundLibClose',
+          systemModal: 'sysClose'
       };
       Object.keys(overlayClose).forEach(function(oid) {
           var overlay = document.getElementById(oid);
@@ -4378,6 +4383,7 @@ function castSave(items) {
         if (!it || !(it.isChar || it.charName)) return;   // only character tokens belong in the cast
         var cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         cast[cid] = { id: cid, name: it.charName || 'Character', kind: it.type || 'image', src: it.src || '', w: it.w || 60, h: it.h || 52, color: it.color || 'transparent', charStats: it.charStats || '', shape: it.shape || '', savedAt: Date.now() };
+        if (it.charId) cast[cid].charId = it.charId;   // the cast entry remembers the character (a single drop shares its sheet)
         n++;
     });
     if (!n) { import('./io.js').then(function(m) { m.toast('Select a character token to save.'); }); return; }
@@ -4402,6 +4408,7 @@ function castPlace(cid, x, y, count) {
         var it = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: c.kind || (c.src ? 'image' : 'circle'), x: x - c.w / 2 + col * (c.w + gap), y: y - c.h / 2 + row * (c.h + gap), w: c.w, h: c.h, z: 10, color: c.color, isChar: true, charName: count > 1 ? c.name + ' ' + (i + 1) : c.name, name: count > 1 ? c.name + ' ' + (i + 1) : c.name, charStats: c.charStats, layer: 'front' };
         if (c.src) it.src = c.src;
         if (c.shape) it.shape = c.shape;
+        if (c.charId && count === 1) it.charId = c.charId;   // one copy of a character shares its sheet; several are separate mooks
         if (window.wpSeatHex) window.wpSeatHex(it, am);
         am.whiteboard.push(it);
     }
@@ -4752,7 +4759,7 @@ document.addEventListener('contextmenu', function(e) {
             var ownEl = e.target.closest('.wb-item');
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
-                if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !window.wpNet.paused && (stanceOn('elevation') || stanceOn('posture'))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !window.wpNet.paused && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)))) { e.preventDefault(); showStanceMenu(e, tokO); }
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;
@@ -4883,6 +4890,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
                 html += stanceMenuHtml(firstItem);
             }
+            if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
             html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
             html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
@@ -5014,6 +5022,10 @@ document.addEventListener('contextmenu', function(e) {
                         if (it && it.isChar) { if (stNew) it.status = stNew; else delete it.status; }
                     });
                     import('./io.js').then(m => m.toast(stNew === 'dead' ? 'Marked dead.' : stNew === 'down' ? 'Marked incapacitated.' : 'Back on their feet.'));
+                } else if (action.includes('cm-sheet')) {
+                    var itS = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
+                    if (itS && window.wpSheets) { if (!itS.charId) window.wpSheets.newFromToken(itS); if (itS.charId) window.wpSheets.openSheet(itS.charId); }
+                    return;
                 } else if (action.includes('cm-cast-save')) {
                     castSave(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;

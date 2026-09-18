@@ -21,6 +21,7 @@ var BY_ID = {
     wbIsChar: 'Makes this item a character token: a name and stats line on hover, a player owner in multiplayer, and automatic room tracking.',
     wbCharName: 'Shown on hover and used to match this token to its player and to room character lists — spell it the same everywhere.',
     wbCharStats: 'Player-safe line shown on hover (species, points…). Everyone at the table can read it.',
+    wbCharSel: 'The campaign character this token stands for: its sheet, values and player. New character from this token makes one named after it; several tokens may share a character.',
     wbOwner: 'The player allowed to drag this token in multiplayer. Their moves are mirrored to everyone.',
     wbElev: 'Height above the ground in yards — a ledge at +3, a catwalk at +5, a pit at −2. Shown as a chip on the token; the blast tool measures straight-line, height included.',
     wbPosture: 'Standing, crouching, sitting, kneeling, crawling, lying prone or lying face up (handbook ch. 9). Shown as a chip on the token; an attached ShadowBase sheet seeds it.',

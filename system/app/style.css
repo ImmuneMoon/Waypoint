@@ -1530,6 +1530,40 @@
   .sys-test-out { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink); max-height: 120px; overflow: auto; display: flex; flex-wrap: wrap; gap: 2px 16px; }
   .sys-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); padding-top: 8px; }
   #sysSaveBtn.on { border-color: var(--gold); color: var(--gold); }
+  .sys-char-row .sys-char-name { width: 200px; }
+  .sys-char-row .sys-char-owner { max-width: 200px; }
+
+  /* Character sheets (1.5.0): the sheet panel over the play map */
+  #sheetPanel { position: fixed; right: 18px; top: 120px; width: 460px; max-width: 96vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; max-height: 82vh; }
+  #sheetHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #sheetPortrait { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
+  .sheet-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .sheet-pick { max-width: 150px; padding: 2px 6px; font-size: 11px; }
+  #sheetPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #sheetBody { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }
+  .sheet-section { display: flex; flex-direction: column; gap: 4px; }
+  .sheet-sec-title { color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
+  .sheet-grid { display: grid; gap: 6px 10px; }
+  .sheet-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .sheet-field.sheet-row { grid-column: 1 / -1; }
+  .sheet-label { color: var(--dim); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-gm .sheet-label::after { content: ' \00b7 GM'; color: var(--gold); }
+  .sheet-value { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .sheet-err { color: var(--red); }
+  .sheet-ctl { display: flex; align-items: center; gap: 4px; }
+  #sheetPanel input.field, #sheetPanel select.field, #sheetPanel textarea.field { padding: 3px 6px; font-size: 12.5px; }
+  .sheet-num { width: 64px; }
+  .sheet-total { color: var(--dim); font-size: 12px; white-space: nowrap; }
+  .sheet-pm { padding: 0 8px; font-size: 13px; line-height: 1.4; }
+  .sheet-bar { height: 5px; background: rgba(0,0,0,0.25); border-radius: 3px; overflow: hidden; }
+  .sheet-bar-fill { height: 100%; background: var(--green); transition: width .2s; }
+  .sheet-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+  .sheet-notes { min-height: 60px; resize: vertical; font-size: 12px; }
+  .sheet-heading { grid-column: 1 / -1; color: var(--gold); font-weight: 700; font-size: 12.5px; }
+  .sheet-divider { grid-column: 1 / -1; border-top: 1px solid var(--edge); }
+  .sheet-portrait-slot img { max-width: 100%; max-height: 160px; border-radius: 6px; border: 1px solid var(--edge); }
+  .sheet-roll { width: 100%; }
+  body.net-client #sheetPanel .sheet-gm { display: none; }
 
   /* Planner text editor */
   .rte { border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); position: relative; }

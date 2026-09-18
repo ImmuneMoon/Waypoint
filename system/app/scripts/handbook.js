@@ -22,7 +22,7 @@ function isOpen() { var m = ui('docReaderModal'); return !!(m && m.style.display
 function shown(id) { var el = ui(id); return !!(el && getComputedStyle(el).display !== 'none'); }
 // Anything layered above the reader owns Esc while it is up: capture listeners on document all run
 // whatever stopPropagation says, so the reader steps back instead of relying on it.
-var ABOVE = ['vttNoticeModal', 'handoutModal', 'customConfirm', 'customPrompt', 'netModal', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupRecoverModal', 'tourOverlay', 'cmdkModal', 'settingsModal', 'helpModal', 'journalModal', 'installerStepsModal', 'whatsNewModal'];
+var ABOVE = ['vttNoticeModal', 'handoutModal', 'customConfirm', 'customPrompt', 'netModal', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupRecoverModal', 'tourOverlay', 'cmdkModal', 'settingsModal', 'helpModal', 'journalModal', 'installerStepsModal', 'whatsNewModal', 'systemModal'];
 function somethingAbove() { return ABOVE.some(shown); }
 
 // A cheap signature of what the reader shows, so a delta that touched another page is ignored

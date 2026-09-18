@@ -151,7 +151,7 @@
         wpShowWhatsNew: 'Open the What’s New view.',
         wpSnapFacing: "Snap a token's rotation to its facing step.",
         wpSnapNewHexItem: 'Seat a newly placed item on a hex grid.',
-        wpSheets: 'Character sheets (scripts/sheets.js): open() / close() the System editor, playerSystem(camp) = the view players receive, systemOf(camp), startFrom(id), draft().',
+        wpSheets: 'Character sheets (scripts/sheets.js): open(tab) / close() the System editor, playerSystem(camp) = the view players receive, systemOf, charsOf / charList / charById, newCharacter, deleteCharacter, linkToken, newFromToken, syncOwners, openSheet(id) / closeSheet / canOpen, hoverLinesForToken; charChanged / charGone / editResult are the hooks net.js calls.',
         wpSheetsSync: 'Re-check the Character sheets feature for the campaign or table on screen (called by the VTT toggle fan-out).',
         wpSound: 'The sound engine (sound.js): play(id | entry), stop("ambient" | "all", fade), setVolume(0-1), setMaster(0-1), mute(bool), now(), onChange(fn), openPanel / closePanel / openLib, defaults(); listMessage / onList / onCue and the session hooks net.js calls.',
         wpSoundCore: 'The sound validators and maths (soundcore.js): cleanSoundList, cleanSoundCue, cleanEntry, isUploadPath, mixGain, seamBlend, LIMITS.',

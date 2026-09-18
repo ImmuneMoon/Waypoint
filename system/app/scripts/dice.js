@@ -29,13 +29,14 @@ function renderCard(m) {
     if (rec.from.gm) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-gm', 'GM')); }
     var tag = rec.priv === 'gm' ? (rec.from.gm ? 'private' : 'to the GM') : rec.to ? (m.toName ? 'to ' + m.toName : 'private') : '';
     if (tag) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', tag)); }
+    if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'as ' + rec.as)); }   // the character the roll was made as (1.5.0)
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
     wrap.appendChild(el('br'));
     if (!res || !res.ok || !Fm) {
         wrap.appendChild(el('div', 'roll-bad', 'a roll that could not be read' + (m.rollBad === 'version' ? ' (a different dice engine)' : '')));
         return wrap;
     }
-    var exprLine = el('div', 'roll-expr', rec.expr); exprLine.title = rec.expr; wrap.appendChild(exprLine);
+    var exprLine = el('div', 'roll-expr', rec.label ? rec.label + String.fromCharCode(32, 183, 32) + rec.expr : rec.expr); exprLine.title = rec.expr; wrap.appendChild(exprLine);
     var brk = el('div', 'roll-break');
     var parts = typeof Fm.parts === 'function' ? Fm.parts(res, 40) : [Fm.describe(res, { maxChars: LIMITS.cardChars })];
     parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
@@ -80,10 +81,29 @@ function syncRoleLabels() {
     if (lbl) lbl.title = isClient() ? 'Only you and the GM see this roll' : 'Only you see this roll (it is still logged)';
     var s = ui('diceSoundChk'); if (s) s.checked = soundOn();
 }
+// The character picker (character sheets, 1.5.0): a player's own characters, any of the campaign's for the GM; hidden when there are none
+function syncChars() {
+    var s = ui('diceChar'); if (!s) return;
+    var sh = window.wpSheets, list = sh && sh.charList ? sh.charList() : [], n = net(), me = n ? n.myId : null;
+    if (isClient()) list = list.filter(function(c) { return c.ownerId && c.ownerId === me && !c.partial && !c.npc; });
+    var was = s.value; s.textContent = '';
+    var none = el('option', null, 'No character'); none.value = ''; s.appendChild(none);
+    list.forEach(function(c) { var o = el('option', null, c.name + (c.npc ? ' (NPC)' : '')); o.value = c.id; s.appendChild(o); });
+    s.value = list.some(function(c) { return c.id === was; }) ? was : '';
+    s.style.display = list.length && (!window.wpVtt || window.wpVtt.on('sheets')) ? '' : 'none';
+}
+// A roll from a sheet button (sheets.js) or the combat roster: the picker follows, the card carries the label and the character
+function rollFor(charId, expr, label, opts) {
+    opts = opts || {};
+    var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
+    var r = roll(expr, { priv: !!opts.priv, charId: charId, label: label, source: opts.source || 'sheet' });
+    if (r.error) toast(r.error);
+    return r;
+}
 function openPanel() {
     var p = ui('dicePanel'); if (!p || !featureOn()) return;
     var c = ui('chatPanel'); if (c && c.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); }
-    p.style.display = 'flex'; placePanel(); syncRoleLabels(); clearErr();
+    p.style.display = 'flex'; placePanel(); syncRoleLabels(); syncChars(); clearErr();
     var f = ui('diceExpr'); if (f) { f.focus(); f.select(); }
 }
 function closePanel() { var p = ui('dicePanel'); if (p) p.style.display = 'none'; }
@@ -95,15 +115,15 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr + ' characters).' };
-    var r = n.diceRoll(clean, { priv: !!opts.priv });
+    var r = n.diceRoll(clean, { priv: !!opts.priv, charId: opts.charId || undefined, label: opts.label || undefined });
     if (!r.error) remember(clean);
     return r;
 }
 function rollFromPanel() {
     var f = ui('diceExpr'); if (!f) return;
-    var expr = f.value, priv = !!(ui('dicePriv') && ui('dicePriv').checked);
+    var expr = f.value, priv = !!(ui('dicePriv') && ui('dicePriv').checked), charId = ui('diceChar') && ui('diceChar').value || undefined;
     clearErr();
-    var r = roll(expr, { priv: priv, source: 'panel' });
+    var r = roll(expr, { priv: priv, source: 'panel', charId: charId });
     if (r.error) { showErr(r.error, cleanExpr(expr) || '', r.pos || 0, r.len || 0); return; }
     f.select();
 }
@@ -118,7 +138,7 @@ function onRolled() { clearErr(); }
 function sync() {
     var on = featureOn(), b = ui('diceBtn');
     if (b) b.style.display = on ? '' : 'none';
-    if (!on) closePanel();
+    if (!on) closePanel(); else if (panelOpen()) syncChars();
     var n = net(); if (n && n.syncSessionButtons) n.syncSessionButtons();
 }
 (function wire() {
@@ -151,4 +171,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { roll: roll, renderCard: renderCard, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { roll: roll, rollFor: rollFor, syncChars: syncChars, renderCard: renderCard, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

@@ -132,7 +132,15 @@ Character sheets: the system
 - Players open their own sheet the same way and fill in what you left
   editable; your machine checks every value and keeps it. Of other PCs they
   see only the Hover fields, on the hover card and the party strip; NPCs
-  never leave your machine. Rolls from the sheet follow in the next step.
+  never leave your machine.
+- Rolls from the sheet: the roll buttons on a sheet (and a field's own
+  die beside its label) roll at the table like /roll, with the
+  character's values filled in; the card shows the label, who rolled as
+  whom, and every name with the value it used. The roller gains a
+  character picker (your own characters; the GM any), so /roll d20 + STR
+  works once a character is picked; a GM's roll that uses a GM-only value
+  stays private. In the combat roster, a die beside a row rolls initiative
+  from the system's Initiative roll.
 
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features

@@ -89,7 +89,7 @@
         wpCloseImgPreview: "Close the Image Library's large preview.",
         wpCmdkOpen: 'Open the Ctrl+K quick-jump palette.',
         wpCreateMapFromRoomImage: "Build a new map from a room's scene image.",
-        wpDice: 'Dice at the table (scripts/dice.js): roll(expr, {priv}), openPanel / closePanel, renderCard(entry), line(entry), history(); onDeny / onRolled / landed are the hooks net.js calls.',
+        wpDice: 'Dice at the table (scripts/dice.js): roll(expr, {priv, charId, label}), rollFor(charId, expr, label) from a sheet, syncChars() the character picker, openPanel / closePanel, renderCard(entry), line(entry), history(); onDeny / onRolled / landed are the hooks net.js calls.',
         wpDiceCore: 'The dice validators and maths (scripts/dicecore.js): cleanRollReq, cleanRoll, cleanDeny, replay, checkTableRoll, parseCommand, verdictOf, critOf, cardText, RateLimit, LIMITS.',
         wpDiceSync: 'Re-check the Dice feature for the campaign or table on screen: shows or hides the roller (called by the VTT toggle fan-out).',
         wpDocForeign: 'Handbook reader: (on) closes the reader and switches mermaid to strict while someone else\'s campaign is on screen; (off) restores the app\'s own mode (handbook.js).',

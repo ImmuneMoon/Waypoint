@@ -18,13 +18,18 @@ var LIMITS = Object.freeze({
     timeoutMs: 5000,    // a client's pending request
     history: 20,        // the roller's recent list
     logChars: 300,      // describe() cap in the session log line
+    names: 200,         // named values a record may carry (rolls from a character sheet)
+    nameChars: 64,
+    label: 60,          // a roll's label, the character's name on a card
     cardChars: 240      // describe() cap in a toast / plain-text card
 });
 var ID_RE = /^r_[A-Za-z0-9]{1,16}$/;
 var RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var PEER_RE = /^[A-Za-z0-9_-]{1,80}$/;
+var NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;   // a sheet key, dotted (Skill.Stealth, HP.max)
+var CHAR_RE = /^c_[A-Za-z0-9_]{1,24}$/;
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
-var REASONS = { off: 1, slow: 1, many: 1, names: 1, error: 1, table: 1 };
+var REASONS = { off: 1, slow: 1, many: 1, names: 1, error: 1, table: 1, char: 1 };
 
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
 function isInt(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
@@ -40,6 +45,22 @@ function cleanFrom(f) {
     if (!id) return null;
     return { id: id, name: name || 'Player', gm: f.gm === true };
 }
+// A short text riding on a request or a record (a roll's label, a character's name): '' when absent, null when malformed
+function cleanLabel(v) { if (v === undefined || v === null) return ''; if (typeof v !== 'string' || v.length > LIMITS.label || CTRL_RE.test(v)) return null; return v.trim(); }
+// The names a roll used, with the values it used (the engine's breakdown.names): the receivers replay with exactly these
+function cleanNames(list) {
+    if (!Array.isArray(list) || list.length > LIMITS.names) return null;
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < list.length; i++) {
+        var n = list[i]; if (!n || typeof n !== 'object' || typeof n.name !== 'string' || n.name.length > LIMITS.nameChars || !NAME_RE.test(n.name)) return null;
+        var v = n.value; if (!(typeof v === 'boolean' || (typeof v === 'number' && isFinite(v)))) return null;
+        var l = n.name.toLowerCase(); if (l in seen) { if (seen[l] !== v) return null; continue; }
+        seen[l] = v; out.push({ name: n.name, value: v });
+    }
+    return out;
+}
+function foldNames(names) { var o = {}; (names || []).forEach(function(n) { o[String(n.name).toLowerCase()] = n.value; }); return o; }
+function cleanRid(msg) { return msg && typeof msg === 'object' && typeof msg.rid === 'string' && RID_RE.test(msg.rid) ? msg.rid : null; }
 // A player's request: { type: 'roll-req', rid, expr, priv? }
 function cleanRollReq(msg) {
     if (!msg || typeof msg !== 'object') return null;
@@ -47,6 +68,8 @@ function cleanRollReq(msg) {
     if (typeof msg.rid !== 'string' || !RID_RE.test(msg.rid)) return null;
     var out = { rid: msg.rid, expr: expr };
     if (msg.priv !== undefined) { if (msg.priv !== 'gm') return null; out.priv = 'gm'; }
+    if (msg.charId !== undefined) { if (typeof msg.charId !== 'string' || !CHAR_RE.test(msg.charId)) return null; out.charId = msg.charId; }   // roll as this character (its own values)
+    var label = cleanLabel(msg.label); if (label === null) return null; if (label) out.label = label;
     return out;
 }
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }
@@ -63,6 +86,9 @@ function cleanRoll(rec) {
     if (rec.priv !== undefined) { if (rec.priv !== 'gm') return null; out.priv = 'gm'; }
     if (rec.to !== undefined) { if (typeof rec.to !== 'string' || !PEER_RE.test(rec.to)) return null; out.to = rec.to; }
     if (rec.rid !== undefined) { if (typeof rec.rid !== 'string' || !RID_RE.test(rec.rid)) return null; out.rid = rec.rid; }
+    if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
+    var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;
 }
 // The host's refusal: { type: 'roll-deny', rid, reason, message?, pos?, len? } — pos/len clamped to the expr the client sent
@@ -81,7 +107,7 @@ function replay(rec, F, version) {
     if (!rec || !F) return { ok: false, reason: 'error' };
     if (rec.v !== version) return { ok: false, reason: 'version' };
     var res;
-    try { res = F.evaluate(rec.expr, { random: F.fromDraws(rec.draws) }); } catch (e) { res = null; }
+    try { res = F.evaluate(rec.expr, rec.names ? { random: F.fromDraws(rec.draws), vars: foldNames(rec.names) } : { random: F.fromDraws(rec.draws) }); } catch (e) { res = null; }   // names resolve to the values the host used, nothing else
     if (!res || !res.ok) return { ok: false, reason: 'error' };
     return { ok: true, result: res };
 }
@@ -95,7 +121,8 @@ var DENY_TEXT = {
     off: 'Dice are off for this campaign (Settings > VTT features).',
     slow: 'Slow down: a few rolls a second is plenty.',
     many: 'At most ' + LIMITS.dice + ' dice in a table roll.',
-    names: 'Names like STR come with the character sheets.',
+    names: 'Pick a character in the roller for names like STR (its sheet gives the values).',
+    char: 'Pick one of your own characters for that roll.',
     table: 'The table is rolling too much at once; try again in a moment.',
     error: 'That formula could not be rolled.'
 };
@@ -147,7 +174,8 @@ function tagOf(rec, opts) {
 function cardText(rec, res, F, opts) {
     var who = rec && rec.from ? (rec.from.gm ? 'GM' : rec.from.name) : 'Someone';
     var body = res && res.ok && F && F.describe ? F.describe(res, { maxChars: opts && opts.maxChars > 0 ? opts.maxChars : LIMITS.cardChars }) : (rec ? 'a roll that could not be read' : '');
-    return who + tagOf(rec, opts) + ' rolled ' + body;
+    var as = rec && rec.as && (!rec.from || rec.as !== rec.from.name) ? ' as ' + rec.as : '';
+    return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body;
 }
 // Per-peer and per-table rate limit with an injected clock: allow(peer, now) -> true | 'slow' | 'table'
 function RateLimit(cfg) {
@@ -169,6 +197,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };
+export { VERSION, LIMITS, cleanExpr, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };

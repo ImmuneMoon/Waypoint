@@ -175,7 +175,7 @@ Block types (exact fields):
 - `{ "type": "lede" | "oneline" | "text" | "flare" | "callout", "content": "..." }` — prose; **HTML allowed** in `content` (`<b>`, `<br>`, etc.). `lede` = large intro, `oneline` = boxed summary, `flare` = violet-edged aside, `callout` = gold-edged italic box
 - `{ "type": "raw", "content": "<any html>" }`
 - `{ "type": "diagram", "content": "<mermaid code>" }` — rendered by mermaid 10.9.1 (**needs internet**; loaded from CDN)
-- `{ "type": "node", "title": "...", "tag": "...", "must": "...", "cols": ["Check", "DC", "On success"], "rows": [{ "col1": "...", "col2": "...", "col3": "..." }] }` — titled table (the app's signature "node box"). `cols` is OPTIONAL (1–4 header strings; the table renders exactly that many columns, rows use col1..colN); omit it for the default Action / Why / Cost / Returns via
+- `{ "type": "node", "title": "...", "tag": "...", "must": "...", "cols": ["Check", "DC", "On success"], "rows": [{ "col1": "...", "col2": "...", "col3": "..." }] }` — titled table (the app's signature "node box"). `cols` is OPTIONAL (1–8 header strings; the table renders exactly that many columns, rows use col1..colN); omit it for the default Action / Why / Cost / Returns via
 - `{ "type": "flowchart", "nodes": [{ "id": "n1", "text": "...", "shape": "rect|rounded|pill|diamond|hex", "color": "gold|blue|green|red|violet|neutral" }], "edges": [{ "from": "n1", "to": "n2", "text": "", "style": "solid|dotted" }] }` — builder that compiles to mermaid
 
 ## Multiplayer-aware authoring (what players can and cannot see)

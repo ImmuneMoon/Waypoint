@@ -1,3 +1,12 @@
+WAYPOINT 1.5.0 — What's New
+============================
+
+Under the hood
+- The formula and dice engine that the rules, dice and character-sheet features
+  of 1.5.x are built on. Nothing changes at the table yet; in the developer
+  console, /roll now understands the full dice syntax (4d6kh3, 2d6!, d20r1,
+  10d6cs>=5, 4dF, d%, checks like d20 + 5 >= 16 with the margin shown).
+
 WAYPOINT 1.4.9 — What's New
 ============================
 

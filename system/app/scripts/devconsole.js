@@ -1,7 +1,7 @@
 // In-app developer console. OFF by default — enable it in Settings ▸ Advanced (which sets wp_devconsole=on);
 // then press ~ (backtick) anywhere outside a text field to drop it down. Type JavaScript and Enter runs it,
 // with the page's globals in scope — window.wpDebug.getState(), window.wpReloadFromDisk(), window.wpFitView(),
-// window.wpNet, and the rest. Meta-commands: /help (or /help <name>), /roll 2d6+3, /state, /fit, /reload,
+// window.wpNet, and the rest. Meta-commands: /help (or /help <name>), /roll 2d6+3 (the full formula syntax, via wpFormula), /state, /fit, /reload,
 // /save, /find <name>, /clear. Up/Down walk the history (localStorage), Esc — or ~ on an empty line — closes.
 // A power/dev tool: it only runs what YOU type, matching the other sandbox hooks. Self-contained: no imports,
 // no app state touched beyond window globals. The wpDevConsole.* API stays callable even when ~ is gated off.
@@ -43,8 +43,8 @@
     var HELP = [
         { name: '/help', short: 'this list, or  /help <name>  for detail on one command or global',
           detail: '/help            list the headline commands.\n/help <name>     explain one command or wp* global in full, e.g.  /help wpFitView  or  /help seathex\n/?               same as /help.' },
-        { name: '/roll <expr>', short: 'roll dice, e.g.  /roll 2d6+3   (also /r)',
-          detail: 'Roll a dice expression and show the breakdown + total. NdM with + and -, several terms:\n  /roll 2d6+3      /roll d20+5      /roll 4d6-2      /roll d20\nUp to 100dN with N up to 1000; bare /roll rolls d20. A LOCAL roll printed here only — the full\nrules-aware dice that post to chat and the session log come with the VTT system.' },
+        { name: '/roll <expr>', short: 'roll dice with the full formula syntax, e.g.  /roll 2d20kh1 + 5 >= 16   (also /r)',
+          detail: 'Roll a formula and show every die, the total and, for a check, the margin. Spreadsheet-style, case-insensitive:\n  /roll 2d6+3            /roll d20 + 5 >= 16        /roll 4d6kh3 (keep the highest 3)\n  /roll 2d20kh1 + 5      /roll 3d6 <= 12 (roll-under)   /roll 10d6cs>=5 (count the 5s and 6s)\n  /roll 2d6! + 3 (exploding)   /roll d20r1 (reroll 1s once)   /roll 4dF   /roll d%\nAlso kl / dh / dl, rr (reroll until), (Level)d6, d(Faces), floor / ceil / round / abs / min / max / clamp / mod / if, and / or / not.\nPut a space after /roll. Names like STR are not set in the console yet — they come with the character sheets.\nBare /roll rolls a d20.' },
         { name: '/state', short: 'print wpDebug.getState()',
           detail: 'Pretty-prints the app state snapshot — the same object as typing  wpDebug.getState().' },
         { name: '/fit [sel]', short: 'frame everything, or  /fit sel  for the selection',
@@ -93,6 +93,7 @@
         wpFilePrefs: 'The shared table preferences backed by saves/preferences.json.',
         wpFitToGrid: 'Size the selection to whole grid cells and seat it (square or hex).',
         wpFocusCharacter: 'Jump the camera to a character token and select it (the party-strip action).',
+        wpFormula: 'The formula and dice engine (scripts/formula.js): evaluate(text, options), parse(text), describe(result, opts), names(text), fromDraws(draws), LIMITS. Pure — no state, no DOM; /roll is its first consumer.',
         wpHandoutList: "List the current campaign's handouts.",
         wpHandoutPayload: "Build a handout's wire payload for sending to players.",
         wpHideTooltip: 'Hide the play-map hover card (#wbTooltip).',
@@ -180,36 +181,20 @@
         } catch (e) {}
     }
 
-    // Local dice roll: NdM terms with + / - constants. A convenience print, not the rules-aware VTT dice.
+    // /roll goes through the formula engine (scripts/formula.js): the full syntax, one breakdown, no local roller.
     function rollDice(expr) {
-        var s = (expr || '').replace(/\s+/g, '');
-        if (!s) s = 'd20';
-        if (!/^[0-9dD+\-]+$/.test(s)) return { error: 'Only NdM with + and - is supported, e.g.  /roll 2d6+3' };
-        var terms = s.match(/[+-]?[^+-]+/g);
-        if (!terms) return { error: 'nothing to roll' };
-        var total = 0, parts = [];
-        for (var i = 0; i < terms.length; i++) {
-            var t = terms[i], sign = 1, body = t;
-            if (t.charAt(0) === '+') body = t.slice(1);
-            else if (t.charAt(0) === '-') { sign = -1; body = t.slice(1); }
-            var m = /^(\d*)d(\d+)$/i.exec(body);
-            if (m) {
-                var n = m[1] ? parseInt(m[1], 10) : 1, faces = parseInt(m[2], 10);
-                if (n < 1 || n > 100 || faces < 1 || faces > 1000) return { error: 'dice out of range (up to 100dN, N up to 1000)' };
-                var rolls = [];
-                for (var j = 0; j < n; j++) { var r = 1 + Math.floor(Math.random() * faces); rolls.push(r); total += sign * r; }
-                parts.push((sign < 0 ? '- ' : (parts.length ? '+ ' : '')) + body + ' [' + rolls.join(', ') + ']');
-            } else if (/^\d+$/.test(body)) {
-                var c = parseInt(body, 10); total += sign * c;
-                parts.push((sign < 0 ? '- ' : (parts.length ? '+ ' : '')) + c);
-            } else { return { error: 'cannot parse “' + t + '”' }; }
-        }
-        return { total: total, breakdown: parts.join(' '), expr: s };
+        if (!window.wpFormula) return { ok: false, error: { message: 'wpFormula is not available.', pos: 0, len: 0 } };
+        return window.wpFormula.evaluate((expr || '').trim() || 'd20');
     }
     function doRoll(arg) {
         var res = rollDice(arg);
-        if (res.error) { addLine(res.error, 'dc-err'); return; }
-        addLine('🎲 ' + res.expr + '   →   ' + res.breakdown + '   =   ' + res.total, 'dc-out');
+        if (!res.ok) {
+            addLine(res.error.message, 'dc-err');
+            var src = ((arg || '').trim() || 'd20').replace(/\t/g, ' '), pos = res.error.pos || 0, len = res.error.len || 0;
+            if (len) addLine('  ' + src + '\n  ' + new Array(pos + 1).join(' ') + new Array(len + 1).join('^'), 'dc-err');
+            return;
+        }
+        addLine('🎲 ' + window.wpFormula.describe(res), 'dc-out');
     }
     function doState() {
         if (!window.wpDebug) { addLine('wpDebug is not available yet.', 'dc-err'); return; }

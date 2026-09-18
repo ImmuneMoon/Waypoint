@@ -1440,7 +1440,7 @@
   /* Find in planner */
   #plannerFindBar { position: sticky; top: -20px; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: -20px -20px 10px; padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--edge); }
   #plannerFindWrap { display: inline-flex; align-items: center; gap: 3px; flex: 1 1 200px; min-width: 0; justify-content: flex-end; }
-  #plannerTools.hdr-group { flex: 0 0 auto; }
+  #plannerTools.hdr-group { flex: 0 1 auto; flex-wrap: wrap; row-gap: 4px; max-width: 100%; }   /* the pill wraps its buttons in a narrow preview pane instead of poking out */
   #plannerTools.hdr-group { gap: 4px; margin-left: 0; }
   #plannerFindBar .hdr-group::before { background: var(--bg); }
   #plannerFind { width: 100%; max-width: 190px; min-width: 70px; flex: 1 1 auto; padding: 5px 9px; font-size: 12.5px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); color: var(--ink); outline: none; }

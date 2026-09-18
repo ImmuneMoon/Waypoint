@@ -58,6 +58,28 @@ Pictures per campaign
   Everything exports bundle a campaign's own pictures even when nothing
   references them yet.
 
+Sound
+- Ambient loops and one-shot cues at the table. The Sound button on the play
+  map (a music note, GM only) opens a small panel that stays open while you
+  run the scene: click a loop to crossfade to it, a cue to fire it (up to four
+  overlap), Master for the table's volume, Mute mine for your own speakers.
+  Every player hears what you play; the speaker in the Table pill gives each
+  of them their own volume, a mute, and Off for me at this table.
+- Library…: this campaign's sounds. Add MP3, OGG, M4A or WebM files (4 MB
+  each; loops up to two minutes, cues cut after thirty seconds), name them,
+  flip Loop / Cue, set a gain, preview, delete. Shared is the bundled set
+  (hidden per install rather than deleted; the set itself arrives in a later
+  1.5.0 build). Import from another campaign… brings sounds in by reference,
+  nothing copied. Files live in saves/images/audio/<campaign>/ and travel to
+  players over the connection one at a time, the playing loop first, so a
+  player who joins mid-scene hears the loop once its file has crossed.
+- Sound is a VTT feature: per campaign in Settings ▸ VTT features, a default
+  for new campaigns, and the GM's campaign is the ceiling at a table (a player
+  can turn it off for themselves, never on). The stream window is silent
+  unless "Stream window plays the table's ambient sound" is ticked. In a
+  browser tab one click on the page is needed before sound may play; the
+  speaker pulses until then.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

@@ -1420,6 +1420,56 @@
   .notepad-hint { color: var(--dim); font-size: 10.5px; }
   #notepadPanel.min #notepadText, #notepadPanel.min .notepad-foot { display: none; }
 
+  /* Sound (1.5.0): the GM's panel, the library, the speaker in the Table pill and its popover, the autoplay gate */
+  #soundPanel { position: fixed; right: 18px; top: 200px; width: 380px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #soundHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #soundPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #soundPanel.min #soundBody { display: none; }
+  #soundBody { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow: auto; }
+  .snd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .snd-label { color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; width: 100%; }
+  .snd-none { color: var(--dim); font-size: 11px; }
+  .snd-loop, .snd-cue { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .snd-cue { border-radius: 4px; }
+  .snd-stop { padding: 1px 7px; }
+  .snd-foot { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11px; color: var(--dim); }
+  .snd-foot label { display: inline-flex; align-items: center; gap: 4px; }
+  .snd-foot input[type=range] { width: 90px; }
+  .snd-players { flex: 1; text-align: right; white-space: nowrap; }
+  .snd-btn { padding: 1px 8px; font-size: 11px; }
+  #soundInd .snd-bars { display: none; position: absolute; right: 1px; bottom: 2px; gap: 1px; align-items: flex-end; height: 8px; }
+  #soundInd.playing .snd-bars { display: inline-flex; }
+  #soundInd .snd-bars i { display: block; width: 2px; height: 3px; background: var(--gold); animation: sndbar .9s ease-in-out infinite; }
+  #soundInd .snd-bars i:nth-child(2) { animation-delay: .3s; }
+  #soundInd .snd-bars i:nth-child(3) { animation-delay: .6s; }
+  @keyframes sndbar { 0%, 100% { height: 3px; } 50% { height: 8px; } }
+  #soundInd.muted, #soundInd.sound-off { opacity: .45; }
+  #soundInd.gate { animation: sndpulse 1.2s ease-in-out infinite; }
+  @keyframes sndpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,55,0); } 50% { box-shadow: 0 0 0 4px rgba(212,175,55,.45); } }
+  #soundPop { position: fixed; z-index: 100001; width: 240px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; color: var(--ink); }
+  .snd-now { color: var(--gold); font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .snd-pop-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; cursor: pointer; }
+  .snd-pop-row input[type=range] { flex: 1; }
+  #soundGate { position: fixed; left: 50%; top: 62px; transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
+  body.stream-mode #soundGate { top: 48px; }
+  .snd-lib-box { width: 780px; max-width: 94vw; max-height: 86vh; display: flex; flex-direction: column; }
+  .snd-lib-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .snd-lib-rows { flex: 1; overflow: auto; min-height: 140px; border: 1px solid var(--edge); border-radius: 6px; padding: 4px; }
+  .snd-lib-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--edge); font-size: 12px; }
+  .snd-lib-row:last-child { border-bottom: none; }
+  .snd-lib-row .snd-name { flex: 1; min-width: 80px; padding: 2px 6px; font-size: 12px; }
+  .snd-lib-row .snd-prev { padding: 0 6px; }
+  .snd-name-ro { flex: 1; min-width: 80px; }
+  .snd-from { color: var(--dim); font-size: 10.5px; }
+  .snd-kind, .snd-kind-ro { font-size: 11px; }
+  .snd-meta { color: var(--dim); font-size: 11px; white-space: nowrap; }
+  .snd-gain { display: inline-flex; align-items: center; gap: 2px; color: var(--dim); font-size: 11px; }
+  .snd-gainv { width: 52px; font-size: 11px; }
+  .snd-lib-group { color: var(--gold); font-size: 11px; font-weight: 700; padding: 6px 6px 2px; }
+  .snd-empty { color: var(--dim); font-size: 12px; padding: 12px; text-align: center; }
+  .snd-lib-foot { color: var(--dim); font-size: 10.5px; margin-top: 8px; line-height: 1.4; }
+  body.net-client #soundPanel, body.net-client #soundLibModal { display: none !important; }   /* the panel and library are the GM's */
+
   /* Planner text editor */
   .rte { border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); position: relative; }
   .rte:has(.rte-symwrap.open) { z-index: 40; }

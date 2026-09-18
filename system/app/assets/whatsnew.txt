@@ -67,9 +67,13 @@ Sound
   of them their own volume, a mute, and Off for me at this table.
 - Library…: this campaign's sounds. Add MP3, OGG, M4A or WebM files (4 MB
   each; loops up to two minutes, cues cut after thirty seconds), name them,
-  flip Loop / Cue, set a gain, preview, delete. Shared is the bundled set
-  (hidden per install rather than deleted; the set itself arrives in a later
-  1.5.0 build). Import from another campaign… brings sounds in by reference,
+  flip Loop / Cue, set a gain, preview, delete. Shared is the bundled set:
+  seven ambient loops (rain, forest, dungeon, cavern, night crickets, wind,
+  campfire) and twelve cues (door opens / closes, latch, coins, footsteps,
+  page flip, blade drawn, creak, dice, sword clash, healing, teleport), all
+  CC0 and credited in assets/sounds/NOTICES.txt, about 1.3 MB in all; a
+  bundled sound is hidden per install rather than deleted (Show hidden brings
+  it back). Import from another campaign… brings sounds in by reference,
   nothing copied. Files live in saves/images/audio/<campaign>/ and travel to
   players over the connection one at a time, the playing loop first, so a
   player who joins mid-scene hears the loop once its file has crossed.

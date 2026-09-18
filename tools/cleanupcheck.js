@@ -39,7 +39,7 @@ function sanitizeItem(item) {
 function sanitizeAppState(s) {
     var c = JSON.parse(JSON.stringify(s));
     delete c.imageCats;
-    delete c._foreign; delete c._cleanup;
+    delete c._foreign; delete c._cleanup; delete c._picsV;
     Object.values(c.campaigns || {}).forEach(function(camp) {
         delete camp._foreign; delete camp._keptByUser;
         delete camp.players;
@@ -50,6 +50,7 @@ function sanitizeAppState(s) {
         delete camp.cast;
         delete camp.pinnedMaps;
         delete camp.sessionLog;
+        delete camp.pictures; delete camp.imageCats;
         Object.keys(camp.items).forEach(function(id) {
             if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }
             var it = sanitizeItem(camp.items[id]);
@@ -79,7 +80,8 @@ function gmCampaign(id, name) {
             d1: page('d1'),
             dh: page('dh', { meta: { title: 'Secret', updated: 1000, players: false } })
         },
-        players: { u_player: { name: 'Pat' } }, handouts: { h1: { title: 'Map' } }, cast: { c1: { name: 'Cast' } }
+        players: { u_player: { name: 'Pat' } }, handouts: { h1: { title: 'Map' } }, cast: { c1: { name: 'Cast' } },
+        pictures: ['/saves/images/elsewhere/a.png'], imageCats: { list: ['Villains'], by: { '/saves/images/m1/t_a.png': ['Villains'] }, shelf: {} }
     };
 }
 function tutorialCampaign() {   // the shipped tutorial: rooms with notes, characters with info, hidden IMAGE tokens
@@ -123,6 +125,13 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
     // clean GM save shape
     c = classifyState(gmState(), KNOWN);
     check('clean GM save (planners, players, notes, imageCats) all OWN', all(c, 'OWN') && c.whole === false, tiersOf(c));
+
+    // picture bookkeeping (1.5.0): never on the wire, a shaped-empty category store is not a local mark
+    check('sanitizer: camp.pictures, camp.imageCats and _picsV never travel', !('pictures' in M0.campaigns.camp_a) && !('imageCats' in M0.campaigns.camp_a) && !('_picsV' in M0) && !('imageCats' in M0), JSON.stringify(Object.keys(M0.campaigns.camp_a)));
+    { const e = clone(M0); e.campaigns.camp_a.imageCats = { list: [], by: {}, shelf: {} }; const ce = classifyState(e, KNOWN);
+      check('a shaped-empty imageCats on a contaminated campaign is not a local mark (still CERTAIN)', ce.tiers.camp_a === 'CERTAIN', tiersOf(ce));
+      e.campaigns.camp_a.imageCats.list.push('Mine'); const cf = classifyState(e, KNOWN);
+      check('a real per-campaign category is a local mark (ASK)', cf.tiers.camp_a === 'ASK', tiersOf(cf)); }
 
     // handbook pages (1.5.0): the hosted campaign's visible pages travel cleaned, hidden pages and other campaigns' pages do not
     check('sanitizer: hosted campaign keeps its visible page (cleaned), loses the hidden one; other campaigns lose theirs', M0.campaigns.camp_a.items.d1 && M0.campaigns.camp_a.items.d1.meta.players === true && !M0.campaigns.camp_a.items.dh && !M0.campaigns.camp_b.items.d1 && !M0.campaigns.camp_b.items.dh, JSON.stringify(Object.keys(M0.campaigns.camp_a.items)) + ' ' + JSON.stringify(Object.keys(M0.campaigns.camp_b.items)));

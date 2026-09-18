@@ -104,6 +104,12 @@
   .wb-item.wb-absent { opacity: 0.3 !important; filter: grayscale(0.8); }
   body.net-client .gm-only { display: none !important; }
   body.net-client header .hdr-group[data-label="Campaign"] { display: none !important; }   /* its buttons are all hidden above: no empty labelled pill */
+  body.net-client #imgLibBtn, body.net-client #importCharBtn { display: none !important; }   /* the picture library and sheet import are the GM's own (a client's save is not this table's) */
+  /* Image Library scope row (1.5.0): which campaign's pictures; shared categories carry a mark */
+  #imgLibCats .img-scope-break { flex-basis: 100%; height: 0; }
+  #imgLibCats .img-lib-import { margin-left: auto; color: var(--gold); }
+  #imgLibCats .img-cat-mark { font-size: 9px; margin-left: 3px; opacity: .8; }
+  #imgLibSourceWrap select { max-width: 220px; }
   /* A joined player's left panel is the Handbook alone: the other sections are hidden by class, and the whole
      panel steps aside when the hosted campaign has no readable page (sidebar.js sets no-handbook) */
   body.net-client #campaignSidebar .sidebar-section:not(.sb-handbook) { display: none !important; }

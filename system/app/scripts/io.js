@@ -161,6 +161,10 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         if (window.wpVtt) window.wpVtt.fill(c);
     });
 
+    // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each
+    // category's pictures, once (whiteboard.js wpMigratePictures; the _picsV marker keeps it from running twice)
+    if (window.wpMigratePictures && window.wpMigratePictures(data)) fix('picture categories moved into their campaigns');
+
     if (!data.activeCampaignId || !data.campaigns[data.activeCampaignId]) {
         data.activeCampaignId = Object.keys(data.campaigns)[0] || null;
         if (data.activeCampaignId) fix('activeCampaignId repaired');
@@ -1439,6 +1443,13 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       var json = JSON.stringify(payload, null, 2);
       var paths = collectImagePaths(payload);
+      if (scope === 'campaign' || scope === 'all') {   // a campaign's own pictures travel even when nothing references them yet
+          try {
+              var listed = await (await fetch('/api/list-images')).json();
+              var own = {}; Object.values(payload.campaigns || {}).forEach(function(c) { Object.keys(c.items || {}).forEach(function(id) { own[id] = 1; }); });
+              (Array.isArray(listed) ? listed : []).forEach(function(im) { if (im && im.path && !/^journal(\/|$)/.test(im.folder || '') && (scope === 'all' || own[im.folder]) && paths.indexOf(im.path) < 0) paths.push(im.path); });
+          } catch (e) {}
+      }
       if (!paths.length) return { name: base + '.json', text: json };
 
       toast('Bundling ' + paths.length + ' image(s)\u2026');

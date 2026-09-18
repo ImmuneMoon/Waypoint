@@ -827,10 +827,18 @@ if (_newBtn) _newBtn.addEventListener('click', async function() {
     var imgs = [];
     try { imgs = await (await fetch('/api/list-images')).json(); } catch (e) {}
     imgs = (imgs || []).filter(function(i) { return !/^journal(\/|$)/.test(i.folder || ''); });
+    var campH = getActiveCampaign(), allImgs = imgs, showAll = false;
+    if (window.wpImgScope && campH) imgs = window.wpImgScope(allImgs, campH.id);   // this campaign's pictures first; a toggle shows every campaign's
     var q = (ui('handoutPickSearch').value || '').toLowerCase();
     var draw = function() {
-        var rows = imgs.filter(function(i) { return !q || (i.name + ' ' + i.folder).toLowerCase().indexOf(q) >= 0; });
-        grid.innerHTML = rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(niceName(i.name)) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
+        var pool = showAll ? allImgs : imgs;
+        var rows = pool.filter(function(i) { return !q || (i.name + ' ' + i.folder).toLowerCase().indexOf(q) >= 0; });
+        var toggle = window.wpImgScope && campH && allImgs.length !== imgs.length ? '<label style="display:block; font-size:11px; color:var(--dim); margin:0 0 6px;"><input type="checkbox" class="handout-pick-all"' + (showAll ? ' checked' : '') + '> Show every campaign\'s pictures (' + allImgs.length + ')</label>' : '';
+        grid.innerHTML = toggle + rowsHtml(rows);
+        var cb = grid.querySelector('.handout-pick-all'); if (cb) cb.addEventListener('change', function() { showAll = this.checked; draw(); });
+    };
+    var rowsHtml = function(rows) {
+        return rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(niceName(i.name)) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
     };
     draw();
     ui('handoutPickSearch').oninput = function() { q = this.value.toLowerCase(); draw(); };

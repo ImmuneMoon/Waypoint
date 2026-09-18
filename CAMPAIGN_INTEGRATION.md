@@ -56,6 +56,8 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
       },                                        // — carry it through untouched; never author or edit it
       "vtt": { "v": 1, "master": true,          // OPTIONAL, app-managed (1.4.9): the campaign's VTT feature switches
         "features": { "elevation": true, "posture": true, "minimap": true } },   // — carry it through untouched; never author it (a campaign without it is filled from the app's default on load)
+      "pictures": ["/saves/images/<folder>/<file>"],   // OPTIONAL, app-managed (1.5.0): pictures brought in from another campaign by reference — carry through untouched
+      "imageCats": { "list": ["Villains"], "by": { "/saves/images/<folder>/<file>": ["Villains"] }, "shelf": {} },   // OPTIONAL, app-managed (1.5.0): this campaign's picture categories (the app-level imageCats holds the SHARED ones) — carry through untouched, never author
       "items": {                                // FLAT dict of maps, planners and pages
         "<id>": { /* map, planner or page, below */ }
       }

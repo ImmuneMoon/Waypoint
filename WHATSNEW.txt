@@ -39,6 +39,25 @@ Handbook
 - The Tutorial gains a House rules page, and the tour and Help cover the
   Handbook. Planner flowcharts and pages share one compiler.
 
+Pictures per campaign
+- The Image Library shows this campaign's pictures by default: every picture
+  uploaded from its maps, planners and pages, used by them, or brought in.
+  Shared (the tutorial art), Unfiled (pictures whose map, planner or page is
+  gone) and All campaigns are a chip away. Import from another campaign…
+  picks pictures from another campaign, Shared or Unfiled (Ctrl-click
+  several) and brings them in: nothing is copied, this campaign remembers
+  them. Handout pictures are picked from this campaign's too.
+- Categories are per campaign now. Your existing categories moved into the
+  campaign that owns or uses most of each one's pictures (the Tutorial's
+  Default stays shared); a category can be made shared so every campaign
+  sees it (marked ◇), and the tools on a chip rename, shelve, share or
+  delete it. Names are unique across a campaign's and the shared list.
+- Deleting a campaign turns its categories shared, so its pictures keep
+  their tags under Unfiled. A picture's "used N times" now counts pages,
+  planners, the cast and campaigns that brought it in. Campaign and
+  Everything exports bundle a campaign's own pictures even when nothing
+  references them yet.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

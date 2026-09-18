@@ -66,7 +66,9 @@ var BY_ID = {
     docFromFileBtn: 'A new handbook page from a Markdown file (pick its pictures with it, or a zip of both). A preview shows every block first.',
     plannerImportBtn: 'Append a Markdown file to this document, with a preview of every block first.',
     exportMdBtn: 'The open planner or page as Markdown; with pictures, a zip.',
-    helpMdTemplateBtn: 'A page in the import format to start from.'
+    helpMdTemplateBtn: 'A page in the import format to start from.',
+    imgLibBtn: 'This campaign\'s pictures, with Shared, Unfiled and every campaign\'s a chip away; Import from another campaign… brings pictures in without copying them.',
+    imgLibSource: 'Whose pictures to pick from: another campaign, Shared (the tutorial art) or Unfiled.'
 };
 
 var BY_TEXT = {

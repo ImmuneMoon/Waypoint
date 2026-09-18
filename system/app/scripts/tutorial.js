@@ -39,7 +39,7 @@ function installTutorialArt(done) {
         var i = 0;
         function next() { if (i >= missing.length) return Promise.resolve(); var batch = missing.slice(i, i + 4); i += 4; return Promise.all(batch.map(copy)).then(next); }
         return next().then(function() {
-            if (window.wpImgCatEnsure) window.wpImgCatEnsure(TUTORIAL_ART_CAT, TUTORIAL_ART_FILES.map(function(f) { return TUTORIAL_ART_URL + f; }), true);
+            if (window.wpImgCatEnsure) window.wpImgCatEnsure(TUTORIAL_ART_CAT, TUTORIAL_ART_FILES.map(function(f) { return TUTORIAL_ART_URL + f; }), true, 'shared');   // Default is a shared category: every campaign sees it under Shared
             if (done) done(missing.length);
         });
     });
@@ -418,6 +418,7 @@ function discardTutorialCampaign(done) {
         if (!yes) { if (done) done(false); return; }
         guardSwitch(hosting() && state.appState.activeCampaignId === TUTORIAL_CAMP_ID, function() {   // discarding the hosted campaign moves the app onto another
         takeSafetyCopy().then(function() {   // a campaign delete: the safety copy first, then the stacks go with it
+            if (window.wpReleaseCampaignTags) window.wpReleaseCampaignTags(state.appState.campaigns[TUTORIAL_CAMP_ID], state.appState);
             delete state.appState.campaigns[TUTORIAL_CAMP_ID];
             resetHistory(TUTORIAL_CAMP_ID);
             var rest = Object.keys(state.appState.campaigns);
@@ -493,7 +494,7 @@ var STEPS = [
       html: '<b>Eldara</b> has no grid: an overview map where pictures, shapes and tokens sit wherever you drop them, at any size \u2014 region maps, city streets, ship decks, theatre-of-mind scenes. <b>Snap</b> still helps: in <b>Items</b> mode a dragged item glues flush to its neighbours instead of to cells. Rulers still work \u2014 set <b>Map Scale</b> in the measure options (1 cell = 100 yd, 2 km\u2026) so distances read right for the map. The tinted district shapes are linked to rooms: hover one for its card, double-click the Inn\'s to travel.',
       before: function() { openItem('map_tut_city'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#imgLibBtn', title: 'The picture library',
-      html: 'Every picture in your saves folder, filtered by name or map, grouped into categories you define (right-click a picture to tag it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Default</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
+      html: 'This campaign\'s pictures \u2014 uploaded from its maps, planners and pages, used by them, or brought in from another campaign with <b>Import from another campaign\u2026</b> (nothing is copied; a picture can belong to several). <b>Shared</b> holds the tutorial art, <b>Unfiled</b> pictures whose map is gone, <b>All campaigns</b> everything. Filter by name or map, group into categories you define per campaign (right-click a picture to tag it; a category can be made <b>shared</b> so every campaign sees it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Default</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
       before: function() { openItem('map_tut_inn'); goView('visual'); } },
     { target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps, and re-order them the same way (drag onto the top or bottom of a row, or right-click <b>↑ Move Up</b> / <b>↓ Move Down</b>). <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
@@ -522,7 +523,7 @@ var STEPS = [
       html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.',
       before: function() { closeSettingsForTour(); } },
     { target: null, title: 'That\'s the tour', finish: true,
-      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Default</b> until you delete them there.' }
+      html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Shared &rarr; Default</b> until you delete them there.' }
 ];
 
 var tour = { i: -1, overlay: null, spot: null, card: null, active: false };
@@ -682,7 +683,7 @@ function saveIsFresh() {
         var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
         if (!loaded && tries < 40) return;
         clearInterval(t);
-        if (window.wpImgCatRename && window.wpImgCatRename('Tutorial art', TUTORIAL_ART_CAT)) save(true);   // the category's earlier name
+        if (window.wpImgCatRename && window.wpImgCatRename('Tutorial art', TUTORIAL_ART_CAT, 'shared')) save(true);   // the category's earlier name
         var tc = loaded && tutorialCampaign();
         if (!tc || tc.tutorialArt === 'installed') return;
         installTutorialArt(function() { tc.tutorialArt = 'installed'; save(true); render(); });

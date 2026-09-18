@@ -279,7 +279,7 @@ function sanitizeItem(item) {
 function sanitizeAppState(s) {
     var c = JSON.parse(JSON.stringify(s));
     delete c.imageCats;   // the GM's picture-library categories
-    delete c._foreign; delete c._cleanup;   // origin marker and cleanup notes stay on this machine
+    delete c._foreign; delete c._cleanup; delete c._picsV;   // origin marker, cleanup notes and the picture-category migration marker stay on this machine
     Object.values(c.campaigns || {}).forEach(function(camp) {
         delete camp._foreign; delete camp._keptByUser;
         // GM bookkeeping: the player registry, history, and ban list never ship
@@ -291,6 +291,7 @@ function sanitizeAppState(s) {
         delete camp.cast;
         delete camp.pinnedMaps;
         delete camp.sessionLog;
+        delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         Object.keys(camp.items).forEach(function(id) {
             if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
             var it = sanitizeItem(camp.items[id]);

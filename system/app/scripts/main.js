@@ -448,6 +448,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       document.getElementById('importChoiceModal').style.display = 'none';
 
       if (window.wpVtt) window.wpVtt.fillAll(state.appState);   // a file from before VTT features gets its per-campaign set; one that has it keeps it
+      if (window.wpMigratePictures) window.wpMigratePictures(state.appState);   // a file from before per-campaign picture categories (1.5.0)
 
       save(true);
 
@@ -517,6 +518,16 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           });
 
           if (ic.name) existing.name = ic.name;
+
+          // the picture library's per-campaign bookkeeping merges too (brought-in pictures and categories)
+          if (Array.isArray(ic.pictures)) { existing.pictures = Array.isArray(existing.pictures) ? existing.pictures : []; ic.pictures.forEach(function(p) { if (existing.pictures.indexOf(p) < 0) existing.pictures.push(p); }); }
+          if (ic.imageCats && typeof ic.imageCats === 'object') {
+              var ec = existing.imageCats && typeof existing.imageCats === 'object' ? existing.imageCats : (existing.imageCats = { list: [], by: {}, shelf: {} });
+              ec.list = Array.isArray(ec.list) ? ec.list : []; ec.by = ec.by && typeof ec.by === 'object' ? ec.by : {}; ec.shelf = ec.shelf && typeof ec.shelf === 'object' ? ec.shelf : {};
+              (ic.imageCats.list || []).forEach(function(n) { if (ec.list.indexOf(n) < 0) ec.list.push(n); });
+              Object.keys(ic.imageCats.by || {}).forEach(function(p) { var a = Array.isArray(ic.imageCats.by[p]) ? ic.imageCats.by[p] : [ic.imageCats.by[p]]; var d = Array.isArray(ec.by[p]) ? ec.by[p] : (ec.by[p] ? [ec.by[p]] : []); a.forEach(function(n) { if (d.indexOf(n) < 0) d.push(n); }); ec.by[p] = d; });
+              Object.keys(ic.imageCats.shelf || {}).forEach(function(n) { ec.shelf[n] = true; });
+          }
 
           if (ic._keptByUser) existing._keptByUser = ic._keptByUser;   // the import answer ("it's mine") is remembered on a merge as on an add
 

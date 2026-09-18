@@ -398,6 +398,7 @@ if(_el_delCampBtn) _el_delCampBtn.addEventListener('click', function() {
 
               var goneId = state.appState.activeCampaignId;
 
+              if (window.wpReleaseCampaignTags) window.wpReleaseCampaignTags(state.appState.campaigns[goneId], state.appState);   // its picture categories become shared: the pictures keep their tags under Unfiled
               delete state.appState.campaigns[goneId];
 
               resetHistory(goneId);   // its maps' and planners' stacks go with it

@@ -10,7 +10,7 @@
    classifyState offline. Dialogs are built here in the DOM; the app's markup is not needed. */
 
 var STUB_KEYS = { id: 1, type: 1, hidden: 1, x: 1, y: 1, w: 1, h: 1, rot: 1, layer: 1, locked: 1 };   // a sanitized hidden item (net.js sanitizeItem)
-var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog'];   // never on the wire
+var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog', 'pictures', 'imageCats'];   // never on the wire (imageCats here = the campaign's own categories, 1.5.0)
 var TUTORIAL_ID = 'camp_tutorial';          // one id on every install: never recorded, never judged by name
 var RECOVERED_ID = 'camp_recovered';        // where a removed campaign's planner pages land
 var NAME_RE = /^(data|keep)-[A-Za-z0-9_-]+\.json$/;   // the shell's own rule for backup names
@@ -24,6 +24,8 @@ var sweeping = false, sweepTimer = null;
 var safeId = function(s) { return String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60); };
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function nonEmpty(v) { return Array.isArray(v) ? v.length > 0 : (v && typeof v === 'object') ? Object.keys(v).length > 0 : !!v; }
+// a category store { list, by, shelf } with nothing in it is empty, whatever its shape (a reader must never create one, but a save may carry one)
+function catsNonEmpty(c) { return !!c && typeof c === 'object' && (nonEmpty(c.list) || nonEmpty(c.by) || nonEmpty(c.shelf)); }
 function isObj(v) { return !!v && typeof v === 'object'; }
 function campaignsOf(s) { return isObj(s) && isObj(s.campaigns) ? s.campaigns : {}; }
 function nameOf(c) { return (c && typeof c.name === 'string' && c.name) || 'Campaign'; }
@@ -41,7 +43,7 @@ function inspectCampaign(camp) {
     var fp = { F1: 0, F2: 0, F3: 0, F4: 0 }, lm = { planner: 0, notes: 0, info: 0, keys: 0, gm: 0, hidden: 0, map: 0 };
     var maps = 0, rooms = 0, planners = 0, docs = 0, cleanMaps = 0;
     var playersEmpty = !nonEmpty(camp.players);
-    STRIPPED.forEach(function(k) { if (nonEmpty(camp[k])) lm.keys++; });   // empty {} comes from read-only UI code and proves nothing
+    STRIPPED.forEach(function(k) { if (k === 'imageCats' ? catsNonEmpty(camp[k]) : nonEmpty(camp[k])) lm.keys++; });   // empty {} comes from read-only UI code and proves nothing
     Object.values(camp.items || {}).forEach(function(m) {
         if (!isObj(m)) return;
         if (m.type === 'doc') { docs++; return; }   // handbook pages travel to players: neither a local mark nor a fingerprint
@@ -177,6 +179,7 @@ function pickRecovery(fileState, cls, currentCamps) {
 function removeCampaign(s, id, own) {
     var camps = campaignsOf(s), c = camps[id];
     if (!c) return [];
+    if (typeof window !== 'undefined' && window.wpReleaseCampaignTags) window.wpReleaseCampaignTags(c, s);   // its picture categories become shared, so the pictures keep their tags
     var moved = [];
     Object.keys(c.items || {}).forEach(function(k) {
         var it = c.items[k];
@@ -442,7 +445,7 @@ async function stageA(data, hooks, run) {
     writeLedger(ledger);
     if (source) {
         var picks = pickRecovery(source.state, source.cls, camps), sc = campaignsOf(source.state);
-        picks.forEach(function(id) { var c = JSON.parse(JSON.stringify(sc[id])); delete c._foreign; delete c._keptByUser; camps[id] = c; recovered.push(nameOf(c)); });
+        picks.forEach(function(id) { var c = JSON.parse(JSON.stringify(sc[id])); delete c._foreign; delete c._keptByUser; camps[id] = c; recovered.push(nameOf(c)); if (typeof window !== 'undefined' && window.wpAdoptTags) window.wpAdoptTags(c, source.state.imageCats, data); });
         left = Object.keys(source.cls.tiers).filter(function(id) { return source.cls.tiers[id] === 'ASK' && !camps[id]; }).map(function(id) { return nameOf(sc[id]); });
         if (!isObj(data.imageCats) && isObj(source.state.imageCats)) data.imageCats = JSON.parse(JSON.stringify(source.state.imageCats));
     }
@@ -517,7 +520,7 @@ async function runSweep(hooks) {
         if (pending && !source && !v.hasCertain && !postClean(st)) {
             source = { file: row.file, at: row.at };
             var picks = pickRecovery(st, v.cls, live.campaigns);
-            picks.forEach(function(id) { mergeCampaign(live, id, sc[id], hooks); recovered.push(nameOf(sc[id])); });
+            picks.forEach(function(id) { mergeCampaign(live, id, sc[id], hooks); recovered.push(nameOf(sc[id])); if (typeof window !== 'undefined' && window.wpAdoptTags && live.campaigns[id]) window.wpAdoptTags(live.campaigns[id], st.imageCats, live); });
             if (!isObj(live.imageCats) && isObj(st.imageCats)) live.imageCats = JSON.parse(JSON.stringify(st.imageCats));
             if (picks.length) { changed = true; if (hooks.refresh) hooks.refresh(); unsaved = !(await persist(live)); }
         }

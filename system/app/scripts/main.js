@@ -4,6 +4,8 @@ import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiv
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth } from './io.js';
 
+import { classifyState, askOwnership, cleanupInfo } from './cleanup.js';
+
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
 import { showPrompt, showConfirm, isCampaignNameTaken, getUniqueCampaignTitle, promptForCampaignName, isItemNameTaken, getUniqueItemTitle, promptForItemName } from './dialogs.js';
@@ -500,6 +502,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           if (ic.name) existing.name = ic.name;
 
+          if (ic._keptByUser) existing._keptByUser = ic._keptByUser;   // the import answer ("it's mine") is remembered on a merge as on an add
+
           if (ic.activeItemId && existing.items[ic.activeItemId]) existing.activeItemId = ic.activeItemId;
 
           // A single-item export can reference a parent that doesn't exist
@@ -604,6 +608,45 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
   });
 
+  // The same judgement the load applies to the save, on a file being imported: a campaign that is certainly a
+  // player's view of someone else's table is left out; one we are not sure about is asked about by name; the
+  // cleanup's own keys never come in. Resolves to false when nothing is left to bring in.
+  async function screenImport(data) {
+
+      var camps = data.campaigns;
+
+      Object.keys(camps).forEach(function(id) { if (!camps[id] || typeof camps[id] !== 'object') delete camps[id]; });
+
+      var cls = classifyState(data, { isImport: true });   // judged before the markers go: a marked campaign still counts as certain
+
+      delete data._foreign; delete data._cleanup; delete data._keptByUser;
+
+      Object.keys(camps).forEach(function(id) { var c = camps[id]; delete c._foreign; delete c._keptByUser; delete c._cleanup; });
+
+      var total = Object.keys(camps).length, skipped = 0;
+
+      Object.keys(cls.tiers).forEach(function(id) { if (cls.tiers[id] === 'CERTAIN') { delete camps[id]; skipped++; } });
+
+      if (skipped === total) { toast('That file is a view of someone else\'s table, not a campaign — nothing was brought in from it.'); return false; }
+
+      if (skipped) toast(skipped + ' campaign(s) in that file were a view of someone else\'s table and were left out.');
+
+      var askIds = Object.keys(cls.tiers).filter(function(id) { return cls.tiers[id] === 'ASK' && camps[id]; });
+
+      for (var i = 0; i < askIds.length; i++) {
+
+          var ans = await askOwnership(camps[askIds[i]], cls.info[askIds[i]], { isImport: true });
+
+          if (ans === 'keep') camps[askIds[i]]._keptByUser = Date.now(); else delete camps[askIds[i]];
+
+      }
+
+      if (!camps[data.activeCampaignId]) data.activeCampaignId = Object.keys(camps)[0] || null;
+
+      return Object.keys(camps).length > 0;
+
+  }
+
   function handleImportedJson(text) {
 
           try {
@@ -612,7 +655,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
               if(!data || Object.keys(data).length === 0) return;
 
-              // A file that carries the origin marker is a player's view of a GM's table, not a campaign
+              // A file that carries the origin marker anywhere is a player's view of a GM's table, not a campaign: refused whole
+              // by design (a snapshot marks every campaign); screenImport below judges the unmarked rest campaign by campaign
               if (data._foreign || Object.values(data.campaigns || {}).some(function(c) { return c && c._foreign; })) { toast('That file is a view of someone else\'s table, not a campaign — nothing was brought in from it.'); return; }
 
               if (data.maps && !data.campaigns) {
@@ -633,17 +677,23 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
               } else if (data.campaigns) {
 
-                  pendingImport = data;
+                  screenImport(data).then(function(anyLeft) {
 
-                  var nCamps = Object.keys(data.campaigns).length;
+                      if (!anyLeft) return;
 
-                  var nItems = Object.values(data.campaigns).reduce(function(n, c) { return n + Object.keys(c.items || {}).length; }, 0);
+                      pendingImport = data;
 
-                  document.getElementById('importChoiceSummary').textContent =
+                      var nCamps = Object.keys(data.campaigns).length;
 
-                      'The file contains ' + nCamps + ' campaign(s) with ' + nItems + ' maps/planners. Merge adds and updates by id, keeping everything else you have. Replace discards ALL current data.';
+                      var nItems = Object.values(data.campaigns).reduce(function(n, c) { return n + Object.keys(c.items || {}).length; }, 0);
 
-                  document.getElementById('importChoiceModal').style.display = 'flex';
+                      document.getElementById('importChoiceSummary').textContent =
+
+                          'The file contains ' + nCamps + ' campaign(s) with ' + nItems + ' maps/planners. Merge adds and updates by id, keeping everything else you have. Replace discards ALL current data.';
+
+                      document.getElementById('importChoiceModal').style.display = 'flex';
+
+                  }).catch(function(err) { console.error(err); toast('Error reading file.'); });   // the try below no longer covers this branch
 
               } else {
 
@@ -1083,6 +1133,7 @@ window.wpDebug = { getState: function() {
         netRole: (window.wpNet && window.wpNet.active) ? window.wpNet.role : 'offline',
         history: historyDepth(),
         foreignMarked: !!(state.appState && state.appState._foreign),
+        cleanup: cleanupInfo(),
         version: window.wpAppVersion || null
     };
 } };

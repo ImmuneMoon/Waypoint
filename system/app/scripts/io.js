@@ -45,6 +45,8 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 
+import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
+
 
 
   /* ---------- save-format migration ----------
@@ -158,6 +160,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
     return { data: data, changed: changed };
   }
 
+  // What the cleanup (scripts/cleanup.js) may do to the live state after a load: put a campaign back, save, redraw
+  var cleanupHooks = {
+      toast: function(msg) { toast(msg); },
+      save: function() { save(true); },
+      getState: function() { return state.appState; },
+      refresh: function() { updateCampaignSelect(); updateSidebarNav(); render(); },
+      migrate: function(d) { return migrateAppState(d).data; }
+  };
+
   function load() {
 
     resetHistory();   // before the fetch: a Ctrl+Z while the disk is being read finds nothing to pop
@@ -165,6 +176,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
     fetch('/api/data')
 
       .then(res => res.json())
+
+      .then(data => cleanupOnLoad(data, cleanupHooks))   // the save is judged before anything renders; resolves to the same object when clean
 
       .then(data => {
 
@@ -176,8 +189,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         if (window.wpStream && window.wpNet && window.wpNet.sanitizeAppState) state.appState = window.wpNet.sanitizeAppState(state.appState);   // stream window: players' view only
         if (Object.keys(data).length === 0 && window.wpNet && window.wpNet.foreign && !window.wpStream) state.appState = { activeCampaignId: null, campaigns: {} };   // no save on disk: start fresh, never adopt the GM's table
         if (window.wpNet) window.wpNet.foreign = !!window.wpStream;   // our own campaign again (the stream window never owns one)
+        if (canPersistLocal()) sweepRecents(state.appState);   // recent-map keys for campaigns not in this save go (a joined table's ids never stay)
 
-        
+
 
         if (!state.appState.campaigns || Object.keys(state.appState.campaigns).length === 0) {
 

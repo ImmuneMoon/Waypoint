@@ -6,6 +6,12 @@ Fixes
   your own save and hide your campaigns. That can no longer happen: Undo does
   nothing while you are in someone's game, and nothing from a game you joined
   can be saved on your computer.
+- Waypoint now checks your save and its safety copies when it starts and
+  removes campaigns that came from a game you joined (an old bug could leave
+  them there), bringing your own campaigns back from a safety copy where one
+  exists. If it is not sure about a campaign, it asks you by name. Your
+  Journal is untouched. Files you exported yourself are outside Waypoint's
+  reach — delete those by hand if they came from someone else's game.
 
 WAYPOINT 1.4.8 — What's New
 ============================

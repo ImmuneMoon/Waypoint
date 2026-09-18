@@ -314,8 +314,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var idx = +this.dataset.idx, f = this.files && this.files[0]; if (!f || !f.type.startsWith('image/')) return;
           if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
           toast('Uploading picture…');
-          fetch('/api/upload?mapId=' + encodeURIComponent(activeMap.id) + '&filename=' + encodeURIComponent(f.name), { method: 'POST', body: f })
-              .then(function(r) { return r.json(); }).then(function(d) { if (d.url) { activeMap.blocks[idx].src = d.url; save(true); renderPlanner(); } else toast('Upload failed.'); })
+          window.wpUploadBlob(activeMap.id, f.name, f)
+              .then(function(url) { activeMap.blocks[idx].src = url; save(true); renderPlanner(); })
               .catch(function() { toast('Upload failed.'); });
       }));
       Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));

@@ -593,6 +593,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
       if(!file) return;
 
+      // A Markdown file becomes a planner or a handbook page through the importer's dialog (docimport.js)
+      if (/\.(md|markdown)$/i.test(file.name) && window.wpDocImport) { window.wpDocImport.importFile(file); this.value = ''; return; }
+
       if (/\.zip$/i.test(file.name)) {
 
           // Export bundle: data.json + images/ inside a zip
@@ -601,7 +604,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   var zip = await import('./zip.js');
                   var entries = await zip.zipRead(buf);
                   var dj = entries.find(function(en) { return en.name === 'data.json'; });
-                  if (!dj) { toast('This zip has no data.json — not a Waypoint export.'); return; }
+                  if (!dj) {
+                      if (window.wpDocImport && window.wpDocImport.detectBundle(entries)) { window.wpDocImport.importFile(file); return; }   // a .md with its pictures
+                      toast('This zip has no data.json — not a Waypoint export.'); return;
+                  }
                   pendingImportImages = entries.filter(function(en) { return /^images\//.test(en.name); });
                   handleImportedJson(new TextDecoder().decode(dj.data));
               } catch(err) {
@@ -622,7 +628,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
           pendingImportImages = null;
 
-          handleImportedJson(ev.target.result);
+          var textIn = String(ev.target.result || '');
+          if (/\.txt$/i.test(file.name) && !/^[\s\uFEFF]*[\[{]/.test(textIn) && window.wpDocImport) { window.wpDocImport.importFile(file); return; }   // plain text that is not JSON: read as Markdown
+
+          handleImportedJson(textIn);
 
       };
 

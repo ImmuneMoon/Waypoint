@@ -61,7 +61,12 @@ var BY_ID = {
     searchDocsBtn: 'Find a page by name.',
     collapseAllDocsBtn: 'Collapse or expand every nested page.',
     docPlayersBtn: 'Whether players at your table receive this page. Off while hosting removes it from them at once.',
-    exportDocsBtn: 'Every handbook page in this campaign as one file (pictures bundled).'
+    exportDocsBtn: 'Every handbook page in this campaign as one file (pictures bundled).',
+    plannerFromFileBtn: 'A new planner from a Markdown file (pick its pictures with it, or a zip of both). A preview shows every block first.',
+    docFromFileBtn: 'A new handbook page from a Markdown file (pick its pictures with it, or a zip of both). A preview shows every block first.',
+    plannerImportBtn: 'Append a Markdown file to this document, with a preview of every block first.',
+    exportMdBtn: 'The open planner or page as Markdown; with pictures, a zip.',
+    helpMdTemplateBtn: 'A page in the import format to start from.'
 };
 
 var BY_TEXT = {

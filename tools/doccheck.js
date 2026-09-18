@@ -211,6 +211,77 @@ function inert(html) {
         check('DOC_BLOCKS roster', DOC_BLOCKS.join(',') === 'h1,h2,h3,text,lede,oneline,callout,flare,image,table,rule,diagram,flowchart');
     }
 
+    /* ---- docmd.js: Markdown in and out ---- */
+    const mdUrl = 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docmd.js')).replace(/\\/g, '/');
+    let M = null, mdErr = null;
+    try { M = await import(mdUrl); } catch (e) { mdErr = e; }
+    check('docmd.js loads in Node with no window', !!M && !mdErr, mdErr && mdErr.message);
+    if (M) {
+        const { markdownToBlocks, docToMarkdown, htmlToMarkdown, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE } = M;
+        const types = (r) => r.blocks.map(b => b.type).join(',');
+        check('parseAttrs: known keys only', JSON.stringify(parseAttrs('{width=50 float=left span}')) === '{"width":"50","float":"left","span":"true"}' && parseAttrs('{advanced}') === null && parseAttrs('{width=50 x=1}') === null);
+        // the cheat sheet, as a page
+        const page = markdownToBlocks(TEMPLATE, { kind: 'doc' });
+        check('template → page: front matter title/subtitle/players', page.meta.title === 'House rules' && page.meta.subtitle === 'What the table agreed on' && page.meta.players === true, JSON.stringify(page.meta));
+        check('template → page: block roster in order', types(page) === 'h1,lede,h2,text,h3,callout,flare,oneline,table,image,text,flowchart,diagram,rule,text', types(page));
+        const h1 = page.blocks[0], h2 = page.blocks[2], tbl = page.blocks[8], img = page.blocks[9], fc = page.blocks[11];
+        check('template → page: h1 sub from front matter, h2 cols from the tail', h1.title === 'House rules' && h1.sub === 'What the table agreed on' && h2.title === 'At the table' && h2.cols === 2, JSON.stringify([h1, h2]));
+        check('template → page: prose keeps b/i/s/u/code/link/lists, drops nothing dangerous', /<p>Plain paragraphs are text\. <b>Bold<\/b>, <i>italic<\/i>, <s>strike<\/s>, <u>underline<\/u>, <code>code<\/code>, <a href="https:\/\/example.com" target="_blank" rel="noopener noreferrer">links<\/a>, bullets and numbers all survive:<\/p><ul><li>a bullet<ul><li>nested two spaces in<\/li><\/ul><\/li><\/ul><ol><li>a number<\/li><\/ol>/.test(page.blocks[3].content), page.blocks[3].content);
+        check('template → page: table title from the bold line, headers and rows', tbl.title === 'Travel pace' && tbl.cols.join('|') === 'Pace|Per hour|Effect' && tbl.rows.length === 2 && tbl.rows[0].col1 === 'Fast' && tbl.rows[1].col3 === 'none', JSON.stringify(tbl));
+        check('template → page: picture with layout, listed for upload', img.type === 'image' && img.caption === 'The basement' && img.layout.width === 33 && img.layout.float === 'right' && page.images.length === 1 && page.images[0].kind === 'file' && page.images[0].name === 'map_basement.jpg' && page.images[0].index === 9, JSON.stringify(img) + ' ' + JSON.stringify(page.images));
+        check('template → page: flowchart fence became a native flowchart', fc.type === 'flowchart' && fc.dir === 'LR' && fc.nodes.length === 3 && fc.nodes[0].text === 'Roll initiative' && fc.nodes[0].color === 'gold' && fc.nodes[1].shape === 'diamond' && fc.edges.length === 2 && fc.edges[1].text === 'yes', JSON.stringify(fc));
+        check('template → page: mermaid fence is a diagram with its source', page.blocks[12].type === 'diagram' && /sequenceDiagram/.test(page.blocks[12].content));
+        // the same sheet as a planner
+        const plan = markdownToBlocks(TEMPLATE, { kind: 'planner' });
+        check('template → planner: h3 becomes a bold lead line, rule a boundary, table a node table, layout to width/align', plan.blocks.every(b => b.type !== 'h3' && b.type !== 'rule') && plan.blocks.some(b => b.type === 'node' && b.mode === 'table' && b.title === 'Travel pace') && plan.blocks.some(b => b.type === 'text' && /<p><b>Sub-heading<\/b><\/p>/.test(b.content)) && plan.blocks.find(b => b.type === 'image').width === 33 && plan.blocks.find(b => b.type === 'image').align === 'right', types(plan));
+        check('template → planner: front matter players is not for planners (noted), diagram source entity-escaped', plan.notes.some(n => /players/.test(n)) && plan.blocks.find(b => b.type === 'diagram').content.indexOf('&gt;&gt;') > 0);
+        // a scene node with a map link
+        const items = { m1: { id: 'm1', type: 'map', meta: { title: 'Ahto East' }, rooms: [{ id: 'r9', name: 'Cargo lock' }] } };
+        const sc = markdownToBlocks('# Plan\n\n### Scene: The docks\n**Tag:** Stealth\n**Must resolve:** Who tipped them off?\nMap: ahto east / cargo LOCK\n| Action | Why | Cost | Returns via |\n|---|---|---|---|\n| Bribe | fastest | 200 | Arcade |\n\nAfterwards.', { kind: 'planner', items });
+        const node = sc.blocks[1];
+        check('planner scene node: title, tag, must, map + room by name, table rows', node.type === 'node' && node.title === 'The docks' && node.tag === 'Stealth' && node.must === 'Who tipped them off?' && node.linkMapId === 'm1' && node.linkRoomId === 'r9' && node.cols.length === 4 && node.rows[0].col4 === 'Arcade' && sc.blocks[2].type === 'text', JSON.stringify(sc.blocks));
+        check('page: "### Scene:" is just a sub-heading', markdownToBlocks('# P\n### Scene: X', { kind: 'doc' }).blocks[1].type === 'h3');
+        // Google Docs' reference-style data: image, inline images, unknown braces, nested quotes, html
+        const gd = markdownToBlocks('# T\n\nSee the map ![][image1] here.\n\n## Formulas {advanced}\n\n> outer\n> > inner\n\n<div onclick="x()">hi <script>alert(1)</script><u>u</u></div>\n\n[image1]: <data:image/png;base64,iVBORw0KGgo=>\n', { kind: 'doc' });
+        check('google docs form: reference image resolved to data, split out after its paragraph', gd.blocks[1].type === 'text' && gd.blocks[2].type === 'image' && gd.images[0].kind === 'data' && /^data:image\/png/.test(gd.images[0].value) && gd.notes.some(n => /inside a paragraph/.test(n)), types(gd) + ' ' + JSON.stringify(gd.images));
+        check('unknown braces stay in the heading', gd.blocks[3].type === 'h2' && gd.blocks[3].title === 'Formulas {advanced}', gd.blocks[3].title);
+        check('nested quote flattened with a note; html reduced to the allow-list', gd.blocks[4].type === 'callout' && gd.notes.some(n => /nested quote/.test(n)) && gd.blocks[5].content === '<p>hi <u>u</u></p>', JSON.stringify(gd.blocks.slice(4)));
+        check('https picture becomes a link paragraph with a note', (() => { const r = markdownToBlocks('![Cover](https://x.example/a.png)', { kind: 'doc' }); return r.blocks.length === 1 && r.blocks[0].type === 'text' && r.blocks[0].content.indexOf('<a href="https://x.example/a.png"') > 0 && r.images.length === 0; })());
+        check('::: fence and [!type] quote pick the prose block; plain quote is a callout', types(markdownToBlocks('::: flare\nx\n:::\n\n> [!oneline] y\n\n> z', { kind: 'doc' })) === 'flare,oneline,callout');
+        check('javascript link becomes text; autolink kept', (() => { const r = markdownToBlocks('[x](javascript:alert(1)) <https://a.b/c>', { kind: 'doc' }); return r.blocks[0].content === '<p>x <a href="https://a.b/c" target="_blank" rel="noopener noreferrer">https://a.b/c</a></p>'; })(), JSON.stringify(markdownToBlocks('[x](javascript:alert(1)) <https://a.b/c>', { kind: 'doc' }).blocks));
+        check('block cap 300 with a note', (() => { const r = markdownToBlocks(Array.from({ length: 320 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' }); return r.blocks.length === 300 && r.notes.some(n => /first 300/.test(n)); })());
+        check('flowchartFromMermaid: beyond the subset → null (classDef, subgraph, &)', flowchartFromMermaid('flowchart TD\nclassDef x fill:#fff\nA-->B') === null && flowchartFromMermaid('graph LR\nsubgraph s\nA-->B\nend') === null && flowchartFromMermaid('flowchart LR\nA & B --> C') === null && flowchartFromMermaid('pie\nA: 1') === null);
+        check('flowchartFromMermaid: chains, labels, dotted, shapes', (() => { const f = flowchartFromMermaid('graph TB\n  A[Start] --> B{Choice?} -.->|no| C([End]):::red\n  B -- yes --> D{{Hex}}'); return f && f.dir === 'TD' && f.nodes.map(n => n.id + ':' + n.shape).join(',') === 'A:rect,B:diamond,C:pill,D:hex' && f.nodes[2].color === 'red' && f.edges.length === 3 && f.edges[1].style === 'dotted' && f.edges[1].text === 'no' && f.edges[2].text === 'yes'; })());
+        // export and the round trip
+        const D2 = D;
+        const src = { type: 'doc', id: 'doc_x', meta: { title: 'Rules', players: false }, blocks: D2.cleanDoc({ type: 'doc', id: 'doc_x', meta: { title: 'Rules', players: false }, blocks: [
+            { id: 'a', type: 'h1', title: 'Rules', sub: 'v2' }, { id: 'b', type: 'lede', content: 'Short <b>intro</b>' }, { id: 'c', type: 'h2', title: 'Combat', cols: 2 },
+            { id: 'd', type: 'text', content: '<p>Roll <i>d20</i> and <a href="https://e.com/x">read</a></p><ul><li>one<ul><li>two</li></ul></li></ul><p>a &amp; b</p>' },
+            { id: 'e', type: 'h3', title: 'Sub' }, { id: 'f', type: 'image', src: '/saves/images/doc_x/ab12cd34_map.png', caption: 'The map', layout: { width: 33, float: 'left', dx: 8, dy: -4, span: false } },
+            { id: 'g', type: 'table', title: 'Pace', cols: ['A', 'B|C'], rows: [['1', '2'], ['x', 'y']] }, { id: 'h', type: 'rule' },
+            { id: 'i', type: 'callout', content: 'Note line one<br>line two' }, { id: 'j', type: 'diagram', content: 'graph TD\nA-->B' },
+            { id: 'k', type: 'flowchart', dir: 'LR', nodes: [{ id: 'n1', text: 'Roll "it"', shape: 'gold' === 'x' ? 'rect' : 'rounded', color: 'gold' }, { id: 'n2', text: 'Done', shape: 'pill', color: 'neutral' }], edges: [{ from: 'n1', to: 'n2', text: 'ok', style: 'dotted' }] }
+        ] }, { keepHidden: true }).blocks };
+        const ex = docToMarkdown(src, {});
+        check('export: front matter, headings with cols, picture path and layout tail, table, rule, fences', /^---\ntitle: Rules\nsubtitle: v2\nplayers: false\n---\n\n# Rules\n\*v2\*\n\n> \[!lede\] Short \*\*intro\*\*\n\n## Combat \{cols=2\}\n/.test(ex.text) && ex.text.indexOf('![The map](images/doc_x/map.png){width=33 float=left dx=8 dy=-4}') > 0 && ex.text.indexOf('**Pace**\n| A | B\\|C |\n|---|---|\n| 1 | 2 |\n| x | y |') > 0 && ex.text.indexOf('\n---\n') > 0 && ex.text.indexOf('```mermaid\ngraph TD\nA-->B\n```') > 0 && ex.text.indexOf('```flowchart\nflowchart LR\nn1("Roll #quot;it#quot;"):::gold\nn2(["Done"])\nn1 -.->|"ok"| n2\n```') > 0 && ex.images.length === 1 && ex.images[0].name === 'map.png', ex.text);
+        check('export: prose to markdown (links, nested list, entities, breaks)', ex.text.indexOf('Roll *d20* and [read](https://e.com/x)\n\n- one\n  - two\n\na & b') > 0 && ex.text.indexOf('> [!callout] Note line one  \n> line two') > 0, ex.text);
+        const back = markdownToBlocks(ex.text, { kind: 'doc' });
+        const strip = (bs) => bs.map(b => { const o = Object.assign({}, b); delete o.id; delete o.src; delete o.zoom; delete o.space; if (o.layout && o.layout.span === false) delete o.layout.span; return o; });
+        const want = strip(src.blocks).map(b => { if (b.type === 'table') b.rows = b.rows.map(r => ({ col1: r[0], col2: r[1] })); if (b.type === 'image') { b.alt = undefined; delete b.alt; } return b; });
+        const got = strip(back.blocks);
+        check('round trip: the same block types, titles, contents and layout come back', JSON.stringify(got.map(b => b.type)) === JSON.stringify(want.map(b => b.type)) && got[0].title === 'Rules' && got[0].sub === 'v2' && got[2].cols === 2 && got[3].content === want[3].content && got[5].caption === 'The map' && JSON.stringify(got[5].layout) === JSON.stringify(want[5].layout) && got[6].title === 'Pace' && got[6].cols.join('|') === 'A|B|C' && got[6].rows[1].col2 === 'y' && got[8].content === 'Note line one<br>line two' && got[9].content === 'graph TD\nA-->B' && got[10].nodes[0].text === 'Roll "it"' && got[10].edges[0].style === 'dotted' && back.meta.players === false, JSON.stringify(got) + '\n---\n' + JSON.stringify(want));
+        check('round trip: the lede keeps its inline markup', got[1].content === 'Short <b>intro</b>', got[1].content);
+        // a planner with a scene node and raw block round-trips its own way
+        const plItems = { m1: { id: 'm1', type: 'map', meta: { title: 'Ahto East' }, rooms: [{ id: 'r9', name: 'Cargo lock' }] } };
+        const pl = { type: 'planner', id: 'plan_1', meta: { title: 'Session', status: 'next' }, blocks: [{ type: 'h1', title: 'Session', sub: '' }, { type: 'node', title: 'The docks', tag: 'Stealth', must: 'Who?', linkMapId: 'm1', linkRoomId: 'r9', cols: ['Action', 'Why'], rows: [{ col1: 'Bribe', col2: 'fast' }] }, { type: 'node', mode: 'table', title: 'NPCs', cols: ['Name'], rows: [{ col1: 'Vane' }] }, { type: 'raw', content: '<b>raw</b>' }] };
+        const plx = docToMarkdown(pl, { items: plItems });
+        check('planner export: status, scene node with map line and table, raw as an html fence', /status: next/.test(plx.text) && plx.text.indexOf('### Scene: The docks\n**Tag:** Stealth\n**Must resolve:** Who?\nMap: Ahto East / Cargo lock\n| Action | Why |') > 0 && plx.text.indexOf('**NPCs**\n| Name |') > 0 && plx.text.indexOf('```html\n<b>raw</b>\n```') > 0, plx.text);
+        const plb = markdownToBlocks(plx.text, { kind: 'planner', items: plItems });
+        check('planner round trip: scene node, table node, html fence as code (never raw)', types(plb) === 'h1,node,node,text' && plb.blocks[1].linkRoomId === 'r9' && plb.blocks[1].rows[0].col1 === 'Bribe' && plb.blocks[2].mode === 'table' && /<pre><code>&lt;b&gt;raw/.test(plb.blocks[3].content) && plb.meta.status === 'next', types(plb) + ' ' + JSON.stringify(plb.blocks[3]));
+        check('detectBundle: .md at the root or one folder down, __MACOSX and dotfiles ignored', (() => { const b = detectBundle([{ name: '__MACOSX/x.md', data: new Uint8Array() }, { name: 'Folder/.hidden.md', data: new Uint8Array() }, { name: 'Folder/page.md', data: new Uint8Array() }, { name: 'Folder/images/a.png', data: new Uint8Array() }]); return b && b.md.name === 'Folder/page.md' && b.base === 'Folder/' && b.files.length === 2; })() && detectBundle([{ name: 'a/b/c.md', data: new Uint8Array() }]) === null && detectBundle([{ name: 'data.json', data: new Uint8Array() }]) === null);
+        check('htmlToMarkdown: code and pre', htmlToMarkdown('<p>use <code>x</code></p><pre>a\n b</pre>') === 'use `x`\n\n```\na\n b\n```');
+    }
+
     /* ---- publication under a window ---- */
     global.window = {};
     const D2 = await import(url + '?x');

@@ -1168,6 +1168,16 @@
   .blk-layout input[type="number"] { width: 62px; }
   .blk-layout label.off { opacity: .45; }
   .blk-layout .lay-note { flex-basis: 100%; color: var(--dim); font-size: 11px; }
+  /* The Markdown import preview (docimport.js) */
+  .dimp-row { display: grid; grid-template-columns: auto 128px minmax(0, 1fr); gap: 8px; align-items: center; padding: 4px 6px; border-bottom: 1px solid var(--edge); font-size: 12.5px; }
+  .dimp-row:last-child { border-bottom: none; }
+  .dimp-row select { font-size: 12px; padding: 2px 4px; }
+  .dimp-typelabel { color: var(--gold); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  .dimp-snip { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dimp-row:has(.dimp-keep:not(:checked)) .dimp-snip { opacity: .4; text-decoration: line-through; }
+  .dimp-notes-title { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin: 4px 0 2px; }
+  .dimp-note { color: var(--dim); font-size: 12px; line-height: 1.4; }
+  .help-code { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 12px; color: var(--ink); overflow-x: auto; }
 
   /* The Handbook reader: a page over the play map for a joined player (handbook.js) */
   #docReaderModal { position: fixed; top: 52px; left: 0; bottom: 0; width: min(760px, 72vw); z-index: 99990; background: var(--bg); border-right: 1px solid var(--gold); box-shadow: 6px 0 24px rgba(0,0,0,0.45); flex-direction: column; }

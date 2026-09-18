@@ -1531,6 +1531,21 @@
   .sys-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); padding-top: 8px; }
   #sysSaveBtn.on { border-color: var(--gold); color: var(--gold); }
   .sys-char-row .sys-char-name { width: 200px; }
+  .sys-layout-wrap { display: flex; gap: 10px; min-height: 0; flex: 1; }
+  .sys-layout-secs { flex: 1; min-width: 0; }
+  .sys-layout-preview-box { width: 380px; flex: none; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+  .sys-layout-preview-box select { max-width: 200px; padding: 2px 6px; font-size: 11.5px; }
+  .sys-layout-preview { overflow: auto; max-height: 52vh; border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; background: rgba(0,0,0,0.08); }
+  .sys-sec-title { width: 200px; }
+  .sys-pl-list { display: flex; flex-direction: column; gap: 3px; min-height: 18px; padding: 2px; border-radius: 4px; }
+  .sys-pl-list.drop-end { outline: 1px dashed var(--gold); }
+  .sys-pl { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; background: rgba(0,0,0,0.12); cursor: grab; }
+  .sys-pl.drop-before { border-top-color: var(--gold); }
+  .sys-pl-grip { color: var(--dim); }
+  .sys-pl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sys-pl-text { width: 160px; }
+  .sys-pl-w { min-width: 74px; }
+  .sys-pl-addrow select { max-width: 320px; }
   .sys-char-row .sys-char-owner { max-width: 200px; }
 
   /* Character sheets (1.5.0): the sheet panel over the play map */

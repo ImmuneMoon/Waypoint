@@ -141,6 +141,11 @@ Character sheets: the system
   works once a character is picked; a GM's roll that uses a GM-only value
   stays private. In the combat roster, a die beside a row rolls initiative
   from the system's Initiative roll.
+- Layout: the editor's Layout tab arranges the sheet in sections of 1–4
+  columns — fields, roll buttons, headings, dividers and the portrait, each
+  one column or the full row, dragged between sections — with a live
+  preview for a chosen character. Without a layout the sheet arranges
+  itself by kind; Start from the automatic layout copies that.
 
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features

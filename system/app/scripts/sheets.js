@@ -161,6 +161,10 @@ function renderSheet() {
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; if (gm) { charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var all = resolveAll(sys, c, F());
+    buildSections(body, sys, c, all, gm, own);
+    restoreFocus(body, fk);
+}
+function buildSections(body, sys, c, all, gm, own) {   // the sheet's sections into a container: the panel, and the Layout tab's preview
     var layout = sys.sheet && sys.sheet.sections && sys.sheet.sections.length ? sys.sheet.sections : autoLayout(sys).sections;
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
@@ -182,7 +186,125 @@ function renderSheet() {
         if (grid.childNodes.length) { s.appendChild(grid); body.appendChild(s); }
     });
     if (!body.childNodes.length) body.appendChild(el('div', 'sys-empty', sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.'));
-    restoreFocus(body, fk);
+}
+/* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
+function layoutSections() { if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] }; return draft.sheet.sections; }
+function placementLabel(pl, byId, rollById) {
+    if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
+    if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait';
+    return null;
+}
+function renderLayout() {
+    var root = ui('sysLayoutSecs'); if (!root || !draft) return;
+    var secs = layoutSections(), byId = {}, rollById = {}, placed = {};
+    draft.fields.forEach(function(f) { byId[f.id] = f; }); draft.rolls.forEach(function(r) { rollById[r.id] = r; });
+    secs.forEach(function(s) { (s.fields || []).forEach(function(p) { if (p.id) placed[p.id] = 1; }); });
+    root.textContent = '';
+    if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
+    secs.forEach(function(sec) {
+        var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
+        var top = el('div', 'sys-row-main');
+        top.appendChild(input('sys-sec-title field', sec.title, 'The section\'s title on the sheet (empty = none)', 'Section title'));
+        top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
+        top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
+        row.appendChild(top);
+        var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
+        (sec.fields || []).forEach(function(pl, pi) {
+            var text = placementLabel(pl, byId, rollById); if (text === null) return;
+            var pr = el('div', 'sys-pl'); pr.dataset.sid = sec.id; pr.dataset.pi = String(pi); pr.draggable = true;
+            pr.appendChild(el('span', 'sys-pl-grip', String.fromCharCode(8942)));
+            pr.appendChild(el('span', 'sys-pl-name', text));
+            if (pl.kind === 'heading') pr.appendChild(input('sys-pl-text field', pl.text, 'The heading\'s text', 'Heading text'));
+            var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
+            pr.appendChild(btnRow([['plup', 'Move up', '&#9650;'], ['pldown', 'Move down', '&#9660;'], ['pldel', 'Take off the sheet (the field stays defined)', '&times;']]));
+            list.appendChild(pr);
+        });
+        row.appendChild(list);
+        var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']];
+        draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
+        draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
+        opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait']);
+        addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider or the portrait'));
+        row.appendChild(addRow);
+        root.appendChild(row);
+    });
+    renderPreview();
+}
+function renderPreview() {
+    var box = ui('sysLayoutPreview'), pick = ui('sysPreviewChar'); if (!box || !draft || !F()) return;
+    var camp = getActiveCampaign();
+    if (pick) { var was = pick.value; pick.textContent = ''; pick.appendChild(opt('', 'Defaults')); charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''))); }); pick.value = Array.prototype.some.call(pick.options, function(o) { return o.value === was; }) ? was : ''; }
+    var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
+    var c = pick && pick.value ? charById(pick.value, camp) : null;
+    var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
+    buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false);
+}
+function onLayoutInput(t) {
+    var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
+    var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
+    var plr = t.closest('.sys-pl');
+    if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
+    else if (c.indexOf('sys-sec-title') >= 0) sec.title = t.value.slice(0, LIMITS.label);
+    else return false;
+    markDirty(); renderPreview(); return true;
+}
+function onLayoutChange(t) {
+    var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
+    var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
+    if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-pl-add') >= 0) {
+        var v = t.value; t.value = ''; if (!v) return true;
+        var total = 0; layoutSections().forEach(function(s) { total += (s.fields || []).length; });
+        if (total >= LIMITS.placements) { toast('The sheet holds at most ' + LIMITS.placements + ' placements.'); return true; }
+        sec.fields = sec.fields || [];
+        var kind = v.slice(0, 1), id = v.slice(2), pl = null;
+        if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id; })) pl = { id: id, w: 1 }; }
+        else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) pl = { roll: id, w: 1 }; }
+        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; }
+        if (pl) { sec.fields.push(pl); markDirty(); renderLayout(); }
+        return true;
+    }
+    return false;
+}
+function onLayoutClick(b) {
+    if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
+    if (b.id === 'sysLayoutAuto') { var cl = cleanSystem(draft, { F: F(), gmView: true }); draft.sheet = { sections: autoLayout(cl || draft).sections }; markDirty(); renderLayout(); toast('The automatic layout is now yours to change.'); return true; }
+    if (b.id === 'sysLayoutClear') { if (!layoutSections().length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls).', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
+    var act = b.dataset.act; if (!act) return false;
+    var lsec = b.closest('.sys-sec'); if (!lsec) return false;
+    var secs = layoutSections(), si = -1; secs.forEach(function(s, i) { if (s.id === lsec.dataset.sid) si = i; }); if (si < 0) return true;
+    var sec = secs[si], plr = b.closest('.sys-pl');
+    if (act === 'secup' && si > 0) { secs.splice(si, 1); secs.splice(si - 1, 0, sec); }
+    else if (act === 'secdown' && si < secs.length - 1) { secs.splice(si, 1); secs.splice(si + 1, 0, sec); }
+    else if (act === 'secdel') { secs.splice(si, 1); }
+    else if (plr) {
+        var list = sec.fields || [], pi = +plr.dataset.pi, pl = list[pi]; if (!pl) return true;
+        if (act === 'plw') pl.w = pl.w === 'row' ? 1 : 'row';
+        else if (act === 'plup' && pi > 0) { list.splice(pi, 1); list.splice(pi - 1, 0, pl); }
+        else if (act === 'pldown' && pi < list.length - 1) { list.splice(pi, 1); list.splice(pi + 1, 0, pl); }
+        else if (act === 'pldel') list.splice(pi, 1);
+        else return true;
+    } else return true;
+    markDirty(); renderLayout(); return true;
+}
+function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the combat roster's pattern)
+    var dragPl = null;
+    function clearMarks() { ls.querySelectorAll('.drop-before, .drop-end').forEach(function(x) { x.classList.remove('drop-before'); x.classList.remove('drop-end'); }); }
+    ls.addEventListener('dragstart', function(e) { var pr = e.target.closest && e.target.closest('.sys-pl'); if (!pr) { e.preventDefault(); return; } dragPl = { sid: pr.dataset.sid, pi: +pr.dataset.pi }; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'pl'); } catch (err) {} });
+    ls.addEventListener('dragover', function(e) { if (!dragPl) return; var over = e.target.closest && e.target.closest('.sys-pl, .sys-pl-list'); if (!over) return; e.preventDefault(); clearMarks(); over.classList.add(over.classList.contains('sys-pl') ? 'drop-before' : 'drop-end'); });
+    ls.addEventListener('drop', function(e) {
+        if (!dragPl) return; e.preventDefault();
+        var over = e.target.closest && e.target.closest('.sys-pl, .sys-pl-list'), from = dragPl; dragPl = null; clearMarks(); if (!over) return;
+        var secs = layoutSections(), src = null, dst = null; secs.forEach(function(s) { if (s.id === from.sid) src = s; if (s.id === over.dataset.sid) dst = s; }); if (!src || !dst) return;
+        var pl = (src.fields || []).splice(from.pi, 1)[0]; if (!pl) { renderLayout(); return; }
+        dst.fields = dst.fields || [];
+        var at = over.classList.contains('sys-pl') ? +over.dataset.pi : dst.fields.length;
+        if (over.classList.contains('sys-pl') && src === dst && from.pi < at) at--;
+        dst.fields.splice(at, 0, pl);
+        markDirty(); renderLayout();
+    });
+    ls.addEventListener('dragend', function() { dragPl = null; clearMarks(); });
 }
 function fieldNode(f, c, e, gm, own) {
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
@@ -297,7 +419,7 @@ function open(which) {
 }
 function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
-    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields and rolls since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }); return; }
+    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }); return; }
     m.style.display = 'none'; draft = null;
 }
 function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); }
@@ -429,6 +551,7 @@ function renderAll() {
     ui('sysFields').style.display = tab === 'fields' ? '' : 'none';
     ui('sysRolls').style.display = tab === 'rolls' ? '' : 'none';
     var sc = ui('sysChars'); if (sc) sc.style.display = tab === 'chars' ? '' : 'none';
+    var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var fr = ui('sysFieldRows'); fr.textContent = '';
     if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
     draft.fields.forEach(function(f) { fr.appendChild(fieldRow(f)); });
@@ -442,7 +565,8 @@ function renderAll() {
 function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
 function onInput(e) {
     if (!draft) return;
-    var t = e.target, ctx = fieldOfRow(t); if (!ctx) return;
+    var t = e.target; if (onLayoutInput(t)) return;
+    var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r, c = t.className || '';
     if (f) {
         if (c.indexOf('sys-key') >= 0) f.key = t.value.trim();
@@ -467,6 +591,7 @@ function onInput(e) {
 function onChange(e) {
     if (!draft) return;
     var t = e.target, c = t.className || '';
+    if (onLayoutChange(t)) return;
     var crow = t.closest && t.closest('.sys-char-row');
     if (crow) {   // characters save as you go
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;
@@ -498,6 +623,7 @@ function onClick(e) {
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
     if (b.dataset.tab) { tab = b.dataset.tab; renderAll(); return; }
+    if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
     var crow = b.closest('.sys-char-row');
     if (crow) {
@@ -568,6 +694,8 @@ function importFile(file) {
     var st = ui('sysStartSel'); if (st) st.addEventListener('change', function() { var v = st.value; st.value = ''; if (v) startFrom(v); });
     var ex = ui('sysExportBtn'); if (ex) ex.addEventListener('click', exportSystem);
     var im = ui('sysImportBtn'), fi = ui('sysImportFile'); if (im && fi) { im.addEventListener('click', function() { fi.value = ''; fi.click(); }); fi.addEventListener('change', function() { importFile(fi.files && fi.files[0]); }); }
+    var ls = ui('sysLayoutSecs'); if (ls) wireLayoutDrag(ls);
+    var pv = ui('sysPreviewChar'); if (pv) pv.addEventListener('change', renderPreview);
     // the sheet panel
     var p = ui('sheetPanel'), head = ui('sheetHead'); if (!p || !head) return;
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeSheet(); } });

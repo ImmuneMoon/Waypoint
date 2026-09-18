@@ -159,6 +159,10 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         // at this moment (the 1.4.6 keys for an upgrading user). Not a fix(): no "save upgraded" toast,
         // the fill persists with the next ordinary save.
         if (window.wpVtt) window.wpVtt.fill(c);
+        if (c.system !== undefined && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): a system from a file is cleaned like one off the wire
+            var csys = c.system ? window.wpSystemCore.cleanSystem(c.system, { F: window.wpFormula, gmView: true }) : null;
+            if (csys) c.system = csys; else delete c.system;
+        }
     });
 
     // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each

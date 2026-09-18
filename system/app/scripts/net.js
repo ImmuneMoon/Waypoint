@@ -293,6 +293,10 @@ function sanitizeAppState(s) {
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
+        if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
+            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false }); if (psys) camp.system = psys; else delete camp.system;
+        } else delete camp.system;
+        delete camp.chars;   // characters travel per recipient (the next slice)
         Object.keys(camp.items).forEach(function(id) {
             if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
             var it = sanitizeItem(camp.items[id]);
@@ -733,6 +737,7 @@ net.onLocalSave = function() {
     if (net.role === 'host') {
         net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
         net.syncSounds();   // the sound index changed with this save? the list follows the same way
+        net.syncSystem();   // and the system (character sheets), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -858,6 +863,19 @@ net.sendSound = function(cue) {
     if (cue.id !== undefined) msg.id = cue.id;
     if (cue.gain !== undefined) msg.gain = cue.gain;
     if (cue.fade !== undefined) msg.fade = cue.fade;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
+// The hosted campaign's system (character sheets) reaches the table as the players' view — GM-only fields and rolls
+// gone, formulas that named them blanked — in the snapshot and on every save or editor Save that changed it (a
+// signature over the clean view). Admitted peers only; null when the campaign has no system.
+net._lastSystemSig = null;
+net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
+net.syncSystem = function(force) {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.systemMessage(); if (!msg) return;
+    var s = quickHash(JSON.stringify(msg.system));
+    if (!force && s === net._lastSystemSig) return;
+    net._lastSystemSig = s;
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
 };
 // A session is exactly one campaign. Anything that would put another campaign on screen while hosting
@@ -1611,6 +1629,7 @@ function admitPlayer(conn, prof) {
     try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState), stage: land.stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
+    var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
     broadcastRoster();
 }
 
@@ -1828,6 +1847,14 @@ function handleMessage(msg, conn) {
         var nm = ui('netModal');
         if (nm) nm.style.display = 'flex';
         toast('The GM ended the session — restoring your own campaign.');
+    } else if (msg.type === 'system' && net.role === 'client') {
+        // the hosted campaign's system as the players' view (character sheets, 1.5.0), re-cleaned here; null = the campaign has none
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore || !window.wpFormula) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campS = state.appState.campaigns[msg.campId]; if (!campS) return;
+        if (msg.system === null) delete campS.system;
+        else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false }); if (csys) campS.system = csys; }
+        if (window.wpSheetsSync) window.wpSheetsSync();
     } else if ((msg.type === 'sounds' || msg.type === 'sound') && net.role === 'client') {
         // the hosted campaign's sound list and its cues: only from the synced host, only after the snapshot, validated in sound.js.
         // A host has no branch for these: a player never triggers a sound on anyone.
@@ -2115,6 +2142,7 @@ function startHosting(forceFresh) {
     net.peer = peer; net.role = 'host'; net.code = code;
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     net._lastSoundSig = null;    // and the sound list
+    net._lastSystemSig = null;   // and the system
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;

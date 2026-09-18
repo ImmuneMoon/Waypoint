@@ -52,6 +52,7 @@ function sanitizeAppState(s) {
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;
         delete camp.sounds;
+        if (camp.system) camp.system = { v: 1, fields: (camp.system.fields || []).filter(function(f) { return f.vis !== 'gm'; }), rolls: (camp.system.rolls || []).filter(function(r) { return r.vis !== 'gm'; }), sheet: { sections: [] } };
         Object.keys(camp.items).forEach(function(id) {
             if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }
             var it = sanitizeItem(camp.items[id]);
@@ -83,7 +84,8 @@ function gmCampaign(id, name) {
         },
         players: { u_player: { name: 'Pat' } }, handouts: { h1: { title: 'Map' } }, cast: { c1: { name: 'Cast' } },
         pictures: ['/saves/images/elsewhere/a.png'], imageCats: { list: ['Villains'], by: { '/saves/images/m1/t_a.png': ['Villains'] }, shelf: {} },
-        sounds: { v: 1, list: [{ id: 's_1', name: 'Rain', path: '/saves/images/audio/' + id + '/ab12cd34_rain.ogg', kind: 'loop', gain: 1, size: 900000, dur: 60 }] }
+        sounds: { v: 1, list: [{ id: 's_1', name: 'Rain', path: '/saves/images/audio/' + id + '/ab12cd34_rain.ogg', kind: 'loop', gain: 1, size: 900000, dur: 60 }] },
+        system: { v: 1, name: 'T', updated: 1, fields: [{ id: 'f_str', key: 'STR', kind: 'number', def: 10, vis: 'all' }, { id: 'f_gm', key: 'GMnotes', kind: 'notes', vis: 'gm' }], rolls: [], sheet: { sections: [] } }
     };
 }
 function tutorialCampaign() {   // the shipped tutorial: rooms with notes, characters with info, hidden IMAGE tokens
@@ -140,6 +142,11 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
       check('a shaped-empty sound index on a contaminated campaign is not a local mark (still CERTAIN)', ce.tiers.camp_a === 'CERTAIN', tiersOf(ce));
       e.campaigns.camp_a.sounds.list.push({ id: 's_1', name: 'Rain', path: '/saves/images/audio/camp_a/x.ogg', kind: 'loop' }); const cf = classifyState(e, KNOWN);
       check('a real sound entry is a local mark (ASK)', cf.tiers.camp_a === 'ASK', tiersOf(cf)); }
+    // character sheets (1.5.0): the system travels as the players' view; only a GM-only field is a local mark
+    check('sanitizer mirror: the system travels with its GM-only field gone', !!(M0.campaigns.camp_a.system && M0.campaigns.camp_a.system.fields.length === 1 && M0.campaigns.camp_a.system.fields[0].id === 'f_str'), JSON.stringify(M0.campaigns.camp_a.system));
+    { const e = classifyState(clone(M0), KNOWN); check('an all-visible system on a contaminated campaign is not a local mark (still CERTAIN)', e.tiers.camp_a === 'CERTAIN', tiersOf(e));
+      const g = clone(M0); g.campaigns.camp_a.system.fields.push({ id: 'f_gm', key: 'GMnotes', kind: 'notes', vis: 'gm' }); const cg = classifyState(g, KNOWN);
+      check('a GM-only field in a system is a local mark (ASK)', cg.tiers.camp_a === 'ASK', tiersOf(cg)); }
 
     // handbook pages (1.5.0): the hosted campaign's visible pages travel cleaned, hidden pages and other campaigns' pages do not
     check('sanitizer: hosted campaign keeps its visible page (cleaned), loses the hidden one; other campaigns lose theirs', M0.campaigns.camp_a.items.d1 && M0.campaigns.camp_a.items.d1.meta.players === true && !M0.campaigns.camp_a.items.dh && !M0.campaigns.camp_b.items.d1 && !M0.campaigns.camp_b.items.dh, JSON.stringify(Object.keys(M0.campaigns.camp_a.items)) + ' ' + JSON.stringify(Object.keys(M0.campaigns.camp_b.items)));

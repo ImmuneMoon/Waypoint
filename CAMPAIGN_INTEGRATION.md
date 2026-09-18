@@ -60,6 +60,7 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
       "pictures": ["/saves/images/<folder>/<file>"],   // OPTIONAL, app-managed (1.5.0): pictures brought in from another campaign by reference — carry through untouched
       "imageCats": { "list": ["Villains"], "by": { "/saves/images/<folder>/<file>": ["Villains"] }, "shelf": {} },   // OPTIONAL, app-managed (1.5.0): this campaign's picture categories (the app-level imageCats holds the SHARED ones) — carry through untouched, never author
       "sounds": { "v": 1, "list": [{ "id": "s_x", "name": "Rain", "path": "/saves/images/audio/<campId>/<file>", "kind": "loop", "gain": 1, "size": 0, "dur": 0 }] },   // OPTIONAL, app-managed (1.5.0): the campaign's sound index (uploads under saves/images/audio/<campId>/; a "from" key marks a reference to another campaign's file); never on the wire — carry through untouched, never author
+      "system": { "v": 1, "name": "Basic d20", "fields": [], "rolls": [], "sheet": { "sections": [] } },   // OPTIONAL, app-managed (1.5.0): the campaign's rules system for character sheets (System button in the Campaign pill; docs in Help ▸ Character sheets). Travels to players with GM-only fields removed. Carry through untouched; author only through the editor or an exported .wpsystem.json
       "items": {                                // FLAT dict of maps, planners and pages
         "<id>": { /* map, planner or page, below */ }
       }

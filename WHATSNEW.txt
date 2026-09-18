@@ -104,6 +104,26 @@ Dice
   table never sees the last one's lines; the dev console keeps /roll local
   and gains /table <expr> to post a roll from there.
 
+Character sheets: the system
+- The first step of character sheets: a System button in the Campaign pill
+  opens an editor for the campaign's rules, with no code. Fields with a key
+  formulas use (STR, Skill.Stealth), a label and a kind: numbers with a
+  default and range, formulas computed from other fields
+  (floor((STR - 10) / 2)), resources with a formula for their max (HP),
+  skills as ranks plus a base, toggles for conditions, text, notes and
+  selects. Named rolls with dice (d20 + STRmod, 3d6 <= Skill.Stealth)
+  become buttons on the sheet. Errors show under a field as you type, with
+  a caret; loops and dice inside definitions are refused; Compute with
+  defaults shows every number. Start from Basic d20 or Basic 3d6, or
+  blank; Export and Import move a system between campaigns as a
+  .wpsystem.json file.
+- Each field is visible to players or GM only (a GM-only field never leaves
+  your machine), editable by the player or by the GM, and can appear on the
+  hover card. The visible part of the system reaches players at your table
+  at once. Character sheets is a VTT feature (Settings ▸ VTT features).
+  Characters, the sheet panel on the play map and rolls from the sheet
+  follow in the next steps of 1.5.0.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

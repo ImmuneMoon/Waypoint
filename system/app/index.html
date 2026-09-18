@@ -67,6 +67,7 @@ window.addEventListener('unhandledrejection', function(e) {
 })();
 </script>
 <script type="module" src="scripts/formula.js"></script>
+<script type="module" src="scripts/systemcore.js"></script>
 <script type="module" src="scripts/docrender.js"></script>
 <script type="module" src="scripts/vtt.js"></script>
 <script type="module" src="scripts/main.js"></script>
@@ -78,6 +79,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/sound.js"></script>
 <script type="module" src="scripts/dicecore.js"></script>
 <script type="module" src="scripts/dice.js"></script>
+<script type="module" src="scripts/sheets.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
@@ -112,6 +114,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button>
         <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+        <button class="tool ghost icon" id="systemBtn" title="System &mdash; this campaign&rsquo;s attributes, formulas and rolls (character sheets)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h4"/></svg></button>
         <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
       </div>
     </div>
@@ -228,6 +231,7 @@ window.addEventListener('unhandledrejection', function(e) {
                   <button data-help="mp-gm">&#127760; Multiplayer: Hosting</button>
                   <button data-help="mp-player">&#127918; Multiplayer: Joining</button>
                   <button data-help="dice">&#127922; Dice</button>
+                  <button data-help="sheets">&#128203; Character sheets</button>
                   <button data-help="keys">&#9000;&#65039; Shortcuts</button>
                   <button data-help="roadmap">&#128301; Coming up</button>
               </div>
@@ -363,7 +367,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. They are set <b>per campaign</b>; in a session your campaign's settings are the most your players see.</p>
                       <h4 id="helpVtt">VTT settings</h4>
                       <ul>
-                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap, sound and dice are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
+                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap, sound, dice and character sheets are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
                           <li><b>Default for new campaigns.</b> The same section holds the default a campaign starts with. Changing it touches no existing campaign; <b>Apply to existing campaigns&hellip;</b> copies it onto the campaigns you tick (nothing is ticked to begin with). The default lives with your preferences (the saves folder's <b>preferences.json</b>) and is cleared by Reset Local Preferences; the campaigns are not.</li>
                           <li><b>In a session, the GM's campaign is the ceiling.</b> Players see at most what the hosted campaign has on. A GM change mid-session reaches the table at once, with a short notice on each player's screen.</li>
                           <li><b>Off for me.</b> At a table, a player can switch a feature the GM has on <b>off for themselves</b> in the same section (&ldquo;Turn off for me&rdquo;), never on when the GM has it off. The choice is remembered per table (that campaign, that GM) and never touches the player's own default or campaigns.</li>
@@ -473,7 +477,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
                           <li><b>Handbook:</b> the pages of the hosted campaign that are not marked <b>GM only</b> reach every player, who read them in a panel over the map. Turning a page GM only mid-session takes it away from them at once; your edits to an open page arrive as you type. Pages of your other campaigns never travel.</li>
-                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, dice, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
+                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, dice, character sheets, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
                           <li><b>Sound:</b> the &#127925; panel's ambient loop and cues play on every player's machine at your Master volume. Your uploaded files travel to each player over the connection (4 MB each, one at a time, the playing loop first); the bundled set never needs to (every install has it). A bundled sound you <b>Hide</b> leaves your lists and the table's list alike &mdash; players stop hearing it if it was playing &mdash; and <b>Show hidden</b> brings it back. A player can turn the table's sound off for themselves, never on when you have it off.</li>
                           <li><b>Dice:</b> anyone at the table rolls with <b>/roll</b> in Table Chat or the &#127922; roller beside the message box; your machine makes every roll and everyone sees the same card, and every table roll lands in the session log under <b>Dice</b>. <b>/gmroll</b> is yours alone, a player's <b>/gmroll</b> comes to you only, and a whisper target makes your <b>/roll</b> private to that player. Help &#9656; Dice has the syntax. Dice is a VTT feature: off for the campaign, nobody rolls.</li>
                           <li><b>One campaign per session:</b> the table is the campaign you host. Switching campaigns in any way &mdash; the picker in the &#127760; panel or the sidebar, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; asks first and, on yes, ends the session for everyone before switching. Cancel changes nothing.</li>
@@ -526,7 +530,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Journal (&#128214;):</b> everything a GM has shown you, saved on this computer with its caption. Add notes under each handout, or press <b>+ Note</b> to write your own pages in a campaign's section; it all works with no session running.</li>
                           <li><b>Targeting:</b> click a character token that isn't yours to mark it as your target &mdash; everyone sees a small copy of your own token on it (several targeters line up in the middle and wrap into rows). Click it again, or press <b>Esc</b>, to clear. One target at a time.</li>
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
-                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound, dice. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
+                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound, dice, character sheets. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
                       </ul>
                       <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
                   </div>
@@ -573,7 +577,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><code>10d6cs&gt;=5</code> count the dice showing 5 or more (successes).</li>
                           <li><code>d20 + 5 &gt;= 16</code> a check: the card says success or failure and by how much &middot; <code>3d6 &lt;= 12</code> roll-under.</li>
                           <li><code>floor</code>, <code>ceil</code>, <code>round</code>, <code>abs</code>, <code>min</code>, <code>max</code>, <code>clamp</code>, <code>mod</code>, <code>if(cond, a, b)</code>, <code>and</code> / <code>or</code> / <code>not</code>; <code>(Level)d6</code> and <code>d(Faces)</code> take a computed count or faces. Case does not matter; modifiers must touch the dice (<code>4d6kh3</code>, not <code>4d6 kh3</code>).</li>
-                          <li>Names such as <b>STR</b> or <b>Skill.Stealth</b> arrive with the character sheets; for now they are refused with a note. A table roll is at most 300 characters and 200 dice.</li>
+                          <li>Names such as <b>STR</b> or <b>Skill.Stealth</b> are the fields of the campaign&rsquo;s system (Help &#9656; Character sheets); a roll may use them once characters exist, in the next step of 1.5.0; until then they are refused with a note. A table roll is at most 300 characters and 200 dice.</li>
                       </ul>
                       <h4>Private rolls</h4>
                       <ul>
@@ -584,6 +588,20 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <ul>
                           <li>The bundled <b>Dice</b> cue plays on your own machine on every roll while the roller's <b>Sound</b> box is ticked and Sound is on for you; nothing travels the wire for it.</li>
                           <li><b>Dice</b> is a VTT feature (<b>&#9881; Settings &#9656; VTT features</b>): off for the campaign, nobody rolls at that table and the roller is hidden. At a table a player may switch it <b>off for themselves</b>: their roller and dice sound go, the cards still show. Table chat clears when a session ends or a new one starts.</li>
+                      </ul>
+                  </div>
+                  <div class="help-pane" data-pane="sheets" style="display:none;">
+                      <h4>The system</h4>
+                      <ul>
+                          <li>Press <b>System</b> in the Campaign pill (the sheet icon beside Rename) to write the rules of the campaign on screen, with no code: a list of <b>fields</b>, each with a <b>key</b> formulas use (<code>STR</code>, <code>Skill.Stealth</code>), a label, a kind, and what it stores or computes. Everything is saved with the campaign; <b>Save</b> in the editor keeps your changes, and players at a table get the visible fields at once.</li>
+                          <li><b>Kinds:</b> <b>Number</b> (an attribute: default, min, max, step) &middot; <b>Formula</b> (computed from other fields, never stored: <code>floor((STR - 10) / 2)</code>) &middot; <b>Resource</b> (a current value with a formula for its max, like HP: <code>10 + CONmod * Level</code>; the default <b>max</b> starts it full) &middot; <b>Skill</b> (stored ranks plus a base formula; its value is ranks + base; leave the base empty for absolute levels) &middot; <b>Toggle</b> (on or off, a condition; <code>if(Prone, -4, 0)</code> works) &middot; <b>Text</b>, <b>Notes</b> and <b>Select</b> (not numbers: a formula naming one gets an error).</li>
+                          <li><b>Keys</b> are one name to the formula engine: letters, digits, <code>_</code> and dots, no spaces, never a function or reserved word (<code>floor</code>, <code>and</code>), never something that reads as dice (<code>d6</code>, <code>dF</code>), and the endings <code>.max</code>, <code>.ranks</code>, <code>.cur</code>, <code>.base</code> are reserved: <code>HP.max</code> is a resource&rsquo;s max, <code>Skill.Stealth.ranks</code> the raw ranks.</li>
+                          <li><b>Formulas</b> use the dice engine&rsquo;s syntax without dice: <code>+ - * / ^</code>, <code>floor ceil round abs min max clamp mod</code>, <code>if(cond, a, b)</code>, comparisons and <code>and</code> / <code>or</code> / <code>not</code>; up to 300 characters; a formula may name other fields, in any order, but not in a loop. <b>Dice belong in rolls only</b> &mdash; a die inside a field&rsquo;s definition is refused, because a sheet must not re-roll every time it is drawn.</li>
+                          <li>Errors show under the field as you type, with a caret under the offending place; <b>Compute with defaults</b> at the foot of the Fields tab evaluates every formula so you can see the numbers.</li>
+                          <li><b>Visible to players</b> or <b>GM only</b> per field: a GM-only field and its value never leave your machine, and a visible formula that names one shows an error to players (the editor warns you). <b>Player may edit</b> or <b>GM edits</b> decides who changes the value at the table once sheets exist; formulas are never edited. <b>Hover</b> marks fields for the token&rsquo;s hover card and the party strip.</li>
+                          <li><b>Rolls</b> are named formulas with dice (<code>d20 + STRmod</code>, <code>3d6 &lt;= Skill.Stealth</code>) that become buttons on the sheet; a field can carry its own roll too. Tick <b>Initiative</b> on the roll the combat roster should use.</li>
+                          <li><b>Start from&hellip;</b> replaces the system with <b>Basic d20</b> (six attributes with modifiers, HP, AC, skills with d20 rolls, conditions) or <b>Basic 3d6</b> (ST/DX/IQ/HT, HP/FP, skills as levels with roll-under checks) or a blank; <b>Export</b> writes a <b>.wpsystem.json</b> you can <b>Import</b> into another campaign or share.</li>
+                          <li><b>Character sheets</b> is a VTT feature (&#9881; Settings &#9656; VTT features): off for the campaign, the system stays yours to edit but nothing of it shows at the table. Characters, the sheet panel on the play map and rolls from the sheet build on this system in the next steps of 1.5.0.</li>
                       </ul>
                   </div>
                   <div class="help-pane" data-pane="keys" style="display:none;">
@@ -1246,6 +1264,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Rolls at the table: /roll in Table Chat and the &#127922; roller beside it; the GM's machine makes every roll and everyone sees the same card, kept in the session log. Off hides the roller and nobody rolls at this campaign's table. Set per campaign; in a session, this campaign's setting is the most your players get.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
+            <div class="set-vtt-row" data-vtt="sheets" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Character sheets <span id="setSheetsState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setSheetsBtn" style="width:100%;">Toggle Character Sheets</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The campaign's system (the System button in the Campaign pill: attributes, formulas, rolls) and the character sheets built on it. Off keeps the system yours to edit but shows nothing of it at the table. Set per campaign; in a session, this campaign's setting is the most your players get.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
             </div>
             </div>
             <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
@@ -1274,6 +1298,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Dice <span id="setVttGlobalDiceState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalDiceBtn" style="width:100%;">Toggle Default Dice</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Character sheets <span id="setVttGlobalSheetsState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalSheetsBtn" style="width:100%;">Toggle Default Character Sheets</button>
                 </div>
                 <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
             </div>
@@ -1485,6 +1513,25 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div id="soundLibChips" class="journal-from-row"></div>
         <div id="soundLibRows" class="snd-lib-rows"></div>
         <div id="soundLibFoot" class="snd-lib-foot"></div>
+    </div>
+</div>
+<!-- Character sheets (1.5.0): the System editor (sheets.js); the pure half is systemcore.js -->
+<div id="systemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+    <div class="sys-box" style="background:var(--panel2); border:1px solid var(--gold); border-radius:8px;">
+        <div class="sys-head"><h3 style="margin:0; color:var(--gold); white-space:nowrap;">&#9881; System &mdash; <span id="sysCampName" style="color:var(--ink); font-weight:500;"></span></h3><input type="text" id="sysName" class="field sys-name" placeholder="System name (Basic d20, House rules&hellip;)" maxlength="60" title="A name for this system"><span style="flex:1;"></span><select id="sysStartSel" class="tool" title="Replace the fields, rolls and layout with a preset or a blank system"><option value="">Start from&hellip;</option><option value="blank">Blank</option><option value="d20">Basic d20</option><option value="3d6">Basic 3d6</option></select><button class="tool ghost" id="sysExportBtn" title="Save this system as a .wpsystem.json file">Export</button><button class="tool ghost" id="sysImportBtn" title="Load a .wpsystem.json file into the editor (Save keeps it)">Import</button><button class="tool ghost" id="sysClose" title="Close (unsaved changes are dropped after a confirm)">&times;</button></div>
+        <div id="sysFeatureNote" class="sys-note" style="display:none;">Character sheets are off for this campaign (&#9881; Settings &#9656; VTT features): the system is yours to edit, but nothing of it shows at the table until it is on.</div>
+        <div class="sys-tabs"><button data-tab="fields" class="active" title="Attributes, formulas, resources, skills, toggles, text, notes and selects">Fields</button><button data-tab="rolls" title="Named rolls with dice, as buttons on the sheet">Rolls</button></div>
+        <div id="sysFields" class="sys-tab">
+            <div class="sys-toolbar"><button class="tool" id="sysAddField" title="Add a field">+ Field</button><span class="sys-cols"><span title="The name formulas use">Key</span><span title="Shown on the sheet">Label</span><span title="What the field stores or computes">Kind</span><span title="Default, range and step, or the formula, by kind">Definition</span></span></div>
+            <div id="sysFieldRows" class="sys-rows"></div>
+            <div class="sys-test"><button class="tool ghost" id="sysTestBtn" title="Compute every formula with the default values">Compute with defaults</button><div id="sysTestOut" class="sys-test-out"></div></div>
+        </div>
+        <div id="sysRolls" class="sys-tab" style="display:none;">
+            <div class="sys-toolbar"><button class="tool" id="sysAddRoll" title="Add a roll">+ Roll</button><span class="sys-note">A roll is a formula with dice: <code>d20 + STRmod</code>, <code>3d6 &lt;= Skill.Stealth</code>. Tick <b>Initiative</b> on the one the combat roster should use.</span></div>
+            <div id="sysRollRows" class="sys-rows"></div>
+        </div>
+        <div class="sys-foot"><span id="sysFoot" class="sys-note"></span><span style="flex:1;"></span><button class="tool" id="sysSaveBtn" title="Save the system to this campaign (players at the table get the visible fields at once)">Save</button></div>
+        <input type="file" id="sysImportFile" accept=".json,application/json" style="display:none;">
     </div>
 </div>
 <!-- Combat roster (GM) -->

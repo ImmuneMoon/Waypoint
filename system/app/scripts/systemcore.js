@@ -1,0 +1,413 @@
+/* Character sheets and the rules model (1.5.0) — the pure half: a campaign's SYSTEM (named fields with defaults or
+   formulas, rolls, a sheet layout), its CHARACTERS (values keyed by field id), the cleaners for what comes off the
+   wire or out of a file, the validator behind the editor's carets, the resolver that lets the formula engine read
+   a character's names (STR, Skill.Stealth, HP.max), the per-recipient view a player receives, the hover lines,
+   the auto layout and the ShadowBase bridge. No DOM, no state, no engine import: the engine API (window.wpFormula
+   or a stub) is passed in as F, so tools/systemcheck.js runs this under Node. Published as window.wpSystemCore.
+   Design of record: docs/SHEET_BUILDER_PLAN.md. */
+'use strict';
+
+var VERSION = '1.5.0';
+var LIMITS = Object.freeze({
+    fields: 300, rolls: 50, sections: 20, placements: 200, options: 50, optionChars: 60,
+    key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
+    text: 200, notes: 20000, name: 60, charName: 60, names: 200,
+    cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000
+});
+var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1 });
+var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1 });
+var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
+var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
+var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1 });
+var RESERVED_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1 });
+var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, sqrt: 1, min: 1, max: 1, clamp: 1, mod: 1, 'if': 1, and: 1, or: 1, not: 1, 'true': 1, 'false': 1 });
+var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
+var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
+var CTRL_KEEP_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
+var PATH_RE = /^[/]saves[/]images[/][^?#]{1,300}$/;
+var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1 });
+
+function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
+function fin(v) { return typeof v === 'number' && isFinite(v); }
+function map() { return Object.create(null); }
+function lower(s) { return String(s).toLowerCase(); }
+function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 10); }
+function emptySystem() { return { v: 1, name: '', preset: '', updated: 0, fields: [], rolls: [], sheet: { sections: [] } }; }
+
+/* ---------- keys and formulas ---------- */
+// A key is exactly one name to the engine: parse(key) must give a bare name node (that tracks every lexer decision —
+// reserved words, function names, d6 / dF / d% / d( are all refused by the engine itself); the dotted suffixes
+// .max .ranks .cur .base are ours.
+function validKey(key, F) {
+    if (typeof key !== 'string' || !key || key.length > LIMITS.key || /[ ]/.test(key) || CTRL_RE.test(key)) return false;
+    var p = F && F.parse ? F.parse(key) : null;
+    if (!p || !p.ok || !p.ast || !p.ast.body || p.ast.body.t !== 'name' || p.ast.body.paren) return false;
+    var segs = key.split('.');
+    if (segs.length > 1 && RESERVED_SUFFIX[lower(segs[segs.length - 1])]) return false;
+    if (FUNC_NAMES[lower(key)]) return false;   // a function name lexes as a name when no "(" follows; never a key
+    return true;
+}
+function cleanFormulaText(s) {
+    if (typeof s !== 'string') return null;
+    s = s.trim();
+    if (!s || s.length > LIMITS.formula || CTRL_RE.test(s)) return null;
+    return s;
+}
+function hasDice(node) {
+    if (!node || typeof node !== 'object') return false;
+    if (node.t === 'dice') return true;
+    var keys = Object.keys(node);
+    for (var i = 0; i < keys.length; i++) { var v = node[keys[i]]; if (v && typeof v === 'object' && hasDice(v)) return true; }
+    return false;
+}
+function editDistance(a, b) {
+    var m = a.length, n = b.length, prev = [], cur, i, j;
+    for (j = 0; j <= n; j++) prev.push(j);
+    for (i = 1; i <= m; i++) { cur = [i]; for (j = 1; j <= n; j++) cur.push(Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))); prev = cur; }
+    return prev[n];
+}
+function suggest(name, keys) {
+    var best = null, bd = 3, l = lower(name);
+    if (l.length > 64) return null;
+    for (var i = 0; i < keys.length && i < 5000; i++) { var k = keys[i]; if (Math.abs(k.length - l.length) > 2) continue; var d = editDistance(l, lower(k)); if (d < bd) { bd = d; best = k; } }
+    return best;
+}
+
+/* ---------- cleaners ---------- */
+function cleanNum(v, dflt) { v = Number(v); return fin(v) ? v : dflt; }
+function cleanField(f, F, gmView) {
+    if (!isObj(f) || typeof f.id !== 'string' || !FIELD_ID.test(f.id) || !KINDS[f.kind]) return null;
+    if (!validKey(f.key, F)) return null;
+    var vis = f.vis === 'gm' ? 'gm' : 'all';
+    if (!gmView && vis === 'gm') return null;
+    var out = { id: f.id, key: f.key, label: str(f.label, LIMITS.label).replace(CTRL_RE, ' ').trim() || f.key, kind: f.kind, vis: vis, hover: f.hover === true };
+    if (STORED[f.kind]) out.edit = f.edit === 'gm' ? 'gm' : 'owner';
+    var k = f.kind;
+    if (k === 'number' || k === 'skill') {
+        if (fin(Number(f.min))) out.min = Number(f.min);
+        if (fin(Number(f.max))) out.max = Number(f.max);
+        if (out.min !== undefined && out.max !== undefined && out.min > out.max) out.max = out.min;
+        var step = cleanNum(f.step, 1); out.step = step > 0 ? step : 1;
+        out.def = clampNum(cleanNum(f.def, 0), out.min, out.max);
+        if (k === 'skill') { var b = cleanFormulaText(f.base); out.base = b === null ? (f.base === null ? null : '') : b; }
+    } else if (k === 'formula') {
+        var fm = cleanFormulaText(f.formula); out.formula = fm === null ? (f.formula === null ? null : '') : fm;
+    } else if (k === 'resource') {
+        var mf = cleanFormulaText(f.maxFormula); out.maxFormula = mf === null ? (f.maxFormula === null ? null : '') : mf;
+        out.min = fin(Number(f.min)) ? Number(f.min) : 0;
+        out.def = f.def === 'max' ? 'max' : clampNum(cleanNum(f.def, 0), out.min, undefined);
+    } else if (k === 'toggle') { out.def = f.def === true; }
+    else if (k === 'text') { out.max = Math.max(1, Math.min(LIMITS.text, cleanNum(f.max, LIMITS.text) | 0)); out.def = str(f.def, out.max).replace(CTRL_RE, ''); }
+    else if (k === 'notes') { /* no default, no cap below the limit */ }
+    else if (k === 'select') {
+        var seen = map(), opts = [];
+        (Array.isArray(f.options) ? f.options : []).forEach(function(o) { if (typeof o !== 'string') return; o = o.slice(0, LIMITS.optionChars).replace(CTRL_RE, '').trim(); if (!o || seen[lower(o)] || opts.length >= LIMITS.options) return; seen[lower(o)] = 1; opts.push(o); });
+        out.options = opts;
+        out.def = typeof f.def === 'string' && opts.indexOf(f.def) >= 0 ? f.def : (opts[0] || '');
+    }
+    if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) out.roll = r; }
+    return out;
+}
+function clampNum(v, lo, hi) { if (lo !== undefined && v < lo) v = lo; if (hi !== undefined && v > hi) v = hi; return v; }
+function cleanRollDef(r, gmView) {
+    if (!isObj(r) || typeof r.id !== 'string' || !ROLL_ID.test(r.id)) return null;
+    var vis = r.vis === 'gm' ? 'gm' : 'all';
+    if (!gmView && vis === 'gm') return null;
+    var fm = cleanFormulaText(r.formula); if (!fm) return null;
+    var out = { id: r.id, label: str(r.label, LIMITS.label).replace(CTRL_RE, ' ').trim() || 'Roll', formula: fm, vis: vis };
+    if (r.init === true) out.init = true;
+    return out;
+}
+function cleanSheet(sheet, fieldIds, rollIds) {
+    var out = { sections: [] }, placed = map(), total = 0;
+    if (!isObj(sheet) || !Array.isArray(sheet.sections)) return out;
+    for (var i = 0; i < sheet.sections.length && out.sections.length < LIMITS.sections; i++) {
+        var s = sheet.sections[i];
+        if (!isObj(s) || typeof s.id !== 'string' || !SECTION_ID.test(s.id)) continue;
+        var cols = Math.max(1, Math.min(LIMITS.cols, cleanNum(s.cols, 1) | 0));
+        var sec = { id: s.id, title: str(s.title, LIMITS.label).replace(CTRL_RE, ' ').trim(), cols: cols, fields: [] };
+        (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
+            if (!isObj(p) || total >= LIMITS.placements) return;
+            var w = p.w === 'row' ? 'row' : 1, item = null;
+            if (typeof p.id === 'string' && fieldIds[p.id] && !placed[p.id]) { placed[p.id] = 1; item = { id: p.id, w: w }; }
+            else if (typeof p.roll === 'string' && rollIds[p.roll]) item = { roll: p.roll, w: w };
+            else if (typeof p.kind === 'string' && LAYOUT[p.kind]) { item = { kind: p.kind, w: w }; if (p.kind === 'heading') item.text = str(p.text, LIMITS.label).replace(CTRL_RE, ' ').trim(); }
+            if (item) { sec.fields.push(item); total++; }
+        });
+        out.sections.push(sec);
+    }
+    return out;
+}
+// The system as stored, or as a player receives it (gmView false: GM-only fields and rolls gone, formulas that named them nulled)
+function cleanSystem(sys, opts) {
+    opts = opts || {}; var F = opts.F, gmView = opts.gmView !== false;
+    if (!isObj(sys) || !F) return null;
+    var out = emptySystem();
+    out.name = str(sys.name, LIMITS.name).replace(CTRL_RE, ' ').trim();
+    out.preset = /^[a-z0-9_-]{1,20}$/.test(String(sys.preset || '')) ? String(sys.preset) : '';
+    out.updated = fin(Number(sys.updated)) && Number(sys.updated) >= 0 ? Number(sys.updated) : 0;
+    var seenId = map(), seenKey = map(), dropped = [];
+    (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
+        if (out.fields.length >= LIMITS.fields) return;
+        var c = cleanField(f, F, gmView);
+        if (!c) { if (isObj(f) && typeof f.key === 'string' && f.vis === 'gm' && !gmView) dropped.push(lower(f.key)); return; }
+        if (seenId[c.id] || seenKey[lower(c.key)]) return;
+        seenId[c.id] = 1; seenKey[lower(c.key)] = 1; out.fields.push(c);
+    });
+    var seenR = map();
+    (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
+    if (!gmView && dropped.length) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
+        var isDropped = map(); dropped.forEach(function(k) { isDropped[k] = 1; });
+        var mentions = function(text) {
+            if (!text) return false;
+            return F.names(text).some(function(n) { var l = lower(n), dot = l.lastIndexOf('.'); if (isDropped[l]) return true; return dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; });
+        };
+        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; });
+        out.rolls = out.rolls.filter(function(r) { return !mentions(r.formula); });
+    }
+    var fieldIds = map(), rollIds = map();
+    out.fields.forEach(function(f) { fieldIds[f.id] = 1; }); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });
+    out.sheet = cleanSheet(sys.sheet, fieldIds, rollIds);
+    return out;
+}
+function fieldById(sys, id) { for (var i = 0; i < sys.fields.length; i++) if (sys.fields[i].id === id) return sys.fields[i]; return null; }
+function keyIndex(sys) { var ix = map(); sys.fields.forEach(function(f) { ix[lower(f.key)] = f; }); return ix; }
+// One stored value coerced to its field's kind, or undefined (drop). opts.max: an evaluated resource max (or null = unbounded)
+function cleanValue(field, v, opts) {
+    var k = field.kind;
+    if (k === 'number' || k === 'skill') { var n = Number(v); if (!fin(n)) return undefined; n = stepRound(n, field); return clampNum(n, field.min, field.max); }
+    if (k === 'toggle') return v === true ? true : v === false ? false : undefined;
+    if (k === 'text') { if (typeof v !== 'string') return undefined; return v.slice(0, field.max || LIMITS.text).replace(CTRL_RE, ''); }
+    if (k === 'notes') { if (typeof v !== 'string') return undefined; return v.slice(0, LIMITS.notes).replace(CTRL_KEEP_NL, ''); }
+    if (k === 'select') return typeof v === 'string' && field.options.indexOf(v) >= 0 ? v : undefined;
+    if (k === 'resource') {
+        var cur = isObj(v) ? Number(v.cur) : Number(v); if (!fin(cur)) return undefined;
+        cur = clampNum(Math.round(cur), field.min, opts && fin(opts.max) ? opts.max : undefined);
+        return { cur: cur };
+    }
+    return undefined;
+}
+function stepRound(n, field) { var step = field.step > 0 ? field.step : 1, base = field.min !== undefined ? field.min : 0; return base + Math.round((n - base) / step) * step; }
+function cleanChar(c, sys) {
+    if (!isObj(c) || typeof c.id !== 'string' || !CHAR_ID.test(c.id) || !sys) return null;
+    var out = { id: c.id, name: str(c.name, LIMITS.charName).replace(CTRL_RE, ' ').trim() || 'Character', ownerId: str(c.ownerId, 60).replace(CTRL_RE, ''), portrait: '', npc: c.npc === true, values: {}, updated: fin(Number(c.updated)) ? Number(c.updated) : 0 };
+    if (out.npc) out.ownerId = '';
+    if (typeof c.portrait === 'string' && PATH_RE.test(c.portrait) && c.portrait.indexOf('..') < 0 && !CTRL_RE.test(c.portrait)) out.portrait = c.portrait;
+    var vals = isObj(c.values) ? c.values : {};
+    Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; var v = cleanValue(f, vals[fid], null); if (v !== undefined) out.values[fid] = v; });
+    return out;
+}
+function cleanCharEdit(msg) {
+    if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.fieldId !== 'string' || !FIELD_ID.test(msg.fieldId)) return null;
+    var v = msg.value;
+    if (typeof v === 'string') { if (v.length > LIMITS.valueChars) return null; }
+    else if (typeof v === 'number') { if (!fin(v)) return null; }
+    else if (typeof v === 'boolean') { /* fine */ }
+    else if (isObj(v)) { if (!fin(Number(v.cur))) return null; v = { cur: Number(v.cur) }; }
+    else return null;
+    return { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, value: v };
+}
+function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'value'; }
+
+/* ---------- the resolver: the engine reads a character's names through this ---------- */
+function noDice() { return NaN; }   // a die inside a definition fails at the die: "The random source returned NaN"
+function storedOf(field, char) {
+    var v = char && char.values ? char.values[field.id] : undefined;
+    if (v === undefined) return field.kind === 'resource' ? (field.def === 'max' ? { cur: null } : { cur: field.def }) : field.kind === 'notes' ? '' : field.def;
+    return v;
+}
+function makeResolver(sys, char, F) {
+    var ix = keyIndex(sys), cache = map(), chain = [];
+    function evalDef(name, text) {
+        if (text === null) return { error: { message: 'GM only', pos: 0, len: 0 } };
+        if (!text) return { error: { message: 'Missing formula', pos: 0, len: 0 } };
+        chain.push(name);
+        var res = F.evaluate(text, { vars: fn, random: noDice, depth: chain.length, stack: chain.slice() });
+        chain.pop();
+        if (res.ok) return { value: res.value };
+        return { error: res.error };
+    }
+    function loopError(name) { return { error: { message: 'Formulas refer to each other in a loop: ' + chain.concat(name).join(' → '), pos: 0, len: 0 } }; }
+    function fn(name) {
+        var l = lower(name);
+        if (l in cache) return cache[l];
+        var field = ix[l], suffix = null;
+        if (!field) { var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)]) { field = ix[l.slice(0, dot)]; suffix = l.slice(dot + 1); } }
+        if (!field) return undefined;
+        if (chain.indexOf(l) >= 0) return loopError(l);
+        var out, r, k = field.kind;
+        if (k === 'text' || k === 'select') out = storedOf(field, char);
+        else if (k === 'notes') return undefined;
+        else if (k === 'number' || k === 'toggle') out = storedOf(field, char);
+        else if (k === 'skill') {
+            var ranks = storedOf(field, char);
+            if (suffix === 'ranks') out = ranks;
+            else if (suffix === 'base' || !suffix) { var b = field.base ? evalDef(l, field.base) : { value: 0 }; if (b.error) return b; out = suffix === 'base' ? b.value : ranks + b.value; }
+            else return undefined;
+        } else if (k === 'resource') {
+            if (suffix && suffix !== 'max' && suffix !== 'cur') return undefined;
+            var stored = storedOf(field, char);   // { cur } — cur null means "full" (def: 'max')
+            if (suffix === 'max' || stored.cur === null) { r = field.maxFormula ? evalDef(l + '.max', field.maxFormula) : { value: field.min || 0 }; if (r.error) return r; out = r.value; }
+            else out = stored.cur;
+        } else if (k === 'formula') { if (suffix) return undefined; r = evalDef(l, field.formula); if (r.error) return r; out = r.value; }
+        else return undefined;
+        cache[l] = out;   // values only; an error is path-dependent and is never cached
+        return out;
+    }
+    fn.reset = function() { cache = map(); chain = []; };
+    fn.chain = function() { return chain.slice(); };
+    return fn;
+}
+// Every field's value for a render: { fieldId: { value, text, error, max } } (max for resources)
+function resolveAll(sys, char, F) {
+    var r = makeResolver(sys, char, F), out = map();
+    sys.fields.forEach(function(f) {
+        var e = { value: undefined, text: '', error: null };
+        var k = f.kind;
+        if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
+        else if (k === 'toggle' || k === 'number') { e.value = storedOf(f, char); e.text = fmtNum(e.value); }
+        else {
+            var v = r(f.key);
+            if (v && typeof v === 'object' && v.error) { e.error = v.error.message; e.text = '—'; }
+            else { e.value = v; e.text = fmtNum(v); }
+            if (k === 'resource') { var m = r(f.key + '.max'); if (m && typeof m === 'object' && m.error) { e.max = null; if (!e.error) e.error = m.error.message; } else { e.max = m; e.text = fmtNum(e.value) + ' / ' + fmtNum(m); } }
+            if (k === 'skill') { var rk = r(f.key + '.ranks'); e.ranks = rk; }
+        }
+        out[f.id] = e;
+    });
+    return out;
+}
+function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (typeof v !== 'number' || !isFinite(v)) return v === null || v === undefined ? '' : String(v); if (Math.floor(v) === v) return String(v); return String(Number(v.toFixed(2))); }
+// "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error
+function hoverLines(sys, char, F) {
+    var all = resolveAll(sys, char, F), lines = [];
+    sys.fields.forEach(function(f) {
+        if (!f.hover) return;
+        var e = all[f.id]; if (!e || e.error) return;
+        if (f.kind === 'toggle') { if (e.value === true) lines.push(f.label); return; }
+        if (f.kind === 'notes') return;
+        if (e.text) lines.push(f.label + ' ' + e.text);
+    });
+    return lines;
+}
+
+/* ---------- the validator behind the editor ---------- */
+function validateSystem(sys, F) {
+    var errors = [], warnings = [];
+    if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };
+    var keys = sys.fields.map(function(f) { return f.key; }), lowerKeys = keys.map(lower), ix = keyIndex(sys);
+    var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } });
+    var edges = map();
+    function checkFormula(owner, prop, text, allowDice, vis) {
+        if (text === null) return;
+        if (!text) { errors.push({ id: owner.id, prop: prop, message: 'Missing formula', pos: 0, len: 0 }); return; }
+        var p = F.parse(text);
+        if (!p.ok) { errors.push({ id: owner.id, prop: prop, message: p.error.message, pos: p.error.pos, len: p.error.len }); return; }
+        if (!allowDice && hasDice(p.ast.body)) { errors.push({ id: owner.id, prop: prop, message: 'Dice are not allowed in a definition; put the dice in a roll.', pos: 0, len: text.length }); }
+        p.names.forEach(function(n) {
+            var l = lower(n), target = known[l];
+            if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
+            if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
+            if (vis === 'all' && target.vis === 'gm') warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.' });
+            if (prop !== 'roll' && prop !== 'rollFormula') { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
+        });
+    }
+    sys.fields.forEach(function(f) {
+        var p = DEF_PROP[f.kind];
+        if (p && !(p === 'base' && f.base === '')) checkFormula(f, p, f[p], false, f.vis);   // a skill with no base is ranks alone
+        if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
+    });
+    sys.rolls.forEach(function(r) { checkFormula({ id: r.id, key: r.id }, 'rollFormula', r.formula, true, r.vis); });
+    // loops: DFS over the definition graph
+    var state = map(), stack = [];
+    function visit(k) {
+        state[k] = 1; stack.push(k);
+        (edges[k] || []).forEach(function(to) {
+            if (state[to] === 1) { var at = stack.indexOf(to), cyc = stack.slice(at).concat(to).map(function(x) { return ix[x] ? ix[x].key : x; }); errors.push({ id: ix[k] ? ix[k].id : k, prop: DEF_PROP[ix[k] ? ix[k].kind : ''] || 'formula', message: 'Formulas refer to each other in a loop: ' + cyc.join(' → '), pos: 0, len: 0 }); }
+            else if (!state[to]) visit(to);
+        });
+        stack.pop(); state[k] = 2;
+    }
+    lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });
+    return { ok: errors.length === 0, errors: errors, warnings: warnings };
+}
+
+/* ---------- what a player receives ---------- */
+// An NPC or an ownerless character: nothing. The owner: every visible value. Another player: the hover fields only.
+function charFor(c, sys, recipientId) {
+    if (!c || c.npc || !c.ownerId) return null;
+    var own = c.ownerId === recipientId, values = {};
+    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) values[f.id] = c.values[f.id]; });
+    return { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
+}
+// The host's answer to one edit (its own or a player's): { ok, value } or { ok: false, reason }
+function applyEdit(sys, char, fieldId, value, F, opts) {
+    opts = opts || {};
+    var f = fieldById(sys, fieldId); if (!f || !STORED[f.kind]) return { ok: false, reason: 'field' };
+    if (opts.player && f.edit !== 'owner') return { ok: false, reason: 'field' };
+    if (opts.player && f.vis !== 'all') return { ok: false, reason: 'field' };
+    var max = null;
+    if (f.kind === 'resource') { var r = makeResolver(sys, char, F)(f.key + '.max'); max = typeof r === 'number' && isFinite(r) ? r : null; }
+    var v = cleanValue(f, value, { max: max });
+    if (v === undefined) return { ok: false, reason: 'value' };
+    return { ok: true, value: v };
+}
+
+/* ---------- the auto layout (SB2): one section per kind group, then the rolls ---------- */
+function autoLayout(sys) {
+    var groups = [['number', 'Attributes'], ['formula', 'Derived'], ['resource', 'Resources'], ['skill', 'Skills'], ['toggle', 'Conditions'], ['text', 'Details'], ['select', 'Details'], ['notes', 'Notes']];
+    var secs = [], byTitle = map();
+    groups.forEach(function(g) {
+        sys.fields.forEach(function(f) {
+            if (f.kind !== g[0]) return;
+            var s = byTitle[g[1]]; if (!s) { s = byTitle[g[1]] = { id: 's_auto_' + g[1].toLowerCase(), title: g[1], cols: g[0] === 'notes' ? 1 : g[0] === 'toggle' ? 4 : g[0] === 'skill' ? 2 : 3, fields: [] }; secs.push(s); }
+            s.fields.push({ id: f.id, w: f.kind === 'notes' ? 'row' : 1 });
+        });
+    });
+    if (sys.rolls.length) secs.push({ id: 's_auto_rolls', title: 'Rolls', cols: 3, fields: sys.rolls.map(function(r) { return { roll: r.id, w: 1 }; }) });
+    return { sections: secs };
+}
+
+/* ---------- the ShadowBase bridge: copy once into matching keys ---------- */
+// ShadowBase paths and the keys they may land on, first match wins (ST or STR, HT or CON, IQ or INT — the common spellings)
+var SB_MAP = [
+    { path: ['attributes', 'strength'], keys: ['st', 'str', 'strength'] }, { path: ['attributes', 'dexterity'], keys: ['dx', 'dex', 'dexterity'] },
+    { path: ['attributes', 'iq'], keys: ['iq', 'int', 'intelligence'] }, { path: ['attributes', 'health'], keys: ['ht', 'con', 'health', 'constitution'] },
+    { path: ['characteristics', 'hitPoints'], keys: ['hp', 'hitpoints'] }, { path: ['characteristics', 'endurancePoints'], keys: ['fp', 'ep', 'fatigue', 'endurance'] },
+    { path: ['characteristics', 'forcePoints'], keys: ['force', 'forcepoints'] }, { path: ['characteristics', 'will'], keys: ['will'] }, { path: ['characteristics', 'perception'], keys: ['per', 'perception'] },
+    { path: ['characteristics', 'basicSpeed'], keys: ['speed', 'basicspeed'] }, { path: ['characteristics', 'basicMove'], keys: ['move', 'basicmove'] },
+    { path: ['characteristics', 'defenses', 'dodge'], keys: ['dodge'] }, { path: ['characteristics', 'defenses', 'parry'], keys: ['parry'] }
+];
+function pick(obj, path) { var cur = obj; for (var i = 0; i < path.length; i++) { if (!isObj(cur)) return undefined; cur = cur[path[i]]; } return cur; }
+function numOf(v) { if (typeof v === 'number') return v; if (isObj(v)) { var c = [v.effective, v.final, v.value, v.level, v.current]; for (var i = 0; i < c.length; i++) if (typeof c[i] === 'number' && isFinite(c[i])) return c[i]; } return undefined; }
+function aliasFromShadowBase(json, sys, F) {
+    var values = {}, matched = 0;
+    if (!isObj(json) || !sys) return { values: values, matched: 0 };
+    var ix = keyIndex(sys);
+    SB_MAP.forEach(function(m) {
+        var f = null; for (var i = 0; i < m.keys.length && !f; i++) if (ix[m.keys[i]] && STORED[ix[m.keys[i]].kind]) f = ix[m.keys[i]];
+        if (!f) return;
+        var raw = pick(json, m.path);
+        if (f.kind === 'resource') { var cur = isObj(raw) && typeof raw.current === 'number' ? raw.current : numOf(raw); if (cur === undefined) return; values[f.id] = { cur: Math.round(cur) }; matched++; return; }
+        var n = numOf(raw); if (n === undefined) return;
+        values[f.id] = n; matched++;
+    });
+    var temp = { id: 'c_tmp', name: '', ownerId: '', npc: true, values: values };
+    (Array.isArray(json.skills) ? json.skills : []).forEach(function(s) {
+        if (!isObj(s) || typeof s.name !== 'string' || typeof s.level !== 'number') return;
+        var want = lower(s.name).replace(/[^a-z0-9]/g, '');
+        var f = null;
+        for (var i = 0; i < sys.fields.length; i++) { var c = sys.fields[i]; if (c.kind !== 'skill') continue; var last = lower(c.key).split('.').pop().replace(/[^a-z0-9]/g, ''), lab = lower(c.label).replace(/[^a-z0-9]/g, ''); if (last === want || lab === want) { f = c; break; } }
+        if (!f) return;
+        var base = 0;
+        if (f.base) { var r = makeResolver(sys, temp, F)(f.key + '.base'); if (typeof r === 'number' && isFinite(r)) base = r; }
+        values[f.id] = cleanValue(f, s.level - base, null);
+        if (values[f.id] === undefined) delete values[f.id]; else matched++;
+    });
+    return { values: values, matched: matched };
+}
+
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanDenyReason: cleanDenyReason, fieldById: fieldById, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+if (typeof window !== 'undefined') window.wpSystemCore = API;
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanDenyReason, fieldById, keyIndex, makeResolver, resolveAll, hoverLines, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

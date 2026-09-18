@@ -80,6 +80,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/dicecore.js"></script>
 <script type="module" src="scripts/dice.js"></script>
 <script type="module" src="scripts/sheets.js"></script>
+<script type="module" src="scripts/fxcore.js"></script>
+<script type="module" src="scripts/fx.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
@@ -362,12 +364,13 @@ window.addEventListener('unhandledrejection', function(e) {
                       </ol>
                       <h4>Blast radius</h4>
                       <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Drag a blast to move it (it re-seats in a cell and, unless you set its height, takes the height of whoever stands there); right-click it to remove it. Blasts are yours alone, like rulers.</p>
+                      <p><b>&#128165; Boom:</b> with Visual effects on, each blast template shows a <b>Boom</b> label &mdash; click it to set off an explosion burst at that spot for everyone on the map.</p>
                       <div class="help-tip"><b>Temporary:</b> the toolbar blast button is a stopgap. Blasts will be thrown by the character &mdash; PC or NPC &mdash; from the VTT character sheets once those are implemented, and the preset explosive types are not permanent, names and radii alike: they will be defined per campaign, from that campaign's own weapons, and customizable.</div>
                       <h4>Elevation &amp; posture</h4>
                       <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. They are set <b>per campaign</b>; in a session your campaign's settings are the most your players see.</p>
                       <h4 id="helpVtt">VTT settings</h4>
                       <ul>
-                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap, sound, dice and character sheets are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
+                          <li><b>Per campaign.</b> Token elevation, token posture, the minimap, sound, dice, character sheets and visual effects are switched in <b>&#9881; Settings &#9656; VTT features</b> for the campaign on screen, and saved with it in the save file &mdash; a restore or an import brings a campaign's settings back with it. <b>VTT integration</b> is the master switch: off is the plain whiteboard, every feature off and hidden, with the per-feature choices kept for when it goes back on.</li>
                           <li><b>Default for new campaigns.</b> The same section holds the default a campaign starts with. Changing it touches no existing campaign; <b>Apply to existing campaigns&hellip;</b> copies it onto the campaigns you tick (nothing is ticked to begin with). The default lives with your preferences (the saves folder's <b>preferences.json</b>) and is cleared by Reset Local Preferences; the campaigns are not.</li>
                           <li><b>In a session, the GM's campaign is the ceiling.</b> Players see at most what the hosted campaign has on. A GM change mid-session reaches the table at once, with a short notice on each player's screen.</li>
                           <li><b>Off for me.</b> At a table, a player can switch a feature the GM has on <b>off for themselves</b> in the same section (&ldquo;Turn off for me&rdquo;), never on when the GM has it off. The choice is remembered per table (that campaign, that GM) and never touches the player's own default or campaigns.</li>
@@ -477,9 +480,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Pause the Table</b> (in the <b>&#127760;</b> panel while hosting) freezes players entirely &mdash; no token moves, no travel &mdash; while chat stays open. Press it again to resume. You can still move everything yourself while paused.</li>
                           <li>Player token moves save into your campaign automatically &mdash; nothing is stored on their machines.</li>
                           <li><b>Handbook:</b> the pages of the hosted campaign that are not marked <b>GM only</b> reach every player, who read them in a panel over the map. Turning a page GM only mid-session takes it away from them at once; your edits to an open page arrive as you type. Pages of your other campaigns never travel.</li>
-                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, dice, character sheets, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
+                          <li><b>VTT features:</b> the hosted campaign's settings (&#9881; Settings &#9656; VTT features &mdash; elevation, posture, minimap, sound, dice, character sheets, visual effects, and the VTT integration master) are the most your players see; a change mid-session reaches them at once. The &#127760; panel shows what the table runs with. Players may switch a feature off for themselves, never on. A player's own elevation or posture edit is accepted only while that feature is on for the campaign.</li>
                           <li><b>Sound:</b> the &#127925; panel's ambient loop and cues play on every player's machine at your Master volume. Your uploaded files travel to each player over the connection (4 MB each, one at a time, the playing loop first); the bundled set never needs to (every install has it). A bundled sound you <b>Hide</b> leaves your lists and the table's list alike &mdash; players stop hearing it if it was playing &mdash; and <b>Show hidden</b> brings it back. A player can turn the table's sound off for themselves, never on when you have it off.</li>
                           <li><b>Character sheets:</b> the campaign&rsquo;s system reaches players with GM-only fields removed; a player gets their own character in full, other PCs&rsquo; Hover fields only, NPCs never. Their edits to fields you left player-editable are checked on your machine and saved into your campaign; you see them at once on the sheet and the hover card; a roll from a sheet is a table roll with the character&rsquo;s values on the card. Help &#9656; Character sheets.</li>
+                          <li><b>Visual effects:</b> the &#10024; panel fires flashes, screen shake, colour washes, bursts, weather and banners to the players on that map (and the stream window); a token can pulse from its menu, and the Blast tool gets a Boom. Off for the campaign hides it; a player can switch it off for themselves.</li>
                           <li><b>Dice:</b> anyone at the table rolls with <b>/roll</b> in Table Chat or the &#127922; roller beside the message box; your machine makes every roll and everyone sees the same card, and every table roll lands in the session log under <b>Dice</b>. <b>/gmroll</b> is yours alone, a player's <b>/gmroll</b> comes to you only, and a whisper target makes your <b>/roll</b> private to that player. Help &#9656; Dice has the syntax. Dice is a VTT feature: off for the campaign, nobody rolls.</li>
                           <li><b>One campaign per session:</b> the table is the campaign you host. Switching campaigns in any way &mdash; the picker in the &#127760; panel or the sidebar, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace, the tutorial &mdash; asks first and, on yes, ends the session for everyone before switching. Cancel changes nothing.</li>
                       </ul>
@@ -522,6 +526,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
                           <li><b>Sound:</b> the GM's ambient loop and cues play on your machine. The <b>&#128266;</b> speaker in the Table pill has your own volume, a mute, and <b>Off for me at this table</b>. In a browser tab, one click on the page is needed before sound may play; the speaker pulses until then.</li>
                           <li><b>Character sheets:</b> right-click your token &#9656; <b>Sheet&hellip;</b> to open your character&rsquo;s sheet and fill in what the GM left editable; the GM&rsquo;s Waypoint checks each value and keeps it. Other characters show only what the GM marked for the hover card. The roll buttons on your sheet (and a character picked in the &#127922; roller) roll with your values, and the card shows them. <b>&#9881; Settings &#9656; VTT features</b> can switch sheets off for yourself (your token still moves).</li>
+                          <li><b>Visual effects:</b> the GM&rsquo;s flashes, shake, washes, bursts, weather and banners appear on the map you are on. <b>&#9881; Settings &#9656; VTT features</b> can switch them off for yourself, and <b>Reduce motion</b> there skips shake and shortens flashes.</li>
                           <li><b>Dice:</b> <b>/roll 2d6 + 3</b> in Table Chat, or the &#127922; roller beside the message box; the GM's Waypoint makes the roll and everyone sees the same card. <b>/gmroll</b> rolls to the GM only. Help &#9656; Dice has the syntax; the roller's Sound box mutes the dice cue for you, and <b>&#9881; Settings &#9656; VTT features</b> can switch dice off for yourself (the cards still show).</li>
                       </ul>
                       <h4>What you'll see</h4>
@@ -532,7 +537,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Journal (&#128214;):</b> everything a GM has shown you, saved on this computer with its caption. Add notes under each handout, or press <b>+ Note</b> to write your own pages in a campaign's section; it all works with no session running.</li>
                           <li><b>Targeting:</b> click a character token that isn't yours to mark it as your target &mdash; everyone sees a small copy of your own token on it (several targeters line up in the middle and wrap into rows). Click it again, or press <b>Esc</b>, to clear. One target at a time.</li>
                           <li>Editing tools are the GM's &mdash; your token moves are saved on their side, and nothing is stored on your machine.</li>
-                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound, dice, character sheets. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
+                          <li><b>VTT features at the table:</b> the GM's campaign decides which are on &mdash; token elevation, token posture, the minimap, sound, dice, character sheets, visual effects. <b>&#9881; Settings &#9656; VTT features</b> shows the GM's setting for each and lets you switch one <b>off for yourself</b> (never on when the GM has it off); the choice is remembered for that table and never changes your own settings. When a table differs from your own default, a window on joining lists what is on there but off for you (your own default carries in, so those start off for you until you pick <b>Use the table's settings</b>) and what the GM has off. It comes back only when the GM has changed the settings since you last saw it; a change mid-session is a short notice.</li>
                       </ul>
                       <div class="help-tip">Dropped out? Just join again with the same code. To leave on purpose, open <b>&#127760;</b> and press <b>Leave</b> &mdash; your own campaigns come right back.</div>
                   </div>
@@ -551,10 +556,6 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <ul>
                           <li>The toolbar <b>&#128165; Blast</b> tool is a <b>stopgap</b>. Grenades will be thrown by the character &mdash; PC or NPC &mdash; from their own sheet, with the weapon they carry deciding the blast.</li>
                           <li>The preset explosive types &mdash; their names (Frag, Concussion, Sonic, Ion, Plasma) and their radii &mdash; are <b>not permanent</b>: they will be defined <b>per campaign</b>, from that campaign's own weapons, and <b>customizable</b>.</li>
-                      </ul>
-                      <h4>Visual effects</h4>
-                      <ul>
-                          <li><b>Visual effects on the play map.</b> Sound arrived in 1.5.0 (the &#127925; panel); next, effects on the VTT &mdash; so a spell, a blast, or a door opening lands with more than a token sliding across the grid.</li>
                       </ul>
                       <h4>Campaign content</h4>
                       <ul>
@@ -589,6 +590,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <ul>
                           <li>The bundled <b>Dice</b> cue plays on your own machine on every roll while the roller's <b>Sound</b> box is ticked and Sound is on for you; nothing travels the wire for it.</li>
                           <li><b>Dice</b> is a VTT feature (<b>&#9881; Settings &#9656; VTT features</b>): off for the campaign, nobody rolls at that table and the roller is hidden. At a table a player may switch it <b>off for themselves</b>: their roller and dice sound go, the cards still show. Table chat clears when a session ends or a new one starts.</li>
+                          <li><b>Visual effects</b> (the &#10024; button, a VTT feature): a panel of flashes, screen shake, colour washes (darkness / red mist / blinding, held until you clear them), bursts you place on the map (boom, magic, smoke, sparks), weather that runs until you stop it (rain, snow, embers, haze) and text banners. Right-click a token for a <b>Pulse</b>; the &#128165; Blast tool gains a <b>Boom</b>. The players on that map see it (and the stream window); a burst has a place, so a player on another map does not. <b>Reduce motion</b> (per machine, in Settings) skips shake and shortens flashes, and a hard flash guard prevents strobing.</li>
                       </ul>
                   </div>
                   <div class="help-pane" data-pane="sheets" style="display:none;">
@@ -839,6 +841,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           </div>
 
           <button class="wb-tool-btn gm-only" id="soundBtn" title="Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)">&#127925;</button>
+          <button class="wb-tool-btn gm-only" id="fxBtn" title="Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)">&#10024;</button>
 
           <div class="wb-tool-sep"></div>
 
@@ -884,6 +887,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <canvas id="rulerLeft" width="36"></canvas>
       <div id="rulerCursorX"></div>
       <div id="rulerCursorY"></div>
+      <div id="fxScreen"></div>
       <div id="partyStrip" title="Your players' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map."></div>
       <div id="combatStrip" style="display:none;" title="Combat on this map"></div>
       <div id="partyMenu" class="shape-menu" style="position:fixed; flex-direction:column; min-width:200px; z-index:99998;"></div>
@@ -930,6 +934,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button data-st="del" title="Delete" style="color:var(--red);">&#128465;</button>
             </div>
             <svg id="measureLayer"></svg>
+            <div id="fxLayer"></div>
             <div id="snapGuides"></div>
             <div id="globalResizeHandle"></div>
             <div id="globalRotateHandle"></div>
@@ -1282,6 +1287,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The campaign's system (the System button in the Campaign pill: attributes, formulas, rolls) and the character sheets built on it. Off keeps the system yours to edit but shows nothing of it at the table. Set per campaign; in a session, this campaign's setting is the most your players get.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
+            <div class="set-vtt-row" data-vtt="fx" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Visual effects <span id="setFxState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setFxBtn" style="width:100%;">Toggle Visual Effects</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The GM's &#10024; panel on the play map: flashes, screen shake, colour washes, bursts, weather and banners, seen by the players on that map (and the stream window). Off hides the panel and shows nothing. Set per campaign.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
+            <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px; cursor:pointer;" title="Skip screen shake and shorten flashes on this machine (photosensitivity or a slow GPU). Your setting only."><input type="checkbox" id="setFxReduced"> Reduce motion (this machine)</label>
             </div>
             </div>
             <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
@@ -1315,6 +1327,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Character sheets <span id="setVttGlobalSheetsState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalSheetsBtn" style="width:100%;">Toggle Default Character Sheets</button>
                 </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Visual effects <span id="setVttGlobalFxState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalFxBtn" style="width:100%;">Toggle Default Visual Effects</button>
+                </div>
                 <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
             </div>
             </div>
@@ -1343,6 +1359,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <button class="tool ghost" id="setStreamBtn" style="width:100%;" title="Opens a second window with only the play map, exactly as players see it (no GM notes, hidden items stay hidden). Share that window in Discord, OBS or any screen-share for someone watching without the app. It follows the map you are on unless you pick a map to focus in its corner menu.">&#128250; Open Stream Window</button>
             <div style="font-size:11px; color:var(--dim); margin-top:4px; line-height:1.4;">For a spectator without Waypoint: screen-share the stream window. It shows what players see and updates as you play.</div>
             <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="Off by default: the stream window usually shares your own speakers. On, it plays the ambient loop the table hears (cues stay with the main window)."><input type="checkbox" id="setStreamSoundChk"> Stream window plays the table's ambient sound</label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); margin-top:6px; cursor:pointer;" title="On by default: the stream window shows the visual effects for the map it is on."><input type="checkbox" id="setStreamFxChk"> Stream window shows visual effects</label>
             </div>
             <button class="tool ghost danger" id="setResetIdentityBtn" title="Generates a new multiplayer identity. GMs' token assignments to your old identity will no longer recognize you.">Reset Multiplayer Identity</button>
             <!-- Relay-only connections: hidden until Waypoint has a working TURN relay again (openrelay.metered.ca stopped allocating, Sept 2026). The code path in net.js/peerOpts() is complete. -->
@@ -1514,6 +1531,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <label class="snd-pop-row" id="soundOffRow" style="display:none;" title="Turn the table's sound off for yourself (never on when the GM has it off); remembered for this table"><input type="checkbox" id="soundOffChk"> Off for me at this table</label>
 </div>
 <div id="soundGate" style="display:none;" title="Browsers play sound only after you have clicked on the page"><span>&#128266; Click anywhere to enable sound at this table</span></div>
+<div id="fxPanel" style="display:none;">
+    <div id="fxHead"><span class="notepad-title">&#10024; Effects</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="fxCloseBtn" title="Close">&times;</button></div>
+    <div id="fxBody"></div>
+</div>
 <div id="soundPanel" style="display:none;">
     <div id="soundHead"><span class="notepad-title">&#127925; Sound</span><span class="notepad-who" id="soundWho"></span><button class="tool ghost notepad-btn" id="soundMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="soundCloseBtn" title="Close the panel (what is playing keeps playing)">&times;</button></div>
     <div id="soundBody"></div>

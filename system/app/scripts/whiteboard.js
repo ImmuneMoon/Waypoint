@@ -2256,6 +2256,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!layer) return;
       layer.addEventListener('pointerdown', function(e) {
           if (!e.target.closest || window.isPanMode) return;
+          var _boom = e.target.closest('.blast-boom');
+          if (_boom && e.button === 0) { var _bi = parseInt(_boom.dataset.i, 10); var _bb = blasts[_bi]; if (_bb && window.wpFx) { var _ppy = mapMeasureConfig().cellPx / cellYards(); window.wpFx.blastBoom(_bb.x, _bb.y, blastRadiusYd(_bb) * _ppy); } e.stopPropagation(); e.preventDefault(); return; }
           var gbd = e.target.closest('g.blast');
           if (gbd && e.button === 0) {   // drag a blast to move it (a plain click does nothing)
               var bi0 = parseInt(gbd.dataset.i, 10);
@@ -2439,6 +2441,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (!window.isMeasureMode || e.button !== 0) return;
           if (window.wpMeasureKind === 'blast') { placeBlast(e); e.preventDefault(); return; }
+          if (window.wpMeasureKind === 'fx') { placeFx(e); e.preventDefault(); return; }
 
           var p = measurePoint(e);
 
@@ -2537,6 +2540,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>';
           var lbl = (b.name ? esc(b.name) + ' ' : '') + b.ft + ' ft \u00b7 r ' + _r1(rYd) + ' yd' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' yd' : '');
           html += '<text x="' + (b.x + 8) + '" y="' + (b.y - rPx - 8) + '">' + lbl + '</text>';
+          if (!window.wpNet || !window.wpNet.active || window.wpNet.role === 'host') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (r.d > rYd + 1e-9) return;
               html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + _r1(r.d) + ' yd' + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + _r1(Math.abs(r.v)) + ')' : '') + '</text>';
@@ -2574,6 +2578,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' yd' : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Drag it to move, right-click to remove.');
   }
+  // Visual effects (1.5.0): the ✨ panel arms a burst, a click on the map places it (its own Measure sub-mode)
+  var _fxArm = null;
+  window.wpArmFxBurst = function(look, rPx) { _fxArm = { look: look, r: Math.max(20, Math.min(6000, Math.round(rPx || 160))) }; window.isMeasureMode = true; window.wpMeasureKind = 'fx'; toast('Click the map to place the ' + look + ' burst.'); };
+  function placeFx(e) {
+      var map = getActiveMap(); if (!map || !_fxArm) { window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; return; }
+      var box = wbWrap.getBoundingClientRect();
+      var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
+      var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      x = Math.max(0, Math.min(30000, x)); y = Math.max(0, Math.min(30000, y));
+      var look = _fxArm.look, r = _fxArm.r; _fxArm = null; window.isMeasureMode = false; window.wpMeasureKind = 'ruler';
+      if (window.wpFx) window.wpFx.placeBurst(x, y, look, r);
+  }
+  window.wpMeasure = { config: mapMeasureConfig, cellYards: cellYards, pxToYards: function(px) { var c = cellYards(), ppy = c ? mapMeasureConfig().cellPx / c : 0; return ppy ? Math.round(px / ppy * 10) / 10 : null; } };
   var _el_blastModeBtn = document.getElementById('blastModeBtn');
   var _el_blastMenu = document.getElementById('blastMenu');
   function closeBlastMenu() { if (_el_blastMenu) _el_blastMenu.classList.remove('show'); }
@@ -4897,6 +4914,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += stanceMenuHtml(firstItem);
             }
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
+            if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse">✨ Pulse</div>';
             html += '<div class="menu-item cm-dup">&#10697; Duplicate</div>';
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save">&#9733; Save to Campaign Cast</div>';
             html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
@@ -5028,6 +5046,10 @@ document.addEventListener('contextmenu', function(e) {
                         if (it && it.isChar) { if (stNew) it.status = stNew; else delete it.status; }
                     });
                     import('./io.js').then(m => m.toast(stNew === 'dead' ? 'Marked dead.' : stNew === 'down' ? 'Marked incapacitated.' : 'Back on their feet.'));
+                } else if (action.includes('cm-pulse')) {
+                    var itPu = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
+                    if (itPu && window.wpFx) window.wpFx.play({ kind: 'pulse', mapId: am.id, tok: itPu.id });
+                    return;
                 } else if (action.includes('cm-sheet')) {
                     var itS = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     if (itS && window.wpSheets) { if (!itS.charId) window.wpSheets.newFromToken(itS); if (itS.charId) window.wpSheets.openSheet(itS.charId); }

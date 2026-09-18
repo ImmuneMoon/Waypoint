@@ -226,7 +226,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             window.wpNet.sounds = null; window.wpNet.soundNow = null;   // the table's sound list is transport memory too
         }
         if (window.wpDocForeign) window.wpDocForeign(!!(window.wpNet && window.wpNet.foreign));   // the handbook reader closes and mermaid goes back to the app's own mode
-        if (window.wpSound) window.wpSound.foreign(!!(window.wpNet && window.wpNet.foreign));   // a table's loop stops when the player's own campaign comes back; a GM's own reload keeps his
+        if (window.wpSound) window.wpSound.foreign(!!(window.wpNet && window.wpNet.foreign));
+        if (window.wpFx) window.wpFx.foreign(!!(window.wpNet && window.wpNet.foreign));   // a table's loop stops when the player's own campaign comes back; a GM's own reload keeps his
         if (canPersistLocal()) sweepRecents(state.appState);   // recent-map keys for campaigns not in this save go (a joined table's ids never stay)
 
 

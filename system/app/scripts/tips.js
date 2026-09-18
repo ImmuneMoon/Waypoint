@@ -105,8 +105,8 @@ var BY_TEXT = {
     'campaigns': 'Separate games, each with its own maps and planners.',
     // settings
     'profile': 'How you appear to others at a multiplayer table.',
-    'table': 'Board preferences — units, rulers, grid opacity. Yours alone: in multiplayer every player keeps their own. The VTT features (elevation, posture, minimap, sound, dice, character sheets) have their own section below, set per campaign.',
-    'vtt features': 'Elevation, posture, the minimap, sound, dice and character sheets, per campaign. In a session the GM\'s campaign settings are the most a player sees; a player can switch a feature off for themselves at that table, never on.',
+    'table': 'Board preferences — units, rulers, grid opacity. Yours alone: in multiplayer every player keeps their own. The VTT features (elevation, posture, minimap, sound, dice, character sheets, visual effects) have their own section below, set per campaign.',
+    'vtt features': 'Elevation, posture, the minimap, sound, dice, character sheets and visual effects, per campaign. In a session the GM\'s campaign settings are the most a player sees; a player can switch a feature off for themselves at that table, never on.',
     'vtt integration': 'The master switch for this campaign. Off means the plain whiteboard — every VTT feature is off and hidden; the per-feature choices are kept for when it goes back on.',
     'this campaign': 'The VTT features of the campaign on screen. Saved with the campaign; while hosting, a change reaches the table at once.',
     'this table': 'What the GM runs this table with. Turn a feature off for yourself here; you cannot turn on one the GM has off, and nothing here changes your own defaults.',
@@ -120,6 +120,7 @@ var BY_TEXT = {
     'sound': 'Ambient loops and one-shot cues from the Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library keeps its files.',
     'dice': 'Rolls at the table: /roll in Table Chat and the roller beside it. The GM\'s machine makes every roll and everyone sees the same card. Off for the campaign, nobody rolls at its table.',
     'character sheets': 'The campaign\'s system (attributes, formulas, rolls) and the sheets built on it. Off for the campaign, the system stays yours to edit but nothing of it shows at the table.',
+    'visual effects': 'The GM\'s ✨ panel: flashes, screen shake, colour washes, bursts on the map, weather and banners, seen by the players on that map. Off for the campaign hides the panel; a player can switch it off for themselves.',
     'stream window': 'A second window with only the play map, as players see it, for screen-sharing. Silent unless the box below is ticked.',
     'coordinate rulers': 'The number strips along the top and left edges of the board.',
     'grid opacity': 'How strongly the grid draws over the map. Only on this computer — other players pick their own.',

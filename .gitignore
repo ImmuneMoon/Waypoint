@@ -31,3 +31,7 @@ dist/
 
 # --- Claude Code local config (machine/session-specific paths) ---
 .claude/
+
+# --- internal planning docs: local only, never committed (README's SmartScreen image stays) ---
+docs/*
+!docs/smartscreen.png

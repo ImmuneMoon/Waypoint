@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, fmtNum, initRoll } from './systemcore.js';
+import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -389,6 +389,21 @@ function revertLast() {
     afterCharChange(c, d[Object.keys(d)[0]] === null, d);
     toast('Reverted.');
 }
+// The ShadowBase bridge (decision 10g, copy once): the sheet attached to a token gives its attributes, resources and
+// skills to a campaign character through the alias table; a token without a character gets one named after it
+function fromShadowBase(w) {
+    var camp = getActiveCampaign(), sys = systemOf(camp);
+    if (!w || !w.sheet) return { error: 'No ShadowBase sheet on this token.' };
+    if (!sys || !F()) return { error: 'The campaign has no system yet (System in the Campaign pill).' };
+    var r = aliasFromShadowBase(w.sheet, sys, F());
+    if (!r.matched) return { error: 'Nothing on the sheet matches the system\'s keys (ST or STR, DX or DEX, HT or CON, IQ or INT, HP, FP, Will, Per, Dodge, Parry, skills by name).' };
+    var c = w.charId ? charById(w.charId, camp) : null;
+    if (!c) { c = newCharacter({ name: w.charName || w.name || w.sheet.name || 'Character', ownerId: w.ownerId || '' }); linkToken(w, c.id); }
+    c.values = c.values || {}; Object.keys(r.values).forEach(function(k) { c.values[k] = r.values[k]; });
+    afterCharChange(c, true);
+    toast(r.matched + ' value' + (r.matched === 1 ? '' : 's') + ' copied into ' + c.name + '\'s sheet.');
+    return { ok: true, charId: c.id, matched: r.matched };
+}
 // net.js hooks: a character arrived, changed or went
 function charChanged(id) { if (sheetOpen && (id === null || sheetOpen === id)) renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
 // the token's owner select moved (inspector.js): the character follows, and every token of it
@@ -720,4 +735,4 @@ setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
-    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

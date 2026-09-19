@@ -573,6 +573,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var hideFromMe = !!item.hidden && clientView;
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
+          el.classList.toggle('wb-blocks-sight', !!item.blocksSight && !clientView);
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
 

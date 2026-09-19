@@ -977,6 +977,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<option value="back"'+(w.layer==='back'?' selected':'')+'>Back Layer (Background)</option>'+
               '</select></div>'+
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
+              ((w.type === 'rect' || w.type === 'hexagon') && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">Blocks sight (wall)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Fog vision (and each player&rsquo;s view) stops at this shape&rsquo;s cells. Needs fog on for the map.</div>' : '')+
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1185,6 +1186,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbLock = document.getElementById('wbLock');
             if(_el_wbLock) _el_wbLock.addEventListener('change', function() {
                 w.locked = this.checked; save(); render();
+            });
+            var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
+            if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
+                if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; }
+                save(); render();
+                if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
             var _el_wbDup = document.getElementById('wbDup');
             if (_el_wbDup) _el_wbDup.addEventListener('click', function() { if (window.wpDuplicateWb) window.wpDuplicateWb([w]); });

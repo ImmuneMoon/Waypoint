@@ -10,6 +10,7 @@ var LIMITS = Object.freeze({
     rangeCells: 60,     // a viewer's sight, in cells, after conversion — hard cap so a bad field can't sweep the board
     cells: 8000,        // the most visible cells one recompute yields
     manual: 4000,       // manual reveal/hide cells stored per map
+    blockerCells: 6000, // sight-blocker cells resolved per map — over this, occlusion falls open (no blocking)
     arcDeg: 180,        // GURPS front arc
     len: [10, 4000]     // a gridless cell length in board px
 });
@@ -61,11 +62,57 @@ function rangeToCells(rangeUnits, perCellUnits) {
     return clamp(Math.round(rangeUnits / per), 0, LIMITS.rangeCells);
 }
 
+/* ---------- sight-blockers (line-of-sight occlusion, v1: static walls) ----------
+   Pure & item-blind: fog.js converts flagged board items to a Set of opaque cell KEYS and passes
+   it to visibleCells, so host enforcement and the client overlay run the SAME code and agree. */
+// Cells whose CENTRE lies inside an axis-aligned board rect [x,x+w]x[y,y+h].
+function cellsUnderRect(x, y, w, h, grid) {
+    var out = [], cs = [cellOf(x, y, grid), cellOf(x + w, y, grid), cellOf(x, y + h, grid), cellOf(x + w, y + h, grid)];
+    if (grid.type === 'square') {
+        var c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity;
+        cs.forEach(function(c) { c0 = Math.min(c0, c.c); c1 = Math.max(c1, c.c); r0 = Math.min(r0, c.r); r1 = Math.max(r1, c.r); });
+        for (var c = c0; c <= c1; c++) for (var r = r0; r <= r1; r++) { var p = cellCenter({ c: c, r: r }, grid); if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) out.push({ c: c, r: r }); }
+    } else {
+        var q0 = Infinity, q1 = -Infinity, s0 = Infinity, s1 = -Infinity;
+        cs.forEach(function(c) { q0 = Math.min(q0, c.q); q1 = Math.max(q1, c.q); s0 = Math.min(s0, c.r); s1 = Math.max(s1, c.r); });
+        for (var q = q0 - 2; q <= q1 + 2; q++) for (var rr = s0 - 2; rr <= s1 + 2; rr++) { var p2 = cellCenter({ q: q, r: rr }, grid); if (p2.x >= x && p2.x <= x + w && p2.y >= y && p2.y <= y + h) out.push({ q: q, r: rr }); }
+    }
+    return out;
+}
+// Point-in-flat-top-hexagon (the board item's box is w wide, h tall, centre cx,cy).
+function pointInFlatHex(px, py, cx, cy, w, h) {
+    var s = w / 2, b = h / 2, qx = Math.abs(px - cx), qy = Math.abs(py - cy);
+    if (qx > s || qy > b) return false;
+    if (qx <= s / 2) return true;
+    return qy <= (2 * b / s) * (s - qx) + 1e-9;
+}
+// Cells whose centre lies inside a flat-top hexagon board item (top-left x,y, box w x h).
+function cellsUnderHex(x, y, w, h, grid) {
+    var cx = x + w / 2, cy = y + h / 2, out = [], box = cellsUnderRect(x, y, w, h, grid);
+    for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (pointInFlatHex(p.x, p.y, cx, cy, w, h)) out.push(box[i]); }
+    return out;
+}
+// True if the straight line from cell A to cell B crosses no opaque INTERMEDIATE cell (endpoints
+// excluded — a viewer on/next to a wall still sees out, and a wall's own cell shows its near face).
+function lineClear(a, b, grid, blockers) {
+    if (!blockers) return true;
+    var pa = cellCenter(a, grid), pb = cellCenter(b, grid);
+    var dx = pb.x - pa.x, dy = pb.y - pa.y, dist = Math.sqrt(dx * dx + dy * dy);
+    var stepPx = (grid.type === 'square' ? grid.size : grid.s) / 2;
+    var steps = Math.max(1, Math.ceil(dist / stepPx)), ka = cellKey(a, grid), kb = cellKey(b, grid);
+    for (var i = 1; i < steps; i++) {
+        var t = i / steps, cell = cellOf(pa.x + dx * t, pa.y + dy * t, grid), k = cellKey(cell, grid);
+        if (k === ka || k === kb) continue;
+        if (blockers[k]) return false;
+    }
+    return true;
+}
+
 /* ---------- one viewer's visible cells ----------
    viewer: { x, y, front(deg), range(cells), ruleset, arc(deg, default 180) }. Returns an array of { key, cell }.
    D&D/square: every cell whose centre is within `range` cells (Euclidean). GURPS/hex: cells within hex distance
    `range` that lie in the front arc (the viewer's own cell always included). */
-function visibleCells(viewer, grid) {
+function visibleCells(viewer, grid, blockers) {
     var out = [], seen = Object.create(null);
     if (!grid || !fin(viewer.x) || !fin(viewer.y)) return out;
     var R = clamp(viewer.range | 0, 0, LIMITS.rangeCells);
@@ -77,7 +124,7 @@ function visibleCells(viewer, grid) {
         for (var c = here.c - R; c <= here.c + R && out.length < LIMITS.cells; c++)
             for (var r = here.r - R; r <= here.r + R; r++) {
                 var dc = c - here.c, dr = r - here.r;
-                if (Math.sqrt(dc * dc + dr * dr) <= R + 1e-9) push({ c: c, r: r });
+                if (Math.sqrt(dc * dc + dr * dr) <= R + 1e-9 && lineClear(here, { c: c, r: r }, grid, blockers)) push({ c: c, r: r });
             }
         return out;   // D&D is all-around; facing ignored on square in v1
     }
@@ -90,15 +137,15 @@ function visibleCells(viewer, grid) {
             if (q === here.q && rr === here.r) continue;
             var ctr = cellCenter(cell, grid), vc = cellCenter(here, grid);
             var bearing = Math.atan2(ctr.x - vc.x, -(ctr.y - vc.y)) * 180 / Math.PI;   // 0 = up, clockwise
-            if (arc >= 360 || Math.abs(norm180(bearing - facing)) <= half + 1e-9) push(cell);
+            if ((arc >= 360 || Math.abs(norm180(bearing - facing)) <= half + 1e-9) && lineClear(here, cell, grid, blockers)) push(cell);
         }
     return out;
 }
 
 // The union of a party's viewers → a Set of revealed cell keys (plus manual adds, minus manual cuts).
-function revealedKeys(viewers, grid, manual) {
+function revealedKeys(viewers, grid, manual, blockers) {
     var set = Object.create(null);
-    (viewers || []).forEach(function(v) { visibleCells(v, grid).forEach(function(o) { set[o.key] = 1; }); });
+    (viewers || []).forEach(function(v) { visibleCells(v, grid, blockers).forEach(function(o) { set[o.key] = 1; }); });
     if (manual && Array.isArray(manual.adds)) manual.adds.forEach(function(cell) { set[cellKey(cell, grid)] = 1; });
     if (manual && Array.isArray(manual.cuts)) manual.cuts.forEach(function(cell) { delete set[cellKey(cell, grid)]; });
     return set;
@@ -133,6 +180,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, lineClear: lineClear, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog };

@@ -13,7 +13,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     try { X = await import(url('fogcore.js')); } catch (e) { err = e; }
     check('module loads in Node with no window', !!X && !err, err && err.message);
     if (!X) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog } = X;
+    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog } = X;
 
     /* ---- square geometry ---- */
     const sq = squareGrid(50);
@@ -57,6 +57,39 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const keys = new Set(visibleCells({ x: ctr.x, y: ctr.y, range: 3, ruleset: 'gurps', front: 0, arc: 360 }, hx).map(c => c.key));
         const below = cellOf(ctr.x, ctr.y + 100, hx); return keys.has(cellKey(below, hx)); })());
     check('visible-cell count is capped', visibleCells({ x: 5000, y: 5000, range: LIMITS.rangeCells, ruleset: 'dnd' }, sq).length <= LIMITS.cells);
+
+    /* ---- sight-blockers (line-of-sight occlusion, v1) ---- */
+    check('square occlusion: a wall hides cells behind it, shows itself + cells before it', (() => {
+        const v = { x: 125, y: 125, range: 5, ruleset: 'dnd' }, blk = { '4,2': 1 };
+        const open = new Set(visibleCells(v, sq).map(c => c.key));
+        const occ = new Set(visibleCells(v, sq, blk).map(c => c.key));
+        return open.has('6,2') && !occ.has('6,2') && !occ.has('5,2') && occ.has('4,2') && occ.has('3,2') && occ.has('2,2'); })());
+    check('no blockers arg leaves vision unchanged', (() => {
+        const v = { x: 125, y: 125, range: 5, ruleset: 'dnd' };
+        return visibleCells(v, sq).length === visibleCells(v, sq, null).length && visibleCells(v, sq).length > 1; })());
+    check('hex occlusion: a wall hides the cell behind it, shows the wall cell', (() => {
+        const here = { q: 0, r: 3 }, ctr = cellCenter(here, hx);
+        const v = { x: ctr.x, y: ctr.y, range: 4, ruleset: 'gurps', front: 0, arc: 360 };
+        const target = cellOf(ctr.x, ctr.y - 3 * 52, hx), mid = cellOf(ctr.x, ctr.y - 52, hx), blk = {};
+        blk[cellKey(mid, hx)] = 1;
+        const open = new Set(visibleCells(v, hx).map(c => c.key));
+        const occ = new Set(visibleCells(v, hx, blk).map(c => c.key));
+        return open.has(cellKey(target, hx)) && !occ.has(cellKey(target, hx)) && occ.has(cellKey(mid, hx)); })());
+    check('manual reveal overrides a wall (add behind a blocker still revealed)', (() => {
+        const v = { x: 125, y: 125, range: 5, ruleset: 'dnd' }, blk = { '4,2': 1 };
+        const set = revealedKeys([v], sq, { adds: [{ c: 6, r: 2 }], cuts: [] }, blk);
+        return set['6,2'] === 1 && !set['5,2']; })());
+    check('cellsUnderRect returns cells whose centre is inside the box', (() => {
+        const cells = cellsUnderRect(100, 100, 100, 50, sq).map(c => cellKey(c, sq));
+        return cells.indexOf('2,2') >= 0 && cells.indexOf('3,2') >= 0 && cells.indexOf('4,2') < 0 && cells.indexOf('2,1') < 0; })());
+    check('cellsUnderHex covers a cell-sized hex as its own cell', (() => {
+        const ctr = cellCenter({ q: 1, r: 1 }, hx);
+        const cells = cellsUnderHex(ctr.x - 30, ctr.y - 26, 60, 52, hx).map(c => cellKey(c, hx));
+        return cells.indexOf(cellKey({ q: 1, r: 1 }, hx)) >= 0 && cells.length <= 3; })());
+    check('lineClear: clear with no blockers, blocked through an opaque intermediate, adjacent always clear', (() => {
+        return lineClear({ c: 0, r: 0 }, { c: 5, r: 0 }, sq, null) === true
+            && lineClear({ c: 0, r: 0 }, { c: 5, r: 0 }, sq, { '3,0': 1 }) === false
+            && lineClear({ c: 0, r: 0 }, { c: 1, r: 0 }, sq, { '0,0': 1, '1,0': 1 }) === true; })());
 
     /* ---- union + revealed test + manual ---- */
     check('revealedKeys unions viewers and applies manual adds/cuts; pointRevealed tests a board point', (() => {

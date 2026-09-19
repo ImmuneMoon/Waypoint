@@ -94,6 +94,9 @@
   /* GM's view of a player-hidden item */
   .wb-item.wb-hidden-gm { opacity: 0.55; outline: 2px dashed var(--steel); outline-offset: 2px; }
   .wb-item.wb-hidden-gm::before { content: '\1F441'; position: absolute; top: -12px; left: -12px; font-size: 15px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+  /* GM-only cue that a board item blocks sight (a wall). The class is only added for the GM view. */
+  .wb-item.wb-blocks-sight { outline: 2px dashed var(--gold); outline-offset: -2px; }
+  .wb-item.wb-blocks-sight::after { content: '\1F9F1'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

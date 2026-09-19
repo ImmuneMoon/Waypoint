@@ -64,6 +64,15 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const set = revealedKeys([v1], sq, { adds: [{ c: 10, r: 10 }], cuts: [{ c: 2, r: 2 }] });
         return set['10,10'] === 1 && !set['2,2'] && pointRevealed(set, 525, 525, sq) === true && pointRevealed(set, 9999, 9999, sq) === false; })());
 
+    /* ---- enforcement decision (net.js drops a creature whose cell is not revealed to a recipient) ---- */
+    check('enforcement: a creature outside a viewer\'s reveal is dropped, one inside is kept, the viewer\'s own cell is always seen', (() => {
+        const viewer = { x: 125, y: 125, range: 2, ruleset: 'dnd' };            // a player token at cell (2,2), sight 2 cells
+        const keys = revealedKeys([viewer], sq, null);
+        const own = pointRevealed(keys, 125, 125, sq);                          // its own cell
+        const near = pointRevealed(keys, 125, 225, sq);                         // 2 cells away → within sight (kept)
+        const far = pointRevealed(keys, 125, 925, sq);                          // 16 cells away → unseen (dropped)
+        return own === true && near === true && far === false; })());
+
     /* ---- gridFor ---- */
     check('gridFor maps grid types; gridless with no cell returns null', gridFor('square').type === 'square' && gridFor('hex').type === 'hex' && gridFor('off', null) === null && gridFor('off', { grid: 'square', len: 70 }).size === 70);
 

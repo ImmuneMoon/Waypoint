@@ -256,7 +256,8 @@ function sanitizeItem(item) {
     if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item));
-    delete m.fog;   // fog of war (1.5.0 FV1): GM-side only — no fog data travels until per-recipient enforcement (FV2)
+    // fog of war (1.5.0 FV2): map.fog travels so a player's client can paint its own-vision overlay; the host
+    // separately DROPS the creatures a recipient cannot see (fogFilterClean, per recipient) before each send.
     (m.rooms || []).forEach(function(r) {
         delete r.notes;
         delete r.handoutId;
@@ -276,6 +277,23 @@ function sanitizeItem(item) {
         return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
     });
     return m;
+}
+/* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
+   window.wpFog.fogDropIds(recipientId, camp, map) → the ids of character tokens the recipient cannot see, or null
+   (no fog / drop nothing). sanitizeItem clones the heavy map ONCE; fogFilterClean makes a cheap shallow copy with a
+   filtered whiteboard per peer (never re-cloning images — §11R-5). AND with the existing hidden stub: an unseen token
+   is dropped whether it was full or a hidden stub, matched by id. */
+function fogDrop(camp, map, recipientId) { return (window.wpFog && recipientId && camp && map) ? window.wpFog.fogDropIds(recipientId, camp, map) : null; }
+function fogFilterClean(clean, dropSet) {
+    if (!dropSet || !clean || clean.type !== 'map' || !Array.isArray(clean.whiteboard)) return clean;
+    var kept = clean.whiteboard.filter(function(w) { return !dropSet[w.id]; });
+    if (kept.length === clean.whiteboard.length) return clean;
+    var copy = {}; for (var k in clean) copy[k] = clean[k]; copy.whiteboard = kept; return copy;
+}
+// Is any map in the hosted campaign fogged? While false, every per-recipient loop below stays on the old single-broadcast path.
+function anyFog(camp) {
+    if (!window.wpFog || !window.wpVtt || !window.wpVtt.on('fog') || !camp || !camp.items) return false;
+    return Object.keys(camp.items).some(function(id) { var it = camp.items[id]; return !!(it && it.type === 'map' && it.fog && it.fog.on); });
 }
 function sanitizeAppState(s, recipientId) {   // recipientId: the player this copy is for (characters are per recipient); absent = nobody's (the stream window)
     var c = JSON.parse(JSON.stringify(s));
@@ -300,11 +318,17 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
             var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId); if (v) outCh[id] = v; }); camp.chars = outCh;
         } else delete camp.chars;
+        // fog of war (1.5.0 FV2): the sight-field mapping + default travel for the hosted campaign, so a client resolves
+        // its own sight the same way the host does (character sheets already travel per recipient above)
+        if (camp.id === c.activeCampaignId && window.wpFogCore) camp.fog = window.wpFogCore.cleanCampFog(camp.fog);
+        else delete camp.fog;
         Object.keys(camp.items).forEach(function(id) {
-            if (camp.items[id] && camp.items[id].type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
-            var it = sanitizeItem(camp.items[id]);
-            if (it === null) delete camp.items[id];
-            else camp.items[id] = it;
+            var orig = camp.items[id];
+            if (orig && orig.type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
+            var it = sanitizeItem(orig);
+            if (it === null) { delete camp.items[id]; return; }
+            if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogFilterClean(it, fogDrop(camp, orig, recipientId));   // drop the creatures this player cannot see
+            camp.items[id] = it;
         });
         // a client's active item is always a map: the host's own open page or planner is not its business, and a
         // join before the GM viewed any map (stage null) lands on a map too — a page must never open the editor there
@@ -719,9 +743,22 @@ function applyItemDelta(msg) {
     net.applyingRemote = false;
 }
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
+function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on && window.wpVtt && window.wpVtt.on('fog')); }
 net.sendItem = function(campId, itemId, onlyConn) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     var clean = sanitizeItem(it); if (!clean) return;
+    // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
+    // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
+    if (mapFogged(it)) {
+        delete _lastSent[itemId];                                                     // leaving the shared-delta path: the next non-fog send is whole
+        var sendOne = function(conn) {
+            var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
+            var out = fogFilterClean(clean, fogDrop(camp, it, pr.id));
+            try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) {}
+        };
+        if (onlyConn) sendOne(onlyConn); else net.conns.forEach(sendOne);
+        return;
+    }
     var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
     if (onlyConn) { try { onlyConn.send(full); } catch (e) {} return; }              // one player asked for the whole thing
     var d = itemDelta(itemId, clean);
@@ -730,6 +767,18 @@ net.sendItem = function(campId, itemId, onlyConn) {
     if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(full).length * 0.9) msg = d; }
     broadcast(msg, null);
     _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
+};
+// Host: broadcast one whole map/item to the table, fog-filtered per recipient when it is a fogged map. Used by the many
+// one-off sends (travel, summon, bring, push) that always send whole; a fogged map never leaks a creature through them.
+net.broadcastItemFiltered = function(campId, itemId) {
+    var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
+    var clean = sanitizeItem(it); if (!clean) return;
+    if (!mapFogged(it)) { broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); return; }
+    net.conns.forEach(function(conn) {
+        var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
+        var out = fogFilterClean(clean, fogDrop(camp, it, pr.id));
+        try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) {}
+    });
 };
 // Host: an item leaves every admitted player's copy — a deleted map or planner, a page turned GM-only.
 // The send baseline goes too, so the next send after off→on is whole. Never through broadcast(): admitted only.
@@ -743,6 +792,7 @@ net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta; net._handleMes
 
 net.onLocalSave = function() {
     if (!net.active || net.applyingRemote) return;
+    if (window.wpFog) window.wpFog.invalidateVision();   // fog: a save may have moved tokens or changed fog — recompute vision on the next send
     var patch = activeItemPatch();
     if (net.role === 'host') {
         net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
@@ -1029,6 +1079,19 @@ if (_pauseBtn) _pauseBtn.addEventListener('click', function() {
    instead of jumping at drag end. The final message persists on the host. */
 var _posLast = 0;
 
+// Fog of war (1.5.0 FV2): a token's live position reaches a player only when they own the token or can see its cell.
+// Non-fog maps take the plain single broadcast (byte-identical to before). canSeePoint uses a cached revealed set that is
+// stable during a drag (the recipient's own tokens are still), so this stays cheap; a creature entering vision is fully
+// revealed on the drag's stop (sendItem), not mid-drag.
+function broadcastPos(msg, exceptConn, camp, map, w) {
+    if (!map || !mapFogged(map)) { broadcast(msg, exceptConn); return; }
+    var cx = (msg.x || 0) + ((w && w.w) || 60) / 2, cy = (msg.y || 0) + ((w && w.h) || 52) / 2;
+    net.conns.forEach(function(c) {
+        if (c === exceptConn || !c.open) return;
+        var pr = net.roster[c.peer]; if (!pr) return;
+        if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy))) { try { c.send(msg); } catch (e) {} }
+    });
+}
 net.streamPos = function(wItem, final) {
     if (!net.active || !wItem) return;
     if (net.paused && net.role === 'client') return;
@@ -1038,7 +1101,7 @@ net.streamPos = function(wItem, final) {
     if (!final && now - _posLast < 45) return;
     _posLast = now;
     var msg = { type: 'pos', campId: camp.id, itemId: camp.activeItemId, wbId: wItem.id, x: wItem.x, y: wItem.y, rot: wItem.rot || 0, front: wItem.front || 0, final: !!final };
-    if (net.role === 'host') broadcast(msg, null);
+    if (net.role === 'host') broadcastPos(msg, null, camp, camp.items[camp.activeItemId], wItem);
     else if (net.conns[0] && net.conns[0].open) { try { net.conns[0].send(msg); } catch (e) {} }
 };
 
@@ -1085,7 +1148,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     traveler.detached = true;
     renderRoster();
     var left = (fromMap.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === traveler.id; });
-    if (left) { stepOffPortal(left, portal, fromMap); var cleanFrom = sanitizeItem(fromMap); if (cleanFrom) broadcast({ type: 'item', campId: tCamp.id, itemId: fromMap.id, item: cleanFrom }, null); }
+    if (left) { stepOffPortal(left, portal, fromMap); net.broadcastItemFiltered(tCamp.id, fromMap.id); }
     if (left) { net.applyingRemote = true; save(true); net.applyingRemote = false; }   // the step-off reaches disk now, not on the GM's next save
     ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
     // a token already on the destination stays where the GM left it, unless it is still on the landing node
@@ -1096,7 +1159,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
         mineD.x = spotD.x; mineD.y = spotD.y;
         if (window.wpSeatHex) window.wpSeatHex(mineD, destMap);
         net.applyingRemote = true; save(true); net.applyingRemote = false;
-        var cleanD = sanitizeItem(destMap); if (cleanD) broadcast({ type: 'item', campId: tCamp.id, itemId: destMap.id, item: cleanD }, null);
+        net.broadcastItemFiltered(tCamp.id, destMap.id);
     }
     if (window.wpHistBarrier) window.wpHistBarrier([fromMap.id, destMap.id]);   // a move between two maps: neither side can be undone past it
     broadcastRoster();
@@ -1214,7 +1277,7 @@ function offlinePlayerTravel(item, map) {
     stepOffPortal(item, portal, map);
     if (window.wpHistBarrier) window.wpHistBarrier([map.id, dest.id]);   // a move between two maps: neither side can be undone past it
     net.applyingRemote = true; save(true); net.applyingRemote = false;
-    if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
+    if (net.active && net.role === 'host') [map, dest].forEach(function(m) { net.broadcastItemFiltered(camp.id, m.id); });
     if (window.appRender) window.appRender();
     var who = (camp.players || {})[item.ownerId], nm = item.charName || (who && who.name) || 'The character';
     toast(nm + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — their token waits there.' : ' — their token there stays where it was.'));
@@ -1256,7 +1319,7 @@ function npcTravel(item, map) {
     item.hidden = true;
     if (window.wpHistBarrier) window.wpHistBarrier([map.id, dest.id]);   // a move between two maps: neither side can be undone past it
     net.applyingRemote = true; save(true); net.applyingRemote = false;
-    if (net.active && net.role === 'host') [map, dest].forEach(function(m) { var cm = sanitizeItem(m); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: m.id, item: cm }, null); });
+    if (net.active && net.role === 'host') [map, dest].forEach(function(m) { net.broadcastItemFiltered(camp.id, m.id); });
     if (window.appRender) window.appRender();
     toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — a token is placed there' : ' — the token there is shown') + '; the one here is hidden from players.');
     return true;
@@ -1278,7 +1341,7 @@ function handlePos(msg, conn) {
         // player's copy didn't (grid state not yet applied on their side)
         if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }
         applyPosToDom(msg);
-        broadcast(msg, conn);
+        broadcastPos(msg, conn, camp, map, w);
         if (msg.final) {
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
@@ -1426,7 +1489,42 @@ function applyNotepad(m) {
     else if (!net.notepad.on && was) toast('The GM put the table notepad away.');
     renderNotepad();
 }
-function broadcastCombats() { broadcast({ type: 'combats', combats: net.combats }, null); }
+/* Fog of war (1.5.0 FV2): the combat roster and the target pointers name tokens, so a player must not learn an
+   unseen creature through them. On a fogged map a combat row for a token they cannot see is REDACTED (name "Hidden",
+   tokId dropped) — the order, count and turn index stay intact; a target pointer at an unseen token is dropped. Non-fog
+   tables keep the single broadcast. */
+function combatsFor(recipientId) {
+    var camp = getActiveCampaign(); if (!anyFog(camp)) return net.combats;
+    var out = {};
+    Object.keys(net.combats || {}).forEach(function(mapId) {
+        var cmb = net.combats[mapId], map = camp && camp.items[mapId];
+        if (!map || map.type !== 'map' || !(map.fog && map.fog.on)) { out[mapId] = cmb; return; }
+        var drop = fogDrop(camp, map, recipientId) || {};
+        out[mapId] = { round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r) { return (r.tokId && drop[r.tokId]) ? { id: r.id, name: 'Hidden', tokId: null, init: r.init, src: r.src } : r; }) };
+    });
+    return out;
+}
+function targetsFor(recipientId) {
+    var camp = getActiveCampaign(); if (!anyFog(camp)) return net.targets;
+    var out = {};
+    Object.keys(net.targets || {}).forEach(function(pid) {
+        var t = net.targets[pid], map = camp && t && camp.items[t.mapId];
+        if (!map || map.type !== 'map' || !(map.fog && map.fog.on)) { out[pid] = t; return; }
+        var drop = fogDrop(camp, map, recipientId) || {};
+        if (!(t.id && drop[t.id])) out[pid] = t;
+    });
+    return out;
+}
+function broadcastCombats() {
+    var camp = getActiveCampaign();
+    if (!anyFog(camp)) { broadcast({ type: 'combats', combats: net.combats }, null); return; }
+    net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'combats', combats: combatsFor(pr.id) }); } catch (e) {} });
+}
+function broadcastTargets() {
+    var camp = getActiveCampaign();
+    if (!anyFog(camp)) { broadcast({ type: 'targets', targets: net.targets }, null); return; }
+    net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) {} });
+}
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
 net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
@@ -1490,7 +1588,7 @@ net.setTarget = function(itemId, mapId, itemName) {
         applyTarget(me, getProfile().name, next);   // show it at once; the host's broadcast confirms
     } else if (net.role === 'host') {
         applyTarget(me, getProfile().name || 'GM', next);
-        broadcast({ type: 'targets', targets: net.targets }, null);
+        broadcastTargets();
     }
     toast(next ? 'Targeting ' + (itemName || 'that token') + '. Click it again (or press Esc) to clear.' : 'Target cleared.');
 };
@@ -1674,8 +1772,7 @@ function ensurePlayerToken(pid, mapId, landRoomId) {
     }
     if (changed) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
-        var cleanMap = sanitizeItem(map);
-        if (cleanMap) broadcast({ type: 'item', campId: camp.id, itemId: mapId, item: cleanMap }, null);
+        net.broadcastItemFiltered(camp.id, mapId);
         var myActive = getActiveCampaign();
         if (myActive && myActive.activeItemId === mapId) render();
     }
@@ -1723,7 +1820,8 @@ function admitPlayer(conn, prof) {
     // a follow still in its grace window moves everyone once it fires; marking the stage seen now would cancel it
     if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
-    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: net.targets, combats: net.combats, notepad: notepadMsg() }); } catch (e) {}
+    if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
@@ -1910,7 +2008,7 @@ function handleMessage(msg, conn) {
         var okId = msg.id === null || (typeof msg.id === 'string' && msg.id.length <= 80);
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
         applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
-        broadcast({ type: 'targets', targets: net.targets }, null);
+        broadcastTargets();
         // a player squaring up to an NPC: offer to start combat there (once per NPC per session)
         if (msg.id && !net.combats[msg.mapId] && !combatAsked[msg.mapId + '|' + msg.id]) {
             var campT = getActiveCampaign(), mapT = campT && campT.items[msg.mapId];
@@ -2952,7 +3050,7 @@ net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
 net.pushItems = function(ids) {
     if (!(net.active && net.role === 'host')) return;
     var camp = getActiveCampaign(); if (!camp) return;
-    (ids || []).forEach(function(id) { var it = camp.items[id]; if (!it) return; var clean = sanitizeItem(it); if (clean) broadcast({ type: 'item', campId: camp.id, itemId: id, item: clean }, null); });
+    (ids || []).forEach(function(id) { if (camp.items[id]) net.broadcastItemFiltered(camp.id, id); });
 };
 net.logEvent = logEvent;
 net.syncSessionButtons = syncSessionButtons;
@@ -3072,7 +3170,7 @@ net.bringPlayerHere = function(pid, wbX, wbY) {
     if (window.wpSeatHex) window.wpSeatHex(tok, map);
     save(true);
     if (window.appRender) window.appRender();
-    if (net.active && net.role === 'host') { var cm = sanitizeItem(map); if (cm) broadcast({ type: 'item', campId: camp.id, itemId: map.id, item: cm }, null); }
+    if (net.active && net.role === 'host') net.broadcastItemFiltered(camp.id, map.id);
     toast(name + (copied ? ' placed on ' : ' moved here on ') + ((map.meta || {}).title || 'this map') + '.');
     return true;
 };net.isConnected = function(playerId) { return Object.values(net.roster).some(function(p) { return p && p.id === playerId; }); };

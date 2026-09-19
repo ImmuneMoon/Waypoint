@@ -2066,6 +2066,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var out = [];
       var eraserClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
       m.whiteboard.forEach(function(item) {
+          if (item.fill && !item.locked) {   // a fill cell erases as a whole item, like a stroke
+              if (eraserClient) { out.push(item); return; }
+              var _er = (state.eraserSize || 6);
+              if (x >= item.x - _er && x <= item.x + item.w + _er && y >= item.y - _er && y <= item.y + item.h + _er) { changed = true; return; }
+              out.push(item); return;
+          }
           if (item.type !== 'path' || !item.pts || item.locked) { out.push(item); return; }
           if (eraserClient && item.ownerId !== window.wpNet.myId) { out.push(item); return; }   // players erase only their own marks
           var sx = item.w / (item.baseW || item.w || 1);

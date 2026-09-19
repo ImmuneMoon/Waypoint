@@ -15,10 +15,10 @@ Play map & settings
 - Undo history size is now adjustable — Settings ▸ Advanced, 10–500 steps
   (default 100) — with a note on its memory cost; and a few heavy features
   (fog, minimap, sound) carry a short hardware-impact note in Settings.
-- Sight-blocking (new): flag a fill or a rect/hexagon shape as "Blocks
-  sight" in its Properties and it becomes a wall — a token's fog vision,
-  and each player's view, stops at it (fog must be on for the map). Doors
-  and a height dimension come next.
+- Sight-blocking (new): flag a fill or a shape (rectangle, hexagon,
+  circle/pillar or diamond) as "Blocks sight" in its Properties and it
+  becomes a wall — a token's fog vision, and each player's view, stops at
+  it (fog must be on for the map). Doors and a height dimension come next.
 
 Handbook
 - A third kind of item beside maps and planners: Handbook pages — rules,

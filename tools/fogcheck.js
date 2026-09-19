@@ -13,7 +13,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     try { X = await import(url('fogcore.js')); } catch (e) { err = e; }
     check('module loads in Node with no window', !!X && !err, err && err.message);
     if (!X) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog } = X;
+    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog } = X;
 
     /* ---- square geometry ---- */
     const sq = squareGrid(50);
@@ -90,6 +90,18 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         return lineClear({ c: 0, r: 0 }, { c: 5, r: 0 }, sq, null) === true
             && lineClear({ c: 0, r: 0 }, { c: 5, r: 0 }, sq, { '3,0': 1 }) === false
             && lineClear({ c: 0, r: 0 }, { c: 1, r: 0 }, sq, { '0,0': 1, '1,0': 1 }) === true; })());
+    check('cellsUnderCircle: a cell-sized pillar is its own cell; a bigger disc covers several', (() => {
+        const one = cellsUnderCircle(110, 110, 30, 30, sq).map(c => cellKey(c, sq));
+        const big = cellsUnderCircle(75, 75, 150, 150, sq);
+        return one.indexOf('2,2') >= 0 && one.length === 1 && big.length >= 4 && big.length < 30; })());
+    check('cellsUnderDiamond: a cell-sized diamond is its own cell', (() =>
+        cellsUnderDiamond(110, 110, 30, 30, sq).map(c => cellKey(c, sq)).indexOf('2,2') >= 0)());
+    check('circle pillar occludes: a pillar between viewer and a cell hides it', (() => {
+        const v = { x: 125, y: 125, range: 6, ruleset: 'dnd' }, blk = {};
+        cellsUnderCircle(205, 105, 40, 40, sq).forEach(c => blk[cellKey(c, sq)] = 1);   // a pillar on cell (4,2)
+        const open = new Set(visibleCells(v, sq).map(c => c.key));
+        const occ = new Set(visibleCells(v, sq, blk).map(c => c.key));
+        return blk['4,2'] === 1 && open.has('6,2') && !occ.has('6,2'); })());
 
     /* ---- union + revealed test + manual ---- */
     check('revealedKeys unions viewers and applies manual adds/cuts; pointRevealed tests a board point', (() => {

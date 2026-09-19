@@ -16,7 +16,7 @@ const j = v => JSON.stringify(v);
     try { S = await import(url('systemcore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
     check('modules load in Node with no window', !!S && !!F && !err, err && err.message);
     if (!S || !F) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, KINDS, STORED, emptySystem, cleanItemDef, cleanCombat, cleanSystem, cleanValue, cleanChar, cleanCharItem, applyItemOp, itemDef, resolveAll, hoverLines, validateSystem, charFor } = S;
+    const { LIMITS, KINDS, STORED, emptySystem, cleanItemDef, cleanCombat, cleanSystem, cleanValue, cleanChar, cleanCharItem, applyItemOp, itemDef, resolveAll, hoverLines, validateSystem, charFor, autoLayout } = S;
 
     /* ---- KINDS / emptySystem ---- */
     check('item-list is a KIND and STORED, not a formula-namable numeric', KINDS['item-list'] === 1 && STORED['item-list'] === 1 && !S.DEF_PROP['item-list']);
@@ -130,6 +130,13 @@ const j = v => JSON.stringify(v);
         const damageOk = !v.errors.some(e => e.id === 'i_frag');
         const tsWarn = v.warnings.some(w => w.id === 'i_badts' && w.prop === 'throwSkill');
         return costErr && damageOk && tsWarn;
+    })());
+
+    /* ---- autoLayout places item-list fields (full-row Items section) ---- */
+    check('autoLayout: item-list fields land in an Items section as full rows', (() => {
+        const lay = autoLayout(gm);
+        const sec = lay.sections.find(s => s.title === 'Items');
+        return !!sec && sec.fields.some(p => p.id === 'f_kit' && p.w === 'row') && sec.fields.some(p => p.id === 'f_gmkit');
     })());
 
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

@@ -1019,6 +1019,23 @@ net.charEdit = function(charId, fieldId, value) {
     try { net.conns[0].send({ type: 'char-edit', rid: rid, charId: charId, fieldId: fieldId, value: res.value }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
+// A player's inventory op on their own character (item-list): a per-entry add/remove/setQty, applied optimistically, judged on the host.
+net.charItem = function(charId, fieldId, op, defId, qty) {
+    var S = SC(), camp = getActiveCampaign();
+    if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
+    var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    if (!camp.system) return { error: 'No system at this table.' };
+    var res = S.applyItemOp(camp.system, c, fieldId, op, defId, qty, { player: true });
+    if (!res.ok) return { error: res.reason === 'field' ? 'That list cannot be edited.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.' };
+    var rid = 'e' + Math.random().toString(36).slice(2, 10);
+    var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
+    c.values = c.values || {}; c.values[fieldId] = res.value;
+    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    try { net.conns[0].send({ type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: op, defId: defId, qty: qty }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
 function charPendingDone(rid, ok, reason) {
     var p = _charPending[rid]; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];
     if (!ok) { var camp = getActiveCampaign(), c = camp && camp.chars && camp.chars[p.charId]; if (c) { c.values = c.values || {}; if (p.prev === undefined) delete c.values[p.fieldId]; else c.values[p.fieldId] = p.prev; } }
@@ -2093,6 +2110,25 @@ function handleMessage(msg, conn) {
         try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) {}
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
+    } else if (msg.type === 'char-item' && net.role === 'host') {
+        // a player's inventory op on their own character (item-list): same gates as char-edit, then applyItemOp reads the def from the system
+        var Si = SC(), Fi = window.wpFormula; if (!Si || !Fi) return;
+        var qi = Si.cleanCharItem(msg); if (!qi) return;
+        var denyI = function(reason) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: reason }); } catch (e) {} };
+        if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Si.LIMITS.editsPerWindow, windowMs: Si.LIMITS.editWindowMs, table: 400 });
+        var limI = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
+        if (limI !== true) { var skI = conn.peer + '|slow'; if (!_charSlowSaid[skI] || Date.now() - _charSlowSaid[skI] > Si.LIMITS.editWindowMs) { _charSlowSaid[skI] = Date.now(); denyI('slow'); } return; }
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { denyI('off'); return; }
+        var campI = getActiveCampaign(), chI = campI && campI.chars && campI.chars[qi.charId];
+        if (!campI || !campI.system || !chI) { denyI('missing'); return; }
+        var profI = net.roster[conn.peer]; if (chI.npc || !chI.ownerId || !profI || chI.ownerId !== profI.id) { denyI('owner'); return; }
+        var resI = Si.applyItemOp(campI.system, chI, qi.fieldId, qi.op, qi.defId, qi.qty, { player: true });
+        if (!resI.ok) { denyI(resI.reason); return; }
+        chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = Date.now();
+        net.applyingRemote = true; save(true); net.applyingRemote = false;
+        try { conn.send({ type: 'char-ack', rid: qi.rid }); } catch (e) {}
+        var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
+        if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
     } else if (msg.type === 'system' && net.role === 'client') {
         // the hosted campaign's system as the players' view (character sheets, 1.5.0), re-cleaned here; null = the campaign has none
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore || !window.wpFormula) return;

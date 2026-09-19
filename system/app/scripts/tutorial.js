@@ -532,7 +532,7 @@ function openItem(id) { var camp = getActiveCampaign(); if (!camp || !camp.items
 function openLeft() { var sb = document.getElementById('campaignSidebar'); if (sb && sb.classList.contains('collapsed')) { var t = document.getElementById('toggleLeftBtn'); if (t) t.click(); } }
 
 var STEPS = [
-    { target: null, title: 'Welcome to Waypoint',
+    { section: 'Getting started', target: null, title: 'Welcome to Waypoint',
       html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city (throne room, temple, forge, inn), a hill road, a three-floor raiders\' hideout, an old fort, and a session plan \u2014 hex and square grids and no grid at all, drawn maps and maps built from shapes. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
     { target: '#campaignSelect', title: 'Campaigns',
@@ -542,7 +542,7 @@ var STEPS = [
     { target: '#viewModeSelect', title: 'Two faces of every map',
       html: 'The <b>Data Map</b> is the node view for your notes and connections; the <b>Play Map</b> is the battle map with tokens. This switch flips between them, and each map remembers which face you left it on.',
       before: function() { openItem('map_tut_city'); goView('data'); } },
-    { target: '#dataFloatingToolbar', title: 'Data map tools',
+    { section: 'The data map', target: '#dataFloatingToolbar', title: 'Data map tools',
       html: '<b>Add Room</b> drops a node. <b>\u2194 Link Mode</b> connects two rooms \u2014 pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Hover a line and a small chip appears at its middle (a labelled line keeps its chip). Click the line or the chip to open it in <b>Properties</b>: a label that is drawn on the line (players see it), GM-only notes about the journey (never sent), the type, a swap for the direction, and Remove. <kbd>Delete</kbd> removes the selected link; right-click the chip for a quick type menu. Eldara\'s lines are already labelled \u2014 one of each type.' },
     { target: '#canvasWrap', title: 'Rooms and portals',
       html: 'Drag rooms around; click one to edit it on the right. The <b>Palace</b> carries a scene image and a king with a portrait; hover its shape on the Play Map to see both. <b>The Inn</b> carries a door icon because it is a <b>portal</b>: double-click it to travel into the inn\'s battle map, and use the breadcrumb at the top to climb back out. In multiplayer, players travel by dropping their token on a portal.',
@@ -550,7 +550,7 @@ var STEPS = [
     { target: '#sidebar', title: 'The Properties panel',
       html: 'Whatever you select is edited here: a room\'s name, category colour, scene image, GM-only notes and the characters found there, each with a portrait. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears; the arrow on its edge toggles it by hand.',
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); } },
-    { target: '#wbFloatingToolbar', title: 'Play map tools',
+    { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
       html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, <b>undo and redo for this map</b> (every map and planner keeps its own history — <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back the last edit on the one you are looking at, never a pan, a click or another map), then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, <b>Import Character</b> for a shadow-base.com sheet, and &#127925; <b>Sound</b> (next). <i>The blast button is a stopgap: blasts will be thrown from the VTT character sheets once those are in, and the preset explosive types are not permanent, names and radii alike \u2014 they will be set per campaign, from its own weapons, and customizable.</i> <b>Framing &amp; panning:</b> the &#127919; centre button includes <b>Fit to Content</b> (<kbd>Shift</kbd>+<kbd>1</kbd>) to zoom-and-pan the whole map into view &mdash; or just your selection when something is selected; hold <kbd>Space</kbd> and drag to pan from any tool, and middle-drag or the hand tool pan too.',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#soundBtn', title: 'Sound',
@@ -574,7 +574,7 @@ var STEPS = [
     { target: '#imgLibBtn', title: 'The picture library',
       html: 'This campaign\'s pictures \u2014 uploaded from its maps, planners and pages, used by them, or brought in from another campaign with <b>Import from another campaign\u2026</b> (nothing is copied; a picture can belong to several). <b>Shared</b> holds the tutorial art, <b>Unfiled</b> pictures whose map is gone, <b>All campaigns</b> everything. Filter by name or map, group into categories you define per campaign (right-click a picture to tag it; a category can be made <b>shared</b> so every campaign sees it). Click one for a large preview \u2014 the arrows or <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step through \u2014 then <b>Add to map</b>. The tutorial\'s art is here too, under <b>Default</b> \u2014 a category on its <b>own shelf</b>, so it stays out of All. Delete any picture from its preview, or the whole category, when you are done with it.',
       before: function() { openItem('map_tut_inn'); goView('visual'); } },
-    { target: '#plannerNavList', title: 'Planners',
+    { section: 'Planners & handbook', target: '#plannerNavList', title: 'Planners',
       html: 'Document pages for session plans, encounter tables, and flowcharts — nest them like maps, and re-order them the same way (drag onto the top or bottom of a row, or right-click <b>↑ Move Up</b> / <b>↓ Move Down</b>). <b>Session 1</b> is marked as the <b>next scene</b>, so it shows up in the play map\'s right-click menu during a game. Planners are yours alone; players never receive them.',
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',
@@ -585,16 +585,16 @@ var STEPS = [
       before: function() { openLeft(); openItem('doc_tut_handbook'); } },
     { target: '#handoutsBtn', title: 'Handouts and the journal',
       html: 'Pictures and text to show your players \u2014 a letter, a face, a place. The Tutorial campaign has two ready: <b>Grukk\'s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player, and it lands in their <b>Journal</b> (the book icon beside this), where they keep notes on it and can share it with the party. A room can carry a handout that arrives when a player reaches it.' },
-    { target: '#saveAsBtn', title: 'Export and import',
+    { section: 'Sharing & finding', target: '#saveAsBtn', title: 'Export and import',
       html: 'Share or back up at any scope: this map or planner, all maps, all play maps, all planners, this campaign, or everything. Exports that use pictures arrive as a <b>.zip</b> with the pictures bundled; <b>Import</b> takes those zips or plain .json and <b>merges by id</b> or replaces. It also takes a <b>Markdown</b> file (or a zip of one with its pictures) and turns it into a planner or a handbook page through a preview, and any planner or page saves back as Markdown from this menu. Merging is how another author hands you a module without touching the rest of your campaign.' },
     { target: '#searchMapsSidebarBtn', title: 'Finding things',
       html: 'The search buttons beside Planners and Maps filter their lists. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
-    { target: '#systemBtn', title: 'The system',
+    { section: 'Character system', target: '#systemBtn', title: 'The system',
       html: 'Your game&rsquo;s rules, with no code: the <b>System</b> editor holds the campaign&rsquo;s <b>fields</b> &mdash; attributes with defaults and ranges, formulas computed from them (<code>floor((STR - 10) / 2)</code>), resources with a formula for their max (HP), skills as ranks plus a base, toggles for conditions, text, notes and selects &mdash; and its <b>rolls</b> (<code>d20 + STRmod</code>). Errors show under the field as you type, with a caret; <b>Start from&hellip;</b> gives you Basic d20 or Basic 3d6 to edit; Export and Import move a system between campaigns. Players get every field you leave visible; GM-only fields never leave your machine. The <b>Layout</b> tab arranges the sheet in sections and columns (or leave it automatic); the <b>Characters</b> tab holds the campaign&rsquo;s characters; a token points at one through its Properties, and right-click &#9656; <b>Sheet&hellip;</b> opens the sheet over the play map &mdash; yours for any character, a player&rsquo;s for their own, where they fill in what you left editable.' },
     { target: '#sheetPanel', title: 'A character sheet',
       html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (right-click a token &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip.',
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) window.wpSheets.openSheet('c_tut_bren'); } },
-    { target: '#netBtn', title: 'Multiplayer',
+    { section: 'Multiplayer & the table', target: '#netBtn', title: 'Multiplayer',
       html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden. Dice roll from Table Chat: <b>/roll 2d6 + 3</b>, or the &#127922; roller beside the message box (next).',
       before: function() { if (window.wpSheets) window.wpSheets.closeSheet(); } },
     { target: '#diceBtn', title: 'Dice',
@@ -612,6 +612,11 @@ var STEPS = [
     { target: null, title: 'That\'s the tour', finish: true,
       html: 'The <b>Tutorial</b> campaign stays in your save so you can keep building on it — rename it, add maps, run a session. Or discard it now; your other campaigns are untouched either way. Its pictures stay in the Image Library under <b>Shared &rarr; Default</b> until you delete them there.' }
 ];
+
+// The tour is one flow grouped into labelled sections (a step carries `section` to open one). Used for the card's
+// progress line and the "jump to a section" menu, so a returning player can skip straight to a feature area.
+function sectionSpans() { var out = []; STEPS.forEach(function(s, i) { if (s.section) out.push({ label: s.section, start: i }); }); return out; }
+function sectionAt(i) { var sp = sectionSpans(), idx = 0; for (var k = 0; k < sp.length; k++) if (sp[k].start <= i) idx = k; return { spans: sp, idx: idx }; }
 
 var tour = { i: -1, overlay: null, spot: null, card: null, active: false };
 
@@ -672,7 +677,10 @@ function show(i, dir) {
     tour.i = i;
     var step = STEPS[i];
     try { if (step.before) step.before(); } catch (e) { console.warn('[tutorial] step setup failed', e); }
-    var html = '<div class="tour-step">Step ' + (i + 1) + ' of ' + STEPS.length + '</div><h3>' + esc(step.title) + '</h3><div class="tour-body">' + step.html + '</div><div class="tour-btns">';
+    var sec = sectionAt(i), sp = sec.spans, secLabel = sp[sec.idx] ? sp[sec.idx].label : '';
+    var html = '<div class="tour-step"><button class="tour-secbtn" id="tourSecBtn" title="Jump to a section">' + esc(secLabel) + ' · ' + (sec.idx + 1) + '/' + sp.length + ' ▾</button><span class="tour-stepn">step ' + (i + 1) + ' of ' + STEPS.length + '</span></div>';
+    html += '<div class="tour-secmenu" id="tourSecMenu" style="display:none;">' + sp.map(function(s, k) { return '<button class="tour-secitem' + (k === sec.idx ? ' on' : '') + '" data-secstart="' + s.start + '">' + esc(s.label) + '</button>'; }).join('') + '</div>';
+    html += '<h3>' + esc(step.title) + '</h3><div class="tour-body">' + step.html + '</div><div class="tour-btns">';
     if (step.finish) {
         html += '<button class="tool ghost" id="tourDiscardEnd">Discard the Tutorial campaign</button><button class="tool" id="tourKeepEnd">Keep it &amp; finish</button>';
     } else {
@@ -686,6 +694,8 @@ function show(i, dir) {
     if (q('tourSkip')) q('tourSkip').addEventListener('click', endTour);
     if (q('tourKeepEnd')) q('tourKeepEnd').addEventListener('click', function() { endTour(); toast('The Tutorial campaign is yours to build on. Help → Tutorial can discard or rebuild it.'); });
     if (q('tourDiscardEnd')) q('tourDiscardEnd').addEventListener('click', function() { endTour(); discardTutorialCampaign(); });
+    if (q('tourSecBtn')) q('tourSecBtn').addEventListener('click', function(e) { e.stopPropagation(); var m = q('tourSecMenu'); if (m) { m.style.display = m.style.display === 'none' ? 'flex' : 'none'; place(); } });
+    if (q('tourSecMenu')) q('tourSecMenu').querySelectorAll('.tour-secitem').forEach(function(b) { b.addEventListener('click', function() { var s = parseInt(b.dataset.secstart, 10); if (s >= 0 && s < STEPS.length) show(s, 1); }); });
     var el = targetEl(step);
     if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
     // two passes: the card's height is only known once its content is in the DOM
@@ -693,16 +703,18 @@ function show(i, dir) {
 }
 function next(dir) { show(tour.i + dir, dir); }
 
-function startTour() {
+function startTour(at) {
+    var start = (typeof at === 'number' && at > 0 && at < STEPS.length) ? at : 0;   // Help can start at a section
     if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
     guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the tour opens the Tutorial campaign
         ensureDom();
+        ensureTutorialCampaign(false);   // starting at a section needs the demo campaign present (Welcome usually does this first)
         try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
         var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
         tour.active = true;
         tour.overlay.style.display = 'block';
         document.body.classList.add('tour-on');
-        show(0, 1);
+        show(start, 1);
     });
 }
 function endTour() {
@@ -726,10 +738,19 @@ function syncPane() {
     var d = document.getElementById('tourDiscardBtn'); if (d) d.style.display = has ? '' : 'none';
     var r = document.getElementById('tourRebuildBtn'); if (r) r.style.display = has ? '' : 'none';
     var o = document.getElementById('tourOpenBtn'); if (o) o.style.display = has ? '' : 'none';
-    var v = document.getElementById('tourVersion'); if (v) v.textContent = 'Tour version ' + TUTORIAL_VERSION + ' · ' + STEPS.length + ' steps';
+    var v = document.getElementById('tourVersion'); if (v) v.textContent = 'Tour version ' + TUTORIAL_VERSION + ' · ' + STEPS.length + ' steps · ' + sectionSpans().length + ' sections';
+    var secWrap = document.getElementById('tourSections');
+    if (secWrap) {
+        secWrap.textContent = '';
+        sectionSpans().forEach(function(sp, k) {
+            var b = document.createElement('button'); b.className = 'tool ghost'; b.style.fontSize = '11px'; b.textContent = (k + 1) + '. ' + sp.label;
+            b.addEventListener('click', function() { startTour(sp.start); });
+            secWrap.appendChild(b);
+        });
+    }
 }
 (function wire() {
-    var s = document.getElementById('tourStartBtn'); if (s) s.addEventListener('click', startTour);
+    var s = document.getElementById('tourStartBtn'); if (s) s.addEventListener('click', function() { startTour(); });
     var o = document.getElementById('tourOpenBtn'); if (o) o.addEventListener('click', function() {
         guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() { ensureTutorialCampaign(false); var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none'; toast('Tutorial campaign opened.'); });
     });

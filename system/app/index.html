@@ -271,12 +271,16 @@ window.addEventListener('unhandledrejection', function(e) {
                   <div class="help-pane" data-pane="tutorial" style="display:none;">
                       <h4>Interactive tutorial</h4>
                       <p id="tourState"></p>
-                      <p>The tour is a guided walkthrough over the real app &mdash; campaigns and the map tree, both faces of a map, the toolbars, tokens, planners, multiplayer and settings &mdash; in about twenty short steps. Nothing is locked while it runs: try each thing as the card describes it, then press <b>Next</b>. <kbd>Esc</kbd> leaves the tour at any point.</p>
+                      <p>The tour is a guided walkthrough over the real app &mdash; campaigns and the map tree, both faces of a map, the toolbars, tokens, planners, multiplayer and settings &mdash; in short steps grouped into <b>sections</b> you can jump between. Nothing is locked while it runs: try each thing as the card describes it, then press <b>Next</b>. Every card shows its section and a <b>&#9662;</b> menu to skip to another. <kbd>Esc</kbd> leaves the tour at any point.</p>
                       <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
                           <button class="tool gm-only" id="tourStartBtn">&#9654; Start the tutorial</button>
                           <button class="tool ghost gm-only" id="tourOpenBtn">Open the Tutorial campaign</button>
                           <button class="tool ghost gm-only" id="tourRebuildBtn" title="Replace the Tutorial campaign with a fresh copy">Rebuild it</button>
                           <button class="tool ghost danger gm-only" id="tourDiscardBtn" title="Delete the Tutorial campaign from your save">Discard the Tutorial campaign</button>
+                      </div>
+                      <div id="tourSectionsWrap" class="gm-only" style="margin:2px 0 10px;">
+                          <div style="font-size:11px; color:var(--dim); margin-bottom:5px;">Or jump straight to a section:</div>
+                          <div id="tourSections" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
                       </div>
                       <div class="help-tip">The Tutorial campaign is a normal campaign in your save: rename it, add to it, host a session on it. Discarding it deletes only that campaign. <span id="tourVersion" style="color:var(--dim);"></span></div>
                   </div>

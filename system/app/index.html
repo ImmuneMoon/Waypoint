@@ -82,6 +82,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/sheets.js"></script>
 <script type="module" src="scripts/fxcore.js"></script>
 <script type="module" src="scripts/fx.js"></script>
+<script type="module" src="scripts/fogcore.js"></script>
+<script type="module" src="scripts/fog.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
@@ -840,6 +842,43 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
               </div>
           </div>
 
+          <div style="position:relative;" class="gm-only">
+              <button class="wb-tool-btn" id="fogModeBtn" style="display:none;" title="Fog of war &mdash; per-player token vision. Turn it on for this map, then paint reveal/hide by hand or preview a player's view (a VTT feature, per campaign)">&#127787;</button>
+              <div class="shape-menu draw-menu" id="fogMenu">
+                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="fogOn"> <span>Fog on this map</span></label>
+                  <div id="fogGridlessRow" style="display:none;">
+                      <div class="draw-menu-label">Gridless &mdash; measure vision with</div>
+                      <div class="draw-menu-row">
+                          <button class="draw-style-btn fog-grid-btn" data-fgrid="square" title="Square cells, D&amp;D radius vision">Square</button>
+                          <button class="draw-style-btn fog-grid-btn" data-fgrid="hex" title="Hex cells, GURPS front-arc vision">Hex</button>
+                      </div>
+                      <div class="draw-menu-row">
+                          <input type="number" id="fogCellLen" min="10" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                          <span style="font-size:11px; color:var(--dim);">px per cell (the grid is not drawn)</span>
+                      </div>
+                  </div>
+                  <div class="draw-menu-label">Default sight range (yards)</div>
+                  <div class="draw-menu-row">
+                      <input type="number" id="fogSight" min="0" step="1" style="width:80px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                      <span style="font-size:11px; color:var(--dim);">how far a token sees</span>
+                  </div>
+                  <div class="draw-menu-label">Brush</div>
+                  <div class="draw-menu-row">
+                      <button class="draw-style-btn fog-brush-btn active" data-fbrush="reveal" title="Click or drag the map to reveal cells">&#128065; Reveal</button>
+                      <button class="draw-style-btn fog-brush-btn" data-fbrush="hide" title="Click or drag the map to hide cells (right-click paints the other brush)">&#127787; Hide</button>
+                  </div>
+                  <div class="draw-menu-row">
+                      <button class="draw-style-btn" id="fogRevealAll" title="Show the whole map (a lit scene)">Reveal all</button>
+                      <button class="draw-style-btn" id="fogCoverAll" title="Hide everything except cells you reveal by hand">Cover all</button>
+                  </div>
+                  <div class="draw-menu-label">Preview a player's view</div>
+                  <div class="draw-menu-row">
+                      <select id="fogPreview" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="off">Off &mdash; whole board</option><option value="party">Party &mdash; all tokens</option></select>
+                  </div>
+                  <div id="fogNote" style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;"></div>
+                  <div style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;">Preview shows the fog on your own screen. Enforcing it over the wire for real players is the next fog step.</div>
+              </div>
+          </div>
           <button class="wb-tool-btn gm-only" id="soundBtn" title="Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)">&#127925;</button>
           <button class="wb-tool-btn gm-only" id="fxBtn" title="Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)">&#10024;</button>
 
@@ -888,6 +927,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <div id="rulerCursorX"></div>
       <div id="rulerCursorY"></div>
       <div id="fxScreen"></div>
+      <div id="fogScreen"></div>
       <div id="partyStrip" title="Your players' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map."></div>
       <div id="combatStrip" style="display:none;" title="Combat on this map"></div>
       <div id="partyMenu" class="shape-menu" style="position:fixed; flex-direction:column; min-width:200px; z-index:99998;"></div>
@@ -1294,6 +1334,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px; cursor:pointer;" title="Skip screen shake and shorten flashes on this machine (photosensitivity or a slow GPU). Your setting only."><input type="checkbox" id="setFxReduced"> Reduce motion (this machine)</label>
+            <div class="set-vtt-row" data-vtt="fog" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Fog of war <span id="setFogState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setFogBtn" style="width:100%;">Toggle Fog of War</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The GM's &#127787; fog tool on the play map: turn fog on for a map, then reveal or hide cells by hand and preview a player's view. Off by default. The GM controls it for the whole table &mdash; there is no per-player switch. Set per campaign.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
             </div>
             </div>
             <div id="setVttDefaults" class="gm-only" style="margin-top:14px; border-top:1px solid var(--edge); padding-top:10px;">
@@ -1330,6 +1376,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Visual effects <span id="setVttGlobalFxState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalFxBtn" style="width:100%;">Toggle Default Visual Effects</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Fog of war <span id="setVttGlobalFogState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalFogBtn" style="width:100%;">Toggle Default Fog of War</button>
                 </div>
                 <button class="tool ghost" id="setVttPushBtn" style="width:100%;" title="Copy the default above onto the campaigns you tick. Nothing is ticked to begin with; the others keep their own settings.">Apply to existing campaigns&hellip;</button>
             </div>

@@ -1553,7 +1553,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_eraserModeBtn = document.getElementById('eraserModeBtn');
 
   function updateWbToolbar(activeId) {
-      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn'].forEach(id => {
+      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn'].forEach(id => {
           var el = document.getElementById(id);
           if (el) el.classList.remove('active');
       });
@@ -1561,9 +1561,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (el) el.classList.add('active');
       // The hand tool pans no matter what it grabs — items are untouchable while it's active
       window.isPanMode = (activeId === 'panModeBtn');
+      window.isFogMode = (activeId === 'fogModeBtn');   // fog paints on the board; other modes clear it
       if (activeId !== 'eraserModeBtn' && window.wpEraserCursorHide) window.wpEraserCursorHide();
       // Per-tool cursors (style.css `body.mode-*`): the class beats every item's own cursor
-      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast'].forEach(function(c) { document.body.classList.remove(c); });
+      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
   }
 
@@ -1960,7 +1961,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           down = null;
           if (e.button !== 0 || !e.target || !e.target.closest) return;
           if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) return;
-          if (window.isDrawingMode || window.isEraserMode || window.isMeasureMode || window.isPanMode) return;
+          if (window.isDrawingMode || window.isEraserMode || window.isMeasureMode || window.isPanMode || window.isFogMode) return;
           var el = e.target.closest('#whiteboard .wb-item'); if (!el) return;
           var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
           var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
@@ -2495,6 +2496,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      height joins it straight-line: d = sqrt(h² + v²). Templates are local, like rulers —
      never saved, never sent. */
   window.wpMeasureKind = 'ruler';
+  window.isFogMode = false;
   var blasts = [];
   var blastDefaults = { ft: 12, name: 'Frag' };
   try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: _bf.name || '' }; } catch (e) {}
@@ -2591,6 +2593,46 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpFx) window.wpFx.placeBurst(x, y, look, r);
   }
   window.wpMeasure = { config: mapMeasureConfig, cellYards: cellYards, pxToYards: function(px) { var c = cellYards(), ppy = c ? mapMeasureConfig().cellPx / c : 0; return ppy ? Math.round(px / ppy * 10) / 10 : null; } };
+  // Fog of war (1.5.0): a play-map mode. The button enters fog mode and opens its menu (fog.js owns the menu +
+  // overlay); a click or drag paints reveal/hide cells. datamap.js suppresses token drag/pan/selection while
+  // window.isFogMode is on. Right-click (or the Hide brush) paints the opposite of the current brush.
+  var _el_fogModeBtn = document.getElementById('fogModeBtn');
+  if (_el_fogModeBtn) _el_fogModeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!window.isFogMode) {
+          window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
+          if (wbWrap) wbWrap.style.cursor = 'crosshair';
+          updateWbToolbar('fogModeBtn');
+          closeDrawMenu();
+          state.selWbId = null; state.selWbIds = []; render();
+          if (window.wpFog) window.wpFog.openMenu();
+      } else {
+          var fm = document.getElementById('fogMenu');
+          if (window.wpFog) { if (fm && fm.classList.contains('show')) window.wpFog.closeMenu(); else window.wpFog.openMenu(); }
+      }
+  });
+  // fog.js calls this when the fog feature switches off while the GM is in fog mode
+  window.wpExitFogMode = function() {
+      window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
+      if (wbWrap) wbWrap.style.cursor = 'default';
+      updateWbToolbar('moveModeBtn');
+  };
+  if (wbWrap) {
+      var _fogPaintBtn = -1;
+      var _fogBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
+      wbWrap.addEventListener('pointerdown', function(e) {
+          if (!window.isFogMode || (e.button !== 0 && e.button !== 2)) return;
+          _fogPaintBtn = e.button;
+          var pt = _fogBoard(e); if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, e.button === 2);
+          e.preventDefault();
+      });
+      wbWrap.addEventListener('pointermove', function(e) {
+          if (!window.isFogMode || _fogPaintBtn < 0) return;
+          var pt = _fogBoard(e); if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, _fogPaintBtn === 2);
+      });
+      wbWrap.addEventListener('contextmenu', function(e) { if (window.isFogMode) e.preventDefault(); });
+      document.addEventListener('pointerup', function() { _fogPaintBtn = -1; });
+  }
   var _el_blastModeBtn = document.getElementById('blastModeBtn');
   var _el_blastMenu = document.getElementById('blastMenu');
   function closeBlastMenu() { if (_el_blastMenu) _el_blastMenu.classList.remove('show'); }

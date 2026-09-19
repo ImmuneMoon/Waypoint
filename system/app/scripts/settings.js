@@ -286,7 +286,8 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     sound: ['Sound on.', 'Sound off for this campaign \u2014 the table falls silent.'],
     dice: ['Dice on.', 'Dice off for this campaign \u2014 nobody rolls at the table.'],
     sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
-    fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.']
+    fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.'],
+    fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.']
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
@@ -322,12 +323,21 @@ function syncVttPanel() {
         var help = row.querySelector('.set-vtt-help'), role = row.querySelector('.set-vtt-role');
         if (client) {
             var gmOn = c[f.id] === true, lo = v.localOff(f.id);
+            if (f.noLocal) {   // the GM controls it for the whole table \u2014 no per-player switch
+                if (st) st.textContent = gmOn ? 'GM: on' : 'GM: off';
+                if (btn) btn.style.display = 'none';
+                row.style.opacity = gmOn ? '' : '.55';
+                if (help) help.style.display = 'none';
+                if (role) { role.style.display = ''; role.textContent = gmOn ? 'The GM runs fog for this table \u2014 there is no per-player switch.' : 'The GM has fog off for this table.'; }
+            } else {
+            if (btn) btn.style.display = '';
             if (st) st.textContent = gmOn ? (lo ? 'GM: on \u2014 off for you' : 'GM: on') : 'GM: off';
             if (btn) { btn.textContent = lo ? 'Turn back on for me' : 'Turn off for me'; btn.disabled = !gmOn; }
             row.style.opacity = gmOn ? '' : '.55';
             if (help) help.style.display = 'none';
             if (role) { role.style.display = ''; role.textContent = !gmOn ? 'The GM has this off for the table.' : lo ? 'Off for you at this table \u2014 your own settings are unchanged.' : 'On at this table. Switch it off for yourself here; your own settings are unchanged.'; }
             if (role && gmOn && VTT_ROLE[f.id]) role.textContent += ' ' + VTT_ROLE[f.id];
+            }
         } else {
             var on = v.campaignOn(f.id, camp);
             var extra = (f.id === 'minimap' && on && localStorage.getItem('wp_minimap') === 'closed') ? ' \u2014 collapsed in the corner' : '';

@@ -676,17 +676,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               
 
               var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = item.color || 'var(--ink)';
-
-              if (_tip === 'flat') {   // an angled calligraphy nib: a filled ribbon whose width varies with stroke direction
-                  var _w2 = (item.strokeWidth || 3) / 2, _ox = 0.70711 * _w2, _oy = 0.70711 * _w2;
-                  var _top = item.pts.map(function(q){ return (q[0] + _ox) + ' ' + (q[1] + _oy); });
-                  var _bot = item.pts.map(function(q){ return (q[0] - _ox) + ' ' + (q[1] - _oy); }).reverse();
-                  pathEl.setAttribute('d', 'M ' + _top.join(' L ') + ' L ' + _bot.join(' L ') + ' Z');
+              var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3);
+              pathEl.setAttribute('d', _sp.d);
+              if (_sp.fill) {
                   pathEl.setAttribute('fill', _col); pathEl.style.stroke = 'none'; pathEl.removeAttribute('stroke-width');
               } else {
-                  pathEl.setAttribute('d', 'M ' + item.pts.map(function(q){ return q[0] + ' ' + q[1]; }).join(' L '));
-                  pathEl.setAttribute('fill', 'none'); pathEl.style.stroke = _col; pathEl.setAttribute('stroke-width', item.strokeWidth || 3);
-                  pathEl.setAttribute('stroke-linecap', _tip === 'square' ? 'square' : 'round'); pathEl.setAttribute('stroke-linejoin', _tip === 'square' ? 'miter' : 'round');
+                  pathEl.setAttribute('fill', 'none'); pathEl.style.stroke = _col; pathEl.setAttribute('stroke-width', _sp.width);
+                  pathEl.setAttribute('stroke-linecap', _sp.linecap); pathEl.setAttribute('stroke-linejoin', _sp.linejoin);
               }
 
           }
@@ -899,7 +895,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (fitBtn) {
           var gridOn = state.gridType && state.gridType !== 'off';
           fitBtn.style.display = gridOn ? '' : 'none';
-          fitBtn.title = gridOn ? 'Fit to grid cells — size to whole ' + state.gridType + ' cells and seat it' : '';
+          var _fitChanges = gridOn && window.wpFitWouldChange && window.wpFitWouldChange(its);
+          fitBtn.disabled = gridOn ? !_fitChanges : false;
+          fitBtn.title = !gridOn ? '' : (_fitChanges ? 'Fit to grid cells — size to whole ' + state.gridType + ' cells and seat it' : 'Already aligned to the grid');
       }
       var ratioBtn = bar.querySelector('.st-ratio');
       if (ratioBtn) {
@@ -937,30 +935,59 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      tokens and hex shapes become exactly one cell; anything else rounds to
      whole columns/rows of cells and centres on a cell. Square grids — width,
      height and position round to the 50px lattice. */
-  function fitToGrid(its) {
-      var g = state.gridType;
-      if (!g || g === 'off') { toast('Turn on a grid first (square or hex) — the grid button in the toolbar.'); return; }
-      var n = 0;
-      its.forEach(function(it) {
-          if (it.locked || it.type === 'path') return;
-          if (g === 'hex') {
-              if (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon') { it.w = 60; it.h = 52; }
-              else {
-                  var rows = Math.max(1, Math.round((it.h || 100) / 52)), cols = Math.max(1, Math.round(((it.w || 100) - 15) / 45));
-                  it.w = cols * 45 + 15; it.h = rows * 52;
-              }
-              if (window.wpSeatHex) window.wpSeatHex(it, null, true);
-          } else {
-              it.w = Math.max(50, Math.round((it.w || 100) / 50) * 50);
-              it.h = Math.max(50, Math.round((it.h || 100) / 50) * 50);
-              it.x = Math.round(it.x / 50) * 50; it.y = Math.round(it.y / 50) * 50;
-          }
-          n++;
-      });
-      save(); render();
-      toast(n ? 'Fitted ' + n + ' item' + (n === 1 ? '' : 's') + ' to the ' + g + ' grid.' : 'Nothing to fit — locked items and drawings are left alone.');
-  }
-  window.wpFitToGrid = fitToGrid;
+  function fitItemInPlace(it, g) {
+    var ox = it.x, oy = it.y, ow = it.w, oh = it.h;
+    if (g === 'hex') {
+        if (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon') { it.w = 60; it.h = 52; }
+        else {
+            var rows = Math.max(1, Math.round((it.h || 100) / 52)), cols = Math.max(1, Math.round(((it.w || 100) - 15) / 45));
+            it.w = cols * 45 + 15; it.h = rows * 52;
+        }
+        if (window.wpSeatHex) window.wpSeatHex(it, null, true);
+    } else {
+        it.w = Math.max(50, Math.round((it.w || 100) / 50) * 50);
+        it.h = Math.max(50, Math.round((it.h || 100) / 50) * 50);
+        it.x = Math.round(it.x / 50) * 50; it.y = Math.round(it.y / 50) * 50;
+    }
+    return Math.abs(it.x - ox) > 0.01 || Math.abs(it.y - oy) > 0.01 || Math.abs(it.w - ow) > 0.01 || Math.abs(it.h - oh) > 0.01;
+}
+// Would fitToGrid change anything in this selection? Mirror the exact transform on clones; skip locked/path.
+function fitWouldChange(its) {
+    var g = state.gridType;
+    if (!g || g === 'off') return false;
+    for (var i = 0; i < its.length; i++) {
+        var it = its[i];
+        if (!it || it.locked || it.type === 'path') continue;
+        if (fitItemInPlace({ x: it.x, y: it.y, w: it.w, h: it.h, isChar: it.isChar, type: it.type, shape: it.shape }, g)) return true;
+    }
+    return false;
+}
+function fitToGrid(its) {
+    var g = state.gridType;
+    if (!g || g === 'off') { toast('Turn on a grid first (square or hex) — the grid button in the toolbar.'); return; }
+    var n = 0;
+    its.forEach(function(it) {
+        if (it.locked || it.type === 'path') return;
+        if (fitItemInPlace(it, g)) n++;
+    });
+    if (n) { save(); render(); toast('Fitted ' + n + ' item' + (n === 1 ? '' : 's') + ' to the ' + g + ' grid.'); }
+    else { toast('Already aligned to the grid.'); }
+}
+// One shared builder so the live draw preview and the committed stroke never drift.
+function buildStrokePath(pts, tip, w) {
+    tip = tip || 'round'; w = w || 3;
+    if (tip === 'flat') {   // an angled calligraphy nib: a filled ribbon whose width varies with stroke direction
+        var _w2 = w / 2, _ox = 0.70711 * _w2, _oy = 0.70711 * _w2;
+        var _top = pts.map(function(q){ return (q[0] + _ox) + ' ' + (q[1] + _oy); });
+        var _bot = pts.map(function(q){ return (q[0] - _ox) + ' ' + (q[1] - _oy); }).reverse();
+        return { fill: true, d: 'M ' + _top.join(' L ') + ' L ' + _bot.join(' L ') + ' Z' };
+    }
+    return { fill: false, d: 'M ' + pts.map(function(q){ return q[0] + ' ' + q[1]; }).join(' L '),
+             width: w, linecap: tip === 'square' ? 'square' : 'round', linejoin: tip === 'square' ? 'miter' : 'round' };
+}
+window.wpFitWouldChange = fitWouldChange;
+window.wpBuildStrokePath = buildStrokePath;
+window.wpFitToGrid = fitToGrid;
 
   /* Duplicate: a full copy of every selected item — every field it carries
      (sheet, stats, portal target, styling, opacity, layer, lock…) rides along.

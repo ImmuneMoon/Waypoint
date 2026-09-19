@@ -151,6 +151,8 @@
   }
   .tool:hover{border-color:var(--gold);color:var(--ink)}
   .tool.ghost{background:transparent}
+  .tool:disabled, .tool.ghost:disabled { opacity:.45; cursor:default; }
+  .tool:disabled:hover { border-color: var(--edge); color: var(--ink); }
   /* the × that closes a panel: a square with the glyph dead centre */
   .tool.modal-close { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 0; border-radius: 7px; flex: 0 0 auto; }
   .tool.modal-close svg { display: block; }
@@ -738,6 +740,8 @@
     border-radius: 4px; padding: 0;
   }
   #selToolbar button:hover, #selToolbar label:hover { background: rgba(255,255,255,0.08); }
+  #selToolbar button:disabled { opacity: .4; cursor: default; }
+  #selToolbar button:disabled:hover { background: none; }
   #selToolbar .st-sep { width: 1px; height: 16px; background: var(--edge); margin: 0 2px; }
   #selToolbar .st-group.on { color: var(--gold); background: rgba(224,165,79,0.15); }
   /* Color button + palette popover. The chip shows the current color; for text

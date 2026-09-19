@@ -381,7 +381,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>Blast radius</h4>
                       <p>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell: pick the weapon (Frag 12 ft, Ion 24 ft&hellip; or type any radius in feet; &divide;3 = yards) and click the map. Every token within the radius lights up with its distance in yards, so you apply the handbook's damage &divide; (3 &times; distance) by hand &mdash; Waypoint never rolls for you. Distance is hex distance; with <b>Token elevation</b> on it is straight-line, height included (&radic;(h&sup2; + v&sup2;)), from the blast's own height (the token in the landing cell, else the ground &mdash; editable in the tool's menu). Drag a blast to move it (it re-seats in a cell and, unless you set its height, takes the height of whoever stands there); right-click it to remove it. Blasts are yours alone, like rulers.</p>
                       <p><b>&#128165; Boom:</b> with Visual effects on, each blast template shows a <b>Boom</b> label &mdash; click it to set off an explosion burst at that spot for everyone on the map.</p>
-                      <div class="help-tip"><b>Temporary:</b> the toolbar blast button is a stopgap. Blasts will be thrown by the character &mdash; PC or NPC &mdash; from the VTT character sheets once those are implemented, and the preset explosive types are not permanent, names and radii alike: they will be defined per campaign, from that campaign's own weapons, and customizable.</div>
+                      <div class="help-tip"><b>Blasts from the sheet:</b> this toolbar &#128165; is now a GM <b>quick-tool</b> for an ad-hoc radius. Per-item blasts are thrown by the character &mdash; PC or NPC &mdash; from their sheet, using the campaign&rsquo;s own item library (System &#9656; Items), each item with its own name, radius and damage. See Help &#9656; Character sheets.</div>
                       <h4>Elevation &amp; posture</h4>
                       <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height in yards and a posture (standing, crouching, sitting, kneeling, crawling, prone, face up). Both show as small chips at the foot of the token and in its Properties; players right-click their own token to set theirs. Switch either off and the chips vanish but the values stay. They are set <b>per campaign</b>; in a session your campaign's settings are the most your players see.</p>
                       <h4 id="helpVtt">VTT settings</h4>
@@ -572,7 +572,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>Blasts thrown from the sheet</h4>
                       <ul>
-                          <li>The toolbar <b>&#128165; Blast</b> tool is a <b>stopgap</b>. Grenades will be thrown by the character &mdash; PC or NPC &mdash; from their own sheet, with the weapon they carry deciding the blast.</li>
+                          <li><b>Item libraries.</b> The campaign&rsquo;s items &mdash; weapons, gear, explosives &mdash; carried on characters and thrown from the sheet (built; System &#9656; Items). Still to come: point <b>budgets</b> and <b>prerequisites</b> as formulas, and <b>players building their own characters</b> from the library.</li>
                           <li>The preset explosive types &mdash; their names (Frag, Concussion, Sonic, Ion, Plasma) and their radii &mdash; are <b>not permanent</b>: they will be defined <b>per campaign</b>, from that campaign's own weapons, and <b>customizable</b>.</li>
                       </ul>
                       <h4>Campaign content</h4>
@@ -623,6 +623,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Rolls</b> are named formulas with dice (<code>d20 + STRmod</code>, <code>3d6 &lt;= Skill.Stealth</code>) that become buttons on the sheet; a field can carry its own roll too. Tick <b>Initiative</b> on the roll the combat roster should use.</li>
                           <li><b>Start from&hellip;</b> replaces the system with <b>Basic d20</b> (six attributes with modifiers, HP, AC, skills with d20 rolls, conditions) or <b>Basic 3d6</b> (ST/DX/IQ/HT, HP/FP, skills as levels with roll-under checks) or a blank; <b>Export</b> writes a <b>.wpsystem.json</b> you can <b>Import</b> into another campaign or share.</li>
                           <li><b>Character sheets</b> is a VTT feature (&#9881; Settings &#9656; VTT features): off for the campaign, the system stays yours to edit but nothing of it shows at the table; a player who turns it off for themselves loses the sheet panel and the hover lines, their token still moves.</li>
+                      </ul>
+                      <h4>Items and blasts from the sheet</h4>
+                      <ul>
+                          <li>The System editor&rsquo;s <b>Items</b> tab is the campaign&rsquo;s <b>item library</b> &mdash; weapons, gear and explosives. Each item has a name, a category, an optional <b>blast area</b> (a radius in feet), a <b>damage</b> roll (dice allowed: <code>3d6 + STRmod</code>), a <b>cost</b> formula, an icon and a <b>Visible / GM only</b> flag. GM-only items and all item formulas never leave your machine.</li>
+                          <li>A character <b>carries</b> items through an <b>Item list</b> field (add it in Fields, place it on the sheet in Layout): the sheet then shows an inventory with a qty &minus;/+, a remove, and an <b>+ Add item&hellip;</b> picker of the library. A player manages their own; the host checks every change.</li>
+                          <li>An item with a blast area gets a <b>&#128165; Throw</b> button: press it, then click the map. The blast lands attributed to the character and is <b>shared with everyone on that map</b>. (The toolbar &#128165; stays a personal GM quick-tool.)</li>
+                          <li><b>Combat settings</b> (top of the Items tab): <b>Blast automation</b> &mdash; <b>Full auto</b> rolls the damage and applies it to every token in range, <b>Roll to chat</b> rolls but leaves applying to you, <b>Measure only</b> just shows the area. <b>Who rolls</b> &mdash; the character&rsquo;s owner or always the GM. <b>Damage subtracts from</b> &mdash; the resource (HP) full-auto reduces. Undo a full-auto throw with <b>&#8617; Undo last throw</b> in the &#128165; menu.</li>
                       </ul>
                       <h4>Characters and their sheets</h4>
                       <ul>
@@ -829,16 +836,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           </div>
 
           <div style="position:relative;" class="gm-only">
-              <button class="wb-tool-btn" id="blastModeBtn" title="Blast &mdash; click a cell to drop a grenade's radius; tokens in range show their distance. Drag a blast to move it, right-click to remove it (click again for the weapon)">&#128165;</button>
+              <button class="wb-tool-btn" id="blastModeBtn" title="Blast (GM quick-tool) &mdash; click a cell to drop a radius; tokens in range show their distance. Drag to move, right-click to remove. Per-item blasts are thrown from a character's sheet.">&#128165;</button>
               <div class="shape-menu draw-menu" id="blastMenu">
                   <div class="draw-menu-label">Blast Radius (area effect, feet)</div>
-                  <div class="draw-menu-row" id="blastPresetRow" style="flex-wrap:wrap;">
-                      <button class="draw-style-btn" data-name="Frag" data-ft="12">Frag 12</button>
-                      <button class="draw-style-btn" data-name="Concussion" data-ft="12">Concussion 12</button>
-                      <button class="draw-style-btn" data-name="Sonic" data-ft="20">Sonic 20</button>
-                      <button class="draw-style-btn" data-name="Ion" data-ft="24">Ion 24</button>
-                      <button class="draw-style-btn" data-name="Plasma" data-ft="30">Plasma 30</button>
-                  </div>
+                  <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">A quick ad-hoc radius. Per-item blasts are thrown from a character's sheet (System &#9656; Items).</div>
                   <div class="draw-menu-row">
                       <input type="number" id="blastFt" min="1" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
                       <span style="font-size:11px; color:var(--dim);">ft &mdash; any other weapon (&divide;3 = yards)</span>

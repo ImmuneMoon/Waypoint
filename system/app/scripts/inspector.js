@@ -1065,7 +1065,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 w.nodeId = this.value || null; save(); render();
             });
             var _el_wbFitGrid = document.getElementById('wbFitGrid');
-            if (_el_wbFitGrid) _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); });
+            if (_el_wbFitGrid) { _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); }); if (window.wpFitWouldChange && !window.wpFitWouldChange([w])) { _el_wbFitGrid.disabled = true; _el_wbFitGrid.title = w.locked ? 'Locked — unlock it to fit to the grid' : 'Already aligned to the grid'; } }
             var _el_wbPortalMap = document.getElementById('wbPortalMap');
             if (_el_wbPortalMap) _el_wbPortalMap.addEventListener('change', function() {
                 if (this.value) w.targetMapId = this.value; else { delete w.targetMapId; delete w.portalIcon; }

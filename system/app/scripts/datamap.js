@@ -1173,9 +1173,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
-              var pathD = 'M ' + drawPoints.map(p => (p[0] - drawMinX) + ' ' + (p[1] - drawMinY)).join(' L ');
-
-              currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" style="overflow:visible;"><path fill="none" stroke="'+(state.drawColor || 'var(--ink)')+'" stroke-width="'+(state.drawStrokeWidth || 3)+'" stroke-linecap="'+(state.drawTip === 'square' ? 'square' : 'round')+'" stroke-linejoin="'+(state.drawTip === 'square' ? 'miter' : 'round')+'" d="'+pathD+'" /></svg>';
+              var normPts = drawPoints.map(function(p){ return [p[0] - drawMinX, p[1] - drawMinY]; });
+              var _dcol = state.drawColor || 'var(--ink)';
+              var _dw = state.drawStrokeWidth || 3;
+              var _sp = window.wpBuildStrokePath ? window.wpBuildStrokePath(normPts, state.drawTip, _dw) : null;
+              var _inner;
+              if (_sp && _sp.fill) {
+                  _inner = '<path fill="' + _dcol + '" stroke="none" d="' + _sp.d + '" />';
+              } else if (_sp) {
+                  _inner = '<path fill="none" stroke="' + _dcol + '" stroke-width="' + _sp.width + '" stroke-linecap="' + _sp.linecap + '" stroke-linejoin="' + _sp.linejoin + '" d="' + _sp.d + '" />';
+              } else {
+                  var pathD = 'M ' + normPts.map(function(p){ return p[0] + ' ' + p[1]; }).join(' L ');
+                  _inner = '<path fill="none" stroke="' + _dcol + '" stroke-width="' + _dw + '" stroke-linecap="' + (state.drawTip === 'square' ? 'square' : 'round') + '" stroke-linejoin="' + (state.drawTip === 'square' ? 'miter' : 'round') + '" d="' + pathD + '" />';
+              }
+              currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="overflow:visible;">' + _inner + '</svg>';
 
               e.preventDefault();
 

@@ -23,6 +23,12 @@ Play map & settings
   sight through. The GM toggles a door from its Properties or by clicking it
   in fog mode; a player can open/close one their token stands next to (unless
   the GM locks it). A height dimension comes next.
+- Vision — all around or a facing cone: a map's fog menu now has a Vision
+  setting, all-around (a token sees every direction) or a facing cone whose
+  width you choose and which turns with the token. It's set per map and no
+  longer tied to the grid type — a square map can use a cone, a hex map can
+  see all around — with a "use for new maps" campaign default that never
+  changes maps you already made.
 
 Handbook
 - A third kind of item beside maps and planners: Handbook pages — rules,

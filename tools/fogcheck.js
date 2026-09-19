@@ -1,6 +1,7 @@
 /* Offline check of the fog/vision pure half (system/app/scripts/fogcore.js): cell geometry (square + flat-top hex,
-   matching the app's snapToHex), a viewer's visible-cell set (D&D radius, GURPS front-180° arc), range→cells,
-   the revealed-point test, and the map.fog / camp.fog validators. No DOM. Usage: node tools/fogcheck.js */
+   matching the app's snapToHex), a viewer's visible-cell set (radius/ring gated by a facing arc decoupled from the
+   grid type), sight-blocker occlusion, range→cells, the revealed-point test, and the map.fog / camp.fog validators
+   (vision mode + the new-map vision default). No DOM. Usage: node tools/fogcheck.js */
 'use strict';
 const path = require('path');
 const NL = String.fromCharCode(10);
@@ -13,7 +14,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     try { X = await import(url('fogcore.js')); } catch (e) { err = e; }
     check('module loads in Node with no window', !!X && !err, err && err.message);
     if (!X) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog } = X;
+    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog } = X;
 
     /* ---- square geometry ---- */
     const sq = squareGrid(50);
@@ -36,6 +37,19 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         // own cell (2,2), a cell 2 away in +x (4,2) within radius, a cell behind (0,2) also within radius (all-around), a far cell (5,2) excluded
         return keys.has('2,2') && keys.has('4,2') && keys.has('0,2') && !keys.has('5,2') && !keys.has('2,5'); })());
     check('D&D square: range 0 sees only its own cell', visibleCells({ x: 125, y: 125, range: 0, ruleset: 'dnd' }, sq).length === 1);
+
+    /* ---- vision arc decoupled from grid type (1.5.0): a facing cone on a SQUARE map ---- */
+    check('square facing cone (arc 180, front 0): cells ahead (up) in, behind (down) out; own cell kept', (() => {
+        const v = { x: 125, y: 125, range: 4, front: 0, arc: 180 };
+        const keys = new Set(visibleCells(v, sq).map(c => c.key));
+        return keys.has('2,2') && keys.has('2,0') && !keys.has('2,4') && !keys.has('2,5'); })());
+    check('square arc >= 360 (and arc absent) both = all-around, same cell set', (() => {
+        const all = new Set(visibleCells({ x: 125, y: 125, range: 3, front: 0, arc: 360 }, sq).map(c => c.key));
+        const def = new Set(visibleCells({ x: 125, y: 125, range: 3, front: 0 }, sq).map(c => c.key));
+        return all.has('2,5') && def.has('2,5') && all.size === def.size; })());
+    check('square facing cone rotates with front (front 90 faces +x)', (() => {
+        const keys = new Set(visibleCells({ x: 125, y: 125, range: 4, front: 90, arc: 180 }, sq).map(c => c.key));
+        return keys.has('4,2') && !keys.has('0,2'); })());
 
     /* ---- GURPS front arc (hex) ---- */
     check('GURPS hex: front 180° arc excludes cells behind the facing', (() => {
@@ -131,10 +145,27 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     check('gridFor maps grid types; gridless with no cell returns null', gridFor('square').type === 'square' && gridFor('hex').type === 'hex' && gridFor('off', null) === null && gridFor('off', { grid: 'square', len: 70 }).size === 70);
 
     /* ---- validators ---- */
-    check('cleanFog: on boolean, ruleset whitelist, cell clamp, manual arrays cleaned, mode defaults auto', (() => {
+    check('cleanFog: on boolean, ruleset dropped (retired), cell clamp, manual arrays cleaned, mode defaults auto', (() => {
         const f = cleanFog({ on: 1, ruleset: 'evil', cell: { grid: 'square', len: 1e9 }, manual: { adds: [{ c: 1, r: 2 }, { bad: 1 }], cuts: 'x' } });
         return f.on === false && f.mode === 'auto' && f.ruleset === undefined && f.cell.len === LIMITS.len[1] && f.manual.adds.length === 1 && f.manual.cuts.length === 0 && cleanFog(null) === null; })());
-    check('cleanFog keeps a good ruleset, on:true, and a whitelisted mode; a bad mode falls back to auto', (() => { const f = cleanFog({ on: true, ruleset: 'gurps', mode: 'reveal', manual: {} }); return f.on === true && f.ruleset === 'gurps' && f.mode === 'reveal' && cleanFog({ on: true, mode: 'evil' }).mode === 'auto'; })());
+    check('cleanFog retires ruleset entirely (dropped even when valid), keeps on:true and a whitelisted mode; a bad mode falls back to auto', (() => { const f = cleanFog({ on: true, ruleset: 'gurps', mode: 'reveal', manual: {} }); return f.on === true && f.ruleset === undefined && f.mode === 'reveal' && cleanFog({ on: true, mode: 'evil' }).mode === 'auto'; })());
+
+    /* ---- vision validators (1.5.0) ---- */
+    check('cleanVision: all → 360, arc clamped 1..360, arc default 180, junk → null', (() => {
+        return cleanVision({ mode: 'all' }).arc === 360
+            && cleanVision({ mode: 'arc', arc: 90 }).arc === 90
+            && cleanVision({ mode: 'arc', arc: 9999 }).arc === 360
+            && cleanVision({ mode: 'arc', arc: 0 }).arc === 1
+            && cleanVision({ mode: 'arc' }).arc === LIMITS.arcDeg
+            && cleanVision({ mode: 'nope' }) === null && cleanVision(null) === null; })());
+    check('cleanFog carries a valid vision and drops an invalid one', (() => {
+        const a = cleanFog({ on: true, vision: { mode: 'arc', arc: 120 } });
+        const b = cleanFog({ on: true, vision: { mode: 'bogus' } });
+        return a.vision.mode === 'arc' && a.vision.arc === 120 && b.vision === undefined; })());
+    check('cleanCampFog carries a new-map vision default (else absent)', (() => {
+        const a = cleanCampFog({ defaults: { sight: 30, vision: { mode: 'arc', arc: 90 } } });
+        const b = cleanCampFog({ defaults: { sight: 30 } });
+        return a.defaults.vision.arc === 90 && a.defaults.sight === 30 && b.defaults.vision === undefined; })());
     check('cleanFog keeps hex manual cells ({q,r}) by their own shape', (() => { const f = cleanFog({ on: true, manual: { adds: [{ q: 1, r: -2 }], cuts: [{ q: 0, r: 0 }] } }); return f.manual.adds.length === 1 && f.manual.adds[0].q === 1 && f.manual.adds[0].r === -2 && f.manual.cuts.length === 1; })());
     check('cleanCampFog: sight field id validated, default clamped, junk → empty', (() => {
         const a = cleanCampFog({ fields: { sight: 'f_see1' }, defaults: { sight: 60 } });

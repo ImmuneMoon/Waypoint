@@ -75,7 +75,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function createNewMap(title) {
 
-    return {
+    var map = {
 
       type: 'map',
 
@@ -92,6 +92,24 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       cats: { 'default': { label: 'Default Category', color: '#c9c9d4' } }
 
     };
+
+    // New-map vision default (1.5.0): stamp this campaign's chosen fog vision so a NEW map opens the GM's way,
+
+    // without retroactively changing existing maps (they keep the grid-type default when they carry no vision).
+
+    try {
+
+      var camp = getActiveCampaign();
+
+      var dv = camp && camp.fog && camp.fog.defaults && camp.fog.defaults.vision;
+
+      var cv = (window.wpFogCore && window.wpFogCore.cleanVision) ? window.wpFogCore.cleanVision(dv) : null;
+
+      if (cv) map.fog = { on: false, mode: 'auto', vision: cv, manual: { adds: [], cuts: [] } };
+
+    } catch (e) {}
+
+    return map;
 
   }
 

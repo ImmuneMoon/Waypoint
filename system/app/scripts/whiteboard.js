@@ -2577,7 +2577,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (_armedThrow) {   // a throw from a character sheet: one-shot, host-authoritative, shared to the map
           var ctx = _armedThrow; _armedThrow = null; document.body.classList.remove('placing');
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq) window.wpNet.throwReq(ctx.charId, ctx.itemId, x, y, map.id); }
-          else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by });
+          else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by, charId: ctx.charId, damage: ctx.damage });
           var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click();
           return;
       }
@@ -2598,13 +2598,64 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: b.by }, map.id);
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.');
+      resolveThrow(b, opts, n);
       return b;
   }
   window.wpPlaceThrownBlast = placeThrownBlast;   // net.js calls this on the host after validating a player's throw-req
+  // The damage half of a throw (host/solo only): roll the item's damage, and in full-auto subtract it from every
+  // in-range token's health resource as one undoable transaction. blastAuto: full = roll+apply, roll = roll to chat, measure = neither.
+  function resolveThrow(b, opts, nInRange) {
+      var camp = getActiveCampaign(), sys = camp && camp.system; if (!sys || !opts || !opts.damage) return;
+      var combat = sys.combat || {}, auto = combat.blastAuto || 'full';
+      if (auto === 'measure') return;
+      if (window.wpVtt && !window.wpVtt.on('dice')) return;
+      if (!window.wpDice || !window.wpDice.rollFor) return;
+      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage');
+      var total = dr && dr.ok && typeof dr.value === 'number' ? dr.value : null;
+      if (auto !== 'full' || total === null) return;
+      applyBlastDamage(b, total, combat.hpResource);
+  }
+  var _lastThrowTx = null;
+  function applyBlastDamage(b, total, hpId) {
+      var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, map = getActiveMap();
+      if (!sys || !S || !F || !map) return;
+      if (!hpId) { toast('Full auto is on, but no damage resource is set (System editor \u25b8 Items \u25b8 Damage subtracts from).'); return; }
+      var rYd = blastRadiusYd(b), hits = [], applied = 0;
+      blastDistances(b, map).forEach(function(r) {
+          if (r.d > rYd + 1e-9 || !r.tok.charId) return;
+          var ch = camp.chars && camp.chars[r.tok.charId]; if (!ch) return;
+          var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
+          var cur = typeof e.value === 'number' ? e.value : 0;
+          var res = S.applyEdit(sys, ch, hpId, { cur: cur - total }, F, {}); if (!res.ok) return;
+          var prev = ch.values && Object.prototype.hasOwnProperty.call(ch.values, hpId) ? JSON.parse(JSON.stringify(ch.values[hpId])) : undefined;
+          ch.values = ch.values || {}; ch.values[hpId] = res.value; ch.updated = Date.now();
+          hits.push({ charId: r.tok.charId, hpId: hpId, prev: prev });
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.syncCharDelta) { var d = {}; d[hpId] = res.value; window.wpNet.syncCharDelta(r.tok.charId, d); }
+          if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(r.tok.charId);
+          applied++;
+      });
+      if (applied) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast('\u2212' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's') + '. Undo last throw in the \ud83d\udca5 menu.'); }
+  }
+  // Undo the last full-auto throw's damage: restore every affected character's health, host-synced.
+  window.wpUndoThrow = function() {
+      if (!_lastThrowTx || !_lastThrowTx.hits.length) { toast('Nothing to undo.'); return; }
+      var camp = getActiveCampaign(); if (!camp) return;
+      _lastThrowTx.hits.forEach(function(h) {
+          var ch = camp.chars && camp.chars[h.charId]; if (!ch) return;
+          ch.values = ch.values || {};
+          if (h.prev === undefined) delete ch.values[h.hpId]; else ch.values[h.hpId] = h.prev;
+          ch.updated = Date.now();
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.syncCharDelta) { var d = {}; d[h.hpId] = h.prev === undefined ? null : h.prev; window.wpNet.syncCharDelta(h.charId, d); }
+          if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(h.charId);
+      });
+      var nn = _lastThrowTx.hits.length; _lastThrowTx = null; save(); syncBlastMenu();
+      toast('Throw damage undone (' + nn + ' token' + (nn === 1 ? '' : 's') + ').');
+  };
+  window.wpHasThrowUndo = function() { return !!(_lastThrowTx && _lastThrowTx.hits.length); };
   // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
   window.wpArmBlast = function(ft, name, ctx) {
       ft = Math.max(1, Math.min(3000, Math.round(ft || 0))); if (!(ft > 0)) return;
-      _armedThrow = { charId: ctx && ctx.charId, itemId: ctx && ctx.itemId, ft: ft, name: name || '', by: (ctx && ctx.by) || '' };
+      _armedThrow = { charId: ctx && ctx.charId, itemId: ctx && ctx.itemId, ft: ft, name: name || '', by: (ctx && ctx.by) || '', damage: (ctx && ctx.damage) || '' };
       window.isDrawingMode = false; window.isEraserMode = false; window.isFogMode = false;
       window.isMeasureMode = true; window.wpMeasureKind = 'blast';
       if (wbWrap) wbWrap.style.cursor = 'crosshair'; document.body.classList.add('placing');
@@ -2726,6 +2777,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = Number(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; b.autoElev = false; renderMeasures(); });
   var _el_blastClearBtn = document.getElementById('blastClearBtn');
   if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() { clearBlasts(); syncBlastMenu(); });
+  var _el_blastUndoThrow = document.getElementById('blastUndoThrow');
+  if (_el_blastUndoThrow) _el_blastUndoThrow.addEventListener('click', function() { if (window.wpUndoThrow) window.wpUndoThrow(); });
   if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
   document.addEventListener('click', function(e) {
       if (_el_blastMenu && _el_blastMenu.classList.contains('show') && !e.target.closest('#blastMenu') && !e.target.closest('#blastModeBtn')) closeBlastMenu();

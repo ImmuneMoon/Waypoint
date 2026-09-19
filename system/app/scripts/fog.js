@@ -76,6 +76,32 @@ function viewersFor(map, camp, ownerId) {
     });
     return out;
 }
+// ---- sight-blockers: the opaque-cell key set for a map, built from flagged board items (v1: static walls) ----
+var _blockerCache = Object.create(null), _blockerWarned = Object.create(null);
+function eligibleBlocker(w) {
+    if (!w || !w.blocksSight || w.hidden || w.rot) return false;   // hidden/rotated never block (host & client must agree)
+    if (w.fill) return true;                                        // a fill-bucket cell
+    return w.type === 'rect' || w.type === 'hexagon';               // an axis-aligned rect or hexagon shape
+}
+function blockersFor(map, grid) {
+    if (!map || !grid) return null;
+    if (_blockerCache[map.id] !== undefined) return _blockerCache[map.id];
+    var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, over = false;
+    for (var i = 0; i < wb.length && !over; i++) {
+        var w = wb[i]; if (!eligibleBlocker(w)) continue;
+        var cells;
+        if (w.fill) cells = [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];
+        else if (w.type === 'hexagon') cells = C.cellsUnderHex(w.x, w.y, w.w || 0, w.h || 0, grid);
+        else cells = C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, grid);
+        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
+    }
+    if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
+    if (!over) _blockerWarned[map.id] = 0;
+    var result = (over || n === 0) ? null : set;                    // over cap or none → no occlusion (fail open)
+    _blockerCache[map.id] = result;
+    return result;
+}
+
 // The cells revealed to ownerId: their tokens' vision ∪ manual adds − manual cuts. null = the whole map (reveal mode).
 function revealedCellList(map, camp, ownerId) {
     var C = core(), grid = gridForMap(map); if (!grid) return [];
@@ -83,7 +109,8 @@ function revealedCellList(map, camp, ownerId) {
     if (mf.mode === 'reveal') return null;
     var seen = Object.create(null), out = [];
     var add = function(cell) { var k = C.cellKey(cell, grid); if (!seen[k]) { seen[k] = 1; out.push(cell); } };
-    if (mf.mode !== 'cover') viewersFor(map, camp, ownerId).forEach(function(v) { C.visibleCells(v, grid).forEach(function(o) { add(o.cell); }); });
+    var blk = blockersFor(map, grid);
+    if (mf.mode !== 'cover') viewersFor(map, camp, ownerId).forEach(function(v) { C.visibleCells(v, grid, blk).forEach(function(o) { add(o.cell); }); });
     (mf.manual.adds || []).forEach(add);
     var cut = Object.create(null); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
     return out.filter(function(cell) { return !cut[C.cellKey(cell, grid)]; });
@@ -109,7 +136,7 @@ function fogDropIds(recipientId, camp, map) {
 // A cached revealed-key set per (recipient, map): stable during a drag (the recipient's own tokens don't move), so the
 // live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit.
 var _keyCache = Object.create(null);
-function invalidateVision() { _keyCache = Object.create(null); }
+function invalidateVision() { _keyCache = Object.create(null); _blockerCache = Object.create(null); }
 function canSeePoint(recipientId, camp, map, x, y) {
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;

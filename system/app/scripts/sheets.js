@@ -345,12 +345,13 @@ function fieldNode(f, c, e, gm, own) {
     if (k === 'item-list') {
         var sysI = systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
         var byId = {}; ((sysI && sysI.items) || []).forEach(function(it) { byId[it.id] = it; });
-        var wrap = el('div', 'sheet-items');
+        var wrap = el('div', 'sheet-items'), canThrow = (gm || own) && !c.partial;
         carried.forEach(function(entry) {
             var def = byId[entry.defId]; if (!def) return;
             var line = el('div', 'sheet-item');
             if (def.icon) line.appendChild(el('span', 'sheet-item-icon', def.icon));
             var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
+            if (def.area && canThrow) { var tb = el('button', 'tool ghost sheet-item-throw', '💥 Throw'); tb.title = 'Throw ' + def.name + ' — then click the map'; tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, itemId: def.id, by: c.name }); closeSheet(); } }); line.appendChild(tb); }
             if (editable) {
                 var qc = el('span', 'sheet-item-qty');
                 var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, 'setQty', entry.defId, entry.qty - 1); });

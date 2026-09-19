@@ -942,6 +942,21 @@ net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets it
     if (!net.active || net.role !== 'host' || !conn || !conn.open || !mapId || !window.wpFx) return;
     window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) {} });
 };
+// A blast thrown from a character sheet, shown to the players ON THAT MAP (item library, 1.5.0). Host only; no GM-only data.
+net.broadcastBlast = function(blast, mapId) {
+    if (!net.active || net.role !== 'host' || !blast) return;
+    var b = { x: Number(blast.x), y: Number(blast.y), ft: Number(blast.ft), elev: Number(blast.elev) || 0, name: typeof blast.name === 'string' ? blast.name.slice(0, 60) : '', by: typeof blast.by === 'string' ? blast.by.slice(0, 60) : '' };
+    if (!isFinite(b.x) || !isFinite(b.y) || !(b.ft > 0)) return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b };
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { try { c.send(msg); } catch (e) {} } });
+};
+net.broadcastBlastClear = function(mapId) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    var msg = { type: 'blastClear', campId: camp.id, mapId: mapId };
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
 // The hosted campaign's system (character sheets) reaches the table as the players' view — GM-only fields and rolls
 // gone, formulas that named them blanked — in the snapshot and on every save or editor Save that changed it (a
 // signature over the clean view). Admitted peers only; null when the campaign has no system.
@@ -1035,6 +1050,14 @@ net.charItem = function(charId, fieldId, op, defId, qty) {
     _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
     try { net.conns[0].send({ type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: op, defId: defId, qty: qty }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
+};
+// A player throws an item from their sheet: the host validates ownership + the carried item and places/shares the blast
+// (the thrower sees nothing until the host's broadcast returns — no optimistic placement, the host is the authority).
+net.throwReq = function(charId, itemId, x, y, mapId) {
+    if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    try { net.conns[0].send({ type: 'throw-req', charId: charId, itemId: itemId, x: Number(x), y: Number(y), mapId: mapId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
 };
 function charPendingDone(rid, ok, reason) {
     var p = _charPending[rid]; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];
@@ -2129,6 +2152,23 @@ function handleMessage(msg, conn) {
         try { conn.send({ type: 'char-ack', rid: qi.rid }); } catch (e) {}
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
+    } else if (msg.type === 'throw-req' && net.role === 'host') {
+        // a player throws an item from their sheet: ownership + carried-item + area read from the system, then place & share on the GM's current map
+        var St = SC(); if (!St || !window.wpPlaceThrownBlast) return;
+        if (typeof msg.charId !== 'string' || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string') return;
+        if (window.wpVtt && !window.wpVtt.on('sheets')) return;
+        if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: St.LIMITS.editsPerWindow, windowMs: St.LIMITS.editWindowMs, table: 400 });
+        if (charLimit && charLimit.allow(conn.peer, Date.now()) !== true) return;
+        var campT = getActiveCampaign(); if (!campT || !campT.system) return;
+        var amT = getActiveMap(); if (!amT || amT.id !== msg.mapId) return;   // throws land on the GM's current map (where the player is)
+        var chT = campT.chars && campT.chars[msg.charId], profT = net.roster[conn.peer];
+        if (!chT || chT.npc || !chT.ownerId || !profT || chT.ownerId !== profT.id) return;
+        var defT = St.itemDef(campT.system, msg.itemId); if (!defT || defT.vis === 'gm' || !defT.area) return;
+        var carries = false; (campT.system.fields || []).forEach(function(f) { if (f.kind === 'item-list') { var v = chT.values && chT.values[f.id]; if (Array.isArray(v) && v.some(function(en) { return en.defId === msg.itemId; })) carries = true; } });
+        if (!carries) return;
+        var xT = Math.max(0, Math.min(30000, Number(msg.x))), yT = Math.max(0, Math.min(30000, Number(msg.y)));
+        if (!isFinite(xT) || !isFinite(yT)) return;
+        window.wpPlaceThrownBlast({ x: xT, y: yT, ft: defT.area.ft, name: defT.area.name || defT.name, by: chT.name });
     } else if (msg.type === 'system' && net.role === 'client') {
         // the hosted campaign's system as the players' view (character sheets, 1.5.0), re-cleaned here; null = the campaign has none
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore || !window.wpFormula) return;
@@ -2148,6 +2188,13 @@ function handleMessage(msg, conn) {
         // A host has no branch: a player never triggers an effect on anyone.
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpFxCore || !window.wpFx) return;
         var cfx = window.wpFxCore.cleanFx(msg); if (cfx) window.wpFx.receive(cfx);
+    } else if (msg.type === 'blast' && net.role === 'client') {
+        // a thrown blast's shared template from the synced host, for the player's current map (item library, 1.5.0)
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpRenderSharedBlast || !msg.blast) return;
+        var amB = getActiveMap(); if (amB && msg.mapId === amB.id) window.wpRenderSharedBlast(msg.blast);
+    } else if (msg.type === 'blastClear' && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpClearSharedBlasts) return;
+        window.wpClearSharedBlasts();
     } else if (msg.type === 'roll-req' && net.role === 'host') {
         // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;

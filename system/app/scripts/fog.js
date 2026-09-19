@@ -67,12 +67,24 @@ function tokenSightCells(token, map, camp) {
 
 /* ---------- who reveals what ----------
    ownerId: a player's profile id (their own tokens only) or '*' (every character token — the GM's party preview). */
+// A map's vision mode: its explicit map.fog.vision, else the grid-type default (square = all-around, hex = 180° front
+// cone). The arc is DECOUPLED from the grid type — a GM can give a square map a facing cone, or a hex map all-around.
+function gridIsHexMap(map) {
+    var gt = (map && map.meta && map.meta.gridType) || 'off';
+    return gt === 'hex' || (gt === 'off' && !!(map && map.fog && map.fog.cell && map.fog.cell.grid === 'hex'));
+}
+function visionOf(map) {
+    var v = map && map.fog && map.fog.vision, C = core(), def = C ? C.LIMITS.arcDeg : 180;
+    if (v && v.mode === 'arc') return { mode: 'arc', arc: Math.max(1, Math.min(360, Math.round(v.arc || 0) || def)) };
+    if (v && v.mode === 'all') return { mode: 'all', arc: 360 };
+    return gridIsHexMap(map) ? { mode: 'arc', arc: def } : { mode: 'all', arc: 360 };
+}
 function viewersFor(map, camp, ownerId) {
-    var out = [];
+    var out = [], arc = visionOf(map).arc;
     (map.whiteboard || []).forEach(function(w) {
         if (!w || !w.isChar || w.hidden) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
-        out.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, front: ((w.rot || 0) + (w.front || 0)), range: tokenSightCells(w, map, camp), arc: 180 });   // world facing = rot + front, so the vision arc follows the token's rotation
+        out.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, front: ((w.rot || 0) + (w.front || 0)), range: tokenSightCells(w, map, camp), arc: arc });   // world facing = rot + front, so the arc follows the token's rotation
     });
     return out;
 }
@@ -300,6 +312,12 @@ function syncMenu() {
     }
     var sight = ui('fogSight'); if (sight && document.activeElement !== sight) sight.value = cf.defaults.sight || 0;
     fillSightField();
+    // vision mode (all-around vs a facing cone), decoupled from grid type
+    var vis = visionOf(map), vsel = ui('fogVision');
+    if (vsel) vsel.value = vis.mode;
+    var arcRow = ui('fogVisionArcRow'); if (arcRow) arcRow.style.display = vis.mode === 'arc' ? '' : 'none';
+    var arcIn = ui('fogVisionArc'); if (arcIn && document.activeElement !== arcIn) arcIn.value = vis.arc;
+    var vdef = ui('fogVisionDefault'); if (vdef) { var dv = cf.defaults.vision; vdef.checked = !!(dv && dv.mode === vis.mode && (dv.mode === 'all' || dv.arc === vis.arc)); }
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.fbrush === brush); });
     fillPreviewOptions();
     var note = ui('fogNote'); if (note) note.textContent = gridForMap(map) ? '' : 'Gridless map: pick a measurement grid above so fog can compute cells.';
@@ -328,6 +346,26 @@ function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show');
     if (sight) sight.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp), v = Math.round(Number(sight.value) || 0); cf.defaults.sight = Math.max(0, Math.min(100000, v)); save(); syncMenu(); redraw(); });
     var sfield = ui('fogSightField');
     if (sfield) sfield.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp); cf.fields.sight = sfield.value || undefined; if (!sfield.value) delete cf.fields.sight; save(); syncMenu(); redraw(); });
+    var vsel = ui('fogVision');
+    if (vsel) vsel.addEventListener('change', function() {
+        var map = activeMap(); if (!map) return; var mf = mapFog(map), C = core();
+        if (vsel.value === 'arc') { var cur = (mf.vision && mf.vision.mode === 'arc' && mf.vision.arc) || (C ? C.LIMITS.arcDeg : 180); mf.vision = { mode: 'arc', arc: cur }; }
+        else mf.vision = { mode: 'all', arc: 360 };
+        save(); invalidateVision(); syncMenu(); redraw();
+    });
+    var varc = ui('fogVisionArc');
+    if (varc) varc.addEventListener('change', function() {
+        var map = activeMap(); if (!map) return; var mf = mapFog(map), C = core();
+        var a = Math.round(Number(varc.value) || 0); a = Math.max(1, Math.min(360, a || (C ? C.LIMITS.arcDeg : 180)));
+        mf.vision = { mode: 'arc', arc: a }; save(); invalidateVision(); syncMenu(); redraw();
+    });
+    var vdef = ui('fogVisionDefault');
+    if (vdef) vdef.addEventListener('change', function() {
+        var camp = activeCamp(), map = activeMap(); if (!camp || !map) return; var cf = campFog(camp);
+        if (vdef.checked) cf.defaults.vision = visionOf(map); else delete cf.defaults.vision;
+        save(); syncMenu();
+        toast(vdef.checked ? 'New maps in this campaign will start with this vision.' : 'New maps will use the grid default again.');
+    });
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brush = b.dataset.fbrush === 'hide' ? 'hide' : 'reveal'; syncMenu(); }); });
     var rev = ui('fogRevealAll');
     if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; mapFog(map).mode = 'reveal'; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });

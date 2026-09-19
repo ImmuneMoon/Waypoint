@@ -352,6 +352,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <ul>
                           <li><b>Turn fog on for this map</b> &mdash; open the &#127787; menu and tick <b>Fog on this map</b>. Fog is set per map, so a lit tavern and a dark dungeon can live in the same campaign.</li>
                           <li><b>How far a token sees</b> &mdash; set a <b>Default sight range</b> in yards for a token with no character (or an unmapped field), and optionally <b>Sight from a character field</b>: pick a field of your system (Help &#9656; Character sheets) and each character sees as far as its own value. On a <b>gridless</b> map, choose <b>Square</b> (radius vision) or <b>Hex</b> (front-arc vision) and the pixels per cell, so Waypoint can measure sight without drawing a grid.</li>
+                          <li><b>All around or a facing cone</b> &mdash; set <b>Vision</b> to <b>All around</b> (a token sees in every direction &mdash; the default on square maps) or <b>Facing cone</b> (it sees only ahead, and the cone turns as the token turns &mdash; the default on hex maps). Vision is set <b>per map and independent of the grid</b>, so a square map can use a cone and a hex map can see all around; with a cone you also pick its width in degrees (90&deg; a torch, 180&deg; a wide arc). Tick <b>Use this vision for new maps</b> to make it the starting choice for maps you create later &mdash; existing maps are left exactly as they are.</li>
                           <li><b>Paint it by hand</b> &mdash; the <b>&#128065; Reveal</b> and <b>&#127787; Hide</b> brushes click or drag over the map to carve out or cover cells (right-click paints the other brush). <b>Reveal all</b> lights the whole scene; <b>Cover all</b> hides everything except what you reveal by hand.</li>
                           <li><b>Preview a player&rsquo;s view</b> &mdash; the <b>Preview a player&rsquo;s view</b> picker drops the fog onto your own screen as one player &mdash; or the whole party &mdash; would see it, so you can check a reveal before you make it. Set it back to <b>Off &mdash; whole board</b> to see everything again.</li>
                       </ul>
@@ -915,6 +916,18 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <input type="number" id="fogSight" min="0" step="1" style="width:80px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
                       <span style="font-size:11px; color:var(--dim);">a token with no character, or an unmapped field</span>
                   </div>
+                  <div class="draw-menu-label">Vision</div>
+                  <div class="draw-menu-row">
+                      <select id="fogVision" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;" title="All around: a token sees in every direction (D&amp;D radius). Facing cone: a token sees only ahead, and the cone turns as the token turns (GURPS front arc). Set per map &mdash; it no longer depends on the grid type.">
+                          <option value="all">All around</option>
+                          <option value="arc">Facing cone</option>
+                      </select>
+                  </div>
+                  <div class="draw-menu-row" id="fogVisionArcRow" style="display:none;">
+                      <input type="number" id="fogVisionArc" min="1" max="360" step="5" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;" title="Cone width in degrees (1&ndash;360). 90&deg; is a torch; 180&deg; is a wide front arc; 360&deg; is all around.">
+                      <span style="font-size:11px; color:var(--dim);">&deg; cone, centred on each token's facing</span>
+                  </div>
+                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);"><input type="checkbox" id="fogVisionDefault"> <span>Use this vision for new maps in this campaign</span></label>
                   <div class="draw-menu-label">Brush</div>
                   <div class="draw-menu-row">
                       <button class="draw-style-btn fog-brush-btn active" data-fbrush="reveal" title="Click or drag the map to reveal cells">&#128065; Reveal</button>

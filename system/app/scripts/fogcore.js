@@ -1,6 +1,7 @@
 /* Fog of war / dynamic vision (1.5.0, v1) — the pure half: grid cell geometry (square 50px, flat-top hex s=30/52,
-   or a gridless map's assigned cell), a viewer token's visible-cell set (D&D radius on square, GURPS front-180°
-   arc on hex), the range→cells conversion, the revealed-point test, and the validators for map.fog / camp.fog.
+   or a gridless map's assigned cell), a viewer token's visible-cell set (a radius disc on square, a ring on hex, each
+   gated by a facing arc that is decoupled from the grid type — see visibleCells), the range→cells conversion, the
+   revealed-point test, and the validators for map.fog / camp.fog.
    No DOM, no state: the host (enforcement) and the client (overlay) run the SAME code so they agree on what is
    seen. tools/fogcheck.js runs it under Node. Published as window.wpFogCore. Design of record: docs/FOG_OF_WAR_PLAN.md. */
 'use strict';
@@ -121,14 +122,25 @@ function lineClear(a, b, grid, blockers) {
 }
 
 /* ---------- one viewer's visible cells ----------
-   viewer: { x, y, front(deg), range(cells), ruleset, arc(deg, default 180) }. Returns an array of { key, cell }.
-   D&D/square: every cell whose centre is within `range` cells (Euclidean). GURPS/hex: cells within hex distance
-   `range` that lie in the front arc (the viewer's own cell always included). */
+   viewer: { x, y, front(deg), range(cells), arc(deg) }. Returns an array of { key, cell }. The vision SHAPE is the
+   grid's (square = Euclidean radius disc; hex = the flat-top ring within hex distance), but the ARC is DECOUPLED from
+   the grid type: arc >= 360 = all-around (the default on square); a smaller arc is a facing cone centred on `front`,
+   honoured on BOTH grids (the default on hex is 180). The viewer's own cell is always included. When arc >= 360 the
+   bearing test is skipped, so all-around vision costs exactly what it did before. */
 function visibleCells(viewer, grid, blockers) {
     var out = [], seen = Object.create(null);
     if (!grid || !fin(viewer.x) || !fin(viewer.y)) return out;
     var R = clamp(viewer.range | 0, 0, LIMITS.rangeCells);
     var here = cellOf(viewer.x, viewer.y, grid);
+    var arc = fin(viewer.arc) ? clamp(viewer.arc, 0, 360) : (grid.type === 'square' ? 360 : LIMITS.arcDeg);
+    var allAround = arc >= 360, half = arc / 2, facing = fin(viewer.front) ? viewer.front : 0;
+    var vc = cellCenter(here, grid);
+    var inArc = function(cell) {   // is `cell` within the facing cone? (the own cell is handled by the caller)
+        if (allAround) return true;
+        var ctr = cellCenter(cell, grid);
+        var bearing = Math.atan2(ctr.x - vc.x, -(ctr.y - vc.y)) * 180 / Math.PI;   // 0 = up, clockwise
+        return Math.abs(norm180(bearing - facing)) <= half + 1e-9;
+    };
     var push = function(cell) { if (out.length >= LIMITS.cells) return; var k = cellKey(cell, grid); if (!seen[k]) { seen[k] = 1; out.push({ key: k, cell: cell }); } };
     push(here);
     if (R <= 0) return out;
@@ -136,20 +148,18 @@ function visibleCells(viewer, grid, blockers) {
         for (var c = here.c - R; c <= here.c + R && out.length < LIMITS.cells; c++)
             for (var r = here.r - R; r <= here.r + R; r++) {
                 var dc = c - here.c, dr = r - here.r;
-                if (Math.sqrt(dc * dc + dr * dr) <= R + 1e-9 && lineClear(here, { c: c, r: r }, grid, blockers)) push({ c: c, r: r });
+                if (dc === 0 && dr === 0) continue;
+                if (Math.sqrt(dc * dc + dr * dr) <= R + 1e-9 && inArc({ c: c, r: r }) && lineClear(here, { c: c, r: r }, grid, blockers)) push({ c: c, r: r });
             }
-        return out;   // D&D is all-around; facing ignored on square in v1
+        return out;
     }
-    // hex GURPS: front arc
-    var arc = fin(viewer.arc) ? viewer.arc : LIMITS.arcDeg, half = arc / 2, facing = fin(viewer.front) ? viewer.front : 0;
+    // hex: cells within hex distance R, gated by the facing arc
     for (var q = here.q - R; q <= here.q + R && out.length < LIMITS.cells; q++)
         for (var rr = here.r - R; rr <= here.r + R; rr++) {
             var cell = { q: q, r: rr };
             if (hexDist(here, cell) > R) continue;
             if (q === here.q && rr === here.r) continue;
-            var ctr = cellCenter(cell, grid), vc = cellCenter(here, grid);
-            var bearing = Math.atan2(ctr.x - vc.x, -(ctr.y - vc.y)) * 180 / Math.PI;   // 0 = up, clockwise
-            if ((arc >= 360 || Math.abs(norm180(bearing - facing)) <= half + 1e-9) && lineClear(here, cell, grid, blockers)) push(cell);
+            if (inArc(cell) && lineClear(here, cell, grid, blockers)) push(cell);
         }
     return out;
 }
@@ -172,10 +182,18 @@ function cleanCell(cell) {   // grid-agnostic: a square cell is {c,r}, a hex cel
     if (fin(cell.c) && fin(cell.r)) return { c: cell.c | 0, r: cell.r | 0 };
     return null;
 }
-function cleanFog(fog) {   // per-map: { on, mode, ruleset?, cell?, manual:{adds,cuts} }
+// Vision mode: { mode:'all', arc:360 } (all-around) or { mode:'arc', arc:1..360 } (a facing cone). Anything else → null,
+// which means "no explicit vision" — the caller then falls back to the grid-type default (square all-around, hex 180).
+function cleanVision(v) {
+    if (!isObj(v)) return null;
+    if (v.mode === 'all') return { mode: 'all', arc: 360 };
+    if (v.mode === 'arc') return { mode: 'arc', arc: fin(v.arc) ? clamp(Math.round(v.arc), 1, 360) : LIMITS.arcDeg };
+    return null;
+}
+function cleanFog(fog) {   // per-map: { on, mode, vision?, cell?, manual:{adds,cuts} }
     if (!isObj(fog)) return null;
     var out = { on: fog.on === true, mode: MODES[fog.mode] ? fog.mode : 'auto' };
-    if (fog.ruleset && RULESETS[fog.ruleset]) out.ruleset = fog.ruleset;
+    var vis = cleanVision(fog.vision); if (vis) out.vision = vis;   // absent → grid-type default is resolved at read time
     if (isObj(fog.cell) && (fog.cell.grid === 'square' || fog.cell.grid === 'hex') && fin(fog.cell.len)) out.cell = { grid: fog.cell.grid, len: clamp(fog.cell.len, LIMITS.len[0], LIMITS.len[1]) };
     var m = isObj(fog.manual) ? fog.manual : {};
     var adds = [], cuts = [];
@@ -184,14 +202,15 @@ function cleanFog(fog) {   // per-map: { on, mode, ruleset?, cell?, manual:{adds
     out.manual = { adds: adds, cuts: cuts };
     return out;
 }
-function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sight} } (v1 = sight only)
+function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sight, vision?} } — vision = the new-map default
     if (!isObj(cf)) return { fields: {}, defaults: { sight: 0 } };
     var f = isObj(cf.fields) ? cf.fields : {}, d = isObj(cf.defaults) ? cf.defaults : {};
     var out = { fields: {}, defaults: { sight: fin(d.sight) ? clamp(d.sight, 0, 100000) : 0 } };
     if (typeof f.sight === 'string' && /^f_[A-Za-z0-9_]{1,24}$/.test(f.sight)) out.fields.sight = f.sight;
+    var dv = cleanVision(d.vision); if (dv) out.defaults.vision = dv;   // stamped onto new maps only (never retroactive)
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

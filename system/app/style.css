@@ -893,7 +893,14 @@
   #tourSpot.nospot { box-shadow:0 0 0 9999px rgba(0,0,0,0.62); }
   #tourCard { position:fixed; pointer-events:auto; background:var(--bg2); border:1px solid var(--gold); border-radius:10px; padding:16px 18px; box-shadow:0 12px 40px rgba(0,0,0,.6); color:var(--ink); font-size:13.5px; line-height:1.5; }
   #tourCard h3 { margin:2px 0 8px; color:var(--gold); font-size:16px; }
-  #tourCard .tour-step { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); }
+  #tourCard .tour-step { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  #tourCard .tour-secbtn { font:inherit; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); background:none; border:none; padding:0; cursor:pointer; }
+  #tourCard .tour-secbtn:hover { text-decoration:underline; }
+  #tourCard .tour-stepn { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); white-space:nowrap; }
+  #tourCard .tour-secmenu { display:flex; flex-direction:column; gap:2px; margin:8px 0 2px; padding:6px; background:var(--panel2); border:1px solid var(--edge); border-radius:7px; max-height:210px; overflow:auto; }
+  #tourCard .tour-secitem { text-align:left; background:none; border:none; color:var(--ink); font:inherit; font-size:12px; padding:6px 8px; border-radius:5px; cursor:pointer; }
+  #tourCard .tour-secitem:hover { background:rgba(255,255,255,0.06); }
+  #tourCard .tour-secitem.on { color:var(--gold); }
   #tourCard .tour-body b { color:var(--gold); }
   #tourCard .tour-btns { display:flex; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap; }
   #helpNav button { text-align:left; background:none; border:none; color:var(--ink); font-size:12.5px; padding:8px 10px; border-radius:5px; cursor:pointer; white-space:nowrap; font-family:inherit; }

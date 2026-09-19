@@ -72,7 +72,7 @@ function viewersFor(map, camp, ownerId) {
     (map.whiteboard || []).forEach(function(w) {
         if (!w || !w.isChar || w.hidden) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
-        out.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, front: w.front || 0, range: tokenSightCells(w, map, camp), arc: 180 });
+        out.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, front: ((w.rot || 0) + (w.front || 0)), range: tokenSightCells(w, map, camp), arc: 180 });   // world facing = rot + front, so the vision arc follows the token's rotation
     });
     return out;
 }
@@ -145,7 +145,7 @@ function active() {
     if (state.viewMode !== 'visual') return false;
     var map = activeMap(); if (!map) return false;
     if (!fogFeatureOn() || !mapFog(map).on || !gridForMap(map)) return false;
-    if (isGmView()) return previewMode !== 'off' || isFogMode();   // the GM authors/previews; otherwise sees the whole board
+    if (isGmView()) return true;   // fog enabled for this map => the GM always sees the see-through overlay (party vision by default), across every tool and while dragging items
     if (isClientView()) return true;                                // a player always sees their own-vision fog
     return false;                                                   // stream / awaiting: no fog overlay in v1
 }

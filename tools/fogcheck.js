@@ -102,6 +102,15 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const open = new Set(visibleCells(v, sq).map(c => c.key));
         const occ = new Set(visibleCells(v, sq, blk).map(c => c.key));
         return blk['4,2'] === 1 && open.has('6,2') && !occ.has('6,2'); })());
+    check('door closed: its footprint occludes a cell behind it (blocks like a wall)', (() => {
+        const v = { x: 125, y: 125, range: 6, ruleset: 'dnd' }, blk = {};
+        cellsUnderRect(200, 100, 50, 50, sq).forEach(c => blk[cellKey(c, sq)] = 1);   // a shut door on cell (4,2)
+        const occ = new Set(visibleCells(v, sq, blk).map(c => c.key));
+        return blk['4,2'] === 1 && !occ.has('6,2') && occ.has('4,2'); })());
+    check('door open: contributes no blocker cells, so sight passes through', (() => {
+        const v = { x: 125, y: 125, range: 6, ruleset: 'dnd' };
+        const open = new Set(visibleCells(v, sq, {}).map(c => c.key));   // an open door adds nothing to the set (eligibleBlocker excludes it)
+        return open.has('6,2'); })());
 
     /* ---- union + revealed test + manual ---- */
     check('revealedKeys unions viewers and applies manual adds/cuts; pointRevealed tests a board point', (() => {

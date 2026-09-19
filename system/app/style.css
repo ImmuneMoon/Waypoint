@@ -97,6 +97,10 @@
   /* GM-only cue that a board item blocks sight (a wall). The class is only added for the GM view. */
   .wb-item.wb-blocks-sight { outline: 2px dashed var(--gold); outline-offset: -2px; }
   .wb-item.wb-blocks-sight::after { content: '\1F9F1'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+  /* Doors are shown to EVERYONE (players toggle them): a door glyph, solid gold outline when shut, green dashed when open. */
+  .wb-item.wb-door { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .wb-item.wb-door::after { content: '\1F6AA'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+  .wb-item.wb-door.wb-door-open { outline-style: dashed; outline-color: #4caf7d; opacity: 0.9; }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

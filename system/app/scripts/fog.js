@@ -80,10 +80,19 @@ function viewersFor(map, camp, ownerId) {
 var _blockerCache = Object.create(null), _blockerWarned = Object.create(null);
 function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
+    if (w.sightType === 'door' && w.doorOpen) return false;         // an OPEN door blocks nothing; a closed one blocks like a wall
     if (w.type === 'circle') return true;                           // a pillar; its footprint is rotation-invariant
     if (w.rot) return false;                                        // a rotated rect/hex/diamond footprint is not supported in v1
     if (w.fill) return true;                                        // a fill-bucket cell
     return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond';   // an axis-aligned solid shape
+}
+// The grid cells an eligible blocker item covers — shared by blockersFor and the door click-toggle so they agree.
+function footprintCells(w, grid, C) {
+    if (w.fill) return [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];
+    if (w.type === 'hexagon') return C.cellsUnderHex(w.x, w.y, w.w || 0, w.h || 0, grid);
+    if (w.type === 'circle') return C.cellsUnderCircle(w.x, w.y, w.w || 0, w.h || 0, grid);
+    if (w.type === 'diamond') return C.cellsUnderDiamond(w.x, w.y, w.w || 0, w.h || 0, grid);
+    return C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, grid);
 }
 function blockersFor(map, grid) {
     if (!map || !grid) return null;
@@ -91,12 +100,7 @@ function blockersFor(map, grid) {
     var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, over = false;
     for (var i = 0; i < wb.length && !over; i++) {
         var w = wb[i]; if (!eligibleBlocker(w)) continue;
-        var cells;
-        if (w.fill) cells = [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];
-        else if (w.type === 'hexagon') cells = C.cellsUnderHex(w.x, w.y, w.w || 0, w.h || 0, grid);
-        else if (w.type === 'circle') cells = C.cellsUnderCircle(w.x, w.y, w.w || 0, w.h || 0, grid);
-        else if (w.type === 'diamond') cells = C.cellsUnderDiamond(w.x, w.y, w.w || 0, w.h || 0, grid);
-        else cells = C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, grid);
+        var cells = footprintCells(w, grid, C);
         for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
     }
     if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
@@ -104,6 +108,23 @@ function blockersFor(map, grid) {
     var result = (over || n === 0) ? null : set;                    // over cap or none → no occlusion (fail open)
     _blockerCache[map.id] = result;
     return result;
+}
+// GM clicks a door while in fog mode → flip open/closed on the topmost door under the point. Host-authoritative:
+// save() runs onLocalSave (invalidateVision + resend the map to players); the invalidate+redraw refresh the GM overlay.
+function toggleDoorAt(boardX, boardY) {
+    if (!isGmView() || !canWrite()) return false;
+    var map = activeMap(), C = core(); if (!map || !C) return false;
+    var grid = gridForMap(map); if (!grid) return false;
+    var key = C.cellKey(C.cellOf(boardX, boardY, grid), grid), wb = map.whiteboard || [];
+    for (var i = wb.length - 1; i >= 0; i--) {
+        var w = wb[i];
+        if (!w || w.blocksSight !== true || w.sightType !== 'door' || w.hidden) continue;
+        var cells = footprintCells(w, grid, C);
+        for (var j = 0; j < cells.length; j++) {
+            if (C.cellKey(cells[j], grid) === key) { w.doorOpen = !w.doorOpen; save(); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }
+        }
+    }
+    return false;
 }
 
 // The cells revealed to ownerId: their tokens' vision ∪ manual adds − manual cuts. null = the whole map (reveal mode).
@@ -342,7 +363,7 @@ window.wpFog = {
     // host enforcement (net.js)
     fogDropIds: fogDropIds, canSeePoint: canSeePoint, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells,
     // GM tools
-    paintAt: paintAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
+    paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }

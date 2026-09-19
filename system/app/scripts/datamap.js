@@ -660,7 +660,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       el.addEventListener('pointerdown',function(e){
         if(e.button!==undefined && e.button!==0) return;
         if(typeof window.isDrawingMode !== 'undefined' && window.isDrawingMode) return;
-        if((window.isEraserMode || window.isMeasureMode || window.isFogMode) && modeStr !== 'data') return; // Eraser/measure/fog handle their own input
+        if((window.isEraserMode || window.isMeasureMode || window.isFogMode || window.isFillMode) && modeStr !== 'data') return; // Eraser/measure/fog/fill handle their own input
         if(window.isPanMode || window.wpSpacePan) return; // hand tool (either view) OR held Space: the wrap pans, items never drag
         if(e.target.contentEditable === "true") return; // Let user select text
         // if clicking on resize handle native area (bottom right corner approx)
@@ -950,7 +950,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               return;
           }
 
-          if (window.isFogMode && wrapEl === wbWrap) return; // fog mode paints cells itself — never pan, select or drag
+          if ((window.isFogMode || window.isFillMode) && wrapEl === wbWrap) return; // fog/fill mode paints cells itself — never pan, select or drag
           if ((window.isEraserMode || window.isMeasureMode) && wrapEl === wbWrap && e.button === 0) return; // Eraser/measure handle left-drags themselves
 
           if (e.button !== 1 && e.target !== wrapEl && e.target.id !== 'canvas' && e.target.id !== 'edges' && e.target.id !== 'whiteboard') { if (!((window.isDrawingMode && wrapEl === wbWrap) || window.isPanMode)) return; }

@@ -816,6 +816,23 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div style="font-size:10.5px; color:var(--dim); max-width:190px; line-height:1.4;">Precise trims strokes to the circle; Segments removes each point-to-point piece it touches.</div>
               </div>
           </div>
+          <div style="position:relative;" class="gm-only">
+              <button class="wb-tool-btn" id="fillModeBtn" title="Fill &mdash; click or drag grid cells to fill them with a colour (a hexagon on hex maps, a square on square maps); right-click a cell to clear it. Click again for the colour.">&#129531;</button>
+              <div class="shape-menu draw-menu" id="fillMenu">
+                  <div class="draw-menu-label">Fill Colour</div>
+                  <div class="draw-menu-row" id="fillColorRow">
+                      <button class="draw-swatch" data-color="#e9e9f0" title="White" style="background:#e9e9f0;"></button>
+                      <button class="draw-swatch" data-color="#1a1a1a" title="Black" style="background:#1a1a1a;"></button>
+                      <button class="draw-swatch" data-color="#d9534f" title="Red" style="background:#d9534f;"></button>
+                      <button class="draw-swatch" data-color="#e0a54f" title="Gold" style="background:#e0a54f;"></button>
+                      <button class="draw-swatch" data-color="#5cb87a" title="Green" style="background:#5cb87a;"></button>
+                      <button class="draw-swatch" data-color="#4db3d3" title="Blue" style="background:#4db3d3;"></button>
+                      <button class="draw-swatch" data-color="#b98cff" title="Violet" style="background:#b98cff;"></button>
+                      <label class="draw-swatch custom" title="Custom Colour"><input type="color" id="fillColorInput" value="#4db3d3"></label>
+                  </div>
+                  <div class="draw-menu-row" style="font-size:10.5px; color:var(--dim); max-width:200px; line-height:1.4;">Fills seat into cells, below tokens. Right-click a cell to clear it.</div>
+              </div>
+          </div>
           <div style="position:relative;">
               <button class="wb-tool-btn" id="measureModeBtn" title="Measure &mdash; drag to place a ruler (click again for units)">&#128207;</button>
               <div class="shape-menu draw-menu" id="measureMenu">

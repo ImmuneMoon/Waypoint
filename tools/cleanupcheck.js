@@ -149,6 +149,10 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
     { const e = classifyState(clone(M0), KNOWN); check('an all-visible system on a contaminated campaign is not a local mark (still CERTAIN)', e.tiers.camp_a === 'CERTAIN', tiersOf(e));
       const g = clone(M0); g.campaigns.camp_a.system.fields.push({ id: 'f_gm', key: 'GMnotes', kind: 'notes', vis: 'gm' }); const cg = classifyState(g, KNOWN);
       check('a GM-only field in a system is a local mark (ASK)', cg.tiers.camp_a === 'ASK', tiersOf(cg)); }
+    { const gi = clone(M0); gi.campaigns.camp_a.system.items = [{ id: 'i_secret', name: 'Prototype', vis: 'gm' }]; const cgi = classifyState(gi, KNOWN);
+      check('a GM-only item in a system is a local mark (ASK)', cgi.tiers.camp_a === 'ASK', tiersOf(cgi));
+      const vi = clone(M0); vi.campaigns.camp_a.system.items = [{ id: 'i_pub', name: 'Sword', vis: 'all' }]; const cvi = classifyState(vi, KNOWN);
+      check('an all-visible item is not a local mark (still CERTAIN)', cvi.tiers.camp_a === 'CERTAIN', tiersOf(cvi)); }
     { const e = clone(M0); e.campaigns.camp_a.chars = { c_pc: { id: 'c_pc', name: 'Pat', ownerId: 'u_player', npc: false, values: { f_str: 12 }, partial: false } }; const ce = classifyState(e, KNOWN);
       check('a player\'s own character on a contaminated campaign is not a local mark (still CERTAIN)', ce.tiers.camp_a === 'CERTAIN', tiersOf(ce));
       e.campaigns.camp_a.chars.c_npc = { id: 'c_npc', name: 'Orc', ownerId: '', npc: true, values: {} }; const cn = classifyState(e, KNOWN);

@@ -295,7 +295,7 @@ function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show');
 
 function sync() {   // the VTT switch moved, or a session started / ended
     var b = ui('fogModeBtn'), showBtn = fogFeatureOn() && isGmView() && canWrite();
-    if (b) b.style.display = showBtn ? '' : 'none';
+    if (b) { b.style.display = showBtn ? '' : 'none'; if (b.parentNode) b.parentNode.style.display = showBtn ? '' : 'none'; }   // hide the wrapper too, else its empty flex slot leaves a double gap in the toolbar
     if (!showBtn) { closeMenu(); if (window.isFogMode && window.wpExitFogMode) { window.isFogMode = false; window.wpExitFogMode(); } }
     invalidateVision();
     redraw();

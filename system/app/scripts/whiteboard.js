@@ -2503,6 +2503,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: _bf.name || '' }; } catch (e) {}
   var _blastHitIds = [];
   var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
+  var _armedThrow = null;   // { charId, itemId, ft, name, by } while a sheet Throw is armed (one-shot)
   function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1.09361, km: 1093.61, mi: 1760 }[u] || 1; }
   function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
   function hexCellOf(x, y) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows)
@@ -2561,7 +2562,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length) renderMeasures(); };
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
-  function clearBlasts() { blasts = []; renderMeasures(); }
+  function clearBlasts() { blasts = []; renderMeasures(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
   // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there
   function seatBlast(b) {
       if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
@@ -2573,6 +2574,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var box = wbWrap.getBoundingClientRect();
       var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel;
       var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+      if (_armedThrow) {   // a throw from a character sheet: one-shot, host-authoritative, shared to the map
+          var ctx = _armedThrow; _armedThrow = null; document.body.classList.remove('placing');
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq) window.wpNet.throwReq(ctx.charId, ctx.itemId, x, y, map.id); }
+          else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by });
+          var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click();
+          return;
+      }
       // A grenade lands in a cell, at the height of whoever stands there (a token on a catwalk), else the ground
       var b = { x: x, y: y, ft: blastDefaults.ft, name: blastDefaults.name, elev: 0, autoElev: true };
       seatBlast(b);
@@ -2581,6 +2589,35 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' yd' : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Drag it to move, right-click to remove.');
   }
+  // A blast thrown from a character sheet: placed on the host, shown to everyone on the map (never the personal quick-tool).
+  function placeThrownBlast(opts) {
+      var map = getActiveMap(); if (!map || !opts) return null;
+      var ft = Math.max(1, Math.min(3000, Math.round(opts.ft || 0))) || 12;
+      var b = { x: opts.x, y: opts.y, ft: ft, name: opts.name || '', elev: (opts.elev !== undefined ? opts.elev : 0), autoElev: opts.elev === undefined, thrown: true, by: opts.by || '' };
+      seatBlast(b); blasts.push(b); renderMeasures(); syncBlastMenu();
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: b.by }, map.id);
+      var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
+      toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.');
+      return b;
+  }
+  window.wpPlaceThrownBlast = placeThrownBlast;   // net.js calls this on the host after validating a player's throw-req
+  // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
+  window.wpArmBlast = function(ft, name, ctx) {
+      ft = Math.max(1, Math.min(3000, Math.round(ft || 0))); if (!(ft > 0)) return;
+      _armedThrow = { charId: ctx && ctx.charId, itemId: ctx && ctx.itemId, ft: ft, name: name || '', by: (ctx && ctx.by) || '' };
+      window.isDrawingMode = false; window.isEraserMode = false; window.isFogMode = false;
+      window.isMeasureMode = true; window.wpMeasureKind = 'blast';
+      if (wbWrap) wbWrap.style.cursor = 'crosshair'; document.body.classList.add('placing');
+      toast('Click the map to throw' + (name ? ' the ' + name : '') + '. Esc cancels.');
+  };
+  // A client's received shared blast (from the host): rendered, never re-broadcast.
+  window.wpRenderSharedBlast = function(bl) {
+      if (!bl || typeof bl.x !== 'number' || typeof bl.y !== 'number') return;
+      var ft = Math.max(1, Math.min(3000, Math.round(bl.ft || 0))) || 12;
+      blasts.push({ x: bl.x, y: bl.y, ft: ft, name: typeof bl.name === 'string' ? bl.name.slice(0, 60) : '', elev: typeof bl.elev === 'number' ? bl.elev : 0, autoElev: false, thrown: true, by: typeof bl.by === 'string' ? bl.by.slice(0, 60) : '', shared: true });
+      renderMeasures();
+  };
+  window.wpClearSharedBlasts = function() { var had = blasts.some(function(b) { return b.shared; }); blasts = blasts.filter(function(b) { return !b.shared; }); if (had) renderMeasures(); };
   // Visual effects (1.5.0): the ✨ panel arms a burst, a click on the map places it (its own Measure sub-mode)
   var _fxArm = null;
   window.wpArmFxBurst = function(look, rPx) { _fxArm = { look: look, r: Math.max(20, Math.min(6000, Math.round(rPx || 160))) }; window.isMeasureMode = true; window.wpMeasureKind = 'fx'; toast('Click the map to place the ' + look + ' burst.'); };
@@ -2593,6 +2630,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var look = _fxArm.look, r = _fxArm.r; _fxArm = null; window.isMeasureMode = false; window.wpMeasureKind = 'ruler';
       if (window.wpFx) window.wpFx.placeBurst(x, y, look, r);
   }
+  // Esc cancels an armed throw or FX burst and returns to the arrow
+  document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      if (_armedThrow || _fxArm) { _armedThrow = null; _fxArm = null; document.body.classList.remove('placing'); window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; var mvE = document.getElementById('moveModeBtn'); if (mvE) mvE.click(); }
+  });
   window.wpMeasure = { config: mapMeasureConfig, cellYards: cellYards, pxToYards: function(px) { var c = cellYards(), ppy = c ? mapMeasureConfig().cellPx / c : 0; return ppy ? Math.round(px / ppy * 10) / 10 : null; } };
   // Fog of war (1.5.0): a play-map mode. The button enters fog mode and opens its menu (fog.js owns the menu +
   // overlay); a click or drag paints reveal/hide cells. datamap.js suppresses token drag/pan/selection while

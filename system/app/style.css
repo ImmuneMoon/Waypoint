@@ -939,6 +939,9 @@
   .sidebar-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin: 0 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
   .section-title { cursor: pointer; user-select: none; }
   .section-title:hover { color: var(--ink); }
+  /* the section's action buttons live in a right-click popup, so the header title has full room */
+  .section-actions { display: none; }
+  .section-actions.show { display: flex; gap: 4px; position: fixed; z-index: 100000; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 5px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
   .sidebar-item { padding: 8px 10px; border-radius: 5px; color: var(--ink); cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; margin-bottom: 3px; transition: background 0.1s; border: 1px solid transparent; }
   .sidebar-item:hover { background: rgba(255,255,255,0.06); }
   .sidebar-item.drag-over { background: var(--blue); color: #fff; }

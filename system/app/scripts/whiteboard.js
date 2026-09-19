@@ -3813,6 +3813,10 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
       if (sm && sm.classList.contains('show') && !e.target.closest('#shapeMenu') && !e.target.closest('#shapeMenuBtn')) sm.classList.remove('show');
       var gm = document.getElementById('gridMenu');
       if (gm && gm.classList.contains('show') && !e.target.closest('#gridMenu') && !e.target.closest('#wbGridBtn')) gm.classList.remove('show');
+      var am = document.getElementById('addMenu');
+      if (am && am.classList.contains('show') && !e.target.closest('#addMenu') && !e.target.closest('#addMenuBtn')) am.classList.remove('show');
+      var sfx = document.getElementById('sceneFxMenu');
+      if (sfx && sfx.classList.contains('show') && !e.target.closest('#sceneFxMenu') && !e.target.closest('#sceneFxBtn')) sfx.classList.remove('show');
   });
 
   // Open Help on a topic, optionally scrolled to a heading (Settings links here)
@@ -4063,6 +4067,35 @@ if(_el_shapeMenuBtn) _el_shapeMenuBtn.addEventListener('click', function() {
     document.getElementById('shapeMenu').classList.toggle('show');
 
 });
+
+// The Add flyout gathers the content tools (text, image, library, import) behind one button.
+var _el_addMenuBtn = document.getElementById('addMenuBtn');
+if (_el_addMenuBtn) _el_addMenuBtn.addEventListener('click', function() {
+    document.getElementById('addMenu').classList.toggle('show');
+});
+var _addMenuEl = document.getElementById('addMenu');
+if (_addMenuEl) _addMenuEl.addEventListener('click', function(e) { if (e.target.closest('button')) this.classList.remove('show'); });
+
+// The Scene flyout gathers the GM ambience tools (sound, visual effects) behind one button.
+var _el_sceneFxBtn = document.getElementById('sceneFxBtn');
+if (_el_sceneFxBtn) _el_sceneFxBtn.addEventListener('click', function() {
+    document.getElementById('sceneFxMenu').classList.toggle('show');
+});
+var _sceneFxEl = document.getElementById('sceneFxMenu');
+if (_sceneFxEl) _sceneFxEl.addEventListener('click', function(e) { if (e.target.closest('button')) this.classList.remove('show'); });
+
+// One toolbar popup at a time: pressing any tool button closes every other button's open menu,
+// so a flyout only shows while its own button is the one in hand. Capture phase, ahead of each
+// button's own toggle, and it never closes the menu the click landed in (a row) or opens on.
+var _wbTb = document.getElementById('wbFloatingToolbar');
+if (_wbTb) _wbTb.addEventListener('click', function(e) {
+    var btn = e.target.closest('.wb-tool-btn');
+    if (!btn) return;
+    var insideMenu = btn.closest('.shape-menu');
+    var wrap = btn.closest('div');
+    var own = (wrap && wrap !== _wbTb) ? wrap.querySelector('.shape-menu') : null;
+    _wbTb.querySelectorAll('.shape-menu.show').forEach(function(m) { if (m !== own && m !== insideMenu) m.classList.remove('show'); });
+}, true);
 
 // Picking a shape arms placement: the next click on the board drops it there
 // (default size), and a drag draws the exact box it should fill. Esc cancels.

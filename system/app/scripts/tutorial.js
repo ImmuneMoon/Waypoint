@@ -264,7 +264,7 @@ function buildTutorialCampaign() {
     fort.meta.homeX = 15000; fort.meta.homeY = 15000; fort.meta.lastView = 'visual'; fort.meta.gridType = 'hex';
     fort.cats = { wild: { label: 'Wilderness', color: '#5cb87a' }, danger: { label: 'Danger', color: '#d9534f' } };
     fort.rooms = [
-        { id: 'tut_f_yard', name: 'Fort yard', cat: 'danger', x: 15000, y: 15000, notes: 'Walls still stand; the gate does not. The spriggan in the trees is not with the raiders.', characters: [] },
+        { id: 'tut_f_yard', name: 'Fort yard', cat: 'danger', x: 15000, y: 15000, notes: 'Walls still stand; the gate does not. The lone orc in the trees is not with the raiders.', characters: [] },
         { id: 'tut_f_wood', name: 'Tree line', cat: 'wild', x: 14700, y: 15100, notes: 'Cover, and something watching from it.', characters: [] }
     ];
     fort.links = [['tut_f_wood', 'tut_f_yard', 'oneway', { label: 'Charge across the open' }]];
@@ -273,7 +273,7 @@ function buildTutorialCampaign() {
         { id: 'tut_wb_fortlabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Old Fort</b> (hex grid) \u2014 an outdoor battle map; the archer on the wall is at +3', fontSize: 14, layer: 'front' },
         hexTok(O + 830, O + 220, pic('minotaur_archer_hex.png', { id: 'tut_wb_wallarcher', charName: 'Wall archer', name: 'Wall archer', charStats: 'On the battlements: Elevation +3.', elevation: 3 })),
         hexTok(O + 500, O + 560, pic('minotaur_soldier_hex.png', { id: 'tut_wb_gateguard', charName: 'Gate guard', name: 'Gate guard', charStats: 'Minotaur soldier at the gate.' })),
-        hexTok(O + 140, O + 300, pic('spriggan_hex.png', { id: 'tut_wb_spriggan', charName: 'Old Thornback', name: 'Old Thornback', charStats: 'Spriggan. Hidden in the trees until the party gets close.', hidden: true }))
+        hexTok(O + 140, O + 300, pic('orc_hex.png', { id: 'tut_wb_grimtusk', charName: 'Old Grimtusk', name: 'Old Grimtusk', charStats: 'Orc — a cast-out loner, no friend of the raiders. Hidden in the trees until the party gets close.', hidden: true }))
     ];
 
     /* ---- Palace throne room: an indoor hex map built from shapes (no picture needed) ---- */
@@ -393,7 +393,7 @@ function buildTutorialCampaign() {
         { type: 'node', title: 'The hideout', tag: 'combat', must: 'Grukk\'s ledger changes hands.', cols: ['Where', 'Who', 'Note'], rows: [{ col1: 'Ground floor', col2: 'Grukk, Horn', col3: 'Horn is hidden behind the guard-room door.' }, { col1: 'Top floor', col2: 'Two archers', col3: 'Elevation +4 \u2014 use the ruler for the 3D figure.' }, { col1: 'Basement', col2: 'Vault slime', col3: 'Only if they open the vault.' }] },
         { type: 'callout', content: 'Planners are yours alone \u2014 players never receive them, so put the twist (the Emporium buyer) here, not in a room name.' },
         { type: 'h2', title: 'If they chase the raiders' },
-        { type: 'text', content: 'The survivors raft downriver to the <b>Old Fort</b>. Old Thornback the spriggan is nobody\'s friend.' }
+        { type: 'text', content: 'The survivors raft downriver to the <b>Old Fort</b>. Old Grimtusk the outcast orc is nobody\'s friend.' }
     ];
 
     /* ---- the handbook page: what players read at the table ---- */

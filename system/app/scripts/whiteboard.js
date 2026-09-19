@@ -2750,6 +2750,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function syncFillMenu() {
       document.querySelectorAll('#fillColorRow .draw-swatch[data-color]').forEach(function(sw) { sw.classList.toggle('active', sw.dataset.color.toLowerCase() === (state.fillColor || '').toLowerCase()); });
       var cs = document.querySelector('#fillColorRow .draw-swatch.custom'); if (cs) { var preset = document.querySelector('#fillColorRow .draw-swatch[data-color].active'); cs.classList.toggle('active', !preset); cs.style.background = preset ? '' : state.fillColor; }
+      var _fi = document.getElementById('fillColorIndicator'); if (_fi) _fi.style.background = state.fillColor;
   }
   if (_el_fillModeBtn) _el_fillModeBtn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -2769,6 +2770,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   });
   var _fillColorInput = document.getElementById('fillColorInput');
   if (_fillColorInput) _fillColorInput.addEventListener('input', function() { state.fillColor = this.value; try { localStorage.setItem('wp_fillColor', state.fillColor); } catch (e) {} syncFillMenu(); });
+  syncFillMenu();   // show the loaded fill colour on the toolbar button at startup
   document.addEventListener('click', function(e) { if (_el_fillMenu && _el_fillMenu.classList.contains('show') && !e.target.closest('#fillMenu') && !e.target.closest('#fillModeBtn')) _el_fillMenu.classList.remove('show'); });
   var _fillDirty = false;
   function fillCellAt(x, y, remove) {

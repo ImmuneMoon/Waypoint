@@ -12,16 +12,19 @@ var LIMITS = Object.freeze({
     fields: 300, rolls: 50, sections: 20, placements: 200, options: 50, optionChars: 60,
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
     text: 200, notes: 20000, name: 60, charName: 60, names: 200,
+    items: 200, carried: 100, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000
 });
-var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1 });
-var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1 });
+// item-list is a STORED, non-numeric list kind (a character's carried items); never in NUMERIC/DEF_PROP.
+var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1 });
+var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1 });
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
 var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1 });
 var RESERVED_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1 });
 var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, sqrt: 1, min: 1, max: 1, clamp: 1, mod: 1, 'if': 1, and: 1, or: 1, not: 1, 'true': 1, 'false': 1 });
-var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
+var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
+var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 }), ITEM_OP = Object.freeze({ add: 1, remove: 1, setQty: 1 });
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
 var CTRL_KEEP_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
 var PATH_RE = /^[/]saves[/]images[/][^?#]{1,300}$/;
@@ -33,7 +36,7 @@ function fin(v) { return typeof v === 'number' && isFinite(v); }
 function map() { return Object.create(null); }
 function lower(s) { return String(s).toLowerCase(); }
 function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 10); }
-function emptySystem() { return { v: 1, name: '', preset: '', updated: 0, fields: [], rolls: [], sheet: { sections: [] } }; }
+function emptySystem() { return { v: 1, name: '', preset: '', updated: 0, fields: [], rolls: [], items: [], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }, sheet: { sections: [] } }; }
 
 /* ---------- keys and formulas ---------- */
 // A key is exactly one name to the engine: parse(key) must give a bare name node (that tracks every lexer decision —
@@ -119,6 +122,39 @@ function cleanRollDef(r, gmView) {
     if (r.init === true) out.init = true;
     return out;
 }
+// An item definition (camp.system.items). gmView false: a vis:'gm' item is dropped, and a visible item's
+// formula/skill text (damage/cost/throwSkill) is stripped — the host resolves every roll, so players never
+// need the formula, which also removes the GM-only-field-leak surface (cleanSystem's blanking is fields/rolls only).
+function cleanItemDef(it, F, gmView) {
+    if (!isObj(it) || typeof it.id !== 'string' || !ITEM_ID.test(it.id)) return null;
+    var vis = it.vis === 'gm' ? 'gm' : 'all';
+    if (!gmView && vis === 'gm') return null;
+    var out = {
+        id: it.id,
+        name: str(it.name, LIMITS.name).replace(CTRL_RE, ' ').trim() || 'Item',
+        category: str(it.category, LIMITS.category).replace(CTRL_RE, ' ').trim(),
+        icon: str(it.icon, 8).replace(CTRL_RE, ''),
+        notes: str(it.notes, LIMITS.text).replace(CTRL_RE, ' '),
+        vis: vis, area: null, damage: '', cost: '', throwSkill: ''
+    };
+    if (isObj(it.area)) {
+        var ft = cleanNum(it.area.ft, 0) | 0;
+        if (ft > 0) out.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[it.area.shape] ? it.area.shape : 'circle', name: str(it.area.name, LIMITS.label).replace(CTRL_RE, ' ').trim() };
+    }
+    if (gmView) {   // formula/skill text is GM-only on the wire
+        var dmg = cleanFormulaText(it.damage); out.damage = dmg === null ? '' : dmg;
+        var cost = cleanFormulaText(it.cost); out.cost = cost === null ? '' : cost;
+        out.throwSkill = (typeof it.throwSkill === 'string' && validKey(it.throwSkill, F)) ? it.throwSkill : '';
+    }
+    return out;
+}
+// camp.system.combat — blast automation, who rolls, and the resource damage subtracts from. resIds: map of resource field ids.
+function cleanCombat(c, resIds) {
+    c = isObj(c) ? c : {};
+    var out = { blastAuto: BLAST_AUTO[c.blastAuto] ? c.blastAuto : 'full', blastRoller: c.blastRoller === 'gm' ? 'gm' : 'owner', hpResource: '' };
+    if (typeof c.hpResource === 'string' && resIds && resIds[c.hpResource]) out.hpResource = c.hpResource;
+    return out;
+}
 function cleanSheet(sheet, fieldIds, rollIds) {
     var out = { sections: [] }, placed = map(), total = 0;
     if (!isObj(sheet) || !Array.isArray(sheet.sections)) return out;
@@ -166,8 +202,16 @@ function cleanSystem(sys, opts) {
         out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; });
         out.rolls = out.rolls.filter(function(r) { return !mentions(r.formula); });
     }
-    var fieldIds = map(), rollIds = map();
-    out.fields.forEach(function(f) { fieldIds[f.id] = 1; }); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });
+    var fieldIds = map(), rollIds = map(), resIds = map();
+    out.fields.forEach(function(f) { fieldIds[f.id] = 1; if (f.kind === 'resource') resIds[f.id] = 1; }); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });
+    var seenIt = map();
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
+        if (out.items.length >= LIMITS.items) return;
+        var c = cleanItemDef(it, F, gmView);
+        if (!c || seenIt[c.id]) return;
+        seenIt[c.id] = 1; out.items.push(c);
+    });
+    out.combat = cleanCombat(sys.combat, resIds);
     out.sheet = cleanSheet(sys.sheet, fieldIds, rollIds);
     return out;
 }
@@ -186,6 +230,16 @@ function cleanValue(field, v, opts) {
         cur = clampNum(Math.round(cur), field.min, opts && fin(opts.max) ? opts.max : undefined);
         return { cur: cur };
     }
+    if (k === 'item-list') {   // [{defId,qty}] — drop unknown/dup defIds, cap, clamp qty; opts.items is a proto-safe id set
+        if (!Array.isArray(v)) return undefined;
+        var items = (opts && opts.items) || map(), seen = map(), list = [];
+        for (var i = 0; i < v.length && list.length < LIMITS.carried; i++) {
+            var e = v[i];
+            if (!isObj(e) || typeof e.defId !== 'string' || !ITEM_ID.test(e.defId) || !items[e.defId] || seen[e.defId]) continue;
+            seen[e.defId] = 1; list.push({ defId: e.defId, qty: clampNum(cleanNum(e.qty, 1) | 0, 1, LIMITS.maxQty) });
+        }
+        return list;
+    }
     return undefined;
 }
 function stepRound(n, field) { var step = field.step > 0 ? field.step : 1, base = field.min !== undefined ? field.min : 0; return base + Math.round((n - base) / step) * step; }
@@ -195,7 +249,8 @@ function cleanChar(c, sys) {
     if (out.npc) out.ownerId = '';
     if (typeof c.portrait === 'string' && PATH_RE.test(c.portrait) && c.portrait.indexOf('..') < 0 && !CTRL_RE.test(c.portrait)) out.portrait = c.portrait;
     var vals = isObj(c.values) ? c.values : {};
-    Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; var v = cleanValue(f, vals[fid], null); if (v !== undefined) out.values[fid] = v; });
+    var itemIx = map(); (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (it && typeof it.id === 'string') itemIx[it.id] = 1; });
+    Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; var v = cleanValue(f, vals[fid], { items: itemIx }); if (v !== undefined) out.values[fid] = v; });
     return out;
 }
 function cleanCharEdit(msg) {
@@ -208,13 +263,21 @@ function cleanCharEdit(msg) {
     else return null;
     return { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, value: v };
 }
+// A per-entry inventory edit (item-list can't ride cleanCharEdit — arrays are refused there). { op, defId, qty }
+function cleanCharItem(msg) {
+    if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.fieldId !== 'string' || !FIELD_ID.test(msg.fieldId)) return null;
+    if (!ITEM_OP[msg.op] || typeof msg.defId !== 'string' || !ITEM_ID.test(msg.defId)) return null;
+    var qty = msg.qty === undefined ? 1 : (cleanNum(msg.qty, NaN) | 0);
+    if (!(qty >= 0)) return null;
+    return { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, op: msg.op, defId: msg.defId, qty: clampNum(qty, 0, LIMITS.maxQty) };
+}
 function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'value'; }
 
 /* ---------- the resolver: the engine reads a character's names through this ---------- */
 function noDice() { return NaN; }   // a die inside a definition fails at the die: "The random source returned NaN"
 function storedOf(field, char) {
     var v = char && char.values ? char.values[field.id] : undefined;
-    if (v === undefined) return field.kind === 'resource' ? (field.def === 'max' ? { cur: null } : { cur: field.def }) : field.kind === 'notes' ? '' : field.def;
+    if (v === undefined) return field.kind === 'resource' ? (field.def === 'max' ? { cur: null } : { cur: field.def }) : field.kind === 'notes' ? '' : field.kind === 'item-list' ? [] : field.def;
     return v;
 }
 function makeResolver(sys, char, F) {
@@ -266,6 +329,7 @@ function resolveAll(sys, char, F) {
         var e = { value: undefined, text: '', error: null };
         var k = f.kind;
         if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
+        else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; }   // a carried list; sheets.js renders it, not a number
         else if (k === 'toggle' || k === 'number') { e.value = storedOf(f, char); e.text = fmtNum(e.value); }
         else {
             var v = r(f.key);
@@ -319,6 +383,11 @@ function validateSystem(sys, F) {
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
     });
     sys.rolls.forEach(function(r) { checkFormula({ id: r.id, key: r.id }, 'rollFormula', r.formula, true, r.vis); });
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {   // item damage = a roll (dice ok); cost = a definition (no dice)
+        if (it.damage) checkFormula({ id: it.id, key: it.id }, 'damage', it.damage, true, it.vis);
+        if (it.cost) checkFormula({ id: it.id, key: it.id }, 'cost', it.cost, false, it.vis);
+        if (it.throwSkill && !ix[lower(it.throwSkill)]) warnings.push({ id: it.id, prop: 'throwSkill', message: 'Throw skill "' + it.throwSkill + '" is not a field.' });
+    });
     // loops: DFS over the definition graph
     var state = map(), stack = [];
     function visit(k) {
@@ -338,7 +407,7 @@ function validateSystem(sys, F) {
 function charFor(c, sys, recipientId) {
     if (!c || c.npc || !c.ownerId) return null;
     var own = c.ownerId === recipientId, values = {};
-    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) values[f.id] = c.values[f.id]; });
+    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) values[f.id] = c.values[f.id]; });   // a carried list never travels to another player, hover flag or not
     return { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
 }
 // The host's answer to one edit (its own or a player's): { ok, value } or { ok: false, reason }
@@ -353,6 +422,27 @@ function applyEdit(sys, char, fieldId, value, F, opts) {
     if (v === undefined) return { ok: false, reason: 'value' };
     return { ok: true, value: v };
 }
+// The host's answer to one inventory op (its own or a player's): returns the new {defId,qty}[] or { ok:false, reason }.
+// The item def is read from the system (never trusted from the client); a player may not touch a GM item or a locked list.
+function applyItemOp(sys, char, fieldId, op, defId, qty, opts) {
+    opts = opts || {};
+    var f = fieldById(sys, fieldId); if (!f || f.kind !== 'item-list') return { ok: false, reason: 'field' };
+    if (opts.player && (f.edit !== 'owner' || f.vis !== 'all')) return { ok: false, reason: 'field' };
+    if (!ITEM_OP[op] || typeof defId !== 'string' || !ITEM_ID.test(defId)) return { ok: false, reason: 'value' };
+    var def = null; for (var i = 0; i < (Array.isArray(sys.items) ? sys.items : []).length; i++) if (sys.items[i].id === defId) { def = sys.items[i]; break; }
+    if (!def) return { ok: false, reason: 'missing' };
+    if (opts.player && def.vis === 'gm') return { ok: false, reason: 'field' };
+    var src = char && Array.isArray(char.values && char.values[fieldId]) ? char.values[fieldId] : [];
+    var list = src.map(function(e) { return { defId: e.defId, qty: e.qty }; });
+    var idx = -1; for (var j = 0; j < list.length; j++) if (list[j].defId === defId) { idx = j; break; }
+    var n = clampNum((qty | 0) || 0, 0, LIMITS.maxQty);
+    if (op === 'add') { if (idx >= 0) list[idx].qty = clampNum(list[idx].qty + (n || 1), 1, LIMITS.maxQty); else if (list.length < LIMITS.carried) list.push({ defId: defId, qty: n || 1 }); else return { ok: false, reason: 'field' }; }
+    else if (op === 'remove') { if (idx >= 0) list.splice(idx, 1); }
+    else if (op === 'setQty') { if (n <= 0) { if (idx >= 0) list.splice(idx, 1); } else if (idx >= 0) list[idx].qty = n; else if (list.length < LIMITS.carried) list.push({ defId: defId, qty: n }); else return { ok: false, reason: 'field' }; }
+    return { ok: true, value: list };
+}
+// The item def a token/character would throw, by id (host reads area.ft from here, never from the wire). Null if absent.
+function itemDef(sys, defId) { var a = Array.isArray(sys && sys.items) ? sys.items : []; for (var i = 0; i < a.length; i++) if (a[i].id === defId) return a[i]; return null; }
 
 /* ---------- the auto layout (SB2): one section per kind group, then the rolls ---------- */
 function autoLayout(sys) {
@@ -421,6 +511,6 @@ function gmOnlyNames(sys, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanDenyReason: cleanDenyReason, fieldById: fieldById, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanDenyReason, fieldById, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };

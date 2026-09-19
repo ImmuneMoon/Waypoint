@@ -61,6 +61,7 @@ function tutorialSystem() {
             { id: 'f_tut_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10 + CON', def: 'max', min: 0, edit: 'owner', vis: 'all', hover: true },
             { id: 'f_tut_ac', key: 'AC', label: 'Armour class', kind: 'formula', formula: '10 + floor((DEX - 10) / 2)', vis: 'all', hover: true },
             { id: 'f_tut_sword', key: 'Skill.Sword', label: 'Sword', kind: 'skill', base: 'STRmod', def: 0, min: 0, max: 10, step: 1, edit: 'owner', vis: 'all', hover: false, roll: 'd20 + Skill.Sword' },
+            { id: 'f_tut_sight', key: 'Sight', label: 'Sight (yards)', kind: 'number', def: 6, min: 0, max: 120, step: 1, edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_prone', key: 'Prone', label: 'Prone', kind: 'toggle', def: false, edit: 'owner', vis: 'all', hover: true },
             { id: 'f_tut_notes', key: 'Notes', label: 'Notes', kind: 'notes', edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_gm', key: 'GMnotes', label: 'GM notes', kind: 'notes', edit: 'gm', vis: 'gm', hover: false }
@@ -70,7 +71,7 @@ function tutorialSystem() {
 }
 function tutorialCharacter(A) {
     return { id: 'c_tut_bren', name: 'Bren of Hollowvale', ownerId: '', portrait: A + 'bren_sq.jpg', npc: false, updated: 1,
-        values: { f_tut_str: 14, f_tut_dex: 12, f_tut_con: 13, f_tut_hp: { cur: 9 }, f_tut_sword: 3, f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.' } };
+        values: { f_tut_str: 14, f_tut_dex: 12, f_tut_con: 13, f_tut_hp: { cur: 9 }, f_tut_sword: 3, f_tut_sight: 6, f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.' } };
 }
 // Bren's tokens on every map point at the character (one HP total across maps); idempotent, so an older Tutorial campaign gains it too
 function ensureTutorialSheet(camp) {
@@ -87,6 +88,7 @@ function buildTutorialCampaign() {
     var camp = createNewCampaign(TUTORIAL_NAME);
     camp.id = TUTORIAL_CAMP_ID;
     camp.vtt = tutorialVtt();   // every VTT feature on: the tour points at chips and the minimap, so they must render
+    camp.fog = { fields: { sight: 'f_tut_sight' }, defaults: { sight: 3 } };   // fog of war (1.5.0): Bren's Sight field drives vision; 3 yd default for a token with no character
     // Hex-cell items sit on the flat-top lattice (cell centres x = 45q + 15, y = 52(r + q/2)); the same
     // rounding the app's own seating uses, so nothing needs re-seating on load.
     function hexCentre(x, y) {
@@ -397,10 +399,39 @@ function buildTutorialCampaign() {
     /* ---- the handbook page: what players read at the table ---- */
     var book = tutorialHandbookPage();
 
-    [realm, city, inn, throne, temple, forge, ground, basement, top, fort, road, plan, book].forEach(function(it) { camp.items[it.id] = it; });
+    [realm, city, inn, throne, temple, forge, ground, basement, top, fort, road, buildTutorialFogMap(), plan, book].forEach(function(it) { camp.items[it.id] = it; });
     ensureTutorialSheet(camp);   // the demo system and Bren's character (character sheets, 1.5.0)
     camp.activeItemId = realm.id;
     return camp;
+}
+
+// The pre-fogged demo map (fog of war, 1.5.0): a square-grid cellar where Bren's Sight field lights a disc and a
+// monster in the dark is dropped from players' copies. Standalone (like tutorialHandbookPage) so an older Tutorial
+// gains it on its next ensure. Sight resolves through camp.fog.fields.sight -> the character's Sight field.
+function buildTutorialFogMap() {
+    var A = TUTORIAL_ART_URL;
+    function sqTok(x, y, props) { return Object.assign({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50, w: 50, h: 50, layer: 'middle' }, props); }
+    function pic(file, extra) { return Object.assign({ type: 'image', src: A + file, color: 'transparent', isChar: true }, extra); }
+    var fm = createNewMap('Fog Demo — The Dark Cellar');
+    fm.id = 'map_tut_fog';
+    fm.meta.parentId = 'map_tut_realm';
+    fm.meta.homeX = 15000; fm.meta.homeY = 15000; fm.meta.lastView = 'visual'; fm.meta.gridType = 'square';
+    fm.meta.cellUnit = 'yd'; fm.meta.cellValue = 1;   // 1 cell = 1 yard = 50 px, so a sight in yards reads straight off as cells
+    fm.fog = { on: true, mode: 'auto', ruleset: 'dnd', manual: { adds: [], cuts: [] } };   // fog ON; vision + manual; D&D all-around radius on a square grid
+    fm.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
+    fm.rooms = [
+        { id: 'tut_fog_lit', name: 'Lantern light', cat: 'room', x: 15000, y: 15000, notes: 'As far as Bren’s lantern reaches. In a session each player sees only this disc around their own tokens.', characters: [] },
+        { id: 'tut_fog_dark', name: 'The dark', cat: 'danger', x: 15400, y: 15000, notes: 'Beyond the light. A creature here is dropped from every player’s copy until a token’s vision (or your reveal brush) reaches it.', characters: [] }
+    ];
+    fm.links = [['tut_fog_lit', 'tut_fog_dark', 'oneway', { label: 'Into the dark' }]];
+    fm.whiteboard = [
+        { id: 'tut_wb_fogfloor', type: 'rect', x: 14700, y: 14750, w: 800, h: 500, color: '#201d28', layer: 'back', nodeId: 'tut_fog_lit', name: 'Cellar floor' },
+        { id: 'tut_wb_fogpillar1', type: 'circle', x: 14900, y: 14850, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Pillar' },
+        { id: 'tut_wb_fogpillar2', type: 'circle', x: 15300, y: 15150, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Pillar' },
+        sqTok(15000, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren7', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Your character. His Sight field (6 yd) lights the fog — drag him and the lit disc follows.', charId: 'c_tut_bren' })),
+        sqTok(15400, 15000, pic('slime_sq.jpg', { id: 'tut_wb_lurker', charName: 'Cellar Lurker', name: 'Cellar Lurker', charStats: 'A monster in the dark, 8 yd off — outside Bren’s sight, so players never receive it. Move a token close, or use the reveal brush, to bring it into view.' }))
+    ];
+    return fm;
 }
 
 // The Tutorial's one handbook page (1.5.0). Built apart from the campaign so an older Tutorial gains it on
@@ -421,7 +452,7 @@ function tutorialHandbookPage() {
 }
 
 function tutorialCampaign() { return state.appState.campaigns[TUTORIAL_CAMP_ID] || null; }
-function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } }; }
+function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true } }; }
 // A session is exactly one campaign: opening, rebuilding or discarding the Tutorial while hosting is a campaign switch,
 // so it asks first and ends the session on yes (net.js guardCampaignSwitch). Off a session it simply runs.
 function guardSwitch(switching, fn) { if (switching && window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn); else fn(); }
@@ -436,6 +467,11 @@ function ensureTutorialCampaign(rebuild) {
         resetHistory(TUTORIAL_CAMP_ID);   // fixed ids: no stack from an earlier copy may attach to the fresh one
     }
     if (!camp.items.doc_tut_handbook) camp.items.doc_tut_handbook = tutorialHandbookPage();   // a Tutorial from before 1.5.0: the page the tour points at
+    // a Tutorial from before fog of war (1.5.0): the Sight field, Bren's value, the campaign mapping and the pre-fogged demo map
+    if (camp.system && Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f.id === 'f_tut_sight'; })) camp.system.fields.push({ id: 'f_tut_sight', key: 'Sight', label: 'Sight (yards)', kind: 'number', def: 6, min: 0, max: 120, step: 1, edit: 'owner', vis: 'all', hover: false });
+    if (camp.chars && camp.chars.c_tut_bren && camp.chars.c_tut_bren.values && camp.chars.c_tut_bren.values.f_tut_sight == null) camp.chars.c_tut_bren.values.f_tut_sight = 6;
+    if (!camp.fog || !camp.fog.fields || camp.fog.fields.sight !== 'f_tut_sight') camp.fog = { fields: { sight: 'f_tut_sight' }, defaults: { sight: 3 } };
+    if (!camp.items.map_tut_fog) camp.items.map_tut_fog = buildTutorialFogMap();
     if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
@@ -523,6 +559,9 @@ var STEPS = [
     { target: '#fxBtn', title: 'Visual effects',
       html: 'Flashes, screen shake, colour washes, bursts on the map, weather and banners &mdash; the &#10024; panel fires them and the players on that map (and the stream window) see them. Pick a burst look then click the map; a token can <b>Pulse</b> from its right-click menu; <b>Sound with it</b> fires a cue alongside. Off for the campaign, or <b>Reduce motion</b> for yourself, in &#9881; Settings &#9656; VTT features. A VTT feature, per campaign.',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); } },
+    { target: '#fogModeBtn', title: 'Fog of war',
+      html: 'Per-player <b>token vision</b>. The &#127787; button turns fog on for <i>this</i> map, then you paint reveal/hide by hand or preview a player&rsquo;s view. In a session each player sees an <b>opaque</b> fog of only what their own tokens light, and the host <b>drops</b> from their copy any creature they cannot see &mdash; true absence, nothing to uncover. Sight comes from a <b>character-sheet field</b> you map in the fog menu (here Bren&rsquo;s <b>Sight</b>, 6&nbsp;yd), or a campaign <b>default</b> for tokens without one. Modes: <b>auto</b> (vision + your reveals), <b>Reveal all</b> (a lit scene) or <b>Cover all</b> (only what you paint); on a gridless map you pick a cell size so vision can be measured. This map is <b>already fogged</b> — Bren lights a disc (shown now as the party would see it) and the <b>Cellar Lurker</b> in the dark is hidden from players until a token or your reveal brush reaches it. Fog is a VTT feature, per campaign (&#9881; Settings &#9656; VTT features), off by default and GM-only.',
+      before: function() { openItem('map_tut_fog'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); if (window.wpFog) window.wpFog.setPreview('party'); } },
     { target: '#whiteboardWrap', title: 'Tokens',
       html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both are VTT features, set per campaign in Settings \u25b8 VTT features. In a session a player can right-click <i>their own</i> token for the same rows, and your campaign\'s settings are the most they see. <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click a token and <b>Save to Campaign Cast</b> keeps a copy you can drop again from the play map\'s right-click menu, one at a time, or several at once with the \u00d7 box in the flyout.',
       before: function() { openItem('map_tut_ground'); goView('visual'); } },
@@ -565,7 +604,7 @@ var STEPS = [
       html: 'Your name and table picture, light or dark theme, measurement units, rulers and grid opacity, the <b>VTT features</b> (next), journal options and updates. Table settings travel with your saves folder.',
       before: function() { closeSettingsForTour(); var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); } },
     { target: '#setVttCampBlock', title: 'VTT features, per campaign',
-      html: '<b>Token elevation</b>, <b>Token posture</b>, the <b>Minimap</b>, <b>Sound</b>, <b>Dice</b> and <b>Character sheets</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
+      html: '<b>Token elevation</b>, <b>Token posture</b>, the <b>Minimap</b>, <b>Sound</b>, <b>Dice</b>, <b>Character sheets</b>, <b>Visual effects</b> and <b>Fog of war</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
       before: function() { openSettingsForTour(); } },
     { target: '#helpBtn', title: 'Help is always here',
       html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.',
@@ -674,6 +713,7 @@ function endTour() {
     closeSettingsForTour();   // the VTT step may have left Settings open
     var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
     if (window.wpSheets) window.wpSheets.closeSheet();   // and the sheet step Bren's sheet
+    if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
 }
 
 /* ---------- Help → Tutorial pane wiring ---------- */

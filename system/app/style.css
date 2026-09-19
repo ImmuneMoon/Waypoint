@@ -1541,6 +1541,13 @@
   .sys-hover, .sys-toggle-def { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
   .sys-btns { margin-left: auto; display: inline-flex; gap: 2px; }
   .sys-btn { padding: 1px 7px; font-size: 11px; }
+  /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
+  #sysCombatBox { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
+  .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
+  .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
+  .sys-item-notes-row { margin-top: 5px; }
+  .sys-item-notes-row input { width: 100%; box-sizing: border-box; }
+  .sys-item-row .sys-item-damage, .sys-item-row .sys-item-cost, .sys-item-row .sys-item-throw { flex: 1; min-width: 110px; font-family: ui-monospace, Consolas, monospace; }
   .sys-err { color: var(--red); font-size: 11.5px; line-height: 1.4; }
   .sys-err-line { color: var(--red); }
   .sys-warn-line { color: var(--gold); }

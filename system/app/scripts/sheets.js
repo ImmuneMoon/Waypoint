@@ -425,6 +425,7 @@ function open(which) {
     var camp = getActiveCampaign(); if (!camp) return;
     draft = clone(systemOf(camp) || emptySystem());
     if (!Array.isArray(draft.fields)) draft.fields = []; if (!Array.isArray(draft.rolls)) draft.rolls = []; if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] };
+    if (!Array.isArray(draft.items)) draft.items = []; if (!draft.combat || typeof draft.combat !== 'object') draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' };
     dirty = false; tab = which || 'fields';
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
@@ -485,7 +486,9 @@ function formulaTextFor(id, prop) {
     var f = draft.fields.find(function(x) { return x.id === id; });
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
-    return r ? r.formula || '' : '';
+    if (r) return r.formula || '';
+    var it = (draft.items || []).find(function(x) { return x.id === id; });
+    return it ? (prop === 'cost' ? it.cost || '' : it.damage || '') : '';
 }
 function patchErrors() {
     refreshErrors();
@@ -498,6 +501,7 @@ function numInput(cls, value, title) { var i = el('input', cls); i.type = 'numbe
 function numField(cls, value, title, cap) { var l = el('label', 'sys-num'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput(cls, value, title)); return l; }   // a captioned number (Default / Min / Max / Step) so the def row reads without hovering
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
+function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
 function fieldRow(f) {
     var row = el('div', 'sys-row'); row.dataset.id = f.id;
     var top = el('div', 'sys-row-main');
@@ -560,6 +564,35 @@ function charRow(c, camp) {
     row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)')));
     return row;
 }
+function itemRow(it) {
+    var row = el('div', 'sys-row sys-item-row'); row.dataset.iid = it.id;
+    var top = el('div', 'sys-row-main');
+    top.appendChild(input('sys-item-name field', it.name, 'The item name shown on the sheet', 'Name'));
+    top.appendChild(input('sys-item-cat field', it.category, 'A group, e.g. Explosives, Sidearms', 'Category'));
+    var area = el('div', 'sys-item-area');
+    area.appendChild(select('sys-item-shape', [['', 'No blast'], ['circle', 'Blast (circle)']], it.area ? (it.area.shape || 'circle') : '', 'A thrown blast: a circular area, thrown from the sheet'));
+    var ftw = numField('sys-item-ft', it.area ? it.area.ft : '', 'Blast radius in feet', 'ft'); if (!it.area) ftw.style.opacity = '0.5'; area.appendChild(ftw);
+    top.appendChild(area);
+    top.appendChild(input('sys-item-damage field', it.damage, 'Damage roll (dice allowed): 3d6, 2d6 + STRmod', 'Damage (optional)'));
+    var flags = el('div', 'sys-flags');
+    flags.appendChild(input('sys-item-cost field', it.cost, 'Point/credit cost (a formula, no dice) — used by budgets in a later slice', 'Cost (optional)'));
+    flags.appendChild(input('sys-item-throw field', it.throwSkill, 'Optional: a field whose roll is posted as the to-hit', 'Throw skill (optional)'));
+    flags.appendChild(input('sys-item-icon field', it.icon, 'A single emoji shown on the row', 'Icon'));
+    flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: the item and its formulas never leave your machine'));
+    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
+    row.appendChild(top); row.appendChild(flags);
+    var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
+    var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
+    return row;
+}
+function renderCombat() {
+    var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
+    box.appendChild(labeledSelect('sys-combat-auto', 'Blast automation', [['full', 'Full auto — roll & apply'], ['roll', 'Roll to chat; apply by hand'], ['measure', 'Measure only']], cm.blastAuto, 'What happens when a blast is thrown: full = roll damage and apply it to tokens in range; roll = post the roll for a human to apply; measure = area only.'));
+    box.appendChild(labeledSelect('sys-combat-roller', 'Who rolls', [['owner', 'The character\'s owner'], ['gm', 'Always the GM']], cm.blastRoller, 'Who makes a thrown blast\'s rolls: the owning player, or always the GM.'));
+    var resFields = (draft.fields || []).filter(function(f) { return f.kind === 'resource'; });
+    box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? '— none —' : '— add a resource field —']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
+}
 function renderAll() {
     if (!draft) return;
     refreshErrors();
@@ -567,6 +600,7 @@ function renderAll() {
     ui('sysFields').style.display = tab === 'fields' ? '' : 'none';
     ui('sysRolls').style.display = tab === 'rolls' ? '' : 'none';
     var sc = ui('sysChars'); if (sc) sc.style.display = tab === 'chars' ? '' : 'none';
+    var siEl = ui('sysItems'); if (siEl) siEl.style.display = tab === 'items' ? '' : 'none';
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var fr = ui('sysFieldRows'); fr.textContent = '';
     if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
@@ -574,14 +608,30 @@ function renderAll() {
     var rr = ui('sysRollRows'); rr.textContent = '';
     if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod.'));
     draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); });
+    var itr = ui('sysItemRows'); if (itr) { itr.textContent = ''; if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); }
     var cr = ui('sysCharRows'); if (cr) { cr.textContent = ''; var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); }
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     patchErrors();
 }
-function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
+function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid || row.dataset.iid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
+function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
 function onInput(e) {
     if (!draft) return;
     var t = e.target; if (onLayoutInput(t)) return;
+    var it = itemOfRow(t);
+    if (it) {
+        var ic = t.className || '';
+        if (ic.indexOf('sys-item-name') >= 0) it.name = t.value.slice(0, LIMITS.name);
+        else if (ic.indexOf('sys-item-cat') >= 0) it.category = t.value.slice(0, LIMITS.category);
+        else if (ic.indexOf('sys-item-ft') >= 0) { if (it.area) it.area.ft = t.value === '' ? 0 : Number(t.value); }
+        else if (ic.indexOf('sys-item-damage') >= 0) it.damage = t.value;
+        else if (ic.indexOf('sys-item-cost') >= 0) it.cost = t.value;
+        else if (ic.indexOf('sys-item-throw') >= 0) it.throwSkill = t.value.trim();
+        else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 8);
+        else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.text);
+        else return;
+        markDirty(); patchErrors(); return;
+    }
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r, c = t.className || '';
     if (f) {
@@ -608,6 +658,15 @@ function onChange(e) {
     if (!draft) return;
     var t = e.target, c = t.className || '';
     if (onLayoutChange(t)) return;
+    if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
+    if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
+    if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
+    var iit = itemOfRow(t);
+    if (iit) {
+        if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
+        if (c.indexOf('sys-item-shape') >= 0) { if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' }; markDirty(); renderAll(); return; }
+        return;
+    }
     var crow = t.closest && t.closest('.sys-char-row');
     if (crow) {   // characters save as you go
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;
@@ -638,6 +697,7 @@ function onClick(e) {
     if (b.id === 'sysAddField') { draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('.sys-key'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
+    if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.dataset.tab) { tab = b.dataset.tab; renderAll(); return; }
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
@@ -648,6 +708,18 @@ function onClick(e) {
         if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return; }
         if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { ch.portrait = src; afterCharChange(ch, true); renderAll(); } }); return; }
         return;
+    }
+    var irow = b.closest('.sys-item-row');
+    if (irow) {
+        if (!b.dataset.act) return;
+        var iitem = (draft.items || []).find(function(x) { return x.id === irow.dataset.iid; }); if (!iitem) return;
+        var ii = draft.items.indexOf(iitem), iact = b.dataset.act;
+        if (iact === 'up' && ii > 0) { draft.items.splice(ii, 1); draft.items.splice(ii - 1, 0, iitem); }
+        else if (iact === 'down' && ii < draft.items.length - 1) { draft.items.splice(ii, 1); draft.items.splice(ii + 1, 0, iitem); }
+        else if (iact === 'dup') { var di = clone(iitem); di.id = uid('i_'); if (di.name) di.name = di.name + ' copy'; draft.items.splice(ii + 1, 0, di); }
+        else if (iact === 'del') { draft.items.splice(ii, 1); }
+        else return;
+        markDirty(); renderAll(); return;
     }
     var ctx = fieldOfRow(b); if (!ctx) return;
     var list = ctx.f ? draft.fields : draft.rolls, item = ctx.f || ctx.r; if (!item) return;

@@ -224,7 +224,7 @@ function renderPanel() {
 }
 // the chips and the stop button follow the engine without rebuilding the body (a rebuild mid-drag would drop the master slider)
 function syncPanelState() { var body = ui('soundBody'); if (!body || !panelOpen) return; var id = ambient ? ambient.entry.id : null; body.querySelectorAll('.snd-loop').forEach(function(b) { b.classList.toggle('active', b.dataset.id === id); }); var st = body.querySelector('.snd-stop'); if (st) st.disabled = !ambient; }
-function openPanel() { panelOpen = true; ac(); renderPanel(); placePanel(); var b = ui('soundBtn'); if (b) b.classList.add('active'); }
+function openPanel() { panelOpen = true; if (window.wpFx && window.wpFx.closePanel) window.wpFx.closePanel(); ac(); renderPanel(); placePanel(); var b = ui('soundBtn'); if (b) b.classList.add('active'); }   // Sound and Visual effects share the corner: only one panel at a time
 function closePanel() { panelOpen = false; renderPanel(); var b = ui('soundBtn'); if (b) b.classList.remove('active'); }
 function placePanel() { var p = ui('soundPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_soundPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 120, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 60, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
 (function wirePanel() {

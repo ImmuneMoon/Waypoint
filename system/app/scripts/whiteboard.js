@@ -161,6 +161,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function renderWhiteboard() {
       if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
       if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
+      if (window.wpFogRedraw) window.wpFogRedraw();   // keep the fog overlay live whenever a fog map is on screen (any tool, during drags)
 
       var activeMap = getActiveMap();
 

@@ -184,6 +184,24 @@ Fog of war
   campaigns), off until the GM turns it on and never a player's to
   enable.
 
+Item library
+- The System editor has an Items tab: your campaign’s own weapons, gear and
+  explosives. Each item carries a name, a category, an optional blast area (a
+  radius in feet), a damage roll (dice allowed), a cost, an icon and a
+  Visible/GM-only flag; GM-only items and every item formula stay on your
+  machine.
+- Characters carry items through a new Item-list field on the sheet: an
+  inventory with quantity, remove, and an Add-item picker of the library.
+  Players manage their own; the host checks every change.
+- Throw from the sheet: an item with a blast area gets a Throw button — press
+  it, click the map, and the blast lands attributed to the character and
+  shared with everyone on that map. Per campaign you choose the automation
+  (full auto rolls and applies the damage, or roll-to-chat, or measure only),
+  who rolls (the owner or the GM), and which resource damage subtracts from;
+  a full-auto throw can be undone from the blast menu.
+- The toolbar blast is now a GM quick-tool for an ad-hoc radius; the old fixed
+  explosive presets are gone in favour of your campaign’s own items.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

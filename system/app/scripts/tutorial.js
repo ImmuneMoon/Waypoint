@@ -64,14 +64,17 @@ function tutorialSystem() {
             { id: 'f_tut_sight', key: 'Sight', label: 'Sight (yards)', kind: 'number', def: 6, min: 0, max: 120, step: 1, edit: 'owner', vis: 'all', hover: false },
             { id: 'f_tut_prone', key: 'Prone', label: 'Prone', kind: 'toggle', def: false, edit: 'owner', vis: 'all', hover: true },
             { id: 'f_tut_notes', key: 'Notes', label: 'Notes', kind: 'notes', edit: 'owner', vis: 'all', hover: false },
-            { id: 'f_tut_gm', key: 'GMnotes', label: 'GM notes', kind: 'notes', edit: 'gm', vis: 'gm', hover: false }
+            { id: 'f_tut_gm', key: 'GMnotes', label: 'GM notes', kind: 'notes', edit: 'gm', vis: 'gm', hover: false },
+            { id: 'f_tut_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', hover: false }
         ],
         rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: 'd20 + floor((DEX - 10) / 2)', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (sword)', formula: 'd20 + Skill.Sword', vis: 'all' }],
+        items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }],
+        combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp' },
         sheet: { sections: [] } };
 }
 function tutorialCharacter(A) {
     return { id: 'c_tut_bren', name: 'Bren of Hollowvale', ownerId: '', portrait: A + 'bren_sq.jpg', npc: false, updated: 1,
-        values: { f_tut_str: 14, f_tut_dex: 12, f_tut_con: 13, f_tut_hp: { cur: 9 }, f_tut_sword: 3, f_tut_sight: 6, f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.' } };
+        values: { f_tut_str: 14, f_tut_dex: 12, f_tut_con: 13, f_tut_hp: { cur: 9 }, f_tut_sword: 3, f_tut_sight: 6, f_tut_notes: 'Shield and a short temper. Owes Paethorin for the door.', f_tut_gm: 'Secretly the heir of Hollowvale; the raiders know.', f_tut_kit: [{ defId: 'i_tut_firepot', qty: 1 }] } };
 }
 // Bren's tokens on every map point at the character (one HP total across maps); idempotent, so an older Tutorial campaign gains it too
 function ensureTutorialSheet(camp) {
@@ -80,6 +83,14 @@ function ensureTutorialSheet(camp) {
     if (!camp.system || typeof camp.system !== 'object') { camp.system = tutorialSystem(); changed = true; }
     if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {};
     if (!camp.chars.c_tut_bren) { camp.chars.c_tut_bren = tutorialCharacter(TUTORIAL_ART_URL); changed = true; }
+    // item library (1.5.0): a demo Firepot, a Kit field, full-auto blasts, and Bren carrying it — added to an older Tutorial too
+    if (camp.system && typeof camp.system === 'object') {
+        if (!Array.isArray(camp.system.items)) camp.system.items = [];
+        if (!camp.system.items.some(function(i) { return i && i.id === 'i_tut_firepot'; })) { camp.system.items.push({ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }); changed = true; }
+        if (!camp.system.combat || typeof camp.system.combat !== 'object') { camp.system.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp' }; changed = true; }
+        if (Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f && f.id === 'f_tut_kit'; })) { camp.system.fields.push({ id: 'f_tut_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', hover: false }); changed = true; }
+    }
+    if (camp.chars && camp.chars.c_tut_bren && camp.chars.c_tut_bren.values && !camp.chars.c_tut_bren.values.f_tut_kit) { camp.chars.c_tut_bren.values.f_tut_kit = [{ defId: 'i_tut_firepot', qty: 1 }]; changed = true; }
     Object.values(camp.items || {}).forEach(function(m) { if (!m || m.type !== 'map') return; (m.whiteboard || []).forEach(function(w) { if (w && /^tut_wb_bren[0-9]*$/.test(w.id) && w.charId !== 'c_tut_bren') { w.charId = 'c_tut_bren'; changed = true; } }); });
     return changed;
 }
@@ -595,8 +606,11 @@ var STEPS = [
     { target: '#sysLayout', title: 'Designing the sheet',
       html: 'The <b>Layout</b> tab is where you build the sheet itself, for whatever system you wrote. Arrange it into <b>sections</b> of one to four columns, then add a <b>field</b>, a <b>roll button</b>, a <b>heading</b>, a <b>divider</b> or the <b>portrait</b> to a section &mdash; each set to one column or the full row. Drag rows to reorder them or move them between sections, and the <b>preview</b> shows a real character&rsquo;s values as you build. Leave it and the sheet arranges itself (one section per kind, then the rolls); <b>Start from the automatic layout</b> drops that in as a base to tweak. A field left off the sheet stays defined &mdash; still rollable, still on the hover card. Save keeps the layout with the system, and every player&rsquo;s sheet follows at once.',
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('layout'); } } },
+    { target: '#sysItems', title: 'Items & throwing',
+      html: 'The <b>Items</b> tab is the campaign&rsquo;s library &mdash; weapons, gear, explosives. Each item has a name, a category, an optional <b>blast area</b> (a radius in feet), a <b>damage</b> roll and a Visible/GM-only flag; the row on top sets the <b>blast automation</b> (full auto rolls and applies the damage), <b>who rolls</b>, and which resource damage subtracts from. A character carries items through an <b>Item list</b> field on the sheet; an item with a blast area shows a &#128165; <b>Throw</b> button &mdash; press it, click the map, and the blast lands attributed to the character and is shared with everyone on that map. The toolbar &#128165; stays a personal GM quick-tool. Bren carries a <b>Firepot</b> (next).',
+      before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('items'); } } },
     { target: '#sheetPanel', title: 'A character sheet',
-      html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (right-click a token &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip.',
+      html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (right-click a token &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip. Bren&rsquo;s <b>Kit</b> holds a <b>Firepot</b> with a &#128165; <b>Throw</b> &mdash; press it, then click the map.',
       before: function() { if (window.wpSheets) window.wpSheets.close(true); var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) window.wpSheets.openSheet('c_tut_bren'); } },
     { section: 'Multiplayer & the table', target: '#netBtn', title: 'Multiplayer',
       html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon, run combat and hand out handouts from the same place. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden. Dice roll from Table Chat: <b>/roll 2d6 + 3</b>, or the &#127922; roller beside the message box (next).',

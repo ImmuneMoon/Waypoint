@@ -2499,8 +2499,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpMeasureKind = 'ruler';
   window.isFogMode = false;
   var blasts = [];
-  var blastDefaults = { ft: 12, name: 'Frag' };
-  try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: _bf.name || '' }; } catch (e) {}
+  var blastDefaults = { ft: 12, name: '' };   // the toolbar quick-tool is unnamed; thrown blasts take their name from the item
+  try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: '' }; } catch (e) {}
   var _blastHitIds = [];
   var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
   var _armedThrow = null;   // { charId, itemId, ft, name, by } while a sheet Throw is armed (one-shot)

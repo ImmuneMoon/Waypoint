@@ -26,10 +26,10 @@ var FEATURES = [
     { id: 'dice',      label: 'Dice',            legacyKey: null },         // 1.5.0: rolls at the table
     { id: 'sheets',    label: 'Character sheets', legacyKey: null },        // 1.5.0: the system, characters and their sheets
     { id: 'fx',        label: 'Visual effects',   legacyKey: null },        // 1.5.0: flash, shake, wash, bursts, weather, banners, token pulses
-    { id: 'fog',       label: 'Fog of war',       legacyKey: null, noLocal: true, def: false }  // 1.5.0: per-player token vision; GM-controlled, no player self-toggle, off by default
+    { id: 'fog',       label: 'Fog of war',       legacyKey: null, noLocal: true }  // 1.5.0: per-player token vision; GM-controlled, no player self-toggle; on by default (GM still paints the fog)
 ];
-// noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: the default-on value for a
-// campaign with no stored choice (absent → def; every legacy-keyed or plain feature is on, fog alone is off by default).
+// noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: an optional default-off flag
+// (def:false) for a future opt-in feature; absent → on, so every feature (fog included) is on by default.
 function selfToggles(f) { return !!f && !f.noLocal; }
 function defaultOn(f) { return !f || f.def !== false; }
 var GLOBAL_KEY = 'wp_vtt_global', LOCAL_KEY = 'wp_vtt_local', MAX_TABLES = 50;
@@ -210,7 +210,7 @@ function hostSig() {
     return String(a && a.activeCampaignId || '') + '|' + ids.map(function(id) { return id + ':' + sig(flagsOf(a.campaigns[id])); }).join(',');
 }
 // A flags object off the wire: an absent key takes the feature's default (an older host does not know the newer ids —
-// every feature is on, fog alone is off by default); a present key is a boolean
+// every feature is on by default); a present key is a boolean
 function cleanFlags(s) {
     var out = {}; if (!isObj(s)) s = {};
     FEATURES.forEach(function(f) { out[f.id] = (s[f.id] === undefined) ? defaultOn(f) : !!s[f.id]; });

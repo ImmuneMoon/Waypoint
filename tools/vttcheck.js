@@ -3,8 +3,8 @@
    and driven through the truth table of docs/VTT_SETTINGS_BUILD_PLAN.md section 5 with the owner decisions of
    2026-09-18: solo, host, awaiting, joined, foreign-disconnected, leaving, the stream window, an old host's
    two-key stance payload, master off, an unknown id; the seeding and fill rules; the join-notice signature and
-   decided logic; a fake extra feature (id 'zzz') pushed onto FEATURES; and fog — the noLocal, default-off feature
-   (GM-controlled, no per-player switch). Usage: node tools/vttcheck.js  (exit 1 on any failure) */
+   decided logic; a fake extra feature (id 'zzz') pushed onto FEATURES; and fog — the noLocal feature, now on by
+   default (GM-controlled, no per-player switch). Usage: node tools/vttcheck.js  (exit 1 on any failure) */
 'use strict';
 const path = require('path');
 const mod = path.join(__dirname, '..', 'system', 'app', 'scripts', 'vtt.js');
@@ -66,17 +66,17 @@ const j = o => JSON.stringify(o);
     /* ---- the roster ---- */
     check('roster is elevation, posture, minimap, sound, dice, sheets, fx, fog with labels', V.FEATURES.map(f => f.id).join(',') === 'elevation,posture,minimap,sound,dice,sheets,fx,fog' && V.FEATURES.every(f => typeof f.label === 'string' && f.label));
     check('minimap and sound have no legacy key; elevation and posture keep theirs', V.FEATURES[2].legacyKey === null && V.FEATURES[3].legacyKey === null && V.FEATURES[3].id === 'sound' && V.FEATURES[4].legacyKey === null && V.FEATURES[4].id === 'dice' && V.FEATURES[5].legacyKey === null && V.FEATURES[5].id === 'sheets' && V.FEATURES[0].legacyKey === 'wp_elevation' && V.FEATURES[1].legacyKey === 'wp_posture');
-    check('fog is the noLocal, default-off feature at the end of the roster', V.FEATURES[6].id === 'fx' && V.FEATURES[7].id === 'fog' && V.FEATURES[7].legacyKey === null && V.FEATURES[7].noLocal === true && V.FEATURES[7].def === false);
+    check('fog is the noLocal feature at the end of the roster (on by default, no def flag)', V.FEATURES[6].id === 'fx' && V.FEATURES[7].id === 'fog' && V.FEATURES[7].legacyKey === null && V.FEATURES[7].noLocal === true && V.FEATURES[7].def === undefined);
 
     /* ---- solo ---- */
     store.clear();
     net(null);
     world([camp('A', { v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } })], 'A');
     check('solo: mode', V.mode() === 'solo' && !V.locked());
-    check('solo: C over the on-screen campaign', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog0');
-    check('solo: fog is a known feature, off by default (def:false)', V.on('fog') === false);
+    check('solo: C over the on-screen campaign', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog1');
+    check('solo: fog is a known feature, on by default', V.on('fog') === true);
     check('solo: a genuinely unknown id → global → legacy → true', V.on('zzz') === true);
-    check('solo: hostFlags = C of the active campaign', j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: false }));
+    check('solo: hostFlags = C of the active campaign', j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true }));
     world([camp('A', { v: 1, master: false, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } })], 'A');
     check('master off: every feature off, hostFlags all false (no master on the wire)', eff() === 'elevation0posture0minimap0sound0dice0sheets0fx0fog0' && Object.values(V.hostFlags()).every(x => x === false));
     check('master off: the values are kept', state.appState.campaigns.A.vtt.features.elevation === true);
@@ -84,11 +84,11 @@ const j = o => JSON.stringify(o);
     /* ---- the fallback when camp.vtt is missing or damaged ---- */
     store.clear();
     world([camp('B')], 'B');
-    check('no camp.vtt, no keys: on', eff() === 'elevation1posture1minimap1sound1dice1sheets1fx1fog0');
+    check('no camp.vtt, no keys: on', eff() === 'elevation1posture1minimap1sound1dice1sheets1fx1fog1');
     localStorage.setItem('wp_elevation', 'off');
-    check('no camp.vtt: the legacy key is the seed', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog0');
+    check('no camp.vtt: the legacy key is the seed', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog1');
     world([camp('B', { v: 1, master: true, features: { elevation: 'yes', posture: null } })], 'B');
-    check('non-boolean feature values fall back per feature', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog0');
+    check('non-boolean feature values fall back per feature', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog1');
     ['null', '5', '[]', '{"features":null}', 'off', '{"features":{"elevation":"on"}}'].forEach(raw => {
         localStorage.setItem('wp_vtt_global', raw);
         check('malformed wp_vtt_global ' + raw + ' falls back to legacy, never throws', V.globalOn('elevation') === false && V.globalOn('posture') === true && V.globalOn('minimap') === true);
@@ -101,7 +101,7 @@ const j = o => JSON.stringify(o);
     store.clear();
     localStorage.setItem('wp_elevation', 'off');
     let c = camp('C');
-    check('fill adds vtt from the default (legacy elevation off, fog off by default) and reports a change', V.fill(c) === true && j(c.vtt) === j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: false } }));
+    check('fill adds vtt from the default (legacy elevation off) and reports a change', V.fill(c) === true && j(c.vtt) === j({ v: 1, master: true, features: { elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true } }));
     check('fill on a filled campaign is a no-op', V.fill(c) === false);
     localStorage.setItem('wp_vtt_global', j({ v: 1, master: false, features: { elevation: true, posture: false, minimap: true, sound: true, dice: true, sheets: true, fx: true } }));
     c = camp('D', { v: 1, features: { elevation: true, posture: true, extra: 'kept' } });
@@ -152,14 +152,14 @@ const j = o => JSON.stringify(o);
     /* ---- host ---- */
     net({ active: true, role: 'host' });
     world([camp('J', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true } })], 'J');
-    check('host: mode, not locked, C, hostFlags = what players receive', V.mode() === 'host' && !V.locked() && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog0' && j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true, fog: false }));
+    check('host: mode, not locked, C, hostFlags = what players receive', V.mode() === 'host' && !V.locked() && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog1' && j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true, fog: true }));
     check('hostSig covers the hosted id and every campaign', V.hostSig().indexOf('J|') === 0 && V.hostSig().indexOf('J:elevation0posture1minimap0') > 0);
     check('host: setLocal refused', V.setLocal('posture', true) === false);
 
     /* ---- awaiting approval after a previous table ---- */
     net({ active: true, role: 'client', foreign: false, stance: { elevation: false, posture: false, minimap: false, sound: true, dice: true, sheets: true, fx: true } });
     world([camp('K', { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } })], 'K');
-    check('awaiting: mode, locked, C over the OWN campaign (a stale stance is ignored)', V.mode() === 'awaiting' && V.locked() && eff() === 'elevation1posture1minimap1sound1dice1sheets1fx1fog0' && V.ceiling() === null);
+    check('awaiting: mode, locked, C over the OWN campaign (a stale stance is ignored)', V.mode() === 'awaiting' && V.locked() && eff() === 'elevation1posture1minimap1sound1dice1sheets1fx1fog1' && V.ceiling() === null);
     check('awaiting: setCampaign refused, setLocal refused', V.setCampaign('elevation', false) === false && V.setLocal('elevation', true) === false);
 
     /* ---- joined ---- */
@@ -181,11 +181,11 @@ const j = o => JSON.stringify(o);
     state.appState.activeCampaignId = 'Y'; state.appState.campaigns.Y = camp('Y');
     check('joined: a stage onto Y reads Y\'s flags and Y\'s table key', eff() === 'elevation1posture1minimap0sound1dice1sheets1fx1fog0' && V.tableKey() === 't:Y__u_gm1');
     state.appState.activeCampaignId = 'X';
-    check('cleanStanceCamps: roster ids only, hostile ids dropped, absent map null', (() => { const m = V.cleanStanceCamps({ X: { elevation: 0, posture: 1, junk: true }, 'bad id!': {}, '': {} }); return m && j(m.X) === j({ elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: false }) && !('bad id!' in m) && Object.keys(m).length === 1 && V.cleanStanceCamps(null) === null; })());
+    check('cleanStanceCamps: roster ids only, hostile ids dropped, absent map null', (() => { const m = V.cleanStanceCamps({ X: { elevation: 0, posture: 1, junk: true }, 'bad id!': {}, '': {} }); return m && j(m.X) === j({ elevation: false, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true }) && !('bad id!' in m) && Object.keys(m).length === 1 && V.cleanStanceCamps(null) === null; })());
     // an OWN "__proto__" key, as JSON off the wire gives it (an object literal would only set the prototype)
     check('cleanStanceCamps: an own __proto__ campaign id lands as a plain flags entry on the null-prototype map, Object.prototype untouched', (() => {
         const m = V.cleanStanceCamps(JSON.parse('{"__proto__":{"elevation":true,"posture":false},"X":{"elevation":false}}'));
-        return m && Object.keys(m).length === 2 && Object.prototype.hasOwnProperty.call(m, '__proto__') && j(m['__proto__']) === j({ elevation: true, posture: false, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: false })
+        return m && Object.keys(m).length === 2 && Object.prototype.hasOwnProperty.call(m, '__proto__') && j(m['__proto__']) === j({ elevation: true, posture: false, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true })
             && Object.getPrototypeOf(m) === null && Object.prototype.elevation === undefined && ({}).posture === undefined;
     })());
 
@@ -196,19 +196,19 @@ const j = o => JSON.stringify(o);
     /* ---- leaving: load() clears foreign and the stance ---- */
     gmA.foreign = false; gmA.stance = null; gmA.stanceCamps = null; gmA.gmId = '';
     world([camp('X', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true } })], 'X');
-    check('after load(): solo, C over the own campaign, no ceiling, no table key', V.mode() === 'solo' && V.ceiling() === null && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog0' && V.tableKey() === '');
+    check('after load(): solo, C over the own campaign, no ceiling, no table key', V.mode() === 'solo' && V.ceiling() === null && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog1' && V.tableKey() === '');
 
     /* ---- the stream window ---- */
     net({ active: true, role: 'client', foreign: true, stream: true, stance: { elevation: false, posture: false, minimap: false, sound: true, dice: true, sheets: true, fx: true } });
     localStorage.setItem('wp_vtt_local', j({ v: 1, tables: { 't:X__': { off: ['posture'], decided: [], seen: '', pending: '', t: 1 } } }));
-    check('stream: C over the disk campaign, the stance and local-off never applied, group hidden (mode stream)', V.mode() === 'stream' && V.ceiling() === null && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog0' && V.locked());
+    check('stream: C over the disk campaign, the stance and local-off never applied, group hidden (mode stream)', V.mode() === 'stream' && V.ceiling() === null && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog1' && V.locked());
 
     /* ---- an old host: two-key stance payload ---- */
-    check('cleanFlags: an absent key takes its default (minimap ON, fog OFF); present keys are booleans', j(V.cleanFlags({ elevation: true, posture: 0 })) === j({ elevation: true, posture: false, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: false }));
-    check('cleanFlags: no payload is every feature on except fog (off by default)', j(V.cleanFlags(undefined)) === j({ elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: false }));
+    check('cleanFlags: an absent key takes its default (minimap ON, fog ON); present keys are booleans', j(V.cleanFlags({ elevation: true, posture: 0 })) === j({ elevation: true, posture: false, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true }));
+    check('cleanFlags: no payload is every feature on', j(V.cleanFlags(undefined)) === j({ elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true }));
     net({ active: true, role: 'client', foreign: true, gmId: '', notepad: { gmId: 'u_old' }, stance: V.cleanFlags({ elevation: false, posture: true }) });
     world([camp('X')], 'X');
-    check('old host: minimap on, elevation off; table key falls back to notepad.gmId', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog0' && V.tableKey() === 't:X__u_old');
+    check('old host: minimap on, elevation off; table key falls back to notepad.gmId', eff() === 'elevation0posture1minimap1sound1dice1sheets1fx1fog1' && V.tableKey() === 't:X__u_old');
     net({ active: true, role: 'client', foreign: true, stance: V.cleanFlags({}) });
     check('old host with no gmId anywhere: campId-only key', V.tableKey() === 't:X');
     // a hostile campaign id off the wire: JSON.parse gives an OWN "__proto__" key, as a snapshot would
@@ -318,12 +318,12 @@ const j = o => JSON.stringify(o);
     localStorage.setItem('wp_vtt_local', 'garbage');
     check('unparsable wp_vtt_local reads as {}', V.localOff('posture') === false);
 
-    /* ---- fog: a noLocal feature (GM-controlled for the whole table, no per-player switch, off by default) ---- */
+    /* ---- fog: a noLocal feature (GM-controlled for the whole table, no per-player switch, on by default) ---- */
     store.clear(); toasts.length = 0;
-    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } }));   // fog absent → off
-    check('fog defaults off in globalVtt (def:false, no legacy key)', V.globalVtt().features.fog === false && V.globalOn('fog') === false);
+    localStorage.setItem('wp_vtt_global', j({ v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true } }));   // fog absent → takes its default (on)
+    check('fog defaults on in globalVtt (no def flag, no legacy key)', V.globalVtt().features.fog === true && V.globalOn('fog') === true);
     let fogC = camp('FG'); V.fill(fogC);
-    check('fill seeds fog off by default', fogC.vtt.features.fog === false);
+    check('fill seeds fog on by default', fogC.vtt.features.fog === true);
     const gmF = net({ active: true, role: 'client', foreign: true, gmId: 'u_fog', stance: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true } });
     world([camp('FT')], 'FT');
     check('noLocal fog: on at the table follows the GM regardless of the player default', V.on('fog') === true && V.whyOff('fog') === '');

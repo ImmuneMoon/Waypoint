@@ -1608,6 +1608,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   });
 
   if(_el_panModeBtn) _el_panModeBtn.addEventListener('click', function() {
+      if (window.isPanMode) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); return; }   // second click on the active tool → back to the arrow
       window.isDrawingMode = false;
       window.isEraserMode = false;
       window.isMeasureMode = false;
@@ -1631,8 +1632,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           state.selWbId = null; render();
           if(_el_drawMenu) { syncDrawMenu(); _el_drawMenu.classList.add('show'); }
       } else if(_el_drawMenu) {
-          syncDrawMenu();
-          _el_drawMenu.classList.toggle('show');
+          if (_el_drawMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → put the tool away (back to the arrow)
+          else { syncDrawMenu(); _el_drawMenu.classList.add('show'); }   // menu hidden → reopen options
       }
   });
 
@@ -1684,8 +1685,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           syncEraserMenu();
           if (_el_eraserMenu) _el_eraserMenu.classList.add('show');
       } else if (_el_eraserMenu) {
-          syncEraserMenu();
-          _el_eraserMenu.classList.toggle('show');
+          if (_el_eraserMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → back to the arrow
+          else { syncEraserMenu(); _el_eraserMenu.classList.add('show'); }   // menu hidden → reopen options
       }
   });
 
@@ -2398,9 +2399,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       } else if(_el_measureMenu) {
 
-          syncMeasureMenu();
+          if (_el_measureMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → back to the arrow
 
-          _el_measureMenu.classList.toggle('show');
+          else { syncMeasureMenu(); _el_measureMenu.classList.add('show'); }   // menu hidden → reopen options
 
       }
 
@@ -2608,7 +2609,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (window.wpFog) window.wpFog.openMenu();
       } else {
           var fm = document.getElementById('fogMenu');
-          if (window.wpFog) { if (fm && fm.classList.contains('show')) window.wpFog.closeMenu(); else window.wpFog.openMenu(); }
+          if (fm && fm.classList.contains('show')) { if (window.wpFog) window.wpFog.closeMenu(); var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → back to the arrow
+          else if (window.wpFog) window.wpFog.openMenu();
       }
   });
   // fog.js calls this when the fog feature switches off while the GM is in fog mode
@@ -2673,7 +2675,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           closeDrawMenu(); if (_el_measureMenu) _el_measureMenu.classList.remove('show');
           state.selWbId = null; state.selWbIds = []; render();
           if (_el_blastMenu) { syncBlastMenu(); _el_blastMenu.classList.add('show'); }
-      } else if (_el_blastMenu) { syncBlastMenu(); _el_blastMenu.classList.toggle('show'); }
+      } else if (_el_blastMenu) { if (_el_blastMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); } else { syncBlastMenu(); _el_blastMenu.classList.add('show'); } }
   });
   document.querySelectorAll('#blastPresetRow .draw-style-btn').forEach(function(b) { b.addEventListener('click', function() { setBlastShape(this.dataset.ft, this.dataset.name); }); });
   var _el_blastFt = document.getElementById('blastFt');

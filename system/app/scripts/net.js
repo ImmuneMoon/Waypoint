@@ -2166,9 +2166,10 @@ function handleMessage(msg, conn) {
         var defT = St.itemDef(campT.system, msg.itemId); if (!defT || defT.vis === 'gm' || !defT.area) return;
         var carries = false; (campT.system.fields || []).forEach(function(f) { if (f.kind === 'item-list') { var v = chT.values && chT.values[f.id]; if (Array.isArray(v) && v.some(function(en) { return en.defId === msg.itemId; })) carries = true; } });
         if (!carries) return;
+        if (campT.system.combat && campT.system.combat.blastRoller === 'gm') return;   // who-rolls = 'gm': only the GM throws
         var xT = Math.max(0, Math.min(30000, Number(msg.x))), yT = Math.max(0, Math.min(30000, Number(msg.y)));
         if (!isFinite(xT) || !isFinite(yT)) return;
-        window.wpPlaceThrownBlast({ x: xT, y: yT, ft: defT.area.ft, name: defT.area.name || defT.name, by: chT.name });
+        window.wpPlaceThrownBlast({ x: xT, y: yT, ft: defT.area.ft, name: defT.area.name || defT.name, by: chT.name, charId: msg.charId, damage: defT.damage || '' });
     } else if (msg.type === 'system' && net.role === 'client') {
         // the hosted campaign's system as the players' view (character sheets, 1.5.0), re-cleaned here; null = the campaign has none
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore || !window.wpFormula) return;

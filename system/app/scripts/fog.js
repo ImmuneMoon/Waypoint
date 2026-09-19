@@ -79,9 +79,11 @@ function viewersFor(map, camp, ownerId) {
 // ---- sight-blockers: the opaque-cell key set for a map, built from flagged board items (v1: static walls) ----
 var _blockerCache = Object.create(null), _blockerWarned = Object.create(null);
 function eligibleBlocker(w) {
-    if (!w || !w.blocksSight || w.hidden || w.rot) return false;   // hidden/rotated never block (host & client must agree)
+    if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
+    if (w.type === 'circle') return true;                           // a pillar; its footprint is rotation-invariant
+    if (w.rot) return false;                                        // a rotated rect/hex/diamond footprint is not supported in v1
     if (w.fill) return true;                                        // a fill-bucket cell
-    return w.type === 'rect' || w.type === 'hexagon';               // an axis-aligned rect or hexagon shape
+    return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond';   // an axis-aligned solid shape
 }
 function blockersFor(map, grid) {
     if (!map || !grid) return null;
@@ -92,6 +94,8 @@ function blockersFor(map, grid) {
         var cells;
         if (w.fill) cells = [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];
         else if (w.type === 'hexagon') cells = C.cellsUnderHex(w.x, w.y, w.w || 0, w.h || 0, grid);
+        else if (w.type === 'circle') cells = C.cellsUnderCircle(w.x, w.y, w.w || 0, w.h || 0, grid);
+        else if (w.type === 'diamond') cells = C.cellsUnderDiamond(w.x, w.y, w.w || 0, w.h || 0, grid);
         else cells = C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, grid);
         for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
     }

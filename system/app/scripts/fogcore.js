@@ -92,6 +92,18 @@ function cellsUnderHex(x, y, w, h, grid) {
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (pointInFlatHex(p.x, p.y, cx, cy, w, h)) out.push(box[i]); }
     return out;
 }
+// Cells whose centre lies inside a circle/ellipse board item (a pillar) — box w x h, centre cx,cy.
+function cellsUnderCircle(x, y, w, h, grid) {
+    var cx = x + w / 2, cy = y + h / 2, rx = w / 2 || 1, ry = h / 2 || 1, out = [], box = cellsUnderRect(x, y, w, h, grid);
+    for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid), dx = (p.x - cx) / rx, dy = (p.y - cy) / ry; if (dx * dx + dy * dy <= 1 + 1e-9) out.push(box[i]); }
+    return out;
+}
+// Cells whose centre lies inside a diamond (rhombus) board item — box w x h, centre cx,cy.
+function cellsUnderDiamond(x, y, w, h, grid) {
+    var cx = x + w / 2, cy = y + h / 2, rx = w / 2 || 1, ry = h / 2 || 1, out = [], box = cellsUnderRect(x, y, w, h, grid);
+    for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (Math.abs(p.x - cx) / rx + Math.abs(p.y - cy) / ry <= 1 + 1e-9) out.push(box[i]); }
+    return out;
+}
 // True if the straight line from cell A to cell B crosses no opaque INTERMEDIATE cell (endpoints
 // excluded — a viewer on/next to a wall still sees out, and a wall's own cell shows its near face).
 function lineClear(a, b, grid, blockers) {
@@ -180,6 +192,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, lineClear: lineClear, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanFog, cleanCampFog };

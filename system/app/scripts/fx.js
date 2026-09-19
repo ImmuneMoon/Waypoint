@@ -238,7 +238,7 @@ setInterval(function() {
 
 /* ---------- the ✨ panel ---------- */
 var panelOpen = false;
-function openPanel() { var p = ui('fxPanel'); if (!p || !canWrite()) return; p.style.display = 'flex'; panelOpen = true; placePanel(); renderPanel(); }
+function openPanel() { var p = ui('fxPanel'); if (!p || !canWrite()) return; if (window.wpSound && window.wpSound.closePanel) window.wpSound.closePanel(); p.style.display = 'flex'; panelOpen = true; placePanel(); renderPanel(); }   // Sound and Visual effects share the corner: only one panel at a time
 function closePanel() { var p = ui('fxPanel'); if (p) p.style.display = 'none'; panelOpen = false; }
 function placePanel() { var p = ui('fxPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_fxPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 60, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
 function soundEntries() { try { return window.wpSound && window.wpSound.entries ? window.wpSound.entries() : []; } catch (e) { return []; } }

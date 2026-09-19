@@ -166,6 +166,24 @@ Visual effects
   strobing. Visual effects is a VTT feature (Settings > VTT features); a
   player can switch it off for themselves and still see the map.
 
+Fog of war
+- Cover a map and reveal only what the party can see. The fog button on
+  the play map (a fog bank, GM only) opens a panel: fog on or off for
+  this map, a reveal / hide brush, and Reveal all or Cover all at once;
+  on a gridless map a ruleset and cell size give the brush its measure.
+  Fog starts off on every map — turn it on where you want it.
+- Sight: a default sight range in yards, and a "sight from" picker that
+  reads each character's range from a field on their sheet, falling back
+  to the default. Preview any player’s view from the panel to see the
+  map exactly as they will.
+- Players see an opaque fog over everything their own characters cannot
+  see, and never receive what is hidden: the host works out each
+  player's vision and drops the creatures they cannot see from what it
+  sends, so nothing behind the fog reaches their machine. Fog of war is
+  a VTT feature (Settings ▸ VTT features, with a default for new
+  campaigns), off until the GM turns it on and never a player's to
+  enable.
+
 Under the hood
 - The formula and dice engine that the rules, dice and character-sheet features
   of 1.5.x are built on. Nothing changes at the table yet; in the developer

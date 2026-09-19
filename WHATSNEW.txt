@@ -184,6 +184,17 @@ Fog of war
   campaigns), off until the GM turns it on and never a player's to
   enable.
 
+Drawing tools
+- Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky
+  ends and corners), or Flat, an angled calligraphy nib whose width varies
+  with stroke direction. Remembered per device.
+- Fill bucket (GM): a new tool that colours grid cells. Click or drag cells
+  to lay a cell-sized coloured shape — a hexagon on hex maps, a square on
+  square maps — seated in the cell, below the tokens; right-click a cell to
+  clear it, and painting a filled cell recolours it. Each fill is an ordinary
+  board item you can move, restyle or delete, and it reaches players like any
+  shape.
+
 Item library
 - The System editor has an Items tab: your campaign’s own weapons, gear and
   explosives. Each item carries a name, a category, an optional blast area (a

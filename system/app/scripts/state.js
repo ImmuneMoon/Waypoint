@@ -28,6 +28,7 @@ export const state = {
     drawColor: '#e9e9f0',
     drawStrokeWidth: 3,
     drawStraight: false,
+    drawTip: 'round',
     gridType: 'off',
     measureUnit: 'imperial',
 

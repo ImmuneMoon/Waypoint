@@ -520,6 +520,22 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       });
 
+      // Right-click a section header for its actions (kept out of the header so the title has room)
+      function hideSectionActions() { document.querySelectorAll('.section-actions.show').forEach(function(a) { a.classList.remove('show'); a.style.left = ''; a.style.top = ''; }); }
+      document.querySelectorAll('.sidebar-section h3').forEach(function(head) {
+          head.addEventListener('contextmenu', function(e) {
+              var acts = head.querySelector('.section-actions'); if (!acts) return;
+              e.preventDefault();
+              hideSectionActions();
+              acts.classList.add('show');
+              if (window.wpClampMenu) window.wpClampMenu(acts, e.clientX, e.clientY);
+          });
+      });
+      document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.section-actions'))) hideSectionActions(); }, true);
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideSectionActions(); });
+      document.querySelectorAll('.section-actions').forEach(function(a) { a.addEventListener('click', function() { setTimeout(hideSectionActions, 0); }); });
+      (function() { var sb = document.getElementById('campaignSidebar'); if (sb) sb.addEventListener('scroll', hideSectionActions); })();
+
       // Collapse-all / expand-all for the nested accordions inside each section
 
       [['collapseAllPlannersBtn', 'planner'], ['collapseAllDocsBtn', 'doc'], ['collapseAllMapsBtn', 'map']].forEach(function(pair) {

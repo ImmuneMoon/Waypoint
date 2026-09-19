@@ -188,7 +188,7 @@ function applyTips(root) {
         if (el.dataset.tipped) return;
         var tip = tipFor(el);
         if (!tip) return;
-        if (el.classList.contains('section-title')) el.title = tip + ' (Click to collapse or expand.)';
+        if (el.classList.contains('section-title')) el.title = tip + ' (Click to collapse or expand · right-click for actions.)';
         else if (!el.title) el.title = tip;
         else return;
         el.dataset.tipped = '1';

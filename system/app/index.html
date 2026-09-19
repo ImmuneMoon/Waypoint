@@ -857,10 +857,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <span style="font-size:11px; color:var(--dim);">px per cell (the grid is not drawn)</span>
                       </div>
                   </div>
+                  <div id="fogSightFieldRow" style="display:none;">
+                      <div class="draw-menu-label">Sight from a character field</div>
+                      <div class="draw-menu-row">
+                          <select id="fogSightField" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="">Default only (no field)</option></select>
+                      </div>
+                  </div>
                   <div class="draw-menu-label">Default sight range (yards)</div>
                   <div class="draw-menu-row">
                       <input type="number" id="fogSight" min="0" step="1" style="width:80px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                      <span style="font-size:11px; color:var(--dim);">how far a token sees</span>
+                      <span style="font-size:11px; color:var(--dim);">a token with no character, or an unmapped field</span>
                   </div>
                   <div class="draw-menu-label">Brush</div>
                   <div class="draw-menu-row">

@@ -978,6 +978,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '</select></div>'+
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">Blocks sight (wall / pillar)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Fog vision (and each player&rsquo;s view) stops at this shape&rsquo;s cells. Needs fog on for the map.</div>' : '')+
+              (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
+              (w.blocksSight && w.sightType==='door' && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" '+(w.doorOpen?'checked':'')+'> <label for="wbDoorOpen">Door is open (sight passes through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" '+(w.doorLock?'checked':'')+'> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')+
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1189,9 +1191,27 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
             if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
-                if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; }
+                if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; delete w.doorOpen; delete w.doorLock; }
+                save(); render(); renderInspector();
+                if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+            });
+            var _el_wbSightType = document.getElementById('wbSightType');
+            if(_el_wbSightType) _el_wbSightType.addEventListener('change', function() {
+                w.sightType = this.value === 'door' ? 'door' : 'wall';
+                if (w.sightType !== 'door') { delete w.doorOpen; delete w.doorLock; }
+                save(); render(); renderInspector();
+                if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+            });
+            var _el_wbDoorOpen = document.getElementById('wbDoorOpen');
+            if(_el_wbDoorOpen) _el_wbDoorOpen.addEventListener('change', function() {
+                if (this.checked) w.doorOpen = true; else delete w.doorOpen;
                 save(); render();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+            });
+            var _el_wbDoorLock = document.getElementById('wbDoorLock');
+            if(_el_wbDoorLock) _el_wbDoorLock.addEventListener('change', function() {
+                if (this.checked) w.doorLock = true; else delete w.doorLock;
+                save();
             });
             var _el_wbDup = document.getElementById('wbDup');
             if (_el_wbDup) _el_wbDup.addEventListener('click', function() { if (window.wpDuplicateWb) window.wpDuplicateWb([w]); });

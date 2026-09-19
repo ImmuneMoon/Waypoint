@@ -573,7 +573,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var hideFromMe = !!item.hidden && clientView;
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
-          el.classList.toggle('wb-blocks-sight', !!item.blocksSight && !clientView);
+          el.classList.toggle('wb-blocks-sight', !!item.blocksSight && item.sightType !== 'door' && !clientView);
+          el.classList.toggle('wb-door', item.blocksSight === true && item.sightType === 'door');
+          el.classList.toggle('wb-door-open', item.blocksSight === true && item.sightType === 'door' && !!item.doorOpen);
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
 
@@ -2003,6 +2005,7 @@ window.wpFitToGrid = fitToGrid;
           var el = e.target.closest('#whiteboard .wb-item'); if (!el) return;
           var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
           var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
+          if (item && item.blocksSight && item.sightType === 'door' && !item.hidden) { down = { doorId: item.id, mapId: am.id, x: e.clientX, y: e.clientY }; return; }   // a client clicks a door to request opening/closing it
           if (!item || !item.isChar || item.hidden || item.ownerId === window.wpNet.myId) return;
           down = { id: item.id, name: item.charName || item.name || 'that token', x: e.clientX, y: e.clientY, mapId: am.id };
       }, true);
@@ -2011,7 +2014,9 @@ window.wpFitToGrid = fitToGrid;
           var d = down; down = null;
           if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;   // a drag (of your own token underneath), not a click
           var el = e.target && e.target.closest && e.target.closest('#whiteboard .wb-item');
-          if (!el || el.dataset.id !== d.id) return;
+          if (!el) return;
+          if (d.doorId) { if (el.dataset.id === d.doorId && window.wpNet.doorReq) window.wpNet.doorReq(d.mapId, d.doorId); return; }   // door open/close request (host validates adjacency + lock)
+          if (el.dataset.id !== d.id) return;
           window.wpNet.setTarget(d.id, d.mapId, d.name);
       }, true);
       document.addEventListener('keydown', function(e) {
@@ -2760,8 +2765,10 @@ window.wpFitToGrid = fitToGrid;
       var _fogBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
       wbWrap.addEventListener('pointerdown', function(e) {
           if (!window.isFogMode || (e.button !== 0 && e.button !== 2)) return;
+          var pt = _fogBoard(e);
+          if (e.button === 0 && window.wpFog && window.wpFog.toggleDoorAt && window.wpFog.toggleDoorAt(pt.x, pt.y)) { _fogPaintBtn = -1; e.preventDefault(); return; }   // clicked a door -> toggled it, do not paint
           _fogPaintBtn = e.button;
-          var pt = _fogBoard(e); if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, e.button === 2);
+          if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, e.button === 2);
           e.preventDefault();
       });
       wbWrap.addEventListener('pointermove', function(e) {

@@ -18,7 +18,11 @@ Play map & settings
 - Sight-blocking (new): flag a fill or a shape (rectangle, hexagon,
   circle/pillar or diamond) as "Blocks sight" in its Properties and it
   becomes a wall — a token's fog vision, and each player's view, stops at
-  it (fog must be on for the map). Doors and a height dimension come next.
+  it (fog must be on for the map).
+- Doors: set a sight-blocker's type to Door — closed it blocks, open it lets
+  sight through. The GM toggles a door from its Properties or by clicking it
+  in fog mode; a player can open/close one their token stands next to (unless
+  the GM locks it). A height dimension comes next.
 
 Handbook
 - A third kind of item beside maps and planners: Handbook pages — rules,

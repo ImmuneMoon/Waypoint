@@ -538,6 +538,7 @@ function applyItem(msg) {
     if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && incoming.type === 'map') render();
     updateSidebarNav();
     if (incoming.type === 'doc') { try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {} }   // never let the reader wedge applyingRemote
+    if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // a received map may change sight-blockers (doors/walls) — recompute occlusion
     net.applyingRemote = false;
 }
 
@@ -740,6 +741,7 @@ function applyItemDelta(msg) {
     var myActive = getActiveCampaign();
     if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && it.type === 'map') render();
     updateSidebarNav();
+    if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // a delta may change sight-blockers (doors/walls) — recompute occlusion
     net.applyingRemote = false;
 }
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
@@ -974,7 +976,7 @@ net.syncSystem = function(force) {
 // ---------- characters (character sheets, 1.5.0): per-recipient copies, deltas, a player's edits ----------
 // A player holds their own character in full (minus GM-only fields), other PCs' hover fields only, no NPCs. Every
 // payload is built per peer from a fresh view; nothing a client says about a character is applied unchecked.
-var charLimit = null, _charPending = {}, _charSlowSaid = {};
+var charLimit = null, _doorLimit = null, _charPending = {}, _charSlowSaid = {};
 function SC() { return window.wpSystemCore || null; }
 function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id : null; }
 function charViewFor(charId, recipientId) {   // the copy one peer may hold, or null
@@ -1057,6 +1059,13 @@ net.throwReq = function(charId, itemId, x, y, mapId) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     try { net.conns[0].send({ type: 'throw-req', charId: charId, itemId: itemId, x: Number(x), y: Number(y), mapId: mapId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
+};
+// A player requests opening/closing a door their token is next to; the host validates and resyncs (no optimistic change).
+net.doorReq = function(mapId, itemId) {
+    if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    try { net.conns[0].send({ type: 'door-req', mapId: mapId, itemId: itemId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
 function charPendingDone(rid, ok, reason) {
@@ -2170,6 +2179,38 @@ function handleMessage(msg, conn) {
         var xT = Math.max(0, Math.min(30000, Number(msg.x))), yT = Math.max(0, Math.min(30000, Number(msg.y)));
         if (!isFinite(xT) || !isFinite(yT)) return;
         window.wpPlaceThrownBlast({ x: xT, y: yT, ft: defT.area.ft, name: defT.area.name || defT.name, by: chT.name, charId: msg.charId, damage: defT.damage || '' });
+    } else if (msg.type === 'door-req' && net.role === 'host') {
+        // a player opens/closes a door a token of theirs is adjacent to; validated on the host's OWN copy, then resynced to all
+        if (typeof msg.mapId !== 'string' || typeof msg.itemId !== 'string') return;
+        if (net.paused) return;                                                       // frozen table: no board mutation
+        if (window.wpVtt && !window.wpVtt.on('fog')) return;                           // fog off -> doors are meaningless
+        if (!_doorLimit && window.wpDiceCore) _doorLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: 3, windowMs: 3000, table: 200 });
+        if (_doorLimit && _doorLimit.allow(conn.peer, Date.now()) !== true) return;    // a toggle triggers a per-recipient resend, so keep it tight; silent drop
+        var denyDR = function(reason) { try { conn.send({ type: 'door-deny', reason: reason }); } catch (e) {} };
+        var campDR = getActiveCampaign(); if (!campDR) return;
+        var amDR = getActiveMap(); if (!amDR || amDR.id !== msg.mapId) return;         // only the GM's current map
+        var profDR = net.roster[conn.peer]; if (!profDR) return;
+        var doorEl = (amDR.whiteboard || []).find(function(w) { return w && w.id === msg.itemId; });
+        if (!doorEl || doorEl.blocksSight !== true || doorEl.sightType !== 'door' || doorEl.hidden) return;   // not a visible door
+        if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
+        var Cdr = window.wpFogCore; if (!Cdr) return;
+        var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
+        var dCellsR = (doorEl.fill ? [Cdr.cellOf(doorEl.x + (doorEl.w || 0) / 2, doorEl.y + (doorEl.h || 0) / 2, gridDR)]
+            : doorEl.type === 'hexagon' ? Cdr.cellsUnderHex(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR)
+            : doorEl.type === 'circle' ? Cdr.cellsUnderCircle(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR)
+            : doorEl.type === 'diamond' ? Cdr.cellsUnderDiamond(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR)
+            : Cdr.cellsUnderRect(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR));
+        var adjacentR = (amDR.whiteboard || []).some(function(w) {
+            if (!w || !w.isChar || w.hidden || w.ownerId !== profDR.id) return false;
+            var tc = Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR);
+            return dCellsR.some(function(dc) { return gridDR.type === 'square' ? (Math.max(Math.abs((dc.c || 0) - (tc.c || 0)), Math.abs((dc.r || 0) - (tc.r || 0))) <= 1) : (Cdr.hexDist(dc, tc) <= 1); });
+        });
+        if (!adjacentR) { denyDR('far'); return; }
+        doorEl.doorOpen = !doorEl.doorOpen;
+        save(true);                                                                   // host save -> onLocalSave: invalidateVision + resend the map fog-filtered per recipient
+        if (window.wpFog) window.wpFog.redraw();                                       // refresh the GM's own overlay
+    } else if (msg.type === 'door-deny' && net.role === 'client') {
+        toast(msg.reason === 'locked' ? 'The GM has that door locked.' : msg.reason === 'far' ? 'Move a token next to that door to open it.' : 'Cannot open that door right now.');
     } else if (msg.type === 'system' && net.role === 'client') {
         // the hosted campaign's system as the players' view (character sheets, 1.5.0), re-cleaned here; null = the campaign has none
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore || !window.wpFormula) return;

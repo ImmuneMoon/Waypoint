@@ -88,6 +88,11 @@ function syncPanel() {
     if (op) op.value = pct;
     var opv = ui('setOpacityVal');
     if (opv) opv.textContent = pct + '%';
+    var ud = ui('setUndoDepth');
+    var udn = (function () { var v = parseInt(localStorage.getItem('wp_undoDepth'), 10); return (v >= 10 && v <= 500) ? v : 100; })();
+    if (ud) ud.value = udn;
+    var udv = ui('setUndoDepthVal');
+    if (udv) udv.textContent = udn + ' steps';
 }
 
 /* ---------- wiring ---------- */
@@ -98,6 +103,13 @@ if (_btn) _btn.addEventListener('click', function() {
 });
 var _close = ui('settingsCloseBtn');
 if (_close) _close.addEventListener('click', function() { ui('settingsModal').style.display = 'none'; });
+// Open Settings jumped to a specific group + control (used by e.g. the grid menu's opacity button)
+window.wpOpenSettings = function(group, anchorId) {
+    syncPanel();
+    var m = ui('settingsModal'); if (m) m.style.display = 'flex';
+    if (group) { var d = document.querySelector('#settingsModal details.set-group[data-group="' + group + '"]'); if (d) d.open = true; }
+    if (anchorId) setTimeout(function() { var a = ui(anchorId); if (a) { if (a.scrollIntoView) a.scrollIntoView({ block: 'center' }); if (a.focus) a.focus(); } }, 60);
+};
 
 var _nameIn = ui('setNameInput');
 if (_nameIn) _nameIn.addEventListener('change', function() {
@@ -258,6 +270,13 @@ if (_go) _go.addEventListener('input', function() {
     applyGridOpacity();
     var gov = ui('setGridOpacityVal');
     if (gov) gov.textContent = Math.round(v * 100) + '%';
+});
+var _ud = ui('setUndoDepth');
+if (_ud) _ud.addEventListener('input', function() {
+    var v = Math.max(10, Math.min(500, Math.round((parseInt(this.value, 10) || 100) / 10) * 10));
+    try { localStorage.setItem('wp_undoDepth', v); } catch (e) {}
+    var udv = ui('setUndoDepthVal');
+    if (udv) udv.textContent = v + ' steps';
 });
 
 var _rlBtn = ui('setRulersBtn');

@@ -365,7 +365,9 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
   var nativeEdit = false;    // the browser's own text undo / redo changed a field: the next pass moves the baseline, never records a step
 
-  var HIST_DEPTH = 50, HIST_BUDGET_BYTES = 64 * 1024 * 1024;
+  var HIST_BUDGET_BYTES = 64 * 1024 * 1024;
+    // Undo/redo depth per map & per planner: user-configurable via wp_undoDepth (Settings), default 100 (doubled from the old 50), clamped 10..500. The 64 MB byte budget above still caps total memory.
+    function histDepth() { var v = 0; try { v = parseInt(localStorage.getItem('wp_undoDepth'), 10); } catch (e) {} return (v >= 10 && v <= 500) ? v : 100; }
 
   // Meta keys that are never in a snapshot — always taken from the live item. A new content key is
   // undoable by default; a new view, structure or governance key (a per-map table toggle, say) goes HERE.
@@ -435,7 +437,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       h.undo.push(snap);
 
-      while (h.undo.length > HIST_DEPTH) h.undo.shift();
+      while (h.undo.length > histDepth()) h.undo.shift();
 
       histBytes(h);
 

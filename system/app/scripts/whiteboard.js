@@ -4607,6 +4607,9 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
     var _el_gridHexBtn = document.getElementById('gridHexBtn');
     if(_el_gridHexBtn) _el_gridHexBtn.addEventListener('click', function() { setGridType('hex'); });
 
+    var _el_gridOpacityBtn = document.getElementById('gridOpacityBtn');
+    if(_el_gridOpacityBtn) _el_gridOpacityBtn.addEventListener('click', function() { var gm = document.getElementById('gridMenu'); if (gm) gm.classList.remove('show'); if (window.wpOpenSettings) window.wpOpenSettings('table', 'setGridOpacity'); });
+
 var _el_wbSnapBtn = document.getElementById('wbSnapBtn');
 if(_el_wbSnapBtn) {
     // Snap preference survives restarts

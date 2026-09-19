@@ -1,6 +1,21 @@
 WAYPOINT 1.5.0 — What's New
 ============================
 
+Play map & settings
+- Fog of war is on by default now, and while a fog map is open the GM
+  always sees the see-through fog overlay — across every tool and while
+  dragging items — instead of only in fog mode. A token's vision cone
+  also follows its facing on hex/GURPS maps.
+- Drawing: a Flat (chisel) pen now shows its true angled ribbon as you
+  draw, matching the finished stroke.
+- Fit to Grid Cells greys out (and says "Already aligned to the grid")
+  when the selection already sits on the grid, so it only lights up when
+  it would move something.
+- The grid button has a ◑ shortcut straight to the grid-opacity setting.
+- Undo history size is now adjustable — Settings ▸ Advanced, 10–500 steps
+  (default 100) — with a note on its memory cost; and a few heavy features
+  (fog, minimap, sound) carry a short hardware-impact note in Settings.
+
 Handbook
 - A third kind of item beside maps and planners: Handbook pages — rules,
   quick reference, a setting primer — written in the same block editor as a

@@ -410,6 +410,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Every planner keeps <b>its own</b> history: the <b>&#8617; &#8618;</b> buttons in the planner toolbar take back the last edit on this page &mdash; a deleted block, row or node comes back where it was, at the same scroll position &mdash; and never touch another planner or a map.</li>
                           <li>Inside a text field, <kbd>Ctrl + Z</kbd> is first the browser's own text undo (your typing, character by character). Once that field has nothing left to take back &mdash; nothing typed in it since the page was last rebuilt &mdash; the same key reaches the planner's history. Outside a field it always does.</li>
                           <li><b>Not undoable:</b> renaming, re-ordering, re-parenting, the scene status, creating a page, and deleting one. Deleting takes a <b>safety copy</b> of your save first (Settings &rarr; Advanced &rarr; Snapshots), so nothing is lost for good.</li>
+                          <li><b>How far back:</b> Undo keeps the last <b>100</b> steps per map and per planner by default; set it from <b>10 to 500</b> in <b>Settings &rarr; Advanced &rarr; Undo history size</b>. Deeper history uses more memory on this computer.</li>
                       </ul>
                       <h4>Import and export</h4>
                       <p>A planner can come in from a <b>Markdown</b> file &mdash; the <b>import</b> button in the planner toolbar appends to the open planner, the file button beside <b>+</b> in the Planners header makes a new one, and the header <b>Import</b> button takes a <code>.md</code> too &mdash; with a preview of every block before anything is written; <code>### Scene: Name</code> opens a scene node. <b>Save Markdown</b> on the Export menu writes it back out. The format is under <b>Handbook &rsaquo; Import and export</b>.</p>
@@ -745,6 +746,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn" id="gridOffBtn" title="Off" style="font-size:12px;">Off</button>
                   <button class="wb-tool-btn" id="gridSqBtn" title="Square">&#8862;</button>
                   <button class="wb-tool-btn" id="gridHexBtn" title="Hex">&#11042;</button>
+                  <button class="wb-tool-btn" id="gridOpacityBtn" title="Grid opacity&hellip; (opens Settings)" style="font-size:15px;">&#9681;</button>
               </div>
           </div>
             <div style="position:relative; display:inline-block;">
@@ -1363,13 +1365,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-vtt-row" data-vtt="minimap" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Minimap <span id="setMinimapState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setMinimapBtn" style="width:100%;">Toggle Minimap</button>
-                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The small overview map in the corner of the board. Off hides it for this campaign; the &#9662; on the box itself only folds it away and is yours alone.</div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The small overview map in the corner of the board. Off hides it for this campaign; the &#9662; on the box itself only folds it away and is yours alone. It re-renders the whole map when things change &mdash; a small extra cost on very large maps.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             <div class="set-vtt-row" data-vtt="sound" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Sound <span id="setSoundState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setSoundBtn" style="width:100%;">Toggle Sound</button>
-                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Ambient loops and one-shot cues from the &#127925; Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library and its files are kept. Set per campaign; in a session, this campaign's setting is the most your players hear.</div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Ambient loops and one-shot cues from the &#127925; Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library and its files are kept. Set per campaign; in a session, this campaign's setting is the most your players hear. Loaded audio is held in memory, so keep clips reasonably sized.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             <div class="set-vtt-row" data-vtt="dice" style="margin-bottom:8px;">
@@ -1394,7 +1396,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-vtt-row" data-vtt="fog" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Fog of war <span id="setFogState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setFogBtn" style="width:100%;">Toggle Fog of War</button>
-                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The GM's &#127787; fog tool on the play map: turn fog on for a map, then reveal or hide cells by hand and preview a player's view. On by default. The GM controls it for the whole table &mdash; there is no per-player switch. Set per campaign.</div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The GM's &#127787; fog tool on the play map: turn fog on for a map, then reveal or hide cells by hand and preview a player's view. On by default. The GM controls it for the whole table &mdash; there is no per-player switch. Set per campaign. Fog re-shades the map each frame while a fog map is open, which can tax a slow GPU on very large maps.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             </div>
@@ -1496,6 +1498,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="margin-bottom:12px;">
             <div class="set-field-label">Default opacity for new items <span id="setOpacityVal" style="color:var(--dim);"></span></div>
             <input type="range" id="setOpacity" min="10" max="100" style="width:100%;">
+        </div>
+        <div style="margin-bottom:12px;">
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Undo history size <span id="setUndoDepthVal" style="color:var(--dim);"></span></div>
+            <input type="range" id="setUndoDepth" min="10" max="500" step="10" style="width:100%;" title="How many steps Undo/Redo can take back, per map and per planner">
+            <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Steps kept per map &amp; planner (default 100). More gives deeper Undo but uses more memory on this computer &mdash; all maps share a 64&nbsp;MB cap, and the oldest steps on maps you&rsquo;re not using are dropped first. This computer only.</div>
         </div>
         <div style="margin-bottom:12px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Developer console <span id="setDevConsoleState" style="color:var(--dim);"></span></div>

@@ -2783,6 +2783,20 @@ function renderChat() {
         badge.textContent = chatUnread;
     }
 }
+// A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
+// it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
+var _chatRollOpened = false, _chatDismissTimer = null;
+function cancelChatDismiss() { if (_chatDismissTimer) { clearTimeout(_chatDismissTimer); _chatDismissTimer = null; } _chatRollOpened = false; }
+function armChatDismiss() {
+    if (_chatDismissTimer) clearTimeout(_chatDismissTimer);
+    _chatDismissTimer = setTimeout(function() {
+        _chatDismissTimer = null;
+        if (!_chatRollOpened) return;
+        var p = ui('chatPanel');
+        if (p && p.style.display !== 'none') { p.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
+        _chatRollOpened = false;
+    }, 6000);
+}
 function pushChat(m) {
     chatLog.push(m);
     if (chatLog.length > 200) chatLog.shift();
@@ -2790,7 +2804,9 @@ function pushChat(m) {
     var closed = !panel || panel.style.display === 'none';
     if (m.roll && panel && closed) {   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
         panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
+        _chatRollOpened = true;
     }
+    if (m.roll && _chatRollOpened) armChatDismiss();   // dismiss the roll-opened chat after a few seconds; a fresh roll re-arms it
     if (closed) {
         if (m.from.id !== net.myId) {
             chatUnread++;
@@ -2840,13 +2856,16 @@ function sendChat() {
 
 var _chatBtn = ui('chatBtn');
 if (_chatBtn) _chatBtn.addEventListener('click', function() {
+    cancelChatDismiss();   // the user is driving the chat now — no auto-dismiss
     var panel = ui('chatPanel');
     var opening = panel.style.display === 'none';
     panel.style.display = opening ? 'flex' : 'none';
     if (opening) { chatUnread = 0; refreshChatRecipients(); renderChat(); var i = ui('chatInput'); if (i) i.focus(); }
 });
+// touching the chat or the dice roller cancels the roll auto-dismiss (the player is reading / rolling)
+['chatPanel', 'dicePanel'].forEach(function(id) { var p = ui(id); if (p) { p.addEventListener('pointerdown', cancelChatDismiss); p.addEventListener('focusin', cancelChatDismiss); } });
 var _chatClose = ui('chatCloseBtn');
-if (_chatClose) _chatClose.addEventListener('click', function() { ui('chatPanel').style.display = 'none'; });
+if (_chatClose) _chatClose.addEventListener('click', function() { cancelChatDismiss(); ui('chatPanel').style.display = 'none'; });
 var _chatSend = ui('chatSendBtn');
 if (_chatSend) _chatSend.addEventListener('click', sendChat);
 var _chatInput = ui('chatInput');

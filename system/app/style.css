@@ -1518,7 +1518,7 @@
   .sys-row { border: 1px solid var(--edge); border-left: 3px solid rgba(224,165,79,0.55); border-radius: 7px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); box-shadow: 0 1px 3px rgba(0,0,0,0.28); transition: border-color .1s; }
   .sys-row:hover { border-color: rgba(224,165,79,0.6); }
   .sys-row-main, .sys-flags, .sys-def { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .sys-flags { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; font-size: 11.5px; color: var(--dim); }
+  .sys-flags { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11.5px; color: var(--dim); }
   .sys-row input.field, .sys-row select { padding: 4px 7px; font-size: 12px; }
   /* the global .field forces width:100%; these beat it so a field reads as tidy rows, not a full-width stack */
   .sys-row .sys-key { width: 140px; flex: 0 0 140px; font-family: ui-monospace, Consolas, monospace; background: rgba(224,165,79,0.09); }

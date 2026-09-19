@@ -385,6 +385,7 @@
   body.mode-blast #whiteboardWrap, body.mode-blast #whiteboardWrap * { cursor: crosshair !important; }
   body.mode-eraser #whiteboardWrap, body.mode-eraser #whiteboardWrap * { cursor: none !important; }
   body.mode-fog #whiteboardWrap, body.mode-fog #whiteboardWrap * { cursor: crosshair !important; }
+  body.mode-fill #whiteboardWrap, body.mode-fill #whiteboardWrap * { cursor: crosshair !important; }
   body.placing #whiteboardWrap, body.placing #whiteboardWrap * { cursor: var(--cur-place) !important; }
   body.mode-pan #whiteboardWrap .wb-item, body.mode-pan #whiteboardWrap .wb-item * { cursor: grab !important; }
   body.mode-pan #whiteboardWrap.dragging-pan, body.mode-pan #whiteboardWrap.dragging-pan * { cursor: grabbing !important; }

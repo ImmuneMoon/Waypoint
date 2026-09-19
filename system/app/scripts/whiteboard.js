@@ -1559,7 +1559,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_eraserModeBtn = document.getElementById('eraserModeBtn');
 
   function updateWbToolbar(activeId) {
-      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn'].forEach(id => {
+      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn'].forEach(id => {
           var el = document.getElementById(id);
           if (el) el.classList.remove('active');
       });
@@ -1568,9 +1568,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // The hand tool pans no matter what it grabs — items are untouchable while it's active
       window.isPanMode = (activeId === 'panModeBtn');
       window.isFogMode = (activeId === 'fogModeBtn');   // fog paints on the board; other modes clear it
+      window.isFillMode = (activeId === 'fillModeBtn');   // fill paints cells; other modes clear it
       if (activeId !== 'eraserModeBtn' && window.wpEraserCursorHide) window.wpEraserCursorHide();
       // Per-tool cursors (style.css `body.mode-*`): the class beats every item's own cursor
-      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog'].forEach(function(c) { document.body.classList.remove(c); });
+      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
   }
 
@@ -2734,6 +2735,56 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFogMode) e.preventDefault(); });
       document.addEventListener('pointerup', function() { _fogPaintBtn = -1; });
+  }
+  // Fill bucket (1.5.0, GM): click or drag grid cells to drop a cell-sized coloured shape (hexagon on hex maps,
+  // square on square maps) seated in the cell at layer 'back' (below tokens); right-click a cell clears its fill.
+  var _el_fillModeBtn = document.getElementById('fillModeBtn'), _el_fillMenu = document.getElementById('fillMenu');
+  try { var _fc0 = localStorage.getItem('wp_fillColor'); if (_fc0 && /^#[0-9a-f]{6}$/i.test(_fc0)) state.fillColor = _fc0; } catch (e) {}
+  var _fci0 = document.getElementById('fillColorInput'); if (_fci0 && /^#[0-9a-f]{6}$/i.test(state.fillColor || '')) _fci0.value = state.fillColor;
+  function syncFillMenu() {
+      document.querySelectorAll('#fillColorRow .draw-swatch[data-color]').forEach(function(sw) { sw.classList.toggle('active', sw.dataset.color.toLowerCase() === (state.fillColor || '').toLowerCase()); });
+      var cs = document.querySelector('#fillColorRow .draw-swatch.custom'); if (cs) { var preset = document.querySelector('#fillColorRow .draw-swatch[data-color].active'); cs.classList.toggle('active', !preset); cs.style.background = preset ? '' : state.fillColor; }
+  }
+  if (_el_fillModeBtn) _el_fillModeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!window.isFillMode) {
+          window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false; window.isFogMode = false;
+          if (wbWrap) wbWrap.style.cursor = 'crosshair';
+          updateWbToolbar('fillModeBtn'); closeDrawMenu();
+          state.selWbId = null; state.selWbIds = []; render();
+          syncFillMenu(); if (_el_fillMenu) _el_fillMenu.classList.add('show');
+      } else if (_el_fillMenu) {
+          if (_el_fillMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
+          else { syncFillMenu(); _el_fillMenu.classList.add('show'); }
+      }
+  });
+  document.querySelectorAll('#fillColorRow .draw-swatch[data-color]').forEach(function(sw) {
+      sw.addEventListener('click', function() { state.fillColor = this.dataset.color; var fi = document.getElementById('fillColorInput'); if (fi) fi.value = this.dataset.color; try { localStorage.setItem('wp_fillColor', state.fillColor); } catch (e) {} syncFillMenu(); });
+  });
+  var _fillColorInput = document.getElementById('fillColorInput');
+  if (_fillColorInput) _fillColorInput.addEventListener('input', function() { state.fillColor = this.value; try { localStorage.setItem('wp_fillColor', state.fillColor); } catch (e) {} syncFillMenu(); });
+  document.addEventListener('click', function(e) { if (_el_fillMenu && _el_fillMenu.classList.contains('show') && !e.target.closest('#fillMenu') && !e.target.closest('#fillModeBtn')) _el_fillMenu.classList.remove('show'); });
+  var _fillDirty = false;
+  function fillCellAt(x, y, remove) {
+      var map = getActiveMap(); if (!map) return;
+      if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+      var cx, cy, w, h, type;
+      if (state.gridType === 'hex') { var hc = snapToHex(x, y, 30, 'center'); cx = hc.x; cy = hc.y; w = 60; h = 52; type = 'hexagon'; }
+      else { cx = Math.floor(x / 50) * 50 + 25; cy = Math.floor(y / 50) * 50 + 25; w = 50; h = 50; type = 'rect'; }
+      var px = Math.round(cx - w / 2), py = Math.round(cy - h / 2);
+      var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
+      if (remove) { if (existing) { map.whiteboard = map.whiteboard.filter(function(it) { return it !== existing; }); _fillDirty = true; render(); } return; }
+      if (existing) { if (existing.color !== state.fillColor) { existing.color = state.fillColor; _fillDirty = true; render(); } return; }
+      var item = Object.assign({ id: 'wb' + uid(), type: type, x: px, y: py, w: w, h: h, baseW: w, baseH: h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
+      map.whiteboard.push(item); _fillDirty = true; render();
+  }
+  if (wbWrap) {
+      var _fillPaintBtn = -1;
+      var _fillBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
+      wbWrap.addEventListener('pointerdown', function(e) { if (!window.isFillMode || (e.button !== 0 && e.button !== 2)) return; _fillPaintBtn = e.button; var pt = _fillBoard(e); fillCellAt(pt.x, pt.y, e.button === 2); e.preventDefault(); });
+      wbWrap.addEventListener('pointermove', function(e) { if (!window.isFillMode || _fillPaintBtn < 0) return; var pt = _fillBoard(e); fillCellAt(pt.x, pt.y, _fillPaintBtn === 2); });
+      wbWrap.addEventListener('contextmenu', function(e) { if (window.isFillMode) e.preventDefault(); });
+      document.addEventListener('pointerup', function() { if (_fillPaintBtn >= 0 && _fillDirty) { save(); _fillDirty = false; } _fillPaintBtn = -1; });
   }
   var _el_blastModeBtn = document.getElementById('blastModeBtn');
   var _el_blastMenu = document.getElementById('blastMenu');

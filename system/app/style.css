@@ -1523,7 +1523,7 @@
   .sys-row-main, .sys-flags, .sys-def { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sys-flags { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11.5px; color: var(--dim); }
   /* theme every editor input + select alike (number inputs lack the .field class, so they came out browser-default white) */
-  .sys-row input, .sys-row select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
+  .sys-row input, .sys-row select, #sysCombatBox input, #sysCombatBox select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
   /* the global .field forces width:100%; these beat it so a field reads as tidy rows, not a full-width stack */
   .sys-row .sys-key { width: 140px; flex: 0 0 140px; font-family: ui-monospace, Consolas, monospace; background: rgba(224,165,79,0.09); }
   .sys-row .sys-label { flex: 1 1 180px; min-width: 150px; width: auto; font-weight: 500; }
@@ -1532,7 +1532,7 @@
   .sys-def { flex: 1 0 100%; min-width: 240px; gap: 10px; align-items: flex-end; }
   .sys-num { display: inline-flex; flex-direction: column; gap: 2px; }
   .sys-num-cap { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); padding-left: 1px; }
-  .sys-row input:focus, .sys-row select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
+  .sys-row input:focus, .sys-row select:focus, #sysCombatBox input:focus, #sysCombatBox select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
   .sys-btns { gap: 3px; }
   .sys-def input[type=number], .sys-row input[type=number] { width: 68px; padding: 4px 6px; font-size: 12px; }
   .sys-def-text, .sys-options { flex: 1; min-width: 120px; }

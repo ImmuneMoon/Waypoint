@@ -661,7 +661,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               if(!el.querySelector('svg')) {
 
-                  el.innerHTML = '<svg width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;"><path fill="none" stroke-width="' + (item.strokeWidth || 3) + '" stroke-linecap="round" stroke-linejoin="round" /></svg>';
+                  el.innerHTML = '<svg width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;"><path /></svg>';
 
               }
 
@@ -675,13 +675,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               
 
-              var pathD = 'M ' + item.pts.map(p => p[0]+' '+p[1]).join(' L ');
+              var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = item.color || 'var(--ink)';
 
-              var pathEl = svg.querySelector('path');
-
-              pathEl.setAttribute('d', pathD);
-
-              pathEl.style.stroke = item.color || 'var(--ink)';
+              if (_tip === 'flat') {   // an angled calligraphy nib: a filled ribbon whose width varies with stroke direction
+                  var _w2 = (item.strokeWidth || 3) / 2, _ox = 0.70711 * _w2, _oy = 0.70711 * _w2;
+                  var _top = item.pts.map(function(q){ return (q[0] + _ox) + ' ' + (q[1] + _oy); });
+                  var _bot = item.pts.map(function(q){ return (q[0] - _ox) + ' ' + (q[1] - _oy); }).reverse();
+                  pathEl.setAttribute('d', 'M ' + _top.join(' L ') + ' L ' + _bot.join(' L ') + ' Z');
+                  pathEl.setAttribute('fill', _col); pathEl.style.stroke = 'none'; pathEl.removeAttribute('stroke-width');
+              } else {
+                  pathEl.setAttribute('d', 'M ' + item.pts.map(function(q){ return q[0] + ' ' + q[1]; }).join(' L '));
+                  pathEl.setAttribute('fill', 'none'); pathEl.style.stroke = _col; pathEl.setAttribute('stroke-width', item.strokeWidth || 3);
+                  pathEl.setAttribute('stroke-linecap', _tip === 'square' ? 'square' : 'round'); pathEl.setAttribute('stroke-linejoin', _tip === 'square' ? 'miter' : 'round');
+              }
 
           }
 
@@ -1595,6 +1601,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.querySelectorAll('#drawStyleRow .draw-style-btn').forEach(function(btn) {
           btn.classList.toggle('active', (btn.dataset.straight === 'true') === !!state.drawStraight);
       });
+      document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.tip === (state.drawTip || 'round')); });
   }
 
   if(_el_moveModeBtn) _el_moveModeBtn.addEventListener('click', function() {
@@ -2788,8 +2795,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   try { var _dc0 = localStorage.getItem('wp_drawColor'); if (_dc0 && /^#[0-9a-f]{6}$/i.test(_dc0)) state.drawColor = _dc0; } catch (e) {}
   try { var _dw0 = parseInt(localStorage.getItem('wp_drawWidth'), 10); if ([2, 3, 6, 10, 16].indexOf(_dw0) !== -1) state.drawStrokeWidth = _dw0; } catch (e) {}
   try { if (localStorage.getItem('wp_drawStraight') !== null) state.drawStraight = localStorage.getItem('wp_drawStraight') === '1'; } catch (e) {}
+  try { var _dt0 = localStorage.getItem('wp_drawTip'); if (['round', 'square', 'flat'].indexOf(_dt0) !== -1) state.drawTip = _dt0; } catch (e) {}
   var _dci0 = document.getElementById('drawColorInput'); if (_dci0 && /^#[0-9a-f]{6}$/i.test(state.drawColor || '')) _dci0.value = state.drawColor;
-  function saveDrawPrefs() { try { localStorage.setItem('wp_drawColor', state.drawColor); localStorage.setItem('wp_drawWidth', String(state.drawStrokeWidth)); localStorage.setItem('wp_drawStraight', state.drawStraight ? '1' : '0'); } catch (e) {} }
+  function saveDrawPrefs() { try { localStorage.setItem('wp_drawColor', state.drawColor); localStorage.setItem('wp_drawWidth', String(state.drawStrokeWidth)); localStorage.setItem('wp_drawStraight', state.drawStraight ? '1' : '0'); localStorage.setItem('wp_drawTip', state.drawTip || 'round'); } catch (e) {} }
   syncDrawMenu();
   document.querySelectorAll('#drawColorRow .draw-swatch[data-color]').forEach(function(sw) {
       sw.addEventListener('click', function() {
@@ -2819,6 +2827,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   document.querySelectorAll('#drawStyleRow .draw-style-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
           state.drawStraight = this.dataset.straight === 'true';
+          saveDrawPrefs();
+          syncDrawMenu();
+      });
+  });
+  document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+          state.drawTip = this.dataset.tip;
           saveDrawPrefs();
           syncDrawMenu();
       });

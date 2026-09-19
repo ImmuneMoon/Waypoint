@@ -1175,7 +1175,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               var pathD = 'M ' + drawPoints.map(p => (p[0] - drawMinX) + ' ' + (p[1] - drawMinY)).join(' L ');
 
-              currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" style="overflow:visible;"><path fill="none" stroke="'+(state.drawColor || 'var(--ink)')+'" stroke-width="'+(state.drawStrokeWidth || 3)+'" stroke-linecap="round" stroke-linejoin="round" d="'+pathD+'" /></svg>';
+              currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" style="overflow:visible;"><path fill="none" stroke="'+(state.drawColor || 'var(--ink)')+'" stroke-width="'+(state.drawStrokeWidth || 3)+'" stroke-linecap="'+(state.drawTip === 'square' ? 'square' : 'round')+'" stroke-linejoin="'+(state.drawTip === 'square' ? 'miter' : 'round')+'" d="'+pathD+'" /></svg>';
 
               e.preventDefault();
 
@@ -1298,7 +1298,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               
 
-              var item = Object.assign({ id: 'wb'+uid(), type: 'path', x: drawMinX, y: drawMinY, w: w, h: h, baseW: w, baseH: h, z: 10, pts: normalized, color: (state.drawColor || 'var(--ink)'), strokeWidth: (state.drawStrokeWidth || 3) }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
+              var item = Object.assign({ id: 'wb'+uid(), type: 'path', x: drawMinX, y: drawMinY, w: w, h: h, baseW: w, baseH: h, z: 10, pts: normalized, color: (state.drawColor || 'var(--ink)'), strokeWidth: (state.drawStrokeWidth || 3), tip: (state.drawTip || 'round') }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
               if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
                   // a player's drawing: signed with their id so the host accepts it and only they (or the GM) can erase it
                   item.ownerId = window.wpNet.myId; item.byPlayer = true;

@@ -1611,6 +1611,17 @@
   .sheet-roll { width: 100%; }
   .sheet-roll:not(:disabled) { border-color: var(--gold); }
   .sheet-field-roll { padding: 0 4px; font-size: 11px; line-height: 1.2; margin-left: 4px; vertical-align: middle; }
+  /* item-list inventory on the sheet (Stage 5) */
+  .sheet-items { display: flex; flex-direction: column; gap: 4px; }
+  .sheet-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .sheet-item-icon { flex: 0 0 auto; }
+  .sheet-item-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-item-area-tag { color: var(--dim); font-size: 11px; }
+  .sheet-item-qty { display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+  .sheet-item-qtyn { min-width: 26px; text-align: center; color: var(--dim); }
+  .sheet-item-rm { padding: 0 7px; height: 24px; color: var(--red); }
+  .sheet-item-add { margin-top: 3px; font-size: 12px; }
+  .sheet-empty-note { color: var(--dim); font-size: 11.5px; font-style: italic; }
   #diceChar { font-size: 11.5px; padding: 3px 6px; }
   .combat-roll { padding: 0 6px; font-size: 12px; }
   body.net-client #sheetPanel .sheet-gm { display: none; }

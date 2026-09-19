@@ -446,13 +446,13 @@ function itemDef(sys, defId) { var a = Array.isArray(sys && sys.items) ? sys.ite
 
 /* ---------- the auto layout (SB2): one section per kind group, then the rolls ---------- */
 function autoLayout(sys) {
-    var groups = [['number', 'Attributes'], ['formula', 'Derived'], ['resource', 'Resources'], ['skill', 'Skills'], ['toggle', 'Conditions'], ['text', 'Details'], ['select', 'Details'], ['notes', 'Notes']];
+    var groups = [['number', 'Attributes'], ['formula', 'Derived'], ['resource', 'Resources'], ['skill', 'Skills'], ['toggle', 'Conditions'], ['item-list', 'Items'], ['text', 'Details'], ['select', 'Details'], ['notes', 'Notes']];
     var secs = [], byTitle = map();
     groups.forEach(function(g) {
         sys.fields.forEach(function(f) {
             if (f.kind !== g[0]) return;
-            var s = byTitle[g[1]]; if (!s) { s = byTitle[g[1]] = { id: 's_auto_' + g[1].toLowerCase(), title: g[1], cols: g[0] === 'notes' ? 1 : g[0] === 'toggle' ? 4 : g[0] === 'skill' ? 2 : 3, fields: [] }; secs.push(s); }
-            s.fields.push({ id: f.id, w: f.kind === 'notes' ? 'row' : 1 });
+            var s = byTitle[g[1]]; if (!s) { s = byTitle[g[1]] = { id: 's_auto_' + g[1].toLowerCase(), title: g[1], cols: g[0] === 'notes' || g[0] === 'item-list' ? 1 : g[0] === 'toggle' ? 4 : g[0] === 'skill' ? 2 : 3, fields: [] }; secs.push(s); }
+            s.fields.push({ id: f.id, w: f.kind === 'notes' || f.kind === 'item-list' ? 'row' : 1 });
         });
     });
     if (sys.rolls.length) secs.push({ id: 's_auto_rolls', title: 'Rolls', cols: 3, fields: sys.rolls.map(function(r) { return { roll: r.id, w: 1 }; }) });

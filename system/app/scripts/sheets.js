@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -342,6 +342,34 @@ function fieldNode(f, c, e, gm, own) {
     if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !editable; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
     if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !editable; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
     if (k === 'select') { var se = el('select', 'field sheet-select'); se.dataset.fid = f.id; (f.options || []).forEach(function(o) { se.appendChild(opt(o, o, (raw === undefined ? f.def : raw) === o)); }); se.disabled = !editable; se.addEventListener('change', function() { commit(c, f, se.value); }); box.appendChild(se); return box; }
+    if (k === 'item-list') {
+        var sysI = systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
+        var byId = {}; ((sysI && sysI.items) || []).forEach(function(it) { byId[it.id] = it; });
+        var wrap = el('div', 'sheet-items');
+        carried.forEach(function(entry) {
+            var def = byId[entry.defId]; if (!def) return;
+            var line = el('div', 'sheet-item');
+            if (def.icon) line.appendChild(el('span', 'sheet-item-icon', def.icon));
+            var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
+            if (editable) {
+                var qc = el('span', 'sheet-item-qty');
+                var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, 'setQty', entry.defId, entry.qty - 1); });
+                qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
+                var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, 'add', entry.defId, 1); });
+                qc.appendChild(pl); line.appendChild(qc);
+                var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = 'Remove ' + def.name; rm.addEventListener('click', function() { commitItem(c, f, 'remove', entry.defId, 0); }); line.appendChild(rm);
+            } else line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
+            wrap.appendChild(line);
+        });
+        if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No items.'));
+        if (editable && sysI && sysI.items && sysI.items.length) {
+            var add = el('select', 'field sheet-item-add'); add.appendChild(opt('', '+ Add item…', true));
+            sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (it.icon ? it.icon + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
+            add.addEventListener('change', function() { if (add.value) commitItem(c, f, 'add', add.value, 1); });
+            wrap.appendChild(add);
+        }
+        box.appendChild(wrap); return box;
+    }
     return box;
 }
 function rollNode(r, c) {
@@ -373,6 +401,26 @@ function commit(c, f, value) {
     if (!canWrite()) return;
     var res = applyEdit(sys, c, f.id, value, F(), {});
     if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderSheet(); return; }
+    var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
+    lastChange = { charId: c.id, fieldId: f.id, prev: prev };
+    c.values = c.values || {}; c.values[f.id] = res.value;
+    var d = {}; d[f.id] = res.value;
+    afterCharChange(c, false, d);
+}
+// One inventory change on the open sheet (add / remove / setQty). Like commit, but for the item-list kind, which
+// travels its own per-entry op (arrays can't ride the scalar char-edit path).
+function commitItem(c, f, op, defId, qty) {
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
+    if (isClient()) {
+        var n = net(); if (!n || !n.charItem) return;
+        var r = n.charItem(c.id, f.id, op, defId, qty);
+        if (r && r.error) toast(r.error);
+        renderSheet();
+        return;
+    }
+    if (!canWrite()) return;
+    var res = applyItemOp(sys, c, f.id, op, defId, qty, {});
+    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be edited.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderSheet(); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
     c.values = c.values || {}; c.values[f.id] = res.value;
@@ -418,8 +466,8 @@ function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Charac
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {};
-var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select' };
-var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.' };
+var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list' };
+var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.' };
 function open(which) {
     if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return; }
     var camp = getActiveCampaign(); if (!camp) return;
@@ -513,7 +561,7 @@ function fieldRow(f) {
     if (STORED[f.kind]) flags.appendChild(select('sys-edit', [['owner', 'Player may edit'], ['gm', 'GM edits']], f.edit || 'owner', 'Who may change the value at the table'));
     flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
-    if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
+    if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
     var err = errorCell(f.id); err.dataset.errFor = f.id; row.appendChild(err);
@@ -536,6 +584,7 @@ function buildDefCell(def, f) {
     } else if (k === 'toggle') { var t = el('label', 'sys-toggle-def'); var c = el('input'); c.type = 'checkbox'; c.className = 'sys-def-bool'; c.checked = f.def === true; t.appendChild(c); t.appendChild(document.createTextNode(' On by default')); def.appendChild(t); }
     else if (k === 'text') { def.appendChild(input('sys-def-text field', f.def, 'Default text', 'Default')); def.appendChild(numField('sys-max', f.max === undefined ? 200 : f.max, 'Most characters (up to 200)', 'Chars')); }
     else if (k === 'notes') def.appendChild(el('span', 'sys-note', 'A long text on the sheet; not read by formulas.'));
+    else if (k === 'item-list') def.appendChild(el('span', 'sys-note', 'A list the character fills from the Items library on the sheet (a throwable item shows a Throw button).'));
     else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
 }
 function rollRow(r) {

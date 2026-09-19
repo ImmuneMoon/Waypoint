@@ -181,7 +181,7 @@ Fog of war
   player's vision and drops the creatures they cannot see from what it
   sends, so nothing behind the fog reaches their machine. Fog of war is
   a VTT feature (Settings ▸ VTT features, with a default for new
-  campaigns), off until the GM turns it on and never a player's to
+  campaigns), on by default and never a player's to
   enable.
 
 Drawing tools

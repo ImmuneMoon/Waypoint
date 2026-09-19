@@ -2787,7 +2787,11 @@ function pushChat(m) {
     chatLog.push(m);
     if (chatLog.length > 200) chatLog.shift();
     var panel = ui('chatPanel');
-    if (!panel || panel.style.display === 'none') {
+    var closed = !panel || panel.style.display === 'none';
+    if (m.roll && panel && closed) {   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
+        panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
+    }
+    if (closed) {
         if (m.from.id !== net.myId) {
             chatUnread++;
             var line = m.roll ? (window.wpDice ? window.wpDice.line(m) : 'a roll') : (m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60);

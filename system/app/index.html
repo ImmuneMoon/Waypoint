@@ -344,6 +344,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Select several items (drag a box around them) to <b>Group</b> them or <b>Merge Drawings</b>.</li>
                       </ul>
                       <div class="help-tip">Character tokens: any shape or image with <b>Is Character</b> set in the right sidebar becomes a token with a name and stats tooltip &mdash; and can be handed to a player in multiplayer. Tokens pair with <b>shadow-base.com character sheets</b>: the <b>&#129333; Import Character</b> toolbar button turns a site JSON into a ready token (portrait as art, sheet attached), the inspector's <b>View</b> opens the full read-only sheet (stats, traits, skills, inventory), and <b>Export JSON</b> writes a site-ready file back out &mdash; no sheet attached still exports a starter file.</div>
+                      <div class="help-tip"><b>Toolbar groups:</b> to keep the play-map toolbar compact, the content tools live under the <b>+ Add</b> button (text box, image, the picture library, character import) and the GM ambience tools under the <b>&#127916; Scene</b> button (sound, visual effects). Opening any toolbar menu closes the others, so only one is ever up.</div>
                       <h4>Fog of war</h4>
                       <p>The <b>&#127787; Fog</b> tool (GM only) hides the play map behind an opaque fog and reveals only what a character can see. Fog is a <b>VTT feature, per campaign</b> (&#9881; Settings &#9656; VTT features) and is <b>off by default</b>; turn it on there and the &#127787; button joins the toolbar. There is no player switch &mdash; when you run fog, everyone at the table plays with it.</p>
                       <ul>
@@ -900,12 +901,15 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;">Preview shows the fog on your own screen. In a session each player sees an opaque fog of their own tokens' vision, and the host drops what they can't see &mdash; nothing hidden crosses the wire.</div>
               </div>
           </div>
-          <button class="wb-tool-btn gm-only" id="soundBtn" title="Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)">&#127925;</button>
-          <button class="wb-tool-btn gm-only" id="fxBtn" title="Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)">&#10024;</button>
+          <div style="position:relative; display:inline-block;" class="gm-only">
+              <button class="wb-tool-btn" id="sceneFxBtn" title="Scene ambience &mdash; sound and visual effects for the table (GM tools, per campaign)">&#127916;</button>
+              <div class="shape-menu" id="sceneFxMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
+                  <button class="wb-tool-btn" id="soundBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)"><span style="width:20px; text-align:center;">&#127925;</span> Sound</button>
+                  <button class="wb-tool-btn" id="fxBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)"><span style="width:20px; text-align:center;">&#10024;</span> Visual effects</button>
+              </div>
+          </div>
 
           <div class="wb-tool-sep"></div>
-
-          <button class="wb-tool-btn" id="shapeTextBtn" title="Text &mdash; click to place a text box (drag to size it), or click an existing text box to edit it">T</button>
 
           <div style="position:relative;">
               <button class="wb-tool-btn" id="shapeMenuBtn" title="Shapes">&#9744;</button>
@@ -933,11 +937,15 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
               </div>
           </div>
 
-          <button class="wb-tool-btn" id="addImageBtn" title="Add Image">&#128444;&#65039;</button>
-
-          <button class="wb-tool-btn" id="imgLibBtn" title="Image Library &mdash; this campaign's pictures, the shared ones, and every campaign's">&#128452;&#65039;</button>
-
-          <button class="wb-tool-btn" id="importCharBtn" title="Import Character &mdash; drop a shadow-base.com character JSON as a ready token">&#129333;</button>
+          <div style="position:relative; display:inline-block;">
+              <button class="wb-tool-btn" id="addMenuBtn" title="Add to the board &mdash; a text box, an image, the picture library, or a character import"><span style="font-size:24px; line-height:1;">+</span></button>
+              <div class="shape-menu" id="addMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:190px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
+                  <button class="wb-tool-btn" id="shapeTextBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Text &mdash; click to place a text box (drag to size it), or click an existing text box to edit it"><span style="width:20px; text-align:center;">T</span> Text box</button>
+                  <button class="wb-tool-btn" id="addImageBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Add Image"><span style="width:20px; text-align:center;">&#128444;&#65039;</span> Image</button>
+                  <button class="wb-tool-btn" id="imgLibBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Image Library &mdash; this campaign's pictures, the shared ones, and every campaign's"><span style="width:20px; text-align:center;">&#128452;&#65039;</span> Image Library</button>
+                  <button class="wb-tool-btn" id="importCharBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Import Character &mdash; drop a shadow-base.com character JSON as a ready token"><span style="width:20px; text-align:center;">&#129333;</span> Import Character</button>
+              </div>
+          </div>
 
           <div class="wb-tool-sep"></div>
 

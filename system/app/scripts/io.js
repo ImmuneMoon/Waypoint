@@ -133,6 +133,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
                 if (typeof w.w !== 'number' || w.w <= 0) { w.w = 100; fix('wb w defaulted'); }
                 if (typeof w.h !== 'number' || w.h <= 0) { w.h = 100; fix('wb h defaulted'); }
             });
+            if (m.fog !== undefined && window.wpFogCore) { var cleanedFog = window.wpFogCore.cleanFog(m.fog); if (cleanedFog) m.fog = cleanedFog; else delete m.fog; }   // fog of war (1.5.0)
         });
 
         // parentId hygiene: orphans and cycles would hide items from the tree
@@ -170,6 +171,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
                 Object.values(c.items || {}).forEach(function(m) { if (!m || m.type !== 'map') return; (m.whiteboard || []).forEach(function(w) { if (!w || !w.charId) return; var ch = outCh[w.charId]; if (!ch) return; if (ch.ownerId) w.ownerId = ch.ownerId; else delete w.ownerId; }); });
             }
         }
+        if (c.fog !== undefined && window.wpFogCore) c.fog = window.wpFogCore.cleanCampFog(c.fog);   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
     });
 
     // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each

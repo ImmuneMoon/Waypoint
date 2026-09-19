@@ -25,8 +25,13 @@ var FEATURES = [
     { id: 'sound',     label: 'Sound',           legacyKey: null },         // 1.5.0: ambient loops and cues at the table
     { id: 'dice',      label: 'Dice',            legacyKey: null },         // 1.5.0: rolls at the table
     { id: 'sheets',    label: 'Character sheets', legacyKey: null },        // 1.5.0: the system, characters and their sheets
-    { id: 'fx',        label: 'Visual effects',   legacyKey: null }         // 1.5.0: flash, shake, wash, bursts, weather, banners, token pulses
+    { id: 'fx',        label: 'Visual effects',   legacyKey: null },        // 1.5.0: flash, shake, wash, bursts, weather, banners, token pulses
+    { id: 'fog',       label: 'Fog of war',       legacyKey: null, noLocal: true, def: false }  // 1.5.0: per-player token vision; GM-controlled, no player self-toggle, off by default
 ];
+// noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: the default-on value for a
+// campaign with no stored choice (absent → def; every legacy-keyed or plain feature is on, fog alone is off by default).
+function selfToggles(f) { return !!f && !f.noLocal; }
+function defaultOn(f) { return !f || f.def !== false; }
 var GLOBAL_KEY = 'wp_vtt_global', LOCAL_KEY = 'wp_vtt_local', MAX_TABLES = 50;
 var KEY_RE = /^[A-Za-z0-9_-]{1,160}$/;   // the part of a table key after "t:", and a campaign id in a stance map
 
@@ -64,7 +69,7 @@ function parseGlobal(raw) {
     return isObj(p) ? p : null;
 }
 function globalParsed() { var raw = lsGet(GLOBAL_KEY); if (raw !== _gCache.raw) { _gCache.raw = raw; _gCache.val = parseGlobal(raw); } return _gCache.val; }
-function legacyOn(f) { if (!f || !f.legacyKey) return true; var v = lsGet(f.legacyKey); return v !== 'off'; }
+function legacyOn(f) { if (!f) return true; if (!f.legacyKey) return defaultOn(f); var v = lsGet(f.legacyKey); return v !== 'off'; }
 // Shape-validated per feature: a hand-edited or damaged value falls back for that feature alone, never throws
 function globalFeature(f, p) { return (p && isObj(p.features) && typeof p.features[f.id] === 'boolean') ? p.features[f.id] : legacyOn(f); }
 function globalMaster(p) { return (p && typeof p.master === 'boolean') ? p.master : true; }
@@ -204,10 +209,11 @@ function hostSig() {
     var a = state.appState, ids = (a && a.campaigns) ? Object.keys(a.campaigns).sort() : [];
     return String(a && a.activeCampaignId || '') + '|' + ids.map(function(id) { return id + ':' + sig(flagsOf(a.campaigns[id])); }).join(',');
 }
-// A flags object off the wire: a key that is absent means ON (an older host does not know the newer ids); a present key is a boolean
+// A flags object off the wire: an absent key takes the feature's default (an older host does not know the newer ids —
+// every feature is on, fog alone is off by default); a present key is a boolean
 function cleanFlags(s) {
     var out = {}; if (!isObj(s)) s = {};
-    FEATURES.forEach(function(f) { out[f.id] = (s[f.id] === undefined) ? true : !!s[f.id]; });
+    FEATURES.forEach(function(f) { out[f.id] = (s[f.id] === undefined) ? defaultOn(f) : !!s[f.id]; });
     return out;
 }
 // The per-campaign map off the wire: roster ids only, campaign ids filtered like a table key, absent → null
@@ -228,13 +234,14 @@ function ceiling() {
 }
 function on(id) {
     var c = ceiling();
-    if (c) return c[id] === true && !localOff(id);
+    if (c) return c[id] === true && (!selfToggles(featureById(id)) || !localOff(id));   // a noLocal feature ignores the player's off-list
     return campaignOn(id);
 }
 // Why is a feature off here: '' (it is on), 'gm' (the GM's setting), 'local' (off for me at this table), 'own' (my own setting)
 function whyOff(id) {
     if (on(id)) return '';
     var c = ceiling(); if (!c) return 'own';
+    if (!selfToggles(featureById(id))) return 'gm';   // no per-player switch: only the GM can have it off
     return c[id] === true ? 'local' : 'gm';
 }
 
@@ -290,7 +297,8 @@ function localOff(id) {
 // The one writer that runs while locked(): it is the player's own choice, never the campaign. Only at a
 // table, only for a feature the ceiling has on; the choice is recorded as decided for this table.
 function setLocal(id, off) {
-    if (mode() !== 'client' || !featureById(id)) return false;
+    var f = featureById(id);
+    if (mode() !== 'client' || !selfToggles(f)) return false;   // a noLocal feature has no per-player switch
     var c = ceiling(); if (!c || c[id] !== true) return false;
     var key = tableKey(); if (!key) return false;
     var tables = readLocal(), e = entryOf(tables, key);
@@ -304,6 +312,7 @@ function setLocal(id, off) {
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
+    if (window.wpFogSync) window.wpFogSync();
     return true;
 }
 
@@ -313,18 +322,19 @@ function setLocal(id, off) {
    already decided that feature here — then, if anything differs from the player's defaults and the
    signature was not acknowledged before, queue the notice. It is acknowledged only once it is on screen. */
 var _noticeTimer = null, _noticePoll = null;
-function playerDefaults() { var g = globalVtt(), out = {}; FEATURES.forEach(function(f) { out[f.id] = g.master && g.features[f.id]; }); return out; }
+function playerDefaults() { var g = globalVtt(), out = {}; FEATURES.forEach(function(f) { out[f.id] = selfToggles(f) && g.master && g.features[f.id]; }); return out; }
 // Returns the ids it switched off for this table (empty when nothing was seeded)
 function seedEntry(e, G, P) {
     var seeded = [];
     FEATURES.forEach(function(f) {
+        if (!selfToggles(f)) return;   // a noLocal feature is never seeded into the player's off-list
         if (G[f.id] && !P[f.id] && e.decided.indexOf(f.id) < 0 && e.off.indexOf(f.id) < 0) { e.off.push(f.id); seeded.push(f.id); }
     });
     return seeded;
 }
 function lists(e, G, P) {
     var A = [], B = [];
-    FEATURES.forEach(function(f) { if (G[f.id] && e.off.indexOf(f.id) >= 0) A.push(f.id); else if (!G[f.id] && P[f.id]) B.push(f.id); });
+    FEATURES.forEach(function(f) { if (!selfToggles(f)) return; if (G[f.id] && e.off.indexOf(f.id) >= 0) A.push(f.id); else if (!G[f.id] && P[f.id]) B.push(f.id); });
     return { A: A, B: B };
 }
 function joined() {
@@ -344,6 +354,7 @@ function joined() {
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
+    if (window.wpFogSync) window.wpFogSync();
     scheduleNotice(key, s);
 }
 function tableChanged(prevCampId) { void prevCampId; joined(); }
@@ -425,6 +436,7 @@ function syncToTable() {
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
+    if (window.wpFogSync) window.wpFogSync();
     if (window.wpSettingsSync) window.wpSettingsSync();
     toast(_noticeA.length ? 'Using the table\'s settings for ' + _noticeA.map(labelOf).join(', ') + '.' : 'Using the table\'s settings.');
 }
@@ -443,7 +455,14 @@ function ceilingChanged(prev, campId) {
     var key = tableKey(); if (!key) return;
     var tables = readLocal(), e = entryOf(tables, key);
     var seeded = seedEntry(e, G, playerDefaults());
-    var diff = FEATURES.filter(function(f) { return !!G[f.id] !== !!(prev && prev[f.id]); });
+    var diff = FEATURES.filter(function(f) { return selfToggles(f) && (!!G[f.id] !== !!(prev && prev[f.id])); });
+    if (!diff.length) {   // only noLocal features moved (e.g. the GM's fog switch): nothing a player can act on — acknowledge quietly
+        if (seeded.length || anyModalUp()) e.pending = s; else { e.seen = s; e.pending = ''; }
+        writeLocal(tables, key); _localCache.raw = undefined;
+        if (window.wpFogSync) window.wpFogSync();
+        if (window.wpSettingsSync) window.wpSettingsSync();
+        return;
+    }
     var text = diff.length === 1
         ? 'The GM turned ' + labelOf(diff[0].id) + (G[diff[0].id] ? ' on' : ' off') + ' for this table'
         : 'The GM changed this table\'s VTT features — ' + diff.map(function(f) { return labelOf(f.id) + (G[f.id] ? ' on' : ' off'); }).join(', ');
@@ -460,6 +479,7 @@ function ceilingChanged(prev, campId) {
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
+    if (window.wpFogSync) window.wpFogSync();
     if (window.wpSettingsSync) window.wpSettingsSync();
 }
 
@@ -473,6 +493,7 @@ function changed(reason) {
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
+    if (window.wpFogSync) window.wpFogSync();
     var cm = document.getElementById('contextMenu');
     if (cm && cm.style.display !== 'none' && cm.querySelector('.cm-stance')) cm.style.display = 'none';   // its rows would be stale
     var n = net(); if (n && n.syncStance) n.syncStance();

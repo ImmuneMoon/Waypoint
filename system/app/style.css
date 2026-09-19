@@ -384,6 +384,7 @@
   body.mode-measure #whiteboardWrap, body.mode-measure #whiteboardWrap * { cursor: var(--cur-measure) !important; }
   body.mode-blast #whiteboardWrap, body.mode-blast #whiteboardWrap * { cursor: crosshair !important; }
   body.mode-eraser #whiteboardWrap, body.mode-eraser #whiteboardWrap * { cursor: none !important; }
+  body.mode-fog #whiteboardWrap, body.mode-fog #whiteboardWrap * { cursor: crosshair !important; }
   body.placing #whiteboardWrap, body.placing #whiteboardWrap * { cursor: var(--cur-place) !important; }
   body.mode-pan #whiteboardWrap .wb-item, body.mode-pan #whiteboardWrap .wb-item * { cursor: grab !important; }
   body.mode-pan #whiteboardWrap.dragging-pan, body.mode-pan #whiteboardWrap.dragging-pan * { cursor: grabbing !important; }
@@ -1587,6 +1588,9 @@
   /* Visual effects (1.5.0, S3): the screen layer over the play map and the burst layer on the board */
   #fxScreen { position: fixed; z-index: 4000; pointer-events: none; overflow: hidden; }
   #fxScreen canvas.fx-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* Fog of war (1.5.0): the see-through vision overlay — over the board, under effects, the minimap and the party strip */
+  #fogScreen { position: fixed; z-index: 3950; pointer-events: none; overflow: hidden; }
+  #fogScreen canvas.fog-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   #fxLayer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15000; overflow: visible; }
   .fx-flash { position: absolute; inset: 0; opacity: 0; animation: fxFlash linear forwards; }
   @keyframes fxFlash { 0% { opacity: 0; } 15% { opacity: 0.85; } 100% { opacity: 0; } }

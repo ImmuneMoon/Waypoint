@@ -256,6 +256,7 @@ function sanitizeItem(item) {
     if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item));
+    delete m.fog;   // fog of war (1.5.0 FV1): GM-side only — no fog data travels until per-recipient enforcement (FV2)
     (m.rooms || []).forEach(function(r) {
         delete r.notes;
         delete r.handoutId;

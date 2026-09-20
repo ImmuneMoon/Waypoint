@@ -2281,17 +2281,23 @@ window.wpFitToGrid = fitToGrid;
 
           html += '<circle cx="' + m.x1 + '" cy="' + m.y1 + '" r="4"></circle><circle cx="' + m.x2 + '" cy="' + m.y2 + '" r="4"></circle>';
 
-          // Elevation on + both ends on tokens at different heights: the straight-line 3D figure too
-          var lab3 = '';
-          if (stanceOn('elevation')) {
-              var amR = getActiveMap(), tA = amR && tokenAtPoint(amR, m.x1, m.y1), tB = amR && tokenAtPoint(amR, m.x2, m.y2);
-              if (tA && tB && tA !== tB && tokenElevation(tA) !== tokenElevation(tB)) {
-                  var hY = boardYards(m.x1, m.y1, m.x2, m.y2), vY = tokenElevation(tB) - tokenElevation(tA);
-                  lab3 = '3D ' + _r1(Math.sqrt(hY * hY + vY * vY)) + ' yd \u00b7 ' + fmtElev(vY) + ' yd';
-              }
+          // Both ends on distinct character tokens: extra readout lines (3D elevation, and cover from the map's blockers)
+          var lab3 = '', labCov = '';
+          var amR = getActiveMap();
+          var tA = amR && tokenAtPoint(amR, m.x1, m.y1), tB = amR && tokenAtPoint(amR, m.x2, m.y2);
+          var bothTok = !!(tA && tB && tA !== tB);
+          if (bothTok && stanceOn('elevation') && tokenElevation(tA) !== tokenElevation(tB)) {
+              var hY = boardYards(m.x1, m.y1, m.x2, m.y2), vY = tokenElevation(tB) - tokenElevation(tA);
+              lab3 = '3D ' + _r1(Math.sqrt(hY * hY + vY * vY)) + ' yd \u00b7 ' + fmtElev(vY) + ' yd';
+          }
+          if (bothTok && window.wpFog && window.wpFog.coverBetween) {
+              var cv = window.wpFog.coverBetween(m.x1, m.y1, m.x2, m.y2);   // advisory: Waypoint estimates cover from the map's blockers; the GM makes the call
+              if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
           html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist) + '</text>';
-          if (lab3) html += '<text x="' + (mx + 8) + '" y="' + (my + 11) + '">' + lab3 + '</text>';
+          var _covY = my + 11;
+          if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
+          if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
           html += '</g>';
 
       });

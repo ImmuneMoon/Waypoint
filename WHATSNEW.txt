@@ -29,6 +29,12 @@ Play map & settings
   longer tied to the grid type — a square map can use a cone, a hex map can
   see all around — with a "use for new maps" campaign default that never
   changes maps you already made.
+- Cover from the map: the walls, pillars, closed doors and filled cells that
+  block sight now also give cover. Turn on Cover for your system (Settings ▸
+  System ▸ Items) and drag the ruler between two character tokens — it reports
+  the cover between them (half / three-quarters / total, or a simple cover/none
+  for systems that grade it once), on square and hex. It's advisory: Waypoint
+  estimates the cover and you apply it — no dice or damage change.
 
 Handbook
 - A third kind of item beside maps and planners: Handbook pages — rules,

@@ -105,20 +105,75 @@ function cellsUnderDiamond(x, y, w, h, grid) {
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (Math.abs(p.x - cx) / rx + Math.abs(p.y - cy) / ry <= 1 + 1e-9) out.push(box[i]); }
     return out;
 }
+// True if the straight PIXEL segment (pax,pay)->(pbx,pby) crosses no opaque cell, sampling at ~half a cell and
+// skipping any cell key in skipKeys. The shared sampler behind lineClear (sight) and coverBetween (cover), so host
+// enforcement, the client overlay and the cover readout all agree by construction. Private to this module.
+function segClear(pax, pay, pbx, pby, grid, blockers, skipKeys) {
+    if (!blockers) return true;
+    var dx = pbx - pax, dy = pby - pay, dist = Math.sqrt(dx * dx + dy * dy);
+    var stepPx = (grid.type === 'square' ? grid.size : grid.s) / 2;
+    var steps = Math.max(1, Math.ceil(dist / stepPx));
+    for (var i = 1; i < steps; i++) {
+        var t = i / steps, k = cellKey(cellOf(pax + dx * t, pay + dy * t, grid), grid);
+        if (skipKeys && skipKeys[k]) continue;
+        if (blockers[k]) return false;
+    }
+    return true;
+}
 // True if the straight line from cell A to cell B crosses no opaque INTERMEDIATE cell (endpoints
 // excluded — a viewer on/next to a wall still sees out, and a wall's own cell shows its near face).
 function lineClear(a, b, grid, blockers) {
     if (!blockers) return true;
-    var pa = cellCenter(a, grid), pb = cellCenter(b, grid);
-    var dx = pb.x - pa.x, dy = pb.y - pa.y, dist = Math.sqrt(dx * dx + dy * dy);
-    var stepPx = (grid.type === 'square' ? grid.size : grid.s) / 2;
-    var steps = Math.max(1, Math.ceil(dist / stepPx)), ka = cellKey(a, grid), kb = cellKey(b, grid);
-    for (var i = 1; i < steps; i++) {
-        var t = i / steps, cell = cellOf(pa.x + dx * t, pa.y + dy * t, grid), k = cellKey(cell, grid);
-        if (k === ka || k === kb) continue;
-        if (blockers[k]) return false;
+    var pa = cellCenter(a, grid), pb = cellCenter(b, grid), skip = Object.create(null);
+    skip[cellKey(a, grid)] = 1; skip[cellKey(b, grid)] = 1;
+    return segClear(pa.x, pa.y, pb.x, pb.y, grid, blockers, skip);
+}
+
+/* ---------- cover (line-of-effect between two cells, for combat cover) ----------
+   Reuses the SAME opaque-cell blocker set as fog, so the cover readout, host enforcement and the client overlay
+   agree. coverBetween returns a SYSTEM-NEUTRAL result — { coverage 0..1 (kept < 1), lineOfEffect } — and each
+   campaign-system (systemcore coverTier) maps it to its own tiers (D&D half/three-quarters/total, a GURPS-style
+   label, etc.). v1 is informational: nothing here changes an authoritative number. */
+// The corners of a cell, each nudged slightly toward its centre so it resolves cleanly into its own cell: a square
+// cell has 4; a flat-top hex has 6 (matching the drawn hex, centre-to-vertex radius = grid.s).
+function cellCorners(cell, grid) {
+    var eps = 0.01, ctr = cellCenter(cell, grid), out = [];
+    if (grid.type === 'square') {
+        var s = grid.size, x0 = cell.c * s, y0 = cell.r * s, pts = [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]];
+        for (var i = 0; i < 4; i++) out.push({ x: pts[i][0] + (ctr.x - pts[i][0]) * eps, y: pts[i][1] + (ctr.y - pts[i][1]) * eps });
+        return out;
     }
-    return true;
+    for (var k = 0; k < 6; k++) { var a = Math.PI / 180 * (60 * k), px = ctr.x + grid.s * Math.cos(a), py = ctr.y + grid.s * Math.sin(a); out.push({ x: px + (ctr.x - px) * eps, y: py + (ctr.y - py) * eps }); }
+    return out;
+}
+// Cover between two cells via the corner rule, computed direction-SYMMETRICALLY (a ruler has no attacker/target):
+// from each cell's corners trace to the other cell's corners, and take the corner with the FEWEST blocked lines from
+// EITHER side. Returns { lines, blocked, coverage(0..<1), lineOfEffect }. blockers is the fog opaque-cell key set;
+// null/empty → fully clear. coverage stays strictly below 1 so "4/4 corners" reads as heavy-but-partial cover, while
+// TOTAL cover is signalled only by lineOfEffect:false (no clear line from any corner) — the two are never conflated.
+function coverBetween(aCell, bCell, grid, blockers) {
+    var out = { lines: 0, blocked: 0, coverage: 0, lineOfEffect: true };
+    if (!aCell || !bCell || !grid) return out;
+    var aKey = cellKey(aCell, grid), bKey = cellKey(bCell, grid);
+    if (aKey === bKey) return out;                       // same cell: no cover
+    var ca = cellCorners(aCell, grid), cb = cellCorners(bCell, grid), n = Math.min(ca.length, cb.length);
+    out.lines = n;
+    if (!blockers || n <= 0) return out;                 // no blockers → fully clear
+    var skip = Object.create(null); skip[aKey] = 1; skip[bKey] = 1;
+    var side = function(src, dst) {                      // fewest blocked lines from any one src corner to all dst corners
+        var best = dst.length;
+        for (var i = 0; i < src.length; i++) {
+            var blk = 0;
+            for (var j = 0; j < dst.length; j++) if (!segClear(src[i].x, src[i].y, dst[j].x, dst[j].y, grid, blockers, skip)) blk++;
+            if (blk < best) best = blk;
+        }
+        return best;
+    };
+    var mb = Math.min(side(ca, cb), side(cb, ca));
+    out.blocked = mb > n ? n : mb;
+    out.lineOfEffect = out.blocked < n;                  // the best corner still has at least one clear line
+    out.coverage = Math.min(out.blocked / n, 0.999);
+    return out;
 }
 
 /* ---------- one viewer's visible cells ----------
@@ -211,6 +266,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, cellCorners: cellCorners, coverBetween: coverBetween, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

@@ -1363,7 +1363,7 @@
 
   /* Scene status marks in the planner tree */
   .si-status { flex: 0 0 auto; font-size: 11px; margin-right: 2px; }
-  .si-status.si-next { color: var(--gold); }
+  .si-status.si-next { color: var(--green); }   /* green so the "Next scene" arrow doesn't read as the gold nested-item caret (both are the same glyph) */
   .si-status.si-lock { font-size: 10px; opacity: .85; }
   #sidebarContextMenu .menu-item.ctx-map-only, #sidebarContextMenu .menu-item.ctx-planner-only { color: var(--ink); }
   #sidebarContextMenu .menu-item.ctx-status.on { color: var(--gold); }

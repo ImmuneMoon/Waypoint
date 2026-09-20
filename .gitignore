@@ -32,6 +32,6 @@ dist/
 # --- Claude Code local config (machine/session-specific paths) ---
 .claude/
 
-# --- internal planning docs: local only, never committed (README's SmartScreen image stays) ---
-docs/*
-!docs/smartscreen.png
+# --- internal planning docs (markdown): local only, never committed. Non-.md assets in docs/
+#     (e.g. the README's SmartScreen image) stay tracked without a per-file exception ---
+docs/*.md

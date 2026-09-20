@@ -89,7 +89,7 @@ function viewersFor(map, camp, ownerId) {
     return out;
 }
 // ---- sight-blockers: the opaque-cell key set for a map, built from flagged board items (v1: static walls) ----
-var _blockerCache = Object.create(null), _blockerWarned = Object.create(null);
+var _blockerCache = Object.create(null), _blockerStamp = Object.create(null), _blockerWarned = Object.create(null);
 function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
     if (w.sightType === 'door' && w.doorOpen) return false;         // an OPEN door blocks nothing; a closed one blocks like a wall
@@ -108,7 +108,10 @@ function footprintCells(w, grid, C) {
 }
 function blockersFor(map, grid) {
     if (!map || !grid) return null;
-    if (_blockerCache[map.id] !== undefined) return _blockerCache[map.id];
+    // Key the memo on map.meta.updated (stamped every save, io.js) as well as map.id, so a blocker MOVE busts it even
+    // in solo mode — there onLocalSave early-returns before invalidateVision(), so id alone would go stale.
+    var stamp = (map.meta && map.meta.updated) || 0;
+    if (_blockerCache[map.id] !== undefined && _blockerStamp[map.id] === stamp) return _blockerCache[map.id];
     var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, over = false;
     for (var i = 0; i < wb.length && !over; i++) {
         var w = wb[i]; if (!eligibleBlocker(w)) continue;
@@ -118,8 +121,22 @@ function blockersFor(map, grid) {
     if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
     if (!over) _blockerWarned[map.id] = 0;
     var result = (over || n === 0) ? null : set;                    // over cap or none → no occlusion (fail open)
+    _blockerStamp[map.id] = stamp;
     _blockerCache[map.id] = result;
     return result;
+}
+// Cover between two board points, for the ruler readout (1.5.0, v1). Resolve both ends to cells on the ACTIVE map's
+// grid, reuse the same sight-blocker set fog uses, and map the system-neutral result to this campaign-system's cover
+// tier. Returns { name, block } or null (no grid / same cell / no cover / cover off). Local + advisory: reads state,
+// mutates nothing, sends nothing on the wire; host and client both run the identical fogcore + coverTier.
+function coverBetween(x1, y1, x2, y2) {
+    var map = activeMap(), camp = activeCamp(), C = core(); if (!map || !C) return null;
+    var grid = gridForMap(map); if (!grid) return null;                 // gridless with no assigned cell → can't measure cover
+    var a = C.cellOf(x1, y1, grid), b = C.cellOf(x2, y2, grid);
+    if (C.cellKey(a, grid) === C.cellKey(b, grid)) return null;         // same cell → no cover
+    var sys = camp && camp.system; if (!sys || !window.wpSystemCore) return null;
+    var cov = C.coverBetween(a, b, grid, blockersFor(map, grid));
+    return window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect);
 }
 // GM clicks a door while in fog mode → flip open/closed on the topmost door under the point. Host-authoritative:
 // save() runs onLocalSave (invalidateVision + resend the map to players); the invalidate+redraw refresh the GM overlay.
@@ -173,7 +190,7 @@ function fogDropIds(recipientId, camp, map) {
 // A cached revealed-key set per (recipient, map): stable during a drag (the recipient's own tokens don't move), so the
 // live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit.
 var _keyCache = Object.create(null);
-function invalidateVision() { _keyCache = Object.create(null); _blockerCache = Object.create(null); }
+function invalidateVision() { _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); }
 function canSeePoint(recipientId, camp, map, x, y) {
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;
@@ -399,7 +416,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, canSeePoint: canSeePoint, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells,
+    fogDropIds: fogDropIds, canSeePoint: canSeePoint, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

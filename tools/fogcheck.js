@@ -14,7 +14,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     try { X = await import(url('fogcore.js')); } catch (e) { err = e; }
     check('module loads in Node with no window', !!X && !err, err && err.message);
     if (!X) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog } = X;
+    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog } = X;
 
     /* ---- square geometry ---- */
     const sq = squareGrid(50);
@@ -125,6 +125,38 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const v = { x: 125, y: 125, range: 6, ruleset: 'dnd' };
         const open = new Set(visibleCells(v, sq, {}).map(c => c.key));   // an open door adds nothing to the set (eligibleBlocker excludes it)
         return open.has('6,2'); })());
+
+    /* ---- cover (line-of-effect between two cells, 1.5.0) ---- */
+    check('coverBetween: no blockers -> nothing blocked, line of effect, coverage 0 (square + hex)', (() => {
+        const s = coverBetween({ c: 2, r: 2 }, { c: 8, r: 2 }, sq, null);
+        const s2 = coverBetween({ c: 2, r: 2 }, { c: 8, r: 2 }, sq, {});
+        const h = coverBetween({ q: 0, r: 0 }, { q: 4, r: 0 }, hx, {});
+        return s.blocked === 0 && s.coverage === 0 && s.lineOfEffect === true && s.lines === 4
+            && s2.blocked === 0 && s2.lineOfEffect === true && h.blocked === 0 && h.lines === 6; })());
+    check('coverBetween: same cell -> no cover', (() => coverBetween({ c: 3, r: 3 }, { c: 3, r: 3 }, sq, { '3,3': 1 }).blocked === 0)());
+    check('coverBetween: a wall fully across the line -> total cover (no line of effect, coverage kept < 1)', (() => {
+        const blk = { '5,1': 1, '5,2': 1, '5,3': 1 };
+        const c = coverBetween({ c: 2, r: 2 }, { c: 8, r: 2 }, sq, blk);
+        return c.lineOfEffect === false && c.blocked === c.lines && c.coverage < 1 && c.coverage > 0.9; })());
+    check('coverBetween: a blocker off the line -> no cover', (() =>
+        coverBetween({ c: 2, r: 2 }, { c: 8, r: 2 }, sq, { '5,8': 1 }).blocked === 0)());
+    check('coverBetween: a single blocker mid-beam -> PARTIAL (graded) cover, line of effect kept', (() => {
+        const c = coverBetween({ c: 2, r: 2 }, { c: 6, r: 8 }, sq, { '4,5': 1 });
+        return c.blocked > 0 && c.blocked < c.lines && c.lineOfEffect === true; })());
+    check('coverBetween: is direction-symmetric', (() => {
+        const blk = { '5,2': 1, '4,5': 1 };
+        const ab = coverBetween({ c: 2, r: 2 }, { c: 6, r: 8 }, sq, blk);
+        const ba = coverBetween({ c: 6, r: 8 }, { c: 2, r: 2 }, sq, blk);
+        return ab.coverage === ba.coverage && ab.lineOfEffect === ba.lineOfEffect; })());
+    check('coverBetween: hex grades too (a mid-line blocker gives some cover)', (() => {
+        const a = { q: 0, r: 0 }, b = { q: 5, r: 0 }, ca = cellCenter(a, hx), cb = cellCenter(b, hx);
+        const mid = cellOf((ca.x + cb.x) / 2, (ca.y + cb.y) / 2, hx), blk = {}; blk[cellKey(mid, hx)] = 1;
+        const c = coverBetween(a, b, hx, blk);
+        return c.lines === 6 && c.blocked > 0; })());
+    check('cellCorners: 4 on square, 6 on hex, each inside its own cell', (() => {
+        const sc = cellCorners({ c: 2, r: 2 }, sq), hc = cellCorners({ q: 1, r: 1 }, hx);
+        const sIn = sc.every(p => cellKey(cellOf(p.x, p.y, sq), sq) === '2,2');
+        return sc.length === 4 && hc.length === 6 && sIn; })());
 
     /* ---- union + revealed test + manual ---- */
     check('revealedKeys unions viewers and applies manual adds/cuts; pointRevealed tests a board point', (() => {

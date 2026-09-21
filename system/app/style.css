@@ -166,7 +166,7 @@
   .tool.modal-close:hover { color: var(--gold); }
   .tool.on{background:var(--gold);color:#1a1a1a;border-color:var(--gold);font-weight:700}
   .tool.danger:hover{border-color:var(--red);color:var(--red)}
-  .save-note{font-size:11px;color:var(--faint);letter-spacing:.04em;white-space:nowrap}
+  .save-note{font-size:11px;color:var(--faint);letter-spacing:.04em;white-space:nowrap;min-width:184px}
   .save-note b{color:var(--green)}
 
   /* ---- main ---- */

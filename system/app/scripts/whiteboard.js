@@ -404,7 +404,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
                   var travelHint = r.targetMapId ? destLine + '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>' : '';
 
-                  var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; max-height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
+                  var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
                   tt.innerHTML = '<div class="room" style="border-left-color:'+c.color+'; margin:0; pointer-events:none;">' +
 
@@ -440,10 +440,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       tt.style.left = (e.clientX - wrapBox.left + document.getElementById('whiteboardWrap').scrollLeft + 20) + 'px';   // clear of the pointer (a hand cursor is ~24px)
 
                       tt.style.top = (e.clientY - wrapBox.top + document.getElementById('whiteboardWrap').scrollTop + 28) + 'px';
-                      // keep the card on screen: flip to the left of the pointer, or above it, when the edge is near
-                      var ttR = tt.getBoundingClientRect(), ttW = window.innerWidth, ttH = window.innerHeight;
-                      var _sL = document.getElementById('whiteboardWrap').scrollLeft, _pX = e.clientX - wrapBox.left + _sL; var _L = (ttR.right > ttW - 8) ? (_pX - ttR.width - 14) : (_pX + 20); tt.style.left = Math.max(_sL + 8, Math.min(_L, _sL + wrapBox.width - ttR.width - 8)) + 'px';   // flip near the right edge, then clamp into the VISIBLE content range (account for wrap scroll)
-                      var _sT = document.getElementById('whiteboardWrap').scrollTop, _pY = e.clientY - wrapBox.top + _sT; var _T = (ttR.bottom > ttH - 8) ? (_pY - ttR.height - 14) : (_pY + 28); _T = Math.max(_sT + 8, Math.min(_T, _sT + wrapBox.height - 8 - Math.min(ttR.height, wrapBox.height - 16))); tt.style.top = _T + 'px'; if (tt.firstElementChild) tt.firstElementChild.style.maxHeight = (_sT + wrapBox.height - _T - 8) + 'px';   // clamp top into the visible range, then cap the card's height to the space below it so a tall card (or one whose image is still loading) can never spill past the board
+                      // keep the card inside the board: cap its width+height to the visible board, then flip left/above and clamp when a BOARD edge is near (measured against the board, not the window). The portrait's height is reserved (height:90px) so this measure never goes stale when the image finishes loading.
+                      var _card = tt.firstElementChild; if (_card) { _card.style.maxWidth = Math.min(320, wrapBox.width - 16) + 'px'; _card.style.maxHeight = (wrapBox.height - 16) + 'px'; } var ttR = tt.getBoundingClientRect();
+                      var _sL = document.getElementById('whiteboardWrap').scrollLeft, _pX = e.clientX - wrapBox.left + _sL; var _cw = ttR.width; var _L = (_pX + 20 + _cw > _sL + wrapBox.width - 8) ? (_pX - _cw - 14) : (_pX + 20); tt.style.left = Math.max(_sL + 8, Math.min(_L, _sL + wrapBox.width - _cw - 8)) + 'px';   // flip near the right edge, then clamp into the VISIBLE content range (account for wrap scroll)
+                      var _sT = document.getElementById('whiteboardWrap').scrollTop, _pY = e.clientY - wrapBox.top + _sT; var _ch = ttR.height; var _T = (_pY + 28 + _ch > _sT + wrapBox.height - 8) ? (_pY - _ch - 14) : (_pY + 28); tt.style.top = Math.max(_sT + 8, Math.min(_T, _sT + wrapBox.height - _ch - 8)) + 'px';   // clamp top into the visible board range (flips above the pointer when the bottom edge is near)
 
                   }
 

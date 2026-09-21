@@ -3574,12 +3574,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var batchBtn = e.target.closest('.img-cell-batch');
       if (batchBtn) { e.stopPropagation(); var copies = []; for (var ci = 0; ci < castBatch(); ci++) copies.push(batchBtn.dataset.src); placeImagesBlock(copies); return; }
       if (cell.classList.contains('cast-cell')) {
-          var five = e.target.closest('.cast-cell-five');
-          var amC = getActiveMap();
-          if (!amC || amC.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
-          var ctr = viewCentre();
-          castPlace(cell.dataset.cid, ctr.x, ctr.y, five ? castBatch() : 1);
-          document.getElementById('imgLibModal').style.display = 'none';
+          if (e.target.closest('.cast-cell-five')) { placeCast(cell.dataset.cid, castBatch()); return; }   // the × button still places straight away
+          openCastPreview(cell.dataset.cid);   // a bare click just LOOKS now (like a picture); placing is the Add / × button
           return;
       }
       openImgPreview(cell.dataset.src);   // a large look first; Add to map (or Use this picture) is a deliberate press
@@ -3601,7 +3597,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       else { add.textContent = _imgLibPick ? 'Use this picture' : (castBatch() > 1 ? 'Add \u00d7' + castBatch() + ' to map' : 'Add to map'); add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map (the number in Copies)'; }
       if (catBtn) catBtn.style.display = _imgLibPicker ? 'none' : '';
       if (delBtn) delBtn.style.display = _imgLibPicker ? 'none' : '';
-      pv.dataset.src = src;
+      pv.dataset.src = src; delete pv.dataset.cid;   // leaving cast mode: the Add button reads src, not a stale cid
       grid.style.display = 'none'; pv.style.display = 'flex';
       // arrows step through the pictures in the order the grid shows them
       var listN = imgPreviewList(), at = listN.indexOf(src);
@@ -3625,8 +3621,40 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var pv = document.getElementById('imgLibPreview'), grid = document.getElementById('imgLibGrid'); if (!pv || !grid) return;
       pv.style.display = 'none'; grid.style.display = '';
       document.getElementById('imgLibPreviewImg').removeAttribute('src');
+      delete pv.dataset.cid;
   }
   window.wpCloseImgPreview = closeImgPreview;
+  // A cast face opens the same preview panel as a picture, in a cast mode: the portrait (or a coloured disc for a
+  // circle token), the name and stat line, and an "Add to map" that drops the number in Copies. Placing a cast token
+  // is no longer a bare click (that just looks now, like a picture) — it is a deliberate Add / × button press.
+  function castOnMap() { var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return false; } return true; }
+  function placeCast(cid, count) {
+      if (!castOnMap()) return;
+      var ctr = viewCentre();
+      castPlace(cid, ctr.x, ctr.y, count);
+      closeImgPreview();   // reset to the grid so reopening the library doesn't show a stale preview
+      document.getElementById('imgLibModal').style.display = 'none';
+  }
+  function openCastPreview(cid) {
+      var camp = getActiveCampaign(), c = camp && castOf(camp)[cid]; if (!c) return;
+      var pv = document.getElementById('imgLibPreview'), grid = document.getElementById('imgLibGrid'); if (!pv || !grid) return;
+      pv.dataset.cid = cid; delete pv.dataset.src;
+      document.getElementById('imgLibPreviewImg').src = c.src ? encodeURI(c.src)
+          : 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><circle cx="60" cy="60" r="52" fill="' + (c.color || '#4db3d3') + '"/></svg>');
+      document.getElementById('imgLibPreviewName').textContent = c.name || 'Character';
+      document.getElementById('imgLibPreviewMeta').innerHTML = '<div style="color:var(--gold);">★ Campaign Cast</div>' + (c.charStats ? '<div>' + esc(c.charStats) + '</div>' : '<div style="color:var(--dim);">No stat line</div>');
+      var add = document.getElementById('imgLibPreviewAdd');
+      add.textContent = castBatch() > 1 ? 'Add ×' + castBatch() + ' to map' : 'Add to map';
+      add.title = 'Place ' + (c.name || 'this character') + ' on the current play map (the number in Copies)';
+      var catBtn = document.getElementById('imgLibPreviewCat'), delBtn = document.getElementById('imgLibPreviewDel');
+      if (catBtn) catBtn.style.display = 'none';
+      if (delBtn) delBtn.style.display = 'none';
+      var prevB = document.getElementById('imgLibPrevBtn'), nextB = document.getElementById('imgLibNextBtn'), cnt = document.getElementById('imgLibPreviewCount');
+      if (prevB) prevB.disabled = true;
+      if (nextB) nextB.disabled = true;
+      if (cnt) cnt.textContent = '';
+      grid.style.display = 'none'; pv.style.display = 'flex';
+  }
   (function wireImgPreview() {
       var pv = document.getElementById('imgLibPreview'); if (!pv) return;
       document.getElementById('imgLibPreviewBack').addEventListener('click', closeImgPreview);
@@ -3662,6 +3690,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           else if (e.key === 'ArrowRight') { e.preventDefault(); imgPreviewStep(1); }
       });
       document.getElementById('imgLibPreviewAdd').addEventListener('click', function() {
+          if (pv.dataset.cid) { placeCast(pv.dataset.cid, castBatch()); return; }   // cast mode: Add drops the number in Copies
           var src = pv.dataset.src; if (!src) return;
           if (_imgLibPicker) {   // bring it in; with a block waiting, hand it over as well
               var cbP = _imgLibPick; bringPictures([src]);
@@ -4732,8 +4761,8 @@ function castLibraryHtml(filter) {
     var q = (filter || '').toLowerCase();
     var list = Object.values(castOf(camp)).filter(function(c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
     if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
-    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face to place one at the centre of your view, its \u00d7 button for the number set in Copies</span></div>'
-        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + '">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
+    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face for a closer look, then Add it; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
+        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
         + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
 function viewCentre() {

@@ -3417,8 +3417,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (!_imgIndex) buildImgIndex();
       // players' journals live under images/journal/ — not campaign art, keep them out of the library
       _imgLibCache = _imgLibCache.filter(notJournal);
-      // The Campaign Cast shows inside a shelf category (the tutorial's "Default") and nowhere else
-      grid.dataset.cast = (!_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && !!(_imgLibCat && isShelved(_imgLibCat))) ? '1' : '';
+      // The Campaign Cast shows inside a shelf category (the tutorial's "Default") and nowhere else — and only under THIS campaign's own scope, never the Shared/Unfiled/All-campaigns views (the cast is a per-campaign store with no picture category/scope tags, so a scope chip can't filter it).
+      grid.dataset.cast = (!_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && !!(_imgLibCat && isShelved(_imgLibCat))) ? '1' : '';
       var q = (filter || '').toLowerCase();
       renderImgCats(); renderImgSource();
       var shelf = shelfApplies(), byMap = _imgLibCat === '__bymap';

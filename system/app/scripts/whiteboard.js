@@ -1803,7 +1803,7 @@ window.wpFitToGrid = fitToGrid;
       var atTable = window.wpNet && window.wpNet.active && (hosting || window.wpNet.role === 'client');   // players see the party too, read-only
       var present = {};
       if (atTable) Object.values(window.wpNet.roster || {}).forEach(function(p) { if (p && p.id) present[p.id] = true; });
-      strip.title = atTable && !hosting
+      strip.dataset.tip = atTable && !hosting
           ? 'The party — everyone at the table. The highlighted ones are on this map: click to find them, right-click to target.'
           : 'Your players\' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map.';
       // Connected players without a token yet: their table picture, or a chip with their name
@@ -1826,9 +1826,9 @@ window.wpFitToGrid = fitToGrid;
           var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '');
           var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (c.noToken ? ' \u2014 no token yet' : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
-          if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" title="' + esc(tip) + '">';
+          if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
           var ini = String(c.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
-          return '<span class="' + cls + ' party-ini" data-key="' + esc(c.key) + '" title="' + esc(tip) + '">' + esc(ini) + '</span>';
+          return '<span class="' + cls + ' party-ini" data-key="' + esc(c.key) + '" data-tip="' + esc(tip) + '">' + esc(ini) + '</span>';
       }).join('');
   }
   window.wpRenderPartyStrip = renderPartyStrip;

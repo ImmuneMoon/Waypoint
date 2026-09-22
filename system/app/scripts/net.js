@@ -1238,7 +1238,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
         if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) {} }
         return false;
     }
-    if (portal.hidden || !(portal.nodeId || portal.targetMapId)) return false;
+    if ((portal.hidden && !portal.trap) || !(portal.nodeId || portal.targetMapId)) return false;   // a hidden decorative portal stays inert; a hidden TRAP still fires (playerLock below still applies)
     // The item's own portal target, else its linked room's
     var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (fromMap.rooms || []).find(function(r) { return r.id === portal.nodeId; });
     if (!pRoom || !pRoom.targetMapId || !tCamp.items[pRoom.targetMapId]) return false;
@@ -1320,7 +1320,7 @@ function portalUnder(item, map) {
     var cx = item.x + (item.w || 0) / 2, cy = item.y + (item.h || 0) / 2, iw = item.w || 60, ih = item.h || 52;
     var best = null, bestArea = Infinity;
     map.whiteboard.forEach(function(o) {
-        if (o.id === item.id || !(o.nodeId || o.targetMapId) || o.hidden) return;
+        if (o.id === item.id || !(o.nodeId || o.targetMapId) || (o.hidden && !o.trap)) return;   // a hidden TRAP portal still catches a token that lands on it
         var ow = o.w || 0, oh = o.h || 0;
         // resting on the portal: the token's centre inside it, or at least a third of the token overlapping it
         // (hex seating can park the centre a few pixels outside a tile that is not hex-aligned)
@@ -1370,7 +1370,9 @@ function offlinePlayerTravel(item, map) {
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
     if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
-    var mine = dest.whiteboard.find(function(w) { return w.isChar && w.ownerId === item.ownerId; }), placed = false;
+    var mineAll = dest.whiteboard.filter(function(w) { return w.isChar && w.ownerId === item.ownerId; });
+    if (mineAll.length > 1) mineAll.slice(1).forEach(function(w) { delete w.ownerId; });   // one owned token per map, like ensurePlayerToken / bringPlayerHere
+    var mine = mineAll[0] || null, placed = false;
     if (!mine) {
         mine = JSON.parse(JSON.stringify(item));
         mine.id = 'wb' + Math.random().toString(36).slice(2, 10);

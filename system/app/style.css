@@ -94,6 +94,8 @@
   /* GM's view of a player-hidden item */
   .wb-item.wb-hidden-gm { opacity: 0.55; outline: 2px dashed var(--steel); outline-offset: 2px; }
   .wb-item.wb-hidden-gm::before { content: '\1F441'; position: absolute; top: -12px; left: -12px; font-size: 15px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 100% 100%; }
+  .wb-item.wb-trap::before { content: '\26A0'; color: #ff6b6b; }   /* GM-only: an armed hidden trap portal shows a red warning in place of the eye */
+  .wb-item.wb-trap { outline: 2px dashed rgba(255,107,107,0.8); outline-offset: -2px; }
   /* GM-only cue that a board item blocks sight (a wall). The class is only added for the GM view. */
   .wb-item.wb-blocks-sight { outline: 2px dashed var(--gold); outline-offset: -2px; }
   .wb-item.wb-blocks-sight::after { content: '\1F9F1'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 0% 100%; }

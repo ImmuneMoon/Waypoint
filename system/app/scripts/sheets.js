@@ -185,10 +185,13 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         body.appendChild(strip);
     }
     var secN = 0;
-    layout.forEach(function(sec) {
-        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== active) return; }   // untabbed/unknown → first tab
+    var byIdSec = {}; layout.forEach(function(x) { byIdSec[x.id] = x; });
+    // one level of nesting: a section is a sub-section only when its parent exists AND is itself top-level (so a grandchild never vanishes — it falls back to top-level)
+    function childParent(sec) { return (sec.parent && byIdSec[sec.parent] && !byIdSec[sec.parent].parent) ? sec.parent : null; }
+    var children = {}; layout.forEach(function(sec) { var p = childParent(sec); if (p) (children[p] = children[p] || []).push(sec); });
+    function renderOneSection(sec, isChild) {
         var collap = !!sec.collapsible;
-        var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : ''));
+        var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
         if (collap) { s.open = (sec.id in _secOpen) ? _secOpen[sec.id] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[sec.id] = s.open; }); }
         var mvv = sec.meta ? all[sec.meta] : null, metaText = '';   // a field's resolved value, shown right-aligned in the header
         if (mvv != null) {
@@ -213,7 +216,17 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
             if (pl.w === 'row') node.classList.add('sheet-row');
             grid.appendChild(node);
         });
-        if (grid.childNodes.length) { s.appendChild(grid); body.appendChild(s); secN++; }
+        var hasOwn = grid.childNodes.length > 0;
+        if (hasOwn) s.appendChild(grid);
+        var kids = 0;
+        if (!isChild && children[sec.id]) children[sec.id].forEach(function(ch) { var ce = renderOneSection(ch, true); if (ce) { s.appendChild(ce); kids++; } });   // sub-sections after the parent's own fields
+        return (hasOwn || kids) ? s : null;
+    }
+    layout.forEach(function(sec) {
+        if (childParent(sec)) return;   // a sub-section: rendered under its parent, not here
+        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== active) return; }   // untabbed/unknown → first tab
+        var secEl = renderOneSection(sec, false);
+        if (secEl) { body.appendChild(secEl); secN++; }
     });
     if (!secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
 }
@@ -257,6 +270,7 @@ function renderLayout() {
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
         top.appendChild(select('sys-sec-collap', [['', 'Fixed'], ['1', 'Collapsible']], sec.collapsible ? '1' : '', 'A collapsible section the reader can fold away'));
         top.appendChild(select('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
+        top.appendChild(select('sys-sec-parent', [['', 'Top level']].concat(secs.filter(function(o) { return o.id !== sec.id && !o.parent; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
         row.appendChild(top);
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
@@ -307,6 +321,7 @@ function onLayoutChange(t) {
     if (c.indexOf('sys-sec-tab') >= 0) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-collap') >= 0) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-parent') >= 0) { if (t.value) sec.parent = t.value; else delete sec.parent; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-pl-add') >= 0) {
         var v = t.value; t.value = ''; if (!v) return true;

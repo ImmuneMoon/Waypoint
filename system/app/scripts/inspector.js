@@ -886,6 +886,24 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     html += '<div class="field"><label for="wbCharName">Character Name</label><input type="text" id="wbCharName" value="'+esc(w.charName||'')+'"></div>';
                     html += '<div class="field"><label for="wbCharStats">Stats / Notes</label><textarea id="wbCharStats">'+esc(w.charStats||'')+'</textarea></div>';
                     if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea></div>';
+                    // Character (roster): the linked roster entry's Info/Background + Reference — one source of truth with the Data Map editor; unlinked → a link-or-create picker. GM only.
+                    var _rEntry = null, _rRoom = null;
+                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) {
+                        (activeMap.rooms || []).some(function(rm) { var c = (rm.characters || []).find(function(x) { return x.id === w.charRef; }); if (c) { _rEntry = c; _rRoom = rm; } return !!c; });
+                        if (_rEntry) {
+                            var _rN = (activeMap.whiteboard || []).filter(function(t) { return t.isChar && t.charRef === _rEntry.id; }).length;
+                            html += '<div class="field"><label>Character (roster)</label>'
+                                + '<div class="muted" style="margin-bottom:4px;">Linked to <b>' + esc(_rEntry.name || '(unnamed)') + '</b>' + (_rRoom && _rRoom.name ? ' in ' + esc(_rRoom.name) : '') + (_rN > 1 ? ' &mdash; shared by ' + _rN + ' tokens' : '') + '. This Info / Reference is the same one the Data Map shows. <a href="#" id="wbRosterUnlink">Unlink</a></div>'
+                                + '<textarea id="wbRosterInfo" placeholder="Info / Background…">' + esc(_rEntry.info || '') + '</textarea>'
+                                + '<input type="text" id="wbRosterRef" placeholder="Reference (dossier path or URL)" value="' + esc(_rEntry.ref || '') + '" style="font-weight:normal; font-size:11px; margin-top:4px;"></div>';
+                        } else {
+                            var _rOpts = '';
+                            (activeMap.rooms || []).forEach(function(rm) { (rm.characters || []).forEach(function(c) { _rOpts += '<option value="' + esc(c.id) + '">' + esc(c.name || '(unnamed)') + (rm.name ? ' — ' + esc(rm.name) : '') + '</option>'; }); });
+                            html += '<div class="field"><label for="wbRosterLink">Character (roster)</label>'
+                                + '<div class="muted" style="margin-bottom:4px;">Not linked to a roster character. Link it to share one Info / Background / Reference with the Data Map.</div>'
+                                + '<select id="wbRosterLink"><option value="">— Link to a character… —</option>' + _rOpts + '<option value="__new">+ New character from this token</option></select></div>';
+                        }
+                    }
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
                         [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((w.front && [0, 90, 180, 270].indexOf(w.front) < 0) ? [[w.front, w.front + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + ((w.front || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
                     html += '<div class="field"><label for="wbFaceMode">Turning</label><select id="wbFaceMode"><option value="art"' + (w.faceMode !== 'arrow' ? ' selected' : '') + '>Art turns with the arrow</option><option value="arrow"' + (w.faceMode === 'arrow' ? ' selected' : '') + '>Arrow only (art stays upright)</option></select></div>';
@@ -1097,6 +1115,24 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 var wbCharStats = document.getElementById('wbCharStats');
                 if(wbCharStats) wbCharStats.addEventListener('input', function() { w.charStats = this.value; save(); });
                 var wbGmInfo = document.getElementById('wbGmInfo'); if (wbGmInfo) wbGmInfo.addEventListener('input', function() { w.gmInfo = this.value || undefined; save(); });
+                var wbRosterInfo = document.getElementById('wbRosterInfo'); if (wbRosterInfo) wbRosterInfo.addEventListener('input', function() { if (_rEntry) { _rEntry.info = this.value; save(); } });   // writes the linked roster character's Info/Background — one source of truth with the Data Map
+                var wbRosterRef = document.getElementById('wbRosterRef'); if (wbRosterRef) wbRosterRef.addEventListener('input', function() { if (_rEntry) { _rEntry.ref = this.value || undefined; save(); } });
+                var wbRosterUnlink = document.getElementById('wbRosterUnlink'); if (wbRosterUnlink) wbRosterUnlink.addEventListener('click', function(e) { e.preventDefault(); delete w.charRef; save(); renderInspector(); });
+                var wbRosterLink = document.getElementById('wbRosterLink'); if (wbRosterLink) wbRosterLink.addEventListener('change', function() {
+                    var v = this.value; if (!v) return;
+                    if (v === '__new') {
+                        var room = (w.nodeId && (activeMap.rooms || []).find(function(x) { return x.id === w.nodeId; })) || (activeMap.rooms || [])[0];
+                        if (!room) { import('./io.js').then(function(m) { m.toast('This map has no room to hold a character — add one on the Data Map first.'); }); this.value = ''; return; }
+                        room.characters = room.characters || [];
+                        var nc = { id: uid(), name: w.charName || w.name || 'New Character', info: '' };
+                        room.characters.push(nc); w.charRef = nc.id;
+                    } else {
+                        w.charRef = v;
+                        var linked = null; (activeMap.rooms || []).some(function(rm) { var c = (rm.characters || []).find(function(x) { return x.id === v; }); if (c) linked = c; return !!c; });
+                        if (linked && linked.name && (!w.charName || w.charName === 'New Character')) w.charName = linked.name;
+                    }
+                    save(); render(); renderInspector();
+                });
                 var wbElev = document.getElementById('wbElev');
                 if (wbElev) wbElev.addEventListener('change', function() { window.wpStance.setElevation(w, this.value); this.value = window.wpStance.tokenElevation(w); save(); renderWhiteboard(); });
                 var wbPosture = document.getElementById('wbPosture');

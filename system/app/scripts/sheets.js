@@ -168,11 +168,23 @@ function renderSheet() {
     if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
     restoreFocus(body, fk);
 }
+var _sheetTab = '';   // active layout tab (Stage 1); persists across re-renders, resets to the first when invalid
 function buildSections(body, sys, c, all, gm, own) {   // the sheet's sections into a container: the panel, and the Layout tab's preview
-    var layout = sys.sheet && sys.sheet.sections && sys.sheet.sections.length ? sys.sheet.sections : autoLayout(sys).sections;
+    var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
+    var layout = sheet.sections || [];
+    var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
+    var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
+    if (tabs) {
+        if (tabIds.indexOf(_sheetTab) < 0) _sheetTab = tabIds[0];
+        var strip = el('div', 'sheet-tabs');
+        tabs.forEach(function(t) { var tb = el('button', 'sheet-tab' + (t.id === _sheetTab ? ' active' : ''), t.label || 'Tab'); tb.addEventListener('click', function() { if (_sheetTab !== t.id) { _sheetTab = t.id; renderSheet(); } }); strip.appendChild(tb); });
+        body.appendChild(strip);
+    }
+    var secN = 0;
     layout.forEach(function(sec) {
+        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== _sheetTab) return; }   // untabbed/unknown → first tab
         var s = el('div', 'sheet-section');
         if (sec.title) s.appendChild(el('div', 'sheet-sec-title', sec.title));
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
@@ -187,12 +199,13 @@ function buildSections(body, sys, c, all, gm, own) {   // the sheet's sections i
             if (pl.w === 'row') node.classList.add('sheet-row');
             grid.appendChild(node);
         });
-        if (grid.childNodes.length) { s.appendChild(grid); body.appendChild(s); }
+        if (grid.childNodes.length) { s.appendChild(grid); body.appendChild(s); secN++; }
     });
-    if (!body.childNodes.length) body.appendChild(el('div', 'sys-empty', sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.'));
+    if (!secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
 }
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
-function layoutSections() { if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] }; return draft.sheet.sections; }
+function layoutSections() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.sections)) draft.sheet.sections = []; return draft.sheet.sections; }
+function layoutTabs() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.tabs)) draft.sheet.tabs = []; return draft.sheet.tabs; }
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
@@ -205,12 +218,29 @@ function renderLayout() {
     draft.fields.forEach(function(f) { byId[f.id] = f; }); draft.rolls.forEach(function(r) { rollById[r.id] = r; });
     secs.forEach(function(s) { (s.fields || []).forEach(function(p) { if (p.id) placed[p.id] = 1; }); });
     root.textContent = '';
+    // Tabs (optional, Stage 1): group sections into a tab strip on the sheet. No tabs = one stacked page.
+    var tabs = layoutTabs();
+    var tabBox = el('div', 'sys-tabmgr');
+    tabBox.appendChild(el('div', 'sys-tabmgr-head', 'Tabs (optional)'));
+    if (!tabs.length) tabBox.appendChild(el('div', 'sys-hint', 'No tabs — the sections stack as one page. Add a tab to group them into a tab strip on the sheet; each section then picks its tab.'));
+    tabs.forEach(function(tb) {
+        var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
+        var tmain = el('div', 'sys-row-main');
+        tmain.appendChild(input('sys-tab-label field', tb.label, 'This tab\'s label on the sheet', 'Tab label'));
+        tmain.appendChild(btnRow([['tabup', 'Move this tab left', '&#9650;'], ['tabdown', 'Move this tab right', '&#9660;'], ['tabdel', 'Remove this tab (its sections move to the first tab)', '&times;']]));
+        tr.appendChild(tmain);
+        tabBox.appendChild(tr);
+    });
+    var addTab = el('button', 'tool ghost sys-btn', '+ Add tab'); addTab.id = 'sysAddTab';
+    tabBox.appendChild(addTab);
+    root.appendChild(tabBox);
     if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
         var top = el('div', 'sys-row-main');
         top.appendChild(input('sys-sec-title field', sec.title, 'The section\'s title on the sheet (empty = none)', 'Section title'));
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
+        if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
         row.appendChild(top);
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
@@ -245,7 +275,9 @@ function renderPreview() {
     buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false);
 }
 function onLayoutInput(t) {
-    var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
+    var c = t.className || '';
+    if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); renderPreview(); } } return true; }
+    var lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
@@ -256,6 +288,7 @@ function onLayoutInput(t) {
 function onLayoutChange(t) {
     var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
+    if (c.indexOf('sys-sec-tab') >= 0) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-pl-add') >= 0) {
         var v = t.value; t.value = ''; if (!v) return true;
@@ -274,8 +307,19 @@ function onLayoutChange(t) {
 function onLayoutClick(b) {
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
     if (b.id === 'sysLayoutAuto') { var cl = cleanSystem(draft, { F: F(), gmView: true }); draft.sheet = { sections: autoLayout(cl || draft).sections }; markDirty(); renderLayout(); toast('The automatic layout is now yours to change.'); return true; }
-    if (b.id === 'sysLayoutClear') { if (!layoutSections().length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls).', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
+    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls).', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
+    if (b.id === 'sysAddTab') { var tbs0 = layoutTabs(); if (tbs0.length >= LIMITS.tabs) { toast('At most ' + LIMITS.tabs + ' tabs.'); return true; } tbs0.push({ id: uid('t_'), label: 'Tab ' + (tbs0.length + 1) }); markDirty(); renderLayout(); return true; }
     var act = b.dataset.act; if (!act) return false;
+    var ltab = b.closest('.sys-tab');
+    if (ltab) {
+        var tbs = layoutTabs(), ti = -1; tbs.forEach(function(x, i) { if (x.id === ltab.dataset.tid) ti = i; }); if (ti < 0) return true;
+        var tb = tbs[ti];
+        if (act === 'tabup' && ti > 0) { tbs.splice(ti, 1); tbs.splice(ti - 1, 0, tb); }
+        else if (act === 'tabdown' && ti < tbs.length - 1) { tbs.splice(ti, 1); tbs.splice(ti + 1, 0, tb); }
+        else if (act === 'tabdel') { tbs.splice(ti, 1); layoutSections().forEach(function(s) { if (s.tab === tb.id) delete s.tab; }); }
+        else return true;
+        markDirty(); renderLayout(); return true;
+    }
     var lsec = b.closest('.sys-sec'); if (!lsec) return false;
     var secs = layoutSections(), si = -1; secs.forEach(function(s, i) { if (s.id === lsec.dataset.sid) si = i; }); if (si < 0) return true;
     var sec = secs[si], plr = b.closest('.sys-pl');

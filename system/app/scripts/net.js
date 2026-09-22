@@ -74,12 +74,21 @@ function getProfile() {
     }
     return p;
 }
-function setProfileName(name) {
+// Merge a patch into the local profile, keeping the id stable and validating each field the same
+// way the host does on the wire (so what we store is always safe to send). Designed to grow: a
+// future website account can adopt this shape without a migration.
+function setProfile(patch) {
     var p = getProfile();
-    p.name = name;
+    if (patch && typeof patch === 'object') {
+        if (typeof patch.name === 'string') p.name = patch.name.slice(0, 40);
+        if (typeof patch.color === 'string') { if (/^#[0-9a-fA-F]{6}$/.test(patch.color)) p.color = patch.color; else if (patch.color === '') delete p.color; }
+        if (typeof patch.avatar === 'string') { if (/^data:image\/(png|jpe?g|webp|gif);base64,/.test(patch.avatar) && patch.avatar.length <= 200000) p.avatar = patch.avatar; else if (patch.avatar === '') delete p.avatar; }
+    }
     try { localStorage.setItem('wp_profile', JSON.stringify(p)); } catch (e) {}
     return p;
 }
+function setProfileName(name) { return setProfile({ name: String(name == null ? '' : name) }); }
+net.getProfile = getProfile; net.setProfile = setProfile; net.setProfileName = setProfileName;   // for the Settings + welcome profile editor
 net.myId = getProfile().id;
 
 /* ---------- ui helpers ---------- */
@@ -182,12 +191,12 @@ net.playersOnMap = function(mapId) {
     if (!mapId) return [];
     var out = [], seen = {};
     Object.values(net.roster || {}).forEach(function(p) {
-        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id) }); seen[p.id] = 1; }
+        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null }); seen[p.id] = 1; }
     });
     var camp = getActiveCampaign();
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) {
         var rec = camp.players[pid];
-        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid) });
+        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null });
     });
     return out;
 };
@@ -213,7 +222,7 @@ function renderRoster() {
                 var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
                 var face = avOk
                     ? '<img class="roster-avatar" src="' + p.avatar + '" alt="">'
-                    : '<span class="roster-dot" style="background:hsl(' + playerHue(p.id) + ',55%,60%);">' + initials + '</span>';
+                    : '<span class="roster-dot" style="background:' + (p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) + ';">' + initials + '</span>';
                 var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
                     ? '<button class="roster-summon" data-summon="' + peerKey + '" title="Summon this player to the map you are on">&#128227;</button>' +
@@ -1998,6 +2007,8 @@ function handleMessage(msg, conn) {
         if (prof.avatar && !(typeof prof.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(prof.avatar) && prof.avatar.length <= 200000)) {
             delete prof.avatar;
         }
+        prof.name = (typeof prof.name === 'string' && prof.name.trim()) ? prof.name.slice(0, 40) : 'Player';   // cap a peer-supplied name
+        if (prof.color && !/^#[0-9a-fA-F]{6}$/.test(prof.color)) delete prof.color;                            // a chosen roster colour, hex only
         // Version gate first: an out-of-date player gets the update message, not a password prompt
         if (APP_VERSION) {
             var theirV = (typeof msg.version === 'string') ? msg.version : null;
@@ -3173,12 +3184,25 @@ if (_netBtn) _netBtn.addEventListener('click', function() {
 });
 var _netClose = ui('netCloseBtn');
 if (_netClose) _netClose.addEventListener('click', function() { ui('netModal').style.display = 'none'; });
+// Required identity: a name must be set (typed here or saved in Settings) before hosting or joining,
+// so every player is known by a stable name at the table.
+function ensureNamed() {
+    var el = ui('netNameInput');
+    var typed = (el && el.value || '').trim();
+    if (typed) { setProfileName(typed); return true; }
+    if ((getProfile().name || '').trim()) return true;
+    toast('Enter your name first — that is how players know you at the table.');
+    if (el && el.offsetParent !== null) el.focus();
+    else if (window.wpOpenSettings) window.wpOpenSettings('profile', 'setNameInput');
+    return false;
+}
 var _hostBtn = ui('netHostBtn');
-if (_hostBtn) _hostBtn.addEventListener('click', function() { startHosting(false); });   // (passing the event made every host "force fresh": the old code was never resumed)
+if (_hostBtn) _hostBtn.addEventListener('click', function() { if (!ensureNamed()) return; startHosting(false); });   // (passing the event made every host "force fresh": the old code was never resumed)
 var _joinBtn = ui('netJoinBtn');
 if (_joinBtn) _joinBtn.addEventListener('click', function() {
     var code = (ui('netCodeInput').value || '').trim();
     if (code.length < 4) { toast('Enter the room code.'); return; }
+    if (!ensureNamed()) return;
     joinSession(code, (ui('netNameInput').value || '').trim());
 });
 var _leaveBtn = ui('netLeaveBtn');

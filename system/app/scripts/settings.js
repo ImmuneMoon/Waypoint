@@ -57,8 +57,8 @@ function renderAvatarPreview() {
     ['setAvatarPreview', 'netJoinAvatar'].forEach(function(id) {
         var el = ui(id);
         if (!el) return;
-        if (p.avatar) el.innerHTML = '<img src="' + p.avatar + '" alt="">';
-        else el.textContent = initials;
+        if (p.avatar) { el.innerHTML = '<img src="' + p.avatar + '" alt="">'; el.style.background = ''; }
+        else { el.textContent = initials; el.style.background = p.color || ''; }
     });
 }
 
@@ -67,6 +67,8 @@ function syncPanel() {
     var p = getProfile();
     var nameIn = ui('setNameInput');
     if (nameIn) nameIn.value = p.name || '';
+    var colIn = ui('setColorInput');
+    if (colIn) colIn.value = p.color || '#7aa7ff';
     renderAvatarPreview();
     document.querySelectorAll('.set-unit-btn').forEach(function(b) {
         b.classList.toggle('active', b.dataset.unit === (state.measureUnit || 'imperial'));
@@ -121,6 +123,11 @@ if (_nameIn) _nameIn.addEventListener('change', function() {
     renderAvatarPreview();
     toast('Name saved.');
 });
+
+var _colIn = ui('setColorInput');
+if (_colIn) _colIn.addEventListener('input', function() { var p = getProfile(); p.color = this.value; saveProfile(p); renderAvatarPreview(); });
+var _colClear = ui('setColorClearBtn');
+if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic colour.'); });
 
 var _avBtn = ui('setAvatarBtn');
 if (_avBtn) _avBtn.addEventListener('click', function() { ui('setAvatarFile').click(); });

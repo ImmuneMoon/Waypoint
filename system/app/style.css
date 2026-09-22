@@ -1658,6 +1658,16 @@
   .sheet-pick { max-width: 150px; padding: 2px 6px; font-size: 11px; }
   #sheetPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
   #sheetBody { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }
+  /* Character-sheet layout tabs (Stage 1): the on-sheet tab strip + the System-editor Tabs manager */
+  .sheet-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid var(--edge); }
+  .sheet-tab { font: inherit; font-size: 12.5px; padding: 7px 14px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--dim); cursor: pointer; margin-bottom: -1px; }
+  .sheet-tab:hover { color: var(--ink); }
+  .sheet-tab.active { color: var(--gold); border-bottom-color: var(--gold); font-weight: 600; }
+  .sys-tabmgr { border: 1px dashed var(--edge); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+  .sys-tabmgr-head { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+  .sys-tabmgr .sys-hint { font-size: 11px; color: var(--dim); line-height: 1.4; }
+  .sys-tabmgr .sys-tab { margin-top: 6px; border-left-color: rgba(122,167,255,0.55); }
+  .sys-tab-label { width: 200px; }
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
   .sheet-sec-title { color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
   .sheet-grid { display: grid; gap: 6px 10px; }

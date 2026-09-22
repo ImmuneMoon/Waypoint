@@ -9,7 +9,7 @@
 
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
-    fields: 300, rolls: 50, sections: 20, placements: 200, options: 50, optionChars: 60,
+    fields: 300, rolls: 50, sections: 20, tabs: 12, placements: 200, options: 50, optionChars: 60,
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
     text: 200, notes: 20000, name: 60, charName: 60, names: 200,
     items: 200, carried: 100, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5)
@@ -23,7 +23,7 @@ var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill
 var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1 });
 var RESERVED_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1 });
 var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, sqrt: 1, min: 1, max: 1, clamp: 1, mod: 1, 'if': 1, and: 1, or: 1, not: 1, 'true': 1, 'false': 1 });
-var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
+var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 }), ITEM_OP = Object.freeze({ add: 1, remove: 1, setQty: 1 });
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
 var CTRL_KEEP_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
@@ -175,13 +175,24 @@ function cleanCombat(c, resIds) {
     return out;
 }
 function cleanSheet(sheet, fieldIds, rollIds) {
-    var out = { sections: [] }, placed = map(), total = 0;
-    if (!isObj(sheet) || !Array.isArray(sheet.sections)) return out;
+    var out = { tabs: [], sections: [] }, placed = map(), total = 0, tabIds = map();
+    if (!isObj(sheet)) return out;
+    // Optional named tabs (Stage 1): ordered, labels only for v1. Absent ⇒ sections stack (as before).
+    if (Array.isArray(sheet.tabs)) {
+        for (var t = 0; t < sheet.tabs.length && out.tabs.length < LIMITS.tabs; t++) {
+            var tb = sheet.tabs[t];
+            if (!isObj(tb) || typeof tb.id !== 'string' || !TAB_ID.test(tb.id) || tabIds[tb.id]) continue;
+            tabIds[tb.id] = 1;
+            out.tabs.push({ id: tb.id, label: str(tb.label, LIMITS.label).replace(CTRL_RE, ' ').trim() });
+        }
+    }
+    if (!Array.isArray(sheet.sections)) return out;
     for (var i = 0; i < sheet.sections.length && out.sections.length < LIMITS.sections; i++) {
         var s = sheet.sections[i];
         if (!isObj(s) || typeof s.id !== 'string' || !SECTION_ID.test(s.id)) continue;
         var cols = Math.max(1, Math.min(LIMITS.cols, cleanNum(s.cols, 1) | 0));
         var sec = { id: s.id, title: str(s.title, LIMITS.label).replace(CTRL_RE, ' ').trim(), cols: cols, fields: [] };
+        if (typeof s.tab === 'string' && tabIds[s.tab]) sec.tab = s.tab;   // keep only a tab ref that exists
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;

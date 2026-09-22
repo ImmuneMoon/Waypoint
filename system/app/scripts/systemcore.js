@@ -193,6 +193,9 @@ function cleanSheet(sheet, fieldIds, rollIds) {
         var cols = Math.max(1, Math.min(LIMITS.cols, cleanNum(s.cols, 1) | 0));
         var sec = { id: s.id, title: str(s.title, LIMITS.label).replace(CTRL_RE, ' ').trim(), cols: cols, fields: [] };
         if (typeof s.tab === 'string' && tabIds[s.tab]) sec.tab = s.tab;   // keep only a tab ref that exists
+        if (s.collapsible) sec.collapsible = true;                          // Stage 2: a collapsible <details> section
+        if (s.open === false) sec.open = false;                            // default open; store only an explicit "closed by default"
+        if (typeof s.meta === 'string' && fieldIds[s.meta]) sec.meta = s.meta;   // a field whose value shows in the section header (e.g. a points total)
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;

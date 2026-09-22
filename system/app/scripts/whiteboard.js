@@ -3394,11 +3394,12 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (selBar) selBar.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
           var picked = Object.keys(_imgLibSel);
-          if (b.dataset.act === 'clear') { _imgLibSel = {}; renderImgLib(document.getElementById('imgLibSearch').value); }
+          if (b.dataset.act === 'clear') { _imgLibSel = {}; _castSel = {}; _castLastPick = null; renderImgLib(document.getElementById('imgLibSearch').value); }
           else if (b.dataset.act === 'back') exitPicker(false);
           else if (b.dataset.act === 'bring') bringPictures(picked);
           else if (b.dataset.act === 'add-map') placeImagesBlock(picked);
           else if (b.dataset.act === 'cat') { var r = b.getBoundingClientRect(); openImgCatMenu(picked, r.left, r.top - 4); }
+          else if (b.dataset.act === 'add-cast') placeCastPicked();
       });
       document.addEventListener('keydown', function(e) {   // Ctrl+A in the library picks everything in view
           var modal = document.getElementById('imgLibModal'), pv = document.getElementById('imgLibPreview');
@@ -3419,6 +3420,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       _imgLibCache = _imgLibCache.filter(notJournal);
       // The Campaign Cast shows inside a shelf category (the tutorial's "Default") and nowhere else — and only under THIS campaign's own scope, never the Shared/Unfiled/All-campaigns views (the cast is a per-campaign store with no picture category/scope tags, so a scope chip can't filter it).
       grid.dataset.cast = (!_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && !!(_imgLibCat && isShelved(_imgLibCat))) ? '1' : '';
+      if (!grid.dataset.cast) { _castSel = {}; _castLastPick = null; }   // cast roster hidden: drop any cast picks so a stale count can't linger
       var q = (filter || '').toLowerCase();
       renderImgCats(); renderImgSource();
       var shelf = shelfApplies(), byMap = _imgLibCat === '__bymap';
@@ -3456,6 +3458,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   }
   // Multi-pick: Ctrl-click toggles a picture, Shift-click picks the run from the last one, Ctrl+A picks the view
   var _imgLibSel = {}, _imgLibOrder = [], _imgLibLastPick = null;
+  // Campaign Cast picks live in their own bucket (cast = tokens, not images). Selecting one type clears the other, so the single selection bar always shows a single type.
+  var _castSel = {}, _castOrder = [], _castLastPick = null;
   function renderImgSelBar() {
       var bar = document.getElementById('imgLibSelBar'); if (!bar) return;
       var n = Object.keys(_imgLibSel).length;
@@ -3471,6 +3475,15 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown \u2014 nothing is copied, this campaign remembers them</span>';
           bar.style.display = 'flex'; return;
       }
+      var nCast = Object.keys(_castSel).length;
+      if (nCast && !_imgLibPick) {   // cast picks own the bar (they clear the picture selection, so only one type is ever non-empty)
+          var canC = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
+          bar.innerHTML = '<span style="color:var(--gold);">★ ' + nCast + ' cast picked</span>'
+              + '<button class="tool" data-act="add-cast"' + (canC ? '' : ' disabled title="Open a play map first"') + '>Add ' + nCast + ' to map</button>'
+              + '<button class="tool ghost" data-act="clear">Clear</button>'
+              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run</span>';
+          bar.style.display = 'flex'; return;
+      }
       if (!n || _imgLibPick) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
       var canPlace = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
       bar.innerHTML = '<span style="color:var(--gold);">' + n + ' picked</span>'
@@ -3480,8 +3493,31 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown</span>';
       bar.style.display = 'flex';
   }
+  function castCells() { var g = document.getElementById('imgLibGrid'); return g ? Array.prototype.slice.call(g.querySelectorAll('.cast-cell[data-cid]')) : []; }
+  function castSelSync() { castCells().forEach(function(c) { c.classList.toggle('picked', !!_castSel[c.dataset.cid]); }); }
+  function castSelToggle(cell, e) {
+      var id = cell.dataset.cid; if (!id) return;
+      _imgLibSel = {}; _imgLibLastPick = null;   // picking cast clears the picture selection (one type at a time)
+      Array.prototype.forEach.call(document.querySelectorAll('#imgLibGrid .img-lib-cell[data-src]'), function(c) { c.classList.remove('picked'); });
+      if (e.shiftKey && _castLastPick && _castOrder.indexOf(_castLastPick) >= 0 && _castOrder.indexOf(id) >= 0) {
+          var a = _castOrder.indexOf(_castLastPick), b = _castOrder.indexOf(id);
+          _castOrder.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(q) { _castSel[q] = 1; });
+      } else if (_castSel[id]) delete _castSel[id]; else _castSel[id] = 1;
+      _castLastPick = id;
+      castSelSync();
+      renderImgSelBar();
+  }
+  function placeCastPicked() {
+      var ids = Object.keys(_castSel); if (!ids.length || !castOnMap()) return;
+      var ctr = viewCentre();
+      ids.forEach(function(id, i) { castPlace(id, ctr.x + (i % 4) * 74, ctr.y + Math.floor(i / 4) * 66, 1); });
+      _castSel = {}; _castLastPick = null;
+      closeImgPreview();
+      document.getElementById('imgLibModal').style.display = 'none';
+  }
   function imgSelToggle(cell, e) {
       var p = cell.dataset.src; if (!p) return;
+      _castSel = {}; _castLastPick = null; castSelSync();   // picking a picture clears the cast selection (one type at a time)
       if (e.shiftKey && _imgLibLastPick && _imgLibOrder.indexOf(_imgLibLastPick) >= 0 && _imgLibOrder.indexOf(p) >= 0) {
           var a = _imgLibOrder.indexOf(_imgLibLastPick), b = _imgLibOrder.indexOf(p);
           _imgLibOrder.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(q) { _imgLibSel[q] = 1; });
@@ -3575,6 +3611,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (batchBtn) { e.stopPropagation(); var copies = []; for (var ci = 0; ci < castBatch(); ci++) copies.push(batchBtn.dataset.src); placeImagesBlock(copies); return; }
       if (cell.classList.contains('cast-cell')) {
           if (e.target.closest('.cast-cell-five')) { placeCast(cell.dataset.cid, castBatch()); return; }   // the × button still places straight away
+          if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); castSelToggle(cell, e); return; }   // Ctrl/Cmd/Shift-click multi-selects (its own bucket)
           openCastPreview(cell.dataset.cid);   // a bare click just LOOKS now (like a picture); placing is the Add / × button
           return;
       }
@@ -4760,9 +4797,10 @@ function castLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp) return '';
     var q = (filter || '').toLowerCase();
     var list = Object.values(castOf(camp)).filter(function(c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    _castOrder = list.map(function(c) { return c.id; });   // the shown order, for Shift-click runs
     if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
-    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face for a closer look, then Add it; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
-        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
+    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face for a closer look; Ctrl-click to pick several; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
+        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look; Ctrl-click to pick several">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
         + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
 function viewCentre() {

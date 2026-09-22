@@ -1669,7 +1669,14 @@
   .sys-tabmgr .sys-tab { margin-top: 6px; border-left-color: rgba(122,167,255,0.55); }
   .sys-tab-label { width: 200px; }
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
-  .sheet-sec-title { color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
+  .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
+  .sheet-sec-name { flex: 1; min-width: 0; }
+  .sheet-sec-meta { flex: 0 0 auto; color: var(--dim); font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; font-size: 11px; }
+  .sheet-section.sheet-collap { display: block; }
+  .sheet-section.sheet-collap > summary.sheet-sec-title { cursor: pointer; list-style: none; margin-bottom: 4px; }
+  .sheet-section.sheet-collap > summary.sheet-sec-title::-webkit-details-marker { display: none; }
+  .sheet-section.sheet-collap > summary.sheet-sec-title::after { content: '\25B8'; flex: 0 0 auto; color: var(--dim); transition: transform .12s; }
+  .sheet-section.sheet-collap[open] > summary.sheet-sec-title::after { transform: rotate(90deg); }
   .sheet-grid { display: grid; gap: 6px 10px; }
   .sheet-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .sheet-field.sheet-row { grid-column: 1 / -1; }

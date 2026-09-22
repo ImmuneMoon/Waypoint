@@ -168,6 +168,7 @@ function renderSheet() {
     if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
     restoreFocus(body, fk);
 }
+var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
 function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
     var layout = sheet.sections || [];
@@ -186,8 +187,20 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     var secN = 0;
     layout.forEach(function(sec) {
         if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== active) return; }   // untabbed/unknown → first tab
-        var s = el('div', 'sheet-section');
-        if (sec.title) s.appendChild(el('div', 'sheet-sec-title', sec.title));
+        var collap = !!sec.collapsible;
+        var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : ''));
+        if (collap) { s.open = (sec.id in _secOpen) ? _secOpen[sec.id] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[sec.id] = s.open; }); }
+        var mvv = sec.meta ? all[sec.meta] : null, metaText = '';   // a field's resolved value, shown right-aligned in the header
+        if (mvv != null) {
+            if (typeof mvv === 'object') { if (!mvv.error) { if (mvv.text != null && mvv.text !== '') metaText = String(mvv.text); else if (typeof mvv.value === 'number') metaText = mvv.value + (typeof mvv.max === 'number' ? ' / ' + mvv.max : ''); } }
+            else metaText = String(mvv);
+        }
+        if (sec.title || metaText || collap) {   // a collapsible section always needs a summary to toggle from
+            var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
+            head.appendChild(el('span', 'sheet-sec-name', sec.title || ''));
+            if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
+            s.appendChild(head);
+        }
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
         (sec.fields || []).forEach(function(pl) {
             var node = null;
@@ -242,6 +255,8 @@ function renderLayout() {
         top.appendChild(input('sys-sec-title field', sec.title, 'The section\'s title on the sheet (empty = none)', 'Section title'));
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
+        top.appendChild(select('sys-sec-collap', [['', 'Fixed'], ['1', 'Collapsible']], sec.collapsible ? '1' : '', 'A collapsible section the reader can fold away'));
+        top.appendChild(select('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
         row.appendChild(top);
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
@@ -290,6 +305,8 @@ function onLayoutChange(t) {
     var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     if (c.indexOf('sys-sec-tab') >= 0) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-collap') >= 0) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-pl-add') >= 0) {
         var v = t.value; t.value = ''; if (!v) return true;

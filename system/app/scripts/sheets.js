@@ -161,30 +161,31 @@ function renderSheet() {
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; if (gm) { charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var all = resolveAll(sys, c, F());
-    buildSections(body, sys, c, all, gm, own);
+    buildSections(body, sys, c, all, gm, own, renderSheet);
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
     var _shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
     body.style.fontFamily = ''; body.style.color = ''; body.style.backgroundColor = '';
     if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
     restoreFocus(body, fk);
 }
-var _sheetTab = '';   // active layout tab (Stage 1); persists across re-renders, resets to the first when invalid
-function buildSections(body, sys, c, all, gm, own) {   // the sheet's sections into a container: the panel, and the Layout tab's preview
+function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
+    var active = '';   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other
     if (tabs) {
-        if (tabIds.indexOf(_sheetTab) < 0) _sheetTab = tabIds[0];
+        active = body.dataset.wpTab || '';
+        if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
         var strip = el('div', 'sheet-tabs');
-        tabs.forEach(function(t) { var tb = el('button', 'sheet-tab' + (t.id === _sheetTab ? ' active' : ''), t.label || 'Tab'); tb.addEventListener('click', function() { if (_sheetTab !== t.id) { _sheetTab = t.id; renderSheet(); } }); strip.appendChild(tb); });
+        tabs.forEach(function(t) { var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : ''), t.label || 'Tab'); tb.addEventListener('click', function() { if (body.dataset.wpTab !== t.id) { body.dataset.wpTab = t.id; (rerender || renderSheet)(); } }); strip.appendChild(tb); });
         body.appendChild(strip);
     }
     var secN = 0;
     layout.forEach(function(sec) {
-        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== _sheetTab) return; }   // untabbed/unknown → first tab
+        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== active) return; }   // untabbed/unknown → first tab
         var s = el('div', 'sheet-section');
         if (sec.title) s.appendChild(el('div', 'sheet-sec-title', sec.title));
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
@@ -272,7 +273,7 @@ function renderPreview() {
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
-    buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false);
+    buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false, renderPreview);
 }
 function onLayoutInput(t) {
     var c = t.className || '';

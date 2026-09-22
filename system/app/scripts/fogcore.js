@@ -257,12 +257,14 @@ function cleanFog(fog) {   // per-map: { on, mode, vision?, cell?, manual:{adds,
     out.manual = { adds: adds, cuts: cuts };
     return out;
 }
-function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sight, vision?} } — vision = the new-map default
+function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sight, vision?, on?} } — vision/on = the new-map defaults
     if (!isObj(cf)) return { fields: {}, defaults: { sight: 0 } };
     var f = isObj(cf.fields) ? cf.fields : {}, d = isObj(cf.defaults) ? cf.defaults : {};
     var out = { fields: {}, defaults: { sight: fin(d.sight) ? clamp(d.sight, 0, 100000) : 0 } };
     if (typeof f.sight === 'string' && /^f_[A-Za-z0-9_]{1,24}$/.test(f.sight)) out.fields.sight = f.sight;
     var dv = cleanVision(d.vision); if (dv) out.defaults.vision = dv;   // stamped onto new maps only (never retroactive)
+    if (d.on === true) out.defaults.on = true;   // "new maps start with fog on" — stamped onto new maps only, never retroactive (stored only when true)
+    if (d.emptyFog === 'none') out.defaults.emptyFog = 'none';   // a map with NO play-area item marked: 'none' = no fog; default (absent) = fog the whole map
     return out;
 }
 

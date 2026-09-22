@@ -1000,6 +1000,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">Blocks sight (wall / pillar)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Fog vision (and each player&rsquo;s view) stops at this shape&rsquo;s cells. Needs fog on for the map.</div>' : '')+
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
               (w.blocksSight && w.sightType==='door' && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" '+(w.doorOpen?'checked':'')+'> <label for="wbDoorOpen">Door is open (sight passes through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" '+(w.doorLock?'checked':'')+'> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')+
+              (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the &#127787; menu.</div>' : '')+
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1234,6 +1235,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
                 if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; delete w.doorOpen; delete w.doorLock; }
                 save(); render(); renderInspector();
+                if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+            });
+            var _el_wbFogged = document.getElementById('wbFogged');
+            if(_el_wbFogged) _el_wbFogged.addEventListener('change', function() {
+                if (this.checked) w.fogged = true; else delete w.fogged;   // marks this item as a play area — fog is confined to the union of such items' footprints
+                save(); render();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
             var _el_wbSightType = document.getElementById('wbSightType');

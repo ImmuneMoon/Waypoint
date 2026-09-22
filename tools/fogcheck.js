@@ -203,6 +203,16 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const a = cleanCampFog({ fields: { sight: 'f_see1' }, defaults: { sight: 60 } });
         const b = cleanCampFog({ fields: { sight: '../evil' }, defaults: { sight: -5 } });
         return a.fields.sight === 'f_see1' && a.defaults.sight === 60 && b.fields.sight === undefined && b.defaults.sight === 0 && cleanCampFog(null).defaults.sight === 0; })());
+    check('cleanCampFog carries the new-map fog-on default (true stored, else absent)', (() => {
+        const a = cleanCampFog({ defaults: { on: true } });
+        const b = cleanCampFog({ defaults: { on: false } });
+        const c = cleanCampFog({ defaults: {} });
+        return a.defaults.on === true && b.defaults.on === undefined && c.defaults.on === undefined; })());
+    check('cleanCampFog carries the empty-map fog default ("none" stored; "whole"/junk → absent)', (() => {
+        const a = cleanCampFog({ defaults: { emptyFog: 'none' } });
+        const b = cleanCampFog({ defaults: { emptyFog: 'whole' } });
+        const c = cleanCampFog({ defaults: { emptyFog: 'junk' } });
+        return a.defaults.emptyFog === 'none' && b.defaults.emptyFog === undefined && c.defaults.emptyFog === undefined; })());
 
     /* ---- publication ---- */
     global.window = {};

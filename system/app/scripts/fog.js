@@ -125,6 +125,47 @@ function blockersFor(map, grid) {
     _blockerCache[map.id] = result;
     return result;
 }
+// A play-area item's footprint cells. Unlike sight-blockers (which punt on rotation), images/shapes can be rotated,
+// so a rotated item is tested cell-by-cell against its OWN un-rotated box: exact for images/rects, a safe slight
+// over-fog for hex/diamond, and it never LEAKS off a tilted corner. Circles are rotation-invariant; a fill is one cell.
+function maskFootprint(w, grid, C) {
+    if (!w.rot || w.fill || w.type === 'circle') return footprintCells(w, grid, C);
+    var rad = w.rot * Math.PI / 180, ww = w.w || 0, hh = w.h || 0, cx = w.x + ww / 2, cy = w.y + hh / 2;
+    var bw = Math.abs(ww * Math.cos(rad)) + Math.abs(hh * Math.sin(rad)), bh = Math.abs(ww * Math.sin(rad)) + Math.abs(hh * Math.cos(rad));
+    var box = C.cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid), cos = Math.cos(-rad), sin = Math.sin(-rad), out = [];
+    for (var i = 0; i < box.length; i++) {
+        var p = C.cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy;
+        var lx = dx * cos - dy * sin + cx, ly = dx * sin + dy * cos + cy;   // rotate the cell centre back into the item's own frame
+        if (lx >= w.x && lx <= w.x + ww && ly >= w.y && ly <= w.y + hh) out.push(box[i]);
+    }
+    return out;
+}
+// ---- fog areas ("play areas"): the cell region fog is CONFINED to, built from board items flagged `fogged` ----
+// A per-item `fogged` flag marks an image/shape as a play area. Fog lives ONLY inside the union of such items'
+// footprints — outside stays lit, so scenes and map art the GM never flagged are never fogged. With NO flagged
+// item on the map, the campaign default decides: 'all' (fog the whole map — the pre-1.5.0 behaviour) or 'none'
+// (no fog until an area is marked). Hidden items never contribute: the wire reduces a hidden item to a stub with
+// no flags, so host and client must both ignore them to agree (same rule as the sight-blockers above).
+var _maskCache = Object.create(null), _maskStamp = Object.create(null);
+function fogMask(map, camp, grid) {
+    if (!map || !grid) return { mode: 'all' };
+    var stamp = (map.meta && map.meta.updated) || 0;
+    if (_maskCache[map.id] !== undefined && _maskStamp[map.id] === stamp) return _maskCache[map.id];
+    var C = core(), wb = map.whiteboard || [], set = Object.create(null), cells = [], n = 0, any = false, over = false;
+    for (var i = 0; i < wb.length && !over; i++) {
+        var w = wb[i]; if (!w || !w.fogged || w.hidden) continue;
+        any = true;
+        var fc = maskFootprint(w, grid, C);
+        for (var j = 0; j < fc.length; j++) { var k = C.cellKey(fc[j], grid); if (!set[k]) { set[k] = 1; cells.push(fc[j]); if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
+    }
+    var result;
+    if (any && !over) result = { mode: 'set', keys: set, cells: cells };
+    else if (any) result = { mode: 'all' };                             // over the cap → fail to whole-map fog (never under-fogs)
+    else { var emp = campFog(camp).defaults.emptyFog; result = { mode: emp === 'none' ? 'none' : 'all' }; }
+    _maskStamp[map.id] = stamp; _maskCache[map.id] = result;
+    return result;
+}
+function inMask(mask, key) { return mask.mode === 'all' ? true : (mask.mode === 'none' ? false : !!mask.keys[key]); }
 // Cover between two board points, for the ruler readout (1.5.0, v1). Resolve both ends to cells on the ACTIVE map's
 // grid, reuse the same sight-blocker set fog uses, and map the system-neutral result to this campaign-system's cover
 // tier. Returns { name, block } or null (no grid / same cell / no cover / cover off). Local + advisory: reads state,
@@ -176,6 +217,7 @@ function fogDropIds(recipientId, camp, map) {
     if (!fogFeatureOn() || !map || map.type !== 'map') return null;
     var mf = mapFog(map); if (!mf.on) return null;
     var grid = gridForMap(map); if (!grid) return null;                 // gridless with no assigned cell → can't compute → send all
+    var mask = fogMask(map, camp, grid); if (mask.mode === 'none') return null;   // no play area marked + default 'none' → no fog region → nothing hidden
     var list = revealedCellList(map, camp, recipientId);
     if (list === null) return null;                                     // reveal-all: nothing hidden
     var C = core(), keys = Object.create(null); list.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
@@ -183,18 +225,20 @@ function fogDropIds(recipientId, camp, map) {
     (map.whiteboard || []).forEach(function(w) {
         if (!w || !w.isChar) return;
         if (w.ownerId === recipientId) return;                          // your own token is always yours
-        if (!keys[C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid)]) { drop[w.id] = 1; any = true; }
+        var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
+        if (inMask(mask, tk) && !keys[tk]) { drop[w.id] = 1; any = true; }   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
     });
     return any ? drop : null;
 }
 // A cached revealed-key set per (recipient, map): stable during a drag (the recipient's own tokens don't move), so the
 // live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit.
 var _keyCache = Object.create(null);
-function invalidateVision() { _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); }
+function invalidateVision() { _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); }
 function canSeePoint(recipientId, camp, map, x, y) {
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;
     var grid = gridForMap(map); if (!grid) return true;
+    var mask = fogMask(map, camp, grid); if (mask.mode === 'none') return true;   // no fog region on this map
     var k = recipientId + '|' + map.id, ce = _keyCache[k];
     if (!ce) {
         var list = revealedCellList(map, camp, recipientId);
@@ -203,7 +247,9 @@ function canSeePoint(recipientId, camp, map, x, y) {
         _keyCache[k] = ce;
     }
     if (ce.all) return true;
-    return !!ce.keys[core().cellKey(core().cellOf(x, y, grid), grid)];
+    var pk = core().cellKey(core().cellOf(x, y, grid), grid);
+    if (!inMask(mask, pk)) return true;                                 // outside every fog area → always visible
+    return !!ce.keys[pk];
 }
 
 /* ---------- the overlay (a canvas over #whiteboardWrap; #fxScreen pattern) ---------- */
@@ -244,22 +290,34 @@ function draw() {
     ctx.clearRect(0, 0, W, H);
     if (!active()) return;
     var map = activeMap(), camp = activeCamp(), grid = gridForMap(map);
+    var mask = fogMask(map, camp, grid);
+    if (mask.mode === 'none') return;                              // no play area marked + default 'none': nothing to fog
     var cells = revealedCellList(map, camp, drawOwner());
     if (cells === null) return;                                    // reveal-all: no fog
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = isClientView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players: opaque; the GM: see-through
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(0,0,0,1)';
-    var pad = 80;
-    for (var i = 0; i < cells.length; i++) {
-        var ctr = C.cellCenter(cells[i], grid), lx = ctr.x * z - sx, ly = ctr.y * z - sy;
-        if (lx < -pad || ly < -pad || lx > W + pad || ly > H + pad) continue;
-        if (grid.type === 'square') { var half = grid.size * z / 2; ctx.fillRect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
-        else { ctx.beginPath(); hexPath(ctx, lx, ly, grid.s * z * 1.02); ctx.fill(); }
+    var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
+    var traceCell = function(cell) {                               // add one cell's outline to the current path (screen space); off-view cells are skipped
+        var ctr = C.cellCenter(cell, grid), lx = ctr.x * z - sx, ly = ctr.y * z - sy;
+        if (lx < -pad || ly < -pad || lx > W + pad || ly > H + pad) return;
+        if (grid.type === 'square') { var half = grid.size * z / 2; ctx.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
+        else hexPath(ctx, lx, ly, grid.s * z * 1.02);
+    };
+    ctx.save();
+    if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
+        ctx.beginPath();
+        for (var mi = 0; mi < mask.cells.length; mi++) traceCell(mask.cells[mi]);
+        ctx.clip();
     }
     ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = isClientView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players: opaque; the GM: see-through
+    ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.beginPath();
+    for (var i = 0; i < cells.length; i++) traceCell(cells[i]);
+    ctx.fill();                                                    // punch every revealed cell in one pass
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
 }
 
 /* ---------- the throttled redraw loop (runs only while the overlay is active) ---------- */
@@ -335,6 +393,8 @@ function syncMenu() {
     var arcRow = ui('fogVisionArcRow'); if (arcRow) arcRow.style.display = vis.mode === 'arc' ? '' : 'none';
     var arcIn = ui('fogVisionArc'); if (arcIn && document.activeElement !== arcIn) arcIn.value = vis.arc;
     var vdef = ui('fogVisionDefault'); if (vdef) { var dv = cf.defaults.vision; vdef.checked = !!(dv && dv.mode === vis.mode && (dv.mode === 'all' || dv.arc === vis.arc)); }
+    var fDef = ui('fogOnDefault'); if (fDef) fDef.checked = !!cf.defaults.on;   // "new maps start with fog on" (campaign default)
+    var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.fbrush === brush); });
     fillPreviewOptions();
     var note = ui('fogNote'); if (note) note.textContent = gridForMap(map) ? '' : 'Gridless map: pick a measurement grid above so fog can compute cells.';
@@ -382,6 +442,30 @@ function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show');
         if (vdef.checked) cf.defaults.vision = visionOf(map); else delete cf.defaults.vision;
         save(); syncMenu();
         toast(vdef.checked ? 'New maps in this campaign will start with this vision.' : 'New maps will use the grid default again.');
+    });
+    var fAll = ui('fogOnAllMaps');
+    if (fAll) fAll.addEventListener('click', function() {
+        var camp = activeCamp(); if (!camp || !camp.items || !canWrite()) return;
+        var N = net(), hosting = !!(N && N.active && N.role === 'host'), n = 0, ids = [];
+        Object.keys(camp.items).forEach(function(k) { var m = camp.items[k]; if (m && m.type === 'map') { mapFog(m).on = true; n++; ids.push(m.id); } });
+        save(); invalidateVision(); syncMenu(); redraw();
+        // save() only resends the ACTIVE map; re-enforce fog on EVERY map so a player viewing another map doesn't keep an unfogged copy (with creatures the GM now hides)
+        if (hosting && N.broadcastItemFiltered) ids.forEach(function(id) { N.broadcastItemFiltered(camp.id, id); });
+        toast('Fog on for all ' + n + ' map' + (n === 1 ? '' : 's') + ' in this campaign.');
+    });
+    var fDef = ui('fogOnDefault');
+    if (fDef) fDef.addEventListener('change', function() {
+        var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
+        if (fDef.checked) cf.defaults.on = true; else delete cf.defaults.on;
+        save(); syncMenu();
+        toast(fDef.checked ? 'New maps in this campaign will start with fog on.' : 'New maps will start with fog off.');
+    });
+    var fEmpty = ui('fogEmptyScope');
+    if (fEmpty) fEmpty.addEventListener('change', function() {
+        var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
+        if (fEmpty.value === 'none') cf.defaults.emptyFog = 'none'; else delete cf.defaults.emptyFog;
+        save(); invalidateVision(); syncMenu(); redraw();
+        toast(fEmpty.value === 'none' ? 'Maps with no play area marked now show no fog.' : 'Maps with no play area marked fog the whole map.');
     });
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brush = b.dataset.fbrush === 'hide' ? 'hide' : 'reveal'; syncMenu(); }); });
     var rev = ui('fogRevealAll');

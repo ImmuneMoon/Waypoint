@@ -105,7 +105,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var cv = (window.wpFogCore && window.wpFogCore.cleanVision) ? window.wpFogCore.cleanVision(dv) : null;
 
-      if (cv) map.fog = { on: false, mode: 'auto', vision: cv, manual: { adds: [], cuts: [] } };
+      var _defOn = !!(camp && camp.fog && camp.fog.defaults && camp.fog.defaults.on === true); if (cv || _defOn) { map.fog = { on: _defOn, mode: 'auto', manual: { adds: [], cuts: [] } }; if (cv) map.fog.vision = cv; if (_defOn) map.fog.cell = { grid: 'square', len: 60 }; }   // a new map is gridless; a default-on map needs a cell or fog can't compute (mirrors the fogOn toggle)
 
     } catch (e) {}
 

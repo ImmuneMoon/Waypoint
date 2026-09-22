@@ -331,6 +331,9 @@
         flex-direction: column; gap: 6px; padding: 10px; min-width: 200px;
         left: 50%; transform: translateX(-50%);
     }
+    /* The fog menu is the tallest tool menu (per-map + campaign-wide fog controls); cap it to the viewport and scroll
+       inside so it never clips off the top of the screen on shorter displays. */
+    #fogMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
     .draw-menu-label {
         font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
         color: var(--dim); text-align: left; padding: 0 2px;
@@ -753,6 +756,7 @@
   #selToolbar button:disabled:hover { background: none; }
   #selToolbar .st-sep { width: 1px; height: 16px; background: var(--edge); margin: 0 2px; }
   #selToolbar .st-group.on { color: var(--gold); background: rgba(224,165,79,0.15); }
+  #selToolbar .st-fog.on { color: var(--gold); background: rgba(224,165,79,0.15); }   /* item marked as a play area (fog covers only marked items) */
   /* Color button + palette popover. The chip shows the current color; for text
      the chip is an "A" over a color bar so it reads as ink, not fill. */
   #selToolbar .st-color { flex-direction: column; gap: 0; }

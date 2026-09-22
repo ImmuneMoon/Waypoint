@@ -107,7 +107,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <body>
 <div class="app">
   <header>
-    <div class="header-brand">
+    <div class="header-brand" id="headerBrand" title="Welcome screen" style="cursor:pointer;">
       <img src="icon.ico" alt="" class="brand-icon">
       <h1>Waypoint</h1>
     </div>
@@ -247,6 +247,8 @@ window.addEventListener('unhandledrejection', function(e) {
                       <h4>What Waypoint is</h4>
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> (locations with two faces: a node-based <b>Data Map</b> for your notes and a freeform <b>Play Map</b> for the battle map) and <b>Planners</b> (document pages for session plans). Everything lives in the left sidebar.</p>
                       <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign that you can keep and build on &mdash; or type in the <b>search box</b> above to jump straight to any topic.</p>
+                      <h4>The welcome screen</h4>
+                      <p>When Waypoint opens you land on a <b>Welcome</b> screen: set your <b>name</b>, <b>colour</b> and <b>picture</b> (your profile, which follows you to every table), then <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, or <b>Join a game</b> with a room code. Click the <b>Waypoint</b> logo (top-left) to bring it back any time, and choose how often it appears under <b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> (every time, first run only, or never).</p>
                       <h4>Your first map</h4>
                       <ol>
                           <li>Press <b>+</b> next to <b>Maps</b> in the left sidebar and name it.</li>
@@ -1304,6 +1306,32 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <button class="tool ghost" id="updateBannerNotes" title="Release notes">Notes</button>
     <button class="tool ghost" id="updateBannerLater" title="Hide this until the next version">Later</button>
 </div>
+<!-- Welcome / entry screen (main.js). A full-screen gate shown on launch per the wp_welcome preference; fronts New / Import / Join and captures the profile. -->
+<div id="welcomeScreen" style="display:none; position:fixed; inset:0; z-index:100000; background:var(--bg); overflow:auto; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px;">
+  <div class="wc-inner">
+    <div class="wc-brand"><img src="icon.ico" alt="" class="wc-logo"><div><h1>Welcome to Waypoint</h1><p class="wc-tag">Your table, mapped.</p></div></div>
+    <div class="wc-profile">
+      <div id="wcAvatarPrev" class="wc-avatar" title="Click to add a picture" style="cursor:pointer;">?</div>
+      <input type="file" id="wcAvatarFile" accept="image/*" hidden>
+      <div class="wc-fields">
+        <label class="wc-field"><span>Your name</span><input type="text" id="wcNameInput" placeholder="How players see you" maxlength="40" autocomplete="off"></label>
+        <label class="wc-field wc-field-color"><span>Colour</span><input type="color" id="wcColorInput" value="#7aa7ff"></label>
+        <button class="tool ghost" id="wcAvatarBtn" style="padding:4px 12px; font-size:11.5px;">Choose picture</button>
+        <span class="wc-note">A name is required to host or join a game. Your name, colour and picture are saved to your profile and carry to every table.</span>
+      </div>
+    </div>
+    <div class="wc-actions">
+      <button class="wc-card" id="wcStartBtn"><span class="wc-ic">&#10133;</span><b>Start a campaign</b><small>A fresh world of your own</small></button>
+      <button class="wc-card" id="wcLoadBtn"><span class="wc-ic">&#128193;</span><b>Import a campaign</b><small>Open one from a file</small></button>
+      <button class="wc-card" id="wcJoinBtn"><span class="wc-ic">&#127760;</span><b>Join a game</b><small>With a room code</small></button>
+    </div>
+    <div class="wc-continue" id="wcContinue" style="display:none;"><div class="wc-continue-head">Continue a campaign</div><div id="wcContinueList" class="wc-continue-list"></div></div>
+    <div class="wc-foot">
+      <label class="wc-launch">Show this on launch <select id="wcLaunchPref"><option value="always">Every time</option><option value="first">First run only</option><option value="never">Never</option></select></label>
+      <button class="tool" id="wcEnterBtn">Enter Waypoint &rarr;</button>
+    </div>
+  </div>
+</div>
 <div id="settingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--bg2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:460px; max-width:92vw; max-height:85vh; overflow-y:auto;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Settings <button id="settingsCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
@@ -1331,6 +1359,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <input type="color" id="setColorInput" value="#7aa7ff" title="Your colour in the roster and on the maps" style="width:40px; height:26px; padding:0; border:1px solid var(--edge); background:none; cursor:pointer;">
             <button class="tool ghost" id="setColorClearBtn" style="padding:4px 10px;" title="Use an automatic colour instead">Auto</button>
             <span style="font-size:10.5px; color:var(--dim); flex:1; line-height:1.35;">Your dot in the roster and on each map (initials when you have no picture).</span>
+        </div>
+        <div style="margin-top:6px;">
+            <div class="set-field-label">Welcome screen on launch</div>
+            <select id="setWelcomePref" style="width:100%; box-sizing:border-box;"><option value="always">Every time</option><option value="first">First run only</option><option value="never">Never</option></select>
         </div>
             </div>
         </details>

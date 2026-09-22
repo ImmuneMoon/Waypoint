@@ -782,6 +782,86 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
   load();
 
+  /* ---------- welcome / entry screen ----------
+     Shown on launch per wp_welcome (always | first | never); fronts New / Import / Join and
+     captures the profile. Reopen any time from the header brand. */
+  function welcomePref() { try { var v = localStorage.getItem('wp_welcome'); return (v === 'first' || v === 'never') ? v : 'always'; } catch (e) { return 'always'; } }
+  function wcProfile() { return (window.wpNet && window.wpNet.getProfile) ? window.wpNet.getProfile() : {}; }
+  function saveWcProfile() {
+      var nm = document.getElementById('wcNameInput'), col = document.getElementById('wcColorInput');
+      if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile({ name: (nm && nm.value || '').trim(), color: (col && col.value) || '' });
+  }
+  function hideWelcome() { var w = document.getElementById('welcomeScreen'); if (w) w.style.display = 'none'; }
+  function renderWcContinue() {
+      var box = document.getElementById('wcContinue'), list = document.getElementById('wcContinueList');
+      if (!box || !list) return;
+      list.textContent = '';
+      var camps = (state.appState && state.appState.campaigns) || {};
+      var ids = Object.keys(camps);
+      if (!ids.length) { box.style.display = 'none'; return; }
+      ids.slice(0, 12).forEach(function(id) {
+          var b = document.createElement('button');
+          b.className = 'wc-continue-item' + (id === state.appState.activeCampaignId ? ' active' : '');
+          b.textContent = (camps[id] && camps[id].name) || 'Campaign';
+          b.addEventListener('click', function() {
+              saveWcProfile();
+              var sel = document.getElementById('campaignSelect');
+              if (sel && sel.value !== id) { sel.value = id; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+              hideWelcome();
+          });
+          list.appendChild(b);
+      });
+      box.style.display = '';
+  }
+  function showWelcome() {
+      var w = document.getElementById('welcomeScreen'); if (!w) return;
+      var prof = wcProfile();
+      var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
+      var col = document.getElementById('wcColorInput'); if (col) col.value = prof.color || '#7aa7ff';
+      var av = document.getElementById('wcAvatarPrev');
+      if (av) { if (prof.avatar) { av.innerHTML = '<img src="' + prof.avatar + '" alt="">'; av.style.background = ''; } else { av.textContent = (prof.name || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?'; av.style.background = prof.color || ''; } }
+      var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
+      w.style.display = 'flex';
+      (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
+          renderWcContinue();
+          var have = Object.keys((state.appState && state.appState.campaigns) || {}).length;
+          if (!have && tries < 12 && w.style.display !== 'none') setTimeout(function() { ensureContinue(tries + 1); }, 250);
+      })(0);
+      if (nm) setTimeout(function() { try { nm.focus(); } catch (e) {} }, 60);
+  }
+  window.wpShowWelcome = showWelcome;
+  (function wireWelcome() {
+      var w = document.getElementById('welcomeScreen'); if (!w) return;
+      var nmEl = document.getElementById('wcNameInput'); if (nmEl) nmEl.addEventListener('change', saveWcProfile);
+      var colEl = document.getElementById('wcColorInput'); if (colEl) colEl.addEventListener('input', function() { saveWcProfile(); var av = document.getElementById('wcAvatarPrev'); if (av && !wcProfile().avatar) av.style.background = this.value; });
+      function setPref(v) { try { localStorage.setItem('wp_welcome', v); } catch (e) {} var s2 = document.getElementById('setWelcomePref'); if (s2) s2.value = v; var s1 = document.getElementById('wcLaunchPref'); if (s1) s1.value = v; }
+      var prefEl = document.getElementById('wcLaunchPref'); if (prefEl) prefEl.addEventListener('change', function() { setPref(this.value); });
+      var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }
+      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('newCampBtn'); if (b) b.click(); });
+      var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('importBtn'); if (b) b.click(); });
+      var joinBtn = document.getElementById('wcJoinBtn'); if (joinBtn) joinBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('netBtn'); if (b) b.click(); });
+      var enterBtn = document.getElementById('wcEnterBtn'); if (enterBtn) enterBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); });
+      var avPrev = document.getElementById('wcAvatarPrev'), avBtn = document.getElementById('wcAvatarBtn'), avFile = document.getElementById('wcAvatarFile');
+      function pickAvatar() { if (avFile) avFile.click(); }
+      if (avPrev) avPrev.addEventListener('click', pickAvatar);
+      if (avBtn) avBtn.addEventListener('click', pickAvatar);
+      if (avFile) avFile.addEventListener('change', function() {
+          var f = this.files[0]; this.value = '';
+          if (!f || !window.wpProcessAvatar) return;
+          window.wpProcessAvatar(f, function(data) {
+              if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile({ avatar: data });
+              var av = document.getElementById('wcAvatarPrev'); if (av) { av.innerHTML = '<img src="' + data + '" alt="">'; av.style.background = ''; }
+          });
+      });
+      var brand = document.getElementById('headerBrand'); if (brand) brand.addEventListener('click', showWelcome);
+  })();
+  (function maybeShowWelcome() {
+      var pref = welcomePref();
+      if (pref === 'never') return;
+      if (pref === 'first' && (wcProfile().name || '').trim()) return;
+      showWelcome();
+  })();
+
 
     /* ---------- coordinate rulers ---------- */
     var RULER_STEPS = [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];

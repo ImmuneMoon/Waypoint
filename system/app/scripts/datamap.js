@@ -652,10 +652,31 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   /* ---------- drag shared ---------- */
 
+  // Select every item whose CENTRE falls inside the marquee box (world coords). Shared by the empty-board
+  // marquee and the locked-item marquee. A modifier adds to the current selection; an empty sweep clears it.
+  function selectItemsInMarquee(mx, my, mw, mh, e) {
+      if (!(mw > 5 && mh > 5)) { render(); return; }
+      var activeMap = getActiveMap(); if (!activeMap) return;
+      var selected = [];
+      activeMap.whiteboard.forEach(function(w) {
+          var cx = w.x + (w.w || 100) / 2, cy = w.y + (w.h || 100) / 2;
+          if (cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh) selected.push(w.id);
+      });
+      if (selected.length > 0) {
+          if (e.shiftKey || e.ctrlKey || e.metaKey) state.selWbIds = Array.from(new Set([...(state.selWbIds || []), ...selected]));
+          else state.selWbIds = selected;
+          state.selWbId = state.selWbIds[state.selWbIds.length - 1];
+      } else if (!(e.shiftKey || e.ctrlKey || e.metaKey)) {
+          state.selWbIds = []; state.selWbId = null;
+      }
+      render();
+  }
+
   function attachDrag(el, modeStr){
       var startX,startY,moved,dragging=false,item;
       var multiDrag = [];
       var lastPX = 0, lastPY = 0;   // where the pointer last was, for a drag that ends without a pointerup
+      var lockedMq = null;   // set while a drag on a LOCKED item is (maybe) becoming a marquee — {item, box?}; null on every normal drag, so the drag path below is untouched
 
       el.addEventListener('pointerdown',function(e){
         if(e.button!==undefined && e.button!==0) return;
@@ -728,17 +749,49 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     if (!state.selWbIds.includes(item.id)) state.selWbIds.push(item.id);
                     else state.selWbIds = state.selWbIds.filter(id => id !== item.id);
                     state.selWbId = state.selWbIds[state.selWbIds.length - 1] || null;
-                } else {
-                    if (!state.selWbIds || !state.selWbIds.includes(item.id)) {
-                        state.selWbIds = [item.id];
-                        state.selWbId = item.id;
-                    }
+                    render();
+                    return;
                 }
-                render();
+                // No modifier, nothing unlocked beneath: a plain CLICK selects the locked item (+ toolbar);
+                // a DRAG sweeps a marquee over the items on top/behind it (click-vs-drag decided in pointermove/up).
+                lockedMq = { item: item };
+                dragging = true; moved = false;
+                startX = e.clientX; startY = e.clientY;
+                try { el.setPointerCapture(e.pointerId); } catch(_) {}
+                e.preventDefault();
+                return;
             }
             return;
         }
         
+        // Token grab priority: a character token UNDER an unlocked non-token item (a label, note, prop, backdrop)
+        // wins the grab/select — the creature is what you're reaching for. Hand the pointer to the topmost token
+        // beneath, without touching layer/z. A modifier-click still selects the item on top; token-on-token grabs
+        // the top one (this only fires when the grabbed item is not itself a token). The locked branch above already
+        // hands a locked cover-item's drag to whatever is beneath it.
+        if (modeStr === 'visual' && !item.isChar && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            var wrT = wbWrap.getBoundingClientRect();
+            var tpx = (e.clientX - wrT.left + wbWrap.scrollLeft) / state.zoomLevel;
+            var tpy = (e.clientY - wrT.top + wbWrap.scrollTop) / state.zoomLevel;
+            var LZt = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 };
+            var tok = null, tokZ = -1, tokIdx = -1;
+            activeMap.whiteboard.forEach(function(cand, idx) {
+                if (!cand.isChar || cand.locked || cand.id === item.id) return;
+                if (tpx < cand.x || tpx > cand.x + (cand.w || 0) || tpy < cand.y || tpy > cand.y + (cand.h || 0)) return;
+                var cz = (cand.layer && LZt[cand.layer]) || cand.z || 10;
+                if (cand.aboveGrid) cz += 15020;
+                if (cz > tokZ || (cz === tokZ && idx > tokIdx)) { tok = cand; tokZ = cz; tokIdx = idx; }
+            });
+            if (tok) {
+                var tokEl = document.querySelector('.wb-item[data-id="' + tok.id + '"]');
+                if (tokEl && tokEl.style.display !== 'none') {
+                    tokEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY }));
+                    e.preventDefault();
+                    return;
+                }
+            }
+        }
+
         if (modeStr === 'visual') {
             var groupItems = [];
             if (item.groupId) {
@@ -786,6 +839,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       el.addEventListener('pointermove',function(e){
         if(!dragging) return;
         lastPX = e.clientX; lastPY = e.clientY;
+        if (lockedMq) {   // a drag that began on a locked item → sweep a marquee over what's on top/behind it
+            if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true;
+            if (moved) {
+                var wrLM = wbWrap.getBoundingClientRect();
+                var lsx = (startX - wrLM.left + wbWrap.scrollLeft) / state.zoomLevel, lsy = (startY - wrLM.top + wbWrap.scrollTop) / state.zoomLevel;
+                var lcx = (e.clientX - wrLM.left + wbWrap.scrollLeft) / state.zoomLevel, lcy = (e.clientY - wrLM.top + wbWrap.scrollTop) / state.zoomLevel;
+                if (!lockedMq.box) { lockedMq.box = document.createElement('div'); lockedMq.box.className = 'marquee-selection'; document.getElementById('whiteboard').appendChild(lockedMq.box); }
+                lockedMq.box.style.left = Math.min(lsx, lcx) + 'px'; lockedMq.box.style.top = Math.min(lsy, lcy) + 'px';
+                lockedMq.box.style.width = Math.abs(lcx - lsx) + 'px'; lockedMq.box.style.height = Math.abs(lcy - lsy) + 'px';
+            }
+            return;
+        }
         var dx = (e.clientX - startX) / state.zoomLevel;
         var dy = (e.clientY - startY) / state.zoomLevel;
         if(Math.abs(e.clientX - startX)>3||Math.abs(e.clientY - startY)>3) moved=true;   // click-vs-drag slop in SCREEN px so it stays 3px at any zoom (dx/dy are world px = screen/zoom)
@@ -828,8 +893,30 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       el.addEventListener('pointercancel', abortDrag);
       el.addEventListener('lostpointercapture', function(e) { if (dragging) abortDrag(e); });
       window.addEventListener('blur', function() { abortDrag(null); });
+      el.addEventListener('dblclick', function(e) {
+          if (modeStr !== 'visual') return;
+          var am2 = getActiveMap(); var it2 = am2 && am2.whiteboard.find(function(x){ return x.id === el.dataset.id; }); if (!it2) return;
+          if (it2.type === 'text' || it2.nodeId || it2.targetMapId) return;   // text boxes edit and portals travel on double-click — leave those to their own handlers
+          e.stopPropagation();
+          if (!state.selWbIds || state.selWbIds.length !== 1 || state.selWbIds[0] !== it2.id) { state.selWbIds = [it2.id]; state.selWbId = it2.id; render(); }   // select it, then open Properties
+          if (window.wpOpenRightPanel) window.wpOpenRightPanel();
+      });
       el.addEventListener('pointerup',function(e){
         if(!dragging) return;
+        if (lockedMq) {   // finish a locked-item interaction: a drag became a marquee, a still click selects the locked item
+            dragging = false;
+            try { el.releasePointerCapture(e.pointerId); } catch(_) {}
+            var lmBox = lockedMq.box, lmItem = lockedMq.item; lockedMq = null;
+            if (lmBox) {
+                var lmx = parseFloat(lmBox.style.left), lmy = parseFloat(lmBox.style.top), lmw = parseFloat(lmBox.style.width), lmh = parseFloat(lmBox.style.height);
+                lmBox.remove();
+                selectItemsInMarquee(lmx, lmy, lmw, lmh, e);
+            } else {
+                if (!state.selWbIds || !state.selWbIds.includes(lmItem.id)) { state.selWbIds = [lmItem.id]; state.selWbId = lmItem.id; }
+                render();
+            }
+            return;
+        }
         dragging=false; el.classList.remove('dragging');
         clearSnaps();
         try{el.releasePointerCapture(e.pointerId);}catch(_){}
@@ -840,30 +927,30 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               multiDrag.forEach(function(md) { md.item.x += sdxD; md.item.y += sdyD; var melD = md.el || state.els[md.item.id]; if (melD) { melD.style.left = md.item.x + 'px'; melD.style.top = md.item.y + 'px'; } });
               renderDataMap();
           }
-          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.isChar || md.item.type === 'hexagon' || md.item.shape === 'hexagon'; })) {
+          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.isChar || md.item.type === 'hexagon' || md.item.shape === 'hexagon' || md.item.gridFit; })) {
               // Hex-shaped items and character tokens ALWAYS seat into a cell on hex
               // maps — every one in the drag, not just the one under the pointer.
               // One hex item in the drag is the reference (the one under the pointer if it is one, else the
               // first): it seats into its cell, every non-hex member (a text box grouped with a teleport
               // point, a floor, a prop) follows by the same correction, and the other hex items seat
               // into their own cells. The group never loosens, whichever member was dragged.
-              var isHexy = function(it) { return it.isChar || it.type === 'hexagon' || it.shape === 'hexagon'; };
+              var isHexy = function(it) { return it.isChar || it.type === 'hexagon' || it.shape === 'hexagon' || it.gridFit; };   // gridFit images seat by centre too (forced below)
               var refMd = multiDrag.find(function(md) { return md.item === item && isHexy(item); }) || multiDrag.find(function(md) { return isHexy(md.item); });
               var seatBefore = { x: refMd.item.x, y: refMd.item.y };
-              window.wpSeatHex(refMd.item);
+              window.wpSeatHex(refMd.item, null, true);   // force: a fitted (non-char) image centres on its hex cell too
               var seatDx = refMd.item.x - seatBefore.x, seatDy = refMd.item.y - seatBefore.y;
               multiDrag.forEach(function(md) {
-                  if (md !== refMd) { if (isHexy(md.item)) window.wpSeatHex(md.item); else { md.item.x += seatDx; md.item.y += seatDy; } }
+                  if (md !== refMd) { if (isHexy(md.item)) window.wpSeatHex(md.item, null, true); else { md.item.x += seatDx; md.item.y += seatDy; } }
                   var mel = md.el || state.wbEls[md.item.id];
                   if (mel) { mel.style.left = md.item.x + 'px'; mel.style.top = md.item.y + 'px'; }
                   if (md.item !== item && modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(md.item, true);
               });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
-          } else if(state.snap && state.snapMode !== 'items' && modeStr === 'visual' && state.gridType && state.gridType !== 'off'){   // grid seat: grid / both modes only
+          } else if((state.snap || multiDrag.some(function(md){ return md.item.gridFit; })) && state.snapMode !== 'items' && modeStr === 'visual' && state.gridType && state.gridType !== 'off'){   // grid seat: grid / both modes only
               // Item-to-item snaps beat the grid: an axis that glued to a
               // neighbor mid-drag keeps its flush/aligned position on release.
               var glued = doSmartSnapping.last || {};
-              var sn = getSnapCoords(item.x, item.y);
+              var sn = (state.gridType === 'hex') ? getSnapCoords(item.x, item.y) : { x: Math.round(item.x / 50) * 50, y: Math.round(item.y / 50) * 50 };   // square: round to the 50-cell even with Snap off (a gridFit item stays fitted)
               // the same correction for every item in the drag: a group never loosens on release
               var sdx = glued.x ? 0 : sn.x - item.x, sdy = glued.y ? 0 : sn.y - item.y;
               multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
@@ -909,7 +996,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
           } else {
               // Clicked without moving in visual mode
-              if (!e.shiftKey) {
+              if (e.shiftKey || e.ctrlKey || e.metaKey) { render(); }   // a modifier: the pointerdown already toggled the multi-selection — just repaint it (Ctrl/Cmd used to fall through and COLLAPSE the selection here, and Shift added to state but never repainted)
+              else {
                   var activeMap = getActiveMap();
                   var groupItems = [];
                   if (item.groupId) groupItems = activeMap.whiteboard.filter(x => x.groupId === item.groupId).map(x => x.id);

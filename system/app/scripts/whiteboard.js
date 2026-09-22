@@ -972,6 +972,7 @@ function fitToGrid(its) {
     var n = 0;
     its.forEach(function(it) {
         if (it.locked || it.type === 'path') return;
+        it.gridFit = true;   // remember it's grid-fitted, so it re-seats to the cell CENTRE on every move (not just this one-shot) — a hex move used to leave it ~half a cell off in x
         if (fitItemInPlace(it, g)) n++;
     });
     if (n) { save(); render(); toast('Fitted ' + n + ' item' + (n === 1 ? '' : 's') + ' to the ' + g + ' grid.'); }
@@ -4008,10 +4009,20 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
       var key = window.wpSelKey();
       if (state.rightManualKey !== undefined && state.rightManualKey !== key) state.rightManualKey = undefined;   // selection moved on: automation resumes
       if (state.rightManualKey !== undefined) return;
-      if (key) { if (sb.classList.contains('collapsed')) { sb.classList.remove('collapsed'); state.rightAuto = true; } }
-      else if (state.rightAuto || !state.rightEverSynced) { sb.classList.add('collapsed'); state.rightAuto = false; }
+      // Properties no longer auto-OPENS on a single click — it opens on DOUBLE-click (wpOpenRightPanel below).
+      // A plain click that clears the selection, or moves it to a different item while a double-click panel is open, dismisses that panel.
+      if (!key) { if (state.rightAuto || !state.rightEverSynced) { sb.classList.add('collapsed'); state.rightAuto = false; } }
+      else if (state.rightAuto && key !== state.rightAutoKey) { sb.classList.add('collapsed'); state.rightAuto = false; }
       state.rightEverSynced = true;
       btn.textContent = sb.classList.contains('collapsed') ? '◀' : '▶';
+  };
+  window.wpOpenRightPanel = function() {   // double-click a play-map item: deliberately open Properties for the current selection
+      var sb = document.getElementById('sidebar'), btn = document.getElementById('toggleRightBtn');
+      if (!sb || !btn || btn.style.display === 'none') return;
+      sb.classList.remove('collapsed');
+      state.rightAuto = true; state.rightAutoKey = window.wpSelKey ? window.wpSelKey() : '';
+      state.rightManualKey = undefined; state.rightEverSynced = true;
+      btn.textContent = '▶';
   };
   var _el_toggleRightBtn = document.getElementById('toggleRightBtn');
 

@@ -57,7 +57,9 @@ var net = {
     applyingRemote: false,
     lastStage: null,
     leaving: false,      // true while tearing down on purpose (no auto-reconnect)
-    paused: false,       // GM froze the table: no token moves, no travel (chat stays open)
+    paused: false,       // GM froze the WHOLE table: no token moves, no travel (chat stays open)
+    pausedPlayers: {},   // host: profileId -> true, players frozen individually (composes with the table pause)
+    selfPaused: false,   // client: the GM froze ME specifically (distinct from the table pause)
     foreign: false       // the campaign in memory came from a host: it must never reach this machine's disk
 };
 window.wpNet = net;
@@ -650,6 +652,7 @@ function applySnapshot(msg) {
     if (window.wpResetHistory) window.wpResetHistory();   // the pre-join state must never be re-installed while foreign
     net.applyingRemote = false;
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
+    setSelfPausedLocal(!!msg.pausedSelf);   // ...and a personal pause the GM set before they (re)joined
     setTravelLockLocal(!!msg.travelLocked);
     net.stance = cleanStance(msg.stance);
     net.sounds = null; net.soundNow = null; if (window.wpSound) window.wpSound.onSnapshot();   // the snapshot is the authority: the 'sounds' message that follows re-arms the table's sound
@@ -868,17 +871,53 @@ function scheduleStageFollow() {
 /* ---------- table pause ---------- */
 // Applies the pause state locally (banner, dimming, button label). Only the
 // host's toggle broadcasts; clients receive it via 'pause' messages/snapshot.
+// Banner + buttons for BOTH the table pause and a personal (per-player) pause. A client can be
+// frozen by either; the table message wins when both are on. The two table-pause buttons
+// (#netPauseBtn in the panel, #sessionPauseBtn in the header) stay in step here.
+function refreshPauseUi() {
+    var isClient = net.role === 'client';
+    var frozenMe = (net.paused || net.selfPaused) && isClient;
+    var banner = ui('pauseBanner');
+    if (banner) {
+        banner.style.display = frozenMe ? 'block' : 'none';
+        if (frozenMe) banner.textContent = net.paused
+            ? '⏸️ The GM paused the table — chat is still open.'
+            : '⏸️ The GM paused you — chat is still open.';
+    }
+    document.body.classList.toggle('net-paused', (net.paused || (net.selfPaused && isClient)) && net.active);
+    var btn = ui('netPauseBtn');
+    if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }
+    var sb = ui('sessionPauseBtn');
+    if (sb) { sb.innerHTML = net.paused ? '&#9654;&#65039;' : '&#9208;&#65039;'; sb.title = net.paused ? 'Resume the table' : 'Pause the table (freeze everyone)'; sb.classList.toggle('paused', net.paused); }
+}
 function setPausedLocal(on) {
     net.paused = !!on;
-    var banner = ui('pauseBanner');
-    if (banner) banner.style.display = (net.paused && net.role === 'client') ? 'block' : 'none';
-    document.body.classList.toggle('net-paused', net.paused && net.active);
-    var btn = ui('netPauseBtn');
-    if (btn) {
-        btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table';
-        btn.classList.toggle('paused', net.paused);
-    }
+    refreshPauseUi();
 }
+// client: set/clear my personal pause (from a 'pausePlayer' message or the join snapshot)
+function setSelfPausedLocal(on) {
+    net.selfPaused = !!on;
+    refreshPauseUi();
+}
+// host: is this player individually paused? (composes with the table pause)
+function pausedById(pid) { return !!(pid && net.pausedPlayers && net.pausedPlayers[pid]); }
+function peerPaused(peer) { var p = net.roster[peer]; return !!(p && pausedById(p.id)); }
+// host: freeze/thaw one player individually. Enforced host-side at every move/travel/edit gate; the
+// player is told so they see a banner and stop trying. Composes with the whole-table pause.
+net.pausePlayer = function(playerId, on) {
+    if (!net.active || net.role !== 'host' || !playerId) return;
+    net.pausedPlayers = net.pausedPlayers || {};
+    if (on) net.pausedPlayers[playerId] = true; else delete net.pausedPlayers[playerId];
+    var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === playerId; });
+    var c = key && net.conns.find(function(x) { return x.peer === key; });
+    if (c && c.open) { try { c.send({ type: 'pausePlayer', on: !!on }); } catch (e) {} }
+    var nm = (key && net.roster[key] && net.roster[key].name) || 'Player';
+    renderRoster();
+    if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();   // mark/unmark the paused player's party-strip chip
+    toast(on ? nm + ' is paused.' : nm + ' is live again.');
+    logEvent('table', (on ? 'Paused ' : 'Resumed ') + nm);
+};
+net.isPlayerPaused = function(playerId) { return pausedById(playerId); };
 
 /* ---------- VTT feature ceiling (Settings ▸ VTT features, per campaign) ---------- */
 // The hosted campaign's VTT features (elevation, posture, minimap — vtt.js) are the most a
@@ -1139,6 +1178,9 @@ if (_pauseBtn) _pauseBtn.addEventListener('click', function() {
     toast(net.paused ? 'Table paused — players are frozen (chat stays open).' : 'Table resumed.');
     logEvent('table', net.paused ? 'Table paused' : 'Table resumed');
 });
+// The header pause button (host-only, both views) drives the same table toggle as #netPauseBtn.
+var _sessPauseBtn = ui('sessionPauseBtn');
+if (_sessPauseBtn) _sessPauseBtn.addEventListener('click', function() { if (net.active && net.role === 'host' && _pauseBtn) _pauseBtn.click(); });
 
 /* ---------- live position streaming ----------
    Drags send tiny {type:'pos'} messages (throttled) so remote tokens glide
@@ -1160,7 +1202,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
 }
 net.streamPos = function(wItem, final) {
     if (!net.active || !wItem) return;
-    if (net.paused && net.role === 'client') return;
+    if ((net.paused || net.selfPaused) && net.role === 'client') return;
     var camp = getActiveCampaign();
     if (!camp) return;
     var now = Date.now();
@@ -1303,7 +1345,7 @@ net.tokenDropped = function(item, map) {
     if (!item.ownerId) return npcTravel(item, map);                                   // an NPC: the GM's own token, moves through
     var atTable = net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
     if (!atTable) return offlinePlayerTravel(item, map);                             // between sessions, or the player is not connected: the GM walks their character through
-    if (net.paused) return false;
+    if (net.paused || pausedById(item.ownerId)) return false;
     var portal = portalUnder(item, map);
     if (!portal) return false;
     var peerId = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
@@ -1397,7 +1439,7 @@ function handlePos(msg, conn) {
     var w = (map.whiteboard || []).find(function(x) { return x.id === msg.wbId; });
     if (!w) return;
     if (net.role === 'host') {
-        if (net.paused) return;                    // frozen table: client motion is dropped
+        if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client motion is dropped
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
@@ -1423,7 +1465,7 @@ function handlePos(msg, conn) {
 // Client: ask the host to travel through a portal item on the current map.
 net.requestTravel = function(viaItemId) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
-    if (net.paused) { toast('The table is paused.'); return; }
+    if (net.paused || net.selfPaused) { toast(net.selfPaused && !net.paused ? 'The GM has paused you.' : 'The table is paused.'); return; }
     try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) {}
 };
 
@@ -1887,7 +1929,7 @@ function admitPlayer(conn, prof) {
     if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
-    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
@@ -2011,7 +2053,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
     } else if (msg.type === 'item') {
         if (net.role === 'host') {
-            if (net.paused) return;   // frozen table: client edits are dropped
+            if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client edits are dropped
             var profile = net.roster[conn.peer];
             if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's patch lands
             var changed = applyClientItemFiltered(msg, profile);
@@ -2046,6 +2088,10 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'pause' && net.role === 'client') {
         setPausedLocal(!!msg.on);
         toast(msg.on ? 'The GM paused the table.' : 'The table is live again.');
+    } else if (msg.type === 'pausePlayer' && net.role === 'client') {
+        setSelfPausedLocal(!!msg.on);
+        render();   // refresh my own token affordances (turn handles etc.) now that I'm frozen/thawed
+        toast(msg.on ? 'The GM paused you.' : 'You are live again.');
     } else if (msg.type === 'stance' && net.role === 'client') {
         if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply
         var prevStance = net.stance;
@@ -2061,7 +2107,7 @@ function handleMessage(msg, conn) {
         if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
         else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
-        if (net.paused) return;   // frozen table: no travel
+        if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): no travel
         var traveler = net.roster[conn.peer];
         var tCamp = getActiveCampaign();
         if (!traveler || !tCamp) return;
@@ -2199,7 +2245,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'door-req' && net.role === 'host') {
         // a player opens/closes a door a token of theirs is adjacent to; validated on the host's OWN copy, then resynced to all
         if (typeof msg.mapId !== 'string' || typeof msg.itemId !== 'string') return;
-        if (net.paused) return;                                                       // frozen table: no board mutation
+        if (net.paused || peerPaused(conn.peer)) return;                              // frozen table (or this player is paused): no board mutation
         if (window.wpVtt && !window.wpVtt.on('fog')) return;                           // fog off -> doors are meaningless
         if (!_doorLimit && window.wpDiceCore) _doorLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: 3, windowMs: 3000, table: 200 });
         if (_doorLimit && _doorLimit.allow(conn.peer, Date.now()) !== true) return;    // a toggle triggers a per-recipient resend, so keep it tight; silent drop
@@ -2689,6 +2735,7 @@ function leaveSession(silent) {
     if (!silent) setIndicator(null);
     setPausedLocal(false);
     setTravelLockLocal(false);
+    net.pausedPlayers = {}; setSelfPausedLocal(false);   // per-player pauses are per-session, like the table pause and travel lock
     bannedIds = {}; pendingJoins = []; approvalOpen = false;   // bans and pending approvals are per-session
     var hi = ui('netHostInfo');
     if (hi) hi.style.display = 'none';
@@ -3172,6 +3219,9 @@ function syncSessionButtons() {
     var endB = ui('netEndBtn'), leaveB = ui('netLeaveBtn');
     if (endB) endB.style.display = hosting ? 'block' : 'none';
     if (leaveB) leaveB.style.display = hosting ? 'none' : 'block';
+    var pauseHdr = ui('sessionPauseBtn');
+    if (pauseHdr) pauseHdr.style.display = hosting ? '' : 'none';   // the header pause button is a host-only session control
+    refreshPauseUi();   // keep its label in step whenever the session buttons resync
 }
 var _endBtn = ui('netEndBtn');
 if (_endBtn) _endBtn.addEventListener('click', function() {

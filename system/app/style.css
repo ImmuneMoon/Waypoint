@@ -987,6 +987,8 @@
   .party-tok.away { opacity: 0.4; filter: grayscale(0.7); }
   .party-tok.party-face { border-style: dashed; }
   .party-tok.party-ini { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--ink); }
+  .party-tok.paused { border-color: #7aa7ff; box-shadow: 0 0 0 2px rgba(122,167,255,0.9), 0 2px 6px rgba(0,0,0,0.55); opacity: 1; filter: grayscale(0.4); }   /* a player the GM paused individually */
+  #sessionPauseBtn.paused { color: var(--gold); background: rgba(212,175,55,0.16); }
   body.stream-mode #partyStrip { top: 10px; right: 14px; }
   /* Party menu: the strip's right-click actions. Lives outside the toolbar, so it gets the
      toolbar menu's look here explicitly. */

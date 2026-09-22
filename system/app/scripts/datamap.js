@@ -698,7 +698,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         // Players may only drag tokens the GM assigned to them — and nothing while paused
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
             if (modeStr !== 'visual') return;
-            if (window.wpNet.paused) return;
+            if (window.wpNet.paused || window.wpNet.selfPaused) return;   // table paused, or the GM paused me specifically
             if (!(item.isChar && item.ownerId === window.wpNet.myId)) {
                 // Nothing else is draggable for a player, so anything covering their
                 // token (a text box, a note card, a trigger zone) must not trap it:

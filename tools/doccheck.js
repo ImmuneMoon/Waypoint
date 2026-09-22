@@ -38,7 +38,7 @@ function inert(html) {
     try { D = await import(url); } catch (e) { loadErr = e; }
     check('module loads in Node with no window (the guard)', !!D && !loadErr, loadErr && loadErr.message);
     if (!D) { console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, LIMITS, DOC_BLOCKS } = D;
+    const { sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, LIMITS, DOC_BLOCKS, cleanDocStyle, docStyleCss, DOC_FONTS } = D;
 
     /* ---- sanitizeHtml corpus ---- */
     const S = [
@@ -209,6 +209,14 @@ function inert(html) {
         const two = renderDoc({ blocks: [{ type: 'h2', title: 'S', cols: 2 }, { type: 'image', src: '/saves/images/x/a.png', layout: { width: 33, float: 'right' } }, { type: 'text', content: 'body' }, { type: 'h1', title: 'Next' }] });
         check('render: two-column section wraps the picture and the prose and closes before the next h1', /<div class="doc-section doc-cols-2"><div class="pv-blk" data-blk="1"><figure class="doc-img planner-img fl-right" style="width:33%;">[\s\S]*<p>body<\/p><\/div><\/div><div class="doc-clear"><\/div><div class="pv-blk" data-blk="3"><h1>Next<\/h1>/.test(two), two);
         check('DOC_BLOCKS roster', DOC_BLOCKS.join(',') === 'h1,h2,h3,text,lede,oneline,callout,flare,image,table,rule,diagram,flowchart');
+        /* ---- document appearance (cleanDocStyle / docStyleCss): a curated, injection-proof styling layer ---- */
+        check('cleanDocStyle: keeps a known font, hex colours, a clean image ref', JSON.stringify(cleanDocStyle({ font: 'serif', textColor: '#ABC', bgColor: '#11223344', bgImage: 'saves/p/a.png' })) === '{"font":"serif","textColor":"#ABC","bgColor":"#11223344","bgImage":"saves/p/a.png"}');
+        check('cleanDocStyle: drops an unknown font, a non-hex colour, a quoted/parenthesised image ref', cleanDocStyle({ font: 'evil;}', textColor: 'red;}x{', bgColor: 'rgb(1,2,3)', bgImage: 'a");b(' }) === null);
+        check('cleanDocStyle: empty / non-object / all-invalid -> null', cleanDocStyle(null) === null && cleanDocStyle({}) === null && cleanDocStyle({ font: 'nope' }) === null);
+        check('cleanDocStyle: every DOC_FONTS key is accepted', Object.keys(DOC_FONTS).every(k => cleanDocStyle({ font: k })) && !DOC_FONTS.hasOwnProperty('nope'));
+        check('docStyleCss: single quotes only (safe inside a style="" attribute)', (() => { const css = docStyleCss({ font: 'serif', textColor: '#abc', bgImage: 'p/a.png' }); return css.indexOf('"') < 0 && css.indexOf('font-family:') === 0 && css.indexOf("url('p/a.png')") > 0; })());
+        check('docStyleCss: drops a background whose resolver returns an unsafe URL', docStyleCss({ bgImage: 'ok' }, () => 'has")bad').indexOf('background-image') < 0);
+        check('cleanDoc: a valid meta.style survives; a hostile one is dropped', (() => { const a = cleanDoc({ type: 'doc', id: 'd', meta: { title: 'T', style: { font: 'mono', textColor: '#fff' } }, blocks: [] }); const b = cleanDoc({ type: 'doc', id: 'd', meta: { title: 'T', style: { font: 'x;}', textColor: 'red' } }, blocks: [] }); return a.meta.style && a.meta.style.font === 'mono' && !b.meta.style; })());
     }
 
     /* ---- docmd.js: Markdown in and out ---- */

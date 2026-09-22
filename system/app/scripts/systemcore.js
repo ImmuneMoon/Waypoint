@@ -196,6 +196,7 @@ function cleanSheet(sheet, fieldIds, rollIds) {
         if (s.collapsible) sec.collapsible = true;                          // Stage 2: a collapsible <details> section
         if (s.open === false) sec.open = false;                            // default open; store only an explicit "closed by default"
         if (typeof s.meta === 'string' && fieldIds[s.meta]) sec.meta = s.meta;   // a field whose value shows in the section header (e.g. a points total)
+        if (typeof s.parent === 'string' && SECTION_ID.test(s.parent) && s.parent !== s.id) sec.parent = s.parent;   // nest under another section (the render enforces one level)
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;

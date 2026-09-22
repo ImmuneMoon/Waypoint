@@ -1677,6 +1677,8 @@
   .sheet-section.sheet-collap > summary.sheet-sec-title::-webkit-details-marker { display: none; }
   .sheet-section.sheet-collap > summary.sheet-sec-title::after { content: '\25B8'; flex: 0 0 auto; color: var(--dim); transition: transform .12s; }
   .sheet-section.sheet-collap[open] > summary.sheet-sec-title::after { transform: rotate(90deg); }
+  .sheet-section.sheet-subsection { margin: 6px 0 0 12px; padding-left: 10px; border-left: 1px solid var(--edge); }
+  .sheet-section.sheet-subsection > .sheet-sec-title, .sheet-section.sheet-subsection > summary.sheet-sec-title { color: var(--ink); }
   .sheet-grid { display: grid; gap: 6px 10px; }
   .sheet-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .sheet-field.sheet-row { grid-column: 1 / -1; }

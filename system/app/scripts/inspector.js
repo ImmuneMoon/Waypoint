@@ -885,6 +885,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(w.isChar) {
                     html += '<div class="field"><label for="wbCharName">Character Name</label><input type="text" id="wbCharName" value="'+esc(w.charName||'')+'"></div>';
                     html += '<div class="field"><label for="wbCharStats">Stats / Notes</label><textarea id="wbCharStats">'+esc(w.charStats||'')+'</textarea></div>';
+                    if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) html += '<div class="field"><label for="wbGmInfo">GM note / dialogue <span class="muted">(this token only — hidden from players)</span></label><textarea id="wbGmInfo" placeholder="Private notes, read-aloud dialogue…">'+esc(w.gmInfo||'')+'</textarea></div>';
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
                         [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((w.front && [0, 90, 180, 270].indexOf(w.front) < 0) ? [[w.front, w.front + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + ((w.front || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
                     html += '<div class="field"><label for="wbFaceMode">Turning</label><select id="wbFaceMode"><option value="art"' + (w.faceMode !== 'arrow' ? ' selected' : '') + '>Art turns with the arrow</option><option value="arrow"' + (w.faceMode === 'arrow' ? ' selected' : '') + '>Arrow only (art stays upright)</option></select></div>';
@@ -1095,6 +1096,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(wbCharName) wbCharName.addEventListener('input', function() { w.charName = this.value; save(); });
                 var wbCharStats = document.getElementById('wbCharStats');
                 if(wbCharStats) wbCharStats.addEventListener('input', function() { w.charStats = this.value; save(); });
+                var wbGmInfo = document.getElementById('wbGmInfo'); if (wbGmInfo) wbGmInfo.addEventListener('input', function() { w.gmInfo = this.value || undefined; save(); });
                 var wbElev = document.getElementById('wbElev');
                 if (wbElev) wbElev.addEventListener('change', function() { window.wpStance.setElevation(w, this.value); this.value = window.wpStance.tokenElevation(w); save(); renderWhiteboard(); });
                 var wbPosture = document.getElementById('wbPosture');

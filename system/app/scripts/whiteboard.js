@@ -697,7 +697,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           // Tokens carry a small front-side arrow (which side of the art is "forward")
           var fw = el.querySelector(':scope > .token-front');
-          if (item.isChar) {
+          if (item.isChar && stanceOn('turning')) {   // token facing is a per-campaign VTT feature (Settings ▸ VTT features); when off there is no facing wedge
               if (!fw) { fw = document.createElement('div'); fw.className = 'token-front'; fw.innerHTML = '<i></i>'; el.appendChild(fw); }
               // Grids are square or flat-top hex, so the chosen side is always a face:
               // the arrow points straight across it at the neighbouring cell.
@@ -835,7 +835,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var selItem = (state.selWbId && !(state.selWbIds && state.selWbIds.length > 1)) ? am.whiteboard.find(function(x) { return x.id === state.selWbId; }) : null;
       if (!selItem || selItem.locked) { hide(); return; }
       rHandle.style.display = 'block';
-      rotHandle.style.display = 'block';
+      rotHandle.style.display = (selItem.isChar && !stanceOn('turning')) ? 'none' : 'block';   // a character token only turns when the facing feature is on; shapes/images still rotate
       var rot = selItem.rot || 0;
       var cx = selItem.x + (selItem.w || 100) / 2;
       var cy = selItem.y + (selItem.h || 100) / 2;

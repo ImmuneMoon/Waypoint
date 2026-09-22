@@ -574,6 +574,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var hideFromMe = !!item.hidden && clientView;
 
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
+
+          el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
           el.classList.toggle('wb-blocks-sight', !!item.blocksSight && item.sightType !== 'door' && !clientView);
           el.classList.toggle('wb-door', item.blocksSight === true && item.sightType === 'door');
           el.classList.toggle('wb-door-open', item.blocksSight === true && item.sightType === 'door' && !!item.doorOpen);

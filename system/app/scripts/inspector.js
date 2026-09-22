@@ -981,6 +981,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         '</div>' +
                         (w.targetMapId ? landingRoomFieldHtml({ targetMapId: w.targetMapId, targetRoomId: w.targetRoomId, id: null, name: w.name }, 'wbPortalRoom') : '');
             }
+            html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal">⚠️ Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map still blocks it.</div>' : '');
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
               (w.type !== 'image' && w.type !== 'trigger' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
@@ -1096,6 +1097,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _el_wbPortalIcon = document.getElementById('wbPortalIcon');
             if (_el_wbPortalIcon) _el_wbPortalIcon.addEventListener('change', function() { w.portalIcon = this.value; save(); render(); });
+            var _el_wbTrapPortal = document.getElementById('wbTrapPortal');
+            if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap — it fires while hidden.' : 'No longer a trap — hidden means inert again.'); }); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
             if (_el_wbPortalRoom) _el_wbPortalRoom.addEventListener('change', function() { if (this.value) w.targetRoomId = this.value; else delete w.targetRoomId; save(); });
             var _el_wbTrigShape = document.getElementById('wbTrigShape');

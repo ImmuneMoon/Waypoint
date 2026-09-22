@@ -482,7 +482,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <p>Multiplayer is <b>peer-to-peer</b>: your app is the table, and your players' apps connect directly to yours. No accounts, no server, nothing to set up &mdash; everyone just needs Waypoint and an internet connection, and you keep the app open while playing.</p>
                       <h4>Host a session</h4>
                       <ol>
-                          <li>Click <b>&#127760;</b> in the header and enter your display name.</li>
+                          <li>Click <b>&#127760;</b> in the header and enter your <b>display name</b> &mdash; it&rsquo;s required to host or join, and it&rsquo;s how players know you at the table. In <b>Settings &rsaquo; Profile</b> you can set it once along with a <b>colour</b> (your dot in the roster and on the maps) and a <b>picture</b>; they carry to every table.</li>
                           <li><b>Players arrive at</b> shows where joiners will land &mdash; leave it on <b>Follow me</b> or pick a specific map to pin the table there (handy for a staging area while you prep elsewhere). Once the campaign has had players, <b>Player's last location</b> is offered and is the default: each player comes back to the map they were last on and stays put until they travel or you summon them, so a split party picks up where it left off. <b>New players start at</b> appears under it and says where someone joining for the first time lands (Follow me, or a map of your choice).</li>
                           <li>Press <b>Host Session</b>. A short <b>room code</b> appears &mdash; send it to your players however you like, then <b>close the window</b>: the session keeps running while you work, and the &#127760; button reopens it whenever you need the roster, pause, or summon.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Your planners, room notes, and character dossiers are <b>never sent</b> to them; <b>Handbook</b> pages you leave open to players are.</li>
@@ -539,7 +539,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <h4>Join your GM's table</h4>
                       <ol>
                           <li>Get the <b>room code</b> from your GM (it looks like <b>AB12CD</b>), plus the session password if they set one.</li>
-                          <li>Click <b>&#127760;</b> in the header, type your name, enter the code (and password), and press <b>Join</b>.</li>
+                          <li>Click <b>&#127760;</b> in the header, type your name (required &mdash; or set it once in <b>Settings &rsaquo; Profile</b>), enter the code (and password), and press <b>Join</b>.</li>
                           <li>Your first time at a table, the GM gets a prompt to let you in &mdash; you'll see "waiting for the GM" for a moment. After that you're recognized and go straight in.</li>
                           <li>You'll land on whatever map the GM is showing, and follow along as they move the party.</li>
                       </ol>
@@ -1325,6 +1325,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="margin-bottom:14px;">
             <div class="set-field-label">Display name</div>
             <input type="text" id="setNameInput" placeholder="How players see you" style="width:100%; box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:6px; display:flex; align-items:center; gap:10px;">
+            <div class="set-field-label" style="margin:0;">Colour</div>
+            <input type="color" id="setColorInput" value="#7aa7ff" title="Your colour in the roster and on the maps" style="width:40px; height:26px; padding:0; border:1px solid var(--edge); background:none; cursor:pointer;">
+            <button class="tool ghost" id="setColorClearBtn" style="padding:4px 10px;" title="Use an automatic colour instead">Auto</button>
+            <span style="font-size:10.5px; color:var(--dim); flex:1; line-height:1.35;">Your dot in the roster and on each map (initials when you have no picture).</span>
         </div>
             </div>
         </details>

@@ -44,7 +44,8 @@ function setMermaidMode(m) {
 }
 function renderInto(body, it) {
     if (foreign()) setMermaidMode('strict');
-    body.innerHTML = renderDoc(it, { src: srcOf, mermaid: !!window.mermaid });
+    var _camp = getActiveCampaign();
+    body.innerHTML = renderDoc(it, { src: srcOf, mermaid: !!window.mermaid, docStyle: _camp && _camp.docStyle });
     openSig = sigOf(it);
     if (!window.mermaid) return;
     var nodes = Array.from(body.querySelectorAll('pre.mermaid'));

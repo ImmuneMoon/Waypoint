@@ -162,6 +162,10 @@ function renderSheet() {
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var all = resolveAll(sys, c, F());
     buildSections(body, sys, c, all, gm, own);
+    // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
+    var _shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
+    body.style.fontFamily = ''; body.style.color = ''; body.style.backgroundColor = '';
+    if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
     restoreFocus(body, fk);
 }
 function buildSections(body, sys, c, all, gm, own) {   // the sheet's sections into a container: the panel, and the Layout tab's preview

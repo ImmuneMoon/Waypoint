@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss } from './docrender.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord } from './io.js';
 
@@ -910,12 +910,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var preview = document.getElementById('plannerPreview');
 
       if (activeMap.type === 'doc') {   // a page renders through the shared renderer (docrender.js): escaped text, sanitized prose — what a player gets
-          preview.innerHTML = renderDoc(activeMap, { mermaid: !!window.mermaid, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
+          preview.innerHTML = renderDoc(activeMap, { mermaid: !!window.mermaid, docStyle: (getActiveCampaign() || {}).docStyle, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
           runPreviewMermaid();
           return;
       }
 
-      var html = '<div class="wrap">';
+      var _pCamp = getActiveCampaign();
+      var _pCss = docStyleCss(mergeDocStyle(_pCamp && _pCamp.docStyle, activeMap.meta && activeMap.meta.style));
+      var html = '<div class="wrap"' + (_pCss ? ' style="' + _pCss + '"' : '') + '>';
 
       if (activeMap.blocks.length === 0) {
 
@@ -1045,6 +1047,43 @@ if (_el_plannerStatus) _el_plannerStatus.addEventListener('change', function() {
     save(true); updateSidebarNav();
     toast(this.value === 'next' ? 'Marked as the next scene.' : this.value === 'played' ? 'Marked played.' : this.value === 'skipped' ? 'Marked skipped.' : 'Status cleared.');
 });
+// Appearance: optional font / text colour / background colour for THIS page or planner (writes
+// item.meta.style), plus "use as the campaign default" (camp.docStyle, inherited by every doc + sheet).
+var _el_plannerAppearanceBtn = document.getElementById('plannerAppearanceBtn');
+if (_el_plannerAppearanceBtn) _el_plannerAppearanceBtn.addEventListener('click', function(e) { e.stopPropagation(); openAppearanceMenu(_el_plannerAppearanceBtn); });
+function openAppearanceMenu(anchor) {
+    var existing = document.getElementById('docAppearanceMenu'); if (existing) { existing.remove(); return; }   // click again to close
+    var item = getActiveMap(); if (!item || !(item.type === 'doc' || item.type === 'planner')) { toast('Open a page or planner first.'); return; }
+    var camp = getActiveCampaign(); if (!camp) return;
+    var DR = window.wpDocRender || {}, FONTS = DR.DOC_FONTS || {};
+    var st = (item.meta && item.meta.style && typeof item.meta.style === 'object') ? item.meta.style : {};
+    var cd = (camp.docStyle && typeof camp.docStyle === 'object') ? camp.docStyle : {};
+    var kind = item.type === 'doc' ? 'page' : 'planner';
+    var fontOpts = '<option value="">Default</option>' + Object.keys(FONTS).map(function(k) { return '<option value="' + k + '"' + (st.font === k ? ' selected' : '') + '>' + k.charAt(0).toUpperCase() + k.slice(1) + '</option>'; }).join('');
+    var m = document.createElement('div'); m.id = 'docAppearanceMenu'; m.className = 'doc-appearance-menu';
+    m.innerHTML =
+        '<div class="dam-head">Appearance &mdash; this ' + kind + '</div>' +
+        '<label class="dam-row"><span>Font</span> <select id="damFont">' + fontOpts + '</select></label>' +
+        '<label class="dam-row"><span>Text</span> <input type="color" id="damText" value="' + (st.textColor || cd.textColor || '#e8e2d0') + '"><button class="dam-clear" data-f="textColor" title="Use the default">&times;</button></label>' +
+        '<label class="dam-row"><span>Background</span> <input type="color" id="damBg" value="' + (st.bgColor || cd.bgColor || '#181510') + '"><button class="dam-clear" data-f="bgColor" title="Use the default">&times;</button></label>' +
+        '<div class="dam-actions"><button id="damReset" class="tool ghost">Reset this ' + kind + '</button></div>' +
+        '<div class="dam-divider"></div>' +
+        '<div class="dam-head">Campaign default &mdash; all pages &amp; sheets</div>' +
+        '<div class="dam-actions"><button id="damSetCamp" class="tool ghost">Use this ' + kind + '&rsquo;s look as the default</button> <button id="damClearCamp" class="tool ghost"' + (Object.keys(cd).length ? '' : ' disabled') + '>Clear default</button></div>';
+    document.body.appendChild(m);
+    var r = anchor.getBoundingClientRect();
+    m.style.top = (r.bottom + 5) + 'px';
+    m.style.left = Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
+    function setField(f, v) { item.meta = item.meta || {}; item.meta.style = item.meta.style || {}; if (v) item.meta.style[f] = v; else delete item.meta.style[f]; if (!Object.keys(item.meta.style).length) delete item.meta.style; save(true); renderPlanner(); }
+    m.querySelector('#damFont').addEventListener('change', function() { setField('font', this.value); });
+    m.querySelector('#damText').addEventListener('input', function() { setField('textColor', this.value); });
+    m.querySelector('#damBg').addEventListener('input', function() { setField('bgColor', this.value); });
+    Array.prototype.forEach.call(m.querySelectorAll('.dam-clear'), function(b) { b.addEventListener('click', function() { setField(b.dataset.f, null); }); });
+    m.querySelector('#damReset').addEventListener('click', function() { if (item.meta) delete item.meta.style; save(true); renderPlanner(); m.remove(); toast('Appearance reset to the campaign default.'); });
+    m.querySelector('#damSetCamp').addEventListener('click', function() { var s = DR.cleanDocStyle ? DR.cleanDocStyle(item.meta && item.meta.style) : (item.meta && item.meta.style); if (s) camp.docStyle = s; else delete camp.docStyle; save(true); renderPlanner(); if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); m.remove(); toast(camp.docStyle ? 'Campaign default set from this ' + kind + '.' : 'This ' + kind + ' has no look to copy yet.'); });
+    m.querySelector('#damClearCamp').addEventListener('click', function() { delete camp.docStyle; save(true); renderPlanner(); if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); m.remove(); toast('Campaign default cleared.'); });
+    setTimeout(function() { document.addEventListener('click', function closer(ev) { if (!m.contains(ev.target) && ev.target !== anchor) { m.remove(); document.removeEventListener('click', closer); } }); }, 0);
+}
 // Handbook page: the "players can read" switch. Off while hosting removes the page from every player
 // now (itemGone clears the send baseline too); on again sends it with this save (onLocalSave).
 var _el_docPlayersBtn = document.getElementById('docPlayersBtn');

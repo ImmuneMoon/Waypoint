@@ -331,6 +331,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
+        if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colours) so a player's Handbook matches; the client re-validates at render too
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false }); if (psys) camp.system = psys; else delete camp.system;
         } else delete camp.system;

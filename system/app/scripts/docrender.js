@@ -287,6 +287,50 @@ function cleanBlock(b, used, ctx) {
 }
 // opts.keepHidden: keep a page whose players switch is off (the client normalising what it received,
 // the GM's own preview). Without it a GM-only page is null: nothing leaves the host.
+/* ---------- document appearance (optional per-doc / per-campaign overrides) ----------
+   A curated, safe styling layer. Fonts come from a fixed list (never an arbitrary font-family),
+   colours must be plain hex, and a background image is a picture reference resolved through
+   opts.src to a served asset. Every value is validated or dropped, so a themed page that travels
+   to a player can never inject CSS. An absent field falls back to the campaign default, then the
+   app's own style. */
+// Single-quoted font names on purpose: the CSS goes into a double-quoted style="" attribute, so a
+// double quote inside would truncate it (and every value here is from this fixed list, never input).
+var DOC_FONTS = {
+    serif:   "Georgia, 'Times New Roman', serif",
+    sans:    "'Segoe UI', system-ui, 'Helvetica Neue', Arial, sans-serif",
+    mono:    "Consolas, 'SF Mono', 'Roboto Mono', monospace",
+    slab:    "Rockwell, 'Roboto Slab', Georgia, serif",
+    display: "'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif",
+    hand:    "'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive"
+};
+function safeHex(v) { return (typeof v === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)) ? v : ''; }
+// A stored background-image reference: a picture path/key with no CSS-breaking characters.
+function safeImgRef(v) { return (typeof v === 'string' && v && v.length <= 400 && !/["'()\\<>\s]/.test(v)) ? v : ''; }
+function cleanDocStyle(s) {
+    if (!s || typeof s !== 'object') return null;
+    var out = {};
+    if (typeof s.font === 'string' && Object.prototype.hasOwnProperty.call(DOC_FONTS, s.font)) out.font = s.font;
+    var tc = safeHex(s.textColor); if (tc) out.textColor = tc;
+    var bc = safeHex(s.bgColor); if (bc) out.bgColor = bc;
+    var bi = safeImgRef(s.bgImage); if (bi) out.bgImage = bi;
+    return Object.keys(out).length ? out : null;
+}
+// Merge a per-doc style over a base (the campaign default); each field falls back on its own.
+function mergeDocStyle(base, over) {
+    var b = cleanDocStyle(base) || {}, o = cleanDocStyle(over) || {}, m = {};
+    ['font', 'textColor', 'bgColor', 'bgImage'].forEach(function(k) { if (o[k]) m[k] = o[k]; else if (b[k]) m[k] = b[k]; });
+    return Object.keys(m).length ? m : null;
+}
+// Inline CSS for a resolved style. srcOf turns a bgImage reference into a URL (identity for the GM).
+function docStyleCss(style, srcOf) {
+    style = cleanDocStyle(style); if (!style) return '';
+    var css = '';
+    if (style.font && DOC_FONTS[style.font]) css += 'font-family:' + DOC_FONTS[style.font] + ';';
+    if (style.textColor) css += 'color:' + style.textColor + ';';
+    if (style.bgColor) css += 'background-color:' + style.bgColor + ';';
+    if (style.bgImage) { var u = (typeof srcOf === 'function' ? srcOf(style.bgImage) : style.bgImage); if (typeof u === 'string' && u && u.indexOf(')') < 0 && u.indexOf("'") < 0 && u.indexOf('"') < 0) css += "background-image:url('" + u + "');background-size:cover;background-position:center;"; }
+    return css;
+}
 function cleanDoc(doc, opts) {
     opts = opts || {};
     if (!doc || typeof doc !== 'object' || doc.type !== 'doc') return null;
@@ -294,6 +338,7 @@ function cleanDoc(doc, opts) {
     var players = meta.players !== false;
     if (!players && !opts.keepHidden) return null;
     var out = { type: 'doc', id: str(doc.id, 80) || ('doc_' + Math.random().toString(36).slice(2, 8)), meta: { title: str(meta.title, LIMITS.title) || 'Page', updated: num(meta.updated, 0, 1e14, 0), players: players }, blocks: [] };
+    var _dstyle = cleanDocStyle(meta.style); if (_dstyle) out.meta.style = _dstyle;   // optional appearance override; validated, so it is safe to send to players
     if (typeof meta.parentId === 'string' && meta.parentId) out.meta.parentId = str(meta.parentId, 80);
     if (typeof meta.sortIndex === 'number' && isFinite(meta.sortIndex)) out.meta.sortIndex = meta.sortIndex;
     var used = Object.create(null), ctx = { cols: 1 }, bytes = 0, truncated = false;   // prototype-free: a block id of "__proto__" is just a string
@@ -328,7 +373,9 @@ function renderDoc(doc, opts) {
     opts = opts || {};
     var srcOf = typeof opts.src === 'function' ? opts.src : function(p) { return p; };
     var blocks = doc && Array.isArray(doc.blocks) ? doc.blocks : [];
-    var html = '<div class="wrap">', section = false, cols = 1;
+    var _effStyle = mergeDocStyle(opts.docStyle, doc && doc.meta && doc.meta.style);   // per-doc over campaign default
+    var _wrapCss = docStyleCss(_effStyle, srcOf);
+    var html = '<div class="wrap"' + (_wrapCss ? ' style="' + _wrapCss + '"' : '') + '>', section = false, cols = 1;
     if (!blocks.length && opts.empty) html += opts.empty;
     function closeSection() { if (section) { html += '</div><div class="doc-clear"></div>'; section = false; } }
     blocks.forEach(function(b, i) {
@@ -389,6 +436,6 @@ function renderDoc(doc, opts) {
     return html;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc };
+var API = { VERSION: VERSION, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks };
+export { VERSION, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, DOC_FONTS };

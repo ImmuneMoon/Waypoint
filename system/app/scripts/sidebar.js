@@ -280,6 +280,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
+      // Presence dots on a Maps row: who is on that map. GM view only (players are locked to the
+      // Handbook and their roster data is stripped). Connected = solid, last-seen-there = dimmed.
+      function mapPresenceHtml(mapId) {
+          var net = window.wpNet;
+          if (!net || (net.active && net.role === 'client') || net.foreign || typeof net.playersOnMap !== 'function') return '';
+          var players = net.playersOnMap(mapId) || [];
+          if (!players.length) return '';
+          var chips = players.slice(0, 6).map(function(p) {
+              var nm = String(p.name || '');
+              var initials = (nm.trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase()) || '?';
+              var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar);
+              var face = avOk
+                  ? '<img src="' + p.avatar + '" alt="">'
+                  : '<span class="si-pres-dot" style="background:hsl(' + (p.hue || 0) + ',55%,55%);">' + esc(initials) + '</span>';
+              return '<span class="si-pres' + (p.connected ? '' : ' off') + '" title="' + esc(nm) + (p.connected ? ' — here now' : ' — last seen here') + '">' + face + '</span>';
+          }).join('');
+          var extra = players.length > 6 ? '<span class="si-pres si-pres-more" title="' + (players.length - 6) + ' more">+' + (players.length - 6) + '</span>' : '';
+          return '<span class="si-presence" title="Players on this map">' + chips + extra + '</span>';
+      }
       function rowHtml(item, depth, hasKids, collapsed) {
 
           var isActive = (item.id === camp.activeItemId);
@@ -300,6 +319,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                  (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — they cannot travel here until you unlock it">&#128274;</span>' : '') +
                  (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only — players cannot read this page">&#128274;</span>' : '') +
                  '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
+                 (item.type === 'map' ? mapPresenceHtml(item.id) : '') +
 
                  '</div>';
 

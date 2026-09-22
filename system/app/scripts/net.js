@@ -173,8 +173,25 @@ function syncLastMaps() {
         camp.players[p.id].lastMap = p.location;
     });
 }
+// Who is on a given map — for the Maps sidebar presence dots. Connected players (live) plus
+// registered players last seen there (persisted after they leave). GM-side only: camp.players is
+// stripped for players, and net.roster is the host's. Each: { id, name, avatar, connected, hue }.
+net.playersOnMap = function(mapId) {
+    if (!mapId) return [];
+    var out = [], seen = {};
+    Object.values(net.roster || {}).forEach(function(p) {
+        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id) }); seen[p.id] = 1; }
+    });
+    var camp = getActiveCampaign();
+    if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) {
+        var rec = camp.players[pid];
+        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid) });
+    });
+    return out;
+};
 function renderRoster() {
     syncLastMaps();
+    updateSidebarNav();   // keep the Maps sidebar presence dots in step with the roster
     var el = ui('netRoster');
     if (el) {
         var players = Object.values(net.roster);

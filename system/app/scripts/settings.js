@@ -50,6 +50,7 @@ function processAvatar(file, cb) {
     img.onerror = function() { URL.revokeObjectURL(url); toast('Could not read that image.'); };
     img.src = url;
 }
+window.wpProcessAvatar = processAvatar;   // the welcome screen reuses the same crop/shrink pipeline
 
 function renderAvatarPreview() {
     var p = getProfile();

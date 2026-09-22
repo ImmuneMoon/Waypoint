@@ -678,6 +678,7 @@ function applySnapshot(msg) {
     net.combats = cleanCombats(msg.combats);
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
     if (msg.notepad && typeof msg.notepad === 'object') applyNotepad(msg.notepad);
+    if (window.wpFog) window.wpFog.invalidateVision();   // a fresh snapshot may carry a changed camp.fog (sight/vision/empty-map default); bust the mask + vision caches so the client recomputes, not reuses a stale mask
     net._snapshotting = true;   // the stage inside a snapshot is the join itself, not a table change
     try {
         if (msg.stage) {

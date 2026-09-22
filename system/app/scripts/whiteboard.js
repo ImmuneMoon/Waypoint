@@ -898,6 +898,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       visBtn.textContent = anyVisible ? '👁' : '🚫';
       visBtn.classList.toggle('st-hidden', !anyVisible);
       visBtn.title = anyVisible ? 'Visible to players — click to hide from them (GM still sees it dimmed)' : 'HIDDEN from players — click to show it to them';
+      // Play-area toggle: only for footprint items (images/shapes, not tokens), and only while the fog feature is on for this campaign
+      var fogBtn = bar.querySelector('.st-fog');
+      if (fogBtn) {
+          var fogEligible = its.every(function(i) { return ['rect', 'hexagon', 'circle', 'diamond', 'image'].indexOf(i.type) >= 0 && !i.isChar; }) && (!window.wpVtt || window.wpVtt.on('fog'));
+          fogBtn.style.display = fogEligible ? '' : 'none';
+          var allFogged = its.length > 0 && its.every(function(i) { return i.fogged; });
+          fogBtn.classList.toggle('on', allFogged);
+          fogBtn.title = allFogged ? 'Play area — fog covers this. Click to unmark.' : 'Mark as a play area — with fog on, only marked items are fogged (scenes stay lit)';
+      }
       var fitBtn = bar.querySelector('.st-fit');
       if (fitBtn) {
           var gridOn = state.gridType && state.gridType !== 'off';
@@ -1135,6 +1144,11 @@ window.wpFitToGrid = fitToGrid;
           } else if (act === 'ratio') {
               var lockThemR = its.some(function(i) { return !i.lockRatio; });
               its.forEach(function(i) { if (lockThemR) i.lockRatio = true; else delete i.lockRatio; });
+          } else if (act === 'fog') {
+              var markThem = its.some(function(i) { return !i.fogged; });
+              its.forEach(function(i) { if (markThem) i.fogged = true; else delete i.fogged; });
+              if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+              import('./io.js').then(function(m) { m.toast(markThem ? 'Marked as a play area — with fog on, only marked items are fogged.' : 'No longer a play area.'); });
           } else if (act === 'up' || act === 'down') {
               its.forEach(function(i) {
                   var idx = LAYERS.indexOf(i.layer || 'middle');

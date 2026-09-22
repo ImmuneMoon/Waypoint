@@ -80,7 +80,7 @@ function visionOf(map) {
     return gridIsHexMap(map) ? { mode: 'arc', arc: def } : { mode: 'all', arc: 360 };
 }
 function viewersFor(map, camp, ownerId) {
-    var out = [], arc = visionOf(map).arc;
+    var turningOn = !window.wpVtt || window.wpVtt.on('turning'); var out = [], arc = turningOn ? visionOf(map).arc : 360;   // facing feature off ⇒ the cone falls back to all-around (nothing can aim it); host + client agree via the shared turning flag
     (map.whiteboard || []).forEach(function(w) {
         if (!w || !w.isChar || w.hidden) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;

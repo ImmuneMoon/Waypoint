@@ -463,7 +463,7 @@ function tutorialHandbookPage() {
 }
 
 function tutorialCampaign() { return state.appState.campaigns[TUTORIAL_CAMP_ID] || null; }
-function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true } }; }
+function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, master: true, features: { elevation: true, posture: true, minimap: true, sound: true, dice: true, sheets: true, fx: true, fog: true, turning: true } }; }
 // A session is exactly one campaign: opening, rebuilding or discarding the Tutorial while hosting is a campaign switch,
 // so it asks first and ends the session on yes (net.js guardCampaignSwitch). Off a session it simply runs.
 function guardSwitch(switching, fn) { if (switching && window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn); else fn(); }
@@ -623,7 +623,7 @@ var STEPS = [
       html: 'Your name and table picture, light or dark theme, measurement units, rulers and grid opacity (also reachable from the grid button&rsquo;s &#9681; shortcut), undo history size, the <b>VTT features</b> (next), journal options and updates. Table settings travel with your saves folder.',
       before: function() { closeSettingsForTour(); var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); } },
     { target: '#setVttCampBlock', title: 'VTT features, per campaign',
-      html: '<b>Token elevation</b>, <b>Token posture</b>, the <b>Minimap</b>, <b>Sound</b>, <b>Dice</b>, <b>Character sheets</b>, <b>Visual effects</b> and <b>Fog of war</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
+      html: '<b>Token elevation</b>, <b>Token posture</b>, <b>Token facing</b> (the turn arrow and the fog facing cone), the <b>Minimap</b>, <b>Sound</b>, <b>Dice</b>, <b>Character sheets</b>, <b>Visual effects</b> and <b>Fog of war</b> are switched here for the campaign on screen and saved with it, under one <b>VTT integration</b> master (off = the plain whiteboard; the choices are kept). Below them, the <b>default for new campaigns</b>: changing it touches no existing campaign, and <b>Apply to existing campaigns…</b> copies it onto the ones you tick. In a session your campaign\'s settings are the most your players see; at someone else\'s table this same section shows the GM\'s settings and lets you switch a feature off for yourself.',
       before: function() { openSettingsForTour(); } },
     { target: '#helpBtn', title: 'Help is always here',
       html: 'Every topic in more depth, keyboard shortcuts, and this tour again whenever you want it. The <b>search box</b> at the top of Help finds any topic by keyword and jumps straight to it. <b>Ctrl + K</b> jumps to any map, planner or room by name.',

@@ -306,7 +306,8 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     dice: ['Dice on.', 'Dice off for this campaign \u2014 nobody rolls at the table.'],
     sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
     fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.'],
-    fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.']
+    fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
+    turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.']
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',

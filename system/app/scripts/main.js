@@ -50,7 +50,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       document.getElementById('canvas').style.transform = 'scale('+state.zoomLevel+')';
 
-      document.getElementById('whiteboard').style.transform = 'scale('+state.zoomLevel+')';
+      document.getElementById('whiteboard').style.transform = 'scale('+state.zoomLevel+')'; document.getElementById('whiteboard').style.setProperty('--wbz', 1 / (state.zoomLevel || 1));   // inverse zoom for counter-scaling item badges
 
       document.getElementById('zoomLbl').value = Math.round(state.zoomLevel * 100) + '%';
 
@@ -1177,7 +1177,7 @@ export function restoreCameraPosition() {
 
     state.zoomLevel = targetZoom;
     document.getElementById('canvas').style.transform = 'scale('+state.zoomLevel+')';
-    document.getElementById('whiteboard').style.transform = 'scale('+state.zoomLevel+')';
+    document.getElementById('whiteboard').style.transform = 'scale('+state.zoomLevel+')'; document.getElementById('whiteboard').style.setProperty('--wbz', 1 / (state.zoomLevel || 1));   // inverse zoom for counter-scaling item badges
     var zLbl = document.getElementById('zoomLbl');
     if(zLbl) zLbl.value = Math.round(state.zoomLevel * 100) + '%';
 

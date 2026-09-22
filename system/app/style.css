@@ -93,13 +93,13 @@
 
   /* GM's view of a player-hidden item */
   .wb-item.wb-hidden-gm { opacity: 0.55; outline: 2px dashed var(--steel); outline-offset: 2px; }
-  .wb-item.wb-hidden-gm::before { content: '\1F441'; position: absolute; top: -12px; left: -12px; font-size: 15px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+  .wb-item.wb-hidden-gm::before { content: '\1F441'; position: absolute; top: -12px; left: -12px; font-size: 15px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 100% 100%; }
   /* GM-only cue that a board item blocks sight (a wall). The class is only added for the GM view. */
   .wb-item.wb-blocks-sight { outline: 2px dashed var(--gold); outline-offset: -2px; }
-  .wb-item.wb-blocks-sight::after { content: '\1F9F1'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+  .wb-item.wb-blocks-sight::after { content: '\1F9F1'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 0% 100%; }
   /* Doors are shown to EVERYONE (players toggle them): a door glyph, solid gold outline when shut, green dashed when open. */
   .wb-item.wb-door { outline: 2px solid var(--gold); outline-offset: -2px; }
-  .wb-item.wb-door::after { content: '\1F6AA'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+  .wb-item.wb-door::after { content: '\1F6AA'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 0% 100%; }
   .wb-item.wb-door.wb-door-open { outline-style: dashed; outline-color: #4caf7d; opacity: 0.9; }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
@@ -510,7 +510,7 @@
   .wb-item.tok-dead > img { filter: saturate(0.45); }
   /* Stance chips: elevation (gold, red-tinted below ground) and posture (blue) in a row at the
      bottom of the token, inside its cell. Fixed dark plate so they read over any art or theme. */
-  .token-stance { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; pointer-events: none; z-index: 4; }
+  .token-stance { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; pointer-events: none; z-index: 4; transform: scale(var(--wbz, 1)); transform-origin: 50% 100%; }
   .token-stance .chip { font: 700 9px/1 Consolas, monospace; padding: 2px 3px; border-radius: 3px; background: rgba(0,0,0,0.78); color: #f2c66d; letter-spacing: .02em; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); white-space: nowrap; }
   .token-stance .chip.below { color: #f4a3a3; }
   .token-stance .chip.post { color: #8fd6ec; }
@@ -538,7 +538,7 @@
   .wb-item.text.editing * { user-select: text; -webkit-user-select: text; cursor: text !important; }
   
   .wb-item.image img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-  .wb-item[data-portal="true"]::after { content:attr(data-portal-icon); position:absolute; bottom:-13px; right:-13px; font-size:21px; line-height:1; filter:drop-shadow(0 0 3px rgba(0,0,0,0.95)) drop-shadow(0 2px 4px rgba(0,0,0,0.85)); pointer-events:none; z-index:100; }
+  .wb-item[data-portal="true"]::after { content:attr(data-portal-icon); position:absolute; bottom:-13px; right:-13px; font-size:21px; line-height:1; filter:drop-shadow(0 0 3px rgba(0,0,0,0.95)) drop-shadow(0 2px 4px rgba(0,0,0,0.85)); pointer-events:none; z-index:100; transform: scale(var(--wbz, 1)); transform-origin: 0% 0%; }
   
   .wb-item.line { border-radius: 4px; }
   

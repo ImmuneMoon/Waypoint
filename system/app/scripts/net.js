@@ -3211,6 +3211,43 @@ net.summonPlayerById = function(playerId) {
     return true;
 };
 net.summonAll = function() { var b = ui('netSummonBtn'); if (b) b.click(); };
+// The map players currently arrive on / follow to (pinned override, else the GM's map). Lets the
+// party menu tell "the table's map" apart from "the map I'm looking at" when they differ.
+net.stagedMapId = function() { var s = currentStage(); return s ? s.itemId : null; };
+// Summon ONE connected player to a specific map (the one the GM is viewing), leaving the table's
+// pinned map and everyone else untouched — a "scout ahead" move.
+net.summonPlayerToMap = function(playerId, mapId) {
+    if (!net.active || net.role !== 'host') return false;
+    var camp = getActiveCampaign();
+    if (!camp || !camp.items[mapId] || camp.items[mapId].type !== 'map') { toast('Open a play map first.'); return false; }
+    var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === playerId; });
+    if (!key) { toast('That player is not connected right now.'); return false; }
+    var c = net.conns.find(function(x) { return x.peer === key; });
+    if (!c) return false;
+    var p = summonConn(c, { campId: camp.id, itemId: mapId });
+    renderRoster();
+    broadcastRoster();
+    toast((p && p.name ? p.name : 'Player') + ' summoned to ' + ((camp.items[mapId].meta && camp.items[mapId].meta.title) || 'this map') + '.');
+    return true;
+};
+// Summon EVERYONE to a specific map and re-pin the table there, so the follow model stays coherent
+// (the whole table is now on this map — late joiners and Follow-me should land here too).
+net.summonAllToMap = function(mapId) {
+    if (!net.active || net.role !== 'host') return false;
+    var camp = getActiveCampaign();
+    if (!camp || !camp.items[mapId] || camp.items[mapId].type !== 'map') { toast('Open a play map first.'); return false; }
+    net.stageMode = null;
+    net.stageOverride = mapId;                                              // pin the table to this map
+    net.stagePicked[camp.id] = { mode: null, fallback: net.stageFallback }; // the GM chose; stop defaulting
+    Object.values(net.roster).forEach(function(p) { if (p) p.detached = false; });   // everyone follows again
+    refreshStageSelect();
+    var stage = { campId: camp.id, itemId: mapId };
+    net.conns.forEach(function(c) { summonConn(c, stage); });
+    renderRoster();
+    broadcastRoster();
+    toast('Everyone summoned to ' + ((camp.items[mapId].meta && camp.items[mapId].meta.title) || 'this map') + '; table pinned here.');
+    return true;
+};
 // Host: send the players a fresh copy of these maps (after a lock change, say)
 net.pushItems = function(ids) {
     if (!(net.active && net.role === 'host')) return;

@@ -94,6 +94,7 @@ function cleanControl(msg, opts) {
     if (isId(msg.playlist) && (!pls || pls[msg.playlist])) out.playlist = msg.playlist;
     else if (isId(msg.track) && (!trs || trs[msg.track])) out.track = msg.track;
     else return null;
+    if (isId(msg.now) && (!trs || trs[msg.now])) out.now = msg.now;   // the exact track playing now (within a playlist) — the client follows this id, not the index (survives shuffle)
     out.index = Math.floor(num(msg.index, 0, LIMITS.index, 0));
     out.pos = num(msg.pos, 0, LIMITS.pos, 0);
     out.ts = num(msg.ts, 0, 8.64e15, 0);   // the host clock at which pos was true, so a client can advance it

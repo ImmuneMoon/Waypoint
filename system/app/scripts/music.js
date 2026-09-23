@@ -10,13 +10,14 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { LIMITS, cleanMusic, cleanMapMusic, cleanName } from './musiccore.js';
+import { LIMITS, cleanMusic, cleanMapMusic, cleanControl, cleanName } from './musiccore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function uid(p) { return (p || 'm_') + Math.random().toString(36).slice(2, 8); }
 function net() { return window.wpNet || null; }
 function isClient() { var n = net(); return !!(n && n.active && n.role === 'client' && !n.stream); }
+function isHost() { var n = net(); return !!(n && n.active && n.role === 'host'); }
 function featureOn() { return window.wpVtt ? !!window.wpVtt.on('music') : true; }
 function canWrite() { return !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream; }
 function pref(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
@@ -34,13 +35,15 @@ function playlistById(id) { var m = musicNow(); for (var i = 0; i < m.playlists.
 function idSets() { var m = musicNow(), t = {}, p = {}; m.tracks.forEach(function(x) { t[x.id] = 1; }); m.playlists.forEach(function(x) { p[x.id] = 1; }); return { trackIds: t, playlistIds: p }; }
 
 /* ---------- the engine (one music lane, crossfaded) ---------- */
-var ctx = null, cache = {}, bytes = {};
+var ctx = null, cache = {}, bytes = {}, cacheSec = 0, CACHE_SEC = 1200;   // decoded PCM is huge (a song ≈ hundreds of MB) — keep only ~20 min of it, LRU, never the playing track
 var cur = null;        // { src, gain, entry, startedAt, offset, dur }
 var source = null;     // { kind:'playlist'|'track', id, loop:'off'|'one'|'list', shuffle } — what is playing
 var order = [], qi = 0;   // the resolved play order (track ids) and the index within it
 var mvol = Number(pref('wp_musicVolume', '70')) / 100, mmuted = pref('wp_musicMuted', 'no') === 'yes';
 var rate = Math.max(0.5, Math.min(2, Number(pref('wp_musicRate', '100')) / 100));   // playback speed (0.5×–2×)
-var pending = null, gateShown = false, listeners = [];
+var pending = null, gateShown = false, listeners = [], loadGen = 0;   // loadGen: bumped on every intended-track change so a superseded async fetch cannot win
+var controlling = false;   // host: the GM is driving the table's music (take control) — broadcast transport changes
+var controlled = false;    // client: following the GM's take-control override — local map auto-play is suspended
 function ac() { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } } return ctx; }
 function effGain() { return mmuted ? 0.0001 : Math.max(0.0001, mvol); }
 function emit() { renderPill(); refreshTransport(); listeners.forEach(function(fn) { try { fn(); } catch (e) {} }); }   // light transport update; structural changes call renderPanel explicitly
@@ -52,15 +55,26 @@ function bytesFor(entry) {
     return p.then(function(blob) { if (blob.size > LIMITS.file * 2) throw new Error('too-big'); bytes[entry.path] = blob; return blob; });
 }
 function bufferFor(entry) {
-    if (cache[entry.path]) return Promise.resolve(cache[entry.path]);
+    var rec = cache[entry.path]; if (rec) { rec.last = Date.now(); return Promise.resolve(rec.buffer); }
     var a = ac(); if (!a) return Promise.reject(new Error('no audio'));
-    return bytesFor(entry).then(function(b) { return b.arrayBuffer(); }).then(function(buf) { return a.decodeAudioData(buf); }).then(function(dec) { cache[entry.path] = dec; return dec; });
+    return bytesFor(entry).then(function(b) { return b.arrayBuffer(); }).then(function(buf) { return a.decodeAudioData(buf); }).then(function(dec) { cache[entry.path] = { buffer: dec, sec: dec.duration, last: Date.now() }; cacheSec += dec.duration; evictCache(entry.path); return dec; });
+}
+// LRU-evict decoded buffers (and their compressed blobs) beyond the budget; never the just-loaded or the playing track.
+function evictCache(keep) {
+    var curPath = cur && cur.entry ? cur.entry.path : null;
+    var paths = Object.keys(cache).sort(function(a, b) { return cache[a].last - cache[b].last; });
+    for (var i = 0; i < paths.length && cacheSec > CACHE_SEC; i++) {
+        var p = paths[i]; if (p === keep || p === curPath) continue;
+        cacheSec -= cache[p].sec; delete cache[p]; delete bytes[p];
+    }
 }
 function ramp(g, to, sec) { var a = ac(), t = a.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(Math.max(0.0001, to), t + Math.max(0.02, sec)); }
 // play one track at an offset, crossfading out whatever is on the lane. loopOne = repeat this one track (loop 'one').
-function playTrackAt(entry, offset, fadeSec, loopOne) {
+function playTrackAt(entry, offset, fadeSec, loopOne, tries) {
+    var myGen = ++loadGen;   // this is now the intended track; any earlier in-flight fetch is stale
     return bufferFor(entry).then(function(buf) {
         var a = ac(); if (!a) return;
+        if (myGen !== loadGen) return;   // superseded while fetching/decoding: do not touch the lane
         if (a.state === 'suspended') { pending = { entry: entry, offset: offset, loopOne: loopOne }; showGate(); return; }
         var old = cur;
         var g = a.createGain(); g.gain.value = 0.0001; g.connect(a.destination);
@@ -71,14 +85,19 @@ function playTrackAt(entry, offset, fadeSec, loopOne) {
         src.start(0, Math.min(offset || 0, Math.max(0, buf.duration - 0.05)));
         ramp(g, effGain(), fadeSec === undefined ? 1.2 : fadeSec);
         if (old) { ramp(old.gain, 0.0001, fadeSec === undefined ? 1.2 : fadeSec); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, ((fadeSec === undefined ? 1.2 : fadeSec) * 1000) + 120); }
-        emit();
-    }).catch(function(e) { if (!isClient()) toast('Could not play "' + entry.name + '": ' + (e.message || e)); });
+        emit(); broadcastControl();   // if the GM is taking control, clients follow this track + position
+    }).catch(function(e) {
+        if (!isClient()) { toast('Could not play "' + entry.name + '": ' + (e && e.message || e)); return; }
+        if (myGen === loadGen && (tries | 0) < 3 && /busy/.test(e && e.message || '')) setTimeout(function() { if (myGen === loadGen) playTrackAt(entry, offset, fadeSec, loopOne, (tries | 0) + 1); }, 500 * ((tries | 0) + 1));   // the host's one-in-flight lane was busy; retry the still-intended track
+    });
 }
 function onTrackEnd() {   // a track played through to its end (never fires for loop 'one', which loops the source)
+    if (controlled) return;   // following the GM: do not advance on our own — the host sends the next track
     if (!source) return;
     if (source.loop === 'one') { var e = trackById(order[qi]); if (e) playTrackAt(e, 0, 0.05, true); return; }
     if (qi < order.length - 1) { qi++; playCurrent(0.05); return; }
     if (source.loop === 'list' && order.length) { qi = 0; playCurrent(0.05); return; }
+    if (isHost() && controlling) { stopLane(0.3); broadcastControl(); return; }   // controlling: end of a no-loop list = table silence (paused), not a release
     stop(0.3);   // loop 'off' at the end of the list
 }
 function shuffled(ids) { var a = ids.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
@@ -88,36 +107,38 @@ function resolveOrder(src) {
     var ids = pl.tracks.filter(function(id) { return !!trackById(id); });
     return src.shuffle ? shuffled(ids) : ids;
 }
-function playCurrent(fadeSec) { var e = trackById(order[qi]); if (e) playTrackAt(e, 0, fadeSec, source && source.loop === 'one'); }
+function playCurrent(fadeSec, startPos) { var e = trackById(order[qi]); if (e) playTrackAt(e, startPos || 0, fadeSec, source && source.loop === 'one'); }
 // start (or continue) a source. Same kind+id as what's already playing → do nothing but adopt loop/shuffle (seamless).
-function play(src) {
+// opts.pos / opts.index start a fresh source at a position (used by the GM take-control override on a client).
+function play(src, opts) {
     if (!featureOn()) return;
+    opts = opts || {};
     autoStarted = false;   // any play() is manual by default; tick() re-marks its own call as auto-started
     src = { kind: src.kind, id: src.id, loop: src.loop || 'list', shuffle: !!src.shuffle };
-    if (source && cur && source.kind === src.kind && source.id === src.id) {   // the same playlist / song is already playing → keep it going
+    if (!opts.pos && source && cur && source.kind === src.kind && source.id === src.id) {   // the same playlist / song is already playing → keep it going
         var reorder = source.shuffle !== src.shuffle && src.kind === 'playlist';
         source.loop = src.loop; if (cur) cur.loopOne = source.loop === 'one', cur.src.loop = source.loop === 'one';
         if (reorder) { source.shuffle = src.shuffle; order = resolveOrder(source); qi = Math.max(0, order.indexOf(cur.entry.id)); }
-        emit(); return;
+        emit(); broadcastControl(); return;
     }
-    source = src; order = resolveOrder(src); qi = 0;
+    source = src; order = resolveOrder(src); qi = (opts.index > 0 && opts.index < order.length) ? opts.index : 0;
     if (!order.length) { stop(0.3); toast(src.kind === 'playlist' ? 'That playlist has no tracks yet.' : 'That track is missing.'); return; }
-    playCurrent();
+    playCurrent(opts.fade, opts.pos);
 }
 function stop(fadeSec) {
     source = null; order = []; qi = 0; pending = null;
     if (cur) { var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec === undefined ? 0.6 : fadeSec); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, ((fadeSec === undefined ? 0.6 : fadeSec) * 1000) + 120); }
-    emit();
+    emit(); broadcastControl();
 }
-function togglePlay() { if (!source) return; if (cur) { stopLane(0.3); } else { playCurrent(0.3); } emit(); }
+function togglePlay() { if (!source) return; if (cur) { stopLane(0.3); } else { playCurrent(0.3); } emit(); broadcastControl(); }
 function stopLane(fadeSec) { if (!cur) return; var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec || 0.3); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, (fadeSec || 0.3) * 1000 + 120); }
 function next() { if (!source || !order.length) return; if (qi < order.length - 1) qi++; else if (source.loop !== 'off') qi = 0; else return; playCurrent(0.25); }
 function prev() { if (!source || !order.length) return; if (position() > 3) { seek(0); return; } if (qi > 0) qi--; else if (source.loop !== 'off') qi = order.length - 1; else return; playCurrent(0.25); }
 function position() { if (!cur || !ctx) return 0; var e = (ctx.currentTime - cur.startedAt) * (cur.rate || 1) + cur.offset; return cur.loopOne && cur.dur ? (e % cur.dur) : Math.min(e, cur.dur); }
 function seek(pos) { if (!cur) return; playTrackAt(cur.entry, Math.max(0, Math.min(pos, cur.dur - 0.05)), 0.05, cur.loopOne); }
 function setSpeed(r) { rate = Math.max(0.5, Math.min(2, r || 1)); setPref('wp_musicRate', Math.round(rate * 100)); if (cur && ctx) { cur.offset = position(); cur.startedAt = ctx.currentTime; cur.rate = rate; try { cur.src.playbackRate.setValueAtTime(rate, ctx.currentTime); } catch (e) {} } emit(); }
-function setLoop(mode) { if (!source) return; source.loop = (mode === 'off' || mode === 'one' || mode === 'list') ? mode : 'list'; if (cur) { cur.loopOne = source.loop === 'one'; cur.src.loop = cur.loopOne; if (cur.loopOne) cur.src.onended = null; else cur.src.onended = (function(rec) { return function() { if (cur === rec) onTrackEnd(); }; })(cur); } emit(); }
-function setShuffle(on) { if (!source || source.kind !== 'playlist') return; source.shuffle = !!on; var curId = cur ? cur.entry.id : null; order = resolveOrder(source); qi = Math.max(0, curId ? order.indexOf(curId) : 0); emit(); }
+function setLoop(mode) { if (!source) return; source.loop = (mode === 'off' || mode === 'one' || mode === 'list') ? mode : 'list'; if (cur) { cur.loopOne = source.loop === 'one'; cur.src.loop = cur.loopOne; if (cur.loopOne) cur.src.onended = null; else cur.src.onended = (function(rec) { return function() { if (cur === rec) onTrackEnd(); }; })(cur); } emit(); broadcastControl(); }
+function setShuffle(on) { if (!source || source.kind !== 'playlist') return; source.shuffle = !!on; var curId = cur ? cur.entry.id : null; order = resolveOrder(source); qi = Math.max(0, curId ? order.indexOf(curId) : 0); emit(); broadcastControl(); }
 function setVolume(v) { mvol = Math.max(0, Math.min(1, v)); setPref('wp_musicVolume', Math.round(mvol * 100)); if (cur) ramp(cur.gain, effGain(), 0.1); emit(); }
 function setMute(on) { mmuted = !!on; setPref('wp_musicMuted', mmuted ? 'yes' : 'no'); if (cur) ramp(cur.gain, effGain(), 0.1); emit(); }
 function nowPlaying() { return cur ? cur.entry : null; }
@@ -137,11 +158,13 @@ document.addEventListener('keydown', function() { if (gateShown || (ctx && ctx.s
 var lastKey = '', lastMapId = null, autoStarted = false;   // what auto-play last did; autoStarted = the current music was started by auto-play (not the panel)
 function activeMapItem() { var camp = getActiveCampaign(); if (!camp) return null; var it = camp.items && camp.items[camp.activeItemId]; return (it && it.type === 'map') ? it : null; }
 function sessionLive() { var n = net(); return !!(n && n.active); }
+function soloAutoOn() { return pref('wp_musicSolo', 'off') === 'on'; }   // GM option: auto-play map music even when NOT in a session (off by default)
 // Runs on every render() — MUST be cheap in the common case (zoom / pan re-renders on the same map). It only does
 // real work when the active MAP changes, and only auto-plays while a multiplayer session is live (solo prep can
 // still play from the panel; that music is left alone here).
 function tick() {
-    if (!featureOn() || !sessionLive()) { if (autoStarted && (cur || source)) { stop(0.5); autoStarted = false; } lastKey = ''; lastMapId = null; return; }
+    if (controlling || controlled) return;   // the GM is driving the table's music (or we are following it): map auto-play is suspended
+    if (!featureOn() || (!sessionLive() && !soloAutoOn())) { if (autoStarted && (cur || source)) { stop(0.5); autoStarted = false; } lastKey = ''; lastMapId = null; return; }   // no auto-play unless a session is live or the GM opted into solo auto-play
     var camp = getActiveCampaign(), it = camp && camp.items ? camp.items[camp.activeItemId] : null;
     it = (it && it.type === 'map') ? it : null;
     var mapId = it ? camp.activeItemId : null;
@@ -156,6 +179,55 @@ function tick() {
     play({ kind: kind, id: id, loop: cfg.loop, shuffle: cfg.shuffle });
     autoStarted = true;
 }
+
+/* ---------- multiplayer: the music library travels like sounds; the GM can take control of the table's music ---------- */
+// The current playback as a control message (host -> clients). on:false means nothing is playing / release.
+function currentControl() {
+    if (!source) return { on: false };
+    var c = { on: true, loop: source.loop, shuffle: !!source.shuffle, playing: !!cur, index: qi, pos: position(), ts: Date.now() };
+    if (source.kind === 'playlist') c.playlist = source.id; else c.track = source.id;
+    var nowId = cur ? cur.entry.id : order[qi]; if (nowId) c.now = nowId;   // the exact track, so clients follow it by id (shuffle-safe)
+    return c;
+}
+// Host: the current control for a joining peer (fresh position), or null when not taking control.
+function controlSnapshot() { return (isHost() && controlling) ? currentControl() : null; }
+// Host: while taking control, push the current playback to every client. Called after each transport change.
+function broadcastControl() { if (controlling && isHost()) { var n = net(); if (n && n.sendMusicControl) n.sendMusicControl(currentControl()); } }
+// Host: toggle "take control" of the whole table's music.
+function setControlling(on) {
+    if (!isHost()) return;
+    controlling = !!on;
+    var n = net();
+    if (controlling) broadcastControl();               // start driving: send what is playing now
+    else if (n && n.sendMusicControl) { n.sendMusicControl({ on: false }); lastKey = ''; lastMapId = null; tick(); }   // release: clients (and we) resume local map music
+    emit(); if (panelOpen()) renderPanel();
+}
+// The host builds the library message; a client stores it (re-validated) as net.music.
+function listMessage() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'music', campId: camp.id, music: cleanMusic(campMusic(camp)) }; }
+function onList(msg) { var n = net(); if (!n) return; n.music = cleanMusic(msg && msg.music); lastKey = ''; lastMapId = null; tick(); renderPill(); if (panelOpen()) renderPanel(); }   // re-arm map auto-play now that the library exists (the join-map's music would otherwise never start)
+// A client applies the GM's take-control override (re-cleaned against its own library). It follows the EXACT track
+// the GM names (mc.now / mc.track), by id — never its own auto-advance — so shuffle and mid-playlist jumps stay in sync.
+function onControl(msg) {
+    var mc = cleanControl(msg, idSets()); if (!mc) return;
+    if (!mc.on) { if (controlled) { controlled = false; stop(0.5); lastKey = ''; lastMapId = null; tick(); } return; }   // release -> drop the GM's track, resume this map's own music (or silence if it has none)
+    if (!featureOn()) return;   // a player who turned Music off for themselves is never force-played (mirrors sound.js onCue)
+    controlled = true;
+    var want = mc.now || mc.track;
+    if (!want && mc.playlist) { var pl = playlistById(mc.playlist); want = pl && pl.tracks.length ? pl.tracks[(mc.index > 0 && mc.index < pl.tracks.length) ? mc.index : 0] : null; }
+    if (!want || !trackById(want)) { if (cur) stopLane(0.3); return; }   // nothing to play / a track this client does not have
+    source = { kind: mc.playlist ? 'playlist' : 'track', id: mc.playlist || mc.track, loop: mc.loop, shuffle: !!mc.shuffle };
+    if (cur && cur.entry.id === want) {   // already on this exact track: follow loop, re-seek on a real jump, follow pause/play
+        cur.loopOne = mc.loop === 'one'; cur.src.loop = cur.loopOne;
+        if (Math.abs((mc.pos || 0) - position()) > 2.5) seek(mc.pos || 0);
+        if (!mc.playing && cur) stopLane(0.2); else if (mc.playing && !cur) playCurrent(0.2, mc.pos || 0);
+        return;
+    }
+    order = [want]; qi = 0; autoStarted = false;   // a one-track queue: the host drives every change, we never advance on our own
+    var el = mc.ts ? (Date.now() - mc.ts) / 1000 : 0; if (!(el > 0) || el > 30) el = 0;   // add the transfer/latency elapsed (bounded — ignore an obviously-skewed clock)
+    if (mc.playing) playCurrent(0.4, (mc.pos || 0) + el); else if (cur) stopLane(0.3);
+}
+function onSnapshot() { controlled = false; stop(0); cache = {}; bytes = {}; cacheSec = 0; lastKey = ''; lastMapId = null; }   // a fresh snapshot: drop stale library/playback; the 'music' message re-arms
+function tableLeft() { controlled = false; controlling = false; stop(0); cache = {}; bytes = {}; cacheSec = 0; lastKey = ''; lastMapId = null; }
 
 /* ---------- the feature switch (vtt.js fan-out) ---------- */
 function sync() { var b = ui('musicBtn'); if (b) b.style.display = ''; if (!featureOn()) { stop(0.3); lastKey = ''; } renderPill(); if (panelOpen()) renderPanel(); }
@@ -228,7 +300,7 @@ function renderPanel() {
     btns.appendChild(tb('music-prev', '⏮', 'Previous', prev));
     btns.appendChild(tb('music-play', cur ? '⏸' : '▶', cur ? 'Pause' : 'Play', togglePlay));
     btns.appendChild(tb('music-next', '⏭', 'Next', next));
-    btns.appendChild(tb('music-stop', '⏹', 'Stop', function() { stop(0.4); }));
+    btns.appendChild(tb('music-stop', '⏹', 'Stop', function() { if (isHost() && controlling) { stopLane(0.4); broadcastControl(); } else stop(0.4); }));   // while controlling, Stop = silence the table (paused, still controlled), not release
     var loopLbl = { off: '↻ off', one: '🔂 one', list: '🔁 list' };
     btns.appendChild(tb('music-loop', loopLbl[st.loop] || '🔁 list', 'Loop: off / one track / whole list', function() { setLoop(st.loop === 'off' ? 'list' : st.loop === 'list' ? 'one' : 'off'); }, st.loop !== 'off'));
     btns.appendChild(tb('music-shuf', '🔀', 'Shuffle the playlist', function() { setShuffle(!st.shuffle); }, st.shuffle));
@@ -246,6 +318,18 @@ function renderPanel() {
     var xg = el('span', 'music-speed-x', '×');
     var fast = el('button', 'tool ghost music-fast', '+'); fast.title = 'Speed up (2× maximum)'; fast.addEventListener('click', function() { setSpeed(rate + 0.1); });
     spRow.appendChild(slow); spRow.appendChild(spIn); spRow.appendChild(xg); spRow.appendChild(fast); tp.appendChild(spRow);
+    if (isHost() && sessionLive()) {   // the GM can drive every player's music in sync
+        var ctlBtn = el('button', 'tool music-takectl' + (controlling ? ' on' : ''), controlling ? '● Controlling the table — release' : 'Take control of the table’s music');
+        ctlBtn.title = controlling ? 'Players follow your music; click to hand them back their own map music' : 'Play your music on every player’s machine in sync (they keep their own volume)';
+        ctlBtn.addEventListener('click', function() { setControlling(!controlling); });
+        tp.appendChild(ctlBtn);
+    }
+    var soloRow = el('label', 'music-solo-opt');
+    var soloChk = el('input'); soloChk.type = 'checkbox'; soloChk.className = 'music-solo-chk'; soloChk.checked = soloAutoOn();
+    soloChk.addEventListener('change', function() { setPref('wp_musicSolo', soloChk.checked ? 'on' : 'off'); lastKey = ''; lastMapId = ''; tick(); });
+    soloRow.appendChild(soloChk); soloRow.appendChild(document.createTextNode(' Auto-play map music while solo (no session)'));
+    soloRow.title = 'Off by default: map music starts for players in a session. Turn on to also hear it while prepping alone.';
+    tp.appendChild(soloRow);
     p.appendChild(tp);
 
     // playlists
@@ -311,7 +395,8 @@ function renderPanel() {
 /* ---------- boot: react to the feature switch, poll the transport while the panel is open ---------- */
 window.wpMusicSync = sync;
 window.wpMusicTick = tick;
-window.wpMusic = { play: play, stop: stop, next: next, prev: prev, seek: seek, togglePlay: togglePlay, setLoop: setLoop, setShuffle: setShuffle, setVolume: setVolume, setMute: setMute, setSpeed: setSpeed, status: status, nowPlaying: nowPlaying, openPanel: openPanel, closePanel: closePanel, tick: tick, sync: sync, onListeners: listeners };
+window.wpMusic = { play: play, stop: stop, next: next, prev: prev, seek: seek, togglePlay: togglePlay, setLoop: setLoop, setShuffle: setShuffle, setVolume: setVolume, setMute: setMute, setSpeed: setSpeed, status: status, nowPlaying: nowPlaying, openPanel: openPanel, closePanel: closePanel, tick: tick, sync: sync, onListeners: listeners,
+    listMessage: listMessage, onList: onList, onControl: onControl, onSnapshot: onSnapshot, tableLeft: tableLeft, controlSnapshot: controlSnapshot, idSets: idSets, setControlling: setControlling, isControlling: function() { return controlling; } };
 (function wire() {
     var b = ui('musicBtn'); if (b) b.addEventListener('click', function() { if (panelOpen()) closePanel(); else openPanel(); });
     var ind = ui('musicInd'); if (ind) ind.addEventListener('click', function() { if (pillPop) closePill(); else openPill(); });

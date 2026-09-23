@@ -49,6 +49,11 @@ const j = o => JSON.stringify(o);
         const c = cleanControl({ on: true, playlist: 'pl_1', loop: 'one', shuffle: true, playing: true, index: 3, pos: 42.5, ts: 1000, vol: 0.5 });
         return c.on === true && c.playlist === 'pl_1' && c.loop === 'one' && c.shuffle === true && c.playing === true && c.index === 3 && c.pos === 42.5 && c.ts === 1000 && c.vol === 0.5;
     })());
+    check('cleanControl: the exact "now" track id is kept (shuffle-safe follow) and filtered against opts.trackIds', (() => {
+        const c = cleanControl({ on: true, playlist: 'pl_1', now: 't_a', pos: 5 }, { playlistIds: { pl_1: 1 }, trackIds: { t_a: 1 } });
+        const d = cleanControl({ on: true, playlist: 'pl_1', now: 't_x' }, { playlistIds: { pl_1: 1 }, trackIds: { t_a: 1 } });   // now not in trackIds -> dropped, not the whole control
+        return c.now === 't_a' && d.now === undefined && d.playlist === 'pl_1';
+    })());
     check('cleanControl: playing defaults true, vol omitted when absent, negative pos/index clamped to 0, over-cap pos clamped', (() => {
         const c = cleanControl({ on: true, track: 't_a', pos: -5, index: -2 });
         const d = cleanControl({ on: true, track: 't_a', pos: 1e9 });

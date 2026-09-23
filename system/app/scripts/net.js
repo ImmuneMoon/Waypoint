@@ -346,6 +346,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
+        delete camp.music;    // the music library (1.5.0): likewise travels only as the validated 'music' message, never raw in the snapshot
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false }); if (psys) camp.system = psys; else delete camp.system;
@@ -672,6 +673,7 @@ function applySnapshot(msg) {
     setTravelLockLocal(!!msg.travelLocked);
     net.stance = cleanStance(msg.stance);
     net.sounds = null; net.soundNow = null; if (window.wpSound) window.wpSound.onSnapshot();   // the snapshot is the authority: the 'sounds' message that follows re-arms the table's sound
+    net.music = null; if (window.wpMusic && window.wpMusic.onSnapshot) window.wpMusic.onSnapshot();   // likewise the music library re-arms from the 'music' message that follows
     if (window.wpFx) window.wpFx.onSnapshot();   // visual effects: a fresh snapshot clears any stale effect
     if (window.wpSystemCore) Object.values(state.appState.campaigns || {}).forEach(function(cs) {   // characters (1.5.0): what arrived is re-cleaned against the system that came with it
         if (!cs || !cs.chars || typeof cs.chars !== 'object') return;
@@ -837,6 +839,7 @@ net.onLocalSave = function() {
     if (net.role === 'host') {
         net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
         net.syncSounds();   // the sound index changed with this save? the list follows the same way
+        net.syncMusic();    // and the music library, the same way
         net.syncSystem();   // and the system (character sheets), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
@@ -951,6 +954,7 @@ net.syncedPeer = null;       // the connection the snapshot came from: the only 
 net.snapshotGen = 0;         // bumped by every snapshot and every load(): a load that a snapshot overtook must not undo it
 net.sounds = null;           // the table's playable sounds (a client, from the host's 'sounds' message): transport memory, null until it arrives
 net.soundNow = null;         // the ambient the host reported playing, by id
+net.music = null;            // the table's music library (a client, from the host's 'music' message): transport memory, null until it arrives
 net.stanceFlags = function() {
     if (window.wpVtt) return window.wpVtt.hostFlags();
     var f = { elevation: true, posture: true }; try { f.elevation = localStorage.getItem('wp_elevation') !== 'off'; f.posture = localStorage.getItem('wp_posture') !== 'off'; } catch (e) {} return f;   // vtt.js absent: the 1.4.6 keys
@@ -1000,6 +1004,30 @@ net.sendSound = function(cue) {
     if (cue.id !== undefined) msg.id = cue.id;
     if (cue.gain !== undefined) msg.gain = cue.gain;
     if (cue.fade !== undefined) msg.fade = cue.fade;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
+// Music (1.5.0): its own library list travels like sounds (to one peer at admit, to admitted peers on a change),
+// and a "take control" override (music-ctl) lets the GM drive every client's music in sync. camp.music is stripped
+// from the snapshot (sanitizeAppState) so the library only ever arrives as this validated message. The signature
+// covers the library only; the live override travels separately, and a late joiner reads it at admit.
+net._lastMusicSig = null;
+function musicSig(msg) { return quickHash(JSON.stringify({ c: msg.campId, m: msg.music })); }
+net.musicMessage = function() { return window.wpMusic && window.wpMusic.listMessage ? window.wpMusic.listMessage() : null; };
+net.syncMusic = function(force) {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.musicMessage(); if (!msg) return;
+    var s = musicSig(msg);
+    if (!force && s === net._lastMusicSig) return;
+    net._lastMusicSig = s;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+};
+// The GM's take-control override: drive every admitted client's music (or release with on:false). Host-only — a
+// client never drives another player's music (there is deliberately no host receive branch). Cleaned before it goes.
+net.sendMusicControl = function(ctrl) {
+    if (!net.active || net.role !== 'host' || !window.wpMusicCore) return;
+    var msg = window.wpMusicCore.cleanControl(ctrl, window.wpMusic && window.wpMusic.idSets ? window.wpMusic.idSets() : null);
+    if (!msg) return;
+    msg.type = 'music-ctl';
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
 };
 // Visual effects (1.5.0, S3): a short-lived effect to the players ON THAT MAP (a stop reaches everyone); the host
@@ -1952,6 +1980,8 @@ function admitPlayer(conn, prof) {
     try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
+    var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) {} net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
+    var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) {} }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
@@ -2310,6 +2340,12 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSound) return;
         if (msg.type === 'sounds') { if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return; window.wpSound.onList(msg); }
         else window.wpSound.onCue(msg);
+    } else if ((msg.type === 'music' || msg.type === 'music-ctl') && net.role === 'client') {
+        // the hosted campaign's music library and the GM's take-control override: only from the synced host, after the snapshot, validated in music.js.
+        // A host has NO branch for these: a client never drives another player's music.
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpMusic) return;
+        if (msg.type === 'music') { if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return; window.wpMusic.onList(msg); }
+        else if (window.wpMusic.onControl) window.wpMusic.onControl(msg);
     } else if (msg.type === 'fx' && net.role === 'client') {
         // a visual effect from the synced host only, after the snapshot, never in the stream window; re-cleaned here.
         // A host has no branch: a player never triggers an effect on anyone.
@@ -2427,6 +2463,9 @@ function giveUpAndRestore(msg) {
     setIndicator(null);
     setPausedLocal(false);
     net.active = false; net.role = null;
+    net.music = null; net.sounds = null; net.soundNow = null;   // the table is gone: drop its media so nothing plays on forever / stays wedged
+    if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(true);
+    if (window.wpSound && window.wpSound.tableLeft) window.wpSound.tableLeft(true);
     renderRoster();
     setStatus(msg);
     toast(msg + ' Restoring your own campaign.');
@@ -2488,6 +2527,9 @@ function wireConn(conn) {
                 if (net.peer) { try { net.peer.destroy(); } catch (e) {} net.peer = null; }
                 setPausedLocal(false);
                 net.active = false; net.role = null; net.code = null;
+                net.music = null; net.sounds = null; net.soundNow = null;   // drop the table's media memory (mirrors leaveSession)
+                if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(true);   // else a take-control track plays forever and per-map auto-play stays wedged (controlled=true)
+                if (window.wpSound && window.wpSound.tableLeft) window.wpSound.tableLeft(true);
                 stopHeartbeat(); setIndicator(null);
                 renderRoster();
                 load();   // the 'end' handler already told the player what happened
@@ -2615,6 +2657,7 @@ function startHosting(forceFresh) {
     net.peer = peer; net.role = 'host'; net.code = code;
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     net._lastSoundSig = null;    // and the sound list
+    net._lastMusicSig = null;    // and the music library
     net._lastSystemSig = null;   // and the system
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
@@ -2747,8 +2790,10 @@ function leaveSession(silent) {
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
     net.syncedPeer = null;
     net.sounds = null; net.soundNow = null;   // transport memory, unlike the ceiling: the next table sends its own list
+    net.music = null;                         // the music library too; wpMusic.tableLeft below stops any playback
     resetAssetTransfers();                    // in-flight sound requests and their waiters die with the connection
     if (window.wpSound) window.wpSound.tableLeft(wasClient);
+    if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(wasClient);
     if (window.wpFx) window.wpFx.tableLeft();
     net.targets = {};
     net.combats = {}; combatAsked = {};
@@ -2780,7 +2825,7 @@ var assetPending = {};  // path -> true
 var assetRenderTimer = null;
 var assetWaiters = {};  // path -> { promise, resolve, reject, timer, parts, n, bytes }: sounds, pulled by net.fetchAsset and answered in parts
 var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
-var ASSET_PART = 256 * 1024, AUDIO_CAP = 4 * 1024 * 1024, ASSET_WAIT = 45000;
+var ASSET_PART = 256 * 1024, AUDIO_CAP = 26 * 1024 * 1024, ASSET_WAIT = 45000, MAX_PARTS = 130;   // AUDIO_CAP covers full music tracks (musiccore caps a track at 25 MB); SFX stay small — soundcore caps them at 4 MB at upload. MAX_PARTS (130×256 KB ≈ 33 MB) > cap so a legit transfer never trips the part guard.
 function isAudioPath(p) { return typeof p === 'string' && p.indexOf('/saves/images/audio/') === 0; }
 
 function assetMime(path) {
@@ -2808,7 +2853,7 @@ function handleAssetRequest(msg, conn) {
     // Serve only campaign images and sounds, never arbitrary paths
     if (typeof msg.path !== 'string' || msg.path.length > 400 || msg.path.indexOf('/saves/images/') !== 0 || msg.path.indexOf('..') !== -1) return;
     if (isAudioPath(msg.path)) {
-        // a sound: one in flight per peer, a 4 MB cap, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
+        // a sound or music track: one in flight per peer, the AUDIO_CAP, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
         if (assetInflight[conn.peer]) { answerAsset(conn, msg.path, 'busy'); return; }
         assetInflight[conn.peer] = msg.path;
         var done = function() { if (assetInflight[conn.peer] === msg.path) delete assetInflight[conn.peer]; };
@@ -2855,7 +2900,7 @@ net.fetchAsset = function(path, size) {
 function handleAssetPart(msg) {
     var w = typeof msg.path === 'string' ? assetWaiters[msg.path] : null; if (!w) return;   // unsolicited: dropped, nothing kept
     var i = msg.i | 0, n = msg.n | 0, data = msg.data;
-    if (!data || n < 1 || n > 64 || i < 0 || i >= n || (w.n && w.n !== n)) return;
+    if (!data || n < 1 || n > MAX_PARTS || i < 0 || i >= n || (w.n && w.n !== n)) return;
     var len = data.byteLength || data.length || 0; if (!len) return;
     w.n = n; if (!w.parts[i]) w.bytes += len;
     if (w.bytes > AUDIO_CAP) { clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error('too-big')); return; }

@@ -66,6 +66,34 @@ function composeModifier(expr, mod, parse) {
     if (!q || !q.ok) return { ok: false };   // never hand the wire a formula that will not parse
     return { ok: true, expr: cc };
 }
+// Stage 5b: advantage / disadvantage — only for a single plain die (d20, 1d20, d%...): roll it twice and keep the
+// better ('adv' → kh1) or worse ('dis' → kl1). We rewrite exactly that dice term's source span (its count is 1 and
+// it has no keep yet and numeric faces) and re-parse to be safe. mode: 'adv' | 'dis'. Returns { ok:true, expr } or
+// { ok:false } (not a lone plain die — the caller then hides the buttons). Compose with composeModifier for a flat mod too.
+function withAdvantage(expr, mode, parse) {
+    if (typeof parse !== 'function' || (mode !== 'adv' && mode !== 'dis')) return { ok: false };
+    var clean = cleanExpr(expr); if (!clean) return { ok: false };
+    var p = null; try { p = parse(clean); } catch (e) { p = null; }
+    if (!p || !p.ok || !p.ast) return { ok: false };
+    var dice = [];
+    (function walk(n) {
+        if (!n || typeof n !== 'object') return;
+        if (n.t === 'dice') { dice.push(n); return; }   // do not descend into a die's own count/faces
+        if (n.items) for (var i = 0; i < n.items.length; i++) walk(n.items[i].node || n.items[i]);
+        if (n.args) for (var a = 0; a < n.args.length; a++) walk(n.args[a]);
+        if (n.a) walk(n.a);
+        if (n.l) { walk(n.l); walk(n.r); }
+        if (n.body) walk(n.body);
+    })(p.ast.body);
+    if (dice.length !== 1) return { ok: false };
+    var d = dice[0], countOne = d.count === null || (d.count && d.count.t === 'num' && d.count.v === 1);
+    if (!countOne || d.keep || !d.faces || d.faces === 'F' || d.faces.t !== 'num' || !isInt(d.pos) || !isInt(d.len)) return { ok: false };
+    var out = clean.slice(0, d.pos) + '2d' + d.faces.text + (mode === 'adv' ? 'kh1' : 'kl1') + clean.slice(d.pos + d.len);
+    var cc = cleanExpr(out); if (!cc) return { ok: false };
+    var q = null; try { q = parse(cc); } catch (e2) { q = null; }
+    if (!q || !q.ok) return { ok: false };
+    return { ok: true, expr: cc };
+}
 function cleanFrom(f) {
     if (!f || typeof f !== 'object') return null;
     var id = str(f.id, 60), name = str(f.name, 60);
@@ -224,6 +252,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, composeModifier, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };
+export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };

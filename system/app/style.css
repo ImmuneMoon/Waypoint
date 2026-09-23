@@ -1591,6 +1591,9 @@
   /* Stage 5a: the situational-modifier popover (shift-click a sheet roll button) */
   .dice-modpop { position: fixed; z-index: 90002; width: 210px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px 10px; }
   .dice-modpop-title { font-size: 11px; color: var(--dim); }
+  .dice-modadv { display: flex; gap: 4px; }
+  .dice-advbtn { flex: 1 1 0; padding: 3px 0; font-size: 11px; }
+  .dice-advbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
   .dice-modpop-chips { display: flex; gap: 4px; }
   .dice-modchip { flex: 1 1 0; padding: 2px 0; font-size: 12px; }
   .dice-modpop-num { display: flex; align-items: center; justify-content: center; gap: 10px; }

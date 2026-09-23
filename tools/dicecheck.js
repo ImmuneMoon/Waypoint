@@ -15,7 +15,7 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
     try { D = await import(url('dicecore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
     check('modules load in Node with no window', !!D && !!F && !err, err && err.message);
     if (!D || !F) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, cleanExpr, composeModifier, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, RateLimit, uid } = D;
+    const { LIMITS, cleanExpr, composeModifier, withAdvantage, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, RateLimit, uid } = D;
     const V = F.VERSION;
     const roll = (expr, draws) => F.evaluate(expr, { random: scripted(draws) });
     const rec = (o) => Object.assign({ id: 'r_abc123', from: { id: 'u_pat', name: 'Pat', gm: false }, expr: '2d6 + 3', draws: [4, 5], v: V, ts: 1000 }, o);
@@ -31,6 +31,11 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
     check('composeModifier: a roll-UNDER check raises the target, and a positive mod turns a miss into a hit', (() => { const r = co('3d6 <= 10', 2); return r.ok && r.expr === '3d6 <= (10) + 2' && didPass('3d6 <= 10', [5, 5, 1]) === false && didPass(r.expr, [5, 5, 1]) === true; })());
     check('composeModifier: bad mod, no parser, and a formula that would not parse are all refused', co('d20', 1.5).ok === false && co('d20', 'x').ok === false && composeModifier('d20', 2, null).ok === false && co('2d', 2).ok === false && co('', 2).ok === false);
     check('composeModifier: the composed expression always re-parses cleanly', (() => { return ['d20 + 5', 'd20 >= 12', '4d6kh3 <= Skill', '2d6 + 3'].every(e => { const r = co(e, 3); return r.ok && F.parse(r.expr).ok; }); })());
+    const adv = (e, m) => withAdvantage(e, m, F.parse);
+    check('withAdvantage: a lone plain die becomes keep-highest (adv) or keep-lowest (dis), the rest of the formula intact', adv('d20 + STR', 'adv').expr === '2d20kh1 + STR' && adv('d20', 'dis').expr === '2d20kl1' && adv('1d20 + 5', 'adv').expr === '2d20kh1 + 5');
+    check('withAdvantage: refused unless it is exactly one plain, un-kept, numeric die', adv('d20 + d4', 'adv').ok === false && adv('2d6', 'adv').ok === false && adv('d20kh1', 'adv').ok === false && adv('dF', 'adv').ok === false && adv('(Level)d6', 'adv').ok === false && adv('d20', 'nope').ok === false && withAdvantage('d20', 'adv', null).ok === false);
+    check('withAdvantage: adv keeps the higher of the two draws, dis the lower', (() => { const a = F.evaluate(adv('d20', 'adv').expr, { random: scripted([3, 18]) }); const b = F.evaluate(adv('d20', 'dis').expr, { random: scripted([3, 18]) }); return a.ok && a.value === 18 && b.ok && b.value === 3; })());
+    check('withAdvantage: composes with a flat modifier (advantage first, then the bonus)', (() => { const base = adv('d20 + STR', 'adv'); const both = co(base.expr, 2); return base.ok && both.ok && both.expr === '(2d20kh1 + STR) + 2' && F.parse(both.expr).ok; })());
 
     /* ---- requests ---- */
     check('cleanRollReq: rid + expr, optional priv gm only', JSON.stringify(cleanRollReq({ rid: 'q1', expr: ' 4d6kh3 ' })) === '{"rid":"q1","expr":"4d6kh3"}' && cleanRollReq({ rid: 'q1', expr: 'd20', priv: 'gm' }).priv === 'gm' && cleanRollReq({ rid: 'q1', expr: 'd20', priv: 'all' }) === null && cleanRollReq({ expr: 'd20' }) === null && cleanRollReq({ rid: 'bad id', expr: 'd20' }) === null && cleanRollReq(null) === null);

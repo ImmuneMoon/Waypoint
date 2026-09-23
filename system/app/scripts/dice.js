@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, verdictOf, critOf, cardText } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText } from './dicecore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -111,10 +111,21 @@ function clampMod(v) { return v > 99 ? 99 : v < -99 ? -99 : v; }
 function rollWithMod(charId, expr, label, opts, anchor) {
     var Fm = F(); closeModPop();
     if (!Fm || !Fm.parse) return rollFor(charId, expr, label, opts);
-    var mod = 0, numEl, prevEl;
+    var mod = 0, advMode = 'normal', numEl, prevEl, advBtns = {};
+    var canAdv = withAdvantage(expr, 'adv', Fm.parse).ok;   // a lone plain die can roll twice keep best/worst
     var pop = el('div', 'dice-modpop'); modPop = pop;
-    pop.appendChild(el('div', 'dice-modpop-title', label ? 'Roll ' + label + ' with a modifier' : 'Roll with a modifier'));
-    function refresh() { numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = composeModifier(expr, mod, Fm.parse); prevEl.textContent = r.ok ? r.expr : expr; }
+    pop.appendChild(el('div', 'dice-modpop-title', label ? 'Roll ' + label : 'Roll with a modifier'));
+    function applied() {   // advantage first (rewrites the die), then the flat modifier
+        var base = expr;
+        if (advMode !== 'normal') { var a = withAdvantage(expr, advMode, Fm.parse); if (a.ok) base = a.expr; }
+        return composeModifier(base, mod, Fm.parse);
+    }
+    function refresh() { numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = r.ok ? r.expr : expr; if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
+    if (canAdv) {
+        var advRow = el('div', 'dice-modadv');
+        [['dis', 'Disadvantage', 'Dis'], ['normal', 'Normal', 'Normal'], ['adv', 'Advantage', 'Adv']].forEach(function(m) { var b = el('button', 'tool ghost dice-advbtn', m[2]); b.title = m[1] + ' (roll twice, keep the ' + (m[0] === 'dis' ? 'worse' : m[0] === 'adv' ? 'better' : 'roll as written') + ')'; b.addEventListener('click', function() { advMode = m[0]; refresh(); }); advBtns[m[0]] = b; advRow.appendChild(b); });
+        pop.appendChild(advRow);
+    }
     var chips = el('div', 'dice-modpop-chips');
     [['−5', -5], ['−1', -1], ['+1', 1], ['+5', 5]].forEach(function(q) { var b = el('button', 'tool ghost dice-modchip', q[0]); b.addEventListener('click', function() { mod = clampMod(mod + q[1]); refresh(); }); chips.appendChild(b); });
     pop.appendChild(chips);
@@ -124,7 +135,7 @@ function rollWithMod(charId, expr, label, opts, anchor) {
     var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
     numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
     prevEl = el('div', 'dice-modpop-prev', expr); pop.appendChild(prevEl);
-    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = composeModifier(expr, mod, Fm.parse); if (!r.ok) { toast('That roll cannot take a flat modifier.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts); });
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts); });
     pop.appendChild(go);
     document.body.appendChild(pop);
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };

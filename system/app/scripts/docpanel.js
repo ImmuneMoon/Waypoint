@@ -188,6 +188,16 @@ function refresh() { if (openId) draw(false); }   // called from the app's rende
 (function wire() {
     var p = ui('docPanel'), head = ui('docPanelHead'); if (!p || !head) return;
     var cl = ui('docPanelClose'); if (cl) cl.addEventListener('click', close);
+    var pop = ui('docPanelPop');
+    if (pop) pop.addEventListener('click', function() {   // pop out into its own window; dock-back there reopens this panel
+        if (!openId) return; var camp = activeCamp(); if (!camp) return;
+        window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(openId), 'wpPopout_' + openId, 'width=820,height=1000');
+        close();
+    });
+    // A popped-out doc window that "docks back" reopens the in-app panel here.
+    try { new BroadcastChannel('waypoint').addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'dock' && e.data.kind === 'doc') { var a = e.data.arg || ''; open(a.slice(a.indexOf('/') + 1)); }
+    }); } catch (e) {}
     var drag = null;
     function savePos() { var r = p.getBoundingClientRect(); try { localStorage.setItem('wp_docPanel', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })); } catch (e) {} }
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });

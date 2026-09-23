@@ -357,8 +357,10 @@ waitForInstanceLock(8000, function() {
             // user's default browser instead of a new Electron window.
             win.webContents.setWindowOpenHandler(({ url }) => {
                 if (url.startsWith('http://localhost')) {
-                    // Waypoint's own child windows (the stream window): same look as the main one, no menu bar
-                    return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico'), width: 1280, height: 720, backgroundColor: '#15151c' } };
+                    // Waypoint's own child windows: same look as the main one, no menu bar. A popped-out doc/sheet
+                    // (?popout=) opens PORTRAIT (a reading/reference column for a second monitor); the stream window stays landscape.
+                    var portrait = /[?&]popout=/.test(url);
+                    return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico'), width: portrait ? 840 : 1280, height: portrait ? 1000 : 720, backgroundColor: '#15151c' } };
                 }
                 require('electron').shell.openExternal(url);
                 return { action: 'deny' };

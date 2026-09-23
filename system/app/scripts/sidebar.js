@@ -293,7 +293,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar);
               var face = avOk
                   ? '<img src="' + p.avatar + '" alt="">'
-                  : '<span class="si-pres-dot" style="background:' + (p.color || ('hsl(' + (p.hue || 0) + ',55%,55%)')) + ';">' + esc(initials) + '</span>';
+                  : '<img src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + (p.hue || 0) + ',55%,55%)')) : '') + '" alt="">';   // no photo → the colour-tinted silhouette default
               return '<span class="si-pres' + (p.connected ? '' : ' off') + '" title="' + esc(nm) + (p.connected ? ' — here now' : ' — last seen here') + '">' + face + '</span>';
           }).join('');
           var extra = players.length > 6 ? '<span class="si-pres si-pres-more" title="' + (players.length - 6) + ' more">+' + (players.length - 6) + '</span>' : '';

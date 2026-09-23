@@ -327,7 +327,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       // built from nodes (1.5.0): a portrait, the name, the (capped) stats line, the sheet's hover fields, the stance line
                       var ttRoot = document.createElement('div'); ttRoot.className = 'room'; ttRoot.style.cssText = 'border-left-color:var(--gold); margin:0; pointer-events:none;';
                       var ownerAv = (!wItem.src && wItem.ownerId && window.wpNet && window.wpNet.roster) ? (function() { var p = Object.keys(window.wpNet.roster).map(function(k) { return window.wpNet.roster[k]; }).find(function(x) { return x && x.id === wItem.ownerId; }); return p && p.avatar; })() : null;
-                      var portrait = wItem.src ? resolveImg(wItem.src) : ownerAv;   // the character's own image first, then the owning player's profile picture
+                      var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → colour-tinted silhouette default
                       if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
                       var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; ttRoot.appendChild(ttName);
                       var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;'; ttStats.textContent = cstats.length > 400 ? cstats.slice(0, 400) + '…' : cstats; ttRoot.appendChild(ttStats);   // prose, not a label: no uppercase; capped for the hover peek (full text lives in the roster / Properties)
@@ -1815,6 +1815,7 @@ window.wpFitToGrid = fitToGrid;
      map you are viewing are highlighted; while hosting, a player who is not connected is dimmed.
      Click one to jump to that character: their map (if different), centred on them at 150%. */
   var FOCUS_ZOOM = 1.5;
+  function wbHashHue(s) { var h = 0, t = String(s); for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return ((h % 360) + 360) % 360; }   // a stable per-key hue for the no-picture silhouette default
   function renderPartyStrip() {
       var strip = document.getElementById('partyStrip'); if (!strip) return;
       var camp = getActiveCampaign(), am = getActiveMap();
@@ -1834,7 +1835,7 @@ window.wpFitToGrid = fitToGrid;
               if (!p || !p.id || owned[p.id]) return;
               var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
               var locMap = p.location && camp.items[p.location];
-              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true,
+              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true, color: p.color || null,
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
           });
       }
@@ -1849,8 +1850,8 @@ window.wpFitToGrid = fitToGrid;
           var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.noToken ? ' \u2014 no token yet' : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
-          var ini = String(c.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
-          return '<span class="' + cls + ' party-ini" data-key="' + esc(c.key) + '" data-tip="' + esc(tip) + '">' + esc(ini) + '</span>';
+          var pcol = c.color || ('hsl(' + wbHashHue(c.key) + ',55%,55%)');   // no picture → the colour-tinted silhouette default
+          return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(pcol) : '') + '" alt="" data-tip="' + esc(tip) + '">';
       }).join('');
   }
   window.wpRenderPartyStrip = renderPartyStrip;

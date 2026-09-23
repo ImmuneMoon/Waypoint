@@ -663,17 +663,19 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
       inp.value = '';
       inp.focus();
       function updateList() {
-          var q = inp.value.toLowerCase();
+          var q = inp.value.trim();
           var html = '';
-          var plannerKeys = Object.keys(camp.items).filter(k => camp.items[k].type === 'planner');
-          plannerKeys.sort((a,b) => camp.items[a].meta.title.localeCompare(camp.items[b].meta.title));
-          plannerKeys.forEach(k => {
-              var p = camp.items[k];
-              var title = p.meta.title || '';
-              if (title.toLowerCase().indexOf(q) !== -1 || q === '') {
-                  html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="'+k+'">' + esc(title) + '</button>';
-              }
-          });
+          if (!q) {                                   // empty query → every planner by name (A–Z), as before
+              var plannerKeys = Object.keys(camp.items).filter(k => camp.items[k].type === 'planner');
+              plannerKeys.sort((a,b) => camp.items[a].meta.title.localeCompare(camp.items[b].meta.title));
+              plannerKeys.forEach(k => {
+                  html += '<button class="tool ghost doc-search-res" data-id="'+esc(k)+'"><span class="dsr-title">' + esc(camp.items[k].meta.title || '') + '</span></button>';
+              });
+          } else {                                    // typed query → smart search of planner CONTENT + titles, ranked, with a snippet
+              (window.wpDocSearch ? window.wpDocSearch(q, camp, ['planner']) : []).forEach(r => {
+                  html += '<button class="tool ghost doc-search-res" data-id="'+esc(r.id)+'"><span class="dsr-title">' + esc(r.title) + '</span><span class="dsr-snip">' + r.snippet + '</span></button>';
+              });
+          }
           if (!html) html = '<div class="muted">No items found.</div>';
           res.innerHTML = html;
           res.querySelectorAll('button').forEach(btn => {
@@ -705,17 +707,21 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
       inp.value = '';
       inp.focus();
       function updateList() {
-          var q = inp.value.toLowerCase();
+          var q = inp.value.trim();
           var html = '';
-          var keys = Object.keys(camp.items).filter(k => camp.items[k].type === 'doc');
-          keys.sort((a,b) => String(camp.items[a].meta.title || '').localeCompare(String(camp.items[b].meta.title || '')));
-          keys.forEach(k => {
-              var p = camp.items[k];
-              var title = p.meta.title || '';
-              if (title.toLowerCase().indexOf(q) !== -1 || q === '') {
-                  html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + esc(k) + '">' + (p.meta.players === false ? '&#128274; ' : '') + esc(title) + '</button>';
-              }
-          });
+          if (!q) {                                   // empty query → every page by name (A–Z), as before
+              var keys = Object.keys(camp.items).filter(k => camp.items[k].type === 'doc');
+              keys.sort((a,b) => String(camp.items[a].meta.title || '').localeCompare(String(camp.items[b].meta.title || '')));
+              keys.forEach(k => {
+                  var p = camp.items[k];
+                  html += '<button class="tool ghost doc-search-res" data-id="' + esc(k) + '"><span class="dsr-title">' + (p.meta.players === false ? '&#128274; ' : '') + esc(p.meta.title || '') + '</span></button>';
+              });
+          } else {                                    // typed query → smart search of page CONTENT + titles, ranked, with a snippet
+              (window.wpDocSearch ? window.wpDocSearch(q, camp, ['doc']) : []).forEach(r => {
+                  var it = camp.items[r.id], locked = it && it.meta && it.meta.players === false;
+                  html += '<button class="tool ghost doc-search-res" data-id="' + esc(r.id) + '"><span class="dsr-title">' + (locked ? '&#128274; ' : '') + esc(r.title) + '</span><span class="dsr-snip">' + r.snippet + '</span></button>';
+              });
+          }
           if (!html) html = '<div class="muted">No pages found.</div>';
           res.innerHTML = html;
           res.querySelectorAll('button').forEach(btn => {

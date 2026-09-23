@@ -1135,19 +1135,31 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     }
 
     function cmdkRender(q) {
-        q = (q || '').toLowerCase().trim();
+        var raw = (q || '').trim(), ql = raw.toLowerCase();
         var scored = [];
         _cmdkEntries.forEach(function(en) {
             var l = en.label.toLowerCase();
             var s = -1;
-            if (!q) s = en.kind === 'room' ? 2 : 1;
-            else if (l.indexOf(q) === 0) s = 0;
-            else if (l.indexOf(q) !== -1) s = 1;
-            else if (en.sub.toLowerCase().indexOf(q) !== -1) s = 2;
+            if (!ql) s = en.kind === 'room' ? 2 : 1;
+            else if (l.indexOf(ql) === 0) s = 0;
+            else if (l.indexOf(ql) !== -1) s = 1;
+            else if (en.sub.toLowerCase().indexOf(ql) !== -1) s = 2;
             if (s >= 0) scored.push([s, en]);
         });
         scored.sort(function(a, b) { return a[0] - b[0]; });
-        _cmdkShown = scored.slice(0, 50).map(function(p) { return p[1]; });
+        var shown = scored.map(function(p) { return p[1]; });
+        // Also surface pages matched by their CONTENT (not just the title) — ranked below the name matches, with a snippet.
+        if (raw && window.wpDocSearch) {
+            var already = {};
+            shown.forEach(function(en) { if (en.kind === 'doc' || en.kind === 'planner') already[en.campId + '/' + en.itemId] = 1; });
+            Object.values(state.appState.campaigns).forEach(function(c) {
+                window.wpDocSearch(raw, c, ['doc', 'planner']).forEach(function(r) {
+                    var key = c.id + '/' + r.id; if (already[key]) return; already[key] = 1;
+                    shown.push({ kind: r.type, label: r.title, sub: c.name, campId: c.id, itemId: r.id, snippet: r.snippet });
+                });
+            });
+        }
+        _cmdkShown = shown.slice(0, 50);
         _cmdkIdx = 0;
         var icons = { map: '🗺️', planner: '📑', doc: '📖', room: '📍' };
         var list = document.getElementById('cmdkList');
@@ -1155,7 +1167,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             ? _cmdkShown.map(function(en, i) {
                 return '<div class="cmdk-row' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">' +
                     '<span>' + (icons[en.kind] || '•') + '</span><span>' + esc(en.label) + '</span>' +
-                    '<span class="cmdk-sub">' + esc(en.sub) + '</span></div>';
+                    '<span class="cmdk-sub">' + (en.snippet ? en.snippet : esc(en.sub)) + '</span></div>';
               }).join('')
             : '<div class="cmdk-empty">No matches.</div>';
     }

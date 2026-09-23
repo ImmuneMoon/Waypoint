@@ -228,7 +228,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                       e.stopPropagation();
 
-                      var wItem = getActiveMap().whiteboard.find(x => x.id === item.id);
+                      var _am = getActiveMap(); if (!_am) return; var wItem = _am.whiteboard.find(x => x.id === item.id);
 
                       if(!wItem || !(wItem.nodeId || wItem.targetMapId)) return;
 
@@ -292,7 +292,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               el.addEventListener('pointerenter', function(e) {
 
-                  var wItem = getActiveMap().whiteboard.find(x => x.id === item.id);
+                  var _am = getActiveMap(); if (!_am) return; var wItem = _am.whiteboard.find(x => x.id === item.id);
 
                   if(!wItem) return;
 

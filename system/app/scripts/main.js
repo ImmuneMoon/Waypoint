@@ -817,11 +817,24 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   // for every no-avatar site (welcome, Settings, roster, map presence, party, the hover card) so a user without a
   // photo still gets a recognisable, per-user-coloured face instead of a "?" or bare initials. `color` = any CSS colour.
   function wpDefaultAvatar(color) {
-      var c = (typeof color === 'string' && color) ? color : '#7aa7ff';
+      // The owner's Default User.png shape: a big head + a straight-sided TRAPEZOID torso reaching the bottom edge.
+      // Colours are a randomized-but-stable combo per user (bg lightness varies — some dark, some light — with the
+      // figure auto-contrasting), anchored to the user's hue so it matches their roster/presence colour.
+      var h = 222, c = typeof color === 'string' ? color.trim() : '', m, i, seed = 0;
+      if ((m = c.match(/^#([0-9a-fA-F]{6})$/))) {
+          var r = parseInt(m[1].substr(0, 2), 16) / 255, g = parseInt(m[1].substr(2, 2), 16) / 255, b = parseInt(m[1].substr(4, 2), 16) / 255;
+          var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+          h = d === 0 ? 0 : (mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60;
+      } else if ((m = c.match(/^hsl\(\s*([\d.]+)/i))) { h = +m[1]; }
+      for (i = 0; i < c.length; i++) seed = (seed * 31 + c.charCodeAt(i)) | 0;   // stable per user
+      seed = Math.abs(seed);
+      var bgL = 30 + (seed % 48), bgS = 42 + ((seed >> 4) % 30);   // per-user background: some dark, some light
+      var bg = 'hsl(' + Math.round(h) + ',' + bgS + '%,' + bgL + '%)';
+      var fg = bgL < 55 ? 'hsl(' + Math.round(h) + ',24%,92%)' : 'hsl(' + Math.round(h) + ',22%,26%)';   // light figure on a dark bg, dark on a light one
       var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
-          '<rect width="100" height="100" fill="' + c + '"/>' +
-          '<circle cx="50" cy="40" r="18" fill="rgba(255,255,255,0.92)"/>' +
-          '<path d="M50 62c-16 0-29 11-31 26a3 3 0 0 0 3 3h56a3 3 0 0 0 3-3c-2-15-15-26-31-26z" fill="rgba(255,255,255,0.92)"/>' +
+          '<rect width="100" height="100" fill="' + bg + '"/>' +
+          '<circle cx="50" cy="40" r="24" fill="' + fg + '"/>' +
+          '<path d="M24 70 L76 70 L92 100 L8 100 Z" fill="' + fg + '"/>' +
           '</svg>';
       return 'data:image/svg+xml,' + encodeURIComponent(svg);
   }

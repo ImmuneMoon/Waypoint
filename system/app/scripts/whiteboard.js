@@ -686,13 +686,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               
 
               var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = item.color || 'var(--ink)';
-              var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3);
+              var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3, item.holes);
               pathEl.setAttribute('d', _sp.d);
               if (_sp.fill) {
                   pathEl.setAttribute('fill', _col); pathEl.style.stroke = 'none'; pathEl.removeAttribute('stroke-width');
+                  if (_sp.fillRule) pathEl.setAttribute('fill-rule', _sp.fillRule); else pathEl.removeAttribute('fill-rule');
               } else {
                   pathEl.setAttribute('fill', 'none'); pathEl.style.stroke = _col; pathEl.setAttribute('stroke-width', _sp.width);
                   pathEl.setAttribute('stroke-linecap', _sp.linecap); pathEl.setAttribute('stroke-linejoin', _sp.linejoin);
+                  pathEl.removeAttribute('fill-rule');
               }
 
           }
@@ -994,8 +996,17 @@ function fitToGrid(its) {
     else { toast('Already aligned to the grid.'); }
 }
 // One shared builder so the live draw preview and the committed stroke never drift.
-function buildStrokePath(pts, tip, w) {
+function buildStrokePath(pts, tip, w, holes) {
     tip = tip || 'round'; w = w || 3;
+    if (tip === 'fill') {   // a freeform filled region: pts is the closed outline; any holes are punched out with even-odd
+        var _fd = 'M ' + pts.map(function(q){ return q[0] + ' ' + q[1]; }).join(' L ') + ' Z';
+        if (holes && holes.length) {
+            var _anyHole = false;
+            holes.forEach(function(h){ if (h && h.length >= 3) { _fd += ' M ' + h.map(function(q){ return q[0] + ' ' + q[1]; }).join(' L ') + ' Z'; _anyHole = true; } });
+            if (_anyHole) return { fill: true, d: _fd, fillRule: 'evenodd' };
+        }
+        return { fill: true, d: _fd };
+    }
     if (tip === 'flat') {   // an angled calligraphy nib: a filled ribbon whose width varies with stroke direction
         var _w2 = w / 2, _ox = 0.70711 * _w2, _oy = 0.70711 * _w2;
         var _top = pts.map(function(q){ return (q[0] + _ox) + ' ' + (q[1] + _oy); });
@@ -1043,7 +1054,7 @@ window.wpFitToGrid = fitToGrid;
 
   function selColorKind(its) {
       if (its.length && its.every(function(i) { return i.type === 'text'; })) return 'text';
-      if (its.length && its.every(function(i) { return i.type === 'path'; })) return 'pen';
+      if (its.length && its.every(function(i) { return i.type === 'path' && i.tip !== 'fill'; })) return 'pen';   // a tip:'fill' region takes the fill palette, not the pen inks
       return 'fill';
   }
   var ST_PEN = { '#e9e9f0': 'White', '#1a1a1a': 'Black', '#d9534f': 'Red', '#e0a54f': 'Gold', '#5cb87a': 'Green', '#4db3d3': 'Blue', '#b98cff': 'Violet' };
@@ -1054,7 +1065,7 @@ window.wpFitToGrid = fitToGrid;
           var el = state.wbEls[i.id];
           if (!el) return;
           if (i.type === 'text') el.style.color = (v && v !== 'transparent') ? v : '';
-          else if (i.type === 'path') { var p = el.querySelector('path'); if (p) p.style.stroke = v; }
+          else if (i.type === 'path') { var p = el.querySelector('path'); if (p) { if (i.tip === 'fill') p.style.fill = v; else p.style.stroke = v; } }
           else if (i.type !== 'image' && i.type !== 'trigger') el.style.background = v;
       });
   }
@@ -2138,9 +2149,35 @@ window.wpFitToGrid = fitToGrid;
       var out = [];
       var eraserClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
       m.whiteboard.forEach(function(item) {
-          if (item.fill && !item.locked) {   // a fill cell erases as a whole item, like a stroke
-              if (eraserClient) { out.push(item); return; }
+          var isRegion = (item.type === 'path' && item.tip === 'fill');
+          if ((item.fill || isRegion) && !item.locked) {   // a fill cell OR a freeform fill region erases as a whole item
+              if (eraserClient) { out.push(item); return; }   // GM-only fills
               var _er = (state.eraserSize || 6);
+              if (isRegion) {   // erase the whole region when the eraser is inside it (not in a punched hole), or touches its outline
+                  var _rsx = item.w / (item.baseW || item.w || 1), _rsy = item.h / (item.baseH || item.h || 1);
+                  var _hx = x, _hy = y;
+                  if (item.rot) {   // render rotates the box about its centre; test in that same (un-rotated) frame
+                      var _ra = -item.rot * Math.PI / 180, _rcos = Math.cos(_ra), _rsin = Math.sin(_ra);
+                      var _rcx = item.x + item.w / 2, _rcy = item.y + item.h / 2, _rdx = x - _rcx, _rdy = y - _rcy;
+                      _hx = _rcx + _rdx * _rcos - _rdy * _rsin; _hy = _rcy + _rdx * _rsin + _rdy * _rcos;
+                  }
+                  var _toAbs = function(p) { return [item.x + p[0] * _rsx, item.y + p[1] * _rsy]; };
+                  var _poly = (item.pts || []).map(_toAbs);
+                  var _hit = pointInPoly(_hx, _hy, _poly);
+                  if (_hit && item.holes) {   // a click inside a punched-out hole is not on the fill
+                      for (var _hi = 0; _hi < item.holes.length; _hi++) {
+                          if (pointInPoly(_hx, _hy, item.holes[_hi].map(_toAbs))) { _hit = false; break; }
+                      }
+                  }
+                  if (!_hit && _poly.length > 1) {
+                      var _erSq = _er * _er;
+                      for (var _pi = 0, _pj = _poly.length - 1; _pi < _poly.length; _pj = _pi++) {
+                          if (distToSegSq(_hx, _hy, _poly[_pj][0], _poly[_pj][1], _poly[_pi][0], _poly[_pi][1]) <= _erSq) { _hit = true; break; }
+                      }
+                  }
+                  if (_hit) { changed = true; return; }
+                  out.push(item); return;
+              }
               if (x >= item.x - _er && x <= item.x + item.w + _er && y >= item.y - _er && y <= item.y + item.h + _er) { changed = true; return; }
               out.push(item); return;
           }
@@ -2878,9 +2915,104 @@ window.wpFitToGrid = fitToGrid;
       map.whiteboard.push(Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {})));
       return true;
   }
+  // Ramer–Douglas–Peucker polyline simplification (iterative, no recursion). Keeps endpoints; drops points within eps of a chord.
+  function rdpSimplify(points, eps) {
+      var n = points.length;
+      if (n < 3) return points.slice();
+      var keep = new Uint8Array(n); keep[0] = 1; keep[n - 1] = 1;
+      var stack = [[0, n - 1]], epsSq = eps * eps;
+      while (stack.length) {
+          var seg = stack.pop(), s = seg[0], e = seg[1];
+          if (e <= s + 1) continue;
+          var ax = points[s][0], ay = points[s][1], bx = points[e][0], by = points[e][1];
+          var maxD = -1, idx = -1;
+          for (var i = s + 1; i < e; i++) {
+              var dd = distToSegSq(points[i][0], points[i][1], ax, ay, bx, by);
+              if (dd > maxD) { maxD = dd; idx = i; }
+          }
+          if (maxD > epsSq && idx > s) { keep[idx] = 1; stack.push([s, idx]); stack.push([idx, e]); }
+      }
+      var out = [];
+      for (var k = 0; k < n; k++) if (keep[k]) out.push(points[k]);
+      return out;
+  }
+  // Point-in-polygon (ray cast) — used to erase a freeform fill region as a whole item.
+  function pointInPoly(x, y, poly) {
+      var inside = false, n = poly.length;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+          var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+          if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+      }
+      return inside;
+  }
+  // Moore-neighbour boundary trace (8-connected) from a component's top-left-most pixel. solid(x,y) => in-component.
+  // Returns an ordered loop of pixel coords, or null. Bounded by maxSteps against a stray loop.
+  function mooreTrace(solid, cw, ch, sx, sy) {
+      var nb = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];   // clockwise from West
+      var start = [sx, sy], startB = [sx - 1, sy];   // arrived from the west (empty: sx,sy is first in raster order for its component)
+      var p = [sx, sy], b = [sx - 1, sy];
+      var contour = [], maxSteps = cw * ch * 4 + 16, steps = 0;
+      do {
+          var dx = b[0] - p[0], dy = b[1] - p[1], idx = 0;
+          for (var i = 0; i < 8; i++) { if (nb[i][0] === dx && nb[i][1] === dy) { idx = i; break; } }
+          var found = false, j = 0, nx = 0, ny = 0;
+          for (var k = 1; k <= 8; k++) { j = (idx + k) % 8; nx = p[0] + nb[j][0]; ny = p[1] + nb[j][1]; if (solid(nx, ny)) { found = true; break; } }
+          if (!found) { contour.push([p[0], p[1]]); break; }   // isolated pixel
+          b = [p[0] + nb[(j + 7) % 8][0], p[1] + nb[(j + 7) % 8][1]];
+          p = [nx, ny];
+          contour.push([p[0], p[1]]);
+          steps++;
+      } while ((p[0] !== start[0] || p[1] !== start[1] || b[0] !== startB[0] || b[1] !== startB[1]) && steps < maxSteps);
+      return contour.length >= 3 ? contour : null;
+  }
+  // Trace the OUTER boundary of a flooded pixel region into a loop of pixel coords, or null.
+  function traceRegionOutline(vis, cw, ch) {
+      var sx = -1, sy = -1;
+      for (var yy = 0; yy < ch && sy < 0; yy++) { for (var xx = 0; xx < cw; xx++) { if (vis[yy * cw + xx] === 1) { sx = xx; sy = yy; break; } } }
+      if (sx < 0) return null;
+      return mooreTrace(function(x, y) { return x >= 0 && y >= 0 && x < cw && y < ch && vis[y * cw + x] === 1; }, cw, ch, sx, sy);
+  }
+  /* Enclosed HOLES in the flooded region: pixels that are neither wall, nor flooded (visited), nor reachable
+     from the raster border ("outside"). Returns one boundary loop per hole component (an interior island such
+     as a pillar), so the freeform fill can punch them out and match the grid-on cell behaviour. Capped. */
+  function traceHoles(vis, isWall, cw, ch) {
+      var N = cw * ch, outside = new Uint8Array(N), st = new Int32Array(N), sp = 0;
+      var pushOut = function(i) { if (!outside[i] && !isWall(i)) { outside[i] = 1; st[sp++] = i; } };
+      for (var x = 0; x < cw; x++) { pushOut(x); pushOut((ch - 1) * cw + x); }
+      for (var y = 0; y < ch; y++) { pushOut(y * cw); pushOut(y * cw + cw - 1); }
+      while (sp > 0) {
+          var oi = st[--sp], ox2 = oi % cw, oy2 = (oi - ox2) / cw;
+          if (ox2 > 0) pushOut(oi - 1);
+          if (ox2 < cw - 1) pushOut(oi + 1);
+          if (oy2 > 0) pushOut(oi - cw);
+          if (oy2 < ch - 1) pushOut(oi + cw);
+      }
+      var mask = new Uint8Array(N), any = false;
+      for (var i2 = 0; i2 < N; i2++) { if (!isWall(i2) && vis[i2] !== 1 && !outside[i2]) { mask[i2] = 1; any = true; } }
+      if (!any) return [];
+      var solid = function(hx, hy) { return hx >= 0 && hy >= 0 && hx < cw && hy < ch && mask[hy * cw + hx] === 1; };
+      var loops = [], st2 = new Int32Array(N);
+      for (var seed = 0; seed < N && loops.length < 200; seed++) {
+          if (mask[seed] !== 1) continue;
+          var ssx = seed % cw, ssy = (seed - ssx) / cw;
+          var loop = mooreTrace(solid, cw, ch, ssx, ssy);
+          if (loop && loop.length >= 3) loops.push(loop);
+          var q = 0; st2[q++] = seed; mask[seed] = 2;   // consume this component (4-connected) so it isn't re-traced
+          while (q > 0) {
+              var k = st2[--q], kx = k % cw, ky = (k - kx) / cw;
+              if (kx > 0 && mask[k - 1] === 1) { mask[k - 1] = 2; st2[q++] = k - 1; }
+              if (kx < cw - 1 && mask[k + 1] === 1) { mask[k + 1] = 2; st2[q++] = k + 1; }
+              if (ky > 0 && mask[k - cw] === 1) { mask[k - cw] = 2; st2[q++] = k - cw; }
+              if (ky < ch - 1 && mask[k + cw] === 1) { mask[k + cw] = 2; st2[q++] = k + cw; }
+          }
+      }
+      return loops;
+  }
   /* Flood-fill inside drawn lines: rasterize this map's pen strokes into an offscreen canvas as walls,
      flood outward from the click, and — if the flood is fully enclosed (never touches the padded edge) —
-     paint every grid cell whose centre lands in the flooded region. Grid-agnostic (square + hex), capped. */
+     GRID ON: paint every grid cell whose centre lands in the flooded region (grid-aligned);
+     GRID OFF: trace the flooded outline into one smooth freeform filled region (a tip:'fill' path).
+     Grid-aware per the owner's choice; capped both ways. */
   function floodFillWithin(x, y) {
       var map = getActiveMap(); if (!map) return;
       if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
@@ -2904,10 +3036,12 @@ window.wpFitToGrid = fitToGrid;
       var g = cvs.getContext('2d', { willReadFrequently: true }); if (!g) { toast('Flood-fill isn\'t available here.'); return; }
       g.setTransform(S, 0, 0, S, -minX * S, -minY * S);
       g.strokeStyle = '#000'; g.fillStyle = '#000'; g.lineJoin = 'round'; g.lineCap = 'round';
+      var minWall = 1.6 / S;   // keep walls at least ~1.6 device px thick so a downscaled raster can't leak through thin seams
       walls.forEach(function(wl) {
-          g.lineWidth = wl.sw; g.beginPath();
+          var lw = Math.max(wl.sw, minWall);
+          g.lineWidth = lw; g.beginPath();
           wl.abs.forEach(function(p, i) { if (i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
-          if (wl.abs.length === 1) { g.arc(wl.abs[0][0], wl.abs[0][1], wl.sw / 2, 0, 6.2832); g.fill(); }
+          if (wl.abs.length === 1) { g.arc(wl.abs[0][0], wl.abs[0][1], lw / 2, 0, 6.2832); g.fill(); }
           else g.stroke();
       });
       var img;
@@ -2930,20 +3064,58 @@ window.wpFitToGrid = fitToGrid;
           if (cyp < ch - 1 && !visited[d] && !wall(d)) { visited[d] = 1; stack[sp++] = d; }
       }
       if (touchedEdge) { toast('That space isn\'t fully enclosed by your lines — close the gaps and try again.'); return; }
-      // Paint every grid cell whose centre falls in the flooded region. Sample the bbox finer than any cell so none is skipped.
-      var step = 20, seen = {}, added = 0, CAP = 20000;
-      for (var yy = minY; yy <= maxY + step && added < CAP; yy += step) {
-          for (var xx = minX; xx <= maxX + step && added < CAP; xx += step) {
-              var c = cellSnap(xx, yy), key = c.px + ',' + c.py;
-              if (seen[key]) continue; seen[key] = 1;
-              var pxc = Math.round((c.cx - minX) * S), pyc = Math.round((c.cy - minY) * S);
-              if (pxc < 0 || pxc >= cw || pyc < 0 || pyc >= ch) continue;
-              if (!visited[pyc * cw + pxc]) continue;   // this cell's centre isn't inside the flooded area
-              if (fillCellCore(map, c.cx, c.cy)) added++;
+      if (state.gridType === 'hex' || state.gridType === 'square') {
+          // GRID ON — fill whole cells whose centre lands in the flooded region (stays aligned with tokens + measurement).
+          // Sample the bbox finer than any cell so none is skipped.
+          var step = 20, seen = {}, added = 0, CAP = 20000;
+          for (var yy = minY; yy <= maxY + step && added < CAP; yy += step) {
+              for (var xx = minX; xx <= maxX + step && added < CAP; xx += step) {
+                  var c = cellSnap(xx, yy), key = c.px + ',' + c.py;
+                  if (seen[key]) continue; seen[key] = 1;
+                  var pxc = Math.round((c.cx - minX) * S), pyc = Math.round((c.cy - minY) * S);
+                  if (pxc < 0 || pxc >= cw || pyc < 0 || pyc >= ch) continue;
+                  if (!visited[pyc * cw + pxc]) continue;   // this cell's centre isn't inside the flooded area
+                  if (fillCellCore(map, c.cx, c.cy)) added++;
+              }
           }
+          if (added) { save(); render(); toast('Filled ' + added + ' cell' + (added === 1 ? '' : 's') + ' inside your lines.'); }
+          else { toast('Nothing new to fill there.'); }
+          return;
       }
-      if (added) { save(); render(); toast('Filled ' + added + ' cell' + (added === 1 ? '' : 's') + ' inside your lines.'); }
-      else { toast('Nothing new to fill there.'); }
+      // GRID OFF — fill the enclosed area as one smooth freeform region: trace the flooded outline into a filled shape.
+      var loopPx = traceRegionOutline(visited, cw, ch);
+      if (!loopPx || loopPx.length < 3) { toast('Couldn\'t trace that area — try a cleaner outline.'); return; }
+      var toBoard = function(p) { return [minX + (p[0] + 0.5) / S, minY + (p[1] + 0.5) / S]; };   // pixel centre → board coords
+      var loopBd = loopPx.map(toBoard);
+      // Simplify tolerance in board px — but never coarser than ~1/3 the region's own thickness, so a thin channel survives.
+      var lx0 = Infinity, ly0 = Infinity, lx1 = -Infinity, ly1 = -Infinity;
+      loopBd.forEach(function(p) { if (p[0] < lx0) lx0 = p[0]; if (p[0] > lx1) lx1 = p[0]; if (p[1] < ly0) ly0 = p[1]; if (p[1] > ly1) ly1 = p[1]; });
+      var thin = Math.min(lx1 - lx0, ly1 - ly0);
+      var eps = Math.max(2.5, 1.5 / S);
+      if (thin < eps * 3) eps = Math.max(0.4, thin / 3);
+      var simp = rdpSimplify(loopBd, eps), epsN = eps;
+      while (simp.length > 6000 && epsN < 1e5) { epsN *= 2; simp = rdpSimplify(loopBd, epsN); }   // actually enforce the vertex ceiling
+      if (simp.length < 3) { toast('Couldn\'t trace that area — try a cleaner outline.'); return; }
+      var ox = Infinity, oy = Infinity, mx = -Infinity, my = -Infinity;
+      simp.forEach(function(p) { if (p[0] < ox) ox = p[0]; if (p[0] > mx) mx = p[0]; if (p[1] < oy) oy = p[1]; if (p[1] > my) my = p[1]; });
+      var rw = Math.max(10, mx - ox), rh = Math.max(10, my - oy);
+      var toLocal = function(p) { return [+(p[0] - ox).toFixed(2), +(p[1] - oy).toFixed(2)]; };
+      var local = simp.map(toLocal);
+      // Punch interior islands (e.g. a pillar drawn inside the room) out of the fill, matching the grid-on cell behaviour.
+      // Keep ONLY holes that lie inside THIS region's outer contour — other enclosed drawings elsewhere on the map are not ours.
+      var holes = [];
+      traceHoles(visited, wall, cw, ch).forEach(function(hl) {
+          var hb = hl.map(toBoard);
+          if (!pointInPoly(hb[0][0], hb[0][1], loopBd)) return;
+          var hs = rdpSimplify(hb, epsN);
+          if (hs.length >= 3) holes.push(hs.map(toLocal));
+      });
+      var region = Object.assign({ id: 'wb' + uid(), type: 'path', tip: 'fill', x: ox, y: oy, w: rw, h: rh, baseW: rw, baseH: rh,
+          z: 10, pts: local, color: state.fillColor, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
+      if (holes.length) region.holes = holes;
+      map.whiteboard.push(region);
+      save(); render();
+      toast('Filled the area inside your lines.');
   }
   if (wbWrap) {
       var _fillPaintBtn = -1;
@@ -5341,10 +5513,10 @@ document.addEventListener('contextmenu', function(e) {
                     html += '<div class="menu-item cm-ungroup">Ungroup</div>';
                 }
                 
-                // Check if merge drawings is possible (all selected are paths)
+                // Check if merge drawings is possible (all selected are open pen strokes — never a freeform fill region)
                 var allPaths = selectedIds.length > 1 && selectedIds.every(id => {
                     var it = am.whiteboard.find(x=>x.id===id);
-                    return it && it.type === 'path';
+                    return it && it.type === 'path' && it.tip !== 'fill';
                 });
                 if (allPaths) {
                     html += '<div class="menu-item cm-merge">Merge Drawings</div>';

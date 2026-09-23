@@ -1588,6 +1588,16 @@
   .roll-crit { background: var(--green); } .roll-fumble { background: var(--red); }
   .roll-bad { color: var(--dim); font-style: italic; font-size: 12px; }
   #dicePanel { position: fixed; z-index: 90001; width: 320px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px 10px; }
+  /* Stage 5a: the situational-modifier popover (shift-click a sheet roll button) */
+  .dice-modpop { position: fixed; z-index: 90002; width: 210px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px 10px; }
+  .dice-modpop-title { font-size: 11px; color: var(--dim); }
+  .dice-modpop-chips { display: flex; gap: 4px; }
+  .dice-modchip { flex: 1 1 0; padding: 2px 0; font-size: 12px; }
+  .dice-modpop-num { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .dice-modpm { padding: 0 10px; height: 26px; font-size: 15px; }
+  .dice-modpop-val { min-width: 40px; text-align: center; font-size: 18px; font-weight: 700; color: var(--gold); }
+  .dice-modpop-prev { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink); background: rgba(0,0,0,0.18); border-radius: 5px; padding: 3px 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dice-modpop-go { padding: 4px 0; font-weight: 600; }
   .dice-head { display: flex; align-items: center; gap: 6px; }
   #dicePanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
   .dice-quick { display: flex; flex-wrap: wrap; gap: 4px; }

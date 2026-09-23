@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, verdictOf, critOf, cardText } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, verdictOf, critOf, cardText } from './dicecore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -100,6 +100,41 @@ function rollFor(charId, expr, label, opts) {
     if (r.error) toast(r.error);
     return r;
 }
+/* ---------- Stage 5a: the situational-modifier popover (shift/alt-click a sheet roll button) ---------- */
+var modPop = null;
+function closeModPop() { if (!modPop) return; modPop.remove(); modPop = null; document.removeEventListener('pointerdown', onModOutside, true); document.removeEventListener('keydown', onModKey, true); }
+function onModOutside(e) { if (modPop && !modPop.contains(e.target)) closeModPop(); }
+function onModKey(e) { if (e.key === 'Escape' && modPop) { e.preventDefault(); e.stopPropagation(); closeModPop(); } }
+function clampMod(v) { return v > 99 ? 99 : v < -99 ? -99 : v; }
+// Open a small popover by the roll button; a positive modifier always helps (composeModifier places it correctly),
+// and on Roll we send the composed formula down the normal wire path. Falls back to a plain roll if the engine is absent.
+function rollWithMod(charId, expr, label, opts, anchor) {
+    var Fm = F(); closeModPop();
+    if (!Fm || !Fm.parse) return rollFor(charId, expr, label, opts);
+    var mod = 0, numEl, prevEl;
+    var pop = el('div', 'dice-modpop'); modPop = pop;
+    pop.appendChild(el('div', 'dice-modpop-title', label ? 'Roll ' + label + ' with a modifier' : 'Roll with a modifier'));
+    function refresh() { numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = composeModifier(expr, mod, Fm.parse); prevEl.textContent = r.ok ? r.expr : expr; }
+    var chips = el('div', 'dice-modpop-chips');
+    [['−5', -5], ['−1', -1], ['+1', 1], ['+5', 5]].forEach(function(q) { var b = el('button', 'tool ghost dice-modchip', q[0]); b.addEventListener('click', function() { mod = clampMod(mod + q[1]); refresh(); }); chips.appendChild(b); });
+    pop.appendChild(chips);
+    var numRow = el('div', 'dice-modpop-num');
+    var minus = el('button', 'tool ghost dice-modpm', '−'); minus.title = 'One less'; minus.addEventListener('click', function() { mod = clampMod(mod - 1); refresh(); });
+    numEl = el('span', 'dice-modpop-val', '0');
+    var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
+    numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
+    prevEl = el('div', 'dice-modpop-prev', expr); pop.appendChild(prevEl);
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = composeModifier(expr, mod, Fm.parse); if (!r.ok) { toast('That roll cannot take a flat modifier.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts); });
+    pop.appendChild(go);
+    document.body.appendChild(pop);
+    var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
+    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+    var left = Math.max(8, Math.min(window.innerWidth - pw - 8, rct.left));
+    var top = rct.bottom + 6; if (top + ph > window.innerHeight - 8) top = Math.max(8, rct.top - ph - 6);
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    refresh();
+    setTimeout(function() { document.addEventListener('pointerdown', onModOutside, true); document.addEventListener('keydown', onModKey, true); go.focus(); }, 0);
+}
 function openPanel() {
     var p = ui('dicePanel'); if (!p || !featureOn()) return;
     var c = ui('chatPanel'); if (c && c.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); }
@@ -171,4 +206,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { roll: roll, rollFor: rollFor, syncChars: syncChars, renderCard: renderCard, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

@@ -569,6 +569,16 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       toast(off ? '\u201c' + (it.meta.title || 'Page') + '\u201d is GM only now.' : 'Players can read \u201c' + (it.meta.title || 'Page') + '\u201d.');
   });
 
+  // Pop a planner / handbook page open in a floating panel over the map (read-only + live) — reference it while playing.
+  var _el_ctxDocWindow = document.getElementById('ctxDocWindow');
+  if (_el_ctxDocWindow) _el_ctxDocWindow.addEventListener('click', function() {
+      var menu = document.getElementById('sidebarContextMenu'); if (menu) menu.style.display = 'none';
+      var id = menu && menu.dataset.id; var camp = getActiveCampaign();
+      var it = camp && id && camp.items[id];
+      if (!it || (it.type !== 'doc' && it.type !== 'planner')) return;
+      if (window.wpDocPanel) window.wpDocPanel.open(id);
+  });
+
   var _el_ctxDeleteItem = document.getElementById('ctxDeleteItem');
   if(_el_ctxDeleteItem) _el_ctxDeleteItem.addEventListener('click', function() {
       var menu = document.getElementById('sidebarContextMenu');

@@ -426,6 +426,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 // Handbook page: the players switch (the same flip as the editor's button)
                 var isDocCtx = !!(it && it.type === 'doc');
                 menu.querySelectorAll('.ctx-doc-only').forEach(function(x) { x.style.display = isDocCtx ? 'block' : 'none'; });
+                menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; });   // Open in new window — planners + handbook pages
                 var plBtn = document.getElementById('ctxDocPlayers');
                 if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '&#128065; Show to players' : '&#128274; Hide from players';
             });

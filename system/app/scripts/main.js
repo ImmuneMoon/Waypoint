@@ -306,6 +306,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       updateUndoBtn();   // the six undo / redo buttons show the item now open
 
       if (window.wpMusicTick) window.wpMusicTick();   // per-viewer music: a map's remembered playlist auto-plays as you open it (same-source skip)
+      if (window.wpDocPanel) window.wpDocPanel.refresh();   // a doc popped over the map re-renders when its page changes (sig-checked, cheap)
 
   }
 

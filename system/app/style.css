@@ -1589,6 +1589,10 @@
   #musicPanel input.music-speed-val::-webkit-outer-spin-button, #musicPanel input.music-speed-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }   /* hide the native up/down arrows — the − / + buttons flank the field instead */
   #musicPanel input.music-speed-val:focus { outline: none; border-color: var(--gold); }
   .music-speed-x { font-size: 12px; color: var(--dim); margin-left: -3px; margin-right: 2px; }
+  .music-takectl { width: 100%; margin-top: 8px; padding: 5px 0; font-size: 12px; }
+  .music-takectl.on { border-color: var(--gold); color: var(--gold); background: rgba(224,165,79,0.14); }
+  .music-solo-opt { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11.5px; color: var(--dim); cursor: pointer; }
+  .music-solo-opt input { accent-color: var(--gold); }
   /* the panel's own selects/ranges follow the app theme (not the browser's default white chrome) */
   #musicPanel select, .music-pillpop select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 3px 6px; font-size: 12px; max-width: 100%; }
   #musicPanel select:focus, .music-pillpop select:focus { outline: none; border-color: var(--gold); }

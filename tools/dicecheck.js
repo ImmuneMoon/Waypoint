@@ -15,13 +15,22 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
     try { D = await import(url('dicecore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
     check('modules load in Node with no window', !!D && !!F && !err, err && err.message);
     if (!D || !F) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, cleanExpr, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, RateLimit, uid } = D;
+    const { LIMITS, cleanExpr, composeModifier, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, RateLimit, uid } = D;
     const V = F.VERSION;
     const roll = (expr, draws) => F.evaluate(expr, { random: scripted(draws) });
     const rec = (o) => Object.assign({ id: 'r_abc123', from: { id: 'u_pat', name: 'Pat', gm: false }, expr: '2d6 + 3', draws: [4, 5], v: V, ts: 1000 }, o);
 
     /* ---- expressions ---- */
     check('cleanExpr trims, caps at 300, refuses empty and control characters', cleanExpr('  d20 ') === 'd20' && cleanExpr('x'.repeat(301)) === null && cleanExpr('') === null && cleanExpr('d20' + String.fromCharCode(0)) === null && cleanExpr(5) === null && cleanExpr('x'.repeat(300)) !== null);
+
+    /* ---- Stage 5a: composeModifier (the situational-modifier dialog folds a flat bonus into a roll) ---- */
+    const co = (e, m) => composeModifier(e, m, F.parse);
+    const didPass = (expr, draws) => { const v = verdictOf(F.evaluate(expr, { random: scripted(draws) })); return v && v.kind === 'check' ? v.pass : null; };
+    check('composeModifier: a value roll gets a parenthesised additive term; 0 is a no-op; negative subtracts', co('d20 + STRmod', 2).expr === '(d20 + STRmod) + 2' && co('2d6', 0).expr === '2d6' && co('2d6', -1).expr === '(2d6) - 1');
+    check('composeModifier: a roll-OVER check lifts the roll side, and a positive mod turns a miss into a hit', (() => { const r = co('d20 >= 15', 2); return r.ok && r.expr === '(d20) + 2 >= 15' && didPass('d20 >= 15', [14]) === false && didPass(r.expr, [14]) === true; })());
+    check('composeModifier: a roll-UNDER check raises the target, and a positive mod turns a miss into a hit', (() => { const r = co('3d6 <= 10', 2); return r.ok && r.expr === '3d6 <= (10) + 2' && didPass('3d6 <= 10', [5, 5, 1]) === false && didPass(r.expr, [5, 5, 1]) === true; })());
+    check('composeModifier: bad mod, no parser, and a formula that would not parse are all refused', co('d20', 1.5).ok === false && co('d20', 'x').ok === false && composeModifier('d20', 2, null).ok === false && co('2d', 2).ok === false && co('', 2).ok === false);
+    check('composeModifier: the composed expression always re-parses cleanly', (() => { return ['d20 + 5', 'd20 >= 12', '4d6kh3 <= Skill', '2d6 + 3'].every(e => { const r = co(e, 3); return r.ok && F.parse(r.expr).ok; }); })());
 
     /* ---- requests ---- */
     check('cleanRollReq: rid + expr, optional priv gm only', JSON.stringify(cleanRollReq({ rid: 'q1', expr: ' 4d6kh3 ' })) === '{"rid":"q1","expr":"4d6kh3"}' && cleanRollReq({ rid: 'q1', expr: 'd20', priv: 'gm' }).priv === 'gm' && cleanRollReq({ rid: 'q1', expr: 'd20', priv: 'all' }) === null && cleanRollReq({ expr: 'd20' }) === null && cleanRollReq({ rid: 'bad id', expr: 'd20' }) === null && cleanRollReq(null) === null);

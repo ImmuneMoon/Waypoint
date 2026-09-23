@@ -503,7 +503,7 @@ function fieldNode(f, c, e, gm, own) {
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
-    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll; rb.disabled = !canRoll(c); rb.addEventListener('click', function() { if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, f.roll, f.label || f.key); }); lab.appendChild(rb); }   // the field's own roll (1.5.0)
+    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); rb.addEventListener('click', function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key); }); lab.appendChild(rb); }   // the field's own roll (1.5.0)
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
@@ -553,9 +553,15 @@ function fieldNode(f, c, e, gm, own) {
     }
     return box;
 }
+// A roll from a sheet button: shift/alt-click opens the situational-modifier popover (Stage 5a); a plain click rolls straight away.
+function sheetRoll(e, charId, expr, label, opts) {
+    if (!window.wpDice) return;
+    if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget);
+    else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
+}
 function rollNode(r, c) {
-    var b = el('button', 'tool sheet-roll', r.label); var can = canRoll(c); b.title = r.formula + (can ? '' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
-    b.addEventListener('click', function() { if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, r.formula, r.label); });
+    var b = el('button', 'tool sheet-roll', r.label); var can = canRoll(c); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
+    b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, r.label); });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character

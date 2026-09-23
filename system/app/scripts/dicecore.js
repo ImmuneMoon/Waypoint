@@ -39,6 +39,33 @@ function cleanExpr(s) {
     if (!s || s.length > LIMITS.expr || CTRL_RE.test(s)) return null;
     return s;
 }
+// Stage 5a: fold a flat situational modifier into a roll so a POSITIVE mod always helps, whatever the system.
+// parse = the engine's parser (window.wpFormula.parse), passed in so this stays pure/testable. Returns
+// { ok:true, expr } (the new formula) or { ok:false }. A value roll gets "(expr) + N". A comparison roll is
+// split at its top-level operator (the parser allows only one): roll-OVER (>,>=,=,!=) boosts the roll (left)
+// side; roll-UNDER (<,<=) eases the target (right) side. The result is re-parsed so a broken formula is never
+// produced — and, since it is just a longer formula string, the host resolves it through the normal wire path.
+function composeModifier(expr, mod, parse) {
+    if (typeof parse !== 'function') return { ok: false };
+    var clean = cleanExpr(expr); if (!clean) return { ok: false };
+    if (!isInt(mod)) return { ok: false };            // a non-integer modifier is not allowed
+    if (mod === 0) return { ok: true, expr: clean };   // nothing to fold in
+    var modTxt = (mod > 0 ? ' + ' : ' - ') + Math.abs(mod), out;
+    var p = null; try { p = parse(clean); } catch (e) { p = null; }
+    var body = p && p.ok && p.ast ? p.ast.body : null;
+    if (body && body.t === 'cmp' && isInt(body.opPos) && isInt(body.opLen)) {
+        var left = clean.slice(0, body.opPos).trim();
+        var opTxt = clean.slice(body.opPos, body.opPos + body.opLen).trim();
+        var right = clean.slice(body.opPos + body.opLen).trim();
+        if (!left || !opTxt || !right) out = '(' + clean + ')' + modTxt;
+        else if (body.op === '<' || body.op === '<=') out = left + ' ' + opTxt + ' (' + right + ')' + modTxt;   // roll-under: a bonus raises the target
+        else out = '(' + left + ')' + modTxt + ' ' + opTxt + ' ' + right;                                       // roll-over / = / !=: a bonus lifts the roll
+    } else out = '(' + clean + ')' + modTxt;                                                                     // a value roll (or unparseable): safe additive append
+    var cc = cleanExpr(out); if (!cc) return { ok: false };
+    var q = null; try { q = parse(cc); } catch (e2) { q = null; }
+    if (!q || !q.ok) return { ok: false };   // never hand the wire a formula that will not parse
+    return { ok: true, expr: cc };
+}
 function cleanFrom(f) {
     if (!f || typeof f !== 'object') return null;
     var id = str(f.id, 60), name = str(f.name, 60);
@@ -197,6 +224,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };
+export { VERSION, LIMITS, cleanExpr, composeModifier, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };

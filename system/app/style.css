@@ -471,8 +471,14 @@
   #cmdkList .cmdk-sub { white-space: normal; }
   /* ---- pop-out window (?popout=…): one doc/sheet full-window, read-only + live, with a dock-back bar ---- */
   body.popout-mode { overflow: hidden; }
-  body.popout-mode > *:not(#popoutWrap) { display: none !important; }
+  body.popout-mode > *:not(#popoutWrap):not(#chatPanel) { display: none !important; }   /* keep #chatPanel for the chat kind */
   body.popout-mode #popoutWrap { display: flex; flex-direction: column; position: fixed; inset: 0; background: var(--bg); }
+  /* chat kind: the dock bar at top, the existing #chatPanel filling the rest of the window */
+  body.popout-chat #popoutWrap { position: fixed; left: 0; right: 0; top: 0; bottom: auto; height: 44px; }
+  body.popout-chat #popoutBody { display: none; }
+  body.popout-chat #chatPanel { display: flex !important; position: fixed !important; left: 0; right: 0; top: 44px; bottom: 0; width: auto !important; max-width: none !important; max-height: none !important; min-height: 0; border: none !important; border-radius: 0 !important; box-shadow: none !important; z-index: 4; }
+  body.popout-chat #chatPanel #chatLog { max-height: none !important; }
+  body.popout-chat #chatPanel > div:first-child { display: none; }   /* the dock bar replaces the panel's own "Table Chat" header */
   #popoutBar { flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--edge); background: var(--panel2); }
   #popoutBar #popoutTitle { flex: 1; min-width: 0; font-weight: 600; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #popoutBar #popoutDock { flex: none; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); padding: 5px 12px; cursor: pointer; font-size: 12px; }

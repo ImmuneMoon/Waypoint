@@ -3039,7 +3039,24 @@ function renderChat() {
         badge.style.display = chatUnread > 0 ? 'block' : 'none';
         badge.textContent = chatUnread;
     }
+    if (!window.wpPopout) broadcastChatSync();   // mirror the chat to any popped-out chat window (which owns no session of its own)
 }
+/* Chat pop-out relay: the chat lives in memory here (chatLog) over the live session, so a pop-out window
+   (which has no session) mirrors it over BroadcastChannel — the main window broadcasts the log on every
+   render, answers a new pop-out's request, and sends on the pop-out's behalf; the pop-out relays its input. */
+var _chatBC = null; try { _chatBC = new BroadcastChannel('waypoint'); } catch (e) {}
+function broadcastChatSync() { if (!_chatBC) return; try { _chatBC.postMessage({ type: 'chatSync', log: JSON.parse(JSON.stringify(chatLog)) }); } catch (e) {} }
+if (_chatBC) _chatBC.addEventListener('message', function(e) {
+    var d = e.data; if (!d || !d.type) return;
+    if (window.wpPopout) {
+        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; renderChat(); }
+    } else {
+        if (d.type === 'chatReq') broadcastChatSync();
+        else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(); } }
+        else if (d.type === 'dock' && d.kind === 'chat') { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } }
+    }
+});
+window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } } };
 // A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
 // it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
 var _chatRollOpened = false, _chatDismissTimer = null;
@@ -3089,6 +3106,7 @@ function sendChat() {
     var input = ui('chatInput');
     var text = (input.value || '').trim();
     if (!text) return;
+    if (window.wpPopout) { try { if (_chatBC) _chatBC.postMessage({ type: 'chatSend', text: text }); } catch (e) {} input.value = ''; return; }   // the pop-out has no session — relay to the main window, which sends and mirrors the result back
     var cmd = DC() ? DC().parseCommand(text) : null;   // /roll, /r, /gmroll, /gr work with or without a session
     if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { priv: cmd.cmd === 'gmroll', source: 'chat' }) : net.diceRoll(cmd.expr, { priv: cmd.cmd === 'gmroll' }); if (rr.error) toast(rr.error); return; }
     if (!net.active) { toast('Chat needs an active multiplayer session.'); return; }
@@ -3125,6 +3143,11 @@ var _chatClose = ui('chatCloseBtn');
 if (_chatClose) _chatClose.addEventListener('click', function() { cancelChatDismiss(); ui('chatPanel').style.display = 'none'; });
 var _chatSend = ui('chatSendBtn');
 if (_chatSend) _chatSend.addEventListener('click', sendChat);
+var _chatPop = ui('chatPop');   // pop the chat out into its own window (mirrored + relayed); dock-back reopens this panel
+if (_chatPop) _chatPop.addEventListener('click', function() {
+    window.open(location.origin + '/?popout=chat:', 'wpPopout_chat', 'width=440,height=760');
+    var cp = ui('chatPanel'); if (cp) cp.style.display = 'none';
+});
 var _chatInput = ui('chatInput');
 if (_chatInput) _chatInput.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter') sendChat(); });
 

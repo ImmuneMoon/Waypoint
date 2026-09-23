@@ -1593,6 +1593,8 @@
   .music-takectl.on { border-color: var(--gold); color: var(--gold); background: rgba(224,165,79,0.14); }
   .music-solo-opt { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11.5px; color: var(--dim); cursor: pointer; }
   .music-solo-opt input { accent-color: var(--gold); }
+  .music-libtrack { display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 0; }
+  .music-libtrack-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* the panel's own selects/ranges follow the app theme (not the browser's default white chrome) */
   #musicPanel select, .music-pillpop select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 3px 6px; font-size: 12px; max-width: 100%; }
   #musicPanel select:focus, .music-pillpop select:focus { outline: none; border-color: var(--gold); }

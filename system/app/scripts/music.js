@@ -229,6 +229,47 @@ function onControl(msg) {
 function onSnapshot() { controlled = false; stop(0); cache = {}; bytes = {}; cacheSec = 0; lastKey = ''; lastMapId = null; }   // a fresh snapshot: drop stale library/playback; the 'music' message re-arms
 function tableLeft() { controlled = false; controlling = false; stop(0); cache = {}; bytes = {}; cacheSec = 0; lastKey = ''; lastMapId = null; }
 
+/* ---------- the library: upload songs (GM), and remove tracks ---------- */
+var AUDIO_EXT = /\.(mp3|ogg|oga|m4a|webm|opus)$/i;
+function fmtMB(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB'; }
+function probeDur(file) {   // a track's length, from metadata (light — no full decode)
+    return new Promise(function(resolve) {
+        var url = URL.createObjectURL(file), a = new Audio(), done = function(d) { try { URL.revokeObjectURL(url); } catch (e) {} resolve(isFinite(d) && d > 0 ? d : 0); };
+        a.preload = 'metadata'; a.addEventListener('loadedmetadata', function() { done(a.duration); }); a.addEventListener('error', function() { done(0); });
+        setTimeout(function() { done(0); }, 6000); a.src = url;
+    });
+}
+function uploadTracks(files) {
+    var camp = getActiveCampaign(); if (!camp || !canWrite() || !window.wpUploadBlob) return;
+    var mw = campMusicW(camp); if (!mw) return;
+    var used = mw.tracks.reduce(function(s, t) { return s + (t.size || 0); }, 0);
+    var list = Array.prototype.slice.call(files), done = 0, refused = [];
+    (function next() {
+        if (!list.length) {
+            if (done) { save(true); var n = net(); if (n && n.syncMusic) n.syncMusic(); if (panelOpen()) renderPanel(); }
+            toast((done ? done + ' track' + (done === 1 ? '' : 's') + ' added.' : 'Nothing added.') + (refused.length ? ' Refused: ' + refused.join('; ') : ''));
+            return;
+        }
+        var f = list.shift();
+        if (!AUDIO_EXT.test(f.name) && !/^audio\//.test(f.type)) { refused.push(f.name + ' (not an audio file)'); return next(); }
+        if (/\.(wav|flac|aiff?)$/i.test(f.name)) { refused.push(f.name + ' (WAV / FLAC are too large — convert to MP3 or OGG)'); return next(); }
+        if (f.size > LIMITS.file) { refused.push(f.name + ' (over ' + fmtMB(LIMITS.file) + ')'); return next(); }
+        if (used + f.size > LIMITS.campaign) { refused.push(f.name + ' (the campaign’s music library is full)'); return next(); }
+        probeDur(f).then(function(dur) {
+            return window.wpUploadBlob('audio/' + camp.id, f.name.replace(/[\/\\?#%\s]+/g, '_').slice(0, 120), f).then(function(url) {   // spaces/reserved chars out of the on-disk name so any server can serve it; the display name (track.name) keeps them
+                mw.tracks.push({ id: uid('t_'), name: f.name.replace(/^[a-z0-9]{8}_/, '').replace(/\.[^.]+$/, '').slice(0, LIMITS.name) || 'Track', path: url, size: f.size, dur: Math.round((dur || 0) * 10) / 10 });
+                used += f.size; done++; next();
+            });
+        }).catch(function(err) { refused.push(f.name + ' (' + (err && err.message || 'upload failed') + ')'); next(); });
+    })();
+}
+function removeTrack(id) {
+    var camp = getActiveCampaign(), mw = campMusicW(camp); if (!mw) return;
+    mw.tracks = mw.tracks.filter(function(t) { return t.id !== id; });
+    mw.playlists.forEach(function(pl) { pl.tracks = pl.tracks.filter(function(t) { return t !== id; }); });   // drop it from every playlist too
+    save(true); var n = net(); if (n && n.syncMusic) n.syncMusic(); if (panelOpen()) renderPanel();
+}
+
 /* ---------- the feature switch (vtt.js fan-out) ---------- */
 function sync() { var b = ui('musicBtn'); if (b) b.style.display = ''; if (!featureOn()) { stop(0.3); lastKey = ''; } renderPill(); if (panelOpen()) renderPanel(); }
 
@@ -385,10 +426,21 @@ function renderPanel() {
         p.appendChild(bindWrap);
     }
 
-    // library note (upload UI lands in a follow-up; test data can be seeded)
+    // library: upload songs + manage tracks
     var lib = el('div', 'music-section music-lib');
-    lib.appendChild(el('div', 'music-sec-head', 'Library — ' + m.tracks.length + ' track' + (m.tracks.length === 1 ? '' : 's')));
-    if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', 'No music tracks yet. Uploading songs in-app is coming; a playlist plays tracks from here.'));
+    var libHead = el('div', 'music-sec-head'); libHead.appendChild(el('span', null, 'Library — ' + m.tracks.length + ' track' + (m.tracks.length === 1 ? '' : 's')));
+    var addF = el('button', 'tool ghost', '+ Add music…');
+    var fileIn = el('input'); fileIn.type = 'file'; fileIn.accept = 'audio/*'; fileIn.multiple = true; fileIn.style.display = 'none';
+    addF.addEventListener('click', function() { if (!canWrite()) { toast('Only the GM manages music.'); return; } fileIn.value = ''; fileIn.click(); });
+    fileIn.addEventListener('change', function() { uploadTracks(fileIn.files); });
+    libHead.appendChild(addF); lib.appendChild(libHead); lib.appendChild(fileIn);
+    if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', 'No music tracks yet. Add songs (MP3 / OGG, up to ' + fmtMB(LIMITS.file) + ') above; a playlist plays tracks from here.'));
+    else m.tracks.forEach(function(tr) {
+        var row = el('div', 'music-libtrack');
+        row.appendChild(el('span', 'music-libtrack-name', tr.name));
+        var rm = el('button', 'tool ghost music-del', '×'); rm.title = 'Remove this track (and from every playlist)'; rm.addEventListener('click', function() { removeTrack(tr.id); });
+        row.appendChild(rm); lib.appendChild(row);
+    });
     p.appendChild(lib);
 }
 
@@ -396,7 +448,7 @@ function renderPanel() {
 window.wpMusicSync = sync;
 window.wpMusicTick = tick;
 window.wpMusic = { play: play, stop: stop, next: next, prev: prev, seek: seek, togglePlay: togglePlay, setLoop: setLoop, setShuffle: setShuffle, setVolume: setVolume, setMute: setMute, setSpeed: setSpeed, status: status, nowPlaying: nowPlaying, openPanel: openPanel, closePanel: closePanel, tick: tick, sync: sync, onListeners: listeners,
-    listMessage: listMessage, onList: onList, onControl: onControl, onSnapshot: onSnapshot, tableLeft: tableLeft, controlSnapshot: controlSnapshot, idSets: idSets, setControlling: setControlling, isControlling: function() { return controlling; } };
+    listMessage: listMessage, onList: onList, onControl: onControl, onSnapshot: onSnapshot, tableLeft: tableLeft, controlSnapshot: controlSnapshot, idSets: idSets, setControlling: setControlling, isControlling: function() { return controlling; }, addFiles: uploadTracks };
 (function wire() {
     var b = ui('musicBtn'); if (b) b.addEventListener('click', function() { if (panelOpen()) closePanel(); else openPanel(); });
     var ind = ui('musicInd'); if (ind) ind.addEventListener('click', function() { if (pillPop) closePill(); else openPill(); });

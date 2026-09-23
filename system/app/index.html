@@ -88,6 +88,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/fog.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
+<script type="module" src="scripts/docpanel.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/devconsole.js"></script>
@@ -444,6 +445,8 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>While hosting, turning a page GM only removes it from every player at once (their reader closes if it was open); turning it back on sends it again. Edits to an open page reach players as you type.</li>
                           <li>Only the pages of the <b>campaign you are hosting</b> reach the table. Your other campaigns' pages stay home whatever their switch says.</li>
                       </ul>
+                      <h4>Open it over the map</h4>
+                      <p><b>Right-click any planner or handbook page &#8594; &#128203; Open over the map</b> pops it into a floating, resizable panel that sits over the play map, so you can read it while you play &mdash; drag its header to move it, drag a corner to resize, and it updates live as you edit the page (GM-only pages show here too &mdash; it is your own reference). Its search box does two things at once: it searches the <b>content of every page</b> (ranked results with a snippet &mdash; click one to open that page), and it <b>highlights</b> your text on the page you are reading, with a match count and next/prev (<kbd>Enter</kbd> / <kbd>Shift+Enter</kbd>, <kbd>Esc</kbd> clears). Case and accents are ignored; the exact phrase ranks first, then each word at word starts.</p>
                       <h4>Layout</h4>
                       <p>A page <b>flows like a web page</b>, not a fixed sheet: a player's narrower window, the print path and the HTML export all reflow the same content. The layout row under a picture, callout, flare, table, diagram or flowchart sets its <b>width</b> (a quarter to the full column), whether it <b>floats</b> left or right with the text wrapping around it, a <b>nudge</b> in pixels from where the flow put it, and <b>span all columns</b> inside a multi-column section. A <b>Section (H2)</b> block takes 1, 2 or 3 columns for everything under it up to the next section or title. In the preview, <b>drag a picture</b> to nudge it and drag its <b>bottom-right corner</b> to resize it; each drag is one undo step.</p>
                       <ul>
@@ -1775,6 +1778,18 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="sheetHead"><img id="sheetPortrait" alt="" style="display:none;"><span class="sheet-titles"><span id="sheetTitle" class="notepad-title">Sheet</span><span id="sheetSub" class="notepad-who"></span></span><select id="sheetPick" class="tool sheet-pick" title="Another character" style="display:none;"></select><button class="tool ghost notepad-btn" id="sheetRevert" title="Put back the last value you changed" style="display:none;">&#8630;</button><button class="tool ghost notepad-btn" id="sheetClose" title="Close (Esc)">&times;</button></div>
     <div id="sheetBody"></div>
 </div>
+<!-- Doc panel (1.5.0): a planner/handbook popped over the map, read-only + live (docpanel.js) -->
+<div id="docPanel" style="display:none;">
+    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelClose" title="Close (Esc)">&times;</button></div>
+    <div id="docPanelSearchRow">
+        <input id="docPanelSearchInput" type="text" placeholder="Search all pages&hellip;" autocomplete="off" spellcheck="false" title="Search the CONTENT of every page (results below), and highlight matches on this one. Enter / Shift+Enter jump between matches; Esc clears.">
+        <span id="docPanelFindCount" class="docpanel-count"></span>
+        <button class="tool ghost notepad-btn" id="docPanelFindPrev" title="Previous match (Shift+Enter)">&#9650;</button>
+        <button class="tool ghost notepad-btn" id="docPanelFindNext" title="Next match (Enter)">&#9660;</button>
+    </div>
+    <div id="docPanelResults" style="display:none;"></div>
+    <div id="docPanelBody" class="doc-view"></div>
+</div>
 <!-- Character sheets (1.5.0): the System editor (sheets.js); the pure half is systemcore.js -->
 <div id="systemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="sys-box" style="background:var(--panel2); border:1px solid var(--gold); border-radius:8px;">
@@ -1910,6 +1925,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item ctx-planner-only ctx-status" data-status="" style="padding:8px 16px; cursor:pointer; color:var(--dim);">Clear status</div>
     <div class="menu-divider ctx-doc-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-doc-only" id="ctxDocPlayers" style="padding:8px 16px; cursor:pointer;" title="Whether players at your table receive this page. Hidden pages never leave your machine; while hosting, hiding one removes it from every player at once.">&#128274; Hide from players</div>
+    <div class="menu-divider ctx-docwin-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
+    <div class="menu-item ctx-docwin-only" id="ctxDocWindow" style="padding:8px 16px; cursor:pointer;" title="Pop this open in a floating panel over the map (read-only), so you can read it while you play. Drag its header to move it, drag a corner to resize; it updates live as you edit the original.">&#128203; Open over the map</div>
     <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-map-only" id="ctxLockItem" style="padding:8px 16px; cursor:pointer;" title="Players cannot travel to a locked map — portals, warps and room links into it are refused. You can still summon or bring them there.">&#128274; Lock for players</div>
     <div class="menu-item ctx-map-only" id="ctxLockNest" style="padding:8px 16px; cursor:pointer;" title="Lock this map together with every map nested under it — a whole module at once.">&#128274; Lock this and every map under it</div>

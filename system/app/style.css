@@ -446,6 +446,8 @@
   #docPanel { position: fixed; right: 18px; top: 120px; width: 440px; max-width: 96vw; height: 70vh; max-height: 86vh; min-width: 280px; min-height: 180px; z-index: 9000; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; resize: both; }
   #docPanelHead { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
   #docPanelHead .docpanel-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); }
+  #docPanelHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 14px; }
+  #sheetHead .notepad-btn { display: inline-flex; align-items: center; justify-content: center; }
   #docPanelBody { overflow: auto; padding: 14px 18px 26px; flex: 1; }
   #docPanelBody .docpanel-msg { color: var(--dim); font-style: italic; text-align: center; padding-top: 80px; }
   #docPanelSearchRow { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-bottom: 1px solid var(--edge); flex: none; background: rgba(0,0,0,0.06); }
@@ -1816,7 +1818,9 @@
   .sheet-err { color: var(--red); }
   .sheet-ctl { display: flex; align-items: center; gap: 4px; }
   #sheetPanel input.field, #sheetPanel select.field, #sheetPanel textarea.field,
-  #sysLayoutPreview input.field, #sysLayoutPreview select.field, #sysLayoutPreview textarea.field { padding: 3px 6px; font-size: 12.5px; }
+  #sysLayoutPreview input.field, #sysLayoutPreview select.field, #sysLayoutPreview textarea.field,
+  #popoutBody.sheet-view input.field, #popoutBody.sheet-view select.field, #popoutBody.sheet-view textarea.field { padding: 3px 6px; font-size: 12.5px; }
+  #popoutBody.sheet-view { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 18px 22px 48px; display: flex; flex-direction: column; gap: 10px; }
   #sheetPanel .field, #sysLayoutPreview .field { margin-bottom: 0; }   /* the sheet uses grid gaps for spacing; the base .field margin shifted inputs off the −/+ baseline */
   .sheet-num { width: 64px; }
   .sheet-ctl .sheet-cur { width: 46px; height: 28px; flex: 0 0 auto; text-align: center; box-sizing: border-box; }   /* the resource current value: a compact, roughly square box between − and + */

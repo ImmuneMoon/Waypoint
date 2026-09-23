@@ -169,6 +169,21 @@ function renderSheet() {
     if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
     restoreFocus(body, fk);
 }
+// Render a character sheet READ-ONLY into an arbitrary container (the pop-out window; the pop-out never owns
+// the save — window.wpPopout no-ops it — so nothing here can write data.json). GM view (full sheet), fields disabled.
+function renderSheetInto(container, charId, camp) {
+    camp = camp || getActiveCampaign();
+    var sys = systemOf(camp), c = charById(charId, camp);
+    if (!container || !c || !sys || !F()) return null;
+    buildSections(container, sys, c, resolveAll(sys, c, F()), true, false, function() { renderSheetInto(container, charId, camp); });
+    container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
+    container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
+    container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
+    var shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
+    container.style.fontFamily = ''; container.style.color = ''; container.style.backgroundColor = '';
+    if (shStyle) { var DF = window.wpDocRender.DOC_FONTS || {}; if (shStyle.font && DF[shStyle.font]) container.style.fontFamily = DF[shStyle.font]; if (shStyle.textColor) container.style.color = shStyle.textColor; if (shStyle.bgColor) container.style.backgroundColor = shStyle.bgColor; }
+    return { title: c.name || 'Character' };
+}
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
 function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
@@ -1071,4 +1086,17 @@ setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
-    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+
+// Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
+(function wireSheetPopout() {
+    var pop = document.getElementById('sheetPop');
+    if (pop) pop.addEventListener('click', function() {
+        var camp = getActiveCampaign(); if (!camp || !sheetOpen) return;
+        window.open(location.origin + '/?popout=sheet:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(sheetOpen), 'wpPopout_sheet_' + sheetOpen, 'width=840,height=1000');
+        closeSheet();
+    });
+    try { new BroadcastChannel('waypoint').addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'dock' && e.data.kind === 'sheet') { var a = e.data.arg || ''; openSheet(a.slice(a.indexOf('/') + 1)); }
+    }); } catch (e) {}
+})();

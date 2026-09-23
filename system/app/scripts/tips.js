@@ -59,7 +59,7 @@ var BY_ID = {
     netJoinPassInput: 'Only needed if the GM set a session password.',
     elementSearchInput: 'Filter the list by name.',
     newDocBtn: 'A new handbook page: rules or reference your players can read at the table.',
-    searchDocsBtn: 'Find a page by name.',
+    searchDocsBtn: 'Find a page by its name or its text — type a word and it searches every page’s content, with a snippet of the match.',
     collapseAllDocsBtn: 'Collapse or expand every nested page.',
     docPlayersBtn: 'Whether players at your table receive this page. Off while hosting removes it from them at once.',
     exportDocsBtn: 'Every handbook page in this campaign as one file (pictures bundled).',

@@ -23,7 +23,12 @@ function fold(s) { return String(s == null ? '' : s).replace(/[À-ɏḀ-ỿ]/g, 
 function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function escHtml(s) { return String(s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function stripMarkup(s) { return String(s || '').replace(/<[^>]*>/g, ' ').replace(/[*_`~#>\[\]()]/g, ' ').replace(/\s+/g, ' ').trim(); }
-function rowText(r) { if (Array.isArray(r)) return r.join(' '); if (r && Array.isArray(r.cells)) return r.cells.join(' '); return ''; }
+function rowText(r) {   // a table row is an array, {cells:[…]}, or a {col1,col2,…} object — pull every string cell
+    if (Array.isArray(r)) return r.filter(function(c) { return typeof c === 'string'; }).join(' ');
+    if (r && Array.isArray(r.cells)) return r.cells.filter(function(c) { return typeof c === 'string'; }).join(' ');
+    if (r && typeof r === 'object') { var o = ''; for (var k in r) { if (typeof r[k] === 'string') o += r[k] + ' '; } return o; }
+    return typeof r === 'string' ? r : '';
+}
 function blockText(b) {
     if (!b || typeof b !== 'object') return '';
     switch (b.type) {
@@ -51,13 +56,14 @@ function matchRanges(ft, nq, words) {
     return ranges;
 }
 
-/* ---------- cross-page search ---------- */
-function searchAll(q) {
-    var camp = activeCamp(); if (!camp || !camp.items) return [];
+/* ---------- cross-page search (shared: the panel + the app-wide page search + Ctrl+K use this) ---------- */
+function searchAll(q, camp, types) {
+    camp = camp || activeCamp(); if (!camp || !camp.items) return [];
+    types = types || ['doc', 'planner'];
     var nq = fold(q).trim(); if (!nq) return [];
     var words = nq.split(/\s+/).filter(Boolean), out = [];
     Object.keys(camp.items).forEach(function(id) {
-        var it = camp.items[id]; if (!it || (it.type !== 'doc' && it.type !== 'planner')) return;
+        var it = camp.items[id]; if (!it || types.indexOf(it.type) === -1) return;
         var title = (it.meta && it.meta.title) || it.name || (it.type === 'planner' ? 'Planner' : 'Page');
         var text = docText(it), ft = fold(text), fTitle = fold(title), score = 0;
         if (fTitle.indexOf(nq) !== -1) score += 100;
@@ -217,3 +223,6 @@ function refresh() { if (openId) draw(false); }   // called from the app's rende
 })();
 
 window.wpDocPanel = { open: open, close: close, refresh: refresh };
+// Shared content search for the app-wide page search + Ctrl+K: ranked page results with a highlighted snippet.
+// (q, campaign?=active, types?=['doc','planner']) -> [{ id, title, type, score, snippet /* escaped HTML + <mark> */ }].
+window.wpDocSearch = function(q, camp, types) { return searchAll(q, camp, types); };

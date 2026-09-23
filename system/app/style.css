@@ -1584,10 +1584,11 @@
   .music-vol { flex: 1; accent-color: var(--gold); }
   .music-speedrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .music-speed-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); flex: 1; }
-  .music-slow, .music-fast { padding: 1px 10px; font-size: 15px; }
-  #musicPanel input.music-speed-val { width: 48px; text-align: center; font-size: 12.5px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px; -moz-appearance: textfield; }
+  .music-slow, .music-fast { flex: 0 0 auto; width: 28px; height: 26px; padding: 0; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+  #musicPanel input.music-speed-val { width: 46px; text-align: center; font-size: 12.5px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px; -moz-appearance: textfield; appearance: textfield; }
+  #musicPanel input.music-speed-val::-webkit-outer-spin-button, #musicPanel input.music-speed-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }   /* hide the native up/down arrows — the − / + buttons flank the field instead */
   #musicPanel input.music-speed-val:focus { outline: none; border-color: var(--gold); }
-  .music-speed-x { font-size: 12px; color: var(--dim); margin-left: -2px; }
+  .music-speed-x { font-size: 12px; color: var(--dim); margin-left: -3px; margin-right: 2px; }
   /* the panel's own selects/ranges follow the app theme (not the browser's default white chrome) */
   #musicPanel select, .music-pillpop select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 3px 6px; font-size: 12px; max-width: 100%; }
   #musicPanel select:focus, .music-pillpop select:focus { outline: none; border-color: var(--gold); }

@@ -65,11 +65,17 @@ var net = {
 window.wpNet = net;
 
 /* ---------- profile (local, no accounts) ---------- */
+// A pleasant random mid-tone, as #rrggbb — every new profile gets its own color (distinct dots/avatars out of the box).
+function randomProfileColor() {
+    var h = Math.floor(Math.random() * 360), s = 0.55, l = 0.58, a = s * Math.min(l, 1 - l);
+    function f(n) { var k = (n + h / 30) % 12, col = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1); return ('0' + Math.round(255 * col).toString(16)).slice(-2); }
+    return '#' + f(0) + f(8) + f(4);
+}
 function getProfile() {
     var p = null;
     try { p = JSON.parse(localStorage.getItem('wp_profile') || 'null'); } catch (e) {}
     if (!p || !p.id) {
-        p = { id: 'u_' + Math.random().toString(36).slice(2, 10), name: '' };
+        p = { id: 'u_' + Math.random().toString(36).slice(2, 10), name: '', color: randomProfileColor() };   // random starter color, saved so it stays put
         try { localStorage.setItem('wp_profile', JSON.stringify(p)); } catch (e) {}
     }
     return p;

@@ -91,10 +91,10 @@ function showStanceMenu(e, tok) {
 }
 
 // In a session, clients resolve campaign images through the host-fed cache
-// A text box with no colour of its own: light ink on a dark plate, dark ink on a light one,
+// A text box with no color of its own: light ink on a dark plate, dark ink on a light one,
 // the theme's ink when the plate is missing or nearly clear (so both themes stay readable).
-// A colour at a given opacity, for the text / background opacity sliders. color-mix keeps any
-// CSS colour intact (names, var(--ink), rgba); an older engine falls back to a canvas parse.
+// A color at a given opacity, for the text / background opacity sliders. color-mix keeps any
+// CSS color intact (names, var(--ink), rgba); an older engine falls back to a canvas parse.
 function withAlpha(c, a) {
     a = Number(a); if (!isFinite(a) || a >= 1) return c;
     if (!c || c === 'transparent') return c;
@@ -327,7 +327,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       // built from nodes (1.5.0): a portrait, the name, the (capped) stats line, the sheet's hover fields, the stance line
                       var ttRoot = document.createElement('div'); ttRoot.className = 'room'; ttRoot.style.cssText = 'border-left-color:var(--gold); margin:0; pointer-events:none;';
                       var ownerAv = (!wItem.src && wItem.ownerId && window.wpNet && window.wpNet.roster) ? (function() { var p = Object.keys(window.wpNet.roster).map(function(k) { return window.wpNet.roster[k]; }).find(function(x) { return x && x.id === wItem.ownerId; }); return p && p.avatar; })() : null;
-                      var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → colour-tinted silhouette default
+                      var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → color-tinted silhouette default
                       if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
                       var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; ttRoot.appendChild(ttName);
                       var ttStats = document.createElement('div'); ttStats.className = 'rc'; ttStats.style.cssText = 'color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;'; ttStats.textContent = cstats.length > 400 ? cstats.slice(0, 400) + '…' : cstats; ttRoot.appendChild(ttStats);   // prose, not a label: no uppercase; capped for the hover peek (full text lives in the roster / Properties)
@@ -496,7 +496,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (isHexTrigger || (item.type === 'trigger' && item.shape === 'diamond')) {
 
-              // A PORTAL (links to another map) shows its destination colour, bright, with a bold ring so it
+              // A PORTAL (links to another map) shows its destination color, bright, with a bold ring so it
               // reads clearly on a painted battle-map; a plain trigger zone keeps the faint gold tint.
               var _pRoom = item.nodeId ? activeMap.rooms.find(function (x) { return x.id === item.nodeId; }) : null;
               var _isPortal = !!item.targetMapId || !!(_pRoom && _pRoom.targetMapId);
@@ -1850,7 +1850,7 @@ window.wpFitToGrid = fitToGrid;
           var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.noToken ? ' \u2014 no token yet' : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
-          var pcol = c.color || ('hsl(' + wbHashHue(c.key) + ',55%,55%)');   // no picture → the colour-tinted silhouette default
+          var pcol = c.color || ('hsl(' + wbHashHue(c.key) + ',55%,55%)');   // no picture → the color-tinted silhouette default
           return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(pcol) : '') + '" alt="" data-tip="' + esc(tip) + '">';
       }).join('');
   }
@@ -2032,7 +2032,7 @@ window.wpFitToGrid = fitToGrid;
   })();
   /* ---- targeting (players) ----
      A click — not a drag — on a character token that isn't yours marks it as your target;
-     the table sees a ring in your colour. Same token again, or Esc, clears it. */
+     the table sees a ring in your color. Same token again, or Esc, clears it. */
   (function wireTargeting() {
       var down = null;
       document.addEventListener('pointerdown', function(e) {
@@ -2822,7 +2822,7 @@ window.wpFitToGrid = fitToGrid;
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFogMode) e.preventDefault(); });
       document.addEventListener('pointerup', function() { _fogPaintBtn = -1; });
   }
-  // Fill bucket (1.5.0, GM): click or drag grid cells to drop a cell-sized coloured shape (hexagon on hex maps,
+  // Fill bucket (1.5.0, GM): click or drag grid cells to drop a cell-sized colored shape (hexagon on hex maps,
   // square on square maps) seated in the cell at layer 'back' (below tokens); right-click a cell clears its fill.
   var _el_fillModeBtn = document.getElementById('fillModeBtn'), _el_fillMenu = document.getElementById('fillMenu');
   try { var _fc0 = localStorage.getItem('wp_fillColor'); if (_fc0 && /^#[0-9a-f]{6}$/i.test(_fc0)) state.fillColor = _fc0; } catch (e) {}
@@ -2850,7 +2850,7 @@ window.wpFitToGrid = fitToGrid;
   });
   var _fillColorInput = document.getElementById('fillColorInput');
   if (_fillColorInput) _fillColorInput.addEventListener('input', function() { state.fillColor = this.value; try { localStorage.setItem('wp_fillColor', state.fillColor); } catch (e) {} syncFillMenu(); });
-  syncFillMenu();   // show the loaded fill colour on the toolbar button at startup
+  syncFillMenu();   // show the loaded fill color on the toolbar button at startup
   document.addEventListener('click', function(e) { if (_el_fillMenu && _el_fillMenu.classList.contains('show') && !e.target.closest('#fillMenu') && !e.target.closest('#fillModeBtn')) _el_fillMenu.classList.remove('show'); });
   var _fillDirty = false;
   function fillCellAt(x, y, remove) {
@@ -2930,7 +2930,7 @@ window.wpFitToGrid = fitToGrid;
       if (_el_blastMenu && _el_blastMenu.classList.contains('show') && !e.target.closest('#blastMenu') && !e.target.closest('#blastModeBtn')) closeBlastMenu();
   });
 
-  // Pen preferences survive restarts: colour, width, freehand/line (wp_drawColor / wp_drawWidth / wp_drawStraight)
+  // Pen preferences survive restarts: color, width, freehand/line (wp_drawColor / wp_drawWidth / wp_drawStraight)
   try { var _dc0 = localStorage.getItem('wp_drawColor'); if (_dc0 && /^#[0-9a-f]{6}$/i.test(_dc0)) state.drawColor = _dc0; } catch (e) {}
   try { var _dw0 = parseInt(localStorage.getItem('wp_drawWidth'), 10); if ([2, 3, 6, 10, 16].indexOf(_dw0) !== -1) state.drawStrokeWidth = _dw0; } catch (e) {}
   try { if (localStorage.getItem('wp_drawStraight') !== null) state.drawStraight = localStorage.getItem('wp_drawStraight') === '1'; } catch (e) {}
@@ -3699,7 +3699,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       delete pv.dataset.cid;
   }
   window.wpCloseImgPreview = closeImgPreview;
-  // A cast face opens the same preview panel as a picture, in a cast mode: the portrait (or a coloured disc for a
+  // A cast face opens the same preview panel as a picture, in a cast mode: the portrait (or a colored disc for a
   // circle token), the name and stat line, and an "Add to map" that drops the number in Copies. Placing a cast token
   // is no longer a bare click (that just looks now, like a picture) — it is a deliberate Add / × button press.
   function castOnMap() { var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return false; } return true; }

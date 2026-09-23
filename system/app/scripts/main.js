@@ -813,13 +813,13 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       });
       box.style.display = '';
   }
-  // A no-picture default avatar: a user silhouette on the given colour, as an inline SVG data-URL. One shared helper
+  // A no-picture default avatar: a user silhouette on the given color, as an inline SVG data-URL. One shared helper
   // for every no-avatar site (welcome, Settings, roster, map presence, party, the hover card) so a user without a
-  // photo still gets a recognisable, per-user-coloured face instead of a "?" or bare initials. `color` = any CSS colour.
+  // photo still gets a recognisable, per-user-colored face instead of a "?" or bare initials. `color` = any CSS color.
   function wpDefaultAvatar(color) {
       // The owner's Default User.png shape: a big head + a straight-sided TRAPEZOID torso reaching the bottom edge.
-      // Colours are a randomized-but-stable combo per user (bg lightness varies — some dark, some light — with the
-      // figure auto-contrasting), anchored to the user's hue so it matches their roster/presence colour.
+      // Colors are a randomized-but-stable combo per user (bg lightness varies — some dark, some light — with the
+      // figure auto-contrasting), anchored to the user's hue so it matches their roster/presence color.
       var h = 222, c = typeof color === 'string' ? color.trim() : '', m, i, seed = 0;
       if ((m = c.match(/^#([0-9a-fA-F]{6})$/))) {
           var r = parseInt(m[1].substr(0, 2), 16) / 255, g = parseInt(m[1].substr(2, 2), 16) / 255, b = parseInt(m[1].substr(4, 2), 16) / 255;
@@ -845,7 +845,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
       var col = document.getElementById('wcColorInput'); if (col) col.value = prof.color || '#7aa7ff';
       var av = document.getElementById('wcAvatarPrev');
-      if (av) { av.innerHTML = '<img src="' + (prof.avatar || wpDefaultAvatar(prof.color)) + '" alt="">'; av.style.background = ''; }   // a photo, else the colour-tinted silhouette default
+      if (av) { av.innerHTML = '<img src="' + (prof.avatar || wpDefaultAvatar(prof.color)) + '" alt="">'; av.style.background = ''; }   // a photo, else the color-tinted silhouette default
       var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
       w.style.display = 'flex';
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
@@ -859,7 +859,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   (function wireWelcome() {
       var w = document.getElementById('welcomeScreen'); if (!w) return;
       var nmEl = document.getElementById('wcNameInput'); if (nmEl) nmEl.addEventListener('change', saveWcProfile);
-      var colEl = document.getElementById('wcColorInput'); if (colEl) colEl.addEventListener('input', function() { saveWcProfile(); var av = document.getElementById('wcAvatarPrev'); if (av && !wcProfile().avatar) { av.innerHTML = '<img src="' + wpDefaultAvatar(this.value) + '" alt="">'; av.style.background = ''; } });   // re-tint the silhouette default as the colour changes
+      var colEl = document.getElementById('wcColorInput'); if (colEl) colEl.addEventListener('input', function() { saveWcProfile(); var av = document.getElementById('wcAvatarPrev'); if (av && !wcProfile().avatar) { av.innerHTML = '<img src="' + wpDefaultAvatar(this.value) + '" alt="">'; av.style.background = ''; } });   // re-tint the silhouette default as the color changes
       function setPref(v) { try { localStorage.setItem('wp_welcome', v); } catch (e) {} var s2 = document.getElementById('setWelcomePref'); if (s2) s2.value = v; var s1 = document.getElementById('wcLaunchPref'); if (s1) s1.value = v; }
       var prefEl = document.getElementById('wcLaunchPref'); if (prefEl) prefEl.addEventListener('change', function() { setPref(this.value); });
       var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }

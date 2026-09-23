@@ -54,7 +54,7 @@ window.wpProcessAvatar = processAvatar;   // the welcome screen reuses the same 
 
 function renderAvatarPreview() {
     var p = getProfile();
-    var def = window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color) : '';   // colour-tinted silhouette default (no photo)
+    var def = window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color) : '';   // color-tinted silhouette default (no photo)
     ['setAvatarPreview', 'netJoinAvatar'].forEach(function(id) {
         var el = ui(id);
         if (!el) return;
@@ -127,7 +127,7 @@ if (_nameIn) _nameIn.addEventListener('change', function() {
 var _colIn = ui('setColorInput');
 if (_colIn) _colIn.addEventListener('input', function() { var p = getProfile(); p.color = this.value; saveProfile(p); renderAvatarPreview(); });
 var _colClear = ui('setColorClearBtn');
-if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic colour.'); });
+if (_colClear) _colClear.addEventListener('click', function() { var p = getProfile(); delete p.color; saveProfile(p); var c = ui('setColorInput'); if (c) c.value = '#7aa7ff'; renderAvatarPreview(); toast('Using an automatic color.'); });
 
 var _avBtn = ui('setAvatarBtn');
 if (_avBtn) _avBtn.addEventListener('click', function() { ui('setAvatarFile').click(); });
@@ -817,7 +817,7 @@ if (_ident) _ident.addEventListener('click', function() {
         var light = document.documentElement.getAttribute('data-theme') !== 'light';
         if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
         try { localStorage.setItem('wp_theme', light ? 'light' : 'dark'); } catch (e) {}
-        setTimeout(function() { if (window.wpRenderRulers) window.wpRenderRulers(); if (window.renderMinimap) window.renderMinimap(); }, 30);   // canvases redraw in the new colours
+        setTimeout(function() { if (window.wpRenderRulers) window.wpRenderRulers(); if (window.renderMinimap) window.renderMinimap(); }, 30);   // canvases redraw in the new colors
         paint();
     });
 })();

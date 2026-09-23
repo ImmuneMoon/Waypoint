@@ -33,7 +33,7 @@ function nameOf(c) { return (c && typeof c.name === 'string' && c.name) || 'Camp
 
 /* ---------- the classifier (pure) ---------- */
 
-// A hidden item the sanitizer produced: a locked rect with position keys only and no colour
+// A hidden item the sanitizer produced: a locked rect with position keys only and no color
 function isStub(w) {
     if (w.hidden !== true || w.type !== 'rect' || w.locked !== true || 'color' in w) return false;
     return Object.keys(w).every(function(k) { return STUB_KEYS[k]; });

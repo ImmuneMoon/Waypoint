@@ -120,7 +120,7 @@ var BY_TEXT = {
     'sound': 'Ambient loops and one-shot cues from the Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library keeps its files.',
     'dice': 'Rolls at the table: /roll in Table Chat and the roller beside it. The GM\'s machine makes every roll and everyone sees the same card. Off for the campaign, nobody rolls at its table.',
     'character sheets': 'The campaign\'s system (attributes, formulas, rolls) and the sheets built on it. Off for the campaign, the system stays yours to edit but nothing of it shows at the table.',
-    'visual effects': 'The GM\'s ✨ panel: flashes, screen shake, colour washes, bursts on the map, weather and banners, seen by the players on that map. Off for the campaign hides the panel; a player can switch it off for themselves.',
+    'visual effects': 'The GM\'s ✨ panel: flashes, screen shake, color washes, bursts on the map, weather and banners, seen by the players on that map. Off for the campaign hides the panel; a player can switch it off for themselves.',
     'fog of war': 'Per-player token vision, painted and previewed from the 🌫 fog tool on the play-map toolbar: each player sees only the cells their characters can. Off for the campaign lifts the fog for everyone; the GM runs it for the whole table, so there is no per-player off.',
     'stream window': 'A second window with only the play map, as players see it, for screen-sharing. Silent unless the box below is ticked.',
     'coordinate rulers': 'The number strips along the top and left edges of the board.',

@@ -1555,6 +1555,59 @@
   .snd-pop-row input[type=range] { flex: 1; }
   #soundGate { position: fixed; left: 50%; top: 62px; transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
   body.stream-mode #soundGate { top: 48px; }
+  /* Music (1.5.0): its own pill, panel, transport and gate, separate from Sound */
+  #musicInd .ico circle { fill: currentColor; stroke: none; }   /* filled note-heads read cleanly at 16px; the stems/beam stay stroked */
+  #musicInd .ico path { stroke-width: 1.7; }
+  #musicInd.playing { color: var(--gold); }   /* playing: gold (idle inherits the same look as the other header icons; mute is shown in the popover, not by dimming). 'playing', not 'on' — 'on' triggers the toolbar's gold active background */
+  #musicGate { position: fixed; left: 50%; top: 62px; transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
+  body.stream-mode #musicGate { top: 48px; }
+  .music-pillpop { position: fixed; z-index: 100001; width: 230px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; color: var(--ink); display: flex; flex-direction: column; gap: 6px; }
+  .music-pillpop-t { color: var(--dim); font-size: 11px; }
+  .music-pillpop-now { color: var(--gold); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .music-pillpop-vol { display: flex; align-items: center; gap: 6px; }
+  .music-pillpop-vol input[type=range] { flex: 1; }
+  .music-pillpop-off { font-size: 11px; color: var(--dim); }
+  #musicPanel { position: fixed; right: 18px; top: 200px; width: 340px; max-width: 94vw; max-height: 80vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden auto; }
+  .music-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); cursor: move; user-select: none; }
+  .music-head b { flex: 1; }
+  .music-x { padding: 0 8px; }
+  .music-transport { padding: 8px 10px; border-bottom: 1px solid var(--edge); }
+  .music-now { font-weight: 700; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+  .music-seek { display: flex; align-items: center; gap: 6px; }
+  .music-seek .music-seekbar { flex: 1; }
+  .music-t { font-size: 10.5px; color: var(--dim); min-width: 32px; text-align: center; }
+  .music-btns { display: flex; gap: 4px; margin-top: 8px; }
+  .music-tb { flex: 1 1 0; padding: 4px 0; font-size: 13px; }
+  .music-tb.on { border-color: var(--gold); color: var(--gold); background: rgba(224,165,79,0.16); }
+  .music-volrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .music-mute { padding: 2px 8px; font-size: 13px; }
+  .music-vol { flex: 1; accent-color: var(--gold); }
+  .music-speedrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .music-speed-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); flex: 1; }
+  .music-slow, .music-fast { padding: 1px 10px; font-size: 15px; }
+  #musicPanel input.music-speed-val { width: 48px; text-align: center; font-size: 12.5px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px; -moz-appearance: textfield; }
+  #musicPanel input.music-speed-val:focus { outline: none; border-color: var(--gold); }
+  .music-speed-x { font-size: 12px; color: var(--dim); margin-left: -2px; }
+  /* the panel's own selects/ranges follow the app theme (not the browser's default white chrome) */
+  #musicPanel select, .music-pillpop select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 3px 6px; font-size: 12px; max-width: 100%; }
+  #musicPanel select:focus, .music-pillpop select:focus { outline: none; border-color: var(--gold); }
+  #musicPanel input[type=range], .music-pillpop input[type=range] { accent-color: var(--gold); }
+  #musicPanel input[type=checkbox], .music-pillpop input[type=checkbox] { accent-color: var(--gold); }
+  .music-section { padding: 8px 10px; border-bottom: 1px solid var(--edge); }
+  .music-sec-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin-bottom: 6px; }
+  .music-empty { color: var(--dim); font-size: 11.5px; font-style: italic; }
+  .music-pl { display: flex; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 5px; font-size: 12.5px; }
+  .music-pl.sel { background: rgba(212,165,79,0.10); }
+  .music-pl-name { flex: 1; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .music-del { color: var(--red); }
+  .music-pl-tracks { margin: 2px 0 8px 10px; padding-left: 8px; border-left: 2px solid var(--edge); }
+  .music-pl-track { display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 0; }
+  .music-pl-tname { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .music-addtrack, .music-bindpl, .music-bindloop { font-size: 12px; margin-top: 4px; max-width: 100%; }
+  .music-bindpl { width: 100%; }
+  .music-bindloop { margin-right: 8px; }
+  .music-bindshuf { font-size: 12px; color: var(--dim); }
+  .music-bindset { margin-top: 6px; width: 100%; padding: 5px 0; }
   .snd-lib-box { width: 780px; max-width: 94vw; max-height: 86vh; display: flex; flex-direction: column; }
   .snd-lib-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .snd-lib-rows { flex: 1; overflow: auto; min-height: 140px; border: 1px solid var(--edge); border-radius: 6px; padding: 4px; }

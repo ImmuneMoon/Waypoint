@@ -8,20 +8,28 @@
    playlist / per-map / override layer here. Design of record: [[waypoint-music-playlist]].
 
    The shapes:
-     camp.music = { v:1, playlists:[{ id, name, tracks:[trackId] }] }     GM-only; tracks are sound-library ids
+     camp.music = { v:1, tracks:[{ id, name, path, size, dur }], playlists:[{ id, name, tracks:[trackId] }] }   GM-only
      map.music  = { playlist:id|null, track:id|null, loop:'off'|'one'|'list', shuffle:bool }   a map's remembered auto-play
-     control    = { on, playlist|track, loop, shuffle, playing, index, pos, ts, vol? }   the GM's live override (M3 wire) */
+     control    = { on, playlist|track, loop, shuffle, playing, index, pos, ts, vol? }   the GM's live override (M3 wire)
+
+   Music has its OWN track store (songs are far bigger and longer than SFX): its own upload folder entries and its
+   own caps, segregated from the Sound library. Tracks reuse the audio upload path + net.fetchAsset transfer. */
 'use strict';
+import { isUploadPath } from './soundcore.js';
 
 var VERSION = '1.5.0';
 var LIMITS = {
     playlists: 50,        // named playlists per campaign
-    tracks: 200,          // tracks in one playlist (repeats allowed — a playlist may list a track twice)
+    trackDefs: 500,       // distinct tracks in a campaign's music library
+    tracks: 200,          // track references in one playlist (repeats allowed — a playlist may list a track twice)
+    file: 25 * 1024 * 1024,          // one music track (a full song); larger than an SFX (soundcore caps SFX at 4 MB)
+    campaign: 2 * 1024 * 1024 * 1024, // summed music uploads per campaign (a guard, not a target)
+    dur: 24 * 3600,       // a track's / seek position's seconds (a full day; guards against absurd values)
     name: 60,
-    pos: 24 * 3600,       // a seek position in seconds (a full day is plenty; guards against absurd values)
+    pos: 24 * 3600,       // a seek position in seconds
     index: 4096           // a track index within a playlist/override queue
 };
-var ID_RE = /^[A-Za-z0-9_-]{1,40}$/;   // a sound-library track id (matches soundcore ID_RE)
+var ID_RE = /^[A-Za-z0-9_-]{1,40}$/;   // a track / playlist id
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
 var LOOP = { off: 1, one: 1, list: 1 };
 
@@ -39,16 +47,30 @@ function cleanPlaylist(p, opts) {
     for (var i = 0; i < src.length && tracks.length < LIMITS.tracks; i++) { var t = src[i]; if (!isId(t)) continue; if (have && !have[t]) continue; tracks.push(t); }
     return { id: p.id, name: cleanName(p.name, 'Playlist'), tracks: tracks };
 }
-// camp.music as stored, or as a client receives it (pass opts.trackIds = the ids in the cleaned sound list to filter).
-function cleanMusic(music, opts) {
-    var out = { v: 1, playlists: [] };
-    if (!music || typeof music !== 'object' || !Array.isArray(music.playlists)) return out;
+// One track in the campaign's music library: an uploaded song under /saves/images/audio/<campId>/, sized under the cap.
+function cleanTrack(t) {
+    if (!t || typeof t !== 'object' || !isId(t.id) || !isUploadPath(t.path)) return null;
+    var sz = Number(t.size); if (!isFinite(sz) || sz < 0 || sz > LIMITS.file) return null;   // over the cap: never fetched
+    return { id: t.id, name: cleanName(t.name, 'Track'), path: t.path, size: Math.floor(sz), dur: num(t.dur, 0, LIMITS.dur, 0) };
+}
+// camp.music as stored, or as a client receives it: the track store (deduped, size-budgeted) then the playlists,
+// whose track references are filtered to the tracks that survived (so a playlist never points at a missing track).
+function cleanMusic(music) {
+    var out = { v: 1, tracks: [], playlists: [] };
+    if (!music || typeof music !== 'object') return out;
+    var seenT = Object.create(null), bytes = 0;
+    (Array.isArray(music.tracks) ? music.tracks : []).forEach(function(t) {
+        if (out.tracks.length >= LIMITS.trackDefs) return;
+        var c = cleanTrack(t); if (!c || seenT[c.id]) return;
+        if (bytes + c.size > LIMITS.campaign) return; bytes += c.size;
+        seenT[c.id] = 1; out.tracks.push(c);
+    });
     var seen = Object.create(null);
-    for (var i = 0; i < music.playlists.length && out.playlists.length < LIMITS.playlists; i++) {
-        var pl = cleanPlaylist(music.playlists[i], opts);
-        if (!pl || seen[pl.id]) continue;
+    (Array.isArray(music.playlists) ? music.playlists : []).forEach(function(p) {
+        if (out.playlists.length >= LIMITS.playlists) return;
+        var pl = cleanPlaylist(p, { trackIds: seenT }); if (!pl || seen[pl.id]) return;
         seen[pl.id] = 1; out.playlists.push(pl);
-    }
+    });
     return out;
 }
 // A map's remembered playback config. Null when it names neither a playlist nor a track (nothing to auto-play).
@@ -79,6 +101,6 @@ function cleanControl(msg, opts) {
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanName: cleanName, cleanLoop: cleanLoop, cleanPlaylist: cleanPlaylist, cleanMusic: cleanMusic, cleanMapMusic: cleanMapMusic, cleanControl: cleanControl };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanName: cleanName, cleanLoop: cleanLoop, cleanTrack: cleanTrack, cleanPlaylist: cleanPlaylist, cleanMusic: cleanMusic, cleanMapMusic: cleanMapMusic, cleanControl: cleanControl };
 if (typeof window !== 'undefined') window.wpMusicCore = API;
-export { VERSION, LIMITS, cleanName, cleanLoop, cleanPlaylist, cleanMusic, cleanMapMusic, cleanControl };
+export { VERSION, LIMITS, cleanName, cleanLoop, cleanTrack, cleanPlaylist, cleanMusic, cleanMapMusic, cleanControl };

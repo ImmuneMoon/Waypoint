@@ -77,6 +77,8 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/stream.js"></script>
 <script type="module" src="scripts/soundcore.js"></script>
 <script type="module" src="scripts/sound.js"></script>
+<script type="module" src="scripts/musiccore.js"></script>
+<script type="module" src="scripts/music.js"></script>
 <script type="module" src="scripts/dicecore.js"></script>
 <script type="module" src="scripts/dice.js"></script>
 <script type="module" src="scripts/sheets.js"></script>
@@ -160,6 +162,7 @@ window.addEventListener('unhandledrejection', function(e) {
         <button class="tool ghost icon" id="sessionPauseBtn" title="Pause the table (freeze everyone)" style="display:none; font-size:14px; line-height:1;">&#9208;&#65039;</button>
         <button class="tool ghost icon" id="chatBtn" title="Table chat" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 1 1 21 11.5z"/></svg><span id="chatBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
         <button class="tool ghost icon" id="soundInd" title="Sound &mdash; your volume and mute" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg><span class="snd-bars" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        <button class="tool ghost icon" id="musicInd" title="Music &mdash; your volume and mute" style="display:none; position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
       </div>
       <div class="hdr-group" data-label="Journal">
         <button class="tool ghost icon" id="handoutsBtn" title="Handouts &mdash; pictures to show your players (places, faces, letters)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8"/></svg></button>
@@ -554,6 +557,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
                           <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
                           <li><b>Sound:</b> the GM's ambient loop and cues play on your machine. The <b>&#128266;</b> speaker in the Table pill has your own volume, a mute, and <b>Off for me at this table</b>. In a browser tab, one click on the page is needed before sound may play; the speaker pulses until then.</li>
+                          <li><b>Music:</b> a song or playlist the GM set for a map starts on your machine as you enter it (it keeps playing if the next map uses the same one). The <b>&#127926;</b> note in the Table pill has your own music volume and mute, separate from Sound; the GM can take control of everyone's music for a moment.</li>
                           <li><b>Character sheets:</b> right-click your token &#9656; <b>Sheet&hellip;</b> to open your character&rsquo;s sheet and fill in what the GM left editable; the GM&rsquo;s Waypoint checks each value and keeps it. Other characters show only what the GM marked for the hover card. The roll buttons on your sheet (and a character picked in the &#127922; roller) roll with your values, and the card shows them. <b>&#9881; Settings &#9656; VTT features</b> can switch sheets off for yourself (your token still moves).</li>
                           <li><b>Visual effects:</b> the GM&rsquo;s flashes, shake, washes, bursts, weather and banners appear on the map you are on. <b>&#9881; Settings &#9656; VTT features</b> can switch them off for yourself, and <b>Reduce motion</b> there skips shake and shortens flashes.</li>
                           <li><b>Dice:</b> <b>/roll 2d6 + 3</b> in Table Chat, or the &#127922; roller beside the message box; the GM's Waypoint makes the roll and everyone sees the same card. <b>/gmroll</b> rolls to the GM only. Help &#9656; Dice has the syntax; the roller's Sound box mutes the dice cue for you, and <b>&#9881; Settings &#9656; VTT features</b> can switch dice off for yourself (the cards still show).</li>
@@ -970,6 +974,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
               <button class="wb-tool-btn" id="sceneFxBtn" title="Scene ambience &mdash; sound and visual effects for the table (GM tools, per campaign)">&#127916;</button>
               <div class="shape-menu" id="sceneFxMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
                   <button class="wb-tool-btn" id="soundBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)"><span style="width:20px; text-align:center;">&#127925;</span> Sound</button>
+                  <button class="wb-tool-btn" id="musicBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Music &mdash; named playlists, a song or playlist remembered per map that plays as you enter, with full GM transport (a VTT feature, per campaign)"><span style="width:20px; text-align:center;">&#127926;</span> Music</button>
                   <button class="wb-tool-btn" id="fxBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)"><span style="width:20px; text-align:center;">&#10024;</span> Visual effects</button>
               </div>
           </div>
@@ -1462,6 +1467,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Ambient loops and one-shot cues from the &#127925; Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library and its files are kept. Set per campaign; in a session, this campaign's setting is the most your players hear. Loaded audio is held in memory, so keep clips reasonably sized.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
+            <div class="set-vtt-row" data-vtt="music" style="margin-bottom:8px;">
+                <div class="set-field-label" style="display:flex; justify-content:space-between;">Music <span id="setMusicState" style="color:var(--dim);"></span></div>
+                <button class="tool ghost" id="setMusicBtn" style="width:100%;">Toggle Music</button>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Named playlists from the &#127926; Music panel, and a song or playlist remembered per map that plays for each player as they enter it. Its own volume/mute, separate from Sound. Off silences music for this campaign and hides the panel; playlists and files are kept. The GM can take control of everyone&rsquo;s music in a session.</div>
+                <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
+            </div>
             <div class="set-vtt-row" data-vtt="dice" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Dice <span id="setDiceState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setDiceBtn" style="width:100%;">Toggle Dice</button>
@@ -1511,6 +1522,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Sound <span id="setVttGlobalSoundState" style="color:var(--dim);"></span></div>
                     <button class="tool ghost" id="setVttGlobalSoundBtn" style="width:100%;">Toggle Default Sound</button>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <div class="set-field-label" style="display:flex; justify-content:space-between;">Music <span id="setVttGlobalMusicState" style="color:var(--dim);"></span></div>
+                    <button class="tool ghost" id="setVttGlobalMusicBtn" style="width:100%;">Toggle Default Music</button>
                 </div>
                 <div style="margin-bottom:8px;">
                     <div class="set-field-label" style="display:flex; justify-content:space-between;">Dice <span id="setVttGlobalDiceState" style="color:var(--dim);"></span></div>
@@ -1733,6 +1748,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <label class="snd-pop-row" id="soundOffRow" style="display:none;" title="Turn the table's sound off for yourself (never on when the GM has it off); remembered for this table"><input type="checkbox" id="soundOffChk"> Off for me at this table</label>
 </div>
 <div id="soundGate" style="display:none;" title="Browsers play sound only after you have clicked on the page"><span>&#128266; Click anywhere to enable sound at this table</span></div>
+<div id="musicGate" style="display:none;" title="Browsers play audio only after you have clicked on the page"><span>&#127926; Click anywhere to start the music</span></div>
 <div id="fxPanel" style="display:none;">
     <div id="fxHead"><span class="notepad-title">&#10024; Effects</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="fxCloseBtn" title="Close">&times;</button></div>
     <div id="fxBody"></div>
@@ -1741,6 +1757,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="soundHead"><span class="notepad-title">&#127925; Sound</span><span class="notepad-who" id="soundWho"></span><button class="tool ghost notepad-btn" id="soundMinBtn" title="Fold / unfold">&#9662;</button><button class="tool ghost notepad-btn" id="soundCloseBtn" title="Close the panel (what is playing keeps playing)">&times;</button></div>
     <div id="soundBody"></div>
 </div>
+<div id="musicPanel" style="display:none;"></div>
 <div id="soundLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="snd-lib-box" style="background:var(--panel2); padding:18px 22px; border:1px solid var(--gold); border-radius:8px;">
         <div class="snd-lib-head"><h3 style="margin:0; color:var(--gold);">&#127925; Sound Library</h3><span style="flex:1;"></span><button class="tool" id="soundLibUpload" title="Add sound files from your computer: MP3, OGG, M4A or WebM, up to 4 MB each; loops up to two minutes, cues cut after thirty seconds">&#8853; Add sounds&hellip;</button><button class="tool ghost" id="soundLibClose" title="Close">&times;</button></div>

@@ -13,7 +13,8 @@ const j = o => JSON.stringify(o);
     try { M = await import(url('musiccore.js')); } catch (e) { err = e; }
     check('musiccore loads in Node with no window', !!M && !err, err && err.message);
     if (!M) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, cleanPlaylist, cleanMusic, cleanMapMusic, cleanControl } = M;
+    const { LIMITS, cleanTrack, cleanPlaylist, cleanMusic, cleanMapMusic, cleanControl } = M;
+    const P = '/saves/images/audio/camp1/song.mp3';
 
     /* ---- playlists ---- */
     check('cleanPlaylist: keeps id, trims the name, keeps track ids (repeats allowed), drops bad ids', (() => {
@@ -24,13 +25,17 @@ const j = o => JSON.stringify(o);
     check('cleanPlaylist: opts.trackIds filters to tracks that exist', j(cleanPlaylist({ id: 'pl_4', tracks: ['t_a', 't_x', 't_b'] }, { trackIds: { t_a: 1, t_b: 1 } }).tracks) === '["t_a","t_b"]');
     check('cleanPlaylist: caps the track count', cleanPlaylist({ id: 'pl_5', tracks: new Array(LIMITS.tracks + 50).fill('t_a') }).tracks.length === LIMITS.tracks);
 
+    /* ---- tracks ---- */
+    check('cleanTrack: an uploaded song under the audio path, sized under the cap', (() => { const t = cleanTrack({ id: 't_a', name: 'Cantina Band', path: P, size: 5e6, dur: 180 }); return t && t.id === 't_a' && t.name === 'Cantina Band' && t.path === P && t.size === 5000000 && t.dur === 180; })());
+    check('cleanTrack: a bad id, a non-audio path, or an over-cap size is refused', cleanTrack({ id: 'bad id', path: P }) === null && cleanTrack({ id: 't_a', path: '/etc/passwd' }) === null && cleanTrack({ id: 't_a', path: P, size: LIMITS.file + 1 }) === null && cleanTrack({ id: 't_a', path: P, size: 'x' }) === null);
+
     /* ---- camp.music ---- */
-    check('cleanMusic: v1 shell, dedupes playlist ids, drops junk, caps the count', (() => {
-        const m = cleanMusic({ v: 9, playlists: [{ id: 'pl_1', name: 'A', tracks: ['t_a'] }, { id: 'pl_1', name: 'dup' }, null, { id: 'pl_2', name: 'B' }] });
-        return m.v === 1 && m.playlists.length === 2 && m.playlists[0].id === 'pl_1' && m.playlists[0].name === 'A' && m.playlists[1].id === 'pl_2';
+    check('cleanMusic: v1 shell with tracks + playlists; dedupes ids; filters playlist refs to tracks that exist', (() => {
+        const m = cleanMusic({ v: 9, tracks: [{ id: 't_a', path: P, size: 1e6 }, { id: 't_a', path: P, size: 1e6 }, { id: 't_b', path: P, size: 1e6 }], playlists: [{ id: 'pl_1', name: 'A', tracks: ['t_a', 't_x', 't_b'] }, { id: 'pl_1', name: 'dup' }, null, { id: 'pl_2', name: 'B' }] });
+        return m.v === 1 && m.tracks.length === 2 && j(m.playlists[0].tracks) === '["t_a","t_b"]' && m.playlists.length === 2 && m.playlists[0].name === 'A' && m.playlists[1].id === 'pl_2';
     })());
-    check('cleanMusic: not an object / no playlists → empty shell', j(cleanMusic(null)) === j({ v: 1, playlists: [] }) && j(cleanMusic({ playlists: 'no' })) === j({ v: 1, playlists: [] }));
-    check('cleanMusic: caps playlists at the limit', cleanMusic({ playlists: Array.from({ length: LIMITS.playlists + 10 }, (_, i) => ({ id: 'pl_' + i })) }).playlists.length === LIMITS.playlists);
+    check('cleanMusic: not an object → empty shell (tracks + playlists)', j(cleanMusic(null)) === j({ v: 1, tracks: [], playlists: [] }) && j(cleanMusic({ tracks: 'no', playlists: 'no' })) === j({ v: 1, tracks: [], playlists: [] }));
+    check('cleanMusic: caps tracks and playlists at their limits', cleanMusic({ tracks: Array.from({ length: LIMITS.trackDefs + 10 }, (_, i) => ({ id: 't' + i, path: P, size: 1000 })), playlists: Array.from({ length: LIMITS.playlists + 10 }, (_, i) => ({ id: 'pl_' + i })) }).tracks.length === LIMITS.trackDefs);
 
     /* ---- per-map config ---- */
     check('cleanMapMusic: a playlist config with loop + shuffle', (() => { const m = cleanMapMusic({ playlist: 'pl_1', loop: 'one', shuffle: true }); return m && m.playlist === 'pl_1' && m.loop === 'one' && m.shuffle === true && m.track === undefined; })());

@@ -689,7 +689,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         var hz = Math.min(15, rect.width * 0.33, rect.height * 0.33);   // resize-handle zone scaled to the item's ON-SCREEN size (capped 15px) — a fixed 15px swallowed small tokens at low zoom and made them ungrabbable
         if (e.clientX > rect.right - hz && e.clientY > rect.bottom - hz) return; 
 
-        var activeMap = getActiveMap();
+        var activeMap = getActiveMap(); if (!activeMap) return;
         if(modeStr === 'data') item = activeMap.rooms.find(x=>x.id===el.dataset.id);
         else item = activeMap.whiteboard.find(x=>x.id===el.dataset.id);
 

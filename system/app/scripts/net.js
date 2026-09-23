@@ -93,7 +93,7 @@ net.myId = getProfile().id;
 
 /* ---------- ui helpers ---------- */
 function ui(id) { return document.getElementById(id); }
-function setStatus(msg) { var el = ui('netStatus'); if (el) el.textContent = msg; }
+function setStatus(msg) { var el = ui('netStatus'); if (el) el.textContent = msg; var wj = ui('wcJoinStatus'); if (wj) wj.textContent = msg; }   // mirror to the welcome Join screen when a join runs from there
 
 /* ---------- liveness: heartbeat + the header indicator ----------
    WebRTC can sit on a dead channel for a long time after the other side's
@@ -696,6 +696,7 @@ function applySnapshot(msg) {
         net._snapshotting = false;   // a stage that throws must not leave every later stage looking like part of the join
     }
     if (window.wpSettingsSync) window.wpSettingsSync();
+    if (net.fromWelcome) { net.fromWelcome = false; if (window.wpHideWelcome) window.wpHideWelcome(); }   // a join started from the welcome screen: its campaign is here, so leave the welcome for the table
 }
 
 function broadcast(msg, exceptConn) {
@@ -2056,8 +2057,8 @@ function handleMessage(msg, conn) {
         setStatus(why);
         if (msg.update) showConfirm(why, function() {});   // an update prompt is worth a dialog, not just a status line
         toast(why + ' Restoring your own campaign.');
-        var nm2 = ui('netModal');
-        if (nm2) nm2.style.display = 'flex';
+        if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // stay on the welcome Join screen with the reason shown; re-enable Join
+        else { var nm2 = ui('netModal'); if (nm2) nm2.style.display = 'flex'; }
     } else if (msg.type === 'snapshot' && net.role === 'client') {
         net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
         net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
@@ -2692,8 +2693,8 @@ function joinSession(code, name, isRetry, probe) {
             net.peer = null; net.conns = []; net.active = false; net.role = null; net.code = null;
             setIndicator(null);
             setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
-            toast('Could not reach the GM\'s table \u2014 see the Multiplayer panel.');
-            var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex';
+            if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
+            else { toast('Could not reach the GM\'s table \u2014 see the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
             if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
         }
         conn.on('open', function() {
@@ -2717,6 +2718,7 @@ function joinSession(code, name, isRetry, probe) {
             return;
         }
         setStatus('Connection error: ' + err.type);
+        if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
         toast('Could not reach that room (' + err.type + ').');
         // Only when the join itself failed: a signalling hiccup mid-game also lands here, with the table still live
         if (!net.active && net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back

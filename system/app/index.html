@@ -248,7 +248,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> (locations with two faces: a node-based <b>Data Map</b> for your notes and a freeform <b>Play Map</b> for the battle map) and <b>Planners</b> (document pages for session plans). Everything lives in the left sidebar.</p>
                       <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign that you can keep and build on &mdash; or type in the <b>search box</b> above to jump straight to any topic.</p>
                       <h4>The welcome screen</h4>
-                      <p>When Waypoint opens you land on a <b>Welcome</b> screen: set your <b>name</b>, <b>color</b> and <b>picture</b> (your profile, which follows you to every table), then <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, or <b>Join a game</b> with a room code. Click the <b>Waypoint</b> logo (top-left) to bring it back any time, and choose how often it appears under <b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> (every time, first run only, or never).</p>
+                      <p>When Waypoint opens you land on a <b>Welcome</b> screen: <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, or <b>Join a game</b>. <b>Join a game</b> opens its own screen where you set your <b>name</b>, <b>color</b> and <b>picture</b> (your profile, which follows you to every table) and enter the GM&rsquo;s <b>room code</b> &mdash; it stays up showing the connection and drops you in once the GM&rsquo;s table loads. Click the <b>Waypoint</b> logo (top-left) to bring the Welcome screen back any time, set your profile any time under <b>Settings &#9656; Profile</b>, and choose how often the screen appears under <b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> (every time, first run only, or never).</p>
                       <h4>Your first map</h4>
                       <ol>
                           <li>Press <b>+</b> next to <b>Maps</b> in the left sidebar and name it.</li>
@@ -542,7 +542,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <h4>Join your GM's table</h4>
                       <ol>
                           <li>Get the <b>room code</b> from your GM (it looks like <b>AB12CD</b>), plus the session password if they set one.</li>
-                          <li>Click <b>&#127760;</b> in the header, type your name (required &mdash; or set it once in <b>Settings &rsaquo; Profile</b>), enter the code (and password), and press <b>Join</b>.</li>
+                          <li>On the <b>Welcome</b> screen press <b>Join a game</b> (or the <b>&#127760;</b> button in the header any time) &mdash; set your name (required), your color and picture, enter the code (and password), and press <b>Join</b>. The Join screen shows the connection and drops you in when the GM&rsquo;s table loads.</li>
                           <li>Your first time at a table, the GM gets a prompt to let you in &mdash; you'll see "waiting for the GM" for a moment. After that you're recognized and go straight in.</li>
                           <li>You'll land on whatever map the GM is showing, and follow along as they move the party.</li>
                       </ol>
@@ -1324,24 +1324,40 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="welcomeScreen" style="display:none; position:fixed; inset:0; z-index:100000; background:var(--bg); overflow:auto; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px;">
   <div class="wc-inner">
     <div class="wc-brand"><img src="icon.ico" alt="" class="wc-logo"><div><h1>Welcome to Waypoint</h1><p class="wc-tag">Your table, mapped.</p></div></div>
-    <div class="wc-profile">
-      <div id="wcAvatarPrev" class="wc-avatar" title="Click to add or change your picture" style="cursor:pointer;">?</div>
-      <input type="file" id="wcAvatarFile" accept="image/*" hidden>
-      <div class="wc-fields">
-        <label class="wc-field"><span>Your name</span><input type="text" id="wcNameInput" placeholder="How players see you" maxlength="40" autocomplete="off"></label>
-        <label class="wc-field wc-field-color"><span>Color</span><input type="color" id="wcColorInput" value="#7aa7ff"></label>
-        <span class="wc-note">A name is required to host or join a game. Click the circle to add a picture. Your name, color and picture are saved to your profile and carry to every table.</span>
+    <!-- MAIN view: pick what to do -->
+    <div id="wcMain">
+      <div class="wc-actions">
+        <button class="wc-card" id="wcStartBtn"><span class="wc-ic">&#10133;</span><b>Start a campaign</b><small>A fresh world of your own</small></button>
+        <button class="wc-card" id="wcLoadBtn"><span class="wc-ic">&#128193;</span><b>Import a campaign</b><small>Open one from a file</small></button>
+        <button class="wc-card" id="wcJoinBtn"><span class="wc-ic">&#127760;</span><b>Join a game</b><small>With a room code</small></button>
+      </div>
+      <div class="wc-continue" id="wcContinue" style="display:none;"><div class="wc-continue-head">Continue a campaign</div><div id="wcContinueList" class="wc-continue-list"></div></div>
+      <div class="wc-foot">
+        <label class="wc-launch">Show this on launch <select id="wcLaunchPref"><option value="always">Every time</option><option value="first">First run only</option><option value="never">Never</option></select></label>
+        <button class="tool" id="wcEnterBtn">Enter Waypoint &rarr;</button>
       </div>
     </div>
-    <div class="wc-actions">
-      <button class="wc-card" id="wcStartBtn"><span class="wc-ic">&#10133;</span><b>Start a campaign</b><small>A fresh world of your own</small></button>
-      <button class="wc-card" id="wcLoadBtn"><span class="wc-ic">&#128193;</span><b>Import a campaign</b><small>Open one from a file</small></button>
-      <button class="wc-card" id="wcJoinBtn"><span class="wc-ic">&#127760;</span><b>Join a game</b><small>With a room code</small></button>
-    </div>
-    <div class="wc-continue" id="wcContinue" style="display:none;"><div class="wc-continue-head">Continue a campaign</div><div id="wcContinueList" class="wc-continue-list"></div></div>
-    <div class="wc-foot">
-      <label class="wc-launch">Show this on launch <select id="wcLaunchPref"><option value="always">Every time</option><option value="first">First run only</option><option value="never">Never</option></select></label>
-      <button class="tool" id="wcEnterBtn">Enter Waypoint &rarr;</button>
+    <!-- JOIN view: set your profile + room code, then connect (its own screen; stays up showing status until the GM's campaign arrives) -->
+    <div id="wcJoinView" style="display:none;">
+      <div class="wc-join-head">Join a game</div>
+      <div class="wc-join-sub">Set how players see you, then enter the room code the GM shared.</div>
+      <div class="wc-profile">
+        <div id="wcAvatarPrev" class="wc-avatar" title="Click to add or change your picture" style="cursor:pointer;">?</div>
+        <input type="file" id="wcAvatarFile" accept="image/*" hidden>
+        <div class="wc-fields">
+          <label class="wc-field"><span>Your name</span><input type="text" id="wcNameInput" placeholder="How players see you" maxlength="40" autocomplete="off"></label>
+          <label class="wc-field wc-field-color"><span>Color</span><input type="color" id="wcColorInput" value="#7aa7ff"></label>
+        </div>
+      </div>
+      <div class="wc-join-fields">
+        <label class="wc-field"><span>Room code</span><input type="text" id="wcJoinCode" placeholder="e.g. ABCD" autocomplete="off" style="font-family:monospace; text-transform:uppercase;"></label>
+        <label class="wc-field"><span>Password <span class="wc-opt">(only if the GM set one)</span></span><input type="password" id="wcJoinPass" placeholder="" autocomplete="off"></label>
+      </div>
+      <div id="wcJoinStatus" class="wc-join-status" role="status" aria-live="polite"></div>
+      <div class="wc-join-actions">
+        <button class="tool ghost" id="wcJoinBack">&larr; Back</button>
+        <button class="tool" id="wcJoinGo">Join game</button>
+      </div>
     </div>
   </div>
 </div>

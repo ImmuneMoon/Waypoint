@@ -841,6 +841,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   window.wpDefaultAvatar = wpDefaultAvatar;
   function showWelcome() {
       var w = document.getElementById('welcomeScreen'); if (!w) return;
+      var mainV = document.getElementById('wcMain'); if (mainV) mainV.style.display = 'flex';   // always open on the main view (not a stale Join sub-screen)
+      var joinV = document.getElementById('wcJoinView'); if (joinV) joinV.style.display = 'none';
+      if (window.wpNet) window.wpNet.fromWelcome = false;   // clean slate: the Join sub-screen sets this when it drives a join
       var prof = wcProfile();
       var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
       var col = document.getElementById('wcColorInput'); if (col) col.value = prof.color || '#7aa7ff';
@@ -856,6 +859,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (nm) setTimeout(function() { try { nm.focus(); } catch (e) {} }, 60);
   }
   window.wpShowWelcome = showWelcome;
+  window.wpHideWelcome = hideWelcome;   // net.js hides the welcome once a join's campaign snapshot lands
   (function wireWelcome() {
       var w = document.getElementById('welcomeScreen'); if (!w) return;
       var nmEl = document.getElementById('wcNameInput'); if (nmEl) nmEl.addEventListener('change', saveWcProfile);
@@ -865,7 +869,38 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }
       var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('newCampBtn'); if (b) b.click(); });
       var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('importBtn'); if (b) b.click(); });
-      var joinBtn = document.getElementById('wcJoinBtn'); if (joinBtn) joinBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('netBtn'); if (b) b.click(); });
+      // Join a game → its OWN screen (profile + room code + live status); it stays up until the GM's snapshot lands (or an error).
+      function showJoinView() {
+          var mv = document.getElementById('wcMain'), jv = document.getElementById('wcJoinView');
+          if (mv) mv.style.display = 'none'; if (jv) jv.style.display = 'flex';
+          var st = document.getElementById('wcJoinStatus'); if (st) { st.textContent = ''; st.className = 'wc-join-status'; }
+          var go = document.getElementById('wcJoinGo'); if (go) go.disabled = false;
+          setTimeout(function() { try { var nmEl2 = document.getElementById('wcNameInput'); (nmEl2 && (nmEl2.value || '').trim() ? document.getElementById('wcJoinCode') : nmEl2).focus(); } catch (e) {} }, 60);
+      }
+      function showMainView() {
+          var mv = document.getElementById('wcMain'), jv = document.getElementById('wcJoinView');
+          if (jv) jv.style.display = 'none'; if (mv) mv.style.display = 'flex';
+          if (window.wpNet) window.wpNet.fromWelcome = false;
+      }
+      var joinBtn = document.getElementById('wcJoinBtn'); if (joinBtn) joinBtn.addEventListener('click', showJoinView);
+      var joinBack = document.getElementById('wcJoinBack'); if (joinBack) joinBack.addEventListener('click', function() { if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.leaveSession) window.wpNet.leaveSession(true); showMainView(); });   // Back abandons any in-progress join
+      var joinGo = document.getElementById('wcJoinGo');
+      if (joinGo) joinGo.addEventListener('click', function() {
+          var st = document.getElementById('wcJoinStatus');
+          function say(msg, cls) { if (st) { st.textContent = msg; st.className = 'wc-join-status' + (cls ? ' ' + cls : ''); } }
+          var code = (document.getElementById('wcJoinCode').value || '').trim().toUpperCase();
+          if (code.length < 4) { say('Enter the room code the GM shared.', 'err'); return; }
+          var name = (document.getElementById('wcNameInput').value || '').trim();
+          if (!name) { say('Enter your name — that’s how players know you.', 'err'); try { document.getElementById('wcNameInput').focus(); } catch (e) {} return; }
+          saveWcProfile();
+          var nc = document.getElementById('netCodeInput'); if (nc) nc.value = code;   // hand the fields to the multiplayer join + trigger it (reuses its validation + joinSession + status)
+          var nn = document.getElementById('netNameInput'); if (nn) nn.value = name;
+          var np = document.getElementById('netJoinPassInput'), wp = document.getElementById('wcJoinPass'); if (np && wp) np.value = wp.value;
+          if (window.wpNet) window.wpNet.fromWelcome = true;   // net.js keeps the welcome up, routes status/errors to #wcJoinStatus, and hides it when the snapshot lands
+          joinGo.disabled = true; say('Connecting…');
+          var jb = document.getElementById('netJoinBtn'); if (jb) jb.click();
+      });
+      window.wpJoinFailed = function() { var go = document.getElementById('wcJoinGo'); if (go) go.disabled = false; var st = document.getElementById('wcJoinStatus'); if (st) st.className = 'wc-join-status err'; };   // net.js calls this if a welcome-initiated join fails (the error text is already in #wcJoinStatus)
       var enterBtn = document.getElementById('wcEnterBtn'); if (enterBtn) enterBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); });
       var avPrev = document.getElementById('wcAvatarPrev'), avFile = document.getElementById('wcAvatarFile');
       function pickAvatar() { if (avFile) avFile.click(); }

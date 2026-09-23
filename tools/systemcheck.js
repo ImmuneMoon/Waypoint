@@ -148,6 +148,27 @@ const j = v => JSON.stringify(v);
         return s2 && s2.tile === true && n2 && n2.tile === undefined;
     })());
 
+    /* ---- Stage 4: rich item tables ---- */
+    check('Stage 4: cleanField keeps a rich item table (whitelisted columns, deduped, chips/footer) on item-list only', (() => {
+        const sys = cleanSystem({ v: 1, name: 'T', fields: [
+            { id: 'f_gear', key: 'Gear', kind: 'item-list', vis: 'all', table: { columns: ['category', 'area', 'category', 'nope', 'cost'], chips: true, footer: true } },
+            { id: 'f_bad', key: 'Bag', kind: 'item-list', vis: 'all', table: { columns: [], chips: false } },
+            { id: 'f_str', key: 'STR', kind: 'number', def: 10, vis: 'all', table: { columns: ['category'] } }
+        ], rolls: [], items: [], sheet: { sections: [] } }, { F, gmView: true });
+        const g = sys.fields.find(f => f.id === 'f_gear'), b = sys.fields.find(f => f.id === 'f_bad'), s = sys.fields.find(f => f.id === 'f_str');
+        return g && g.table && JSON.stringify(g.table.columns) === JSON.stringify(['category', 'area', 'cost']) && g.table.chips === true && g.table.footer === true
+            && b && b.table === undefined            // an empty table config drops back to the plain list
+            && s && s.table === undefined;           // a table never attaches to a non-item-list field
+    })());
+    check('Stage 4: an item table with only a footer survives, and a non-object table is dropped', (() => {
+        const sys = cleanSystem({ v: 1, name: 'T', fields: [
+            { id: 'f_a', key: 'A', kind: 'item-list', vis: 'all', table: { footer: true } },
+            { id: 'f_b', key: 'B', kind: 'item-list', vis: 'all', table: 'yes' }
+        ], rolls: [], items: [], sheet: { sections: [] } }, { F, gmView: true });
+        const a = sys.fields.find(f => f.id === 'f_a'), b = sys.fields.find(f => f.id === 'f_b');
+        return a && a.table && a.table.footer === true && a.table.columns === undefined && b && b.table === undefined;
+    })());
+
     /* ---- publication ---- */
     global.window = {};
     const S2 = await import(url('systemcore.js') + '?x');

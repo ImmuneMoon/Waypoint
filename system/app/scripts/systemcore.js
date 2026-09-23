@@ -109,6 +109,7 @@ function cleanField(f, F, gmView) {
         out.options = opts;
         out.def = typeof f.def === 'string' && opts.indexOf(f.def) >= 0 ? f.def : (opts[0] || '');
     }
+    else if (k === 'item-list') { var tbl = cleanItemTable(f.table); if (tbl) out.table = tbl; }   // Stage 4: optional rich table (columns/chips/footer)
     if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) out.roll = r; }
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
     return out;
@@ -180,6 +181,19 @@ function cleanSecStyle(v) {
     if (!isObj(v)) return null;
     var HEX = /^#[0-9a-fA-F]{6}$/, out = {};
     ['accent', 'bg', 'border'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
+    return Object.keys(out).length ? out : null;
+}
+// Stage 4: an item-list field's optional rich-table config. Whitelisted strings + booleans only — no field refs,
+// no vis — so host and client agree and there is nothing to inject. Absent ⇒ the plain carried-items list (as before).
+// (damage/cost are GM-only on the wire, so those columns simply read blank for players — no leak.)
+var ITEM_COL = Object.freeze({ category: 1, cost: 1, damage: 1, area: 1, notes: 1 });
+function cleanItemTable(v) {
+    if (!isObj(v)) return null;
+    var out = {}, cols = [], seen = map();
+    (Array.isArray(v.columns) ? v.columns : []).forEach(function(c) { if (typeof c === 'string' && ITEM_COL[c] && !seen[c] && cols.length < 5) { seen[c] = 1; cols.push(c); } });
+    if (cols.length) out.columns = cols;
+    if (v.chips === true) out.chips = true;
+    if (v.footer === true) out.footer = true;
     return Object.keys(out).length ? out : null;
 }
 function cleanSheet(sheet, fieldIds, rollIds) {

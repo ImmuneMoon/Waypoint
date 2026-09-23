@@ -2853,23 +2853,108 @@ window.wpFitToGrid = fitToGrid;
   syncFillMenu();   // show the loaded fill color on the toolbar button at startup
   document.addEventListener('click', function(e) { if (_el_fillMenu && _el_fillMenu.classList.contains('show') && !e.target.closest('#fillMenu') && !e.target.closest('#fillModeBtn')) _el_fillMenu.classList.remove('show'); });
   var _fillDirty = false;
-  function fillCellAt(x, y, remove) {
-      var map = getActiveMap(); if (!map) return;
-      if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+  // Snap a board point to its grid cell (square 50px, or hex). One source of truth for fill + flood-fill.
+  function cellSnap(x, y) {
       var cx, cy, w, h, type;
       if (state.gridType === 'hex') { var hc = snapToHex(x, y, 30, 'center'); cx = hc.x; cy = hc.y; w = 60; h = 52; type = 'hexagon'; }
       else { cx = Math.floor(x / 50) * 50 + 25; cy = Math.floor(y / 50) * 50 + 25; w = 50; h = 50; type = 'rect'; }
-      var px = Math.round(cx - w / 2), py = Math.round(cy - h / 2);
+      return { cx: cx, cy: cy, w: w, h: h, type: type, px: Math.round(cx - w / 2), py: Math.round(cy - h / 2) };
+  }
+  function fillCellAt(x, y, remove) {
+      var map = getActiveMap(); if (!map) return;
+      if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+      var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
       if (remove) { if (existing) { map.whiteboard = map.whiteboard.filter(function(it) { return it !== existing; }); _fillDirty = true; render(); } return; }
       if (existing) { if (existing.color !== state.fillColor) { existing.color = state.fillColor; _fillDirty = true; render(); } return; }
-      var item = Object.assign({ id: 'wb' + uid(), type: type, x: px, y: py, w: w, h: h, baseW: w, baseH: h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
+      var item = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
       map.whiteboard.push(item); _fillDirty = true; render();
+  }
+  // Add (or recolor) one fill cell WITHOUT save/render — for batch use by the flood-fill. Returns true if it changed anything.
+  function fillCellCore(map, x, y) {
+      var c = cellSnap(x, y), px = c.px, py = c.py;
+      var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
+      if (existing) { if (existing.color !== state.fillColor) { existing.color = state.fillColor; return true; } return false; }
+      map.whiteboard.push(Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {})));
+      return true;
+  }
+  /* Flood-fill inside drawn lines: rasterize this map's pen strokes into an offscreen canvas as walls,
+     flood outward from the click, and — if the flood is fully enclosed (never touches the padded edge) —
+     paint every grid cell whose centre lands in the flooded region. Grid-agnostic (square + hex), capped. */
+  function floodFillWithin(x, y) {
+      var map = getActiveMap(); if (!map) return;
+      if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+      var walls = [], minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      map.whiteboard.forEach(function(it) {
+          if (!it || it.type !== 'path' || !it.pts || !it.pts.length) return;
+          var sx = it.w / (it.baseW || it.w || 1), sy = it.h / (it.baseH || it.h || 1);
+          var sw = Math.max(2, (it.strokeWidth || 3));
+          var abs = it.pts.map(function(p) { return [it.x + p[0] * sx, it.y + p[1] * sy]; });
+          abs.forEach(function(p) { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; });
+          walls.push({ abs: abs, sw: sw });
+      });
+      if (!walls.length) { toast('Draw some lines first — flood-fill needs an outline to fill inside.'); return; }
+      var PAD = 30;
+      minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
+      if (x < minX || x > maxX || y < minY || y > maxY) { toast('Click inside your drawn lines to flood-fill.'); return; }
+      var wpx = Math.max(1, maxX - minX), hpx = Math.max(1, maxY - minY);
+      var S = Math.min(1, Math.sqrt(1500000 / (wpx * hpx)));   // cap the raster at ~1.5M px
+      var cw = Math.max(2, Math.round(wpx * S)), ch = Math.max(2, Math.round(hpx * S));
+      var cvs = document.createElement('canvas'); cvs.width = cw; cvs.height = ch;
+      var g = cvs.getContext('2d', { willReadFrequently: true }); if (!g) { toast('Flood-fill isn\'t available here.'); return; }
+      g.setTransform(S, 0, 0, S, -minX * S, -minY * S);
+      g.strokeStyle = '#000'; g.fillStyle = '#000'; g.lineJoin = 'round'; g.lineCap = 'round';
+      walls.forEach(function(wl) {
+          g.lineWidth = wl.sw; g.beginPath();
+          wl.abs.forEach(function(p, i) { if (i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
+          if (wl.abs.length === 1) { g.arc(wl.abs[0][0], wl.abs[0][1], wl.sw / 2, 0, 6.2832); g.fill(); }
+          else g.stroke();
+      });
+      var img;
+      try { img = g.getImageData(0, 0, cw, ch).data; } catch (e) { toast('Couldn\'t read the drawing to flood-fill.'); return; }
+      var sxp = Math.round((x - minX) * S), syp = Math.round((y - minY) * S);
+      if (sxp < 0 || sxp >= cw || syp < 0 || syp >= ch) { toast('Click inside your drawn lines to flood-fill.'); return; }
+      var wall = function(i) { return img[i * 4 + 3] > 40; };   // any drawn (alpha) pixel is a wall
+      var start = syp * cw + sxp;
+      if (wall(start)) { toast('Click in an open space, not on a line.'); return; }
+      var visited = new Uint8Array(cw * ch), stack = new Int32Array(cw * ch), sp = 0;
+      stack[sp++] = start; visited[start] = 1;
+      var touchedEdge = false;
+      while (sp > 0) {
+          var idx = stack[--sp], cxp = idx % cw, cyp = (idx - cxp) / cw;
+          if (cxp === 0 || cyp === 0 || cxp === cw - 1 || cyp === ch - 1) touchedEdge = true;
+          var l = idx - 1, r = idx + 1, u = idx - cw, d = idx + cw;
+          if (cxp > 0 && !visited[l] && !wall(l)) { visited[l] = 1; stack[sp++] = l; }
+          if (cxp < cw - 1 && !visited[r] && !wall(r)) { visited[r] = 1; stack[sp++] = r; }
+          if (cyp > 0 && !visited[u] && !wall(u)) { visited[u] = 1; stack[sp++] = u; }
+          if (cyp < ch - 1 && !visited[d] && !wall(d)) { visited[d] = 1; stack[sp++] = d; }
+      }
+      if (touchedEdge) { toast('That space isn\'t fully enclosed by your lines — close the gaps and try again.'); return; }
+      // Paint every grid cell whose centre falls in the flooded region. Sample the bbox finer than any cell so none is skipped.
+      var step = 20, seen = {}, added = 0, CAP = 20000;
+      for (var yy = minY; yy <= maxY + step && added < CAP; yy += step) {
+          for (var xx = minX; xx <= maxX + step && added < CAP; xx += step) {
+              var c = cellSnap(xx, yy), key = c.px + ',' + c.py;
+              if (seen[key]) continue; seen[key] = 1;
+              var pxc = Math.round((c.cx - minX) * S), pyc = Math.round((c.cy - minY) * S);
+              if (pxc < 0 || pxc >= cw || pyc < 0 || pyc >= ch) continue;
+              if (!visited[pyc * cw + pxc]) continue;   // this cell's centre isn't inside the flooded area
+              if (fillCellCore(map, c.cx, c.cy)) added++;
+          }
+      }
+      if (added) { save(); render(); toast('Filled ' + added + ' cell' + (added === 1 ? '' : 's') + ' inside your lines.'); }
+      else { toast('Nothing new to fill there.'); }
   }
   if (wbWrap) {
       var _fillPaintBtn = -1;
       var _fillBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
-      wbWrap.addEventListener('pointerdown', function(e) { if (!window.isFillMode || (e.button !== 0 && e.button !== 2)) return; _fillPaintBtn = e.button; var pt = _fillBoard(e); fillCellAt(pt.x, pt.y, e.button === 2); e.preventDefault(); });
+      wbWrap.addEventListener('pointerdown', function(e) {
+          if (!window.isFillMode || (e.button !== 0 && e.button !== 2)) return;
+          var pt = _fillBoard(e); e.preventDefault();
+          var flood = document.getElementById('fillFloodChk');
+          if (e.button === 0 && flood && flood.checked) { floodFillWithin(pt.x, pt.y); return; }   // flood is a single-click action (no paint-drag); right-click still erases one cell
+          _fillPaintBtn = e.button; fillCellAt(pt.x, pt.y, e.button === 2);
+      });
       wbWrap.addEventListener('pointermove', function(e) { if (!window.isFillMode || _fillPaintBtn < 0) return; var pt = _fillBoard(e); fillCellAt(pt.x, pt.y, _fillPaintBtn === 2); });
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFillMode) e.preventDefault(); });
       document.addEventListener('pointerup', function() { if (_fillPaintBtn >= 0 && _fillDirty) { save(); _fillDirty = false; } _fillPaintBtn = -1; });

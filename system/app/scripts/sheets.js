@@ -162,6 +162,7 @@ function renderSheet() {
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var all = resolveAll(sys, c, F());
     buildSections(body, sys, c, all, gm, own, renderSheet);
+    p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
     var _shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
     body.style.fontFamily = ''; body.style.color = ''; body.style.backgroundColor = '';
@@ -408,6 +409,95 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
     });
     ls.addEventListener('dragend', function() { dragPl = null; clearMarks(); });
 }
+// ---- item-list widgets (Stage 4: the plain list and the rich table share these) ----
+var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
+function itemThrowBtn(def, c) {
+    var tb = el('button', 'tool ghost sheet-item-throw', '💥 Throw'); tb.title = 'Throw ' + def.name + ' — then click the map';
+    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, itemId: def.id, by: c.name, damage: def.damage || '' }); closeSheet(); } });
+    return tb;
+}
+function itemQtyCell(entry, c, f) {
+    var qc = el('span', 'sheet-item-qty');
+    var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, 'setQty', entry.defId, entry.qty - 1); });
+    qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
+    var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, 'add', entry.defId, 1); });
+    qc.appendChild(pl); return qc;
+}
+function itemRmBtn(entry, def, c, f) {
+    var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = 'Remove ' + def.name;
+    rm.addEventListener('click', function() { commitItem(c, f, 'remove', entry.defId, 0); }); return rm;
+}
+function itemCellText(col, def) {
+    if (col === 'category') return def.category || '';
+    if (col === 'cost') return def.cost || '';
+    if (col === 'damage') return def.damage || '';
+    if (col === 'area') return def.area ? (def.area.ft + ' ft' + (def.area.shape && def.area.shape !== 'circle' ? ' ' + def.area.shape : '')) : '';
+    return '';
+}
+function itemListInto(wrap, f, c, carried, byId, canThrow, editable) {
+    carried.forEach(function(entry) {
+        var def = byId[entry.defId]; if (!def) return;
+        var line = el('div', 'sheet-item');
+        if (def.icon) line.appendChild(el('span', 'sheet-item-icon', def.icon));
+        var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
+        if (def.area && canThrow) line.appendChild(itemThrowBtn(def, c));
+        if (editable) { line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
+        else line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
+        wrap.appendChild(line);
+    });
+    if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No items.'));
+}
+function itemTableInto(wrap, f, c, carried, byId, canThrow, editable) {
+    var tbl = f.table, cols = (tbl.columns || []).slice();
+    if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
+    var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
+    var hasAct = editable || canThrow || wantNotes, span = 1 + cols.length + 1 + (hasAct ? 1 : 0);
+    var table = el('table', 'sheet-itemtable'), thead = el('thead'), htr = el('tr');
+    htr.appendChild(el('th', 'sheet-itcol-name', 'Item'));
+    cols.forEach(function(col) { htr.appendChild(el('th', 'sheet-itcol-' + col, ITEM_COL_LABEL[col] || col)); });
+    htr.appendChild(el('th', 'sheet-itcol-qty', 'Qty'));
+    if (hasAct) htr.appendChild(el('th', 'sheet-itcol-act', ''));
+    thead.appendChild(htr); table.appendChild(thead);
+    var tbody = el('tbody'), shown = 0, totalQty = 0;
+    carried.forEach(function(entry) {
+        var def = byId[entry.defId]; if (!def) return;
+        shown++; totalQty += entry.qty;
+        var tr = el('tr'), nameTd = el('td', 'sheet-itcol-name');
+        if (def.icon) nameTd.appendChild(el('span', 'sheet-item-icon', def.icon));
+        nameTd.appendChild(document.createTextNode(def.name));
+        if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
+        if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
+        tr.appendChild(nameTd);
+        cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
+        var qtyTd = el('td', 'sheet-itcol-qty');
+        qtyTd.appendChild(editable ? itemQtyCell(entry, c, f) : el('span', 'sheet-item-qtyn', '×' + entry.qty));
+        tr.appendChild(qtyTd);
+        var notesRow = null;
+        if (hasAct) {
+            var actTd = el('td', 'sheet-itcol-act');
+            if (def.area && canThrow) actTd.appendChild(itemThrowBtn(def, c));
+            if (wantNotes && def.notes) {
+                notesRow = el('tr', 'sheet-itemtable-notes'); var ntd = el('td', null, def.notes); ntd.colSpan = span; notesRow.appendChild(ntd); notesRow.style.display = 'none';
+                var nt = el('button', 'tool ghost sheet-item-notes-t', '📝'); nt.title = 'Notes';
+                nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
+                actTd.appendChild(nt);
+            }
+            if (editable) actTd.appendChild(itemRmBtn(entry, def, c, f));
+            tr.appendChild(actTd);
+        }
+        tbody.appendChild(tr);
+        if (notesRow) tbody.appendChild(notesRow);
+    });
+    if (!shown) { var er = el('tr'), ec = el('td', 'sheet-empty-note', 'No items.'); ec.colSpan = span; er.appendChild(ec); tbody.appendChild(er); }
+    table.appendChild(tbody);
+    if (tbl.footer && shown) {
+        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')); fc.colSpan = 1 + cols.length; ftr.appendChild(fc);
+        ftr.appendChild(el('td', 'sheet-itft-qty', '×' + totalQty));
+        if (hasAct) ftr.appendChild(el('td', null, ''));
+        tfoot.appendChild(ftr); table.appendChild(tfoot);
+    }
+    wrap.appendChild(table);
+}
 function fieldNode(f, c, e, gm, own) {
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
@@ -449,24 +539,10 @@ function fieldNode(f, c, e, gm, own) {
         var sysI = systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
         var byId = {}; ((sysI && sysI.items) || []).forEach(function(it) { byId[it.id] = it; });
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
-        var wrap = el('div', 'sheet-items'), canThrow = (gm || (own && !gmThrows)) && !c.partial;   // who-rolls='gm' means only the GM throws
-        carried.forEach(function(entry) {
-            var def = byId[entry.defId]; if (!def) return;
-            var line = el('div', 'sheet-item');
-            if (def.icon) line.appendChild(el('span', 'sheet-item-icon', def.icon));
-            var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
-            if (def.area && canThrow) { var tb = el('button', 'tool ghost sheet-item-throw', '💥 Throw'); tb.title = 'Throw ' + def.name + ' — then click the map'; tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, itemId: def.id, by: c.name, damage: def.damage || '' }); closeSheet(); } }); line.appendChild(tb); }
-            if (editable) {
-                var qc = el('span', 'sheet-item-qty');
-                var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, 'setQty', entry.defId, entry.qty - 1); });
-                qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
-                var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, 'add', entry.defId, 1); });
-                qc.appendChild(pl); line.appendChild(qc);
-                var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = 'Remove ' + def.name; rm.addEventListener('click', function() { commitItem(c, f, 'remove', entry.defId, 0); }); line.appendChild(rm);
-            } else line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
-            wrap.appendChild(line);
-        });
-        if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No items.'));
+        var canThrow = (gm || (own && !gmThrows)) && !c.partial;   // who-rolls='gm' means only the GM throws
+        var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
+        if (f.table) itemTableInto(wrap, f, c, carried, byId, canThrow, editable);   // Stage 4: rich table
+        else itemListInto(wrap, f, c, carried, byId, canThrow, editable);            // the plain carried list (as before)
         if (editable && sysI && sysI.items && sysI.items.length) {
             var add = el('select', 'field sheet-item-add'); add.appendChild(opt('', '+ Add item…', true));
             sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (it.icon ? it.icon + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
@@ -690,7 +766,23 @@ function buildDefCell(def, f) {
     } else if (k === 'toggle') { var t = el('label', 'sys-toggle-def'); var c = el('input'); c.type = 'checkbox'; c.className = 'sys-def-bool'; c.checked = f.def === true; t.appendChild(c); t.appendChild(document.createTextNode(' On by default')); def.appendChild(t); }
     else if (k === 'text') { def.appendChild(input('sys-def-text field', f.def, 'Default text', 'Default')); def.appendChild(numField('sys-max', f.max === undefined ? 200 : f.max, 'Most characters (up to 200)', 'Chars')); }
     else if (k === 'notes') def.appendChild(el('span', 'sys-note', 'A long text on the sheet; not read by formulas.'));
-    else if (k === 'item-list') def.appendChild(el('span', 'sys-note', 'A list the character fills from the Items library on the sheet (a throwable item shows a Throw button).'));
+    else if (k === 'item-list') {
+        def.appendChild(el('span', 'sys-note', 'A list the character fills from the Items library on the sheet (a throwable item shows a Throw button).'));
+        var itbl = f.table || null;
+        var onL = el('label', 'sys-hover'); var onC = el('input'); onC.type = 'checkbox'; onC.className = 'sys-itbl-on'; onC.checked = !!itbl; onL.appendChild(onC); onL.appendChild(document.createTextNode(' Rich table')); onL.title = 'Show carried items as a table with columns, chips and a totals footer instead of a plain list'; def.appendChild(onL);
+        if (itbl) {
+            var tcols = Array.isArray(itbl.columns) ? itbl.columns : [], box = el('div', 'sys-itbl');
+            ['category', 'cost', 'damage', 'area', 'notes'].forEach(function(col) {
+                var l = el('label', 'sys-itbl-col'); var cb = el('input'); cb.type = 'checkbox'; cb.className = 'sys-itbl-col-' + col; cb.checked = tcols.indexOf(col) >= 0;
+                l.appendChild(cb); l.appendChild(document.createTextNode(' ' + ITEM_COL_LABEL[col]));
+                if (col === 'notes') l.title = 'An expandable notes row per item'; else if (col === 'damage' || col === 'cost') l.title = 'GM only on the wire — blank for players';
+                box.appendChild(l);
+            });
+            var chL = el('label', 'sys-itbl-col'); var chC = el('input'); chC.type = 'checkbox'; chC.className = 'sys-itbl-chips'; chC.checked = !!itbl.chips; chL.appendChild(chC); chL.appendChild(document.createTextNode(' Category chips')); chL.title = 'Show the category as a chip beside the name (in place of a category column)'; box.appendChild(chL);
+            var ftL = el('label', 'sys-itbl-col'); var ftC = el('input'); ftC.type = 'checkbox'; ftC.className = 'sys-itbl-footer'; ftC.checked = !!itbl.footer; ftL.appendChild(ftC); ftL.appendChild(document.createTextNode(' Totals footer')); ftL.title = 'A footer row with the item count and total quantity'; box.appendChild(ftL);
+            def.appendChild(box);
+        }
+    }
     else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
 }
 function rollRow(r) {
@@ -843,6 +935,10 @@ function onChange(e) {
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
+        else if (c.indexOf('sys-itbl-on') >= 0) { if (t.checked) f.table = f.table || { columns: ['category'] }; else delete f.table; markDirty(); renderAll(); return; }   // Stage 4: rich item table on/off (seed one column so it renders)
+        else if (c.indexOf('sys-itbl-col-') >= 0) { var col = c.slice(c.indexOf('sys-itbl-col-') + 13).split(/\s/)[0]; f.table = f.table || {}; var arr = Array.isArray(f.table.columns) ? f.table.columns : []; if (t.checked) { if (arr.indexOf(col) < 0) arr.push(col); } else arr = arr.filter(function(x) { return x !== col; }); f.table.columns = arr; }
+        else if (c.indexOf('sys-itbl-chips') >= 0) { f.table = f.table || {}; if (t.checked) f.table.chips = true; else delete f.table.chips; }
+        else if (c.indexOf('sys-itbl-footer') >= 0) { f.table = f.table || {}; if (t.checked) f.table.footer = true; else delete f.table.footer; }
         else if (c.indexOf('sys-def-bool') >= 0) f.def = t.checked;
         else return;
     } else if (r) {

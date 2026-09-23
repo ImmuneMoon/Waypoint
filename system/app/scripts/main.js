@@ -54,6 +54,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       document.getElementById('zoomLbl').value = Math.round(state.zoomLevel * 100) + '%';
 
+      _sizeZoomScroller(wrap, state.viewMode === 'data' ? document.getElementById('canvas') : document.getElementById('whiteboard'), state.zoomLevel);
+
       // Scroll to keep the mouse anchored
 
       wrap.scrollLeft = (mapX * state.zoomLevel) - mouseX;
@@ -66,7 +68,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   }
 
-  
+  // The map layer (#canvas / #whiteboard) is a fixed 30000×30000 box scaled with a CSS transform. A transform
+  // scales the content visually but does NOT grow the scroll container's scrollable area, so past ~2× zoom the
+  // scroll needed to keep a point anchored exceeds the range, the browser clamps it, and the view JUMPS. This
+  // invisible sizer grows the scroll area to the SCALED content size so zoom-to-cursor stays anchored at any zoom.
+  function _sizeZoomScroller(wrap, scaledEl, z) {
+      if (!wrap || !scaledEl) return;
+      var sizer = wrap.querySelector('.zoom-scroll-sizer');
+      if (!sizer) {
+          sizer = document.createElement('div');
+          sizer.className = 'zoom-scroll-sizer';
+          sizer.style.cssText = 'position:absolute; left:0; top:0; width:1px; height:1px; pointer-events:none; visibility:hidden;';
+          wrap.appendChild(sizer);
+      }
+      var bw = scaledEl.offsetWidth, bh = scaledEl.offsetHeight;   // untransformed layout base (30000)
+      if (!bw || !bh) return;                                      // hidden layer — nothing to size
+      sizer.style.width = Math.round(bw * z) + 'px';
+      sizer.style.height = Math.round(bh * z) + 'px';
+  }
+  window._wpSizeZoomScroller = _sizeZoomScroller;
 
   var _el_zoomInBtn = document.getElementById('zoomInBtn');
 
@@ -1323,6 +1343,7 @@ export function restoreCameraPosition() {
     var zLbl = document.getElementById('zoomLbl');
     if(zLbl) zLbl.value = Math.round(state.zoomLevel * 100) + '%';
 
+    _sizeZoomScroller(wrap, mode === 'visual' ? document.getElementById('whiteboard') : document.getElementById('canvas'), state.zoomLevel);
     wrap.scrollLeft = (targetX * state.zoomLevel) - wrap.clientWidth/2;
     wrap.scrollTop = (targetY * state.zoomLevel) - wrap.clientHeight/2;
     renderRulers();

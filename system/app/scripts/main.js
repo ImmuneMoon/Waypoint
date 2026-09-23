@@ -841,10 +841,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('importBtn'); if (b) b.click(); });
       var joinBtn = document.getElementById('wcJoinBtn'); if (joinBtn) joinBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('netBtn'); if (b) b.click(); });
       var enterBtn = document.getElementById('wcEnterBtn'); if (enterBtn) enterBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); });
-      var avPrev = document.getElementById('wcAvatarPrev'), avBtn = document.getElementById('wcAvatarBtn'), avFile = document.getElementById('wcAvatarFile');
+      var avPrev = document.getElementById('wcAvatarPrev'), avFile = document.getElementById('wcAvatarFile');
       function pickAvatar() { if (avFile) avFile.click(); }
-      if (avPrev) avPrev.addEventListener('click', pickAvatar);
-      if (avBtn) avBtn.addEventListener('click', pickAvatar);
+      if (avPrev) avPrev.addEventListener('click', pickAvatar);   // the avatar circle IS the picker (the old "Choose picture" button was redundant)
       if (avFile) avFile.addEventListener('change', function() {
           var f = this.files[0]; this.value = '';
           if (!f || !window.wpProcessAvatar) return;

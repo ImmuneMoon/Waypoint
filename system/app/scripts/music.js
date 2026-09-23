@@ -92,6 +92,7 @@ function playCurrent(fadeSec) { var e = trackById(order[qi]); if (e) playTrackAt
 // start (or continue) a source. Same kind+id as what's already playing → do nothing but adopt loop/shuffle (seamless).
 function play(src) {
     if (!featureOn()) return;
+    autoStarted = false;   // any play() is manual by default; tick() re-marks its own call as auto-started
     src = { kind: src.kind, id: src.id, loop: src.loop || 'list', shuffle: !!src.shuffle };
     if (source && cur && source.kind === src.kind && source.id === src.id) {   // the same playlist / song is already playing → keep it going
         var reorder = source.shuffle !== src.shuffle && src.kind === 'playlist';
@@ -133,18 +134,27 @@ document.addEventListener('pointerdown', function() { if (gateShown || (ctx && c
 document.addEventListener('keydown', function() { if (gateShown || (ctx && ctx.state === 'suspended' && pending)) tryResume(); }, true);
 
 /* ---------- per-viewer local auto-play as the map changes (baseline) ---------- */
-var lastKey = '';   // the source we last auto-started, so a re-render or a preset-less map does not restart anything
+var lastKey = '', lastMapId = null, autoStarted = false;   // what auto-play last did; autoStarted = the current music was started by auto-play (not the panel)
 function activeMapItem() { var camp = getActiveCampaign(); if (!camp) return null; var it = camp.items && camp.items[camp.activeItemId]; return (it && it.type === 'map') ? it : null; }
+function sessionLive() { var n = net(); return !!(n && n.active); }
+// Runs on every render() — MUST be cheap in the common case (zoom / pan re-renders on the same map). It only does
+// real work when the active MAP changes, and only auto-plays while a multiplayer session is live (solo prep can
+// still play from the panel; that music is left alone here).
 function tick() {
-    if (!featureOn()) { if (cur || source) { stop(0.4); } lastKey = ''; return; }
-    var it = activeMapItem(); if (!it) return;   // not on a map (a doc/planner open): keep what is playing
+    if (!featureOn() || !sessionLive()) { if (autoStarted && (cur || source)) { stop(0.5); autoStarted = false; } lastKey = ''; lastMapId = null; return; }
+    var camp = getActiveCampaign(), it = camp && camp.items ? camp.items[camp.activeItemId] : null;
+    it = (it && it.type === 'map') ? it : null;
+    var mapId = it ? camp.activeItemId : null;
+    if (mapId === lastMapId) return;   // same map (or still no map): nothing to do — the cheap path for zoom/pan
+    lastMapId = mapId;
+    if (!it || !it.music) return;      // no map open, or a map with no preset: leave the current music alone (seamless)
     var cfg = cleanMapMusic(it.music, idSets());
-    if (!cfg) return;                             // a map with no preset: leave the current music alone (seamless)
-    var kind = cfg.playlist ? 'playlist' : 'track', id = cfg.playlist || cfg.track;
-    var key = kind + ':' + id;
+    if (!cfg) return;
+    var kind = cfg.playlist ? 'playlist' : 'track', id = cfg.playlist || cfg.track, key = kind + ':' + id;
     if (key === lastKey && source && source.kind === kind && source.id === id) return;   // already playing this one
     lastKey = key;
     play({ kind: kind, id: id, loop: cfg.loop, shuffle: cfg.shuffle });
+    autoStarted = true;
 }
 
 /* ---------- the feature switch (vtt.js fan-out) ---------- */

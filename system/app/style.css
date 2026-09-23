@@ -1722,6 +1722,22 @@
   .sheet-roll { width: 100%; }
   .sheet-roll:not(:disabled) { border-color: var(--gold); }
   .sheet-field-roll { padding: 0 4px; font-size: 11px; line-height: 1.2; margin-left: 4px; vertical-align: middle; }
+  /* Stage 3: stat-tile field display — a compact boxed value with a small label */
+  .sheet-field.sheet-tile { align-items: center; text-align: center; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 4px; gap: 3px; }
+  .sheet-field.sheet-tile .sheet-label { white-space: normal; }
+  .sheet-field.sheet-tile .sheet-value { font-size: 22px; }
+  .sheet-field.sheet-tile .sheet-ctl { flex-direction: column; align-items: center; gap: 2px; }
+  .sheet-field.sheet-tile .sheet-num { width: 100%; max-width: 74px; text-align: center; font-size: 20px; font-weight: 700; height: 34px; }
+  .sheet-field.sheet-tile .sheet-total { font-size: 12px; color: var(--dim); }
+  .sheet-field.sheet-tile.sheet-kind-skill .sheet-total { font-size: 18px; color: var(--ink); font-weight: 700; }
+  .sheet-field.sheet-tile .sheet-cur { font-size: 18px; font-weight: 700; width: 58px; height: 32px; }
+  .sheet-field.sheet-tile .sheet-pm { padding: 0 6px; }
+  .sheet-field.sheet-tile .sheet-bar { display: none; }
+  /* Stage 3: per-section color controls in the Layout builder */
+  .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
+  .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+  .sys-sec-color { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); }
+  .sys-sec-color input[type=color] { width: 30px; height: 22px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; color-scheme: dark; }
   /* item-list inventory on the sheet (Stage 5) */
   .sheet-items { display: flex; flex-direction: column; gap: 4px; }
   .sheet-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }

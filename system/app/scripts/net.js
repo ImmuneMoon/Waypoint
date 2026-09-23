@@ -222,7 +222,7 @@ function renderRoster() {
                 var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
                 var face = avOk
                     ? '<img class="roster-avatar" src="' + p.avatar + '" alt="">'
-                    : '<span class="roster-dot" style="background:' + (p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) + ';">' + initials + '</span>';
+                    : '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) : '') + '" alt="">';   // no photo → the colour-tinted silhouette default
                 var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
                     ? '<button class="roster-summon" data-summon="' + peerKey + '" title="Summon this player to the map you are on">&#128227;</button>' +
@@ -3101,7 +3101,7 @@ function renderPlayersPanel() {
         var p = players[pid];
         var isBanned = !!bans[pid];
         html += '<div class="player-row' + (isBanned ? ' banned' : '') + '">' +
-            '<span class="roster-dot" style="background:hsl(' + playerHue(pid) + ',55%,60%);">' + escTextRoster((p.name || '?')[0].toUpperCase()) + '</span>' +
+            '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(pid) + ',55%,60%)')) : '') + '" alt="">' +   // no photo → the colour-tinted silhouette default (the name shows beside it)
             '<div class="player-info">' +
                 '<div><b>' + escTextRoster(p.name || pid) + '</b>' +
                 (online[pid] ? ' <span class="player-online">● online</span>' : '') +

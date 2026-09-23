@@ -813,13 +813,26 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       });
       box.style.display = '';
   }
+  // A no-picture default avatar: a user silhouette on the given colour, as an inline SVG data-URL. One shared helper
+  // for every no-avatar site (welcome, Settings, roster, map presence, party, the hover card) so a user without a
+  // photo still gets a recognisable, per-user-coloured face instead of a "?" or bare initials. `color` = any CSS colour.
+  function wpDefaultAvatar(color) {
+      var c = (typeof color === 'string' && color) ? color : '#7aa7ff';
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+          '<rect width="100" height="100" fill="' + c + '"/>' +
+          '<circle cx="50" cy="40" r="18" fill="rgba(255,255,255,0.92)"/>' +
+          '<path d="M50 62c-16 0-29 11-31 26a3 3 0 0 0 3 3h56a3 3 0 0 0 3-3c-2-15-15-26-31-26z" fill="rgba(255,255,255,0.92)"/>' +
+          '</svg>';
+      return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+  window.wpDefaultAvatar = wpDefaultAvatar;
   function showWelcome() {
       var w = document.getElementById('welcomeScreen'); if (!w) return;
       var prof = wcProfile();
       var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
       var col = document.getElementById('wcColorInput'); if (col) col.value = prof.color || '#7aa7ff';
       var av = document.getElementById('wcAvatarPrev');
-      if (av) { if (prof.avatar) { av.innerHTML = '<img src="' + prof.avatar + '" alt="">'; av.style.background = ''; } else { av.textContent = (prof.name || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?'; av.style.background = prof.color || ''; } }
+      if (av) { av.innerHTML = '<img src="' + (prof.avatar || wpDefaultAvatar(prof.color)) + '" alt="">'; av.style.background = ''; }   // a photo, else the colour-tinted silhouette default
       var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
       w.style.display = 'flex';
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
@@ -833,7 +846,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   (function wireWelcome() {
       var w = document.getElementById('welcomeScreen'); if (!w) return;
       var nmEl = document.getElementById('wcNameInput'); if (nmEl) nmEl.addEventListener('change', saveWcProfile);
-      var colEl = document.getElementById('wcColorInput'); if (colEl) colEl.addEventListener('input', function() { saveWcProfile(); var av = document.getElementById('wcAvatarPrev'); if (av && !wcProfile().avatar) av.style.background = this.value; });
+      var colEl = document.getElementById('wcColorInput'); if (colEl) colEl.addEventListener('input', function() { saveWcProfile(); var av = document.getElementById('wcAvatarPrev'); if (av && !wcProfile().avatar) { av.innerHTML = '<img src="' + wpDefaultAvatar(this.value) + '" alt="">'; av.style.background = ''; } });   // re-tint the silhouette default as the colour changes
       function setPref(v) { try { localStorage.setItem('wp_welcome', v); } catch (e) {} var s2 = document.getElementById('setWelcomePref'); if (s2) s2.value = v; var s1 = document.getElementById('wcLaunchPref'); if (s1) s1.value = v; }
       var prefEl = document.getElementById('wcLaunchPref'); if (prefEl) prefEl.addEventListener('change', function() { setPref(this.value); });
       var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }

@@ -54,12 +54,11 @@ window.wpProcessAvatar = processAvatar;   // the welcome screen reuses the same 
 
 function renderAvatarPreview() {
     var p = getProfile();
-    var initials = (p.name || '?').trim().split(/\s+/).map(function(s) { return s[0]; }).join('').slice(0, 2).toUpperCase() || '?';
+    var def = window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color) : '';   // colour-tinted silhouette default (no photo)
     ['setAvatarPreview', 'netJoinAvatar'].forEach(function(id) {
         var el = ui(id);
         if (!el) return;
-        if (p.avatar) { el.innerHTML = '<img src="' + p.avatar + '" alt="">'; el.style.background = ''; }
-        else { el.textContent = initials; el.style.background = p.color || ''; }
+        el.innerHTML = '<img src="' + (p.avatar || def) + '" alt="">'; el.style.background = '';
     });
 }
 

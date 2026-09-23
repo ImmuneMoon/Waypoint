@@ -380,7 +380,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
   function canPersistLocal() {
       var n = window.wpNet;
       if (window.__wpNoSave) return false;                              // a restore is deciding
-      if (window.wpStream) return false;                                // the stream window never owns a save
+      if (window.wpStream || window.wpPopout) return false;             // the stream / pop-out windows never own a save
       if (n && (n.foreign || (n.active && n.role === 'client'))) return false;
       if (state.appState && state.appState._foreign) return false;      // origin marker: this state came from someone else's table
       return true;

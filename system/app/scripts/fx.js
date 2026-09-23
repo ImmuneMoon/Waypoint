@@ -251,7 +251,7 @@ function renderPanel() {
     var here = playersHere();
     var html = '';
     if (here >= 0) html += '<div class="fx-here' + (here === 0 ? ' none' : '') + '">' + (here === 0 ? 'No players on this map — they will not see it' : here + ' player' + (here === 1 ? '' : 's') + ' on this map') + '</div>';
-    html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-wash" title="Clear the colour wash">Clear</button></div>';
+    html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear</button></div>';
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>';
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Burst radius">Radius <input type="range" id="fxRadius" min="20" max="1200" value="160"><span id="fxRadiusVal" class="fx-dim"></span></label></div>';
     html += '<div class="snd-row"><span class="snd-label">Weather</span>' + byRow('weather').map(function(p) { return chip('fx-weather-btn', p.fx.look, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop</button></div>';

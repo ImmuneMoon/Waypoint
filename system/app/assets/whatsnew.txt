@@ -190,7 +190,7 @@ Character sheets: the system
 Visual effects
 - A visual-effects panel on the play map (the sparkle button beside the
   Sound button) fires short-lived effects the players on that map see: a
-  flash, screen shake, a colour wash (darkness, red mist, blinding light)
+  flash, screen shake, a color wash (darkness, red mist, blinding light)
   that holds until you clear it, a burst you place on the map (boom, magic,
   smoke, sparks), weather that runs until you stop it (rain, snow, embers,
   haze), and a text banner. Right-click a token for a pulse; the Blast tool
@@ -223,10 +223,10 @@ Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky
   ends and corners), or Flat, an angled calligraphy nib whose width varies
   with stroke direction. Remembered per device.
-- Fill bucket (GM): a new tool that colours grid cells. Click or drag cells
-  to lay a cell-sized coloured shape — a hexagon on hex maps, a square on
+- Fill bucket (GM): a new tool that colors grid cells. Click or drag cells
+  to lay a cell-sized colored shape — a hexagon on hex maps, a square on
   square maps — seated in the cell, below the tokens; right-click a cell to
-  clear it, and painting a filled cell recolours it. Each fill is an ordinary
+  clear it, and painting a filled cell recolors it. Each fill is an ordinary
   board item you can move, restyle or delete, and it reaches players like any
   shape.
 
@@ -769,7 +769,7 @@ Look
 - One icon set. The header rows — Campaign, Table, Journal and App pills,
   Export and Import, Data Map and Play Map, Render Preview, Update — and the
   sidebar section buttons use one set of line icons drawn in the text
-  colour, instead of a mix of colour emoji.
+  color, instead of a mix of color emoji.
 - Light theme, second pass: hover text, dropdown rows, the active sidebar
   row, data-map card titles, the toast, the header, the canvas dots and
   links, toolbar dividers and scrollbars all follow the theme now.
@@ -1310,7 +1310,7 @@ Settings that stay put
   first on launch, so a different install (or a cleared browser profile)
   opens with the same units, snap, pen, eraser, opacities, minimap, rulers
   and panel layout you last used.
-- The pen's colour, width and Freehand/Line choice are remembered now (they
+- The pen's color, width and Freehand/Line choice are remembered now (they
   reset every launch before).
 - The data map's Snap button remembers its state and agrees with the play
   map's Snap.

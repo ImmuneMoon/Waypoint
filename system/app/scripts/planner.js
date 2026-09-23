@@ -1047,7 +1047,7 @@ if (_el_plannerStatus) _el_plannerStatus.addEventListener('change', function() {
     save(true); updateSidebarNav();
     toast(this.value === 'next' ? 'Marked as the next scene.' : this.value === 'played' ? 'Marked played.' : this.value === 'skipped' ? 'Marked skipped.' : 'Status cleared.');
 });
-// Appearance: optional font / text colour / background colour for THIS page or planner (writes
+// Appearance: optional font / text color / background color for THIS page or planner (writes
 // item.meta.style), plus "use as the campaign default" (camp.docStyle, inherited by every doc + sheet).
 var _el_plannerAppearanceBtn = document.getElementById('plannerAppearanceBtn');
 if (_el_plannerAppearanceBtn) _el_plannerAppearanceBtn.addEventListener('click', function(e) { e.stopPropagation(); openAppearanceMenu(_el_plannerAppearanceBtn); });

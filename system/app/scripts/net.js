@@ -222,7 +222,7 @@ function renderRoster() {
                 var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
                 var face = avOk
                     ? '<img class="roster-avatar" src="' + p.avatar + '" alt="">'
-                    : '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) : '') + '" alt="">';   // no photo → the colour-tinted silhouette default
+                    : '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) : '') + '" alt="">';   // no photo → the color-tinted silhouette default
                 var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
                     ? '<button class="roster-summon" data-summon="' + peerKey + '" title="Summon this player to the map you are on">&#128227;</button>' +
@@ -340,7 +340,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
-        if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colours) so a player's Handbook matches; the client re-validates at render too
+        if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false }); if (psys) camp.system = psys; else delete camp.system;
         } else delete camp.system;
@@ -2009,7 +2009,7 @@ function handleMessage(msg, conn) {
             delete prof.avatar;
         }
         prof.name = (typeof prof.name === 'string' && prof.name.trim()) ? prof.name.slice(0, 40) : 'Player';   // cap a peer-supplied name
-        if (prof.color && !/^#[0-9a-fA-F]{6}$/.test(prof.color)) delete prof.color;                            // a chosen roster colour, hex only
+        if (prof.color && !/^#[0-9a-fA-F]{6}$/.test(prof.color)) delete prof.color;                            // a chosen roster color, hex only
         // Version gate first: an out-of-date player gets the update message, not a password prompt
         if (APP_VERSION) {
             var theirV = (typeof msg.version === 'string') ? msg.version : null;
@@ -3101,7 +3101,7 @@ function renderPlayersPanel() {
         var p = players[pid];
         var isBanned = !!bans[pid];
         html += '<div class="player-row' + (isBanned ? ' banned' : '') + '">' +
-            '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(pid) + ',55%,60%)')) : '') + '" alt="">' +   // no photo → the colour-tinted silhouette default (the name shows beside it)
+            '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(pid) + ',55%,60%)')) : '') + '" alt="">' +   // no photo → the color-tinted silhouette default (the name shows beside it)
             '<div class="player-info">' +
                 '<div><b>' + escTextRoster(p.name || pid) + '</b>' +
                 (online[pid] ? ' <span class="player-online">● online</span>' : '') +

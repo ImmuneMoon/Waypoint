@@ -289,7 +289,7 @@ function cleanBlock(b, used, ctx) {
 // the GM's own preview). Without it a GM-only page is null: nothing leaves the host.
 /* ---------- document appearance (optional per-doc / per-campaign overrides) ----------
    A curated, safe styling layer. Fonts come from a fixed list (never an arbitrary font-family),
-   colours must be plain hex, and a background image is a picture reference resolved through
+   colors must be plain hex, and a background image is a picture reference resolved through
    opts.src to a served asset. Every value is validated or dropped, so a themed page that travels
    to a player can never inject CSS. An absent field falls back to the campaign default, then the
    app's own style. */

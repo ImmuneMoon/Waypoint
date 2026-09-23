@@ -472,7 +472,7 @@
   .snap-label { position: absolute; background: var(--blue); color: #fff; font-size: 10px; padding: 2px 4px; border-radius: 3px; z-index: 9998; white-space: nowrap; pointer-events: none; transform: translate(5px, -15px); }
   
   #wbTooltip { position: absolute; pointer-events: none; user-select: none; -webkit-user-select: none; z-index: 20000; display: none; transition: opacity 0.15s; }
-  #wbTooltip .room { position: relative !important; left: 0 !important; top: 0 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5); transform: scale(1.05); transform-origin: bottom center; max-width: 320px; max-height: calc(100vh - 120px); overflow: hidden; overflow-wrap: anywhere; }
+  #wbTooltip .room { position: relative !important; left: 0 !important; top: 0 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 320px; max-height: calc(100vh - 120px); overflow: hidden; overflow-wrap: anywhere; }   /* no transform: a scale here isn't seen by the JS clamp (it measures the un-transformed box) and let a tall card spill past the board edge */
   #wbTooltip .room img { max-height: 120px; object-fit: cover; }
 
   .wb-item.sel { outline: 2px dashed var(--gold); outline-offset: 3px; z-index: 100; }

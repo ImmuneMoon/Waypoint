@@ -110,6 +110,7 @@ function cleanField(f, F, gmView) {
         out.def = typeof f.def === 'string' && opts.indexOf(f.def) >= 0 ? f.def : (opts[0] || '');
     }
     if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) out.roll = r; }
+    if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
     return out;
 }
 function clampNum(v, lo, hi) { if (lo !== undefined && v < lo) v = lo; if (hi !== undefined && v > hi) v = hi; return v; }
@@ -174,6 +175,13 @@ function cleanCombat(c, resIds) {
     if (typeof c.hpResource === 'string' && resIds && resIds[c.hpResource]) out.hpResource = c.hpResource;
     return out;
 }
+// Stage 3: optional per-section colors — hex only (accent = title + left stripe, bg = panel, border = box), like the doc-theming whitelist.
+function cleanSecStyle(v) {
+    if (!isObj(v)) return null;
+    var HEX = /^#[0-9a-fA-F]{6}$/, out = {};
+    ['accent', 'bg', 'border'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
+    return Object.keys(out).length ? out : null;
+}
 function cleanSheet(sheet, fieldIds, rollIds) {
     var out = { tabs: [], sections: [] }, placed = map(), total = 0, tabIds = map();
     if (!isObj(sheet)) return out;
@@ -197,6 +205,7 @@ function cleanSheet(sheet, fieldIds, rollIds) {
         if (s.open === false) sec.open = false;                            // default open; store only an explicit "closed by default"
         if (typeof s.meta === 'string' && fieldIds[s.meta]) sec.meta = s.meta;   // a field whose value shows in the section header (e.g. a points total)
         if (typeof s.parent === 'string' && SECTION_ID.test(s.parent) && s.parent !== s.id) sec.parent = s.parent;   // nest under another section (the render enforces one level)
+        var secStyle = cleanSecStyle(s.style); if (secStyle) sec.style = secStyle;   // Stage 3: per-section colors (accent/bg/border)
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;

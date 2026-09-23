@@ -130,6 +130,24 @@ const j = v => JSON.stringify(v);
 
     check('the automatic layout, saved as a real one, survives cleanSystem section by section', (() => { const c1 = cleanSystem(d20, { F, gmView: true }); const al = autoLayout(c1); const c2 = cleanSystem(Object.assign({}, c1, { sheet: al }), { F, gmView: true }); return c2 && c2.sheet.sections.length === al.sections.length && c2.sheet.sections.every((s, i) => s.id === al.sections[i].id && s.fields.length === al.sections[i].fields.length); })());
 
+    /* ---- Stage 3: per-section styling + stat tiles ---- */
+    check('Stage 3: cleanSheet keeps a section style (hex only, lowercased) and drops bad values', (() => {
+        const sys = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_str', key: 'STR', kind: 'number', def: 10, vis: 'all' }], rolls: [], sheet: { sections: [
+            { id: 's_a', title: 'A', cols: 1, style: { accent: '#E0A54F', bg: '#20202c', border: 'red' }, fields: [{ id: 'f_str', w: 1 }] },
+            { id: 's_b', title: 'B', cols: 1, style: { accent: 'nope' }, fields: [] }
+        ] } }, { F, gmView: true });
+        const a = sys.sheet.sections.find(s => s.id === 's_a'), b = sys.sheet.sections.find(s => s.id === 's_b');
+        return a && a.style && a.style.accent === '#e0a54f' && a.style.bg === '#20202c' && a.style.border === undefined && b && b.style === undefined;
+    })());
+    check('Stage 3: cleanField keeps tile on numeric kinds, drops it elsewhere', (() => {
+        const sys = cleanSystem({ v: 1, name: 'T', fields: [
+            { id: 'f_str', key: 'STR', kind: 'number', def: 10, vis: 'all', tile: true },
+            { id: 'f_nm', key: 'Name', kind: 'text', vis: 'all', tile: true }
+        ], rolls: [], sheet: { sections: [] } }, { F, gmView: true });
+        const s2 = sys.fields.find(f => f.id === 'f_str'), n2 = sys.fields.find(f => f.id === 'f_nm');
+        return s2 && s2.tile === true && n2 && n2.tile === undefined;
+    })());
+
     /* ---- publication ---- */
     global.window = {};
     const S2 = await import(url('systemcore.js') + '?x');

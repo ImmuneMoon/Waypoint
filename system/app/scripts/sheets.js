@@ -193,6 +193,12 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         var collap = !!sec.collapsible;
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
         if (collap) { s.open = (sec.id in _secOpen) ? _secOpen[sec.id] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[sec.id] = s.open; }); }
+        if (sec.style) {   // Stage 3: per-section colors (padding/radius so the panel reads as a box)
+            s.style.padding = '8px 10px'; s.style.borderRadius = '8px';
+            if (sec.style.bg) s.style.background = sec.style.bg;
+            if (sec.style.border) s.style.border = '1px solid ' + sec.style.border;
+            if (sec.style.accent) s.style.borderLeft = '3px solid ' + sec.style.accent;
+        }
         var mvv = sec.meta ? all[sec.meta] : null, metaText = '';   // a field's resolved value, shown right-aligned in the header
         if (mvv != null) {
             if (typeof mvv === 'object') { if (!mvv.error) { if (mvv.text != null && mvv.text !== '') metaText = String(mvv.text); else if (typeof mvv.value === 'number') metaText = mvv.value + (typeof mvv.max === 'number' ? ' / ' + mvv.max : ''); } }
@@ -200,7 +206,8 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         }
         if (sec.title || metaText || collap) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
-            head.appendChild(el('span', 'sheet-sec-name', sec.title || ''));
+            var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
+            head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
             s.appendChild(head);
         }
@@ -273,6 +280,15 @@ function renderLayout() {
         top.appendChild(select('sys-sec-parent', [['', 'Top level']].concat(secs.filter(function(o) { return o.id !== sec.id && !o.parent; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
         row.appendChild(top);
+        var styleRow = el('div', 'sys-sec-style');   // Stage 3: per-section colors
+        styleRow.appendChild(el('span', 'sys-sec-style-lbl', 'Colors'));
+        [['accent', 'Accent', '#e0a54f'], ['bg', 'Panel', '#20202c'], ['border', 'Border', '#3a3a4a']].forEach(function(sp) {
+            var wrap = el('label', 'sys-sec-color'); wrap.appendChild(document.createTextNode(sp[1]));
+            var ci = el('input', 'sys-sec-' + sp[0]); ci.type = 'color'; ci.value = (sec.style && sec.style[sp[0]]) || sp[2]; ci.title = sp[1] + ' color for this section (drag the section’s Clear to remove)';
+            wrap.appendChild(ci); styleRow.appendChild(wrap);
+        });
+        if (sec.style) { var clr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); clr.dataset.act = 'secstyleclr'; clr.title = 'Remove this section’s colors'; styleRow.appendChild(clr); }
+        row.appendChild(styleRow);
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
         (sec.fields || []).forEach(function(pl, pi) {
             var text = placementLabel(pl, byId, rollById); if (text === null) return;
@@ -323,6 +339,10 @@ function onLayoutChange(t) {
     if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-parent') >= 0) { if (t.value) sec.parent = t.value; else delete sec.parent; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-accent') >= 0 || c.indexOf('sys-sec-bg') >= 0 || c.indexOf('sys-sec-border') >= 0) {   // Stage 3: per-section colors
+        var skey = c.indexOf('sys-sec-accent') >= 0 ? 'accent' : c.indexOf('sys-sec-bg') >= 0 ? 'bg' : 'border';
+        sec.style = sec.style || {}; sec.style[skey] = t.value; markDirty(); renderLayout(); return true;   // renderLayout so the Clear button appears
+    }
     if (c.indexOf('sys-pl-add') >= 0) {
         var v = t.value; t.value = ''; if (!v) return true;
         var total = 0; layoutSections().forEach(function(s) { total += (s.fields || []).length; });
@@ -359,6 +379,7 @@ function onLayoutClick(b) {
     if (act === 'secup' && si > 0) { secs.splice(si, 1); secs.splice(si - 1, 0, sec); }
     else if (act === 'secdown' && si < secs.length - 1) { secs.splice(si, 1); secs.splice(si + 1, 0, sec); }
     else if (act === 'secdel') { secs.splice(si, 1); }
+    else if (act === 'secstyleclr') { delete sec.style; }   // Stage 3: remove the section's colors
     else if (plr) {
         var list = sec.fields || [], pi = +plr.dataset.pi, pl = list[pi]; if (!pl) return true;
         if (act === 'plw') pl.w = pl.w === 'row' ? 1 : 'row';
@@ -389,6 +410,7 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
 }
 function fieldNode(f, c, e, gm, own) {
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
+    if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
     if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll; rb.disabled = !canRoll(c); rb.addEventListener('click', function() { if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, f.roll, f.label || f.key); }); lab.appendChild(rb); }   // the field's own roll (1.5.0)
@@ -644,6 +666,7 @@ function fieldRow(f) {
     if (STORED[f.kind]) flags.appendChild(select('sys-edit', [['owner', 'Player may edit'], ['gm', 'GM edits']], f.edit || 'owner', 'Who may change the value at the table'));
     flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
+    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
@@ -819,6 +842,7 @@ function onChange(e) {
         if (c.indexOf('sys-edit') >= 0) f.edit = t.value;
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
+        else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
         else if (c.indexOf('sys-def-bool') >= 0) f.def = t.checked;
         else return;
     } else if (r) {

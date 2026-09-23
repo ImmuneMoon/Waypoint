@@ -285,6 +285,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       updateUndoBtn();   // the six undo / redo buttons show the item now open
 
+      if (window.wpMusicTick) window.wpMusicTick();   // per-viewer music: a map's remembered playlist auto-plays as you open it (same-source skip)
+
   }
 
 

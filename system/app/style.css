@@ -1904,6 +1904,22 @@
   .sheet-hdr-chip { border-style: solid; color: var(--green); font-weight: 700; }
   /* a dashboard section (above the tabs on every tab) reads as part of the frame: a rule under it before the strip */
   .sheet-section.sheet-dash { padding-bottom: 6px; border-bottom: 1px solid var(--edge); }
+  /* Stage 5e: a gradient slider — a number with a min and a max shown as a range on a two-colour track (the field's own colours, else
+     accent → gold) with end labels; the number box stays beside it. The input's own box is the track (appearance none), the thumb a disc. */
+  .sheet-slider { display: flex; flex-direction: column; gap: 3px; flex: 1 1 120px; min-width: 80px; }
+  .sheet-slider-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); min-height: 11px; }
+  input.sheet-range { -webkit-appearance: none; appearance: none; width: 100%; height: 10px; margin: 0; padding: 0; border-radius: 5px; border: 1px solid var(--edge); background: linear-gradient(90deg, var(--blue), var(--gold)); cursor: pointer; box-sizing: border-box; }
+  input.sheet-range:disabled { cursor: default; opacity: .6; }
+  input.sheet-range::-webkit-slider-runnable-track { height: 8px; background: transparent; }
+  input.sheet-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -4px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); box-shadow: 0 1px 3px rgba(0,0,0,0.5); box-sizing: border-box; }
+  input.sheet-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); }
+  .sheet-has-slider .sheet-ctl { align-items: flex-end; flex-wrap: wrap; }   /* in a narrow cell the number box drops under the track instead of spilling into the next column */
+  .sheet-has-slider .sheet-num { flex: 0 0 auto; width: 64px; }   /* beats the base input.field { width: 100% }: the track takes the room, the box stays compact */
+  .sheet-slider-ends span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .sheet-field.sheet-tile.sheet-has-slider .sheet-ctl { align-items: center; }
+  .sheet-field.sheet-tile.sheet-has-slider .sheet-slider { flex: 0 0 auto; width: 100%; max-width: 120px; }   /* a tile's control is a column: an auto basis, or the 120px became its height */
+  .sheet-band .sheet-has-slider { min-width: 190px; }
+  .sys-slider-row .sys-slider-low, .sys-slider-row .sys-slider-high { width: 120px; }
   /* Stage 3: per-section color controls in the Layout builder */
   .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
   .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }

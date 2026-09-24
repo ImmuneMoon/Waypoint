@@ -111,7 +111,7 @@ function readZip(buf) {
             const start = lh + 30 + nlen + xlen;
             const raw = buf.slice(start, start + e.csize);
             if (e.method === 0) return raw;
-            if (e.method === 8) return zlib.inflateRawSync(raw);
+            if (e.method === 8) return zlib.inflateRawSync(raw, { maxOutputLength: 256 * 1024 * 1024 });   // a bomb entry stops at the cap instead of the machine's memory
             throw new Error('unsupported compression for ' + e.name);
         },
     }));
@@ -127,11 +127,11 @@ async function applyAppUpdate(opts) {
     const newDir = path.join(systemDir, 'app.new');
     const prevDir = path.join(systemDir, 'app.prev');
     const zipBuf = await fetchBuffer(opts.appZip);
-    if (opts.sha256) {
-        const want = (await fetchBuffer(opts.sha256)).toString('utf8').trim().split(/\s+/)[0].toLowerCase();
-        const got = crypto.createHash('sha256').update(zipBuf).digest('hex');
-        if (want && want !== got) throw new Error('checksum mismatch — update aborted');
-    }
+    if (!opts.sha256) throw new Error('no checksum published for this update — refused');   // a hot update replaces the app: never without its digest (every release ships one)
+    const want = (await fetchBuffer(opts.sha256)).toString('utf8').trim().split(/\s+/)[0].toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(want)) throw new Error('unreadable checksum — update aborted');   // an empty or odd .sha256 is a failure, not a pass
+    const got = crypto.createHash('sha256').update(zipBuf).digest('hex');
+    if (want !== got) throw new Error('checksum mismatch — update aborted');
     const entries = readZip(zipBuf);
     if (!entries.length) throw new Error('empty update archive');
     // the zip may hold "app/..." or the files at its root — strip one common leading folder

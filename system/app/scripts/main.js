@@ -505,6 +505,25 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
   }
 
+  // Items from a file someone else made are content from another table: a planner's raw HTML is rebuilt by the
+  // wire's rich-text sanitiser, diagrams lose their click directives, handbook pages go through cleanDoc, and a
+  // play map's text items are rebuilt — and no id is ever a prototype key.
+  function cleanImportedItems(ic) {
+      if (!ic.items || typeof ic.items !== 'object') { ic.items = {}; return; }
+      var DR = window.wpDocRender, NT = window.wpNet;
+      Object.keys(ic.items).forEach(function(id) {
+          if (id in Object.prototype) { delete ic.items[id]; return; }
+          var it = ic.items[id]; if (!it || typeof it !== 'object') { delete ic.items[id]; return; }
+          if (it.type === 'doc' && DR && DR.cleanDoc) { var cd = DR.cleanDoc(it, { keepHidden: true }); if (cd) ic.items[id] = cd; else delete ic.items[id]; return; }
+          if (it.type === 'planner' && Array.isArray(it.blocks)) it.blocks.forEach(function(b) {
+              if (!b || typeof b !== 'object') return;
+              if (b.type === 'raw' && NT && NT.sanitizeRichText) b.content = NT.sanitizeRichText(String(b.content || ''));
+              if (b.type === 'diagram' && DR && DR.stripMermaidLinks) b.content = DR.stripMermaidLinks(String(b.content || ''));
+          });
+          if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (w && w.type === 'text' && NT && NT.sanitizeRichText) w.text = NT.sanitizeRichText(String(w.text || '')); });
+      });
+  }
+
   // Merge by id: new campaigns are added; within an existing campaign,
 
   // imported items overwrite same-id items and new ones are added.
@@ -513,7 +532,10 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       var added = 0, updated = 0, newCamps = 0;
 
-      Object.values(imported.campaigns).forEach(function(ic) {
+      Object.values(imported.campaigns || {}).forEach(function(ic) {
+
+          if (!ic || typeof ic !== 'object' || typeof ic.id !== 'string' || (ic.id in Object.prototype)) return;   // never a prototype key as a campaign id
+          cleanImportedItems(ic);
 
           var existing = state.appState.campaigns[ic.id];
 

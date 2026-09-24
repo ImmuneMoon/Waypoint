@@ -410,13 +410,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
-                  tt.innerHTML = '<div class="room" style="border-left-color:'+c.color+'; margin:0; pointer-events:none;">' +
+                  var ccol = /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/.test(String(c.color || '')) ? c.color : '#888';   // a category color is a color, never markup (it lands in a style attribute)
+                  tt.innerHTML = '<div class="room" style="border-left-color:'+ccol+'; margin:0; pointer-events:none;">' +
 
                                  thumb +
 
                                  '<div class="rn">'+esc(r.name||'(unnamed)')+'</div>' +
 
-                                 '<div class="rc" style="color:'+c.color+'">'+esc(c.label)+'</div>' +
+                                 '<div class="rc" style="color:'+ccol+'">'+esc(c.label)+'</div>' +
                                  (!isClientTT && r.notes ? '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; margin-top:4px; text-transform:none; letter-spacing:0;">' + esc(String(r.notes).slice(0, 320)) + (String(r.notes).length > 320 ? '\u2026' : '') + '</div>' : '') +   // GM only: the room's notes ride the hover card
 
                                  travelHint +
@@ -664,7 +665,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               if(el.contentEditable !== "true") {
 
-                  el.innerHTML = item.text || 'Text...';
+                  el.innerHTML = (clientView && window.wpNet && window.wpNet.sanitizeRichText) ? (window.wpNet.sanitizeRichText(item.text) || 'Text...') : (item.text || 'Text...');   // at a table someone else hosts the text is rebuilt (markup kept, nothing that runs): the wire did it once, the render does it again
 
                   fixEmbeddedImgs(el);
 

@@ -130,9 +130,12 @@ function stampHead(idx, msg) {
     idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
     idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
 }
+var _hoCount = 0, _hoBytes = 0;   // what one run of the app accepts from tables: a host that keeps sending fills no disk
+function handoutBudget(msg) { var n = (msg && msg.data && msg.data.byteLength) || (msg && typeof msg.text === 'string' ? msg.text.length : 0) || 0; if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); return false; } _hoCount++; _hoBytes += n; return true; }
 async function receiveHandout(msg) {
     var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
+    if (!handoutBudget(msg)) return;
     if (msg.kind === 'text') return receiveTextHandout(msg, campId, id);
     if (!(msg.data && msg.data.byteLength !== undefined)) return;
     var bytes = msg.data instanceof Uint8Array ? msg.data : new Uint8Array(msg.data);

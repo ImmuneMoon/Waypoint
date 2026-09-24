@@ -109,6 +109,55 @@ function tableKeys() { try { var k = JSON.parse(localStorage.getItem('wp_tableKe
 function tableKeyFor(gmId) { var k = tableKeys(); return (own(k, gmId) && typeof k[gmId] === 'string') ? k[gmId].slice(0, 64) : ''; }
 function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); k[gmId] = key.slice(0, 64); try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }
 // [netcheck:helpers-end]
+// What a client accepts from a host, beyond the shape checks the wire already does.
+function validKey(k) { return typeof k === 'string' && k.length > 0 && k.length <= 160 && !(k in Object.prototype); }   // an id used as an object key: never a prototype key
+function campOf(id) { var cs = state.appState && state.appState.campaigns; return (cs && validKey(id) && own(cs, id)) ? cs[id] : null; }
+function safeColor(v) { return (typeof v === 'string' && v.length <= 40 && /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/.test(v)) ? v : ''; }
+function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+// Rich text a client accepts from a host (a play-map text item) or the GM takes from a file someone else made (an
+// imported planner's raw block): the formatting the text tool makes, nothing that runs. Parsed inertly (DOMParser
+// executes no scripts and loads nothing), then rebuilt: only listed tags, only listed attributes, links to the web,
+// pictures from the table's own library or a small inline image.
+var RICH_TAGS = { b: 1, strong: 1, i: 1, em: 1, u: 1, s: 1, strike: 1, del: 1, p: 1, br: 1, div: 1, span: 1, font: 1, ul: 1, ol: 1, li: 1, a: 1, img: 1, h1: 1, h2: 1, h3: 1, h4: 1, blockquote: 1, code: 1, pre: 1, sub: 1, sup: 1, small: 1, big: 1, hr: 1, table: 1, thead: 1, tbody: 1, tr: 1, td: 1, th: 1 };
+var RICH_DROP = /^(script|style|iframe|object|embed|template|svg|math|noscript|link|meta|base|form|input|textarea|select|button|video|audio|source|frame|frameset|applet)$/;
+var RICH_STYLE = /^(color|background-color|font-size|font-family|font-weight|font-style|text-decoration|text-align|line-height|white-space|letter-spacing)$/;
+function safeStyle(css) { var out = []; String(css || '').split(';').forEach(function(d) { var i = d.indexOf(':'); if (i < 0) return; var k = d.slice(0, i).trim().toLowerCase(), v = d.slice(i + 1).trim(); if (RICH_STYLE.test(k) && v.length <= 80 && /^[\w\s#%(),.'"\/-]+$/.test(v) && !/url|expression|javascript|import/i.test(v)) out.push(k + ':' + v); }); return out.join(';'); }
+function safeRichHref(h) { h = String(h || '').trim(); return (/^(https?:\/\/|mailto:)/i.test(h) && h.length <= 2000) ? h : ''; }
+function safeRichSrc(s) { s = String(s || '').trim(); if (/^\/saves\/images\//.test(s) && s.length <= 400 && !/[\0<>"'\\]/.test(s) && s.indexOf('..') < 0) return s; if (/^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+\/=]+$/.test(s) && s.length <= 300000) return s; return ''; }
+function sanitizeRichText(html) {
+    if (typeof html !== 'string' || !html) return '';
+    if (html.length > 200000) html = html.slice(0, 200000);
+    if (typeof DOMParser === 'undefined') return escAttr(html);   // no DOM here (a check under node): text only
+    var doc; try { doc = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html'); } catch (e) { return ''; }
+    function walk(node) {
+        var out = '';
+        Array.prototype.forEach.call(node.childNodes, function(ch) {
+            if (ch.nodeType === 3) { out += escAttr(ch.nodeValue); return; }
+            if (ch.nodeType !== 1) return;
+            var tag = ch.tagName.toLowerCase();
+            if (!RICH_TAGS[tag]) { if (!RICH_DROP.test(tag)) out += walk(ch); return; }   // an unknown wrapper keeps its text; a dangerous one goes with its content
+            var attrs = '';
+            if (tag === 'a') { var h = safeRichHref(ch.getAttribute('href')); if (h) attrs += ' href="' + escAttr(h) + '" target="_blank" rel="noopener noreferrer"'; }
+            else if (tag === 'img') { var src = safeRichSrc(ch.getAttribute('src')); if (!src) return; attrs += ' src="' + escAttr(src) + '"'; var alt = ch.getAttribute('alt'); if (alt) attrs += ' alt="' + escAttr(String(alt).slice(0, 200)) + '"'; var wd = ch.getAttribute('width'), ht = ch.getAttribute('height'); if (wd && /^\d{1,4}$/.test(wd)) attrs += ' width="' + wd + '"'; if (ht && /^\d{1,4}$/.test(ht)) attrs += ' height="' + ht + '"'; }
+            else if (tag === 'font') { var fc = ch.getAttribute('color'), fz = ch.getAttribute('size'), ff = ch.getAttribute('face'); if (fc && /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,20})$/.test(fc)) attrs += ' color="' + fc + '"'; if (fz && /^[1-7]$/.test(fz)) attrs += ' size="' + fz + '"'; if (ff && /^[\w\s,'-]{1,60}$/.test(ff)) attrs += ' face="' + escAttr(ff) + '"'; }
+            var st = safeStyle(ch.getAttribute('style')); if (st) attrs += ' style="' + escAttr(st) + '"';
+            if (tag === 'br' || tag === 'hr' || tag === 'img') { out += '<' + tag + attrs + '>'; return; }
+            out += '<' + tag + attrs + '>' + walk(ch) + '</' + tag + '>';
+        });
+        return out;
+    }
+    return walk(doc.body);
+}
+net.sanitizeRichText = sanitizeRichText;
+// A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.type === 'text') w.text = sanitizeRichText(w.text); return w; }
+function cleanHostMap(m) {
+    if (!m || typeof m !== 'object') return m;
+    if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
+    if (Array.isArray(m.rooms)) m.rooms = m.rooms.slice(0, 600); else m.rooms = [];
+    if (m.cats && typeof m.cats === 'object') Object.keys(m.cats).forEach(function(k) { var c = m.cats[k]; if (k in Object.prototype) { delete m.cats[k]; return; } if (c && typeof c === 'object' && !safeColor(c.color)) c.color = '#888'; });
+    return m;
+}
 // Client-originated changes are saved coalesced: a stroke or move storm costs one disk write, not one per message
 // (the deltas to players still go out at once; only the write + the save sweep are batched).
 var _saveSoon = null;
@@ -465,7 +514,7 @@ function refreshStageSelect() {
     var cSel = ui('netCampSelect');
     if (cSel) {
         cSel.innerHTML = Object.values(state.appState.campaigns).map(function(c) {
-            return '<option value="' + c.id + '">' + escText(c.name || c.id) + '</option>';
+            return '<option value="' + escAttr(c.id) + '">' + escText(c.name || c.id) + '</option>';
         }).join('');
         cSel.value = state.appState.activeCampaignId || '';
     }
@@ -478,7 +527,7 @@ function refreshStageSelect() {
         : (net.lastMapStageObj && camp.items[net.lastMapStageObj.itemId] && camp.items[net.lastMapStageObj.itemId].meta.title) || 'your current map';
     var maps = Object.values(camp.items).filter(function(m) { return m.type === 'map'; });
     maps.sort(function(a, b) { return String((a.meta && a.meta.title) || '').localeCompare(String((b.meta && b.meta.title) || '')); });
-    var mapOpts = maps.map(function(m) { return '<option value="' + m.id + '">' + escText((m.meta && m.meta.title) || m.id) + '</option>'; }).join('');
+    var mapOpts = maps.map(function(m) { return '<option value="' + escAttr(m.id) + '">' + escText((m.meta && m.meta.title) || m.id) + '</option>'; }).join('');
     defaultStageMode(camp);
     // the mode in force stays listed even if the last map it relied on has since been deleted
     var lastOpt = (hasLastLocations(camp) || net.stageMode === 'last') ? '<option value="last">Player\'s last location</option>' : '';
@@ -554,7 +603,7 @@ if (_stageFbSel) _stageFbSel.addEventListener('change', function() {
     toast(fbMap ? 'New players will start on ' + ((fbMap.meta && fbMap.meta.title) || net.stageFallback) + '.' : 'New players will follow you.');
 });
 function applyStage(stage) {
-    if (!stage || !state.appState.campaigns[stage.campId]) return;
+    if (!stage || !campOf(stage.campId) || (stage.itemId != null && !validKey(stage.itemId))) return;
     var prevCampId = state.appState.activeCampaignId;
     net.applyingRemote = true;
     state.appState.activeCampaignId = stage.campId;
@@ -588,11 +637,12 @@ function activeItemPatch() {
 }
 
 function applyItem(msg) {
-    var camp = state.appState.campaigns[msg.campId];
-    if (!camp) return;
+    var camp = campOf(msg.campId);
+    if (!camp || !validKey(msg.itemId)) return;
     var incoming = msg.item;
     if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalised before it is stored (a hostile host can send shapes, not just markup)
     if (!incoming || typeof incoming !== 'object') return;
+    if (incoming.type === 'map') incoming = cleanHostMap(incoming);   // text items rebuilt, colors checked, bounded
     net.applyingRemote = true;
     camp.items[msg.itemId] = incoming;
     var myActive = getActiveCampaign();
@@ -675,6 +725,8 @@ function playerStroke(w, pid) {
 }
 
 function applySnapshot(msg) {
+    if (!msg || !msg.appState || typeof msg.appState !== 'object' || !msg.appState.campaigns || typeof msg.appState.campaigns !== 'object') return;   // a host that sends no state gets nothing applied — and nothing left half-set
+    ['__proto__', 'constructor', 'prototype'].forEach(function(k) { if (Object.prototype.hasOwnProperty.call(msg.appState.campaigns, k)) delete msg.appState.campaigns[k]; });
     net.applyingRemote = true;
     // Origin marker: this state came from someone else's table. Lives in the appState so it rides
     // through every copy; a marked state is never written to disk and never installed by undo.
@@ -687,7 +739,9 @@ function applySnapshot(msg) {
     Object.values(state.appState.campaigns || {}).forEach(function(cS) {
         Object.keys(cS.items || {}).forEach(function(id) {
             var itS = cS.items[id];
+            if (id in Object.prototype) { delete cS.items[id]; return; }
             if (itS && itS.type === 'doc') { var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(itS, { keepHidden: true }) : null; if (cd) cS.items[id] = cd; else delete cS.items[id]; }
+            else if (itS && itS.type === 'map') cleanHostMap(itS);
         });
         var actS = cS.items && cS.items[cS.activeItemId];
         if (!actS || actS.type !== 'map') cS.activeItemId = Object.keys(cS.items || {}).find(function(id) { return cS.items[id].type === 'map'; }) || null;
@@ -791,12 +845,14 @@ function itemDelta(itemId, clean) {
     return any ? d : false;                                                     // false = nothing changed at all
 }
 function applyItemDelta(msg) {
-    var camp = state.appState.campaigns[msg.campId]; if (!camp) return;
-    var it = camp.items[msg.itemId];
+    var camp = campOf(msg.campId); if (!camp || !validKey(msg.itemId)) return;
+    var it = own(camp.items, msg.itemId) ? camp.items[msg.itemId] : null;
     if (!it) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it: ask for the whole thing
     net.applyingRemote = true;
     (it.type === 'doc' ? ['blocks'] : ['whiteboard', 'rooms']).forEach(function(key) {   // a page has blocks, a map has the rest — a delta never adds the other kind
-        var ch = msg[key]; if (!ch) return;
+        var ch = msg[key]; if (!ch || typeof ch !== 'object') return;
+        if (!Array.isArray(ch.del)) ch.del = []; if (!Array.isArray(ch.set)) ch.set = []; if (ch.order !== undefined && !Array.isArray(ch.order)) delete ch.order;
+        ch.set = ch.set.filter(function(x) { return x && typeof x === 'object' && typeof x.id === 'string'; });
         var list = it[key] = it[key] || [];
         var at = {}; list.forEach(function(x, i) { at[x.id] = i; });
         (ch.del || []).forEach(function(id) { if (at[id] !== undefined) list[at[id]] = null; });
@@ -805,6 +861,7 @@ function applyItemDelta(msg) {
         if (ch.order) { var pos = {}; ch.order.forEach(function(id, i) { pos[id] = i; }); it[key].sort(function(a, b) { return (pos[a.id] === undefined ? 1e9 : pos[a.id]) - (pos[b.id] === undefined ? 1e9 : pos[b.id]); }); }
     });
     ['links', 'meta', 'cats'].forEach(function(k) { if (msg[k] !== undefined) it[k] = msg[k]; });
+    if (it.type === 'map') cleanHostMap(it);   // whatever the delta touched: text items rebuilt, colors checked, bounded
     if (it.type === 'doc') {   // re-normalised after every delta, then the reader (if it shows this page) follows
         var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(it, { keepHidden: true }) : null;
         if (cd) camp.items[msg.itemId] = cd; else delete camp.items[msg.itemId];
@@ -1513,8 +1570,9 @@ function npcTravel(item, map) {
     return true;
 }
 function handlePos(msg, conn) {
-    var camp = state.appState.campaigns[msg.campId];
-    var map = camp && camp.items[msg.itemId];
+    if (typeof msg.wbId !== 'string') return;
+    var camp = campOf(msg.campId);
+    var map = (camp && validKey(msg.itemId)) ? camp.items[msg.itemId] : null;
     if (!map || map.type !== 'map') return;
     var w = (map.whiteboard || []).find(function(x) { return x.id === msg.wbId; });
     if (!w) return;
@@ -2202,8 +2260,8 @@ function handleMessage(msg, conn) {
         applyItemDelta(msg);
     } else if (msg.type === 'itemGone' && net.role === 'client') {
         if (conn.peer !== net.syncedPeer) return;   // only the synced host may take things away
-        var campG = state.appState.campaigns[msg.campId];
-        if (campG && campG.items && campG.items[msg.itemId]) {
+        var campG = campOf(msg.campId);
+        if (campG && campG.items && validKey(msg.itemId) && own(campG.items, msg.itemId)) {
             net.applyingRemote = true;
             delete campG.items[msg.itemId];
             if (campG.activeItemId === msg.itemId) { campG.activeItemId = Object.keys(campG.items).find(function(id) { return campG.items[id].type === 'map'; }) || null; state.selId = null; state.selWbId = null; state.selWbIds = []; }
@@ -2298,7 +2356,7 @@ function handleMessage(msg, conn) {
         var SC2 = window.wpSystemCore;
         if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !_charPending[msg.rid]) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason)); return; }
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
-        var campC = state.appState.campaigns[msg.campId]; if (!campC || !campC.system) return;   // the system always comes first
+        var campC = campOf(msg.campId); if (!campC || !campC.system) return;   // the system always comes first
         var sysC = campC.system;
         if (msg.type === 'chars') {
             var outC = {};
@@ -2417,7 +2475,7 @@ function handleMessage(msg, conn) {
         // the hosted campaign's system as the players' view (character sheets, 1.5.0), re-cleaned here; null = the campaign has none
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore || !window.wpFormula) return;
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
-        var campS = state.appState.campaigns[msg.campId]; if (!campS) return;
+        var campS = campOf(msg.campId); if (!campS) return;
         if (msg.system === null) delete campS.system;
         else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false }); if (csys) campS.system = csys; }
         if (window.wpSheetsSync) window.wpSheetsSync();
@@ -2509,7 +2567,11 @@ function handleMessage(msg, conn) {
             broadcast(msg, conn);
             logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300));
         } else {
-            pushChat(msg);
+            // from the synced host only, in the shape a chat line has, text capped (a hostile host's megabytes never reach the DOM or the pop-out relay)
+            if (conn.peer !== net.syncedPeer || typeof msg.text !== 'string' || !msg.from || typeof msg.from !== 'object') return;
+            var fromH = { id: String(msg.from.id || '').slice(0, 60), name: String(msg.from.name || '').slice(0, 60), gm: msg.from.gm === true };
+            if (safeColor(msg.from.color)) fromH.color = msg.from.color;
+            pushChat({ type: 'chat', scope: msg.scope === 'whisper' ? 'whisper' : 'global', from: fromH, text: msg.text.slice(0, 2000), ts: Number(msg.ts) || Date.now(), toName: typeof msg.toName === 'string' ? msg.toName.slice(0, 60) : '' });
         }
         // [netcheck:chat-end]
     } else if (msg.type === 'chat-history' && net.role === 'client') {
@@ -2580,7 +2642,7 @@ function scheduleReconnect() {
 }
 
 function wireConn(conn) {
-    conn.on('data', function(d) { handleMessage(d, conn); });
+    conn.on('data', function(d) { try { handleMessage(d, conn); } catch (e) { try { console.warn('wire message failed', d && d.type, e); } catch (_) {} } finally { net.applyingRemote = false; } });   // a malformed message throws here and nowhere else; applyingRemote is never left on (it would silently stop this machine's own saves syncing)
     // The transport knows first: when the other side vanishes (app closed, cable pulled, Wi-Fi
     // gone) ICE goes 'disconnected' within seconds and 'failed' soon after, long before the
     // channel's own close event. Show it at once; treat 'failed' as the drop it is.
@@ -2918,8 +2980,8 @@ function leaveSession(silent) {
 }
 
 /* ---------- asset sync: clients pull images from the host over the data channel ---------- */
-var assetCache = {};    // path -> blob URL (pictures, pulled on render)
-var assetPending = {};  // path -> true
+var assetCache = Object.create(null);    // path -> blob URL (pictures, pulled on render); prototype-free: a path like "constructor" is never a hit
+var assetPending = Object.create(null);  // path -> true
 var assetRenderTimer = null;
 var assetWaiters = {};  // path -> { promise, resolve, reject, timer, parts, n, bytes }: sounds, pulled by net.fetchAsset and answered in parts
 var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
@@ -2936,6 +2998,7 @@ function assetMime(path) {
 net.assetSrc = function(path) {
     if (!path || !net.active || net.role !== 'client' || net.stream) return path;   // the stream window reads images straight from the local server
     if (/^(data:|blob:)/.test(path)) return path;   // already self-contained
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:|^\/\//.test(path)) return ASSET_PLACEHOLDER;   // an absolute URL from a host would make this machine call out to it (an IP beacon, a LAN probe): never
     if (!/^\/?saves\//.test(path)) return path;     // shipped with the app (assets/…): every install has it
     if (assetCache[path]) return assetCache[path];
     if (!assetPending[path] && net.conns[0] && net.conns[0].open) {
@@ -3031,21 +3094,23 @@ function handleAssetPart(msg) {
 }
 function resetAssetTransfers() {
     Object.keys(assetWaiters).forEach(function(p) { var w = assetWaiters[p]; clearTimeout(w.timer); try { w.reject(new Error('left')); } catch (e) {} });
-    assetWaiters = {}; assetPending = {}; assetInflight = {};
+    assetWaiters = {}; assetPending = Object.create(null); assetInflight = {};
 }
 
 function handleAssetArrival(msg) {
     if (typeof msg.path === 'string' && assetWaiters[msg.path]) { var w = assetWaiters[msg.path]; clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error(typeof msg.error === 'string' ? msg.error.slice(0, 40) : 'failed')); return; }   // the only 'asset' answer to a sound request is a refusal (the bytes come as asset-part)
-    if (typeof msg.path === 'string' && typeof msg.error === 'string' && assetPending[msg.path]) {   // a picture the host would not send
+    if (typeof msg.path === 'string' && typeof msg.error === 'string' && own(assetPending, msg.path)) {   // a picture the host would not send
         delete assetPending[msg.path];
         var tries = (_assetRetries[msg.path] = (_assetRetries[msg.path] || 0) + 1);
         if (msg.error === 'busy' && tries <= 5) setTimeout(function() { if (!assetCache[msg.path]) net.assetSrc(msg.path); }, 800 * tries);   // the host was busy: ask again, backing off
         else assetCache[msg.path] = ASSET_PLACEHOLDER;   // missing / too big / kept refusing: settle on the placeholder, never ask again this session
         return;
     }
-    if (!msg.path || !msg.data || !assetPending[msg.path]) return;   // unsolicited: never cached
+    if (typeof msg.path !== 'string' || !msg.data || !own(assetPending, msg.path)) return;   // unsolicited (or a prototype-key path): never cached
+    if (typeof msg.data.byteLength !== 'number' || msg.data.byteLength > AUDIO_CAP) { delete assetPending[msg.path]; return; }   // past the cap: not held
     try {
         var blob = new Blob([msg.data], { type: msg.mime || assetMime(msg.path) });
+        if (typeof assetCache[msg.path] === 'string' && assetCache[msg.path].indexOf('blob:') === 0) { try { URL.revokeObjectURL(assetCache[msg.path]); } catch (e) {} }   // a picture sent twice does not keep two copies
         assetCache[msg.path] = URL.createObjectURL(blob);
     } catch (e) { return; }
     delete assetPending[msg.path];

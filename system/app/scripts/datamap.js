@@ -1,6 +1,7 @@
 function setZoom(n, x, y) { if(window.appSetZoom) window.appSetZoom(n, x, y); }
 
 function toast(msg) { if(window.appToast) window.appToast(msg); }
+function escA(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }   // a room's icon text lands in an attribute
 
 
 
@@ -133,7 +134,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           var em = {'Stairs Up':'🪜↑', 'Stairs Down':'🪜↓', 'Door':'🚪', 'Gate':'⛩️', 'Cave':'🦇', 'Tower':'🗼', 'Camp':'⛺'}[r.icon] || r.icon.substring(0,2);
 
-          badges.innerHTML += '<div class="badge-char" style="background:var(--blue); font-size:12px; margin-right:4px;" title="'+r.icon+'">'+em+'</div>';
+          badges.innerHTML += '<div class="badge-char" style="background:var(--blue); font-size:12px; margin-right:4px;" title="'+escA(r.icon)+'">'+escA(em)+'</div>';
 
       }
 

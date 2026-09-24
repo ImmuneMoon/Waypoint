@@ -650,6 +650,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var imEl = el.querySelector('img');
 
               if (imEl.getAttribute('src') !== wantSrc) imEl.src = wantSrc;
+              // A player's copy while the picture's bytes are still on their way (or never came): the character's
+              // initials stand in, so a token is never an invisible box with a facing wedge and chips floating around it.
+              var pendingPic = !!(item.isChar && window.wpNet && window.wpNet.ASSET_PLACEHOLDER && wantSrc === window.wpNet.ASSET_PLACEHOLDER);
+              var iniEl = el.querySelector(':scope > .token-initials');
+              if (pendingPic) {
+                  var iniP = String(item.charName || item.name || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?';
+                  if (!iniEl) { iniEl = document.createElement('span'); iniEl.className = 'token-initials tok-pending'; el.appendChild(iniEl); }
+                  if (iniEl.textContent !== iniP) iniEl.textContent = iniP;
+              } else if (iniEl && iniEl.classList.contains('tok-pending')) iniEl.remove();
 
           } else if(item.type === 'text') {
 

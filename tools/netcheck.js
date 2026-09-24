@@ -223,5 +223,10 @@ check('table keys (client): remembered per GM id, absent → empty string, a pro
     check('chat: a non-string text is dropped', h.pushed.length === 1);
 }
 
+/* ================= asset requests ================= */
+check('asset-req: the picture limiter has NO per-request spacing (a map\'s pictures arrive in one burst) and answers a refusal', /allow\('asset', \{ perMs: 0, burst: \d+, windowMs: \d+, table: \d+ \}, conn\.peer\)\) \{ answerAsset\(conn, msg\.path, 'busy'\); return; \}/.test(src));
+check('asset-req: a missing or over-cap picture is answered, never dropped silently', /answerAsset\(conn, msg\.path, 'missing'\)/.test(src) && /answerAsset\(conn, msg\.path, 'too-big'\)/.test(src));
+check('asset arrival (client): a refused picture clears its pending flag and retries on busy, settles on missing', /msg\.error === 'busy' && tries <= 5/.test(src) && /assetCache\[msg\.path\] = ASSET_PLACEHOLDER/.test(src));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

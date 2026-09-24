@@ -2638,6 +2638,8 @@ window.wpFitToGrid = fitToGrid;
   window.wpMeasureKind = 'ruler';
   window.isFogMode = false;
   var blasts = [];
+  var BLAST_CAP = 40;   // blasts on screen per map: the oldest go as new ones land (a throw stream from a player never grows this, or every client's render, without bound)
+  function pushBlast(b) { blasts.push(b); if (blasts.length > BLAST_CAP) blasts.splice(0, blasts.length - BLAST_CAP); }
   var blastDefaults = { ft: 12, name: '' };   // the toolbar quick-tool is unnamed; thrown blasts take their name from the item
   try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: '' }; } catch (e) {}
   var _blastHitIds = [];
@@ -2723,7 +2725,7 @@ window.wpFitToGrid = fitToGrid;
       // A grenade lands in a cell, at the height of whoever stands there (a token on a catwalk), else the ground
       var b = { x: x, y: y, ft: blastDefaults.ft, name: blastDefaults.name, elev: 0, autoElev: true };
       seatBlast(b);
-      blasts.push(b);
+      pushBlast(b);
       renderMeasures(); syncBlastMenu();
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' yd' : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Drag it to move, right-click to remove.');
@@ -2733,7 +2735,7 @@ window.wpFitToGrid = fitToGrid;
       var map = getActiveMap(); if (!map || !opts) return null;
       var ft = Math.max(1, Math.min(3000, Math.round(opts.ft || 0))) || 12;
       var b = { x: opts.x, y: opts.y, ft: ft, name: opts.name || '', elev: (opts.elev !== undefined ? opts.elev : 0), autoElev: opts.elev === undefined, thrown: true, by: opts.by || '' };
-      seatBlast(b); blasts.push(b); renderMeasures(); syncBlastMenu();
+      seatBlast(b); pushBlast(b); renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: b.by }, map.id);
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.');
@@ -2804,7 +2806,7 @@ window.wpFitToGrid = fitToGrid;
   window.wpRenderSharedBlast = function(bl) {
       if (!bl || typeof bl.x !== 'number' || typeof bl.y !== 'number') return;
       var ft = Math.max(1, Math.min(3000, Math.round(bl.ft || 0))) || 12;
-      blasts.push({ x: bl.x, y: bl.y, ft: ft, name: typeof bl.name === 'string' ? bl.name.slice(0, 60) : '', elev: typeof bl.elev === 'number' ? bl.elev : 0, autoElev: false, thrown: true, by: typeof bl.by === 'string' ? bl.by.slice(0, 60) : '', shared: true });
+      pushBlast({ x: bl.x, y: bl.y, ft: ft, name: typeof bl.name === 'string' ? bl.name.slice(0, 60) : '', elev: typeof bl.elev === 'number' ? bl.elev : 0, autoElev: false, thrown: true, by: typeof bl.by === 'string' ? bl.by.slice(0, 60) : '', shared: true });
       renderMeasures();
   };
   window.wpClearSharedBlasts = function() { var had = blasts.some(function(b) { return b.shared; }); blasts = blasts.filter(function(b) { return !b.shared; }); if (had) renderMeasures(); };

@@ -1221,7 +1221,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         state.appState.activeCampaignId = en.campId;
         camp.activeItemId = en.itemId;
         if (window.wpApplyRememberedView) window.wpApplyRememberedView();
-        if (en.roomId && it.type === 'map') {
+        if (en.roomId && it.type === 'map' && !(window.wpNet && window.wpNet.foreign)) {   // a joined player stays on the play map: the data map (rooms, routes) is the GM's view, hidden from the view switch already
             state.viewMode = 'data';
             state.selId = en.roomId;
             var room = (it.rooms || []).find(function(r) { return r.id === en.roomId; });

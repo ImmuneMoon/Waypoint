@@ -2450,6 +2450,7 @@ function handleMessage(msg, conn) {
         var campDR = getActiveCampaign(); if (!campDR) return;
         var amDR = getActiveMap(); if (!amDR || amDR.id !== msg.mapId) return;         // only the GM's current map
         var profDR = net.roster[conn.peer]; if (!profDR) return;
+        if (profDR.location && profDR.location !== amDR.id) { denyDR('far'); return; }   // the player must BE on this map, not merely own a token left behind on it
         var doorEl = (amDR.whiteboard || []).find(function(w) { return w && w.id === msg.itemId; });
         if (!doorEl || doorEl.blocksSight !== true || doorEl.sightType !== 'door' || doorEl.hidden) return;   // not a visible door
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players

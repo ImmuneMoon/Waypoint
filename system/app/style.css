@@ -777,6 +777,10 @@
   @keyframes matchPop { from { transform: scale(0.6); opacity: 0; } }
 
   /* Align / distribute buttons in the context menu */
+  /* One stepper, not two (owner, 2026-09-24): a number box flanked by − / + buttons (a resource's current value on the sheet, a token's
+     elevation in its menu, the music speed) carries input.num-stepped and hides its native up/down arrows; a number box on its own keeps them. */
+  input.num-stepped { -moz-appearance: textfield; appearance: textfield; }
+  input.num-stepped::-webkit-outer-spin-button, input.num-stepped::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .align-btn {
     background: var(--panel); border: 1px solid var(--edge); color: var(--ink);
     border-radius: 4px; width: 24px; height: 22px; cursor: pointer; font-size: 12px;
@@ -1639,8 +1643,7 @@
   .music-speedrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .music-speed-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); flex: 1; }
   .music-slow, .music-fast { flex: 0 0 auto; width: 28px; height: 26px; padding: 0; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
-  #musicPanel input.music-speed-val { width: 46px; text-align: center; font-size: 12.5px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px; -moz-appearance: textfield; appearance: textfield; }
-  #musicPanel input.music-speed-val::-webkit-outer-spin-button, #musicPanel input.music-speed-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }   /* hide the native up/down arrows — the − / + buttons flank the field instead */
+  #musicPanel input.music-speed-val { width: 46px; text-align: center; font-size: 12.5px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 4px; }   /* its arrows: input.num-stepped */
   #musicPanel input.music-speed-val:focus { outline: none; border-color: var(--gold); }
   .music-speed-x { font-size: 12px; color: var(--dim); margin-left: -3px; margin-right: 2px; }
   .music-takectl { width: 100%; margin-top: 8px; padding: 5px 0; font-size: 12px; }
@@ -1837,7 +1840,7 @@
   #sysLayoutPreview input.field, #sysLayoutPreview select.field, #sysLayoutPreview textarea.field,
   #popoutBody.sheet-view input.field, #popoutBody.sheet-view select.field, #popoutBody.sheet-view textarea.field { padding: 3px 6px; font-size: 12.5px; }
   #popoutBody.sheet-view { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 18px 22px 48px; display: flex; flex-direction: column; gap: 10px; }
-  #sheetPanel .field, #sysLayoutPreview .field { margin-bottom: 0; }   /* the sheet uses grid gaps for spacing; the base .field margin shifted inputs off the −/+ baseline */
+  #sheetPanel .field, #sysLayoutPreview .field, #popoutBody.sheet-view .field { margin-bottom: 0; }   /* the sheet uses grid gaps for spacing; the base .field margin shifted inputs off the −/+ baseline */
   .sheet-num { width: 64px; }
   .sheet-ctl .sheet-cur { width: 46px; height: 28px; flex: 0 0 auto; text-align: center; box-sizing: border-box; }   /* the resource current value: a compact, roughly square box between − and + */
   .sheet-total { color: var(--dim); font-size: 12px; white-space: nowrap; }
@@ -1863,6 +1866,24 @@
   .sheet-field.sheet-tile .sheet-cur { font-size: 18px; font-weight: 700; width: 58px; height: 32px; }
   .sheet-field.sheet-tile .sheet-pm { padding: 0 6px; }
   .sheet-field.sheet-tile .sheet-bar { display: none; }
+  /* Stage 5c: the pinned band — chosen placements under the name, above the tab strip, on every tab; sticks while the body scrolls.
+     Its own opaque panel, since the sheet look paints the body behind it. A sticky box is clamped inside its parent's content box
+     (a negative top margin is cancelled), so a body that holds a band gives up its top padding and the band carries it: the band's
+     edge IS the scrollport's top edge and nothing scrolls past above it. Side margins reach the panel's edges. */
+  .sheet-band { position: sticky; top: 0; z-index: 2; margin: 0 -10px; padding: 8px 10px; background: var(--panel2); color: var(--ink); border-bottom: 1px solid var(--edge); display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: stretch; }
+  #sheetBody:has(> .sheet-band), .sys-layout-preview:has(> .sheet-band) { padding-top: 0; }
+  #popoutBody.sheet-view .sheet-band { margin: 0 -22px; padding: 18px 22px 8px; }
+  #popoutBody.sheet-view:has(> .sheet-band) { padding-top: 0; }
+  .sheet-band .sheet-field { flex: 0 1 auto; min-width: 64px; background: rgba(0,0,0,0.15); border: 1px solid var(--edge); border-radius: 8px; padding: 4px 8px; gap: 2px; align-items: center; text-align: center; }
+  .sheet-band .sheet-field .sheet-label { font-size: 10px; }
+  .sheet-band .sheet-field .sheet-value { font-size: 17px; }
+  .sheet-band .sheet-num { width: 56px; text-align: center; font-weight: 700; }
+  .sheet-band .sheet-kind-resource { min-width: 124px; }
+  .sheet-band .sheet-kind-resource .sheet-ctl { justify-content: center; }
+  .sheet-band .sheet-bar { width: 100%; }
+  .sheet-band .sheet-kind-toggle { justify-content: center; }
+  .sheet-band .sheet-kind-roll { padding: 0; border: none; background: none; min-width: 0; justify-content: center; }
+  .sheet-band .sheet-roll { width: auto; height: 28px; padding: 0 10px; }
   /* Stage 3: per-section color controls in the Layout builder */
   .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
   .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
@@ -1870,6 +1891,11 @@
   .sys-lookbox .sys-look-font { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }
   .sys-lookbox input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; }
   .sys-lookbox .sys-look-dim { width: 90px; accent-color: var(--gold); cursor: pointer; }
+  /* Stage 5c: the Layout tab's Pinned band box — chips with left/right/remove, a select to pin more */
+  .sys-band-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .sys-band-pl { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid var(--edge); border-radius: 4px; font-size: 12px; background: rgba(0,0,0,0.12); }
+  .sys-band-pl .sys-btns { margin-left: 2px; }
+  .sys-bandbox select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
   .sys-sec-color { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); }
   .sys-sec-color input[type=color] { width: 30px; height: 22px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; color-scheme: dark; }
   /* item-list inventory on the sheet (Stage 5) */

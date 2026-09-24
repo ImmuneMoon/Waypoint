@@ -353,7 +353,7 @@ function renderPanel() {
     var spRow = el('div', 'music-speedrow');
     spRow.appendChild(el('span', 'music-speed-lbl', 'Speed'));
     var slow = el('button', 'tool ghost music-slow', '−'); slow.title = 'Slow down (0.5× minimum)'; slow.addEventListener('click', function() { setSpeed(rate - 0.1); });
-    var spIn = el('input'); spIn.type = 'number'; spIn.min = '0.5'; spIn.max = '2'; spIn.step = '0.05'; spIn.value = st.rate.toFixed(2); spIn.className = 'music-speed-val'; spIn.title = 'Type a speed from 0.5 to 2×';
+    var spIn = el('input'); spIn.type = 'number'; spIn.min = '0.5'; spIn.max = '2'; spIn.step = '0.05'; spIn.value = st.rate.toFixed(2); spIn.className = 'music-speed-val num-stepped'; spIn.title = 'Type a speed from 0.5 to 2×';
     var apply = function() { var v = parseFloat(spIn.value); if (isFinite(v)) setSpeed(v); };
     spIn.addEventListener('change', apply); spIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { apply(); spIn.blur(); } });
     var xg = el('span', 'music-speed-x', '×');

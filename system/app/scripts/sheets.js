@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { LIMITS, KINDS, STORED, DEF_PROP, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -147,8 +147,8 @@ function openSheet(charId) {
 }
 function closeSheet() { sheetOpen = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
-function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae) || !ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '' }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }
-function restoreFocus(root, k) { if (!k) return; var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : '')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
+function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae) || !ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
+function restoreFocus(root, k) { if (!k) return; var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -209,6 +209,21 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
+    // Stage 5c: the pinned band — under the name, above the tab strip, on every tab (and on a stacked sheet). Read from sys.sheet
+    // itself (the automatic layout carries no band) and built by the same node factories as a section, so a field's permissions,
+    // its −/+ and its roll behave exactly as they do below; the band's inputs carry data-band so focus restore tells the copies apart.
+    var bandDef = (sys.sheet && Array.isArray(sys.sheet.band)) ? sys.sheet.band : null;
+    if (bandDef && bandDef.length) {
+        var bandEl = el('div', 'sheet-band');
+        bandDef.forEach(function(q) {
+            var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c) : null;
+            if (!node) return;
+            node.classList.add('sheet-band-item'); node.classList.remove('sheet-tile');   // the band has its own compact look; a stat tile's column layout (and hidden bar) would out-specify it
+            node.querySelectorAll('[data-fid]').forEach(function(x) { x.dataset.band = '1'; });
+            bandEl.appendChild(node);
+        });
+        if (bandEl.childNodes.length) body.appendChild(bandEl);
+    }
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
     var active = '';   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other
     if (tabs) {
@@ -274,6 +289,7 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
 function layoutSections() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.sections)) draft.sheet.sections = []; return draft.sheet.sections; }
 function layoutTabs() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.tabs)) draft.sheet.tabs = []; return draft.sheet.tabs; }
+function layoutBand() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.band)) draft.sheet.band = []; return draft.sheet.band; }   // Stage 5c; the key is deleted again when the band empties (absent = no band)
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
@@ -329,6 +345,56 @@ function renderLayout() {
         window.wpPickImage(function(src) { if (typeof src !== 'string' || !/^[/]saves[/]images[/]/.test(src)) return; setLook('bgImage', src); if (!(draft.sheetStyle && typeof draft.sheetStyle.bgDim === 'number')) setLook('bgDim', 40); renderLayout(); });
     });
     var lookClr = lookRow.querySelector('[data-look="clear"]'); if (lookClr) lookClr.addEventListener('click', function() { delete draft.sheetStyle; markDirty(); renderLayout(); renderPreview(); });
+    // Pinned band (Stage 5c): a few placements kept under the name on every tab. Wired directly like the look box (the delegated
+    // handlers key on sections and tabs); chips reorder with buttons, the select pins what is not on the band yet.
+    var band = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band : [];
+    // what Save would drop is dropped from the draft here too (a pin whose field was deleted, or switched to a kind the band can't hold),
+    // so the chips, the hint and Clear never claim a pin the preview beside them does not show
+    var bandKeep = band.filter(function(q) { return q && (q.id ? !!(byId[q.id] && BAND_KINDS[byId[q.id].kind] === 1) : !!(q.roll && rollById[q.roll])); });
+    if (bandKeep.length !== band.length) { if (bandKeep.length) draft.sheet.band = band = bandKeep; else { delete draft.sheet.band; band = []; } }
+    var bandBox = el('div', 'sys-tabmgr sys-bandbox'); bandBox.id = 'sysBandBox';
+    bandBox.appendChild(el('div', 'sys-tabmgr-head', 'Pinned band (optional)'));
+    bandBox.appendChild(el('div', 'sys-hint', band.length ? 'Shown under the name on every tab, above the tab strip, and it stays put while the sheet scrolls. A field can be here and in a section too.' : 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.'));
+    var bandList = el('div', 'sys-band-list'), onBand = {};
+    band.forEach(function(q, bi) {
+        var text = placementLabel(q, byId, rollById); if (text === null) return;
+        onBand[q.id || q.roll] = 1;
+        var chip = el('div', 'sys-band-pl'); chip.dataset.bi = String(bi);
+        chip.appendChild(el('span', 'sys-pl-name', text));
+        chip.appendChild(btnRow([['bandleft', 'Move left on the band', '&#9664;'], ['bandright', 'Move right on the band', '&#9654;'], ['banddel', 'Take off the band (it stays wherever else it is on the sheet)', '&times;']]));
+        bandList.appendChild(chip);
+    });
+    if (bandList.childNodes.length) bandBox.appendChild(bandList);
+    var bandOpts = [['', 'Pin to the band\u2026']];
+    draft.fields.forEach(function(f) { if (BAND_KINDS[f.kind] === 1 && !onBand[f.id]) bandOpts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
+    draft.rolls.forEach(function(r) { if (!onBand[r.id]) bandOpts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
+    var bandRow = el('div', 'sys-row-main sys-band-addrow');
+    var bandAdd = select('sys-band-add', bandOpts, '', 'A number, formula, skill, resource, toggle or roll to keep in view on every tab');
+    bandRow.appendChild(bandAdd);
+    if (band.length) { var bandClr = el('button', 'tool ghost sys-btn', 'Clear'); bandClr.title = 'Take everything off the band'; bandClr.addEventListener('click', function() { delete draft.sheet.band; markDirty(); renderLayout(); }); bandRow.appendChild(bandClr); }
+    bandBox.appendChild(bandRow);
+    bandAdd.addEventListener('change', function(e) {
+        e.stopPropagation();   // the modal's delegated change handler would otherwise look for a field row here
+        var v = bandAdd.value; bandAdd.value = ''; if (!v) return;
+        var lst = layoutBand(); if (lst.length >= LIMITS.band) { toast('The band holds at most ' + LIMITS.band + ' items.'); return; }
+        var kind = v.slice(0, 1), id = v.slice(2), q = null;
+        if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id && BAND_KINDS[f.kind] === 1; })) q = { id: id }; }
+        else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) q = { roll: id }; }
+        if (q && !lst.some(function(x) { return (x.id || x.roll) === id; })) { lst.push(q); markDirty(); renderLayout(); }
+    });
+    bandBox.addEventListener('click', function(e) {
+        var bb = e.target.closest && e.target.closest('[data-act]'); if (!bb) return;
+        var chip = bb.closest('.sys-band-pl'); if (!chip) return;
+        e.stopPropagation();   // the modal's delegated click handler knows nothing of these acts
+        var lst = layoutBand(), bi = +chip.dataset.bi, q = lst[bi]; if (!q) return;
+        var act = bb.dataset.act;
+        if (act === 'bandleft' && bi > 0) { lst.splice(bi, 1); lst.splice(bi - 1, 0, q); }
+        else if (act === 'bandright' && bi < lst.length - 1) { lst.splice(bi, 1); lst.splice(bi + 1, 0, q); }
+        else if (act === 'banddel') { lst.splice(bi, 1); if (!lst.length) delete draft.sheet.band; }
+        else return;
+        markDirty(); renderLayout();
+    });
+    root.appendChild(bandBox);
     if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
@@ -421,8 +487,12 @@ function onLayoutChange(t) {
 }
 function onLayoutClick(b) {
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
-    if (b.id === 'sysLayoutAuto') { var cl = cleanSystem(draft, { F: F(), gmView: true }); draft.sheet = { sections: autoLayout(cl || draft).sections }; markDirty(); renderLayout(); toast('The automatic layout is now yours to change.'); return true; }
-    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls).', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
+    if (b.id === 'sysLayoutAuto') {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
+        var cl = cleanSystem(draft, { F: F(), gmView: true }), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
+        draft.sheet = { sections: autoLayout(cl || draft).sections }; if (keepTabs.length) draft.sheet.tabs = keepTabs; if (keepBand.length) draft.sheet.band = keepBand;
+        markDirty(); renderLayout(); toast(keepTabs.length || keepBand.length ? 'The automatic layout is now yours to change; your tabs and band are kept.' : 'The automatic layout is now yours to change.'); return true;
+    }
+    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length)) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs and no pinned band.', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
     if (b.id === 'sysAddTab') { var tbs0 = layoutTabs(); if (tbs0.length >= LIMITS.tabs) { toast('At most ' + LIMITS.tabs + ' tabs.'); return true; } tbs0.push({ id: uid('t_'), label: 'Tab ' + (tbs0.length + 1) }); markDirty(); renderLayout(); return true; }
     var act = b.dataset.act; if (!act) return false;
     var ltab = b.closest('.sys-tab');
@@ -582,7 +652,7 @@ function fieldNode(f, c, e, gm, own) {
         var cur = e && typeof e.value === 'number' ? e.value : 0, max = e && typeof e.max === 'number' ? e.max : null;
         var r = el('div', 'sheet-ctl');
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !editable;
-        var ci = el('input', 'field sheet-num sheet-cur'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !editable; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
+        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !editable; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !editable;
         var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max))); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max');
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });

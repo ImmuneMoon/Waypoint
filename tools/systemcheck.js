@@ -175,6 +175,18 @@ const j = v => JSON.stringify(v);
     check('window.wpSystemCore published', !!(global.window.wpSystemCore && global.window.wpSystemCore.cleanSystem && global.window.wpSystemCore.VERSION === S2.VERSION));
     delete global.window;
 
+    /* ---- the sheet's own look (doc theming): bounded plain values, players' view included; docrender validates strictly at render ---- */
+    {
+        const withLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: { font: 'mono', textColor: '#fff', bgColor: '#102030', bgImage: '/saves/images/m/a b.png', bgDim: 140, evil: '<script>', onclick: 'x' } }, { F, gmView: true });
+        check('cleanSystem: sheetStyle keeps the look fields, clamps bgDim, drops anything else', withLook && withLook.sheetStyle && withLook.sheetStyle.font === 'mono' && withLook.sheetStyle.textColor === '#fff' && withLook.sheetStyle.bgColor === '#102030' && withLook.sheetStyle.bgImage === '/saves/images/m/a b.png' && withLook.sheetStyle.bgDim === 90 && !('evil' in withLook.sheetStyle) && !('onclick' in withLook.sheetStyle), JSON.stringify(withLook && withLook.sheetStyle));
+        const playerLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: { font: 'serif', bgDim: 20 } }, { F, gmView: false });
+        check('cleanSystem: the sheet look travels in the players\' view too', playerLook && playerLook.sheetStyle && playerLook.sheetStyle.font === 'serif' && playerLook.sheetStyle.bgDim === 20);
+        const noLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: 'red' }, { F, gmView: true }), longLook = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheetStyle: { font: 'x'.repeat(401), bgColor: 'a\u0001b' } }, { F, gmView: true });
+        check('cleanSystem: a non-object, over-long or control-character look is absent', noLook && !('sheetStyle' in noLook) && longLook && !('sheetStyle' in longLook));
+        // The sheet builder's picture picker (the library at z 99999) opens from a modal at z 100000: the library must lift over it and settle back
+        const wbSrc = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
+        check('image library: a pick lifts the library above the caller and every close path settles it back', /window\.wpPickImage = async function[\s\S]{0,600}?imgLibLift\(true\)/.test(wbSrc) && (wbSrc.match(/imgLibLift\(false\)/g) || []).length >= 3 && /m\.style\.zIndex = '100005'/.test(wbSrc));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

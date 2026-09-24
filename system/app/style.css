@@ -1866,6 +1866,10 @@
   /* Stage 3: per-section color controls in the Layout builder */
   .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
   .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+  /* the Layout tab's Sheet look box (doc theming): the whole sheet's font / colors / picture over the campaign default */
+  .sys-lookbox .sys-look-font { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }
+  .sys-lookbox input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; }
+  .sys-lookbox .sys-look-dim { width: 90px; accent-color: var(--gold); cursor: pointer; }
   .sys-sec-color { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); }
   .sys-sec-color input[type=color] { width: 30px; height: 22px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; color-scheme: dark; }
   /* item-list inventory on the sheet (Stage 5) */

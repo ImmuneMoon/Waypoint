@@ -16,13 +16,17 @@ concurrency:
 
 jobs:
   checks:
-    name: Test suites
+    name: Test suites (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]   # the app's tools run on whatever Node the machine has; a suite must not depend on one parser's output
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
 
       # One step per suite so a failure names the suite in the Actions UI. Every step still runs
       # after an earlier failure (!cancelled()); the job fails if any step did.

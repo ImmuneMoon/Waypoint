@@ -26,10 +26,22 @@ const updateHandler = updater.makeHandler({
     apiUrl: process.env.WAYPOINT_UPDATE_API || undefined,
 });
 
+// mirrors main.js: only this server's own pages may talk to it — no CORS, a foreign Origin / Sec-Fetch-Site / Host is refused
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+function localRequest(req) {
+    const host = String(req.headers.host || '').toLowerCase();
+    if (!LOCAL_HOSTS.some(h => host === h + ':' + port || host === h)) return false;
+    const sfs = req.headers['sec-fetch-site'];
+    if (sfs && sfs !== 'same-origin' && sfs !== 'none') return false;
+    const origin = req.headers.origin;
+    if (origin === undefined) return true;
+    let o; try { o = new URL(origin); } catch (e) { return false; }
+    return o.protocol === 'http:' && LOCAL_HOSTS.some(h => o.host.toLowerCase() === h + ':' + port);
+}
+
 const server = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    if (req.method === 'OPTIONS') { res.writeHead(200); return res.end(); }
+    if (!localRequest(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('Forbidden'); }
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/update-check' || url.pathname === '/api/update-apply') { updateHandler(req, res, url); return; }

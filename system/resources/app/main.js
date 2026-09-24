@@ -71,11 +71,28 @@ const updateCfg = {
 Object.defineProperty(updateCfg, 'currentVersion', { get: appVersion, enumerable: true });
 const updateHandler = updater.makeHandler(updateCfg);
 
-const server = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+// Only Waypoint's own pages may talk to this server. It listens on localhost with no login and a
+// predictable port, so any web page open in the GM's browser could otherwise read /api/data (the whole
+// save) or overwrite it with a plain POST. So: no CORS is granted (the renderer and its child windows are
+// same-origin and need none), a request carrying an Origin from anywhere else is refused, the browser's
+// own Sec-Fetch-Site must say same-origin (or none: a direct navigation), and the Host must be this
+// machine's own name (a DNS-rebinding page arrives under its own host name). Tools with no such headers
+// (curl, the app's main process) still pass.
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+function localRequest(req) {
+    const host = String(req.headers.host || '').toLowerCase();
+    if (!LOCAL_HOSTS.some(h => host === h + ':' + port || host === h)) return false;
+    const sfs = req.headers['sec-fetch-site'];
+    if (sfs && sfs !== 'same-origin' && sfs !== 'none') return false;
+    const origin = req.headers.origin;
+    if (origin === undefined) return true;
+    let o; try { o = new URL(origin); } catch (e) { return false; }
+    return o.protocol === 'http:' && LOCAL_HOSTS.some(h => o.host.toLowerCase() === h + ':' + port);
+}
 
-    if (req.method === 'OPTIONS') { res.writeHead(200); return res.end(); }
+const server = http.createServer((req, res) => {
+    if (!localRequest(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('Forbidden'); }
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
     const url = new URL(req.url, 'http://localhost');
 
@@ -362,16 +379,24 @@ waitForInstanceLock(8000, function() {
             });
             // External links (target=_blank, e.g. the About panel) open in the
             // user's default browser instead of a new Electron window.
+            const own = `http://localhost:${port}`;   // this app's own origin, exactly (http://localhost.evil.example/ is not it)
+            const isOwn = (url) => url === own || url.startsWith(own + '/') || url.startsWith(own + '?') || url.startsWith(own + '#');
+            // Only a web link ever reaches the system browser: never file:, a program, or a custom protocol —
+            // a link inside content a hostile host sent (a text item, a page, a chat line) must not launch anything here.
+            const openWebLink = (url) => { if (/^(https?:|mailto:)/i.test(url)) require('electron').shell.openExternal(url); };
             win.webContents.setWindowOpenHandler(({ url }) => {
-                if (url.startsWith('http://localhost')) {
+                if (isOwn(url)) {
                     // Waypoint's own child windows: same look as the main one, no menu bar. A popped-out doc/sheet
                     // (?popout=) opens PORTRAIT (a reading/reference column for a second monitor); the stream window stays landscape.
                     var portrait = /[?&]popout=/.test(url);
                     return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico'), width: portrait ? 840 : 1280, height: portrait ? 1000 : 720, backgroundColor: '#15151c' } };
                 }
-                require('electron').shell.openExternal(url);
+                openWebLink(url);
                 return { action: 'deny' };
             });
+            // The app window never navigates away from its own pages (a plain link in hostile content would otherwise
+            // replace Waypoint with any site): a web link goes to the system browser instead, anything else is dropped.
+            win.webContents.on('will-navigate', (e, url) => { if (!isOwn(url)) { e.preventDefault(); openWebLink(url); } });
             win.loadURL(`http://localhost:${port}`);
         });
     });

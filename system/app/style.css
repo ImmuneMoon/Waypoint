@@ -1866,19 +1866,24 @@
   .sheet-field.sheet-tile .sheet-cur { font-size: 18px; font-weight: 700; width: 58px; height: 32px; }
   .sheet-field.sheet-tile .sheet-pm { padding: 0 6px; }
   .sheet-field.sheet-tile .sheet-bar { display: none; }
-  /* The sticky FRAME under the name (Stages 5c/5d): the header block (identity rows, ledger figures) and the pinned band as one unit
-     that stays put while the sections and the tab strip scroll beneath — the owner's Foundry header. Its own opaque panel, since the
-     sheet look paints the body behind it. A sticky box is clamped inside its parent's content box (a negative top margin is cancelled),
-     so a body that holds a frame gives up its top padding and the frame carries it: the frame's edge IS the scrollport's top edge and
-     nothing scrolls past above it. Side margins reach the panel's edges; the blocks inside sit flush, a rule between them. */
-  .sheet-frame { position: sticky; top: 0; z-index: 2; margin: 0 -10px; background: var(--panel2); color: var(--ink); border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; }
-  .sheet-frame > * { border-bottom: 1px solid var(--edge); }
-  .sheet-frame > :last-child { border-bottom: 0; }
-  #sheetBody:has(> .sheet-frame), .sys-layout-preview:has(> .sheet-frame) { padding-top: 0; }
-  #popoutBody.sheet-view .sheet-frame { margin: 0 -22px; }
-  #popoutBody.sheet-view .sheet-frame > * { padding-left: 22px; padding-right: 22px; }
-  #popoutBody.sheet-view .sheet-frame > :first-child { padding-top: 14px; }
-  #popoutBody.sheet-view:has(> .sheet-frame) { padding-top: 0; }
+  /* The top of the sheet (Stages 5c/5d, reworked after the owner's Foundry note "the tabs don't move up or down"): the header block
+     (.sheet-head: identity rows, ledger figures) scrolls away like content; the FRAME (the pinned band + the tab strip) is the one
+     sticky element, so the tabs stay reachable and most of the panel is the tab's own content. Both are opaque panels, since the
+     sheet look paints the body behind them. A sticky box is clamped inside its parent's content box and its top counts from that
+     edge, so a body that holds a frame gives up its top padding (the first block carries its own); side margins reach the panel's
+     edges; blocks inside sit flush with a rule between them. */
+  .sheet-head, .sheet-frame { margin: 0 -10px; background: var(--panel2); color: var(--ink); border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; }
+  .sheet-frame { position: sticky; top: 0; z-index: 2; }
+  .sheet-head > * + *, .sheet-frame > * + * { border-top: 1px solid var(--edge); }
+  .sheet-frame > .sheet-tabs { margin: 0; padding: 0 10px; border-bottom: 0; }
+  #sheetBody:has(> .sheet-frame), .sys-layout-preview:has(> .sheet-frame),
+  #sheetBody:has(> .sheet-head:first-child), .sys-layout-preview:has(> .sheet-head:first-child) { padding-top: 0; }   /* a leading header block is a full-bleed panel too */
+  #sheetBody:has(> .sheet-frame) > .sheet-section:first-child, .sys-layout-preview:has(> .sheet-frame) > .sheet-section:first-child { margin-top: 8px; }
+  #popoutBody.sheet-view .sheet-head, #popoutBody.sheet-view .sheet-frame { margin: 0 -22px; }
+  #popoutBody.sheet-view .sheet-head > *, #popoutBody.sheet-view .sheet-frame > * { padding-left: 22px; padding-right: 22px; }
+  #popoutBody.sheet-view:has(> .sheet-frame), #popoutBody.sheet-view:has(> .sheet-head:first-child) { padding-top: 0; }
+  #popoutBody.sheet-view > :is(.sheet-head, .sheet-frame):first-child > :first-child { padding-top: 14px; }   /* only the opaque panels: a leading dashboard section has its own margin */
+  #popoutBody.sheet-view:has(> .sheet-frame) > .sheet-section:first-child { margin-top: 14px; }
   /* Stage 5c: the pinned band — chosen placements as live controls (tiles, a resource's −/+ and bar, toggles, roll buttons) */
   .sheet-band { padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: stretch; }
   .sheet-band .sheet-field { flex: 0 1 auto; min-width: 64px; background: rgba(0,0,0,0.15); border: 1px solid var(--edge); border-radius: 8px; padding: 4px 8px; gap: 2px; align-items: center; text-align: center; }
@@ -1892,7 +1897,7 @@
   .sheet-band .sheet-kind-roll { padding: 0; border: none; background: none; min-width: 0; justify-content: center; }
   .sheet-band .sheet-roll { width: auto; height: 28px; padding: 0 10px; }
   /* Stage 5d: the header block — identity rows (a small uppercase label over a read-only value box, in columns) and ledger figures (a small
-     label over a bold value), read-only, the first blocks of the frame above the band */
+     label over a bold value), read-only, in .sheet-head at the top of the body */
   .sheet-identity, .sheet-ledger { padding: 8px 10px; }
   .sheet-identity { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px 10px; }
   .sheet-identity-item, .sheet-ledger-fig { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -1902,7 +1907,7 @@
   .sheet-ledger-fig .sheet-hdr-val { border-style: solid; background: rgba(0,0,0,0.28); font-weight: 700; font-size: 14px; padding: 5px 12px; font-variant-numeric: tabular-nums; }
   .sheet-hdr-neg { color: var(--red); }
   .sheet-hdr-chip { border-style: solid; color: var(--green); font-weight: 700; }
-  /* a dashboard section (above the tabs on every tab) reads as part of the frame: a rule under it before the strip */
+  /* a dashboard section (above the tabs on every tab): a rule under it before the frame */
   .sheet-section.sheet-dash { padding-bottom: 6px; border-bottom: 1px solid var(--edge); }
   /* Stage 5e: a gradient slider — a number with a min and a max shown as a range on a two-colour track (the field's own colours, else
      accent → gold) with end labels; the number box stays beside it. The input's own box is the track (appearance none), the thumb a disc. */

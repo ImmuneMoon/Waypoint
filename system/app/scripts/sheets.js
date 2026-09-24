@@ -163,6 +163,7 @@ function renderSheet() {
     var all = resolveAll(sys, c, F());
     buildSections(body, sys, c, all, gm, own, renderSheet);
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
+    syncFramePad(body);   // the width may have changed the sticky frame's height
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
     applySheetLookTo(body, sheetLook(camp, sys));
     restoreFocus(body, fk);
@@ -199,10 +200,25 @@ function renderSheetInto(container, charId, camp) {
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
+    syncFramePad(container);
     applySheetLookTo(container, sheetLook(camp, sys));
     return { title: c.name || 'Character' };
 }
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
+// Where the sticky frame (band + tab strip) sits in the body's flow, in the body's scroll coordinates: the scrollTop at which it
+// just starts to stick. Infinity when there is no frame (so nothing counts as stuck).
+// The stuck frame covers the top of the scrollport: reserve its height for the browser's scroll-into-view, so a control reached by
+// keyboard is scrolled clear of it instead of staying hidden underneath. Re-run when the panel's width changes the frame's height.
+function syncFramePad(body) {
+    var fr = body.querySelector(':scope > .sheet-frame');
+    if (fr) body.style.scrollPaddingTop = fr.offsetHeight + 'px'; else if (body.style.scrollPaddingTop) body.style.scrollPaddingTop = '';
+}
+function frameFlowTop(body) {
+    var fr = body.querySelector(':scope > .sheet-frame'); if (!fr) return Infinity;
+    var prev = fr.previousElementSibling; if (!prev) return 0;
+    var gap = parseFloat(getComputedStyle(body).rowGap) || 0;
+    return Math.max(0, Math.round(prev.getBoundingClientRect().bottom - body.getBoundingClientRect().top + body.scrollTop + gap));
+}
 // Stage 5d: the header block — identity rows (a small label over a read-only value, in columns) and ledger figures (a small label
 // over a bold value), read from sys.sheet like the band and formatted by systemcore.headerEntry so a value reads exactly as the
 // sheet prints it below. Read-only: editing stays in the sections. On a partial character (another player's copy) only hover
@@ -234,14 +250,17 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
-    // The sticky frame under the name (Stages 5c/5d): the header block (identity rows, ledger figures) and the pinned band are ONE
-    // unit that stays put while the sections and the tab strip scroll beneath — the owner's Foundry header. Absent all three, no
-    // frame is made and the body is exactly what it was.
+    // The top of the sheet (Stages 5c/5d, reworked after the owner's Foundry note): the header block (identity rows, ledger figures)
+    // scrolls away like any content; the pinned band and the tab strip are the sticky FRAME, so the tabs stay reachable and most of the
+    // panel is the tab's own content. Order: header block, dashboard sections, frame (band + strip), the tab's sections. Absent config
+    // makes no element, and the body is exactly what it was.
+    var head = el('div', 'sheet-head');
+    headerBlocks(head, sys, c, all);   // Stage 5d: identity rows + ledger figures, read-only, first under the name
+    if (head.childNodes.length) body.appendChild(head);
     var frame = el('div', 'sheet-frame');
-    // Stage 5c: the pinned band — under the name, above the tab strip, on every tab (and on a stacked sheet). Read from sys.sheet
-    // itself (the automatic layout carries no band) and built by the same node factories as a section, so a field's permissions,
-    // its −/+ and its roll behave exactly as they do below; the band's inputs carry data-band so focus restore tells the copies apart.
-    headerBlocks(frame, sys, c, all);   // Stage 5d: identity rows + ledger figures, read-only, first under the name (above the band)
+    // Stage 5c: the pinned band — on every tab (and on a stacked sheet). Read from sys.sheet itself (the automatic layout carries no
+    // band) and built by the same node factories as a section, so a field's permissions, its −/+ and its roll behave exactly as they
+    // do below; the band's inputs carry data-band so focus restore tells the copies apart.
     var bandDef = (sys.sheet && Array.isArray(sys.sheet.band)) ? sys.sheet.band : null;
     if (bandDef && bandDef.length) {
         var bandEl = el('div', 'sheet-band');
@@ -254,14 +273,22 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         });
         if (bandEl.childNodes.length) frame.appendChild(bandEl);
     }
-    if (frame.childNodes.length) body.appendChild(frame);
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
     var active = '', stripEl = null;   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other; the strip is appended after the dashboard sections
     if (tabs) {
         active = body.dataset.wpTab || '';
         if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
         var strip = el('div', 'sheet-tabs');
-        tabs.forEach(function(t) { var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : ''), t.label || 'Tab'); tb.addEventListener('click', function() { if (body.dataset.wpTab !== t.id) { body.dataset.wpTab = t.id; (rerender || renderSheet)(); } }); strip.appendChild(tb); });
+        tabs.forEach(function(t) {
+            var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : ''), t.label || 'Tab');
+            tb.addEventListener('click', function() {
+                if (body.dataset.wpTab === t.id) return;
+                var wasStuck = body.scrollTop > frameFlowTop(body);   // the frame was stuck at the top: the new tab should start at its own top, under the strip
+                body.dataset.wpTab = t.id; (rerender || renderSheet)();
+                if (wasStuck) body.scrollTop = frameFlowTop(body);
+            });
+            strip.appendChild(tb);
+        });
         stripEl = strip;
     }
     var secN = 0, tabN = 0;
@@ -271,7 +298,8 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     var children = {}; layout.forEach(function(sec) { var p = childParent(sec); if (p) (children[p] = children[p] || []).push(sec); });
     // Stage 5d: dashboard sections — flagged "above the tabs" — render before the strip, so they stay on every tab (and come first on a stacked sheet)
     layout.forEach(function(sec) { if (!sec.pinned || childParent(sec)) return; var de = renderOneSection(sec, false); if (de) { de.classList.add('sheet-dash'); body.appendChild(de); secN++; } });
-    if (stripEl) body.appendChild(stripEl);
+    if (stripEl) frame.appendChild(stripEl);
+    if (frame.childNodes.length) body.appendChild(frame);   // the band and the strip: the sticky frame, after the dashboard sections
     function renderOneSection(sec, isChild) {
         var collap = !!sec.collapsible;
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
@@ -318,6 +346,7 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         var secEl = renderOneSection(sec, false);
         if (secEl) { body.appendChild(secEl); secN++; tabN++; }
     });
+    syncFramePad(body);
     if (tabs ? !tabN : !secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
 }
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
@@ -432,7 +461,7 @@ function renderLayout() {
         root.appendChild(box);
     }
     pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows (optional)', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
-        hintFull: 'Read-only, under the name, in columns: a small label over each value; they stay put with the band while the sheet scrolls. Editing stays in the sections; players see the same rows.',
+        hintFull: 'Read-only, under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Editing stays in the sections; players see the same rows.',
         hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
         addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number, formula, skill, resource or toggle to show read-only under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
     pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures (optional)', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
@@ -440,7 +469,7 @@ function renderLayout() {
         hintEmpty: 'No ledger \u2014 pick a few numbers (points spent, remaining, a total) and they read as bold figures under the name.',
         addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a read-only figure', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
     pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band (optional)', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band,
-        hintFull: 'Shown under the name on every tab, above the tab strip, and it stays put while the sheet scrolls. A field can be here and in a section too.',
+        hintFull: 'Shown on every tab, just above the tab strip, and it stays at the top with the strip while the sheet scrolls. A field can be here and in a section too.',
         hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
         addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
     if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));

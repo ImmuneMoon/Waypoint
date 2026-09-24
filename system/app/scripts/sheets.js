@@ -164,10 +164,7 @@ function renderSheet() {
     buildSections(body, sys, c, all, gm, own, renderSheet);
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
-    var _shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
-    body.style.fontFamily = ''; body.style.color = ''; body.style.backgroundColor = '';
-    if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
-    applySheetBg(body, _shStyle);
+    applySheetLookTo(body, sheetLook(camp, sys));
     restoreFocus(body, fk);
 }
 // The campaign default's background picture + readability scrim on a sheet body (same rendering as a page:
@@ -177,6 +174,14 @@ function applySheetBg(node, style) {
     var DR = window.wpDocRender, v = (DR && DR.docBgImage && style) ? DR.docBgImage(style, imgSrc) : '';
     node.style.backgroundImage = v; node.style.backgroundSize = v ? 'cover' : ''; node.style.backgroundPosition = v ? 'center' : '';
     if (v) { node.dataset.bgpath = style.bgImage; node.dataset.bgdim = String(typeof style.bgDim === 'number' ? style.bgDim : 0); } else { delete node.dataset.bgpath; delete node.dataset.bgdim; }
+}
+// The look a sheet renders with (doc theming): the system's own sheet look over the campaign default, validated here on
+// every machine (a player's copy re-cleans what the host sent).
+function sheetLook(camp, sys) { var DR = window.wpDocRender; if (!DR || !DR.cleanDocStyle) return null; return DR.cleanDocStyle(DR.mergeDocStyle ? DR.mergeDocStyle(camp && camp.docStyle, sys && sys.sheetStyle) : (camp && camp.docStyle)); }
+function applySheetLookTo(node, style) {
+    node.style.fontFamily = ''; node.style.color = ''; node.style.backgroundColor = '';   // reset first so turning a look off restores the app style
+    if (style) { var DF = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {}; if (style.font && DF[style.font]) node.style.fontFamily = DF[style.font]; if (style.textColor) node.style.color = style.textColor; if (style.bgColor) node.style.backgroundColor = style.bgColor; }
+    applySheetBg(node, style);
 }
 document.addEventListener('wp-asset', function(e) {
     var p = e.detail && e.detail.path, DR = window.wpDocRender; if (!p || !DR || !DR.docBgImage) return;
@@ -194,10 +199,7 @@ function renderSheetInto(container, charId, camp) {
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
-    var shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
-    container.style.fontFamily = ''; container.style.color = ''; container.style.backgroundColor = '';
-    if (shStyle) { var DF = window.wpDocRender.DOC_FONTS || {}; if (shStyle.font && DF[shStyle.font]) container.style.fontFamily = DF[shStyle.font]; if (shStyle.textColor) container.style.color = shStyle.textColor; if (shStyle.bgColor) container.style.backgroundColor = shStyle.bgColor; }
-    applySheetBg(container, shStyle);
+    applySheetLookTo(container, sheetLook(camp, sys));
     return { title: c.name || 'Character' };
 }
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
@@ -300,6 +302,33 @@ function renderLayout() {
     var addTab = el('button', 'tool ghost sys-btn', '+ Add tab'); addTab.id = 'sysAddTab';
     tabBox.appendChild(addTab);
     root.appendChild(tabBox);
+    // Sheet look (doc theming, 1.5.0): the whole sheet's own font / colors / background picture, over the campaign default.
+    // Wired directly (the layout's delegated handlers key on sections and data-act): each control edits draft.sheetStyle.
+    var lookBox = el('div', 'sys-tabmgr sys-lookbox');
+    lookBox.appendChild(el('div', 'sys-tabmgr-head', 'Sheet look (optional)'));
+    var look = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : null;
+    var lookRow = el('div', 'sys-sec-style');
+    var FONTS = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {};
+    var fontSel = select('sys-look-font', [['', 'Default font']].concat(Object.keys(FONTS).map(function(k) { return [k, k.charAt(0).toUpperCase() + k.slice(1)]; })), (look && look.font) || '', 'The sheet\'s font, over the campaign default');
+    lookRow.appendChild(fontSel);
+    var mkColor = function(key, title, fallback) { var i = el('input', 'sys-look-color'); i.type = 'color'; i.value = (look && look[key]) || fallback; i.title = title; i.dataset.key = key; return i; };
+    lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Text')); lookRow.appendChild(mkColor('textColor', 'Text color', '#e8e2d0'));
+    lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Panel')); lookRow.appendChild(mkColor('bgColor', 'Panel background color', '#181510'));
+    var pic = el('button', 'tool ghost sys-btn', (look && look.bgImage) ? 'Change picture\u2026' : 'Background picture\u2026'); pic.dataset.look = 'pic'; pic.title = 'A picture from the image library behind the sheet'; lookRow.appendChild(pic);
+    if (look && look.bgImage) { lookRow.appendChild(el('span', 'sys-sec-style-lbl', 'Dim')); var dim = el('input', 'sys-look-dim'); dim.type = 'range'; dim.min = 0; dim.max = 90; dim.step = 5; dim.value = typeof look.bgDim === 'number' ? look.bgDim : 40; dim.title = 'Dim the picture so the text stays readable'; lookRow.appendChild(dim); }
+    if (look) { var lclr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); lclr.dataset.look = 'clear'; lclr.title = 'Back to the campaign default'; lookRow.appendChild(lclr); }
+    lookBox.appendChild(lookRow);
+    lookBox.appendChild(el('div', 'sys-hint', 'Absent = the campaign default (the \uD83C\uDFA8 button on a page or planner). Players see the same look on their sheets.'));
+    root.appendChild(lookBox);
+    var setLook = function(key, val) { draft.sheetStyle = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : {}; if (val === null || val === '' || val === undefined) delete draft.sheetStyle[key]; else draft.sheetStyle[key] = val; if (!Object.keys(draft.sheetStyle).length) delete draft.sheetStyle; markDirty(); renderPreview(); };
+    fontSel.addEventListener('change', function() { setLook('font', fontSel.value); });
+    Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.addEventListener('input', function() { setLook(ci.dataset.key, ci.value); }); });
+    var dimEl = lookRow.querySelector('.sys-look-dim'); if (dimEl) dimEl.addEventListener('input', function() { setLook('bgDim', Math.max(0, Math.min(90, Math.round(+dimEl.value || 0)))); });
+    pic.addEventListener('click', function() {
+        if (!window.wpPickImage) { toast('The image library is not available here.'); return; }
+        window.wpPickImage(function(src) { if (typeof src !== 'string' || !/^[/]saves[/]images[/]/.test(src)) return; setLook('bgImage', src); if (!(draft.sheetStyle && typeof draft.sheetStyle.bgDim === 'number')) setLook('bgDim', 40); renderLayout(); });
+    });
+    var lookClr = lookRow.querySelector('[data-look="clear"]'); if (lookClr) lookClr.addEventListener('click', function() { delete draft.sheetStyle; markDirty(); renderLayout(); renderPreview(); });
     if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
@@ -351,6 +380,7 @@ function renderPreview() {
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
     buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false, renderPreview);
+    applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
 }
 function onLayoutInput(t) {
     var c = t.className || '';

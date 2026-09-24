@@ -271,7 +271,17 @@ function cleanSystem(sys, opts) {
     });
     out.combat = cleanCombat(sys.combat, resIds);
     out.sheet = cleanSheet(sys.sheet, fieldIds, rollIds);
+    var ss = cleanSheetStyle(sys.sheetStyle); if (ss) out.sheetStyle = ss;   // the sheet's own look (doc theming), players' view included
     return out;
+}
+// The sheet's own look (doc theming, 1.5.0): the fields a page's look has, kept as plain bounded values here —
+// docrender's cleanDocStyle validates them strictly at render, on every machine. Absent = the campaign default.
+function cleanSheetStyle(v) {
+    if (!isObj(v)) return undefined;
+    var out = {};
+    ['font', 'textColor', 'bgColor', 'bgImage'].forEach(function(k) { if (typeof v[k] === 'string' && v[k].length && v[k].length <= 400 && !CTRL_RE.test(v[k])) out[k] = v[k]; });
+    if (fin(v.bgDim)) out.bgDim = Math.max(0, Math.min(90, Math.round(v.bgDim)));
+    return Object.keys(out).length ? out : undefined;
 }
 function fieldById(sys, id) { for (var i = 0; i < sys.fields.length; i++) if (sys.fields[i].id === id) return sys.fields[i]; return null; }
 function keyIndex(sys) { var ix = map(); sys.fields.forEach(function(f) { ix[lower(f.key)] = f; }); return ix; }
@@ -569,6 +579,6 @@ function gmOnlyNames(sys, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };

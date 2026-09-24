@@ -3871,11 +3871,18 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('sheetViewModal').style.display = 'none';
   });
 
-  var _imgLibPick = null;   // a callback waiting for a picture (planner image block)
+  var _imgLibPick = null;   // a callback waiting for a picture (planner image block, a sheet's portrait or look)
+  var _imgLibZ = null;      // the library's own stacking order while it is lifted over the caller (the system modal sits above it)
+  function imgLibLift(on) {   // a picker opened from a modal (the sheet builder at z 100000) must land ABOVE it, below the app's confirm (100010)
+      var m = document.getElementById('imgLibModal'); if (!m) return;
+      if (on) { if (_imgLibZ === null) _imgLibZ = m.style.zIndex; m.style.zIndex = '100005'; }
+      else if (_imgLibZ !== null) { m.style.zIndex = _imgLibZ; _imgLibZ = null; }
+  }
   window.wpPickImage = async function(cb) {
       _imgLibPick = cb;
       _imgLibSel = {}; _imgLibLastPick = null; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
       var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
+      imgLibLift(true);
       document.getElementById('imgLibModal').style.display = 'flex';
       document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
       try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) { _imgLibCache = []; }
@@ -3898,7 +3905,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
 
   if (_el_imgLibClose) _el_imgLibClose.addEventListener('click', function() {
       _imgLibPick = null; _imgLibPicker = null; _imgLibStash = null; closeImgPreview();
-      document.getElementById('imgLibModal').style.display = 'none';
+      document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false);
   });
 
   var _el_imgLibSearch = document.getElementById('imgLibSearch');
@@ -4038,10 +4045,10 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           var src = pv.dataset.src; if (!src) return;
           if (_imgLibPicker) {   // bring it in; with a block waiting, hand it over as well
               var cbP = _imgLibPick; bringPictures([src]);
-              if (cbP) { _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; cbP(src); }
+              if (cbP) { _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false); cbP(src); }
               return;
           }
-          if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; cb(src); return; }
+          if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false); cb(src); return; }
           var am = getActiveMap();
           if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
           if (castBatch() > 1) { var many = []; for (var mi = 0; mi < castBatch(); mi++) many.push(src); placeImagesBlock(many); return; }

@@ -1401,6 +1401,12 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       return Object.keys(found);
   }
 
+  // A campaign file that leaves this machine carries the players' names and history, never their table keys
+  // (the secret each player proves their identity with at THIS table — a file handed to another GM must not carry it).
+  function stripTableKeys(payload) {
+      Object.values((payload && payload.campaigns) || {}).forEach(function(c) { if (c && c.players && typeof c.players === 'object') Object.keys(c.players).forEach(function(pid) { var p = c.players[pid]; if (p && typeof p === 'object') delete p.key; }); });
+      return payload;
+  }
   async function buildExport(scope) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
       var camp = getActiveCampaign();
@@ -1411,12 +1417,12 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       }
       var payload = null, base = '';
       if (scope === 'all') {
-          payload = clone(state.appState);
+          payload = stripTableKeys(clone(state.appState));
           base = 'waypoint-everything';
       } else if (scope === 'campaign') {
           // this campaign on its own: every map and planner plus its players, handouts, delivery record, cast
           var cc = {}; cc[camp.id] = clone(camp);
-          payload = { activeCampaignId: camp.id, campaigns: cc };
+          payload = stripTableKeys({ activeCampaignId: camp.id, campaigns: cc });
           base = slugName(camp.name) + '-campaign';
       } else if (scope === 'item') {
           var it = camp.items[camp.activeItemId];

@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -203,15 +203,45 @@ function renderSheetInto(container, charId, camp) {
     return { title: c.name || 'Character' };
 }
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
+// Stage 5d: the header block — identity rows (a small label over a read-only value, in columns) and ledger figures (a small label
+// over a bold value), read from sys.sheet like the band and formatted by systemcore.headerEntry so a value reads exactly as the
+// sheet prints it below. Read-only: editing stays in the sections. On a partial character (another player's copy) only hover
+// fields show, since every other value would be a default.
+function headerBlocks(body, sys, c, all) {
+    var sh = sys.sheet; if (!sh) return;
+    var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; });
+    function block(list, cls, itemCls) {
+        if (!Array.isArray(list) || !list.length) return;
+        var box = el('div', cls);
+        list.forEach(function(q) {
+            var f = q && q.id ? byId[q.id] : null; if (!f) return;
+            if (c.partial && !f.hover) return;
+            var en = headerEntry(f, all[f.id]); if (!en) return;
+            var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
+            var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
+            var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + (en.neg ? ' sheet-hdr-neg' : ''), en.chip ? 'on' : en.text);
+            v.title = en.error ? en.error : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
+            it.appendChild(v); box.appendChild(it);
+        });
+        if (box.childNodes.length) body.appendChild(box);
+    }
+    block(sh.identity, 'sheet-identity', 'sheet-identity-item');
+    block(sh.ledger, 'sheet-ledger', 'sheet-ledger-fig');
+}
 function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
+    // The sticky frame under the name (Stages 5c/5d): the header block (identity rows, ledger figures) and the pinned band are ONE
+    // unit that stays put while the sections and the tab strip scroll beneath — the owner's Foundry header. Absent all three, no
+    // frame is made and the body is exactly what it was.
+    var frame = el('div', 'sheet-frame');
     // Stage 5c: the pinned band — under the name, above the tab strip, on every tab (and on a stacked sheet). Read from sys.sheet
     // itself (the automatic layout carries no band) and built by the same node factories as a section, so a field's permissions,
     // its −/+ and its roll behave exactly as they do below; the band's inputs carry data-band so focus restore tells the copies apart.
+    headerBlocks(frame, sys, c, all);   // Stage 5d: identity rows + ledger figures, read-only, first under the name (above the band)
     var bandDef = (sys.sheet && Array.isArray(sys.sheet.band)) ? sys.sheet.band : null;
     if (bandDef && bandDef.length) {
         var bandEl = el('div', 'sheet-band');
@@ -222,22 +252,26 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
             node.querySelectorAll('[data-fid]').forEach(function(x) { x.dataset.band = '1'; });
             bandEl.appendChild(node);
         });
-        if (bandEl.childNodes.length) body.appendChild(bandEl);
+        if (bandEl.childNodes.length) frame.appendChild(bandEl);
     }
+    if (frame.childNodes.length) body.appendChild(frame);
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
-    var active = '';   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other
+    var active = '', stripEl = null;   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other; the strip is appended after the dashboard sections
     if (tabs) {
         active = body.dataset.wpTab || '';
         if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
         var strip = el('div', 'sheet-tabs');
         tabs.forEach(function(t) { var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : ''), t.label || 'Tab'); tb.addEventListener('click', function() { if (body.dataset.wpTab !== t.id) { body.dataset.wpTab = t.id; (rerender || renderSheet)(); } }); strip.appendChild(tb); });
-        body.appendChild(strip);
+        stripEl = strip;
     }
-    var secN = 0;
+    var secN = 0, tabN = 0;
     var byIdSec = {}; layout.forEach(function(x) { byIdSec[x.id] = x; });
     // one level of nesting: a section is a sub-section only when its parent exists AND is itself top-level (so a grandchild never vanishes — it falls back to top-level)
     function childParent(sec) { return (sec.parent && byIdSec[sec.parent] && !byIdSec[sec.parent].parent) ? sec.parent : null; }
     var children = {}; layout.forEach(function(sec) { var p = childParent(sec); if (p) (children[p] = children[p] || []).push(sec); });
+    // Stage 5d: dashboard sections — flagged "above the tabs" — render before the strip, so they stay on every tab (and come first on a stacked sheet)
+    layout.forEach(function(sec) { if (!sec.pinned || childParent(sec)) return; var de = renderOneSection(sec, false); if (de) { de.classList.add('sheet-dash'); body.appendChild(de); secN++; } });
+    if (stripEl) body.appendChild(stripEl);
     function renderOneSection(sec, isChild) {
         var collap = !!sec.collapsible;
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
@@ -279,17 +313,17 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         return (hasOwn || kids) ? s : null;
     }
     layout.forEach(function(sec) {
-        if (childParent(sec)) return;   // a sub-section: rendered under its parent, not here
+        if (sec.pinned || childParent(sec)) return;   // a dashboard section (already above the strip) or a sub-section (rendered under its parent)
         if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== active) return; }   // untabbed/unknown → first tab
         var secEl = renderOneSection(sec, false);
-        if (secEl) { body.appendChild(secEl); secN++; }
+        if (secEl) { body.appendChild(secEl); secN++; tabN++; }
     });
-    if (!secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
+    if (tabs ? !tabN : !secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
 }
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
 function layoutSections() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.sections)) draft.sheet.sections = []; return draft.sheet.sections; }
 function layoutTabs() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.tabs)) draft.sheet.tabs = []; return draft.sheet.tabs; }
-function layoutBand() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.band)) draft.sheet.band = []; return draft.sheet.band; }   // Stage 5c; the key is deleted again when the band empties (absent = no band)
+function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sheet[key])) ? draft.sheet[key].slice() : []; }   // a copy of one of the sheet's id lists (identity / ledger / band), [] when absent
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
@@ -345,56 +379,70 @@ function renderLayout() {
         window.wpPickImage(function(src) { if (typeof src !== 'string' || !/^[/]saves[/]images[/]/.test(src)) return; setLook('bgImage', src); if (!(draft.sheetStyle && typeof draft.sheetStyle.bgDim === 'number')) setLook('bgDim', 40); renderLayout(); });
     });
     var lookClr = lookRow.querySelector('[data-look="clear"]'); if (lookClr) lookClr.addEventListener('click', function() { delete draft.sheetStyle; markDirty(); renderLayout(); renderPreview(); });
-    // Pinned band (Stage 5c): a few placements kept under the name on every tab. Wired directly like the look box (the delegated
-    // handlers key on sections and tabs); chips reorder with buttons, the select pins what is not on the band yet.
-    var band = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band : [];
-    // what Save would drop is dropped from the draft here too (a pin whose field was deleted, or switched to a kind the band can't hold),
-    // so the chips, the hint and Clear never claim a pin the preview beside them does not show
-    var bandKeep = band.filter(function(q) { return q && (q.id ? !!(byId[q.id] && BAND_KINDS[byId[q.id].kind] === 1) : !!(q.roll && rollById[q.roll])); });
-    if (bandKeep.length !== band.length) { if (bandKeep.length) draft.sheet.band = band = bandKeep; else { delete draft.sheet.band; band = []; } }
-    var bandBox = el('div', 'sys-tabmgr sys-bandbox'); bandBox.id = 'sysBandBox';
-    bandBox.appendChild(el('div', 'sys-tabmgr-head', 'Pinned band (optional)'));
-    bandBox.appendChild(el('div', 'sys-hint', band.length ? 'Shown under the name on every tab, above the tab strip, and it stays put while the sheet scrolls. A field can be here and in a section too.' : 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.'));
-    var bandList = el('div', 'sys-band-list'), onBand = {};
-    band.forEach(function(q, bi) {
-        var text = placementLabel(q, byId, rollById); if (text === null) return;
-        onBand[q.id || q.roll] = 1;
-        var chip = el('div', 'sys-band-pl'); chip.dataset.bi = String(bi);
-        chip.appendChild(el('span', 'sys-pl-name', text));
-        chip.appendChild(btnRow([['bandleft', 'Move left on the band', '&#9664;'], ['bandright', 'Move right on the band', '&#9654;'], ['banddel', 'Take off the band (it stays wherever else it is on the sheet)', '&times;']]));
-        bandList.appendChild(chip);
-    });
-    if (bandList.childNodes.length) bandBox.appendChild(bandList);
-    var bandOpts = [['', 'Pin to the band\u2026']];
-    draft.fields.forEach(function(f) { if (BAND_KINDS[f.kind] === 1 && !onBand[f.id]) bandOpts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
-    draft.rolls.forEach(function(r) { if (!onBand[r.id]) bandOpts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
-    var bandRow = el('div', 'sys-row-main sys-band-addrow');
-    var bandAdd = select('sys-band-add', bandOpts, '', 'A number, formula, skill, resource, toggle or roll to keep in view on every tab');
-    bandRow.appendChild(bandAdd);
-    if (band.length) { var bandClr = el('button', 'tool ghost sys-btn', 'Clear'); bandClr.title = 'Take everything off the band'; bandClr.addEventListener('click', function() { delete draft.sheet.band; markDirty(); renderLayout(); }); bandRow.appendChild(bandClr); }
-    bandBox.appendChild(bandRow);
-    bandAdd.addEventListener('change', function(e) {
-        e.stopPropagation();   // the modal's delegated change handler would otherwise look for a field row here
-        var v = bandAdd.value; bandAdd.value = ''; if (!v) return;
-        var lst = layoutBand(); if (lst.length >= LIMITS.band) { toast('The band holds at most ' + LIMITS.band + ' items.'); return; }
-        var kind = v.slice(0, 1), id = v.slice(2), q = null;
-        if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id && BAND_KINDS[f.kind] === 1; })) q = { id: id }; }
-        else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) q = { roll: id }; }
-        if (q && !lst.some(function(x) { return (x.id || x.roll) === id; })) { lst.push(q); markDirty(); renderLayout(); }
-    });
-    bandBox.addEventListener('click', function(e) {
-        var bb = e.target.closest && e.target.closest('[data-act]'); if (!bb) return;
-        var chip = bb.closest('.sys-band-pl'); if (!chip) return;
-        e.stopPropagation();   // the modal's delegated click handler knows nothing of these acts
-        var lst = layoutBand(), bi = +chip.dataset.bi, q = lst[bi]; if (!q) return;
-        var act = bb.dataset.act;
-        if (act === 'bandleft' && bi > 0) { lst.splice(bi, 1); lst.splice(bi - 1, 0, q); }
-        else if (act === 'bandright' && bi < lst.length - 1) { lst.splice(bi, 1); lst.splice(bi + 1, 0, q); }
-        else if (act === 'banddel') { lst.splice(bi, 1); if (!lst.length) delete draft.sheet.band; }
-        else return;
-        markDirty(); renderLayout();
-    });
-    root.appendChild(bandBox);
+    // The header block + the pinned band (Stages 5c/5d): three lists of ids kept outside the sections — identity rows and ledger figures
+    // (read-only) and the band (live controls). One builder: chips with left/right/remove, a select of what is not on the list yet, Clear.
+    // Wired directly (the delegated handlers key on sections and tabs). What Save would drop is pruned from the draft at render (a field
+    // deleted, or switched to a kind the list can't hold) so the chips, the hint and Clear never claim what the preview does not show.
+    function pinBox(cfg) {
+        var list = (draft.sheet && Array.isArray(draft.sheet[cfg.key])) ? draft.sheet[cfg.key] : [];
+        var keep = list.filter(function(q) { return q && (q.id ? !!(byId[q.id] && cfg.kinds[byId[q.id].kind] === 1) : !!(cfg.rolls && q.roll && rollById[q.roll])); });
+        if (keep.length !== list.length) { if (keep.length) draft.sheet[cfg.key] = list = keep; else { delete draft.sheet[cfg.key]; list = []; } }
+        var box = el('div', 'sys-tabmgr sys-bandbox'); box.id = cfg.boxId;
+        box.appendChild(el('div', 'sys-tabmgr-head', cfg.title));
+        box.appendChild(el('div', 'sys-hint', list.length ? cfg.hintFull : cfg.hintEmpty));
+        var chips = el('div', 'sys-band-list'), on = {};
+        list.forEach(function(q, bi) {
+            var text = placementLabel(q, byId, rollById); if (text === null) return;
+            on[q.id || q.roll] = 1;
+            var chip = el('div', 'sys-band-pl'); chip.dataset.bi = String(bi);
+            chip.appendChild(el('span', 'sys-pl-name', text));
+            chip.appendChild(btnRow([['pinleft', 'Move left', '&#9664;'], ['pinright', 'Move right', '&#9654;'], ['pindel', cfg.delTitle, '&times;']]));
+            chips.appendChild(chip);
+        });
+        if (chips.childNodes.length) box.appendChild(chips);
+        var opts = [['', cfg.addLabel]];
+        draft.fields.forEach(function(f) { if (cfg.kinds[f.kind] === 1 && !on[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
+        if (cfg.rolls) draft.rolls.forEach(function(r) { if (!on[r.id]) opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
+        var row = el('div', 'sys-row-main sys-band-addrow');
+        var add = select('sys-band-add', opts, '', cfg.addTitle); row.appendChild(add);
+        if (list.length) { var clr = el('button', 'tool ghost sys-btn', 'Clear'); clr.title = cfg.clearTitle; clr.addEventListener('click', function() { delete draft.sheet[cfg.key]; markDirty(); renderLayout(); }); row.appendChild(clr); }
+        box.appendChild(row);
+        var lst = function() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet[cfg.key])) draft.sheet[cfg.key] = []; return draft.sheet[cfg.key]; };
+        add.addEventListener('change', function(e) {
+            e.stopPropagation();   // the modal's delegated change handler would otherwise look for a field row here
+            var v = add.value; add.value = ''; if (!v) return;
+            var l = lst(); if (l.length >= cfg.limit) { toast(cfg.capMsg); return; }
+            var kind = v.slice(0, 1), id = v.slice(2), q = null;
+            if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id && cfg.kinds[f.kind] === 1; })) q = { id: id }; }
+            else if (kind === 'r' && cfg.rolls) { if (draft.rolls.some(function(r) { return r.id === id; })) q = { roll: id }; }
+            if (q && !l.some(function(x) { return (x.id || x.roll) === id; })) { l.push(q); markDirty(); renderLayout(); }
+        });
+        box.addEventListener('click', function(e) {
+            var bb = e.target.closest && e.target.closest('[data-act]'); if (!bb) return;
+            var chip = bb.closest('.sys-band-pl'); if (!chip) return;
+            e.stopPropagation();   // the modal's delegated click handler knows nothing of these acts
+            var l = lst(), bi = +chip.dataset.bi, q = l[bi]; if (!q) return;
+            var act = bb.dataset.act;
+            if (act === 'pinleft' && bi > 0) { l.splice(bi, 1); l.splice(bi - 1, 0, q); }
+            else if (act === 'pinright' && bi < l.length - 1) { l.splice(bi, 1); l.splice(bi + 1, 0, q); }
+            else if (act === 'pindel') { l.splice(bi, 1); if (!l.length) delete draft.sheet[cfg.key]; }
+            else return;
+            markDirty(); renderLayout();
+        });
+        root.appendChild(box);
+    }
+    pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows (optional)', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
+        hintFull: 'Read-only, under the name, in columns: a small label over each value; they stay put with the band while the sheet scrolls. Editing stays in the sections; players see the same rows.',
+        hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
+        addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number, formula, skill, resource or toggle to show read-only under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
+    pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures (optional)', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
+        hintFull: 'Read-only figures under the identity rows: a small label over a bold value (a negative reads red). Editing stays in the sections.',
+        hintEmpty: 'No ledger \u2014 pick a few numbers (points spent, remaining, a total) and they read as bold figures under the name.',
+        addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a read-only figure', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
+    pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band (optional)', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band,
+        hintFull: 'Shown under the name on every tab, above the tab strip, and it stays put while the sheet scrolls. A field can be here and in a section too.',
+        hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
+        addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
     if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
@@ -403,6 +451,7 @@ function renderLayout() {
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
         top.appendChild(select('sys-sec-collap', [['', 'Fixed'], ['1', 'Collapsible']], sec.collapsible ? '1' : '', 'A collapsible section the reader can fold away'));
+        top.appendChild(select('sys-sec-pinned', [['', 'On its tab'], ['1', 'Above the tabs']], sec.pinned ? '1' : '', 'A dashboard section: stays above the tab strip on every tab (and comes first on a stacked sheet)'));
         top.appendChild(select('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
         top.appendChild(select('sys-sec-parent', [['', 'Top level']].concat(secs.filter(function(o) { return o.id !== sec.id && !o.parent; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
         top.appendChild(btnRow([['secup', 'Move this section up', '&#9650;'], ['secdown', 'Move this section down', '&#9660;'], ['secdel', 'Remove this section (its fields go back to the list)', '&times;']]));
@@ -464,6 +513,7 @@ function onLayoutChange(t) {
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     if (c.indexOf('sys-sec-tab') >= 0) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-collap') >= 0) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-pinned') >= 0) { if (t.value) sec.pinned = true; else delete sec.pinned; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-parent') >= 0) { if (t.value) sec.parent = t.value; else delete sec.parent; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
@@ -488,11 +538,13 @@ function onLayoutChange(t) {
 function onLayoutClick(b) {
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
     if (b.id === 'sysLayoutAuto') {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
-        var cl = cleanSystem(draft, { F: F(), gmView: true }), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
+        var cl = cleanSystem(draft, { F: F(), gmView: true }), keepId = sheetList('identity'), keepLed = sheetList('ledger'), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
         draft.sheet = { sections: autoLayout(cl || draft).sections }; if (keepTabs.length) draft.sheet.tabs = keepTabs; if (keepBand.length) draft.sheet.band = keepBand;
-        markDirty(); renderLayout(); toast(keepTabs.length || keepBand.length ? 'The automatic layout is now yours to change; your tabs and band are kept.' : 'The automatic layout is now yours to change.'); return true;
+        if (keepId.length) draft.sheet.identity = keepId; if (keepLed.length) draft.sheet.ledger = keepLed;   // Stage 5d: the header block is kept as well
+        var keptAny = keepTabs.length || keepBand.length || keepId.length || keepLed.length;
+        markDirty(); renderLayout(); toast(keptAny ? 'The automatic layout is now yours to change; your tabs, header block and band are kept.' : 'The automatic layout is now yours to change.'); return true;
     }
-    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length)) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs and no pinned band.', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
+    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length) && !sheetList('identity').length && !sheetList('ledger').length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs, no header block and no pinned band.', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
     if (b.id === 'sysAddTab') { var tbs0 = layoutTabs(); if (tbs0.length >= LIMITS.tabs) { toast('At most ' + LIMITS.tabs + ' tabs.'); return true; } tbs0.push({ id: uid('t_'), label: 'Tab ' + (tbs0.length + 1) }); markDirty(); renderLayout(); return true; }
     var act = b.dataset.act; if (!act) return false;
     var ltab = b.closest('.sys-tab');

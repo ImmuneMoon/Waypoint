@@ -58,7 +58,7 @@ function stanceMenuHtml(it) {
     var html = '<div class="menu-divider"></div>';
     if (eOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Elevation</span>'
         + '<button class="cm-stance align-btn stance-elev" data-d="-1" title="Down one yard">&minus;</button>'
-        + '<input class="cm-stance stance-elev-in" type="number" step="1" value="' + tokenElevation(it) + '" style="width:54px; ' + ctl + '">'
+        + '<input class="cm-stance stance-elev-in num-stepped" type="number" step="1" value="' + tokenElevation(it) + '" style="width:54px; ' + ctl + '">'
         + '<span class="cm-stance" style="color:var(--dim);">yd</span>'
         + '<button class="cm-stance align-btn stance-elev" data-d="1" title="Up one yard">+</button></div>';
     if (pOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Posture</span>'

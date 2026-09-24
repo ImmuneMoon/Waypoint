@@ -395,7 +395,11 @@ waitForInstanceLock(8000, function() {
                 height: 800,
                 title: "Waypoint",
                 autoHideMenuBar: true,
-                icon: path.join(__dirname, 'icon.ico')
+                icon: path.join(__dirname, 'icon.ico'),
+                // The renderer is a web page and nothing more: no Node, isolated context, OS sandbox. These are
+                // Electron's defaults for a window without a preload, stated here so an Electron upgrade can never
+                // quietly change them — content from another table or an imported file runs with web powers only.
+                webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false }
             });
             // External links (target=_blank, e.g. the About panel) open in the
             // user's default browser instead of a new Electron window.

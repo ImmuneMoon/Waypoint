@@ -565,6 +565,8 @@
   .token-stance .chip.post { color: #8fd6ec; }
   .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }
   .token-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--bg); pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
+  /* a player's picture token whose bytes have not arrived: a dashed disc with the initials, so the token is never an invisible box */
+  .wb-item.image > .token-initials.tok-pending { inset: 3px; border-radius: 50%; background: rgba(30, 28, 40, 0.92); border: 2px dashed var(--dim); color: var(--ink); font-size: 15px; text-shadow: none; }
   .wb-item.trigger.trigger-diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
   .wb-item.star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); background: var(--faint); }
   .wb-item.line { background: var(--edge); }

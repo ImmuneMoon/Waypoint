@@ -2942,9 +2942,11 @@ net.assetSrc = function(path) {
         assetPending[path] = true;
         try { net.conns[0].send({ type: 'asset-req', path: path }); } catch (e) {}
     }
-    // transparent 1px placeholder until the bytes arrive
-    return 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+    return ASSET_PLACEHOLDER;   // transparent 1px placeholder until the bytes arrive (whiteboard shows the character's initials over it)
 };
+var ASSET_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+net.ASSET_PLACEHOLDER = ASSET_PLACEHOLDER;
+var _assetRetries = Object.create(null);   // client: per picture, how many 'busy' answers were retried
 
 function answerAsset(conn, path, error) { try { conn.send({ type: 'asset', path: path, error: error }); } catch (e) {} }
 // The one kind of path a peer may ask for: a campaign picture or sound under /saves/images/. Checked on the
@@ -2966,7 +2968,7 @@ net._assetPathOk = assetPathOk;   // exposed for the dev console / checks
 function handleAssetRequest(msg, conn) {
     // Serve only campaign images and sounds, never arbitrary paths
     var reqPath = assetPathOk(msg.path); if (!reqPath) return;
-    if (!allow('asset', { perMs: 1, burst: 120, windowMs: 10000, table: 6000 }, conn.peer)) return;   // a map's pictures arrive in a burst; a flood does not
+    if (!allow('asset', { perMs: 0, burst: 200, windowMs: 10000, table: 8000 }, conn.peer)) { answerAsset(conn, msg.path, 'busy'); return; }   // a map's pictures arrive in ONE burst (several in the same millisecond): no spacing, a wide window; a flood beyond it is refused — and told so, so the player's copy retries instead of waiting forever
     var decPath; try { decPath = decodeURIComponent(reqPath); } catch (e) { decPath = reqPath; }
     if (isAudioPath(decPath)) {   // judged on the DECODED path: an encoded "audio" must not slip into the whole-file picture branch
         // a sound or music track: one in flight per peer, the AUDIO_CAP, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
@@ -2990,9 +2992,11 @@ function handleAssetRequest(msg, conn) {
         return;
     }
     fetch(reqPath).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
-        if (!buf || !conn.open || buf.byteLength > AUDIO_CAP) return;   // a picture past the cap is never sent whole
+        if (!conn.open) return;
+        if (!buf) { answerAsset(conn, msg.path, 'missing'); return; }
+        if (buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); return; }   // a picture past the cap is never sent whole
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) {}
-    }).catch(function() {});
+    }).catch(function() { answerAsset(conn, msg.path, 'missing'); });
 }
 
 // A sound file from the host, for sound.js: one request, answered in parts (or with an error) and reassembled here.
@@ -3032,6 +3036,13 @@ function resetAssetTransfers() {
 
 function handleAssetArrival(msg) {
     if (typeof msg.path === 'string' && assetWaiters[msg.path]) { var w = assetWaiters[msg.path]; clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error(typeof msg.error === 'string' ? msg.error.slice(0, 40) : 'failed')); return; }   // the only 'asset' answer to a sound request is a refusal (the bytes come as asset-part)
+    if (typeof msg.path === 'string' && typeof msg.error === 'string' && assetPending[msg.path]) {   // a picture the host would not send
+        delete assetPending[msg.path];
+        var tries = (_assetRetries[msg.path] = (_assetRetries[msg.path] || 0) + 1);
+        if (msg.error === 'busy' && tries <= 5) setTimeout(function() { if (!assetCache[msg.path]) net.assetSrc(msg.path); }, 800 * tries);   // the host was busy: ask again, backing off
+        else assetCache[msg.path] = ASSET_PLACEHOLDER;   // missing / too big / kept refusing: settle on the placeholder, never ask again this session
+        return;
+    }
     if (!msg.path || !msg.data || !assetPending[msg.path]) return;   // unsolicited: never cached
     try {
         var blob = new Blob([msg.data], { type: msg.mime || assetMime(msg.path) });

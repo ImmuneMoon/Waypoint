@@ -250,6 +250,13 @@ const j = v => JSON.stringify(v);
         check('Stage 5d: "Start from the automatic layout" keeps the identity rows and ledger figures too', /keepId = sheetList\('identity'\), keepLed = sheetList\('ledger'\)[\s\S]{0,900}?draft\.sheet\.identity = keepId; if \(keepLed\.length\) draft\.sheet\.ledger = keepLed;/.test(shSrc2));
     }
 
+    /* ---- the System editor's click dispatch: the Layout handler must claim only its own buttons ---- */
+    {
+        const shSrcD = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        const olc = shSrcD.slice(shSrcD.indexOf('function onLayoutClick(b)'), shSrcD.indexOf('function wireLayoutDrag'));
+        check('editor: onLayoutClick claims a tab-manager button only from its own row (.sys-row.sys-tab), never from the pane (every pane is a .sys-tab), so Fields/Rolls/Items/Characters buttons reach their handlers', olc.length > 100 && /b\.closest\('\.sys-row\.sys-tab'\)/.test(olc) && !/b\.closest\('\.sys-tab'\)/.test(olc));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const S2 = await import(url('systemcore.js') + '?x');

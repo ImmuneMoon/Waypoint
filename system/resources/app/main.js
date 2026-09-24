@@ -303,14 +303,21 @@ const server = http.createServer((req, res) => {
     // Serve static files (decode %20 etc. so filenames with spaces resolve)
     let pathname;
     try { pathname = decodeURIComponent(url.pathname); } catch (e) { pathname = url.pathname; }
-    if (pathname.includes('..')) { res.writeHead(400); return res.end('Bad path'); }
-    let filePath;
+    if (pathname.includes('..') || pathname.includes('\0')) { res.writeHead(400); return res.end('Bad path'); }
+    let filePath, root;
     if (pathname.startsWith('/saves/')) {
-        filePath = path.join(savesDir, pathname.substring(7));
+        root = savesDir;
+        filePath = path.join(root, pathname.substring(7));
     } else {
         let p = pathname === '/' ? '/index.html' : pathname;
-        filePath = path.join(app.getAppPath(), '..', '..', 'app', p);
+        root = path.join(app.getAppPath(), '..', '..', 'app');
+        filePath = path.join(root, p);
     }
+    // Defence in depth (the renderer's asset gate is the first line): whatever the URL parser made of dot segments or
+    // encodings above, the resolved file must sit INSIDE its root (saves/ or the app folder) — anything that escapes is
+    // refused, never served.
+    root = path.resolve(root); filePath = path.resolve(filePath);
+    if (filePath !== root && !filePath.startsWith(root + path.sep)) { res.writeHead(400); return res.end('Bad path'); }
     
     if (fs.existsSync(filePath)) {
         const ext = path.extname(filePath).toLowerCase();

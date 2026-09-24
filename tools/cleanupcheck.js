@@ -395,6 +395,39 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
     check('Stage B pending: with only post-clean copies nothing is recovered, the full read clears the flag', r.dialogs === 0 && Object.keys(live.campaigns).join() === 'camp_s' && !(live._cleanup && live._cleanup.pendingRecover), JSON.stringify(live._cleanup));
     delete globalThis.window; delete globalThis.document; delete globalThis.localStorage;
 
+    /* ---- the wire's asset gate, sliced out of net.js: an admitted player may only pull /saves/images/ files ---- */
+    // Before 020a8b4 the RAW string was checked, but the browser collapses %2e%2e (and .%2e, %2e.) into dot segments before a
+    // request leaves, so an asset-req for /saves/images/%2e%2e/%2e%2e/api/data fetched the GM's whole data.json. The real
+    // function is taken from the source so a rewrite back to a raw-string check fails here, not on a player's screen.
+    const netSrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
+    const gA = netSrc.indexOf('function assetPathOk(raw)'), gB = netSrc.indexOf('net._assetPathOk = assetPathOk');
+    check('net.js defines assetPathOk and exposes it as net._assetPathOk', gA > 0 && gB > gA);
+    const assetPathOk = gA > 0 && gB > gA ? new Function('location', netSrc.slice(gA, gB) + '\nreturn assetPathOk;')({ origin: 'http://localhost:3000' }) : () => 'no gate';
+    const serverSees = p => { const u = new URL(p, 'http://localhost'); try { return decodeURIComponent(u.pathname); } catch (e) { return u.pathname; } };   // main.js's static branch
+    const refused = [
+        '/saves/images/%2e%2e/%2e%2e/api/data', '/saves/images/%2E%2E/%2E%2E/api/data', '/saves/images/%2e%2e/data.json', '/saves/images/.%2e/data.json',
+        '/saves/images/%2e./data.json', '/saves/images/../data.json', '/saves/images/c1/..%2fdata.json', '/saves/images/c1/..%5cdata.json',
+        '/saves/images/%2e%2e%5cdata.json', '/saves/images/c1/%5c..%5cdata.json', '/saves/images/c1/a%00.png', '/saves/images/c1/a.png?x=1',
+        '/saves/images/c1/a.png#h', 'http://evil.example/saves/images/c1/a.png', '//evil.example/saves/images/c1/a.png',
+        'https://localhost:3000/saves/images/c1/a.png', 'file:///saves/images/c1/a.png', '/saves/imagesX/a.png', '/saves/data.json', '/api/data',
+        '', 42, null, '/saves/images/' + 'a'.repeat(400) + '.png'
+    ];
+    refused.forEach(p => check('asset gate refuses ' + String(JSON.stringify(p)).slice(0, 60), assetPathOk(p) === '', JSON.stringify(assetPathOk(p))));
+    const served = [   // raw stored path -> the pathname the host fetches -> the on-disk name main.js resolves it to (null = not asserted)
+        ['/saves/images/c1/plain.png', '/saves/images/c1/plain.png', '/saves/images/c1/plain.png'],
+        ['saves/images/c1/plain.png', '/saves/images/c1/plain.png', '/saves/images/c1/plain.png'],   // assetSrc tolerates a missing leading slash
+        ["/saves/images/c1/Ror'Chiir — token (v2).png", "/saves/images/c1/Ror'Chiir%20%E2%80%94%20token%20(v2).png", "/saves/images/c1/Ror'Chiir — token (v2).png"],
+        ['/saves/images/audio/c1/日本語 ♪.mp3', '/saves/images/audio/c1/%E6%97%A5%E6%9C%AC%E8%AA%9E%20%E2%99%AA.mp3', '/saves/images/audio/c1/日本語 ♪.mp3'],
+        ['/saves/images/c1/a[1] b|c^d "q".png', '/saves/images/c1/a[1]%20b|c%5Ed%20%22q%22.png', '/saves/images/c1/a[1] b|c^d "q".png'],
+        ['/saves/images/c1/pic%20already.png', '/saves/images/c1/pic%20already.png', null],   // pre-encoded: kept as is, never doubled to %2520
+        ['/saves/images/audio/c1/100% rock.mp3', '/saves/images/audio/c1/100%25%20rock.mp3', '/saves/images/audio/c1/100% rock.mp3']   // a lone % re-encoded, as encodeURI did for the host's own playback
+    ];
+    served.forEach(([raw, want, disk]) => {
+        const got = assetPathOk(raw);
+        check('asset gate serves ' + raw + ' as ' + want, got === want, got);
+        if (disk) check('  ...and the server resolves that to the stored file ' + disk, serverSees(got) === disk, serverSees(got));
+    });
+
     // the owner's real save, read-only, counts only
     const real = path.join(__dirname, '..', 'saves', 'data.json');
     if (fs.existsSync(real)) {

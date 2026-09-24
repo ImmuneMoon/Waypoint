@@ -2857,7 +2857,10 @@ function assetPathOk(raw) {
     if (typeof raw !== 'string' || !raw || raw.length > 400) return '';
     var u; try { u = new URL(raw, location.origin); } catch (e) { return ''; }
     if (u.origin !== location.origin || u.search || u.hash) return '';
-    var p = u.pathname, dec; try { dec = decodeURIComponent(p); } catch (e) { dec = p; }   // a lone '%' in a file name is legal; the parser has already collapsed any dot segments
+    // The parser has already collapsed any dot segments and encoded spaces/unicode (a pre-encoded %20 is kept, never doubled).
+    // A lone '%' in a file name is legal on disk, but the server decodes what it is sent — so it becomes %25 here, as
+    // encodeURI does for the host's own playback (sound.js/music.js); the audio branch used encodeURI before 020a8b4.
+    var p = u.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, '%25'), dec; try { dec = decodeURIComponent(p); } catch (e) { dec = p; }   // a bad UTF-8 sequence still checks as sent
     if (p.indexOf('/saves/images/') !== 0 || dec.indexOf('/saves/images/') !== 0 || dec.indexOf('..') !== -1 || dec.indexOf('\\') !== -1 || dec.indexOf('\0') !== -1) return '';
     return p;
 }

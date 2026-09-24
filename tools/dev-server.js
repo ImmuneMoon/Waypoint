@@ -209,14 +209,19 @@ const server = http.createServer((req, res) => {
 
     let pathname;
     try { pathname = decodeURIComponent(url.pathname); } catch (e) { pathname = url.pathname; }
-    if (pathname.includes('..')) { res.writeHead(400); return res.end('Bad path'); }
-    let filePath;
+    if (pathname.includes('..') || pathname.includes('\0')) { res.writeHead(400); return res.end('Bad path'); }
+    let filePath, root;
     if (pathname.startsWith('/saves/')) {
-        filePath = path.join(savesDir, pathname.substring(7));
+        root = savesDir;
+        filePath = path.join(root, pathname.substring(7));
     } else {
         let p = pathname === '/' ? '/index.html' : pathname;
-        filePath = path.join(appDir, p);
+        root = appDir;
+        filePath = path.join(root, p);
     }
+    // mirrors main.js: the resolved file must sit inside its root (saves/ or the app folder), whatever the parser made of the path
+    root = path.resolve(root); filePath = path.resolve(filePath);
+    if (filePath !== root && !filePath.startsWith(root + path.sep)) { res.writeHead(400); return res.end('Bad path'); }
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         const ext = path.extname(filePath).toLowerCase();
         const mimes = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };

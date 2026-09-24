@@ -116,9 +116,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
+  var _confirmQueue = [];
+
   function showConfirm(title, callback) {
 
       var p = document.getElementById('customConfirm');
+
+      if (p.style.display === 'flex') { _confirmQueue.push([title, callback]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
 
@@ -141,6 +145,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           cancelBtn.onclick = null;
 
           document.removeEventListener('keydown', handleKey);
+
+          var nx = _confirmQueue.shift(); if (nx) setTimeout(function() { showConfirm(nx[0], nx[1]); }, 0);
 
       }
 

@@ -64,3 +64,6 @@ jobs:
       - name: cleanupcheck — save cleanup classifier
         if: ${{ !cancelled() }}
         run: node tools/cleanupcheck.js
+      - name: netcheck — host-side wire gates (admission, identity, chat)
+        if: ${{ !cancelled() }}
+        run: node tools/netcheck.js

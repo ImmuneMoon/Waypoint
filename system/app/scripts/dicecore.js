@@ -29,7 +29,7 @@ var PEER_RE = /^[A-Za-z0-9_-]{1,80}$/;
 var NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;   // a sheet key, dotted (Skill.Stealth, HP.max)
 var CHAR_RE = /^c_[A-Za-z0-9_]{1,24}$/;
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
-var REASONS = { off: 1, slow: 1, many: 1, names: 1, error: 1, table: 1, char: 1 };
+var REASONS = { off: 1, slow: 1, many: 1, names: 1, error: 1, table: 1, char: 1, paused: 1 };
 
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
 function isInt(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
@@ -175,6 +175,7 @@ function checkTableRoll(res) {
 var DENY_TEXT = {
     off: 'Dice are off for this campaign (Settings > VTT features).',
     slow: 'Slow down: a few rolls a second is plenty.',
+    paused: 'The table is paused — no rolls until the GM resumes.',
     many: 'At most ' + LIMITS.dice + ' dice in a table roll.',
     names: 'Pick a character in the roller for names like STR (its sheet gives the values).',
     char: 'Pick one of your own characters for that roll.',

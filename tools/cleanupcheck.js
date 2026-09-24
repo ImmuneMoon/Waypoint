@@ -422,9 +422,14 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
         ['/saves/images/c1/pic%20already.png', '/saves/images/c1/pic%20already.png', null],   // pre-encoded: kept as is, never doubled to %2520
         ['/saves/images/audio/c1/100% rock.mp3', '/saves/images/audio/c1/100%25%20rock.mp3', '/saves/images/audio/c1/100% rock.mp3']   // a lone % re-encoded, as encodeURI did for the host's own playback
     ];
+    // The gate hands back what the runtime's URL parser makes of the path, and parsers differ on two bytes: Node 22 leaves
+    // ^ and | raw, Node 24 encodes ^ (%5E) and leaves |, Chromium 152 encodes both (%5E, %7C) — the first live CI run (Node
+    // 22) failed on exactly that. Every form reaches the same stored file (the disk assertion below proves it), so the
+    // spellings of ^ and | count as the same answer here; everything else (spaces, quotes, a lone %, pre-encoded) stays strict.
+    const sameSpelling = s => String(s).replace(/%5E/g, '^').replace(/%7C/g, '|');
     served.forEach(([raw, want, disk]) => {
         const got = assetPathOk(raw);
-        check('asset gate serves ' + raw + ' as ' + want, got === want, got);
+        check('asset gate serves ' + raw + ' as ' + want, sameSpelling(got) === sameSpelling(want), got);
         if (disk) check('  ...and the server resolves that to the stored file ' + disk, serverSees(got) === disk, serverSees(got));
     });
 

@@ -1,0 +1,66 @@
+name: Checks
+
+# Runs the offline test suites in tools/*check.js on every push to any branch and on pull requests.
+# Nothing to install: the checks use only Node's built-in fs/path and import the app's ES modules
+# straight from system/app. cleanupcheck's last case reads saves/data.json READ-ONLY and skips when
+# it is absent — saves/ is git-ignored, so it never exists on a runner.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Test suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # One step per suite so a failure names the suite in the Actions UI. Every step still runs
+      # after an earlier failure (!cancelled()); the job fails if any step did.
+      - name: parsecheck — every module loads
+        run: node tools/parsecheck.js
+      - name: tutorialcheck — tour targets exist
+        if: ${{ !cancelled() }}
+        run: node tools/tutorialcheck.js
+      - name: doccheck — handbook renderer, sanitizer, Markdown
+        if: ${{ !cancelled() }}
+        run: node tools/doccheck.js
+      - name: formulacheck — formula engine
+        if: ${{ !cancelled() }}
+        run: node tools/formulacheck.js
+      - name: systemcheck — character system + sheet model
+        if: ${{ !cancelled() }}
+        run: node tools/systemcheck.js
+      - name: dicecheck — dice engine
+        if: ${{ !cancelled() }}
+        run: node tools/dicecheck.js
+      - name: itemcheck — item library
+        if: ${{ !cancelled() }}
+        run: node tools/itemcheck.js
+      - name: vttcheck — VTT feature toggles
+        if: ${{ !cancelled() }}
+        run: node tools/vttcheck.js
+      - name: fogcheck — fog of war
+        if: ${{ !cancelled() }}
+        run: node tools/fogcheck.js
+      - name: soundcheck — sound library
+        if: ${{ !cancelled() }}
+        run: node tools/soundcheck.js
+      - name: fxcheck — visual effects
+        if: ${{ !cancelled() }}
+        run: node tools/fxcheck.js
+      - name: musiccheck — music playlists
+        if: ${{ !cancelled() }}
+        run: node tools/musiccheck.js
+      - name: cleanupcheck — save cleanup classifier
+        if: ${{ !cancelled() }}
+        run: node tools/cleanupcheck.js

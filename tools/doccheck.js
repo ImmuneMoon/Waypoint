@@ -38,7 +38,7 @@ function inert(html) {
     try { D = await import(url); } catch (e) { loadErr = e; }
     check('module loads in Node with no window (the guard)', !!D && !loadErr, loadErr && loadErr.message);
     if (!D) { console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, LIMITS, DOC_BLOCKS, cleanDocStyle, docStyleCss, DOC_FONTS } = D;
+    const { sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, LIMITS, DOC_BLOCKS, cleanDocStyle, docStyleCss, mergeDocStyle, docBgImage, DOC_FONTS } = D;
 
     /* ---- sanitizeHtml corpus ---- */
     const S = [
@@ -211,11 +211,21 @@ function inert(html) {
         check('DOC_BLOCKS roster', DOC_BLOCKS.join(',') === 'h1,h2,h3,text,lede,oneline,callout,flare,image,table,rule,diagram,flowchart');
         /* ---- document appearance (cleanDocStyle / docStyleCss): a curated, injection-proof styling layer ---- */
         check('cleanDocStyle: keeps a known font, hex colours, a clean image ref', JSON.stringify(cleanDocStyle({ font: 'serif', textColor: '#ABC', bgColor: '#11223344', bgImage: 'saves/p/a.png' })) === '{"font":"serif","textColor":"#ABC","bgColor":"#11223344","bgImage":"saves/p/a.png"}');
-        check('cleanDocStyle: drops an unknown font, a non-hex colour, a quoted/parenthesised image ref', cleanDocStyle({ font: 'evil;}', textColor: 'red;}x{', bgColor: 'rgb(1,2,3)', bgImage: 'a");b(' }) === null);
+        check('cleanDocStyle: drops an unknown font, a non-hex colour, an image ref with an angle bracket', cleanDocStyle({ font: 'evil;}', textColor: 'red;}x{', bgColor: 'rgb(1,2,3)', bgImage: 'a<b' }) === null);
+        check('cleanDocStyle: image ref refuses a backslash, a control char and a ".." segment; keeps a real library name (spaces, apostrophe, parentheses, em dash)', cleanDocStyle({ bgImage: 'a\\b' }) === null && cleanDocStyle({ bgImage: 'a\u0001b' }) === null && cleanDocStyle({ bgImage: '/saves/images/../x.png' }) === null && cleanDocStyle({ bgImage: "/saves/images/m/Ror'Chiir — token (v2).png" }).bgImage === "/saves/images/m/Ror'Chiir — token (v2).png");
+        check('cleanDocStyle: image ref refuses a scheme (https:, data:, javascript:), a protocol-relative //host and a percent-spelled dot segment', cleanDocStyle({ bgImage: 'https://evil.example/t.png' }) === null && cleanDocStyle({ bgImage: 'data:image/png;base64,AAAA' }) === null && cleanDocStyle({ bgImage: 'javascript:alert(1)' }) === null && cleanDocStyle({ bgImage: '//evil.example/t.png' }) === null && cleanDocStyle({ bgImage: '/saves/images/%2e%2e/data.json' }) === null && cleanDocStyle({ bgImage: '/saves/images/m/x.png' }).bgImage === '/saves/images/m/x.png');
+        check('docBgImage: a served path is percent-encoded so spaces/quotes/parentheses never break url()', docBgImage({ bgImage: "/saves/images/m/a b (x)'y.jpg" }) === "url('/saves/images/m/a%20b%20%28x%29%27y.jpg')");
+        check('docBgImage: a data: URL (a player\'s cached picture) passes through untouched; scrim goes first', docBgImage({ bgImage: 'x', bgDim: 40 }, () => 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==') === "linear-gradient(rgba(0,0,0,0.4),rgba(0,0,0,0.4)),url('data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==')");
+        check('docBgImage: a resolver that hands back something un-encodable or quote-bearing yields nothing', docBgImage({ bgImage: 'x' }, () => 'data:image/png;base64,a\'b') === '' && docBgImage({ bgImage: 'x' }, () => 42) === '');
         check('cleanDocStyle: empty / non-object / all-invalid -> null', cleanDocStyle(null) === null && cleanDocStyle({}) === null && cleanDocStyle({ font: 'nope' }) === null);
         check('cleanDocStyle: every DOC_FONTS key is accepted', Object.keys(DOC_FONTS).every(k => cleanDocStyle({ font: k })) && !DOC_FONTS.hasOwnProperty('nope'));
         check('docStyleCss: single quotes only (safe inside a style="" attribute)', (() => { const css = docStyleCss({ font: 'serif', textColor: '#abc', bgImage: 'p/a.png' }); return css.indexOf('"') < 0 && css.indexOf('font-family:') === 0 && css.indexOf("url('p/a.png')") > 0; })());
-        check('docStyleCss: drops a background whose resolver returns an unsafe URL', docStyleCss({ bgImage: 'ok' }, () => 'has")bad').indexOf('background-image') < 0);
+        check('docStyleCss: a resolver URL with a quote and a parenthesis is percent-encoded, never emitted raw', (() => { const css = docStyleCss({ bgImage: 'ok' }, () => 'has")bad'); return css.indexOf("url('has%22%29bad')") > 0 && css.indexOf('"') < 0; })());
+        check('cleanDocStyle: bgDim clamps to 0..90 and rounds, keeping 0', cleanDocStyle({ bgDim: 200 }).bgDim === 90 && cleanDocStyle({ bgDim: -5 }).bgDim === 0 && cleanDocStyle({ bgDim: 40.6 }).bgDim === 41 && cleanDocStyle({ bgDim: 0 }).bgDim === 0);
+        check('cleanDocStyle: a non-number / non-finite bgDim is dropped', !('bgDim' in (cleanDocStyle({ font: 'serif', bgDim: '40' }) || {})) && !('bgDim' in (cleanDocStyle({ font: 'serif', bgDim: Infinity }) || {})));
+        check('docStyleCss: bgDim>0 lays a dark scrim gradient before the image url', (() => { const css = docStyleCss({ bgImage: 'p/a.png', bgDim: 40 }); return css.indexOf("linear-gradient(rgba(0,0,0,0.4),rgba(0,0,0,0.4)),url('p/a.png')") > 0; })());
+        check('docStyleCss: bgDim 0 renders the image with no scrim', docStyleCss({ bgImage: 'p/a.png', bgDim: 0 }).indexOf('linear-gradient') < 0);
+        check('mergeDocStyle: a page bgDim of 0 overrides an inherited scrim', mergeDocStyle({ bgImage: 'p/a.png', bgDim: 40 }, { bgDim: 0 }).bgDim === 0);
         check('cleanDoc: a valid meta.style survives; a hostile one is dropped', (() => { const a = cleanDoc({ type: 'doc', id: 'd', meta: { title: 'T', style: { font: 'mono', textColor: '#fff' } }, blocks: [] }); const b = cleanDoc({ type: 'doc', id: 'd', meta: { title: 'T', style: { font: 'x;}', textColor: 'red' } }, blocks: [] }); return a.meta.style && a.meta.style.font === 'mono' && !b.meta.style; })());
     }
 

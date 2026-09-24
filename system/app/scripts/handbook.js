@@ -25,9 +25,12 @@ function shown(id) { var el = ui(id); return !!(el && getComputedStyle(el).displ
 var ABOVE = ['vttNoticeModal', 'handoutModal', 'customConfirm', 'customPrompt', 'netModal', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupRecoverModal', 'tourOverlay', 'cmdkModal', 'settingsModal', 'helpModal', 'journalModal', 'installerStepsModal', 'whatsNewModal', 'systemModal'];
 function somethingAbove() { return ABOVE.some(shown); }
 
-// A cheap signature of what the reader shows, so a delta that touched another page is ignored
+// A cheap signature of what the reader shows, so a delta that touched another page is ignored. Includes
+// the page's own look and the campaign default: a style-only edit (a Dim change, a picked background)
+// arrives as a meta delta and must re-render too.
 function sigOf(it) {
-    var s = ((it.meta && it.meta.title) || '') + '\u0000' + JSON.stringify(it.blocks || []);
+    var _c = getActiveCampaign();
+    var s = ((it.meta && it.meta.title) || '') + '\u0000' + JSON.stringify(it.blocks || []) + '\u0000' + JSON.stringify((it.meta && it.meta.style) || null) + '\u0000' + JSON.stringify((_c && _c.docStyle) || null);
     var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
     return s.length + ':' + h;
 }
@@ -119,6 +122,9 @@ document.addEventListener('wp-asset', function(e) {
     var p = e.detail && e.detail.path; if (!p || !isOpen()) return;
     var body = ui('docReaderBody'); if (!body) return;
     Array.from(body.querySelectorAll('img[data-path]')).forEach(function(img) { if (img.dataset.path === p) img.src = srcOf(p); });
+    // the page's background picture (docrender tags the wrap): swap it in too, keeping the readability scrim, no re-render
+    var wrap = body.querySelector('.wrap[data-bgpath]'), DR = window.wpDocRender;
+    if (wrap && wrap.dataset.bgpath === p && DR && DR.docBgImage) wrap.style.backgroundImage = DR.docBgImage({ bgImage: p, bgDim: parseFloat(wrap.dataset.bgdim) || 0 }, srcOf);
 });
 
 window.wpOpenDoc = openDoc;

@@ -701,7 +701,15 @@ function show(i, dir) {
     document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // each step re-opens a toolbar flyout only if it needs it
     try { if (step.before) step.before(); } catch (e) { console.warn('[tutorial] step setup failed', e); }
     var sec = sectionAt(i), sp = sec.spans, secLabel = sp[sec.idx] ? sp[sec.idx].label : '';
-    var html = '<div class="tour-step"><button class="tour-secbtn" id="tourSecBtn" title="Jump to a section">' + esc(secLabel) + ' · ' + (sec.idx + 1) + '/' + sp.length + ' ▾</button><span class="tour-stepn">step ' + (i + 1) + ' of ' + STEPS.length + '</span></div>';
+    // Progress reads by PART, never as "step 1 of 32": the position inside the current part on the right, and a slim
+    // bar under the header with one segment per part (weighted by its length) — parts done are filled, the current
+    // one fills as you go. The part jump on the left already carries the 1/7.
+    var secStart = sp[sec.idx] ? sp[sec.idx].start : 0, secEnd = sp[sec.idx + 1] ? sp[sec.idx + 1].start : STEPS.length, inSec = i - secStart + 1, secLen = Math.max(1, secEnd - secStart);
+    var html = '<div class="tour-step"><button class="tour-secbtn" id="tourSecBtn" title="Jump to a section">' + esc(secLabel) + ' · ' + (sec.idx + 1) + '/' + sp.length + ' ▾</button><span class="tour-stepn">' + inSec + ' of ' + secLen + ' in this part</span></div>';
+    html += '<div class="tour-bar" aria-hidden="true">' + sp.map(function(s, k) {
+        var len = Math.max(1, (sp[k + 1] ? sp[k + 1].start : STEPS.length) - s.start), pct = k < sec.idx ? 100 : k > sec.idx ? 0 : Math.round(100 * inSec / secLen);
+        return '<span class="tour-seg' + (k < sec.idx ? ' done' : k === sec.idx ? ' on' : '') + '" style="flex:' + len + '" title="' + esc(s.label) + '"><i style="width:' + pct + '%"></i></span>';
+    }).join('') + '</div>';
     html += '<div class="tour-secmenu" id="tourSecMenu" style="display:none;">' + sp.map(function(s, k) { return '<button class="tour-secitem' + (k === sec.idx ? ' on' : '') + '" data-secstart="' + s.start + '">' + esc(s.label) + '</button>'; }).join('') + '</div>';
     html += '<h3>' + esc(step.title) + '</h3><div class="tour-body">' + step.html + '</div><div class="tour-btns">';
     if (step.finish) {

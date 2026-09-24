@@ -961,6 +961,11 @@
   #tourCard .tour-secbtn { font:inherit; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); background:none; border:none; padding:0; cursor:pointer; }
   #tourCard .tour-secbtn:hover { text-decoration:underline; }
   #tourCard .tour-stepn { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); white-space:nowrap; }
+  /* the tour's progress: one slim segment per part, weighted by its length; parts done are filled, the current one fills as you go */
+  #tourCard .tour-bar { display:flex; gap:3px; height:3px; margin:7px 0 2px; }
+  #tourCard .tour-seg { display:block; min-width:6px; background:rgba(255,255,255,0.10); border-radius:2px; overflow:hidden; }
+  #tourCard .tour-seg i { display:block; height:100%; background:var(--gold); opacity:.55; width:0; border-radius:2px; transition:width .25s ease; }
+  #tourCard .tour-seg.on i { opacity:1; }
   #tourCard .tour-secmenu { display:flex; flex-direction:column; gap:2px; margin:8px 0 2px; padding:6px; background:var(--panel2); border:1px solid var(--edge); border-radius:7px; max-height:210px; overflow:auto; }
   #tourCard .tour-secitem { text-align:left; background:none; border:none; color:var(--ink); font:inherit; font-size:12px; padding:6px 8px; border-radius:5px; cursor:pointer; }
   #tourCard .tour-secitem:hover { background:rgba(255,255,255,0.06); }

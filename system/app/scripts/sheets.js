@@ -680,7 +680,7 @@ function ownerFromToken(w) {
     afterCharChange(c, true);
 }
 function charGone(id) { if (sheetOpen === id) { closeSheet(); toast('That character is no longer shared with you.'); } if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That character is gone.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : 'That value was not accepted.'); renderSheet(); }
+function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That character is gone.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {};

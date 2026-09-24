@@ -26,9 +26,10 @@ var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, 
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 }), ITEM_OP = Object.freeze({ add: 1, remove: 1, setQty: 1 });
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
+var CTRL_RE_G = new RegExp(CTRL_RE.source, 'g');   // for replace(): every control character, not just the first
 var CTRL_KEEP_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
 var PATH_RE = /^[/]saves[/]images[/][^?#]{1,300}$/;
-var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1 });
+var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1, paused: 1 });
 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
@@ -279,7 +280,7 @@ function cleanValue(field, v, opts) {
     var k = field.kind;
     if (k === 'number' || k === 'skill') { var n = Number(v); if (!fin(n)) return undefined; n = stepRound(n, field); return clampNum(n, field.min, field.max); }
     if (k === 'toggle') return v === true ? true : v === false ? false : undefined;
-    if (k === 'text') { if (typeof v !== 'string') return undefined; return v.slice(0, field.max || LIMITS.text).replace(CTRL_RE, ''); }
+    if (k === 'text') { if (typeof v !== 'string') return undefined; return v.slice(0, field.max || LIMITS.text).replace(CTRL_RE_G, ''); }
     if (k === 'notes') { if (typeof v !== 'string') return undefined; return v.slice(0, LIMITS.notes).replace(CTRL_KEEP_NL, ''); }
     if (k === 'select') return typeof v === 'string' && field.options.indexOf(v) >= 0 ? v : undefined;
     if (k === 'resource') {

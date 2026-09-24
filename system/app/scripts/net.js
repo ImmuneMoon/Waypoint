@@ -52,7 +52,7 @@ var net = {
     myId: null,
     peer: null,
     conns: [],
-    roster: {},          // peerKey -> profile
+    roster: Object.create(null),          // peerKey -> profile (prototype-free: a peer id like "constructor" must never read as admitted)
     code: null,
     applyingRemote: false,
     lastStage: null,
@@ -95,6 +95,30 @@ function setProfile(patch) {
 }
 function setProfileName(name) { return setProfile({ name: String(name == null ? '' : name) }); }
 net.getProfile = getProfile; net.setProfile = setProfile; net.setProfileName = setProfileName;   // for the Settings + welcome profile editor
+// [netcheck:helpers-start]
+// Own-property lookup for a plain-object map keyed by a peer-supplied string: a key like "constructor" or
+// "__proto__" must never read Object.prototype as a hit (an admitted-roster or ban lookup would be fooled).
+function own(o, k) { return !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined && o[k] !== null; }
+// A player identity the host accepts: short, plain, and never a prototype key.
+function validProfileId(id) { return typeof id === 'string' && id.length >= 1 && id.length <= 80 && /^[A-Za-z0-9_.:-]+$/.test(id) && !(id in Object.prototype); }
+// A table key: the secret a host issues a player the first time the GM lets them in, so a later "I am
+// <that id>" is proven rather than believed (an id alone is public — it rides the roster to every player).
+function newKey() { var a = new Uint8Array(16); try { crypto.getRandomValues(a); } catch (e) { for (var i = 0; i < 16; i++) a[i] = Math.floor(Math.random() * 256); } return Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+// (client) the keys this player holds, per GM id
+function tableKeys() { try { var k = JSON.parse(localStorage.getItem('wp_tableKeys') || 'null'); return k && typeof k === 'object' && !Array.isArray(k) ? k : {}; } catch (e) { return {}; } }
+function tableKeyFor(gmId) { var k = tableKeys(); return (own(k, gmId) && typeof k[gmId] === 'string') ? k[gmId].slice(0, 64) : ''; }
+function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); k[gmId] = key.slice(0, 64); try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }
+// [netcheck:helpers-end]
+// Client-originated changes are saved coalesced: a stroke or move storm costs one disk write, not one per message
+// (the deltas to players still go out at once; only the write + the save sweep are batched).
+var _saveSoon = null;
+function saveRemoteSoon() { if (_saveSoon) return; _saveSoon = setTimeout(function() { _saveSoon = null; net.applyingRemote = true; try { save(true); } finally { net.applyingRemote = false; } }, 250); }
+// Per-message-type rate limits for what a peer may send (dicecore.RateLimit: per-peer spacing + burst per window + a table-wide cap).
+var _lim = Object.create(null);
+function allow(name, cfg, peer) { var Lr = _lim[name]; if (!Lr) { var DCl = window.wpDiceCore; if (!DCl || !DCl.RateLimit) return true; Lr = _lim[name] = DCl.RateLimit(cfg); } return Lr.allow(peer, Date.now()) === true; }
+var _connMeta = Object.create(null);    // host: per-connection bookkeeping before admission — openedAt, hello count, the key challenge
+var _pwFails = [];                       // host: timestamps of wrong session passwords (any connection), for the table-wide lockout
+var _shareBytes = Object.create(null);   // host: bytes each peer has shared this session
 net.myId = getProfile().id;
 
 /* ---------- ui helpers ---------- */
@@ -108,6 +132,7 @@ function setStatus(msg) { var el = ui('netStatus'); if (el) el.textContent = msg
    down deliberately — a client starts its reconnect loop, a host drops the
    player. The dot is the always-visible truth about the table's health. */
 var HB_EVERY = 4000, HB_STALE = 8000, HB_DEAD = 20000;   // silence → "not responding" at 8 s, dropped at 20 s
+var UNADMITTED_TTL = 10 * 60 * 1000;   // a connection the GM has not admitted may wait this long (heartbeating) for the Allow, then it is closed
 var hbTimer = null, lastSeen = {}, hostLastSeen = 0;
 function noteSeen(peerId) { var now = Date.now(); lastSeen[peerId] = now; if (net.role === 'client') hostLastSeen = now; }
 function setIndicator(level, text) {
@@ -590,7 +615,7 @@ function applyClientItemFiltered(msg, profile) {
     var liveById = {};
     (liveItem.whiteboard || []).forEach(function(w) { liveById[w.id] = w; });
     var sentIds = {};
-    var ownStrokes = 0;
+    var ownStrokes = (liveItem.whiteboard || []).filter(function(w) { return w && w.type === 'path' && w.byPlayer && w.ownerId === profile.id; }).length;   // this player's drawings already on the map: the cap is per map, not per patch
     msg.item.whiteboard.forEach(function(w) {
         if (!w || typeof w.id !== 'string') return;
         sentIds[w.id] = true;
@@ -598,7 +623,7 @@ function applyClientItemFiltered(msg, profile) {
         if (!lw) {
             // New item: only a drawing signed with this player's id, in a sane shape
             var stroke = playerStroke(w, profile.id);
-            if (stroke && ownStrokes++ < 400) { liveItem.whiteboard.push(stroke); changed = true; }
+            if (stroke && ownStrokes++ < 600) { liveItem.whiteboard.push(stroke); changed = true; }
             return;
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
@@ -607,6 +632,9 @@ function applyClientItemFiltered(msg, profile) {
             if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; }
             return;
         }
+        var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
+        if (!isFinite(wx) || !isFinite(wy) || !isFinite(wr) || !isFinite(wf)) return;
+        w.x = Math.max(-30000, Math.min(60000, wx)); w.y = Math.max(-30000, Math.min(60000, wy)); w.rot = wr; w.front = wf;
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
@@ -707,11 +735,15 @@ function applySnapshot(msg) {
     if (net.fromWelcome) { net.fromWelcome = false; if (window.wpHideWelcome) window.wpHideWelcome(); }   // a join started from the welcome screen: its campaign is here, so leave the welcome for the table
 }
 
-function broadcast(msg, exceptConn) {
+// [netcheck:broadcast-start]
+function broadcast(msg, exceptConn) {   // on the host: admitted peers only — a connection still waiting for the GM's Allow (or one that only heartbeats) hears nothing of the table
     net.conns.forEach(function(c) {
-        if (c !== exceptConn && c.open) { try { c.send(msg); } catch (e) {} }
+        if (c === exceptConn || !c.open) return;
+        if (net.role === 'host' && !own(net.roster, c.peer)) return;
+        try { c.send(msg); } catch (e) {}
     });
 }
+// [netcheck:broadcast-end]
 
 // Skip re-sending an item that hasn't actually changed — camera saves fire
 // constantly and used to rebroadcast the whole map every time.
@@ -1490,6 +1522,10 @@ function handlePos(msg, conn) {
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client motion is dropped
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
+        if (!allow('pos', { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;   // ~60 moves a second is a drag; more is a flood
+        var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
+        if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
+        msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = prot; msg.front = pfr;
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
@@ -1501,7 +1537,7 @@ function handlePos(msg, conn) {
         if (msg.final) {
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
-            net.applyingRemote = true; save(true); net.applyingRemote = false;
+            saveRemoteSoon();
             net.tokenDropped(w, map);   // landed on a portal? the player travels
         }
     } else {
@@ -1765,6 +1801,12 @@ net.shareEntry = function(payload) {
 function relayShare(msg, conn, sender) {
     var sp = sender || (conn && net.roster[conn.peer]); if (!sp) return false;
     var en = msg.entry; if (!en || typeof en !== 'object') return;
+    if (conn) {   // from a player: a few a minute, and a budget for the session (a share lands on the GM's disk or in another player's journal)
+        if (!allow('share', { perMs: 1000, burst: 6, windowMs: 60000, table: 300 }, conn.peer)) return;
+        var szS = (en.data && en.data.byteLength) || (typeof en.text === 'string' ? en.text.length : 0);
+        if ((_shareBytes[conn.peer] || 0) + szS > 60 * 1024 * 1024) return;
+        _shareBytes[conn.peer] = (_shareBytes[conn.peer] || 0) + szS;
+    }
     var kind = en.kind === 'image' ? 'image' : 'text';
     var to = msg.to === '*' || msg.to === 'gm' ? msg.to : (typeof msg.to === 'string' && msg.to.length <= 80 ? msg.to : null);
     if (!to) return;
@@ -1946,8 +1988,9 @@ function denyJoin(conn, reason) {
     setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
 }
 
-function admitPlayer(conn, prof) {
+function admitPlayer(conn, prof, provenKey) {
     if (!conn.open) return;
+    var issuedKey = null;
     var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
     prof.location = land.stage ? land.stage.itemId : null;
     prof.detached = land.detached;
@@ -1965,7 +2008,9 @@ function admitPlayer(conn, prof) {
     if (camp) {
         camp.players = camp.players || {};
         // merge: keep the charName binding and anything else the GM has set
-        var rec = camp.players[prof.id] = Object.assign({}, camp.players[prof.id], { name: prof.name || prof.id });
+        var rec = camp.players[prof.id] = Object.assign({}, own(camp.players, prof.id) ? camp.players[prof.id] : null, { name: prof.name || prof.id });
+        rec.key = (provenKey && rec.key === provenKey) ? rec.key : newKey();   // the table key: kept when the player proved it, fresh when the GM let them in (revokes whoever held the old one). camp.players never ships (sanitizeAppState).
+        issuedKey = rec.key;
         // player history: recorded per campaign, shown in the Players panel
         rec.firstSeen = rec.firstSeen || Date.now();
         rec.lastSeen = Date.now();
@@ -1977,7 +2022,7 @@ function admitPlayer(conn, prof) {
     if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
-    try { conn.send({ type: 'snapshot', gmId: getProfile().id, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) {} net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
@@ -1987,13 +2032,24 @@ function admitPlayer(conn, prof) {
     broadcastRoster();
 }
 
+// [netcheck:queue-start]
+// A join the GM must rule on: one place in line per connection, a bounded line, a 'wait' to the player.
+function queueJoin(conn, prof, why) {
+    if (pendingJoins.some(function(j) { return j.conn === conn; })) return;
+    if (pendingJoins.length >= 12) { denyJoin(conn, 'The table is busy — try again in a moment.'); return; }
+    try { conn.send({ type: 'wait' }); } catch (e) {}
+    pendingJoins.push({ conn: conn, prof: prof, why: why || '' });
+    processNextApproval();
+}
+// [netcheck:queue-end]
 function processNextApproval() {
     if (approvalOpen) return;
     var next = pendingJoins.shift();
     if (!next) return;
     if (!next.conn.open) { processNextApproval(); return; }   // gave up waiting
     approvalOpen = true;
-    showConfirm('"' + (next.prof.name || 'A player') + '" wants to join your table. Let them in?', function(yes) {
+    var hint = next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
+    showConfirm('"' + (next.prof.name || 'A player') + '" wants to join your table' + hint + '. Let them in?', function(yes) {
         approvalOpen = false;
         if (!net.active || net.role !== 'host') return;
         if (yes) {
@@ -2011,8 +2067,8 @@ function processNextApproval() {
 net.kickPlayer = function(peerKey) {
     if (net.role !== 'host') return;
     var conn = net.conns.find(function(c) { return c.peer === peerKey; });
-    var p = net.roster[peerKey];
-    if (p) bannedIds[p.id] = true;   // kicked players stay out for this session
+    var p = own(net.roster, peerKey) ? net.roster[peerKey] : null;
+    if (p) { bannedIds[p.id] = true; delete net.roster[peerKey]; renderRoster(); }   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
     if (conn) {
         try { conn.send({ type: 'kicked' }); } catch (e) {}
         setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
@@ -2027,64 +2083,85 @@ function handleMessage(msg, conn) {
     // password, and the GM's approval) the only thing it may say is 'hello'. Anything else —
     // an old build, a hand-rolled client, a probe — is dropped without a reply and the
     // connection closed. Nothing is ever sent to, or applied from, an unadmitted peer.
-    if (net.role === 'host' && msg.type !== 'hello' && !net.roster[conn.peer]) {
-        if (msg.type === 'hb') { noteSeen(conn.peer); return; }   // a waiting player's heartbeat: keeps them from being dropped while the GM decides
+    // [netcheck:gate-start]
+    if (net.role === 'host' && msg.type !== 'hello' && !own(net.roster, conn.peer)) {
+        if (msg.type === 'hb') {   // a waiting player's heartbeat: keeps them from being dropped while the GM decides — for a while
+            var cmHb = _connMeta[conn.peer];
+            if (cmHb && Date.now() - cmHb.openedAt > UNADMITTED_TTL) { try { conn.close(); } catch (e) {} return; }
+            noteSeen(conn.peer); return;
+        }
         try { conn.close(); } catch (e) {}
         return;
     }
     noteSeen(conn.peer);
     if (msg.type === 'hb') return;   // heartbeat: its arrival is the whole message
     if (msg.type === 'hello' && net.role === 'host') {
-        if (net.roster[conn.peer]) return;   // already admitted: a repeat hello is ignored
+        if (own(net.roster, conn.peer)) return;   // already admitted: a repeat hello is ignored
+        var cm = _connMeta[conn.peer] || (_connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 });
+        if (++cm.hellos > 4) { try { conn.close(); } catch (e) {} return; }   // a hello storm on one connection: gone
+        if (cm.authTimer) { clearTimeout(cm.authTimer); cm.authTimer = null; }   // this hello answers the key challenge below
         if (msg.profile && typeof msg.profile !== 'object') return;
         var prof = msg.profile || { id: conn.peer, name: 'Player' };
+        if (!validProfileId(prof.id)) { denyJoin(conn, 'That player identity is not valid.'); return; }
+        prof = { id: prof.id, name: prof.name, color: prof.color, avatar: prof.avatar };   // only what a roster carries: nothing else a peer sends is stored or re-broadcast
         if (prof.id === net.myId) { denyJoin(conn, 'That player identity is the GM\'s own.'); return; }   // a claimed GM id would render as "You" on the GM's screen
-        var dupC = net.conns.find(function(c) { return c !== conn && c.open && net.roster[c.peer] && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
+        var dupC = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
         if (dupC) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // a live duplicate would read and edit that player's sheet; a dropped one (silent past 8 s) may come back
         // Peer-supplied avatar: accept only a small image data URL, else drop it
-        if (prof.avatar && !(typeof prof.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(prof.avatar) && prof.avatar.length <= 200000)) {
-            delete prof.avatar;
-        }
+        if (!(typeof prof.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(prof.avatar) && prof.avatar.length <= 200000)) delete prof.avatar;
         prof.name = (typeof prof.name === 'string' && prof.name.trim()) ? prof.name.slice(0, 40) : 'Player';   // cap a peer-supplied name
-        if (prof.color && !/^#[0-9a-fA-F]{6}$/.test(prof.color)) delete prof.color;                            // a chosen roster color, hex only
-        // Version gate first: an out-of-date player gets the update message, not a password prompt
+        if (!(typeof prof.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prof.color))) delete prof.color;    // a chosen roster color, hex only
+        // Bans first: a removed peer gets no version notice and no password try
+        if (own(bannedIds, prof.id)) { denyJoin(conn, 'You were removed from this session.'); return; }
+        var campB = getActiveCampaign();
+        if (campB && campB.bannedPlayers && own(campB.bannedPlayers, prof.id)) { denyJoin(conn, 'You are banned from this campaign.'); return; }
+        // Version gate: an out-of-date player gets the update message, not a password prompt
         if (APP_VERSION) {
-            var theirV = (typeof msg.version === 'string') ? msg.version : null;
+            var theirV = (typeof msg.version === 'string') ? msg.version.slice(0, 20) : null;
             if (!theirV || versionCmp(theirV, APP_VERSION) < 0) {
                 try { conn.send({ type: 'denied', reason: updateMessage(theirV, APP_VERSION), update: true }); } catch (e) {}
                 setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
                 toast((prof.name || 'A player') + ' tried to join on Waypoint ' + (theirV || 'older than 1.1.2') + ' — turned away to update.');
                 return;
             }
-            if (versionCmp(theirV, APP_VERSION) > 0) {
-                // The GM is the one behind: let the player in, but tell the GM plainly — once per newer version per session
-                if (!newerSeen[theirV]) {
-                    newerSeen[theirV] = true;
-                    showConfirm((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + ' — newer than your ' + APP_VERSION + '. Your table may not understand everything their build sends. Update your Waypoint when this session is over: Settings ▸ Check for Updates (saves and settings are kept).', function() {});
-                }
+            if (versionCmp(theirV, APP_VERSION) > 0 && !own(newerSeen, theirV)) {
+                // The GM is the one behind: let the player in and tell the GM plainly — once per newer version per session, and never
+                // as a dialog (a dialog here would land on top of a pending Allow/Deny)
+                newerSeen[theirV] = true;
+                toast((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + ' — newer than your ' + APP_VERSION + '. Update when this session is over: Settings ▸ Check for Updates.');
+                logEvent('session', (prof.name || 'A player') + ' joined on a newer Waypoint (' + theirV + ' vs ' + APP_VERSION + ') — update after the session');
             }
-        }
-        if (bannedIds[prof.id]) { denyJoin(conn, 'You were removed from this session.'); return; }
-        var campB = getActiveCampaign();
-        if (campB && campB.bannedPlayers && campB.bannedPlayers[prof.id]) {
-            denyJoin(conn, 'You are banned from this campaign.');
-            return;
         }
         var pwEl = ui('netPassInput');
         var pw = pwEl ? pwEl.value.trim() : '';
-        if (pw && String(msg.password || '').trim() !== pw) {
-            denyJoin(conn, 'Wrong session password.');
-            return;
+        if (pw) {
+            var nowPw = Date.now(); while (_pwFails.length && nowPw - _pwFails[0] > 60000) _pwFails.shift();
+            if (_pwFails.length >= 20) { denyJoin(conn, 'Too many wrong passwords at this table — try again in a minute.'); return; }   // a guessing run locks the door for everyone, briefly
+            if (String(msg.password || '').slice(0, 200).trim() !== pw) { _pwFails.push(nowPw); denyJoin(conn, 'Wrong session password.'); return; }
         }
+        // Identity: a player this campaign knows proves the id is theirs with the table key the host issued them
+        // (kept per GM on their machine, sent with the hello). A match goes straight in, as before. A known id
+        // without a match is first CHALLENGED once (an older client never answers and simply gets the GM's prompt);
+        // a second failure — or a stranger — waits for the GM's Allow/Deny.
         var camp0 = getActiveCampaign();
-        var returning = (camp0 && camp0.players && camp0.players[prof.id]) || approvedIds[prof.id];
-        if (returning) {
-            admitPlayer(conn, prof);   // known at this table: straight in
+        var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
+        var keyOk = !!(rec0 && typeof rec0.key === 'string' && rec0.key && typeof msg.key === 'string' && msg.key === rec0.key);
+        if (keyOk || own(approvedIds, prof.id)) {
+            delete approvedIds[prof.id];   // a yes to a dropped connection is good once
+            admitPlayer(conn, prof, keyOk ? rec0.key : null);
+        } else if (rec0 && rec0.key && !cm.authAsked) {
+            cm.authAsked = true;
+            try { conn.send({ type: 'auth', gmId: net.myId }); } catch (e) {}
+            cm.authTimer = setTimeout(function() { cm.authTimer = null; if (!conn.open || own(net.roster, conn.peer)) return; queueJoin(conn, prof, 'nokey'); }, 2500);   // no keyed hello came back: the GM decides
         } else {
-            try { conn.send({ type: 'wait' }); } catch (e) {}
-            pendingJoins.push({ conn: conn, prof: prof });
-            processNextApproval();
+            queueJoin(conn, prof, rec0 ? 'nokey' : '');
         }
+    } else if (msg.type === 'auth' && net.role === 'client') {
+        // the host asks this player to prove a known id: answer with the table key it issued (per GM); with none, the GM is simply asked
+        if (!net.conns[0] || conn !== net.conns[0]) return;
+        var pwA = ui('netJoinPassInput');
+        try { conn.send({ type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION, key: tableKeyFor(String(msg.gmId || '').slice(0, 80)) }); } catch (e) {}
+    // [netcheck:gate-end]
     } else if (msg.type === 'wait' && net.role === 'client') {
         setStatus('Connected — waiting for the GM to let you in…');
     } else if ((msg.type === 'denied' || msg.type === 'kicked') && net.role === 'client') {
@@ -2098,6 +2175,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'snapshot' && net.role === 'client') {
         net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
         net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
+        if (typeof msg.key === 'string' && msg.key) rememberTableKey(net.gmId, msg.key);   // the table key this host issued me: proves this id is mine next time
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         setStatus('Connected — campaign synced from host.');
@@ -2106,6 +2184,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'item') {
         if (net.role === 'host') {
             if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client edits are dropped
+            if (!allow('item', { perMs: 40, burst: 60, windowMs: 5000, table: 2000 }, conn.peer)) return;   // a patch storm from one player: dropped, never saved
             var profile = net.roster[conn.peer];
             if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's patch lands
             var changed = applyClientItemFiltered(msg, profile);
@@ -2113,7 +2192,7 @@ function handleMessage(msg, conn) {
                 setTimeout(function() { checkRoomHandouts(state.appState.campaigns[msg.campId].items[msg.itemId]); }, 50);
                 var myActive = getActiveCampaign();
                 if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
-                net.applyingRemote = true; save(true); net.applyingRemote = false;
+                saveRemoteSoon();
                 net.sendItem(msg.campId, msg.itemId);   // the filtered result goes back out as a delta
             }
         } else {
@@ -2133,6 +2212,8 @@ function handleMessage(msg, conn) {
             net.applyingRemote = false;
         }
     } else if (msg.type === 'needItem' && net.role === 'host') {
+        var campN = getActiveCampaign(); if (!campN || msg.campId !== campN.id || typeof msg.itemId !== 'string') return;   // a session is one campaign
+        if (!allow('need', { perMs: 50, burst: 30, windowMs: 5000, table: 1000 }, conn.peer)) return;
         net.sendItem(msg.campId, msg.itemId, conn);
     } else if (msg.type === 'stage' && net.role === 'client') {
         applyStage(msg.stage);
@@ -2160,6 +2241,7 @@ function handleMessage(msg, conn) {
         else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): no travel
+        if (!allow('travel', { perMs: 400, burst: 6, windowMs: 10000, table: 500 }, conn.peer)) return;   // each travel saves + re-sends maps: a few a second is plenty
         var traveler = net.roster[conn.peer];
         var tCamp = getActiveCampaign();
         if (!traveler || !tCamp) return;
@@ -2169,6 +2251,7 @@ function handleMessage(msg, conn) {
         hostTravel(conn, traveler, portal, fromMap);
     } else if (msg.type === 'target' && net.role === 'host') {
         var tp = net.roster[conn.peer]; if (!tp) return;
+        if (!allow('target', { perMs: 100, burst: 20, windowMs: 5000, table: 1000 }, conn.peer)) return;
         var okId = msg.id === null || (typeof msg.id === 'string' && msg.id.length <= 80);
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
         applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
@@ -2243,6 +2326,7 @@ function handleMessage(msg, conn) {
         var Se = SC(), Fe = window.wpFormula; if (!Se || !Fe) return;
         var q = Se.cleanCharEdit(msg); if (!q) return;
         var denyE = function(reason) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: reason }); } catch (e) {} };
+        if (net.paused || peerPaused(conn.peer)) { denyE('paused'); return; }   // frozen table (or this player is paused): no edits
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Se.LIMITS.editsPerWindow, windowMs: Se.LIMITS.editWindowMs, table: 400 });
         var limE = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
         if (limE !== true) { var skE = conn.peer + '|slow'; if (!_charSlowSaid[skE] || Date.now() - _charSlowSaid[skE] > Se.LIMITS.editWindowMs) { _charSlowSaid[skE] = Date.now(); denyE('slow'); } return; }
@@ -2253,7 +2337,7 @@ function handleMessage(msg, conn) {
         var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, { player: true });
         if (!resE.ok) { denyE(resE.reason); return; }
         chE.values = chE.values || {}; chE.values[q.fieldId] = resE.value; chE.updated = Date.now();
-        net.applyingRemote = true; save(true); net.applyingRemote = false;
+        saveRemoteSoon();
         try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) {}
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
@@ -2262,6 +2346,7 @@ function handleMessage(msg, conn) {
         var Si = SC(), Fi = window.wpFormula; if (!Si || !Fi) return;
         var qi = Si.cleanCharItem(msg); if (!qi) return;
         var denyI = function(reason) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: reason }); } catch (e) {} };
+        if (net.paused || peerPaused(conn.peer)) { denyI('paused'); return; }
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Si.LIMITS.editsPerWindow, windowMs: Si.LIMITS.editWindowMs, table: 400 });
         var limI = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
         if (limI !== true) { var skI = conn.peer + '|slow'; if (!_charSlowSaid[skI] || Date.now() - _charSlowSaid[skI] > Si.LIMITS.editWindowMs) { _charSlowSaid[skI] = Date.now(); denyI('slow'); } return; }
@@ -2272,7 +2357,7 @@ function handleMessage(msg, conn) {
         var resI = Si.applyItemOp(campI.system, chI, qi.fieldId, qi.op, qi.defId, qi.qty, { player: true });
         if (!resI.ok) { denyI(resI.reason); return; }
         chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = Date.now();
-        net.applyingRemote = true; save(true); net.applyingRemote = false;
+        saveRemoteSoon();
         try { conn.send({ type: 'char-ack', rid: qi.rid }); } catch (e) {}
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
@@ -2280,6 +2365,7 @@ function handleMessage(msg, conn) {
         // a player throws an item from their sheet: ownership + carried-item + area read from the system, then place & share on the GM's current map
         var St = SC(); if (!St || !window.wpPlaceThrownBlast) return;
         if (typeof msg.charId !== 'string' || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string') return;
+        if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): no throws
         if (window.wpVtt && !window.wpVtt.on('sheets')) return;
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: St.LIMITS.editsPerWindow, windowMs: St.LIMITS.editWindowMs, table: 400 });
         if (charLimit && charLimit.allow(conn.peer, Date.now()) !== true) return;
@@ -2287,6 +2373,7 @@ function handleMessage(msg, conn) {
         var amT = getActiveMap(); if (!amT || amT.id !== msg.mapId) return;   // throws land on the GM's current map (where the player is)
         var chT = campT.chars && campT.chars[msg.charId], profT = net.roster[conn.peer];
         if (!chT || chT.npc || !chT.ownerId || !profT || chT.ownerId !== profT.id) return;
+        if (!(amT.whiteboard || []).some(function(w) { return w && w.isChar && !w.hidden && w.ownerId === profT.id; })) return;   // the thrower must be on this map
         var defT = St.itemDef(campT.system, msg.itemId); if (!defT || defT.vis === 'gm' || !defT.area) return;
         var carries = false; (campT.system.fields || []).forEach(function(f) { if (f.kind === 'item-list') { var v = chT.values && chT.values[f.id]; if (Array.isArray(v) && v.some(function(en) { return en.defId === msg.itemId; })) carries = true; } });
         if (!carries) return;
@@ -2367,6 +2454,7 @@ function handleMessage(msg, conn) {
         var lim = diceLimit.allow(conn.peer, Date.now());
         if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
         if (window.wpVtt && !window.wpVtt.on('dice')) { denyQ('off'); return; }
+        if (net.paused || peerPaused(conn.peer)) { denyQ('paused'); return; }   // frozen table (or this player is paused): no rolls
         var chQ = null, varsQ = null, SQ = SC();
         if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = campQ && campQ.chars && campQ.chars[q.charId];
@@ -2408,16 +2496,22 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'asset' && net.role === 'client') {
         handleAssetArrival(msg);
     } else if (msg.type === 'chat') {
+        // [netcheck:chat-start]
         if (net.role === 'host') {
-            // player comments are table-wide: relay to everyone else (typed, capped, on the host's clock so late joiners sort them with the rolls)
-            if (typeof msg.text !== 'string' || !msg.from || typeof msg.from !== 'object') return;
-            msg.text = msg.text.slice(0, 2000); msg.ts = Date.now(); delete msg.roll;
+            // player comments are table-wide: relayed to everyone else, typed, capped, on the host's clock — and FROM whom
+            // the roster says, never whom the message claims (a client cannot speak as the GM or as another player)
+            if (typeof msg.text !== 'string') return;
+            if (!allow('chat', { perMs: 150, burst: 20, windowMs: 10000, table: 2000 }, conn.peer)) return;
+            var pc = net.roster[conn.peer];
+            msg = { type: 'chat', scope: 'global', from: { id: pc.id, name: pc.name || 'Player' }, text: msg.text.slice(0, 2000), ts: Date.now() };
+            if (pc.color) msg.from.color = pc.color;
             pushChat(msg);
             broadcast(msg, conn);
-            if (msg.scope !== 'whisper') logEvent('chat', ((msg.from && msg.from.name) || 'Player') + ': ' + String(msg.text || '').slice(0, 300));
+            logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300));
         } else {
             pushChat(msg);
         }
+        // [netcheck:chat-end]
     } else if (msg.type === 'chat-history' && net.role === 'client') {
         var histD = window.wpDiceCore, histF = window.wpFormula;
         var hist = Array.isArray(msg.log) ? msg.log.filter(function(m) { return m && m.from && (typeof m.text === 'string' || m.roll); }).slice(-60) : [];
@@ -2508,6 +2602,9 @@ function wireConn(conn) {
         delete assetInflight[conn.peer];
         if (diceLimit) diceLimit.forget(conn.peer);
         if (charLimit) charLimit.forget(conn.peer);
+        Object.keys(_lim).forEach(function(k) { _lim[k].forget(conn.peer); });
+        var cmC = _connMeta[conn.peer]; if (cmC && cmC.authTimer) clearTimeout(cmC.authTimer);
+        delete _connMeta[conn.peer]; delete _shareBytes[conn.peer]; delete lastSeen[conn.peer];
         var p = net.roster[conn.peer];
         delete net.roster[conn.peer];
         renderRoster();
@@ -2677,6 +2774,7 @@ function startHosting(forceFresh) {
     });
     peer.on('connection', function(conn) {
         net.conns.push(conn);
+        _connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 };
         wireConn(conn);
     });
     // Signaling-server blips don't touch open data channels; quietly re-register
@@ -2751,7 +2849,7 @@ function joinSession(code, name, isRetry, probe) {
             cancelReconnect();
             net.active = true;
             var pwIn = ui('netJoinPassInput');
-            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION });   // before the first heartbeat: the host admits nothing that speaks first
+            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION, key: tableKeyFor(net.gmId) });   // before the first heartbeat: the host admits nothing that speaks first; the key proves a known id (a reconnect knows its GM; a fresh join is challenged for it)
             startHeartbeat();
             renderRoster();
             setStatus('Connected — waiting for campaign snapshot...');
@@ -2784,7 +2882,7 @@ function leaveSession(silent) {
     if (!silent && wasClient) net.leaving = true;
     if (!silent) cancelReconnect();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
-    net.peer = null; net.conns = []; net.roster = {}; net.active = false; net.role = null; net.code = null; net.lastStage = null;
+    net.peer = null; net.conns = []; net.roster = Object.create(null); net.active = false; net.role = null; net.code = null; net.lastStage = null;
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
@@ -2868,7 +2966,9 @@ net._assetPathOk = assetPathOk;   // exposed for the dev console / checks
 function handleAssetRequest(msg, conn) {
     // Serve only campaign images and sounds, never arbitrary paths
     var reqPath = assetPathOk(msg.path); if (!reqPath) return;
-    if (isAudioPath(msg.path)) {
+    if (!allow('asset', { perMs: 1, burst: 120, windowMs: 10000, table: 6000 }, conn.peer)) return;   // a map's pictures arrive in a burst; a flood does not
+    var decPath; try { decPath = decodeURIComponent(reqPath); } catch (e) { decPath = reqPath; }
+    if (isAudioPath(decPath)) {   // judged on the DECODED path: an encoded "audio" must not slip into the whole-file picture branch
         // a sound or music track: one in flight per peer, the AUDIO_CAP, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
         if (assetInflight[conn.peer]) { answerAsset(conn, msg.path, 'busy'); return; }
         assetInflight[conn.peer] = msg.path;
@@ -2890,7 +2990,7 @@ function handleAssetRequest(msg, conn) {
         return;
     }
     fetch(reqPath).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
-        if (!buf || !conn.open) return;
+        if (!buf || !conn.open || buf.byteLength > AUDIO_CAP) return;   // a picture past the cap is never sent whole
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) {}
     }).catch(function() {});
 }

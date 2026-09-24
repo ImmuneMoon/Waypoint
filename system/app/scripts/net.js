@@ -2849,15 +2849,28 @@ net.assetSrc = function(path) {
 };
 
 function answerAsset(conn, path, error) { try { conn.send({ type: 'asset', path: path, error: error }); } catch (e) {} }
+// The one kind of path a peer may ask for: a campaign picture or sound under /saves/images/. Checked on the
+// CANONICAL pathname — the browser collapses %2e%2e (and .%2e, %2e.) into dot segments before a request ever
+// leaves, so a raw-string check alone could be walked past to /api/data or /saves/data.json — then decoded and
+// checked again. Returns the percent-encoded pathname to fetch, or '' to refuse.
+function assetPathOk(raw) {
+    if (typeof raw !== 'string' || !raw || raw.length > 400) return '';
+    var u; try { u = new URL(raw, location.origin); } catch (e) { return ''; }
+    if (u.origin !== location.origin || u.search || u.hash) return '';
+    var p = u.pathname, dec; try { dec = decodeURIComponent(p); } catch (e) { dec = p; }   // a lone '%' in a file name is legal; the parser has already collapsed any dot segments
+    if (p.indexOf('/saves/images/') !== 0 || dec.indexOf('/saves/images/') !== 0 || dec.indexOf('..') !== -1 || dec.indexOf('\\') !== -1 || dec.indexOf('\0') !== -1) return '';
+    return p;
+}
+net._assetPathOk = assetPathOk;   // exposed for the dev console / checks
 function handleAssetRequest(msg, conn) {
     // Serve only campaign images and sounds, never arbitrary paths
-    if (typeof msg.path !== 'string' || msg.path.length > 400 || msg.path.indexOf('/saves/images/') !== 0 || msg.path.indexOf('..') !== -1) return;
+    var reqPath = assetPathOk(msg.path); if (!reqPath) return;
     if (isAudioPath(msg.path)) {
         // a sound or music track: one in flight per peer, the AUDIO_CAP, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
         if (assetInflight[conn.peer]) { answerAsset(conn, msg.path, 'busy'); return; }
         assetInflight[conn.peer] = msg.path;
         var done = function() { if (assetInflight[conn.peer] === msg.path) delete assetInflight[conn.peer]; };
-        fetch(encodeURI(msg.path)).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
+        fetch(reqPath).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
             if (!conn.open) { done(); return; }
             if (!buf) { answerAsset(conn, msg.path, 'missing'); done(); return; }
             if (buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); done(); return; }
@@ -2873,7 +2886,7 @@ function handleAssetRequest(msg, conn) {
         }).catch(function() { answerAsset(conn, msg.path, 'missing'); done(); });
         return;
     }
-    fetch(msg.path).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
+    fetch(reqPath).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
         if (!buf || !conn.open) return;
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) {}
     }).catch(function() {});

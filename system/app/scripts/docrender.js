@@ -304,8 +304,13 @@ var DOC_FONTS = {
     hand:    "'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive"
 };
 function safeHex(v) { return (typeof v === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)) ? v : ''; }
-// A stored background-image reference: a picture path/key with no CSS-breaking characters.
-function safeImgRef(v) { return (typeof v === 'string' && v && v.length <= 400 && !/["'()\\<>\s]/.test(v)) ? v : ''; }
+// A stored background-image reference: a picture path exactly as the library stores it (uploads keep their
+// original file names, so spaces, quotes and parentheses are normal — docBgImage percent-encodes them at
+// emit time). Refused: only what can never be a served path — control characters, backslashes, angle
+// brackets, a ".." segment (also percent-spelled), and anything that is not an app-served path — a scheme
+// (https:, data:, javascript:) or a protocol-relative //host — so a hostile host can never make a player's
+// browser fetch a URL of its choosing.
+function safeImgRef(v) { return (typeof v === 'string' && v && v.length <= 400 && !/[\x00-\x1f\\<>]/.test(v) && !/(^|\/)\.\.(\/|$)/.test(v) && !/%2e/i.test(v) && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(v) && v.indexOf('//') !== 0) ? v : ''; }
 function cleanDocStyle(s) {
     if (!s || typeof s !== 'object') return null;
     var out = {};
@@ -313,13 +318,31 @@ function cleanDocStyle(s) {
     var tc = safeHex(s.textColor); if (tc) out.textColor = tc;
     var bc = safeHex(s.bgColor); if (bc) out.bgColor = bc;
     var bi = safeImgRef(s.bgImage); if (bi) out.bgImage = bi;
+    // bgDim: how much to darken a background image so light text stays readable (0-90%, kept even at 0 so a page can override an inherited scrim).
+    if (typeof s.bgDim === 'number' && isFinite(s.bgDim)) out.bgDim = Math.max(0, Math.min(90, Math.round(s.bgDim)));
     return Object.keys(out).length ? out : null;
 }
 // Merge a per-doc style over a base (the campaign default); each field falls back on its own.
 function mergeDocStyle(base, over) {
     var b = cleanDocStyle(base) || {}, o = cleanDocStyle(over) || {}, m = {};
     ['font', 'textColor', 'bgColor', 'bgImage'].forEach(function(k) { if (o[k]) m[k] = o[k]; else if (b[k]) m[k] = b[k]; });
+    if (Object.prototype.hasOwnProperty.call(o, 'bgDim')) m.bgDim = o.bgDim; else if (Object.prototype.hasOwnProperty.call(b, 'bgDim')) m.bgDim = b.bgDim;   // a number, so 0 must win over an inherited scrim
     return Object.keys(m).length ? m : null;
+}
+// The background-image VALUE for a resolved style — the readability scrim (bgDim) over the picture — or ''.
+// srcOf turns the stored reference into a URL (identity for the GM, net.assetSrc for a player). A served path
+// is percent-encoded so a file name with spaces, quotes or parentheses can never break out of url('…') (the
+// core decodes it when serving); a data:/blob: URL (a player's cached or placeholder picture) is used as-is.
+// Anything still url()-unsafe after that yields nothing. Shared by pages (docStyleCss), the reader's re-patch
+// and the character sheet.
+function docBgImage(style, srcOf) {
+    style = cleanDocStyle(style); if (!style || !style.bgImage) return '';
+    var u = (typeof srcOf === 'function' ? srcOf(style.bgImage) : style.bgImage);
+    if (typeof u !== 'string' || !u) return '';
+    if (!/^(data:|blob:)/.test(u)) { try { u = encodeURI(u).replace(/[()']/g, function(c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }); } catch (e) { return ''; } }
+    if (/[\s'"()\\]/.test(u)) return '';
+    var dim = (typeof style.bgDim === 'number') ? style.bgDim : 0;
+    return (dim > 0 ? 'linear-gradient(rgba(0,0,0,' + (dim / 100) + '),rgba(0,0,0,' + (dim / 100) + ')),' : '') + "url('" + u + "')";
 }
 // Inline CSS for a resolved style. srcOf turns a bgImage reference into a URL (identity for the GM).
 function docStyleCss(style, srcOf) {
@@ -328,7 +351,7 @@ function docStyleCss(style, srcOf) {
     if (style.font && DOC_FONTS[style.font]) css += 'font-family:' + DOC_FONTS[style.font] + ';';
     if (style.textColor) css += 'color:' + style.textColor + ';';
     if (style.bgColor) css += 'background-color:' + style.bgColor + ';';
-    if (style.bgImage) { var u = (typeof srcOf === 'function' ? srcOf(style.bgImage) : style.bgImage); if (typeof u === 'string' && u && u.indexOf(')') < 0 && u.indexOf("'") < 0 && u.indexOf('"') < 0) css += "background-image:url('" + u + "');background-size:cover;background-position:center;"; }
+    var bg = docBgImage(style, srcOf); if (bg) css += 'background-image:' + bg + ';background-size:cover;background-position:center;';
     return css;
 }
 function cleanDoc(doc, opts) {
@@ -375,7 +398,8 @@ function renderDoc(doc, opts) {
     var blocks = doc && Array.isArray(doc.blocks) ? doc.blocks : [];
     var _effStyle = mergeDocStyle(opts.docStyle, doc && doc.meta && doc.meta.style);   // per-doc over campaign default
     var _wrapCss = docStyleCss(_effStyle, srcOf);
-    var html = '<div class="wrap"' + (_wrapCss ? ' style="' + _wrapCss + '"' : '') + '>', section = false, cols = 1;
+    var _bgPath = (_effStyle && _effStyle.bgImage) ? ' data-bgpath="' + esc(_effStyle.bgImage) + '" data-bgdim="' + (typeof _effStyle.bgDim === 'number' ? _effStyle.bgDim : 0) + '"' : '';   // so a client can re-apply the background once the picture's bytes arrive (wp-asset)
+    var html = '<div class="wrap"' + (_wrapCss ? ' style="' + _wrapCss + '"' : '') + _bgPath + '>', section = false, cols = 1;
     if (!blocks.length && opts.empty) html += opts.empty;
     function closeSection() { if (section) { html += '</div><div class="doc-clear"></div>'; section = false; } }
     blocks.forEach(function(b, i) {
@@ -436,6 +460,6 @@ function renderDoc(doc, opts) {
     return html;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, DOC_FONTS: DOC_FONTS };
+var API = { VERSION: VERSION, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, DOC_FONTS };
+export { VERSION, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

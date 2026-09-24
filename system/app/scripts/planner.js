@@ -1060,6 +1060,9 @@ function openAppearanceMenu(anchor) {
     var st = (item.meta && item.meta.style && typeof item.meta.style === 'object') ? item.meta.style : {};
     var cd = (camp.docStyle && typeof camp.docStyle === 'object') ? camp.docStyle : {};
     var kind = item.type === 'doc' ? 'page' : 'planner';
+    var esc = (window.wpDocRender && window.wpDocRender.esc) ? window.wpDocRender.esc : function(x) { return x; };
+    var effImg = st.bgImage || cd.bgImage || '';   // this page's image, else the campaign default
+    var dimVal = (typeof st.bgDim === 'number') ? st.bgDim : (typeof cd.bgDim === 'number') ? cd.bgDim : 40;
     var fontOpts = '<option value="">Default</option>' + Object.keys(FONTS).map(function(k) { return '<option value="' + k + '"' + (st.font === k ? ' selected' : '') + '>' + k.charAt(0).toUpperCase() + k.slice(1) + '</option>'; }).join('');
     var m = document.createElement('div'); m.id = 'docAppearanceMenu'; m.className = 'doc-appearance-menu';
     m.innerHTML =
@@ -1067,6 +1070,9 @@ function openAppearanceMenu(anchor) {
         '<label class="dam-row"><span>Font</span> <select id="damFont">' + fontOpts + '</select></label>' +
         '<label class="dam-row"><span>Text</span> <input type="color" id="damText" value="' + (st.textColor || cd.textColor || '#e8e2d0') + '"><button class="dam-clear" data-f="textColor" title="Use the default">&times;</button></label>' +
         '<label class="dam-row"><span>Background</span> <input type="color" id="damBg" value="' + (st.bgColor || cd.bgColor || '#181510') + '"><button class="dam-clear" data-f="bgColor" title="Use the default">&times;</button></label>' +
+        '<label class="dam-row"><span>Bg image</span> <button id="damBgImg" class="tool ghost" style="flex:1">' + (effImg ? 'Change picture&hellip;' : 'Choose picture&hellip;') + '</button><button class="dam-clear" data-f="bgImage" title="Remove this ' + kind + '&rsquo;s own picture (back to the default)"' + (st.bgImage ? '' : ' style="visibility:hidden"') + '>&times;</button></label>' +   // × only for the page's OWN picture: an inherited campaign picture can't be removed here (that is Clear default), only re-dimmed
+        (effImg ? '<img class="dam-bgthumb" src="' + esc(effImg) + '" alt="">' : '') +
+        (effImg ? '<label class="dam-row"><span>Dim</span> <input type="range" id="damDim" min="0" max="90" step="5" value="' + dimVal + '"> <span id="damDimVal" class="dam-dimval">' + dimVal + '%</span></label>' : '') +
         '<div class="dam-actions"><button id="damReset" class="tool ghost">Reset this ' + kind + '</button></div>' +
         '<div class="dam-divider"></div>' +
         '<div class="dam-head">Campaign default &mdash; all pages &amp; sheets</div>' +
@@ -1076,12 +1082,32 @@ function openAppearanceMenu(anchor) {
     m.style.top = (r.bottom + 5) + 'px';
     m.style.left = Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
     function setField(f, v) { item.meta = item.meta || {}; item.meta.style = item.meta.style || {}; if (v) item.meta.style[f] = v; else delete item.meta.style[f]; if (!Object.keys(item.meta.style).length) delete item.meta.style; save(true); renderPlanner(); }
+    function setDim(v) { v = Math.max(0, Math.min(90, Math.round(+v || 0))); item.meta = item.meta || {}; item.meta.style = item.meta.style || {}; item.meta.style.bgDim = v; save(true); renderPlanner(); var lbl = m.querySelector('#damDimVal'); if (lbl) lbl.textContent = v + '%'; }
     m.querySelector('#damFont').addEventListener('change', function() { setField('font', this.value); });
     m.querySelector('#damText').addEventListener('input', function() { setField('textColor', this.value); });
     m.querySelector('#damBg').addEventListener('input', function() { setField('bgColor', this.value); });
-    Array.prototype.forEach.call(m.querySelectorAll('.dam-clear'), function(b) { b.addEventListener('click', function() { setField(b.dataset.f, null); }); });
+    m.querySelector('#damBgImg').addEventListener('click', function() {
+        if (!window.wpPickImage) { toast('The image library is not available here.'); return; }
+        m.remove();   // the picker modal opens over the popover; it is rebuilt (with the new thumbnail + Dim row) once a picture is chosen
+        window.wpPickImage(function(src) {
+            if (typeof src !== 'string' || !/^[/]saves[/]images[/]/.test(src)) return;   // a real library path only (not a data URL); matches the portrait picker
+            var ok = DR.cleanDocStyle ? DR.cleanDocStyle({ bgImage: src }) : { bgImage: src };
+            if (!ok || !ok.bgImage) { toast('That picture’s name can’t be used as a background.'); return; }   // the renderer would drop it silently otherwise
+            item.meta = item.meta || {}; item.meta.style = item.meta.style || {};
+            item.meta.style.bgImage = ok.bgImage;
+            if (typeof item.meta.style.bgDim !== 'number') item.meta.style.bgDim = 40;   // start readable
+            save(true); renderPlanner();
+            if (!document.getElementById('docAppearanceMenu')) openAppearanceMenu(anchor);   // back to the popover, now showing the thumbnail + Dim
+        });
+    });
+    var _dimInput = m.querySelector('#damDim'); if (_dimInput) _dimInput.addEventListener('input', function() { setDim(this.value); });
+    Array.prototype.forEach.call(m.querySelectorAll('.dam-clear'), function(b) { b.addEventListener('click', function() {
+        if (b.dataset.f === 'bgImage') { item.meta = item.meta || {}; if (item.meta.style) { delete item.meta.style.bgImage; delete item.meta.style.bgDim; if (!Object.keys(item.meta.style).length) delete item.meta.style; } save(true); renderPlanner(); m.remove(); openAppearanceMenu(anchor); return; }   // rebuild so the thumbnail + Dim row drop
+        setField(b.dataset.f, null);
+    }); });
     m.querySelector('#damReset').addEventListener('click', function() { if (item.meta) delete item.meta.style; save(true); renderPlanner(); m.remove(); toast('Appearance reset to the campaign default.'); });
-    m.querySelector('#damSetCamp').addEventListener('click', function() { var s = DR.cleanDocStyle ? DR.cleanDocStyle(item.meta && item.meta.style) : (item.meta && item.meta.style); if (s) camp.docStyle = s; else delete camp.docStyle; save(true); renderPlanner(); if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); m.remove(); toast(camp.docStyle ? 'Campaign default set from this ' + kind + '.' : 'This ' + kind + ' has no look to copy yet.'); });
+    // "Use this page's look": the page's LOOK = its overrides over the current default (a page that only re-dimmed an inherited picture must not wipe the picture)
+    m.querySelector('#damSetCamp').addEventListener('click', function() { var s = DR.mergeDocStyle ? DR.mergeDocStyle(camp.docStyle, item.meta && item.meta.style) : (DR.cleanDocStyle ? DR.cleanDocStyle(item.meta && item.meta.style) : (item.meta && item.meta.style)); if (s) camp.docStyle = s; else delete camp.docStyle; save(true); renderPlanner(); if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); m.remove(); toast(camp.docStyle ? 'Campaign default set from this ' + kind + '.' : 'This ' + kind + ' has no look to copy yet.'); });
     m.querySelector('#damClearCamp').addEventListener('click', function() { delete camp.docStyle; save(true); renderPlanner(); if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); m.remove(); toast('Campaign default cleared.'); });
     setTimeout(function() { document.addEventListener('click', function closer(ev) { if (!m.contains(ev.target) && ev.target !== anchor) { m.remove(); document.removeEventListener('click', closer); } }); }, 0);
 }

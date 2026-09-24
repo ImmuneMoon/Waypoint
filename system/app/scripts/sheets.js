@@ -167,8 +167,23 @@ function renderSheet() {
     var _shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
     body.style.fontFamily = ''; body.style.color = ''; body.style.backgroundColor = '';
     if (_shStyle) { var _shF = window.wpDocRender.DOC_FONTS || {}; if (_shStyle.font && _shF[_shStyle.font]) body.style.fontFamily = _shF[_shStyle.font]; if (_shStyle.textColor) body.style.color = _shStyle.textColor; if (_shStyle.bgColor) body.style.backgroundColor = _shStyle.bgColor; }
+    applySheetBg(body, _shStyle);
     restoreFocus(body, fk);
 }
+// The campaign default's background picture + readability scrim on a sheet body (same rendering as a page:
+// docrender.docBgImage). Tagged data-bgpath/data-bgdim so a client can re-apply it once the picture's bytes
+// arrive (the 'wp-asset' event below) — net.assetSrc hands back a placeholder until then.
+function applySheetBg(node, style) {
+    var DR = window.wpDocRender, v = (DR && DR.docBgImage && style) ? DR.docBgImage(style, imgSrc) : '';
+    node.style.backgroundImage = v; node.style.backgroundSize = v ? 'cover' : ''; node.style.backgroundPosition = v ? 'center' : '';
+    if (v) { node.dataset.bgpath = style.bgImage; node.dataset.bgdim = String(typeof style.bgDim === 'number' ? style.bgDim : 0); } else { delete node.dataset.bgpath; delete node.dataset.bgdim; }
+}
+document.addEventListener('wp-asset', function(e) {
+    var p = e.detail && e.detail.path, DR = window.wpDocRender; if (!p || !DR || !DR.docBgImage) return;
+    document.querySelectorAll('[data-bgpath]:not(.wrap)').forEach(function(node) {   // sheet bodies (the live panel + a pop-out); page wraps are handbook.js's
+        if (node.dataset.bgpath === p) node.style.backgroundImage = DR.docBgImage({ bgImage: p, bgDim: parseFloat(node.dataset.bgdim) || 0 }, imgSrc);
+    });
+});
 // Render a character sheet READ-ONLY into an arbitrary container (the pop-out window; the pop-out never owns
 // the save — window.wpPopout no-ops it — so nothing here can write data.json). GM view (full sheet), fields disabled.
 function renderSheetInto(container, charId, camp) {
@@ -182,6 +197,7 @@ function renderSheetInto(container, charId, camp) {
     var shStyle = (window.wpDocRender && window.wpDocRender.cleanDocStyle) ? window.wpDocRender.cleanDocStyle(camp.docStyle) : null;
     container.style.fontFamily = ''; container.style.color = ''; container.style.backgroundColor = '';
     if (shStyle) { var DF = window.wpDocRender.DOC_FONTS || {}; if (shStyle.font && DF[shStyle.font]) container.style.fontFamily = DF[shStyle.font]; if (shStyle.textColor) container.style.color = shStyle.textColor; if (shStyle.bgColor) container.style.backgroundColor = shStyle.bgColor; }
+    applySheetBg(container, shStyle);
     return { title: c.name || 'Character' };
 }
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)

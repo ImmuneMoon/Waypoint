@@ -130,6 +130,9 @@ document.addEventListener('wp-asset', function(e) {
 window.wpOpenDoc = openDoc;
 window.wpCloseDoc = closeDoc;
 window.wpDocReaderRefresh = refresh;
+// The campaign's document look changed under the open page (a 'docStyle' message from the host): re-render it in place —
+// refresh() sees the changed signature (it includes camp.docStyle) and keeps the scroll position.
+window.wpDocReaderRestyle = function(campId) { if (isOpen() && openDocId) refresh(campId || openCampId, openDocId); };
 window.wpDocGone = gone;
 window.wpDocForeign = setForeign;
 window.wpDocReaderOpenId = function() { return openDocId; };

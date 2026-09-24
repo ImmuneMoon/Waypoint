@@ -930,6 +930,7 @@ net.onLocalSave = function() {
         net.syncSounds();   // the sound index changed with this save? the list follows the same way
         net.syncMusic();    // and the music library, the same way
         net.syncSystem();   // and the system (character sheets), the same way
+        net.syncDocStyle(); // and the campaign's document look (doc theming), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -1153,6 +1154,19 @@ net.broadcastBlastClear = function(mapId) {
 // The hosted campaign's system (character sheets) reaches the table as the players' view — GM-only fields and rolls
 // gone, formulas that named them blanked — in the snapshot and on every save or editor Save that changed it (a
 // signature over the clean view). Admitted peers only; null when the campaign has no system.
+// The campaign's document look (doc theming, 1.5.0): the campaign default travels in the join snapshot (sanitizeAppState
+// keeps a validated camp.docStyle); a change mid-session goes out the way the system does — once per change, admitted peers
+// only, re-validated on arrival. A host has NO branch for 'docStyle': a client never sets the table's look.
+net._lastDocStyleSig = null;
+net.docStyleMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; var DR = window.wpDocRender, ds = (DR && DR.cleanDocStyle) ? DR.cleanDocStyle(camp.docStyle) : null; return { type: 'docStyle', campId: camp.id, docStyle: ds || null }; };
+net.syncDocStyle = function(force) {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.docStyleMessage(); if (!msg) return;
+    var s = quickHash(JSON.stringify(msg.docStyle));
+    if (!force && s === net._lastDocStyleSig) return;
+    net._lastDocStyleSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) {} } });
+};
 net._lastSystemSig = null;
 net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
 net.syncSystem = function(force) {
@@ -2086,6 +2100,7 @@ function admitPlayer(conn, prof, provenKey) {
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) {} net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) {} }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
+    var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
 }
@@ -2480,6 +2495,15 @@ function handleMessage(msg, conn) {
         if (msg.system === null) delete campS.system;
         else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false }); if (csys) campS.system = csys; }
         if (window.wpSheetsSync) window.wpSheetsSync();
+    } else if (msg.type === 'docStyle' && net.role === 'client') {
+        // the hosted campaign's document look changed mid-session (doc theming): from the synced host only, re-validated here; an open Handbook page and the sheet follow
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campDS = campOf(msg.campId); if (!campDS) return;
+        var DRds = window.wpDocRender, cds = (DRds && DRds.cleanDocStyle) ? DRds.cleanDocStyle(msg.docStyle) : null;
+        if (cds) campDS.docStyle = cds; else delete campDS.docStyle;
+        try { if (window.wpDocReaderRestyle) window.wpDocReaderRestyle(msg.campId); } catch (e) {}
+        try { if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); } catch (e) {}
     } else if ((msg.type === 'sounds' || msg.type === 'sound') && net.role === 'client') {
         // the hosted campaign's sound list and its cues: only from the synced host, only after the snapshot, validated in sound.js.
         // A host has no branch for these: a player never triggers a sound on anyone.
@@ -2819,6 +2843,7 @@ function startHosting(forceFresh) {
     net._lastSoundSig = null;    // and the sound list
     net._lastMusicSig = null;    // and the music library
     net._lastSystemSig = null;   // and the system
+    net._lastDocStyleSig = null; // and the campaign's document look
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;

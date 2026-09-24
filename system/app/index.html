@@ -42,9 +42,18 @@ window.addEventListener('unhandledrejection', function(e) {
     var stamp = 0; try { stamp = parseInt(localStorage.getItem('wp_prefsStamp'), 10) || 0; } catch (e) {}
     if (f && f.prefs && typeof f.prefs === 'object' && (f.updated || 0) > stamp) {
         try {
+            // Identity is never lost to the mirror: the profile (its id is what tokens are owned by) and the table keys
+            // (how a returning player proves that id) are kept when the file lacks them, a nameless file profile never
+            // blanks a typed name, and table keys from both sides are merged rather than replaced.
+            var KEEP = { wp_profile: 1, wp_tableKeys: 1 };
             var local = []; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp') local.push(k); }
-            local.forEach(function(k) { if (!(k in f.prefs)) localStorage.removeItem(k); });
-            Object.keys(f.prefs).forEach(function(k) { if (k.indexOf('wp_') === 0) localStorage.setItem(k, String(f.prefs[k])); });
+            local.forEach(function(k) { if (!(k in f.prefs) && !KEEP[k]) localStorage.removeItem(k); });
+            Object.keys(f.prefs).forEach(function(k) {
+                if (k.indexOf('wp_') !== 0) return;
+                if (k === 'wp_profile') { try { var fp = JSON.parse(f.prefs[k]), lp = JSON.parse(localStorage.getItem(k) || 'null'); if (fp && typeof fp === 'object') { if (lp && lp.id && !fp.id) fp.id = lp.id; if (lp && lp.name && !fp.name) fp.name = lp.name; localStorage.setItem(k, JSON.stringify(fp)); return; } } catch (e) {} }
+                if (k === 'wp_tableKeys') { try { var fk = JSON.parse(f.prefs[k]), lk = JSON.parse(localStorage.getItem(k) || 'null'); if (fk && typeof fk === 'object') { localStorage.setItem(k, JSON.stringify(Object.assign({}, lk && typeof lk === 'object' ? lk : {}, fk))); return; } } catch (e) {} }
+                localStorage.setItem(k, String(f.prefs[k]));
+            });
             localStorage.setItem('wp_prefsStamp', String(f.updated));
         } catch (e) {}
     }

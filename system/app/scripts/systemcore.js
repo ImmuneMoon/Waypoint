@@ -118,9 +118,18 @@ function cleanField(f, F, gmView) {
     else if (k === 'item-list') { var tbl = cleanItemTable(f.table); if (tbl) out.table = tbl; }   // Stage 4: optional rich table (columns/chips/footer)
     if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) out.roll = r; }
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
+    if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colours) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
     return out;
 }
 function clampNum(v, lo, hi) { if (lo !== undefined && v < lo) v = lo; if (hi !== undefined && v > hi) v = hi; return v; }
+// Stage 5e: the slider's own bits — two end labels and two hex track colours, each optional; {} = a slider with the defaults
+function cleanSlider(v) {
+    var out = {}; if (!isObj(v)) return out;
+    var HEX = /^#[0-9a-fA-F]{6}$/;
+    ['low', 'high'].forEach(function(k) { if (typeof v[k] === 'string') { var t = str(v[k], LIMITS.label).replace(CTRL_RE_G, ' ').trim(); if (t) out[k] = t; } });
+    ['lowColor', 'highColor'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
+    return out;
+}
 function cleanRollDef(r, gmView) {
     if (!isObj(r) || typeof r.id !== 'string' || !ROLL_ID.test(r.id)) return null;
     var vis = r.vis === 'gm' ? 'gm' : 'all';

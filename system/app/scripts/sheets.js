@@ -696,6 +696,19 @@ function fieldNode(f, c, e, gm, own) {
         var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined ? String(f.def) : String(raw);
         if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max); inp.step = String(f.step || 1); inp.disabled = !editable;
         inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
+        if (k === 'number' && f.slider && f.min !== undefined && f.max !== undefined) {   // Stage 5e: a gradient slider — the same number as a range on a two-colour track with end labels
+            var sw = el('div', 'sheet-slider'); box.classList.add('sheet-has-slider');
+            var ends = el('div', 'sheet-slider-ends'); ends.appendChild(el('span', 'sheet-slider-low', f.slider.low || '')); ends.appendChild(el('span', 'sheet-slider-high', f.slider.high || '')); sw.appendChild(ends);
+            var rg = el('input', 'sheet-range'); rg.type = 'range'; rg.min = String(f.min); rg.max = String(f.max); rg.step = String(f.step || 1); rg.value = inp.value; rg.disabled = !editable; rg.dataset.fid = f.id; rg.dataset.part = 'range';
+            rg.style.background = 'linear-gradient(90deg, ' + (f.slider.lowColor || 'var(--blue)') + ', ' + (f.slider.highColor || 'var(--gold)') + ')';   // colours are hex-validated by cleanSlider
+            rg.title = (f.slider.low || String(f.min)) + ' \u2026 ' + (f.slider.high || String(f.max));   // "Dark Side … Light Side", or "-100 … 100"
+            // arrow keys fire a change per step: one commit after the last step, so a player's nudges reach the GM as one edit (inside the
+            // host's rate gate) and a drag still commits once on release; an unchanged value is never re-sent
+            var rgTimer = null, rgSent = rg.value;
+            rg.addEventListener('input', function() { inp.value = rg.value; });
+            rg.addEventListener('change', function() { clearTimeout(rgTimer); rgTimer = setTimeout(function() { if (rg.value === rgSent) return; rgSent = rg.value; commit(c, f, Number(rg.value)); }, 200); });
+            sw.appendChild(rg); row.appendChild(sw);
+        }
         row.appendChild(inp);
         if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); }
         box.appendChild(row); return box;
@@ -837,7 +850,7 @@ function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Charac
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {};
 var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list' };
-var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.' };
+var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.' };
 function open(which) {
     if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return; }
     var camp = getActiveCampaign(); if (!camp) return;
@@ -932,9 +945,20 @@ function fieldRow(f) {
     flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
+    if (f.kind === 'number') { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
+    if (f.kind === 'number' && f.slider) {   // Stage 5e: the slider's end labels and track colours
+        var srow = el('div', 'sys-sec-style sys-slider-row'); srow.appendChild(el('span', 'sys-sec-style-lbl', 'Slider'));
+        srow.appendChild(input('sys-slider-low field', f.slider.low, 'The label at the low end (e.g. Dark Side)', 'Low end label'));
+        srow.appendChild(input('sys-slider-high field', f.slider.high, 'The label at the high end (e.g. Light Side)', 'High end label'));
+        var themeHex = function(v, fb) { try { var x = getComputedStyle(document.documentElement).getPropertyValue(v).trim(); return /^#[0-9a-fA-F]{6}$/.test(x) ? x.toLowerCase() : fb; } catch (er) { return fb; } };   // an unset colour draws the theme's own, so the swatch shows that one
+        [['lowColor', 'Low colour', themeHex('--blue', '#4db3d3')], ['highColor', 'High colour', themeHex('--gold', '#e0a54f')]].forEach(function(cd) { var lab = el('label', 'sys-sec-color'); var ci = el('input'); ci.type = 'color'; ci.className = 'sys-slider-' + cd[0]; ci.value = f.slider[cd[0]] || cd[2]; ci.title = cd[1] + ' of the track'; lab.appendChild(ci); lab.appendChild(document.createTextNode(' ' + cd[1])); srow.appendChild(lab); });
+        if (f.slider.lowColor || f.slider.highColor) { var slc = el('button', 'tool ghost sys-btn', 'Theme colours'); slc.dataset.act = 'slidercl'; slc.title = 'Back to the theme\u2019s accent and gold'; srow.appendChild(slc); }
+        if (f.min === undefined || f.max === undefined) srow.appendChild(el('span', 'sys-note', 'Needs a min and a max to show as a slider; until then it is a plain number box (the labels and colours are kept).'));
+        row.appendChild(srow);
+    }
     var err = errorCell(f.id); err.dataset.errFor = f.id; row.appendChild(err);
     return row;
 }
@@ -1078,6 +1102,10 @@ function onInput(e) {
         else if (c.indexOf('sys-label') >= 0) f.label = t.value.slice(0, LIMITS.label);
         else if (c.indexOf('sys-formula') >= 0) { var p = DEF_PROP[f.kind]; if (p) f[p] = t.value; }
         else if (c.indexOf('sys-roll') >= 0) f.roll = t.value.trim() || undefined;
+        else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
+        else if (c.indexOf('sys-slider-highColor') >= 0) { f.slider = f.slider || {}; f.slider.highColor = t.value; }
+        else if (c.indexOf('sys-slider-low') >= 0) { f.slider = f.slider || {}; f.slider.low = t.value; }
+        else if (c.indexOf('sys-slider-high') >= 0) { f.slider = f.slider || {}; f.slider.high = t.value; }
         else if (c.indexOf('sys-def-num') >= 0) f.def = t.value === '' ? 0 : Number(t.value);
         else if (c.indexOf('sys-def-res') >= 0) f.def = t.value.trim().toLowerCase() === 'max' ? 'max' : Number(t.value) || 0;
         else if (c.indexOf('sys-def-text') >= 0) f.def = t.value;
@@ -1124,6 +1152,8 @@ function onChange(e) {
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
+        else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) f.slider = f.slider || {}; else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
+        else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears
         else if (c.indexOf('sys-itbl-on') >= 0) { if (t.checked) f.table = f.table || { columns: ['category'] }; else delete f.table; markDirty(); renderAll(); return; }   // Stage 4: rich item table on/off (seed one column so it renders)
         else if (c.indexOf('sys-itbl-col-') >= 0) { var col = c.slice(c.indexOf('sys-itbl-col-') + 13).split(/\s/)[0]; f.table = f.table || {}; var arr = Array.isArray(f.table.columns) ? f.table.columns : []; if (t.checked) { if (arr.indexOf(col) < 0) arr.push(col); } else arr = arr.filter(function(x) { return x !== col; }); f.table.columns = arr; }
         else if (c.indexOf('sys-itbl-chips') >= 0) { f.table = f.table || {}; if (t.checked) f.table.chips = true; else delete f.table.chips; }
@@ -1174,6 +1204,7 @@ function onClick(e) {
     else if (act === 'down' && i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, item); }
     else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }
     else if (act === 'del') { list.splice(i, 1); }
+    else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colours
     else return;
     markDirty(); renderAll();
 }

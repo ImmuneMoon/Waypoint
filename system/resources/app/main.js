@@ -79,6 +79,15 @@ const updateHandler = updater.makeHandler(updateCfg);
 // machine's own name (a DNS-rebinding page arrives under its own host name). Tools with no such headers
 // (curl, the app's main process) still pass.
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+// Names that become disk paths: a map id is one plain segment (audio lives one folder deeper: audio/<camp>), a file
+// name has no separators and is never a page or a script (the static branch would serve it as one).
+const SAFE_MAP_ID = /^[A-Za-z0-9_.-]{1,80}(\/[A-Za-z0-9_.-]{1,80})?$/;
+const FILE_EXT_BAD = /\.(html?|xhtml|xml|js|mjs|cjs|css|php|exe|bat|cmd|ps1|vbs|hta|jar|msi|dll|scr|lnk|url|com|pif)$/i;
+function safeSeg(s) { return typeof s === 'string' && s.length > 0 && s.length <= 200 && s !== '.' && s !== '..' && !/[\/\\\0:*?"<>|]/.test(s) && !s.includes('..'); }
+function safeMapId(m) { return SAFE_MAP_ID.test(m) && m.split('/').every(safeSeg); }
+function safeFileName(n) { return safeSeg(n) && !n.startsWith('.') && !FILE_EXT_BAD.test(n); }
+// A request that throws must not take the whole app (and every joined player) down with it.
+process.on('uncaughtException', (e) => { try { console.error('[waypoint] uncaught exception (kept running):', e && e.stack || e); } catch (_) {} });
 function localRequest(req) {
     const host = String(req.headers.host || '').toLowerCase();
     if (!LOCAL_HOSTS.some(h => host === h + ':' + port || host === h)) return false;
@@ -107,7 +116,8 @@ const server = http.createServer((req, res) => {
         req.on('end', () => {
             let target = null;
             try { target = JSON.parse(body).url; } catch (e) {}
-            const okHost = typeof target === 'string' && /^https:\/\/(github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com)\//.test(target) && (target.indexOf('github.com/' + UPDATE_REPO + '/') !== -1 || target.indexOf('githubusercontent.com') !== -1);
+            let okHost = false;   // parsed, not substring-matched: exactly our repo on github.com, or GitHub's own download hosts
+            try { const u = new URL(String(target)); okHost = u.protocol === 'https:' && ((u.hostname === 'github.com' && u.pathname.startsWith('/' + UPDATE_REPO + '/')) || u.hostname === 'objects.githubusercontent.com' || u.hostname === 'release-assets.githubusercontent.com'); } catch (e) {}
             if (!okHost) { res.writeHead(400); return res.end('{"error":"not allowed"}'); }
             shell.openExternal(target);
             res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
@@ -133,6 +143,7 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/prefs' || url.pathname === '/api/prefs.js') {
         const prefsFile = path.join(path.dirname(dataFile), 'preferences.json');
         if (req.method === 'GET') {
+            if (req.headers['sec-fetch-site'] !== 'same-origin') { res.writeHead(403); return res.end('Forbidden'); }   // the profile store (table keys included) only ever goes to this app's own page: a classic script include from a page elsewhere sends no Origin, so the browser's own signal is required
             let json = '{}';
             try { if (fs.existsSync(prefsFile)) { json = fs.readFileSync(prefsFile, 'utf8'); JSON.parse(json); } } catch (e) { json = '{}'; }
             if (url.pathname === '/api/prefs.js') {
@@ -284,36 +295,44 @@ const server = http.createServer((req, res) => {
         // imported items' references still resolve. Restricted to images/.
         const rel = decodeURIComponent(url.searchParams.get('path') || '');
         const segs = rel.split('/').filter(Boolean);
-        const bad = !segs.length || segs[0] !== 'images' || segs.length < 2 ||
-            segs.some(s => s === '.' || s === '..' || s.includes('\\') || s.includes(':'));
+        const bad = !segs.length || segs[0] !== 'images' || segs.length < 2 || segs.length > 6 ||
+            segs.some(s => !safeSeg(s)) || FILE_EXT_BAD.test(segs[segs.length - 1]);   // never a page or a script under saves/
         if (bad) { res.writeHead(400); res.end('bad path'); return; }
-        const savePath = path.join(savesDir, ...segs);
-        fs.mkdirSync(path.dirname(savePath), { recursive: true });
-        const ws = fs.createWriteStream(savePath);
-        req.pipe(ws);
-        ws.on('finish', () => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ url: '/saves/' + segs.join('/') }));
-        });
+        const savePath = path.resolve(savesDir, ...segs), imagesRoot = path.resolve(savesDir, 'images');
+        if (!savePath.startsWith(imagesRoot + path.sep)) { res.writeHead(400); res.end('bad path'); return; }   // and inside images/, whatever the segments spelled
+        try {
+            fs.mkdirSync(path.dirname(savePath), { recursive: true });
+            const ws = fs.createWriteStream(savePath);
+            ws.on('error', () => { try { res.writeHead(500); res.end('{"error":"write failed"}'); } catch (e) {} });   // a bad write answers, never crashes the process
+            req.on('error', () => { try { ws.destroy(); } catch (e) {} });
+            req.pipe(ws);
+            ws.on('finish', () => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ url: '/saves/' + segs.join('/') }));
+            });
+        } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }
-
     if (url.pathname === '/api/upload' && req.method === 'POST') {
+        // the folder is a map id (audio: audio/<camp>) and the name a file name — plain segments, nothing that walks,
+        // never a page or a script — and the result must sit under saves/images whatever the parts spelled
         const mapId = url.searchParams.get('mapId') || 'unknown';
-        const filename = (Math.random().toString(36).substring(2,10)) + '_' + (url.searchParams.get('filename') || 'image.png');
-        
-        const mapDir = path.join(savesDir, 'images', mapId);
-        if (!fs.existsSync(mapDir)) fs.mkdirSync(mapDir, { recursive: true });
-        
-        const savePath = path.join(mapDir, filename);
-        
-        const writeStream = fs.createWriteStream(savePath);
-        req.pipe(writeStream);
-        
-        req.on('end', () => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ url: `/saves/images/${mapId}/${filename}` }));
-        });
+        const rawName = url.searchParams.get('filename') || 'image.png';
+        if (!safeMapId(mapId) || !safeFileName(rawName)) { res.writeHead(400); return res.end('{"error":"bad name"}'); }
+        const filename = (Math.random().toString(36).substring(2, 10)) + '_' + rawName;
+        const imagesRoot = path.resolve(savesDir, 'images'), mapDir = path.resolve(imagesRoot, mapId), savePath = path.resolve(mapDir, filename);
+        if (!mapDir.startsWith(imagesRoot + path.sep) || !savePath.startsWith(mapDir + path.sep)) { res.writeHead(400); return res.end('{"error":"bad path"}'); }
+        try {
+            if (!fs.existsSync(mapDir)) fs.mkdirSync(mapDir, { recursive: true });
+            const ws = fs.createWriteStream(savePath);
+            ws.on('error', () => { try { res.writeHead(500); res.end('{"error":"write failed"}'); } catch (e) {} });
+            req.on('error', () => { try { ws.destroy(); } catch (e) {} });
+            req.pipe(ws);
+            ws.on('finish', () => {   // answered once the bytes are on disk (the old reply came on the request's end, before the write finished)
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ url: '/saves/images/' + mapId + '/' + filename }));
+            });
+        } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }
     
@@ -350,6 +369,7 @@ const server = http.createServer((req, res) => {
         
         res.writeHead(200, { 
             'Content-Type': mime,
+            ...(pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : {}),   // a file under saves/ (a picture, a sound, an imported page) is inert if ever opened as a page
             'Cache-Control': 'no-cache, no-store, must-revalidate'
         });
         fs.createReadStream(filePath).pipe(res);
@@ -363,12 +383,12 @@ let port = 3000;
 server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
         port++;
-        server.listen(port);
+        server.listen(port, '127.0.0.1');
     }
 });
 
 waitForInstanceLock(8000, function() {
-    server.listen(port, () => {
+    server.listen(port, '127.0.0.1', () => {   // loopback only: never reachable from the network (a LAN peer could otherwise forge the Host header)
         app.whenReady().then(() => {
             const win = new BrowserWindow({
                 width: 1200,

@@ -1008,6 +1008,44 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
     }
 
+    /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */
+    {
+        const sys8 = look => cleanSystem({ v: 1, name: 'L8', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true }).sheet.look;
+        const pal8 = { text: '#111111', muted: '#222222', panel: '#333333', card: '#444444', field: '#555555', edge: '#666666', primary: '#777777', danger: '#888888', good: '#999999', warn: '#aaaaaa' };
+        const all8 = sys8({ rows: 'cards', palette: pal8, effects: 'cards', values: 'boxed', steppers: 'inside', band: 'chips', numbers: 'mono', sticky: true, labels: 'caps', portrait: true, accent: '#123456', tabs: 'angular', titles: 'accordion' });
+        const bad8 = [{ numbers: 'serif' }, { band: 'tiles' }, { band: 'constructor' }, { steppers: 'beside' }, { values: 'box' }, { rows: 'card' }, { rows: '__proto__' }].map(sys8);
+        check('look L8: cleanLook keeps numbers mono, band inline|chips, steppers inside, values boxed and rows cards, and every look key comes out in the spec order (titles, tabs, accent, portrait, labels, sticky, numbers, band, steppers, values, effects, rows, palette); other values leave no look key',
+            all8 && j(Object.keys(all8)) === j(['titles', 'tabs', 'accent', 'portrait', 'labels', 'sticky', 'numbers', 'band', 'steppers', 'values', 'effects', 'rows', 'palette']) && sys8({ band: 'inline' }).band === 'inline' && bad8.every(x => x === undefined), j([all8 && Object.keys(all8), bad8]));
+        const sh8 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        // the real stepWrap, run against a small fake DOM: the box changes at once, one commit after the last click, none when back where it started
+        const swSrc = sh8.slice(sh8.indexOf('function stepWrap('), sh8.indexOf('// Stage 6 look fold (L7): a badge'));
+        const fakeEl = (tag, cls, text) => ({ tag, className: cls || '', textContent: text || '', dataset: {}, children: [], disabled: false, title: '', type: '', listeners: {}, appendChild(x) { this.children.push(x); return x; }, classList: { add() {} }, addEventListener(t, fn) { this.listeners[t] = fn; } });
+        const runStep = (field, start, clicks, editable) => {
+            const timers = [], commits = [];
+            const stepWrap = new Function('el', 'commit', 'setTimeout', 'clearTimeout', swSrc + '\nreturn stepWrap;')(fakeEl, (c, f, v) => commits.push(v), fn => { timers.push(fn); return timers.length; }, () => { timers.length = 0; });
+            const inp = fakeEl('input'); inp.value = String(start);
+            const w = stepWrap(inp, field, { id: 'c_1' }, editable), btns = w.children[1].children, up = btns.find(b => b.dataset.part === 'up'), down = btns.find(b => b.dataset.part === 'down');
+            clicks.forEach(k => (k > 0 ? up : down).listeners.click());
+            const shown = inp.value; timers.splice(0).forEach(fn => fn());
+            return { shown, commits, disabled: up.disabled && down.disabled, parts: btns.map(b => b.dataset.part + ':' + b.dataset.fid) };
+        };
+        const r1 = runStep({ id: 'f_a', step: 1, min: 0, max: 10 }, 5, [1, 1, 1], true), r2 = runStep({ id: 'f_a', step: 1 }, 5, [1, -1], true), r3 = runStep({ id: 'f_a', step: 2, min: 0, max: 10 }, 9, [1, 1], true), r4 = runStep({ id: 'f_a', step: 0.5 }, 1, [-1], false);
+        check('look L8: arrows inside (the real stepWrap) — three clicks show 8 at once and send ONE commit of 8; up then down sends nothing; the step and the max clamp (9 + 2 + 2 stops at 10); up and down carry the field id and are disabled exactly when the box is',
+            r1.shown === '8' && j(r1.commits) === j([8]) && r2.shown === '5' && r2.commits.length === 0 && r3.shown === '10' && j(r3.commits) === j([10]) && r4.disabled && !r1.disabled && j(r1.parts) === j(['up:f_a', 'down:f_a']), j([r1, r2, r3, r4]));
+        check('look L8: the band class is picked by comparison; the arrows are added only under the look and never over a drawn slider; a pop-out disables them; applyLook toggles the four body classes',
+            /var lkB = \(sys && sys\.sheet && sys\.sheet\.look\) \|\| \{\}; if \(lkB\.band === 'inline'\) bandEl\.classList\.add\('sheet-band-inline'\); else if \(lkB\.band === 'chips'\) bandEl\.classList\.add\('sheet-band-chips'\);/.test(sh8)
+            && /if \(lkS\.steppers === 'inside' && !\(k === 'number' && f\.slider && f\.min !== undefined && f\.max !== undefined\)\) row\.appendChild\(stepWrap\(inp, f, c, editable\)\);[^\n]*\n\s*else row\.appendChild\(inp\);/.test(sh8)
+            && /container\.querySelectorAll\('\[data-part="up"\], \[data-part="down"\]'\)\.forEach\(function\(el\) \{ el\.disabled = true; \}\);/.test(sh8)
+            && /body\.classList\.toggle\('sheet-num-mono', L\.numbers === 'mono'\); body\.classList\.toggle\('sheet-steppers-inside', L\.steppers === 'inside'\);/.test(sh8) && /body\.classList\.toggle\('sheet-values-boxed', L\.values === 'boxed'\); body\.classList\.toggle\('sheet-rows-cards', L\.rows === 'cards'\);/.test(sh8)
+            && (sh8.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2);
+        const css8 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), l8css = css8.slice(css8.indexOf('/* Stage 6 look fold (L8)'), css8.indexOf('/* Stage 6 look fold (L7)'));
+        const l8rules = l8css.split('\n').filter(x => /\{/.test(x) && !/^\s*\/\*/.test(x)), ungated8 = l8rules.filter(x => !/\.sheet-num-mono|\.sheet-band-inline|\.sheet-band-chips|\.sheet-steppers-inside|\.sheet-values-boxed|\.sheet-rows-cards/.test(x.split('{')[0]));
+        check('look L8: every rule is gated by its class; the arrow masks are literal URLs to bundled files; the editor offers all five in the details row; tour and Help say so',
+            l8rules.length >= 28 && ungated8.length === 0 && ['chevron-up', 'chevron-down'].every(n => l8css.indexOf('url("assets/icons/fa/solid/' + n + '.svg")') >= 0 && fs.existsSync(path.join(app, 'assets', 'icons', 'fa', 'solid', n + '.svg')))
+            && ['sys-look-numbers', 'sys-look-band', 'sys-look-steppers', 'sys-look-values', 'sys-look-rows'].every(c => sh8.indexOf("select('" + c + "'") >= 0)
+            && /numbers can be <b>monospaced<\/b>, the band a row of <b>chips<\/b>/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /The same box sets <b>monospaced numbers<\/b>/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), j([l8rules.length, ungated8]));
+    }
+
     /* ---- Stage 6 look fold (L7): a formula as a badge coloured by its value name; a pool's own colour ---- */
     {
         const fl7 = [

@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -26,7 +26,89 @@ function imgSrc(p) { var n = net(); return n && n.assetSrc ? n.assetSrc(p) : p; 
 
 /* ---------- the campaign's system and characters ---------- */
 function systemOf(camp) { camp = camp || getActiveCampaign(); return camp && camp.system && typeof camp.system === 'object' ? camp.system : null; }
-function playerSystem(camp) { camp = camp || getActiveCampaign(); if (!camp || !camp.system || !F()) return null; return cleanSystem(camp.system, { F: F(), gmView: false }); }
+function playerSystem(camp) { camp = camp || getActiveCampaign(); if (!camp || !camp.system || !F()) return null; return cleanSystem(camp.system, { F: F(), gmView: false, pages: readablePages(camp) }); }
+// Stage 5f: the handbook pages players may read in a campaign (the "Players can read" switch: meta.players !== false) — the host's
+// filter for chips and links in the players' view of the system (here and in net.js's join snapshot)
+function readablePages(camp) { var items = (camp && camp.items) || {}, out = []; Object.keys(items).forEach(function(id) { var it = items[id]; if (it && it.type === 'doc' && !(it.meta && it.meta.players === false)) out.push(id); }); return out; }
+// The page a chip or link names, from this machine's copy of the campaign: { title, gmOnly }, or null when it is not here (deleted,
+// hidden from this player, or not arrived yet — net.js redraws the sheet when a page arrives or goes)
+function pageRef(id) {
+    var camp = getActiveCampaign(), items = camp && camp.items; if (!items || typeof id !== 'string' || !Object.prototype.hasOwnProperty.call(items, id)) return null;
+    var it = items[id]; if (!it || it.type !== 'doc') return null;
+    return { title: String((it.meta && it.meta.title) || 'Page'), gmOnly: !!(it.meta && it.meta.players === false) };
+}
+// Open a handbook page from the sheet: a player in the reader (pictures, live edits, closes when the GM hides it); the GM in the
+// floating doc panel beside the sheet; a pop-out sheet hands it to the main window. Looked up again at click time.
+function openPage(id) {
+    var camp = getActiveCampaign(), ref = pageRef(id), n = net();
+    if (isClient() || (n && n.foreign)) { if (!(window.wpOpenDoc && window.wpOpenDoc(id))) toast('That handbook page isn\u2019t available at this table.'); return; }
+    if (!ref) { toast('That handbook page is no longer in this campaign.'); return; }
+    if (window.wpPopout) {
+        var op = null; try { op = window.opener; } catch (e) {}
+        if (op && op.wpDocPanel) {
+            var opCamp = null; try { var cs = op.document.getElementById('campaignSelect'); opCamp = cs && cs.value; } catch (e) {}
+            if (opCamp && camp && opCamp !== camp.id) { toast('Switch the main window to \u201c' + (camp.name || 'this campaign') + '\u201d to open that page.'); return; }
+            try { op.wpDocPanel.open(id); op.focus(); } catch (e) {}
+            return;
+        }
+        try { new BroadcastChannel('waypoint').postMessage({ type: 'dock', kind: 'doc', arg: camp.id + '/' + id }); } catch (e) {}
+        return;
+    }
+    if (!window.wpDocPanel) return;
+    window.wpDocPanel.open(id);
+    var dp = ui('docPanel'), sp = ui('sheetPanel');
+    if (dp && sp && sp.style.display !== 'none') {   // the doc panel opens where the sheet is by default: put it beside the sheet instead
+        var a = dp.getBoundingClientRect(), b = sp.getBoundingClientRect();
+        var ox = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)), oy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+        if (ox > 0 && oy > 0) {   // any overlap: beside the sheet, left if it fits, else right; where neither fits it stays (it is on top anyway)
+            var left = b.left - a.width - 12; if (left < 8) left = (b.right + 12 + a.width <= window.innerWidth - 8) ? b.right + 12 : null;
+            if (left !== null) { dp.style.left = Math.round(left) + 'px'; dp.style.right = 'auto'; dp.style.top = Math.round(Math.max(8, b.top)) + 'px'; }
+        }
+    }
+    var si = ui('docPanelSearchInput'); if (si) { try { si.focus({ preventScroll: true }); } catch (e) {} }   // so Esc closes the page before the sheet
+}
+// What the open sheet's chips and links show (each referenced page: here or not, its title, GM-only), recorded at every live render;
+// net.js redraws the sheet only when a page's arrival, change or removal would change it — never for a page the sheet doesn't name,
+// and never for a content edit (a rebuild mid-typing would fire the focused input's change)
+var _sheetRefSig = '';
+function refSig(sys) {
+    var ids = [], sh = sys && sys.sheet; if (!sh || !Array.isArray(sh.sections)) return '';
+    sh.sections.forEach(function(s) { if (s.chip) ids.push(s.chip); (s.fields || []).forEach(function(p) { if (p && p.kind === 'link' && p.page) ids.push(p.page); }); });
+    return ids.map(function(id) { var r = pageRef(id); return id + '=' + (r ? (r.gmOnly ? 'g:' : 'p:') + r.title : '-'); }).join('\n');
+}
+function sheetRefsChanged() {
+    if (!sheetOpen) return false;
+    var camp = getActiveCampaign(); return refSig(systemOf(camp)) !== _sheetRefSig;
+}
+// A handbook chip for a section header (the owner's Foundry chips): a span, not a button, inside the <summary> of a collapsible
+// section — the click must not fold the section, so it prevents the default as well as stopping the bubble.
+function pageChip(id) {
+    var ref = pageRef(id); if (!ref) return null;
+    var ch = el('span', 'sheet-sec-chip' + (ref.gmOnly ? ' sheet-chip-gm' : '')); ch.setAttribute('role', 'button'); ch.tabIndex = 0;
+    ch.title = 'Open \u201c' + ref.title + '\u201d' + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this chip' : ''); ch.setAttribute('aria-label', ch.title);
+    ch.appendChild(el('span', 'sheet-chip-ico', '\ud83d\udcd6')); ch.appendChild(el('span', 'sheet-chip-txt', ref.title));
+    var go = function(e) { e.preventDefault(); e.stopPropagation(); if (ch.closest('#systemModal')) return; openPage(id); };
+    ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
+    return ch;
+}
+// A handbook link placement: a button that opens its page; nothing at all when the page is not here
+function linkNode(pl) {
+    var ref = pl.page ? pageRef(pl.page) : null; if (!ref) return null;
+    var b = el('button', 'tool sheet-roll sheet-link' + (ref.gmOnly ? ' sheet-chip-gm' : ''), '\ud83d\udcd6 ' + (pl.text || ref.title)); b.type = 'button';
+    b.title = 'Open \u201c' + ref.title + '\u201d over the map' + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this button' : '');
+    b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openPage(pl.page); });
+    var box = el('div', 'sheet-field sheet-kind-link'); box.appendChild(b); return box;
+}
+// [[id, label]] for the campaign's handbook pages (title order, GM-only marked) — the Layout tab's page pickers; an unknown current
+// id stays selectable as "(page not found)" so a system imported from another campaign can be re-pointed rather than silently lost
+function pageOptions(cur, none) {
+    var camp = getActiveCampaign(), items = (camp && camp.items) || {}, list = [];
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (it && it.type === 'doc' && validPageId(id)) list.push([id, String((it.meta && it.meta.title) || 'Page') + (it.meta && it.meta.players === false ? ' (GM only)' : '')]); });   // only ids a chip or link can store (the rest would vanish on Save)
+    list.sort(function(a, b) { return a[1].localeCompare(b[1]); });
+    var opts = none === null ? list : [['', none]].concat(list);
+    if (cur && !list.some(function(o) { return o[0] === cur; })) opts.push([cur, '(page not found)']);
+    return opts;
+}
 function charsOf(camp) { camp = camp || getActiveCampaign(); if (!camp) return {}; if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {}; return camp.chars; }
 function charList(camp) { return Object.values(charsOf(camp)).filter(function(c) { return c && typeof c === 'object'; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); }); }
 function charById(id, camp) { var cs = charsOf(camp); return id && cs[id] && typeof cs[id] === 'object' ? cs[id] : null; }
@@ -161,6 +243,7 @@ function renderSheet() {
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; if (gm) { charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var all = resolveAll(sys, c, F());
+    _sheetRefSig = refSig(sys);
     buildSections(body, sys, c, all, gm, own, renderSheet);
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
     syncFramePad(body);   // the width may have changed the sticky frame's height
@@ -315,11 +398,13 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
             if (typeof mvv === 'object') { if (!mvv.error) { if (mvv.text != null && mvv.text !== '') metaText = String(mvv.text); else if (typeof mvv.value === 'number') metaText = mvv.value + (typeof mvv.max === 'number' ? ' / ' + mvv.max : ''); } }
             else metaText = String(mvv);
         }
-        if (sec.title || metaText || collap) {   // a collapsible section always needs a summary to toggle from
+        var chipNode = sec.chip ? pageChip(sec.chip) : null;   // Stage 5f: a handbook chip
+        if (sec.title || metaText || collap || chipNode) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
             head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
+            if (chipNode) head.appendChild(chipNode);
             s.appendChild(head);
         }
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
@@ -329,6 +414,7 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
+            else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
             else if (pl.kind === 'portrait') { node = el('div', 'sheet-portrait-slot'); if (c.portrait) { var im = el('img'); im.src = imgSrc(c.portrait); im.alt = ''; node.appendChild(im); } }
             if (!node) return;
             if (pl.w === 'row') node.classList.add('sheet-row');
@@ -356,7 +442,7 @@ function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sh
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
-    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait';
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link';
     return null;
 }
 function renderLayout() {
@@ -494,6 +580,12 @@ function renderLayout() {
         });
         if (sec.style) { var clr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); clr.dataset.act = 'secstyleclr'; clr.title = 'Remove this section’s colors'; styleRow.appendChild(clr); }
         row.appendChild(styleRow);
+        var chipOpts = pageOptions(sec.chip || '', 'No chip');
+        if (chipOpts.length > 1) {   // Stage 5f: a handbook chip in this section's header (only when the campaign has pages, or one is already set)
+            var chipRow = el('div', 'sys-sec-style'); chipRow.appendChild(el('span', 'sys-sec-style-lbl', 'Handbook'));
+            chipRow.appendChild(select('sys-sec-chip', chipOpts, sec.chip || '', 'A chip in this section\u2019s header that opens a handbook page (players see it only when they can read the page)'));
+            row.appendChild(chipRow);
+        }
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
         (sec.fields || []).forEach(function(pl, pi) {
             var text = placementLabel(pl, byId, rollById); if (text === null) return;
@@ -501,6 +593,10 @@ function renderLayout() {
             pr.appendChild(el('span', 'sys-pl-grip', String.fromCharCode(8942)));
             pr.appendChild(el('span', 'sys-pl-name', text));
             if (pl.kind === 'heading') pr.appendChild(input('sys-pl-text field', pl.text, 'The heading\'s text', 'Heading text'));
+            if (pl.kind === 'link') {   // Stage 5f: which page, and an optional label (blank = the page's own title)
+                pr.appendChild(select('sys-pl-page', pageOptions(pl.page, pl.page ? null : 'Choose a page\u2026'), pl.page || '', 'The handbook page this button opens'));
+                pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = the page\'s title)', 'Label (optional)'));
+            }
             var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
             pr.appendChild(btnRow([['plup', 'Move up', '&#9650;'], ['pldown', 'Move down', '&#9660;'], ['pldel', 'Take off the sheet (the field stays defined)', '&times;']]));
             list.appendChild(pr);
@@ -510,6 +606,7 @@ function renderLayout() {
         draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait']);
+        if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages
         addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider or the portrait'));
         row.appendChild(addRow);
         root.appendChild(row);
@@ -542,6 +639,8 @@ function onLayoutChange(t) {
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     if (c.indexOf('sys-sec-tab') >= 0) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-collap') >= 0) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-chip') >= 0) { if (t.value) sec.chip = t.value; else delete sec.chip; markDirty(); renderPreview(); return true; }   // Stage 5f
+    if (c.indexOf('sys-pl-page') >= 0) { var plp = t.closest('.sys-pl'), plk = plp ? (sec.fields || [])[+plp.dataset.pi] : null; if (plk && plk.kind === 'link') { plk.page = t.value; markDirty(); renderLayout(); } return true; }   // Stage 5f: a link's page
     if (c.indexOf('sys-sec-pinned') >= 0) { if (t.value) sec.pinned = true; else delete sec.pinned; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-parent') >= 0) { if (t.value) sec.parent = t.value; else delete sec.parent; markDirty(); renderPreview(); return true; }
@@ -558,7 +657,7 @@ function onLayoutChange(t) {
         var kind = v.slice(0, 1), id = v.slice(2), pl = null;
         if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id; })) pl = { id: id, w: 1 }; }
         else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) pl = { roll: id, w: 1 }; }
-        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; }
+        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' || id === 'link' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; if (id === 'link') { var firstPage = pageOptions('', null)[0]; pl.text = ''; pl.page = firstPage ? firstPage[0] : ''; } }
         if (pl) { sec.fields.push(pl); markDirty(); renderLayout(); }
         return true;
     }
@@ -1311,7 +1410,7 @@ var _lastCamp = null;
 setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp && sheetOpen) closeSheet(); _lastCamp = id; }, 1000);
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
-window.wpSheets = { open: open, close: close, playerSystem: playerSystem, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
+window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

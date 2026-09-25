@@ -465,7 +465,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [] }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
-            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId); if (v) outCh[id] = v; }); camp.chars = outCh;
+            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId), camp.chars[id], camp.system); if (v) outCh[id] = v; }); camp.chars = outCh;
         } else delete camp.chars;
         // fog of war (1.5.0 FV2): the sight-field mapping + default travel for the hosted campaign, so a client resolves
         // its own sight the same way the host does (character sheets already travel per recipient above)
@@ -1237,10 +1237,20 @@ net.syncSystem = function(force) {
 var charLimit = null, _doorLimit = null, _charPending = {}, _charSlowSaid = {};
 function SC() { return window.wpSystemCore || null; }
 function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id : null; }
+// [netcheck:chardelta-start]
+// 5h: a teammate's copy (partial: hover fields only) cannot work out a hover line whose formula reads a field it does not hold (HP max from
+// ST read the default: "HP 9 / 10" where the owner saw "9 / 14"), so the host sends the lines it works out from the owner's own view.
+function withHoverLines(v, src, view) {
+    var S = SC(); if (!v || !v.partial || !S || !window.wpFormula || !src) return v;
+    var ownV = S.charFor(src, view, src.ownerId); if (!ownV) return v;
+    var ln = []; try { ln = S.hoverLines(view, ownV, window.wpFormula); } catch (e) {}
+    v.lines = ln.slice(0, 12).map(function(s) { return String(s).slice(0, 120); });   // always, even [] — the owner's "no lines" is the answer; a teammate never falls back to its own defaults
+    return v;
+}
 function charViewFor(charId, recipientId) {   // the copy one peer may hold, or null
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !camp.chars || !camp.chars[charId] || !window.wpSheets) return null;
     var view = window.wpSheets.playerSystem(camp); if (!view) return null;
-    return S.charFor(camp.chars[charId], view, recipientId);
+    return withHoverLines(S.charFor(camp.chars[charId], view, recipientId), camp.chars[charId], view);
 }
 function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; if (charLimit) charLimit.reset(); }
 net.syncChars = function() {   // every character, per peer (after the system changed)
@@ -1268,14 +1278,22 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, values: {} };
     Object.keys(values).forEach(function(f) { probe.values[f] = 0; });
+    var ownSees = S.charFor(probe, view, src.ownerId), linesMove = !!ownSees && Object.keys(values).some(function(f) { return ownSees.values[f] !== undefined; });   // any input a teammate's host-worked lines may read
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
-        var allowed = S.charFor(probe, view, peerProfileId(c)); if (!allowed) return;
-        var sub = {}, any = false;
-        Object.keys(values).forEach(function(f) { if (allowed.values[f] !== undefined) { sub[f] = values[f]; any = true; } });
-        if (any) { try { c.send({ type: 'charDelta', campId: camp.id, id: id, values: sub }); } catch (e) { sendFailed(e); } }
+        var pid = peerProfileId(c), allowed = S.charFor(probe, view, pid); if (!allowed) return;
+        if (allowed.partial) {   // a teammate's copy goes whole when anything its lines read changed (a non-hover ST moves "HP 16 / 16")
+            if (!linesMove) return;
+            var whole = charViewFor(id, pid); if (whole) { try { c.send({ type: 'char', campId: camp.id, char: whole }); } catch (e) { sendFailed(e); } }
+            return;
+        }
+        var fields = Object.keys(values).filter(function(f) { return allowed.values[f] !== undefined; }); if (!fields.length) return;
+        var proj = S.charFor(src, view, pid), sub = {};   // 5h: each value as this peer's own projection holds it (effects rows will differ per peer)
+        fields.forEach(function(f) { sub[f] = values[f] === null ? null : (proj && proj.values[f] !== undefined ? proj.values[f] : values[f]); });
+        try { c.send({ type: 'charDelta', campId: camp.id, id: id, values: sub }); } catch (e) { sendFailed(e); }
     });
 };
+// [netcheck:chardelta-end]
 net.syncCharGone = function(id) { if (!net.active || net.role !== 'host') return; var camp = getActiveCampaign(); if (!camp) return; net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send({ type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); } } }); };
 // A player's edit of their own sheet: applied here at once, judged on the host, undone on a refusal or silence
 net.charEdit = function(charId, fieldId, value) {
@@ -2439,6 +2457,7 @@ function handleMessage(msg, conn) {
         if (nm) nm.style.display = 'flex';
         toast('The GM ended the session — restoring your own campaign.');
     } else if ((msg.type === 'chars' || msg.type === 'char' || msg.type === 'charDelta' || msg.type === 'charGone' || msg.type === 'char-ack' || msg.type === 'char-deny') && net.role === 'client') {
+        // [netcheck:charin-start]
         // characters from the synced host only (character sheets, 1.5.0): copies are replaced, never merged; every value re-cleaned against the system on hand
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
         var SC2 = window.wpSystemCore;
@@ -2464,9 +2483,10 @@ function handleMessage(msg, conn) {
         if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); campC.chars[c1.id] = c1; reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;
         var tgt = campC.chars[msg.id]; tgt.values = tgt.values || {};
-        Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], null); if (v !== undefined) tgt.values[fid] = v; });
+        Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) tgt.values[fid] = v; });
         reapplyPending(msg.id);
         if (window.wpSheets) window.wpSheets.charChanged(msg.id);
+        // [netcheck:charin-end]
     } else if (msg.type === 'char-edit' && net.role === 'host') {
         // a player's value for their own character: shape, rate, feature, ownership, then the field's own rules; every refusal answered
         var Se = SC(), Fe = window.wpFormula; if (!Se || !Fe) return;

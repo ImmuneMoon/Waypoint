@@ -239,6 +239,9 @@ function on(id) {
     if (c) return c[id] === true && (!selfToggles(featureById(id)) || !localOff(id));   // a noLocal feature ignores the player's off-list
     return campaignOn(id);
 }
+// Stage 6: is a feature on at the table — the GM's setting, never a player's own "off for me" switch (that one only hides chips and
+// controls). Rules values (a sheet's Posture / Elevation, fog sight) follow this, so a player's sheet agrees with the host's rolls.
+function rulesOn(id) { var c = ceiling(); if (c) return c[id] === true; return campaignOn(id); }
 // Why is a feature off here: '' (it is on), 'gm' (the GM's setting), 'local' (off for me at this table), 'own' (my own setting)
 function whyOff(id) {
     if (on(id)) return '';
@@ -575,7 +578,7 @@ if (typeof document !== 'undefined' && document.getElementById) (function wire()
 
 window.wpVtt = {
     FEATURES: FEATURES, mode: mode, locked: locked,
-    on: on, ceiling: ceiling, whyOff: whyOff,
+    on: on, rulesOn: rulesOn, ceiling: ceiling, whyOff: whyOff,
     campaignOn: campaignOn, campaignMaster: campaignMaster, campaignVtt: campaignVtt, fill: fill, fillAll: fillAll, allOn: allOn,
     setCampaign: setCampaign, setMaster: setMaster, pushTo: pushTo, openPushPicker: openPushPicker,
     globalOn: globalOn, globalVtt: globalVtt, setGlobal: setGlobal, setGlobalMaster: setGlobalMaster,
@@ -587,4 +590,4 @@ window.wpVtt = {
 // Dev/console: show the queued notice for the table on screen now, if one is pending
 window.wpShowVttNotice = function() { var key = tableKey(); if (!key) return false; var t = readLocal(), e = t[key]; return !!(e && e.pending) && showNotice(key, e.pending); };
 
-export { FEATURES, on, campaignOn, fill, fillAll, globalVtt, globalOn, hostFlags, hostCamps, hostSig, cleanFlags, cleanStanceCamps, mode, locked, ceiling, tableKey, localOff, setLocal, sig, joined, ceilingChanged, changed, debug };
+export { FEATURES, on, rulesOn, campaignOn, fill, fillAll, globalVtt, globalOn, hostFlags, hostCamps, hostSig, cleanFlags, cleanStanceCamps, mode, locked, ceiling, tableKey, localOff, setLocal, sig, joined, ceilingChanged, changed, debug };

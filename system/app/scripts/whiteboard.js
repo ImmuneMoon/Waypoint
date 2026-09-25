@@ -1413,12 +1413,12 @@ window.wpFitToGrid = fitToGrid;
      viewer's Snap setting or the grid on screen) under the arrow's rule (a player turns their own token, while not paused; facing on),
      and ends like the arrow's release: a final pos (the host saves it), then save + render. A token on a map off screen (the GM's dial
      following a player elsewhere): save, and the host sends that map whole (a pos always names the map on screen). */
-  function tokenOnMap(mapId, tokId) {
+  function tokenOnMap(mapId, tokId, feature) {   // feature: the VTT feature the change needs ('turning' when left out; null = the caller checks its own)
       var camp = getActiveCampaign(), items = camp && camp.items;
       var map = items && typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(items, mapId) ? items[mapId] : null;
       if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard)) return null;
       var tok = map.whiteboard.find(function(x) { return x && x.id === tokId; });
-      if (!tok || !tok.isChar || (window.wpVtt && !window.wpVtt.on('turning'))) return null;
+      if (!tok || !tok.isChar || (feature !== null && window.wpVtt && !window.wpVtt.on(feature || 'turning'))) return null;
       var n = window.wpNet;
       if (n && n.active && n.role === 'client' && (n.paused || n.selfPaused || tok.ownerId !== n.myId)) return null;
       return { camp: camp, map: map, mapId: mapId, tok: tok, onScreen: camp.activeItemId === mapId };
@@ -1443,6 +1443,20 @@ window.wpFitToGrid = fitToGrid;
       if (t.tok.faceMode === 'arrow') t.tok.front = ((Math.round(target - (t.tok.rot || 0)) % 360) + 360) % 360;
       else t.tok.rot = normDeg(target - (t.tok.front || 0));
       endDialTurn(t); return true;
+  };
+  // Stage 6: the sheet's stance control sets the token's posture / elevation, each only while its feature is on, the way the token's own
+  // menu does (a player's goes to the host in their map patch, under the same owner gate); the GM's goes out with the map at once
+  window.wpSetTokenStance = function(mapId, tokId, st) {
+      var t = tokenOnMap(mapId, tokId, null); if (!t || !st || typeof st !== 'object') return false;
+      var did = false;
+      if (typeof st.posture === 'string' && stanceOn('posture')) { setTokenPosture(t.tok, st.posture); did = true; }
+      if (st.elevation !== undefined && stanceOn('elevation') && isFinite(Number(st.elevation))) { setTokenElevation(t.tok, Number(st.elevation)); did = true; }
+      if (!did) return false;
+      save(); render();
+      var n = window.wpNet;
+      if (n && n.active && n.role === 'host') { if (t.onScreen && n.sendItem) n.sendItem(t.camp.id, mapId); else if (!t.onScreen && n.broadcastItemFiltered) n.broadcastItemFiltered(t.camp.id, mapId); }
+      if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(tokId, true);
+      return true;
   };
   // Threat marks: a player's go to the host as their own message (a map patch never carries them, so a stale copy cannot undo the
   // GM's); the GM's go out with the map at once

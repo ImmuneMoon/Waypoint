@@ -173,6 +173,7 @@ const j = o => JSON.stringify(o);
     check('joined: setLocal on a GM-off feature refused', V.setLocal('posture', true) === false);
     const globalBefore = localStorage.getItem('wp_vtt_global');
     check('joined: setLocal off for me on a GM-on feature applies', V.setLocal('elevation', true) === true && V.on('elevation') === false && V.localOff('elevation'));
+    check('joined: rulesOn is the table\'s setting — a player\'s own off switch hides the chip but never changes rules values (Stage 6)', V.rulesOn('elevation') === true && V.rulesOn('posture') === false);
     check('joined: the only write is wp_vtt_local, never wp_vtt_global or camp.vtt', localStorage.getItem('wp_vtt_global') === globalBefore && state.appState.campaigns.X.vtt.features.elevation === false && Array.from(store.keys()).filter(k => k.indexOf('wp_vtt') === 0).join() === 'wp_vtt_local');
     const rec = JSON.parse(localStorage.getItem('wp_vtt_local'));
     check('wp_vtt_local record shape: off, decided, seen, pending, t under the t: key', rec.v === 1 && j(rec.tables['t:X__u_gm1'].off) === '["elevation"]' && j(rec.tables['t:X__u_gm1'].decided) === '["elevation"]' && typeof rec.tables['t:X__u_gm1'].t === 'number');

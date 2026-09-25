@@ -214,6 +214,7 @@ function hoverLinesForToken(w, camp) {
     camp = camp || getActiveCampaign(); var sys = systemOf(camp), c = charById(w.charId, camp);
     if (!sys || !c) return [];
     if (c.npc && isClient()) return [];
+    if (c.partial && Array.isArray(c.lines)) return c.lines.slice();   // 5h: a teammate's copy shows the host's lines (it lacks the fields their formulas read)
     try { return hoverLines(sys, c, F()); } catch (e) { return []; }
 }
 function hoverLinesForTokenId(camp, tokId) {

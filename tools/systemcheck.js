@@ -420,6 +420,59 @@ const j = v => JSON.stringify(v);
         check('Fold B review: a control that disabled itself (↻ once full) hands keyboard focus to its field\'s own box; sections pass the resolver to captions, the band does not', /if \(q && q\.disabled && k\.part\) q = root\.querySelector\('\[data-fid="' \+ k\.fid \+ '"\]:not\(\[data-part\]\)'/.test(shR) && /fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars\)/.test(shR) && /fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shR));
     }
 
+    /* ---- Stage 5h Fold 1: the character-sync fixes effects depend on ---- */
+    {
+        const fx1 = cleanSystem({ v: 1, name: 'F1', fields: [
+            { id: 'f_st', key: 'ST', kind: 'number', def: 10, vis: 'all', edit: 'owner' },
+            { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: 'ST', def: 'max', min: 0, vis: 'all', edit: 'owner', hover: true },
+            { id: 'f_mp', key: 'MP', kind: 'resource', maxFormula: 'MP.max + 1', def: 'max', vis: 'all' },
+            { id: 'f_inv', key: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner' }
+        ], rolls: [], items: [{ id: 'i_a', name: 'Rope' }, { id: 'i_b', name: 'Torch' }] }, { F, gmView: true });
+        const vo = S.valueOpts(fx1), inv = fx1.fields.find(f => f.id === 'f_inv');
+        check('5h F1: valueOpts carries the system\'s item ids, so an item list re-cleaned on a client keeps its entries (it was re-cleaned against nothing and emptied)', j(cleanValue(inv, [{ defId: 'i_a', qty: 2 }, { defId: 'i_zz', qty: 1 }], vo)) === j([{ defId: 'i_a', qty: 2 }]) && Object.getPrototypeOf(vo.items) === null, j(cleanValue(inv, [{ defId: 'i_a', qty: 2 }], vo)));
+        const chF = { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_st: 14 } };
+        const allF = S.resolveAll(fx1, chF, F), allC = S.resolveAll(fx1, Object.assign({}, chF, { values: { f_st: 14, f_mp: { cur: 3 } } }), F), mpD = S.makeResolver(fx1, chF, F)('MP.max');
+        const mpErr = [allF.f_mp && allF.f_mp.error, allC.f_mp && allC.f_mp.error, mpD && mpD.error && mpD.error.message].map(e => String(e || ''));
+        check('5h F1: a full pool reads its max through the resolver (HP 14 / 14 from ST 14), and a max naming itself is reported as a loop, not "too deeply" (full pool, a stored cur, a direct MP.max read)', allF.f_hp.value === 14 && allF.f_hp.max === 14 && mpErr.every(m => /loop/.test(m) && !/too deeply/.test(m)), j([allF.f_hp, mpErr]));
+        const gmMax = { v: 1, name: 'GM', fields: [{ id: 'f_sec', key: 'Secret', kind: 'number', def: 20, vis: 'gm' }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: 'Secret', def: 'max', min: 0, vis: 'all', edit: 'owner' }], rolls: [] };
+        const plG = cleanSystem(gmMax, { F, gmView: false }), rG = S.makeResolver(plG, { id: 'c_1', values: { f_hp: { cur: 7 } } }, F)('HP.max'), edG = S.applyEdit(plG, { id: 'c_1', values: { f_hp: { cur: 7 } } }, 'f_hp', { cur: 12 }, F, { player: true });
+        check('5h F1: a max the players\' view blanked (it names a GM-only field) reads "GM only", and a player\'s edit is not clamped to 0 (the host clamps it against the real max)', rG && rG.error && /GM only/.test(rG.error.message) && edG.ok && edG.value.cur === 12, j([rG, edG]));
+        const gmItems = cleanSystem({ v: 1, name: 'GI', fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner' }], rolls: [], items: [{ id: 'i_a', name: 'Rope' }, { id: 'i_s', name: 'Cursed ring', vis: 'gm' }] }, { F, gmView: true });
+        const giView = cleanSystem(gmItems, { F, gmView: false }), giC = S.charFor({ id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_inv: [{ defId: 'i_a', qty: 1 }, { defId: 'i_s', qty: 1 }] } }, giView, 'u_p');
+        check('5h F1: a GM-only item the GM put in a player\'s list never reaches the owner\'s copy', j(giC.values.f_inv) === j([{ defId: 'i_a', qty: 1 }]), j(giC.values.f_inv));
+        const pc = cleanChar({ id: 'c_1', name: 'P', ownerId: 'u_p', values: {}, partial: true, lines: ['HP 14 / 14', 42, 'x'.repeat(200), 'a\u0001b'].concat(Array(20).fill('y')) }, fx1), full = cleanChar({ id: 'c_1', name: 'P', ownerId: 'u_p', values: {}, lines: ['HP 1'] }, fx1);
+        check('5h F1: a teammate\'s copy keeps the host\'s hover lines (strings only, at most 12 of 120 characters, control characters out); an owner\'s or the GM\'s copy never carries lines', pc.lines.length === 12 && pc.lines[0] === 'HP 14 / 14' && pc.lines[1].length === 120 && pc.lines[2] === 'a b' && !('lines' in full), j(pc.lines.slice(0, 3)));
+        const netSrcF = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const sliceF = (a, b) => { const i = netSrcF.indexOf(a), k = netSrcF.indexOf(b); if (i < 0 || k < 0 || k <= i) throw new Error('marker ' + a); return netSrcF.slice(i + a.length, k); };
+        // the client's handler, run on a real cleaned system: an item-list delta keeps its entries
+        const charIn = new Function('net', 'conn', 'msg', 'window', '_charPending', 'charPendingDone', 'state', 'campOf', 'reapplyPending', sliceF('// [netcheck:charin-start]', '// [netcheck:charin-end]') + '\nreturn "ran";');
+        const campC = { id: 'camp1', system: fx1, chars: { c_1: cleanChar({ id: 'c_1', name: 'P', ownerId: 'u_p', values: { f_inv: [{ defId: 'i_a', qty: 1 }] } }, fx1) } };
+        const envW = { wpSystemCore: S, wpSheets: { charChanged() {}, charGone() {} } }, netC = { foreign: true, stream: false, syncedPeer: 'host' };
+        charIn(netC, { peer: 'host' }, { type: 'charDelta', campId: 'camp1', id: 'c_1', values: { f_inv: [{ defId: 'i_a', qty: 3 }, { defId: 'i_b', qty: 1 }, { defId: 'i_nope', qty: 1 }] } }, envW, {}, () => {}, { appState: { activeCampaignId: 'camp1' } }, id => id === 'camp1' ? campC : null, () => {});
+        check('5h F1: a player\'s item list survives a delta from the host (the real client handler, sliced from net.js)', j(campC.chars.c_1.values.f_inv) === j([{ defId: 'i_a', qty: 3 }, { defId: 'i_b', qty: 1 }]), j(campC.chars.c_1.values));
+        charIn(netC, { peer: 'host' }, { type: 'chars', campId: 'camp1', chars: { c_2: { id: 'c_2', name: 'T', ownerId: 'u_t', partial: true, values: {}, lines: ['HP 9 / 14'] } } }, envW, {}, () => {}, { appState: { activeCampaignId: 'camp1' } }, id => id === 'camp1' ? campC : null, () => {});
+        check('5h F1: a teammate\'s copy from the host keeps its partial flag and its hover lines on the client', campC.chars.c_2 && campC.chars.c_2.partial === true && j(campC.chars.c_2.lines) === j(['HP 9 / 14']), j(campC.chars.c_2));
+        // the host's per-peer delta: the owner gets the projected value, a teammate gets the whole copy with fresh lines
+        const deltaSrc = sliceF('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]');
+        const sent = [], mkConn = peer => ({ peer, open: true, send: m => sent.push({ peer, m }) });
+        const hostCamp = { id: 'camp1', system: fx1, chars: { c_1: { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_st: 14, f_inv: [{ defId: 'i_a', qty: 1 }] } } } };
+        const netH = { active: true, role: 'host', conns: [mkConn('pOwner'), mkConn('pMate')], roster: { pOwner: { id: 'u_p' }, pMate: { id: 'u_m' } } };
+        const envH = { wpSheets: { playerSystem: () => cleanSystem(fx1, { F, gmView: false }) }, wpFormula: F };
+        const runDelta = new Function('net', 'getActiveCampaign', 'SC', 'window', 'peerProfileId', 'sendFailed', '_charPending', 'charLimit', deltaSrc + '\nreturn net.syncCharDelta;')(netH, () => hostCamp, () => S, envH, c => netH.roster[c.peer].id, () => {}, {}, null);
+        runDelta('c_1', { f_hp: { cur: 5 }, f_inv: [{ defId: 'i_a', qty: 1 }], f_st: null });
+        const toOwner = sent.find(s => s.peer === 'pOwner'), toMate = sent.find(s => s.peer === 'pMate');
+        check('5h F1: the owner\'s delta carries every changed field they may see (a revert as null); a teammate gets the whole copy (hover fields only, no item list) with host-worked hover lines',
+            toOwner && toOwner.m.type === 'charDelta' && j(toOwner.m.values.f_hp) === j({ cur: 5 }) && toOwner.m.values.f_st === null && Array.isArray(toOwner.m.values.f_inv)
+            && toMate && toMate.m.type === 'char' && toMate.m.char.partial === true && !('f_inv' in toMate.m.char.values) && !('f_st' in toMate.m.char.values) && Array.isArray(toMate.m.char.lines) && /14/.test(toMate.m.char.lines.join(' ')), j(sent.map(s => [s.peer, s.m.type, s.m.values || s.m.char])));
+        sent.length = 0; hostCamp.chars.c_1.values.f_st = 16; runDelta('c_1', { f_st: 16 });   // the host stores the value, then syncs
+        const mate2 = sent.find(s => s.peer === 'pMate');
+        check('5h F1: a change to a non-hover input (ST) re-sends a teammate\'s whole copy, so their hover line reads the new max; the owner gets the delta', mate2 && mate2.m.type === 'char' && /16/.test((mate2.m.char.lines || []).join(' ')) && sent.some(s => s.peer === 'pOwner' && s.m.type === 'charDelta'), j(sent.map(s => [s.peer, s.m.type, s.m.char && s.m.char.lines])));
+        const pcEmpty = cleanChar({ id: 'c_3', name: 'Q', ownerId: 'u_q', values: {}, partial: true, lines: [] }, fx1);
+        check('5h F1: an empty list of host lines is kept (the owner\'s "no lines" is the answer; the teammate never recomputes from its own defaults)', Array.isArray(pcEmpty.lines) && pcEmpty.lines.length === 0);
+        const shF1 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        check('5h F1: the join snapshot gives a teammate\'s copy the host\'s hover lines too, and a teammate\'s hover card draws them', /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId\), camp\.chars\[id\], camp\.system\)/.test(netSrcF) && /if \(c\.partial && Array\.isArray\(c\.lines\)\) return c\.lines\.slice\(\);/.test(shF1));
+    }
+
     /* ---- the System editor's click dispatch: the Layout handler must claim only its own buttons ---- */
     {
         const shSrcD = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');

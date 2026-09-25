@@ -545,6 +545,7 @@ function renderSheetInto(container, charId, camp) {
     if (!sys || !c) return null;
     _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
+    container.querySelectorAll('[data-part="up"], [data-part="down"]').forEach(function(el) { el.disabled = true; });   // Stage 6 look fold (L8): arrows inside a box look live otherwise
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
     applySheetLookTo(container, sheetLook(camp, sys));
@@ -677,6 +678,8 @@ function applyLook(body, look, vctx) {
     var L = look || {};
     body.classList.toggle('sheet-titles-accordion', L.titles === 'accordion'); body.classList.toggle('sheet-sticky-titles', L.sticky === true);   // Stage 6 look fold (L5)
     body.classList.toggle('sheet-fx-cards', L.effects === 'cards');   // L6
+    body.classList.toggle('sheet-num-mono', L.numbers === 'mono'); body.classList.toggle('sheet-steppers-inside', L.steppers === 'inside');   // L8
+    body.classList.toggle('sheet-values-boxed', L.values === 'boxed'); body.classList.toggle('sheet-rows-cards', L.rows === 'cards');
     applyPaletteTo(body, L);
 }
 // Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colours into the look)
@@ -779,6 +782,7 @@ function bandInto(frame, bandDef, ctx) {
     if (!bandDef || !bandDef.length) return;
     var c = ctx.c, all = ctx.all, gm = ctx.gm, own = ctx.own, sys = ctx.sys, byId = ctx.byId, rollById = ctx.rollById;
     var bandEl = el('div', 'sheet-band'), boxes = {};
+    var lkB = (sys && sys.sheet && sys.sheet.look) || {}; if (lkB.band === 'inline') bandEl.classList.add('sheet-band-inline'); else if (lkB.band === 'chips') bandEl.classList.add('sheet-band-chips');   // Stage 6 look fold (L8)
     bandDef.forEach(function(q) {
         var g = typeof q.g === 'string' && PIN_GID.test(q.g) && Object.prototype.hasOwnProperty.call(ctx.grpById, q.g) ? ctx.grpById[q.g] : null;
         if (g && !groupShown(g, ctx.targets, ctx.vctx, c.id)) return;
@@ -1031,7 +1035,13 @@ function renderLayout() {
     var detRow = el('div', 'sys-sec-style sys-lookdetails');
     var stickyLbl = el('label', 'sys-hover'), stickyChk = el('input', 'sys-look-sticky'); stickyChk.type = 'checkbox'; stickyChk.checked = shape.sticky === true; stickyLbl.appendChild(stickyChk); stickyLbl.appendChild(document.createTextNode(' Sticky titles')); stickyLbl.title = 'A section\u2019s title stays at the top, under the band and the tabs, while you scroll through that section';
     var fxSel = select('sys-look-effects', [['', 'Effect lines'], ['cards', 'Effect cards']], shape.effects || '', 'Status effects: a line each (as now), or a card each with a pill per change');   // L6
-    detRow.appendChild(fxSel); detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
+    var numSel = select('sys-look-numbers', [['', 'Plain numbers'], ['mono', 'Monospaced numbers']], shape.numbers || '', 'Figures on the band, in the header, in captions and tables in a monospaced face (stat tiles stay as they are)');   // L8
+    var bandSel = select('sys-look-band', [['', 'Band tiles'], ['inline', 'Inline band'], ['chips', 'Band chips']], shape.band || '', 'The pinned band: small tiles (as now), one inline row of label and value, or a row of rounded chips');
+    var stepSel = select('sys-look-steppers', [['', 'Arrows beside'], ['inside', 'Arrows inside']], shape.steppers || '', 'Number boxes: \u2212 and + beside a pool (as now), or small up and down arrows inside the right edge of every number box');
+    var valSel = select('sys-look-values', [['', 'Plain results'], ['boxed', 'Boxed results']], shape.values || '', 'Worked-out results in sections: as text (as now), or in a dashed box');
+    var rowSel = select('sys-look-rows', [['', 'Plain item rows'], ['cards', 'Item cards']], shape.rows || '', 'Carried items: plain rows (as now), or a small card each');
+    [numSel, bandSel, stepSel, valSel, fxSel, rowSel].forEach(function(s) { detRow.appendChild(s); });
+    detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
     // Stage 6 look fold (L1): a palette — ten colours for every part of the sheet, from a preset or the GM's own swatches
     var pal = paletteOf(shape);
     var presetOf = function(p0) { if (!p0) return ''; var hit = 'custom'; Object.keys(LOOK_PRESETS).forEach(function(pn) { if (hit === 'custom' && PALETTE_KEYS.every(function(k) { return LOOK_PRESETS[pn].palette[k] === p0[k]; })) hit = pn; }); return hit; };
@@ -1063,6 +1073,7 @@ function renderLayout() {
     portChk.addEventListener('change', function() { setShape('portrait', portChk.checked); });
     stickyChk.addEventListener('change', function() { setShape('sticky', stickyChk.checked); });   // L5
     fxSel.addEventListener('change', function() { setShape('effects', fxSel.value); });   // L6
+    [[numSel, 'numbers'], [bandSel, 'band'], [stepSel, 'steppers'], [valSel, 'values'], [rowSel, 'rows']].forEach(function(p) { p[0].addEventListener('change', function() { setShape(p[1], p[0].value); }); });   // L8
     var setLook = function(key, val) { draft.sheetStyle = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : {}; if (val === null || val === '' || val === undefined) delete draft.sheetStyle[key]; else draft.sheetStyle[key] = val; if (!Object.keys(draft.sheetStyle).length) delete draft.sheetStyle; markDirty(); renderPreview(); };
     fontSel.addEventListener('change', function() { setLook('font', fontSel.value); });
     Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.addEventListener('input', function() { setLook(ci.dataset.key, ci.value); }); });
@@ -1594,6 +1605,23 @@ function effectForm(f, c, sys, onClose) {
     if (!st.name) setTimeout(function() { try { nameI.focus(); } catch (e) {} }, 0);   // a reopened form keeps the page's focus where it is
     return form;
 }
+// Stage 6 look fold (L8): a number box with its up and down arrows inside its right edge. The box changes at once; one commit goes about 200 ms
+// after the last click, none when the value is back where it started (unbatched clicks would hit the host's rate gate), as the slider does
+function stepWrap(inp, f, c, editable) {
+    var wrap = el('span', 'sheet-numwrap'); inp.classList.add('num-stepped'); wrap.appendChild(inp);
+    var steps = el('span', 'sheet-steps'), timer = null, from = inp.value;
+    [['up', 1, '+', 'Up one'], ['down', -1, '\u2212', 'Down one']].forEach(function(d) {
+        var b = el('button', 'tool ghost sheet-step', d[2]); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = d[0]; b.title = d[3]; b.disabled = !editable;
+        b.addEventListener('click', function() {
+            var s0 = Number(f.step) > 0 ? Number(f.step) : 1, v = (Number(inp.value) || 0) + d[1] * s0;
+            if (f.min !== undefined) v = Math.max(f.min, v); if (f.max !== undefined) v = Math.min(f.max, v);
+            inp.value = String(+v.toFixed(6));
+            clearTimeout(timer); timer = setTimeout(function() { if (inp.value === from) return; from = inp.value; commit(c, f, Number(inp.value)); }, 200);
+        });
+        steps.appendChild(b);
+    });
+    wrap.appendChild(steps); return wrap;
+}
 // Stage 6 look fold (L7): a badge's colour class, looked up from a constant map (never built from a stored string)
 var TONE_CLASS = Object.freeze({ good: ' sheet-tone-good', warn: ' sheet-tone-warn', danger: ' sheet-tone-danger', accent: ' sheet-tone-accent', primary: ' sheet-tone-primary' });
 // Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
@@ -1651,7 +1679,9 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
             sw.appendChild(rg); row.appendChild(sw);
         }
         if (k === 'number') inp.className += signTone(f, { value: Number(inp.value) });   // Stage 5g (a skill colours its total instead); 5h: by the number the box shows
-        row.appendChild(inp);
+        var lkS = (sysArg && sysArg.sheet && sysArg.sheet.look) || {};
+        if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, editable));   // Stage 6 look fold (L8)
+        else row.appendChild(inp);
         if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); } }   // 5h: the box edits the base; the effective value beside it
         if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } }
         if (f.unit) row.appendChild(el('span', 'sheet-unit', f.unit));   // Stage 5g

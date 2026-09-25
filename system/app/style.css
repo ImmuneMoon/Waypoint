@@ -2060,6 +2060,41 @@
   .sys-band-grp { display: inline-flex; align-items: center; gap: 4px; }
   .sys-band-grp .sys-bgrp-label { width: 130px; }
   .sys-bgrp-note { margin: 0; }
+  /* Stage 6 look fold (L8): monospaced numbers (stat tiles and pool inputs stay proportional) */
+  .sheet-num-mono :is(.sheet-sec-meta, .sheet-ledger-fig .sheet-hdr-val, .sheet-hdr-input, .sheet-band .sheet-value, .sheet-band .sheet-num, .sheet-band .sheet-cur, .sheet-fx-mods, .sheet-item-qtyn, .sheet-itemtable td:not(.sheet-itcol-name), .sheet-caption-val, .sheet-eff) { font-family: ui-monospace, Consolas, monospace; }
+  .sheet-num-mono .sheet-sec-meta { font-size: 10px; }
+  /* L8: the band as one inline row, or as chips */
+  .sheet-band.sheet-band-inline, .sheet-band.sheet-band-chips { align-items: center; gap: 4px 12px; }
+  .sheet-band.sheet-band-inline .sheet-band-item, .sheet-band.sheet-band-chips .sheet-band-item { flex-direction: row; align-items: center; gap: 6px; min-width: 0; background: none; border: 0; padding: 0; }
+  .sheet-band.sheet-band-inline .sheet-band-item > .sheet-label, .sheet-band.sheet-band-chips .sheet-band-item > .sheet-label { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .sheet-band.sheet-band-inline .sheet-band-item .sheet-value, .sheet-band.sheet-band-chips .sheet-band-item .sheet-value { font-size: 14px; }
+  .sheet-band.sheet-band-inline .sheet-band-item .sheet-bar, .sheet-band.sheet-band-chips .sheet-band-item .sheet-bar { display: none; }
+  .sheet-band.sheet-band-chips .sheet-band-item:not(.sheet-kind-roll) { border: 1px solid var(--edge); border-radius: 9999px; padding: 2px 10px; background: color-mix(in srgb, var(--dim) 12%, transparent); }
+  /* L8: arrows inside a number box — a pool's − / + become up and down arrows in a column (the button text stays for screen readers) */
+  .sheet-steppers-inside .sheet-kind-resource .sheet-ctl { display: inline-grid; grid-template-columns: auto auto 18px auto auto; grid-template-rows: 14px 14px; column-gap: 0; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-pool-icon { grid-column: 1; grid-row: 1 / 3; align-self: center; margin-right: 4px; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-cur { grid-column: 2; grid-row: 1 / 3; height: 28px; border-radius: 4px 0 0 4px; }
+  .sheet-steppers-inside .sheet-kind-resource [data-part="plus"] { grid-column: 3; grid-row: 1; height: 14px; min-height: 0; padding: 0; font-size: 0; border-radius: 0 4px 0 0; }
+  .sheet-steppers-inside .sheet-kind-resource [data-part="minus"] { grid-column: 3; grid-row: 2; height: 14px; min-height: 0; padding: 0; font-size: 0; border-radius: 0 0 4px 0; border-top: 0; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-total { grid-column: 4; grid-row: 1 / 3; align-self: center; margin-left: 6px; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-reset { grid-column: 5; grid-row: 1 / 3; align-self: center; }
+  .sheet-steppers-inside .sheet-numwrap { display: inline-grid; grid-template-columns: auto 18px; grid-template-rows: 14px 14px; }
+  .sheet-steppers-inside .sheet-numwrap > input.sheet-num { grid-column: 1; grid-row: 1 / 3; height: 28px; border-radius: 4px 0 0 4px; }
+  .sheet-steppers-inside .sheet-steps { display: contents; }
+  .sheet-steppers-inside .sheet-step { height: 14px; min-height: 0; padding: 0; font-size: 0; }
+  .sheet-steppers-inside .sheet-step[data-part="up"] { grid-column: 2; grid-row: 1; border-radius: 0 4px 0 0; }
+  .sheet-steppers-inside .sheet-step[data-part="down"] { grid-column: 2; grid-row: 2; border-radius: 0 0 4px 0; border-top: 0; }
+  .sheet-steppers-inside .sheet-kind-resource [data-part="plus"]::before, .sheet-steppers-inside .sheet-step[data-part="up"]::before { content: ''; display: block; margin: 0 auto; width: 8px; height: 8px; background: currentColor; -webkit-mask: url("assets/icons/fa/solid/chevron-up.svg") center/contain no-repeat; mask: url("assets/icons/fa/solid/chevron-up.svg") center/contain no-repeat; }
+  .sheet-steppers-inside .sheet-kind-resource [data-part="minus"]::before, .sheet-steppers-inside .sheet-step[data-part="down"]::before { content: ''; display: block; margin: 0 auto; width: 8px; height: 8px; background: currentColor; -webkit-mask: url("assets/icons/fa/solid/chevron-down.svg") center/contain no-repeat; mask: url("assets/icons/fa/solid/chevron-down.svg") center/contain no-repeat; }
+  .sheet-steppers-inside .sheet-tile .sheet-numwrap { grid-template-columns: auto 16px; grid-template-rows: 16px 16px; }
+  .sheet-steppers-inside .sheet-tile .sheet-numwrap > input.sheet-num { height: 32px; }
+  .sheet-steppers-inside .sheet-tile .sheet-step { height: 16px; }
+  /* L8: a worked-out result in a dashed box — sections only (a tile or a band chip gets no box inside a box); a badge needs none */
+  .sheet-values-boxed .sheet-section .sheet-kind-formula:not(.sheet-tile) > .sheet-value { display: block; border: 1px dashed var(--edge); border-radius: 4px; background: rgba(0,0,0,.18); padding: 4px 8px; text-align: center; font-weight: 600; }
+  .sheet-values-boxed .sheet-section .sheet-kind-formula:not(.sheet-tile) > .sheet-value:has(> .sheet-badge) { border: 0; background: none; padding: 0; }
+  /* L8: carried items as cards */
+  .sheet-rows-cards .sheet-item { border: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); border-radius: 6px; background: rgba(0,0,0,.1); padding: 5px 8px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  .sheet-rows-cards .sheet-items { gap: 6px; }
   /* Stage 6 look fold (L7): a formula as a badge, coloured by its value name; a pool's own colour */
   .sheet-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 10%, transparent); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.4; color: var(--dim); }
   .sheet-badge.sheet-tone-good { color: var(--green); }

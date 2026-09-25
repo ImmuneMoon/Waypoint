@@ -1214,7 +1214,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var rRange = document.getElementById('wbRot');
             var rNum = document.getElementById('wbRotNum');
             function updateRot(v) {
-                w.rot = parseInt(v) || 0;
+                var rn = (parseInt(v, 10) || 0) % 360; if (rn > 180) rn -= 360; if (rn <= -180) rn += 360; w.rot = rn;   // one turn, like the slider: a 21-digit entry was a number the wire refuses
                 if (w.isChar && window.wpSnapFacing) w.rot = window.wpSnapFacing(w, w.rot);   // tokens land on a grid facing while Snap is on
                 rRange.value = w.rot;
                 rNum.value = w.rot;

@@ -108,7 +108,7 @@ function cleanNames(list) {
     var out = [], seen = Object.create(null);
     for (var i = 0; i < list.length; i++) {
         var n = list[i]; if (!n || typeof n !== 'object' || typeof n.name !== 'string' || n.name.length > LIMITS.nameChars || !NAME_RE.test(n.name)) return null;
-        var v = n.value; if (!(typeof v === 'boolean' || (typeof v === 'number' && isFinite(v)))) return null;
+        var v = n.value; if (!(typeof v === 'boolean' || (typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15))) return null;   // bounded like stored values: a computed 1e21 is a whole number the wire refuses (the roll is denied, never half-sent)
         var l = n.name.toLowerCase(); if (l in seen) { if (seen[l] !== v) return null; continue; }
         seen[l] = v; out.push({ name: n.name, value: v });
     }

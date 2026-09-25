@@ -47,7 +47,7 @@ function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
 // Stage 5g: a short label cut by code points — control characters become rep, a lone surrogate is dropped (never half an emoji)
 function cutPoints(v, cap, rep) { if (typeof v !== 'string') return ''; return Array.from(v.slice(0, 256).replace(CTRL_RE_G, rep).trim()).filter(function(ch) { return !/^[\uD800-\uDFFF]$/.test(ch); }).slice(0, cap).join('').trim(); }
 function cleanIcon(v) { return cutPoints(v, LIMITS.icon, ''); }   // a tab's or a section's icon; '' when none
-function fin(v) { return typeof v === 'number' && isFinite(v); }
+function fin(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; }   // bounded: the wire's packer refuses a whole number past 64 bits (1e20 typed into a field once stopped every join)
 function map() { return Object.create(null); }
 function lower(s) { return String(s).toLowerCase(); }
 function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 10); }
@@ -362,7 +362,7 @@ function keyIndex(sys) { var ix = map(); sys.fields.forEach(function(f) { ix[low
 // One stored value coerced to its field's kind, or undefined (drop). opts.max: an evaluated resource max (or null = unbounded)
 function cleanValue(field, v, opts) {
     var k = field.kind;
-    if (k === 'number' || k === 'skill') { var n = Number(v); if (!fin(n)) return undefined; n = stepRound(n, field); return clampNum(n, field.min, field.max); }
+    if (k === 'number' || k === 'skill') { var n = Number(v); if (!fin(n)) return undefined; n = clampNum(stepRound(n, field), field.min, field.max); return fin(n) ? n : undefined; }   // clamped, then checked: a tiny step can round past the bound
     if (k === 'toggle') return v === true ? true : v === false ? false : undefined;
     if (k === 'text') { if (typeof v !== 'string') return undefined; return v.slice(0, field.max || LIMITS.text).replace(CTRL_RE_G, ''); }
     if (k === 'notes') { if (typeof v !== 'string') return undefined; return v.slice(0, LIMITS.notes).replace(CTRL_KEEP_NL, ''); }
@@ -635,9 +635,10 @@ function aliasFromShadowBase(json, sys, F) {
         var f = null; for (var i = 0; i < m.keys.length && !f; i++) if (ix[m.keys[i]] && STORED[ix[m.keys[i]].kind]) f = ix[m.keys[i]];
         if (!f) return;
         var raw = pick(json, m.path);
-        if (f.kind === 'resource') { var cur = isObj(raw) && typeof raw.current === 'number' ? raw.current : numOf(raw); if (cur === undefined) return; values[f.id] = { cur: Math.round(cur) }; matched++; return; }
+        if (f.kind === 'resource') { var cur = isObj(raw) && typeof raw.current === 'number' ? raw.current : numOf(raw); if (cur === undefined) return; var rv = cleanValue(f, { cur: cur }); if (!rv) return; values[f.id] = rv; matched++; return; }
         var n = numOf(raw); if (n === undefined) return;
-        values[f.id] = n; matched++;
+        var nv = cleanValue(f, n); if (nv === undefined) return;   // the field's own rules (bounds, step, the wire-safe range), as an edit would
+        values[f.id] = nv; matched++;
     });
     var temp = { id: 'c_tmp', name: '', ownerId: '', npc: true, values: values };
     (Array.isArray(json.skills) ? json.skills : []).forEach(function(s) {

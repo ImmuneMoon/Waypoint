@@ -82,7 +82,7 @@ const server = http.createServer((req, res) => {
         }
         if (req.method === 'POST') {
             let body = '';
-            req.on('data', chunk => body += chunk.toString());
+            req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
             req.on('end', () => {
                 let parsed;
                 try { parsed = JSON.parse(body); } catch (e) { res.writeHead(400); return res.end('{"error":"invalid json"}'); }
@@ -118,7 +118,7 @@ const server = http.createServer((req, res) => {
     }
     if ((url.pathname === '/api/restore-backup' || url.pathname === '/api/delete-backup') && req.method === 'POST') {
         let body = '';
-        req.on('data', c => body += c.toString());
+        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => {
             try {
                 const file = String((JSON.parse(body || '{}') || {}).file || '');
@@ -145,7 +145,7 @@ const server = http.createServer((req, res) => {
         }
         if (req.method === 'POST') {
             let body = '';
-            req.on('data', c => body += c.toString());
+            req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
             req.on('end', () => {
                 try { JSON.parse(body); } catch (e) { res.writeHead(400); return res.end('{"error":"invalid json"}'); }
                 const tmp = dataFile + '.tmp';
@@ -175,7 +175,7 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === '/api/log' && req.method === 'POST') {
         let body = '';
-        req.on('data', c => body += c.toString());
+        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => { res.writeHead(200); res.end(); });
         return;
     }
@@ -183,7 +183,7 @@ const server = http.createServer((req, res) => {
         // Delete one picture file under saves/images (the Image Library's Delete picture). The save itself is
         // untouched: anything still referencing the path simply shows a broken picture until re-pointed.
         let body = '';
-        req.on('data', c => body += c.toString());
+        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => {
             try {
                 const p = String((JSON.parse(body || '{}') || {}).path || '').replace(/^\/saves\//, '');

@@ -2726,7 +2726,9 @@ function handleMessage(msg, conn) {
             var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system) }) : null;
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
-            chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, { facing: SQ.facingCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), !window.wpVtt || window.wpVtt.on('turning')) });
+            var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };
+            var tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation') });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
+            chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
@@ -3370,7 +3372,7 @@ net.diceRoll = function(expr, o) {
         return { ok: true, pending: true };
     }
     var campR = getActiveCampaign(), SR = SC(), chR = null, varsR = null;   // a character makes its sheet's names available (character sheets, 1.5.0)
-    if (o.charId) { chR = campR && campR.chars && campR.chars[o.charId]; if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F, { facing: window.wpSheets && window.wpSheets.facingCtxFor ? window.wpSheets.facingCtxFor(chR.id, campR) : null }); }
+    if (o.charId) { chR = campR && campR.chars && campR.chars[o.charId]; if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F, window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null); }
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };

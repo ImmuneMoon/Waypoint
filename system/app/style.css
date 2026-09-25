@@ -1992,6 +1992,12 @@
   /* Stage 5h Fold 3: the facing dial — the token's facing (inner wedges) and threat marks (outer ring, coloured by arc) */
   .sheet-dial { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .sheet-dial[hidden] { display: none; }
+  /* Stage 6: the token's stance on the sheet */
+  .sheet-stance { display: flex; flex-direction: column; gap: 6px; }
+  .sheet-stance[hidden] { display: none; }
+  .sheet-stance.sheet-row { grid-column: 1 / -1; }
+  .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sheet-stance-row > .sheet-label { min-width: 64px; }
   .sheet-dial.sheet-row { grid-column: 1 / -1; }
   .sheet-dial-svg { width: 132px; height: 132px; flex: none; }
   .sheet-dial-svg:focus-visible, .sheet-dial-seg:focus-visible { outline: 2px solid var(--sheet-accent, var(--gold)); outline-offset: 1px; }

@@ -655,11 +655,11 @@ const j = v => JSON.stringify(v);
             j(cy([], 60, 6)) === '[60]' && j(cy([60], 120, 6)) === '[60,120]' && j(cy([60, 120], 60, 6)) === '[120]' && j(cy([60, 120, 180], 180, 6)) === '[180,60,120]' && j(cy([60], 61, 6)) === '[]' && j(cy([0], 90, 4)) === '[0,90]' && j(cy([60], NaN, 6)) === '[60]');
         const fsys = cleanSystem({ v: 1, name: 'FC', fields: [{ id: 'f_dg', key: 'Dodge', kind: 'number', def: 8, vis: 'all' }, { id: 'f_ed', key: 'EffDodge', kind: 'formula', formula: 'if(Arc.rear, 0, Dodge - Arc)', vis: 'all' }, { id: 'f_tr', key: 'Rear', kind: 'formula', formula: 'Threats.rear * 10 + Threats', vis: 'all' }, { id: 'f_fc', key: 'Face', kind: 'formula', formula: 'Facing', vis: 'all' }], rolls: [] }, { F, gmView: true });
         const chF3 = { id: 'c_1', values: {} };
-        const neutral = S.resolveAll(fsys, chF3, F), sideR = S.resolveAll(fsys, chF3, F, { deg: 0, sides: 6, threats: [120, 180] }), rearR = S.resolveAll(fsys, chF3, F, { deg: 90, sides: 6, threats: [270] });
+        const neutral = S.resolveAll(fsys, chF3, F), sideR = S.resolveAll(fsys, chF3, F, { facing: { deg: 0, sides: 6, threats: [120, 180] } }), rearR = S.resolveAll(fsys, chF3, F, { facing: { deg: 90, sides: 6, threats: [270] } });
         check('5h F3: the built-in names — neutral with no context (Arc 0, no threats, Facing 0); an active side threat takes 1 off Dodge, a rear one zeroes it; the counts by arc',
             neutral.f_ed.value === 8 && neutral.f_tr.value === 0 && neutral.f_fc.value === 0 && sideR.f_ed.value === 7 && sideR.f_tr.value === 12 && rearR.f_ed.value === 0 && rearR.f_fc.value === 90 && rearR.f_tr.value === 11, j([neutral.f_ed, sideR.f_ed, sideR.f_tr, rearR.f_ed, rearR.f_tr]));
         const shadow = cleanSystem({ v: 1, name: 'SH', fields: [{ id: 'f_arc', key: 'Arc', kind: 'number', def: 3, vis: 'all' }, { id: 'f_x', key: 'X', kind: 'formula', formula: 'Arc + Arc.front', vis: 'all' }], rolls: [] }, { F, gmView: true });
-        const vs = S.validateSystem(fsys, F), vsh = S.validateSystem(shadow, F), rsh = S.resolveAll(shadow, chF3, F, { deg: 0, sides: 6, threats: [180] });
+        const vs = S.validateSystem(fsys, F), vsh = S.validateSystem(shadow, F), rsh = S.resolveAll(shadow, chF3, F, { facing: { deg: 0, sides: 6, threats: [180] } });
         check('5h F3: validateSystem knows the facing names; a field named Arc keeps the whole family (Arc.front is then unknown) and reads as the field', vs.ok && !vsh.ok && vsh.errors.some(e => /Arc\.front/.test(e.message)) && rsh.f_arc.value === 3, j([vs.errors, vsh.errors]));
         const withDial = cleanSystem({ v: 1, name: 'D', fields: [], rolls: [], sheet: { sections: [{ id: 's_1', title: 'Dash', fields: [{ kind: 'facing', w: 1 }, { kind: 'bogus' }] }] } }, { F, gmView: false });
         check('5h F3: a Facing dial placement is kept (the players\' view too); an unknown kind is dropped', withDial.sheet && withDial.sheet.sections[0].fields.length === 1 && withDial.sheet.sections[0].fields[0].kind === 'facing', j(withDial.sheet));
@@ -678,13 +678,62 @@ const j = v => JSON.stringify(v);
         const shF3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), dialSrc = shF3.slice(shF3.indexOf('function facingNode('), shF3.indexOf('function tokenTurned('));
         check('5h F3 UI: the dial draws with createElementNS and textContent only (no markup), is live only on the real sheet for the GM or the token\'s own unpaused player, and acts only through the whiteboard setters; the sheet and both roll sites pass the facing context',
             dialSrc.length > 1500 && !/innerHTML/.test(dialSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);/.test(dialSrc) && /wpSetTokenFacing/.test(dialSrc) && /wpSetTokenThreats/.test(dialSrc)
-            && /var all = resolveAll\(sys, c, F\(\), facingCtxFor\(c\.id, camp\)\);/.test(shF3) && /resolveAll\(sys, c, F\(\), facingCtxFor\(c\.id, camp\)\), true, false, function\(\) \{ renderSheetInto/.test(shF3)
-            && /if \(inSession\) return \(loc && /.test(shF3) && /charTokenOn\(am, c\.id, myId\(\), \{ strict: true \}\)/.test(shF3) && /if \(body && ae && body\.contains\(ae\) && \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(ae\.tagName\)\)/.test(shF3)
-            && /SQ\.makeResolver\(viewQ, chvQ, Fq, \{ facing: SQ\.facingCtx\(mapQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\)/.test(netSrcP) && (netSrcP.match(/delete (mine|there|nw|tok)\.threats;/g) || []).length === 4 && /SR\.makeResolver\(campR\.system, chR, F, \{ facing:/.test(netSrcP));
+            && /var all = resolveAll\(sys, c, F\(\), tokenCtxFor\(c\.id, camp\)\);/.test(shF3) && /resolveAll\(sys, c, F\(\), tokenCtxFor\(c\.id, camp\)\), true, false, function\(\) \{ renderSheetInto/.test(shF3)
+            && /if \(inSession\) return \(loc && /.test(shF3) && /charTokenOn\(am, c\.id, myId\(\), \{ strict: true \}\)/.test(shF3) && /if \(body && ae && body\.contains\(ae\) && \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(ae\.tagName\) && !committed\)/.test(shF3)
+            && /tcQ = SQ\.tokenCtx\(mapQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\), \{ turning: ruleQ\('turning'\), posture: ruleQ\('posture'\), elevation: ruleQ\('elevation'\) \}\);/.test(netSrcP) && /varsQ = SQ\.makeResolver\(viewQ, chvQ, Fq, tcQ\);/.test(netSrcP)
+            && (netSrcP.match(/delete (mine|there|nw|tok)\.threats;/g) || []).length === 4 && /SR\.makeResolver\(campR\.system, chR, F, window\.wpSheets && window\.wpSheets\.tokenCtxFor \? window\.wpSheets\.tokenCtxFor\(chR\.id, campR\) : null\)/.test(netSrcP));
         const wbF3 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
         check('5h F3: the dial\'s setters turn on the token\'s own map under the arrow\'s rule (a player: their own token, not paused; facing on) and end with a final pos, or a whole-map send for a map off screen',
-            /if \(n && n\.active && n\.role === 'client' && \(n\.paused \|\| n\.selfPaused \|\| tok\.ownerId !== n\.myId\)\) return null;/.test(wbF3) && /if \(!tok \|\| !tok\.isChar \|\| \(window\.wpVtt && !window\.wpVtt\.on\('turning'\)\)\) return null;/.test(wbF3)
+            /if \(n && n\.active && n\.role === 'client' && \(n\.paused \|\| n\.selfPaused \|\| tok\.ownerId !== n\.myId\)\) return null;/.test(wbF3) && /if \(!tok \|\| !tok\.isChar \|\| \(feature !== null && window\.wpVtt && !window\.wpVtt\.on\(feature \|\| 'turning'\)\)\) return null;/.test(wbF3)
             && /window\.wpNet\.streamPos\(t\.tok, true\)/.test(wbF3) && /n\.broadcastItemFiltered\(t\.camp\.id, t\.mapId\)/.test(wbF3) && /var step = facingStepFor\(\(t\.map\.meta && t\.map\.meta\.gridType\) \|\| 'off', t\.tok\);/.test(wbF3));
+    }
+
+    /* ---- Stage 6 Fold 2: the token's stance — Posture / Elevation names, the Stance placement ---- */
+    {
+        const SC6 = S.stanceCtx, on2 = { posture: true, elevation: true };
+        check('6 F2: stanceCtx — the posture as its index (the 1.4.6 ids prone / supine too; anything else standing), the elevation in yards (bounded, a non-number reads 0), each 0 while its feature is off; null with no token or both features off',
+            j(SC6({ posture: 'kneeling', elevation: 3.26 }, on2)) === j({ posture: 3, elevation: 3.3 }) && SC6({ posture: 'prone' }, on2).posture === 5 && SC6({ posture: 'supine' }, on2).posture === 6 && SC6({ posture: 'flying' }, on2).posture === 0 && SC6({ posture: 7 }, on2).posture === 0
+            && SC6({ elevation: 'high' }, on2).elevation === 0 && SC6({ elevation: 1e9 }, on2).elevation === 999 && Object.is(SC6({ elevation: -0.04 }, on2).elevation, 0) && j(SC6({ posture: 'sitting', elevation: 4 }, { posture: false, elevation: true })) === j({ posture: 0, elevation: 4 })
+            && SC6({ posture: 'sitting' }, { posture: false, elevation: false }) === null && SC6(null, on2) === null && S.POSTURE_IDS.length === 7 && S.POSTURE_NAMES.length === 7);
+        const tc = S.tokenCtx({ meta: { gridType: 'hex' } }, { rot: 60, posture: 'crouching', elevation: 2 }, { turning: true, posture: true, elevation: true });
+        check('6 F2: tokenCtx gives facing and stance of one token (null with no token)', tc && tc.facing.deg === 60 && tc.stance.posture === 1 && tc.stance.elevation === 2 && S.tokenCtx({}, null, on2) === null && S.tokenCtx({}, { rot: 0 }, { turning: false, posture: false, elevation: false }).facing === null, j(tc));
+        const pS = cleanSystem({ v: 1, name: 'P', fields: [{ id: 'f_atk', key: 'PostureAtk', kind: 'formula', formula: 'if(Posture = 0, 0, if(Posture <= 3, -2, -4))', vis: 'all' }, { id: 'f_h', key: 'High', kind: 'formula', formula: 'Elevation * 2 + Posture', vis: 'all' }], rolls: [] }, { F, gmView: true });
+        const pN = resolveAll(pS, { id: 'c_1', values: {} }, F), pK = resolveAll(pS, { id: 'c_1', values: {} }, F, { stance: { posture: 5, elevation: 3 } }), pC = resolveAll(pS, { id: 'c_1', values: {} }, F, { facing: null, stance: { posture: 1, elevation: 0 } });
+        check('6 F2: Posture and Elevation in formulas — neutral (0) with no token context, the token\'s values with one', pN.f_atk.value === 0 && pN.f_h.value === 0 && pK.f_atk.value === -4 && pK.f_h.value === 11 && pC.f_atk.value === -2, j([pN.f_h, pK.f_atk, pK.f_h, pC.f_atk]));
+        const pShadow = cleanSystem({ v: 1, name: 'P', fields: [{ id: 'f_p', key: 'Posture', kind: 'number', def: 9, vis: 'all' }, { id: 'f_x', key: 'X', kind: 'formula', formula: 'Posture + Elevation', vis: 'all' }], rolls: [] }, { F, gmView: true });
+        check('6 F2: validateSystem knows Posture and Elevation; a field named Posture keeps the name (and reads as the field)', validateSystem(pS, F).ok && resolveAll(pShadow, { id: 'c_1', values: {} }, F, { stance: { posture: 3, elevation: 1 } }).f_x.value === 10 && validateSystem(pShadow, F).ok);
+        // review fixes: one reading of a posture everywhere (the chip's normalizePosture, sliced from whiteboard.js); a text elevation
+        const wbSrcP = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        const npSrc = wbSrcP.slice(wbSrcP.indexOf('function normalizePosture('), wbSrcP.indexOf('function tokenElevation('));
+        const normP = new Function(npSrc + '\nreturn normalizePosture;')();
+        const spell = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up', 'Lying prone', 'Lying Face Up', 'lying_prone', 'face down', 'crouch', 'prone', 'supine', 'on their back', 'Kneel', '', 'flying', 'Stand'];
+        const mism = spell.filter(x => SC6({ posture: x }, on2).posture !== S.POSTURE_IDS.indexOf(normP(x)));
+        check('6 F2 review: a posture reads the same on the sheet as on the map chip (every spelling the chip accepts: long names, underscores, face down, crouch, the 1.4.6 ids)', npSrc.length > 100 && mism.length === 0, j(mism));
+        check('6 F2 review: an elevation authored as text ("3") reads as the chip shows it; anything else not a number reads 0', SC6({ elevation: '3' }, on2).elevation === 3 && SC6({ elevation: ' -2.5 ' }, on2).elevation === -2.5 && SC6({ elevation: '3yd' }, on2).elevation === 0 && SC6({ elevation: { valueOf() { throw new Error('x'); } } }, on2).elevation === 0);
+        // the host's patch gate for stance, with the real cleaners (sliced from net.js): own token only, each feature on
+        const netSrc2 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cleanersSrc = netSrc2.slice(netSrc2.indexOf('var POSTURE_SET = '), netSrc2.indexOf('function sanitizeItem('));
+        const cln = new Function(cleanersSrc + '\nreturn { cleanElevation: cleanElevation, cleanPosture: cleanPosture };')();
+        const iPS = netSrc2.indexOf('// [netcheck:patch-start]'), kPS = netSrc2.indexOf('// [netcheck:patch-end]');
+        const runPS = (feat, wb) => { const camp = { id: 'camp1', items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_1', ownerId: 'u_p', x: 10, y: 10, rot: 0, front: 0 }, { id: 't2', isChar: true, charId: 'c_2', ownerId: 'u_q', x: 50, y: 50, rot: 0, front: 0 }] } } };
+            const ch = new Function('state', 'window', 'playerStroke', 'cleanElevation', 'cleanPosture', 'msg', 'prof', netSrc2.slice(iPS, kPS) + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: { camp1: camp } } }, { wpVtt: { campaignOn: k => !!feat[k] }, wpSystemCore: S }, () => null, cln.cleanElevation, cln.cleanPosture, { campId: 'camp1', itemId: 'm1', item: { whiteboard: wb } }, { id: 'u_p' });
+            return { ch, t1: camp.items.m1.whiteboard[0], t2: camp.items.m1.whiteboard[1] }; };
+        const wbStance = [{ id: 't1', x: 10, y: 10, rot: 0, front: 0, posture: 'lying-prone', elevation: 3 }, { id: 't2', x: 50, y: 50, rot: 0, front: 0, posture: 'sitting', elevation: 9 }];
+        const psOn = runPS({ posture: true, elevation: true }, wbStance), psOff = runPS({ posture: false, elevation: false }, wbStance);
+        check('6 F2 review: the host takes a player\'s posture and elevation from their patch on their own token only, and only while each feature is on (the real gate and cleaners)',
+            psOn.ch === true && psOn.t1.posture === 'lying-prone' && psOn.t1.elevation === 3 && !('posture' in psOn.t2) && !('elevation' in psOn.t2) && psOff.ch === false && !('posture' in psOff.t1) && !('elevation' in psOff.t1), j([psOn, psOff]));
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), fogR = fs.readFileSync(path.join(app, 'scripts', 'fog.js'), 'utf8');
+        check('6 F2 review: the sheet, the host\'s roll and fog sight read the token names through the same table-level gate (rulesOn), and fog sight passes the token context',
+            /function tokenFlags\(\) \{ return \{ turning: ruleOn\('turning'\), posture: ruleOn\('posture'\), elevation: ruleOn\('elevation'\) \}; \}/.test(shR) && /vt\.rulesOn \? vt\.rulesOn\(k\) : vt\.on\(k\)/.test(fogR) && /S0\.makeResolver\(camp\.system, ch, window\.wpFormula, tc\)/.test(fogR)
+            && /if \(d\.dataset\.sig === stanceSigOf\(c, camp\)\) return;/.test(shR) && /\[em, ep\]\.forEach\(function\(b\) \{ b\.addEventListener\('mousedown'/.test(shR) && /committed = inStance && /.test(shR));
+        const lay = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheet: { sections: [{ id: 's_1', title: 'D', fields: [{ kind: 'stance', w: 1 }] }] } }, { F, gmView: false });
+        check('6 F2: a Stance placement is kept (the players\' view too)', lay.sheet.sections[0].fields.length === 1 && lay.sheet.sections[0].fields[0].kind === 'stance', j(lay.sheet));
+        const sh2 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), stSrc = sh2.slice(sh2.indexOf('function stanceNode('), sh2.indexOf('// whiteboard.js / net.js / main.js: a token turned'));
+        const wb2 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
+        check('6 F2 UI: the stance control draws text only, is live only on the real sheet for the GM or the token\'s own unpaused player, sets the token through the whiteboard setter (each part only while its feature is on), and redraws in place like the dial',
+            stSrc.length > 800 && !/innerHTML/.test(stSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);/.test(stSrc) && /wpSetTokenStance/.test(stSrc)
+            && /if \(typeof st\.posture === 'string' && stanceOn\('posture'\)\)/.test(wb2) && /if \(st\.elevation !== undefined && stanceOn\('elevation'\) && isFinite\(Number\(st\.elevation\)\)\)/.test(wb2) && /var t = tokenOnMap\(mapId, tokId, null\);/.test(wb2)
+            && /querySelectorAll\('\.sheet-dial, \.sheet-stance'\)/.test(sh2));
     }
 
     /* ---- the System editor's click dispatch: the Layout handler must claim only its own buttons ---- */

@@ -59,7 +59,11 @@ function tokenSightCells(token, map, camp) {
         var ch = camp.chars[token.charId];
         if (ch) {
             var f = window.wpSystemCore.fieldById(camp.system, cf.fields.sight);
-            if (f && f.key) { var r = window.wpSystemCore.makeResolver(camp.system, ch, window.wpFormula); var v = r(f.key); if (typeof v === 'number' && isFinite(v) && v >= 0) yards = v; }
+            if (f && f.key) {
+                var vt = window.wpVtt, rf = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); }, S0 = window.wpSystemCore;   // Stage 6: a sight formula reading Elevation (a watcher on a ledge) uses the token's own values
+                var tc = S0.tokenCtx ? S0.tokenCtx(map, token, { turning: rf('turning'), posture: rf('posture'), elevation: rf('elevation') }) : null;
+                var r = S0.makeResolver(camp.system, ch, window.wpFormula, tc); var v = r(f.key); if (typeof v === 'number' && isFinite(v) && v >= 0) yards = v;
+            }
         }
     }
     return C.rangeToCells(yards, cellYardsForMap(map));

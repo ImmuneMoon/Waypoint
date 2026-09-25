@@ -27,7 +27,7 @@ var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle
 var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });   // effects (5h): a character's status effects — rows, never a number
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
-var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1 });   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial
+var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1 });   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
 var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // Stage 5c: what the pinned band can hold — kinds that read in one row (text, notes, selects and item lists stay in sections)
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
 var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
@@ -537,6 +537,32 @@ function fxIndex(sys, char) {
 // it are front, the next two side, the back one rear (ShadowBase's 3 / 2 / 1); on a square grid 1 / 2 / 1. Pure; a token's values from a
 // save or the wire are re-checked here.
 var FACING_NAMES = Object.freeze(['Facing', 'Arc', 'Arc.front', 'Arc.side', 'Arc.rear', 'Threats', 'Threats.front', 'Threats.side', 'Threats.rear']);
+// Stage 6: the token's stance — Posture (the index of its posture below; 0 standing) and Elevation (yards), each 0 while its VTT feature is off
+var POSTURE_IDS = Object.freeze(['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up']);
+var POSTURE_NAMES = Object.freeze(['Standing', 'Crouching', 'Sitting', 'Kneeling', 'Crawling', 'Lying prone', 'Lying face up']);
+var TOKEN_NAMES = Object.freeze(FACING_NAMES.concat(['Posture', 'Elevation']));
+function postureIndex(v) {   // the same reading as the map's chip (whiteboard.js normalizePosture): the ids, the 1.4.6 ids, the handbook's long names
+    if (typeof v !== 'string') return 0;
+    var s = v.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    if (!s || s === 'standing' || s === 'stand') return 0;
+    if (/face ?up|supine|on (the|their) back/.test(s)) return 6;
+    if (/prone|face ?down/.test(s)) return 5;
+    if (/crouch/.test(s)) return 1;
+    if (/sit/.test(s)) return 2;
+    if (/kneel/.test(s)) return 3;
+    if (/crawl/.test(s)) return 4;
+    return 0;
+}
+function stanceCtx(tok, flags) {   // { posture, elevation } for one token, or null (no token, both features off); a value that is not a number reads 0
+    if (!isObj(tok) || !isObj(flags) || (!flags.posture && !flags.elevation)) return null;
+    var e = tok.elevation; if (typeof e === 'string' && /^\s*-?\d{1,6}(\.\d+)?\s*$/.test(e)) e = Number(e);   // a drop's "3" reads as the chip shows it (only text is converted: an object's valueOf is never called)
+    e = typeof e === 'number' && isFinite(e) ? Math.max(-999, Math.min(999, Math.round(e * 10) / 10)) : 0; if (e === 0) e = 0;
+    return { posture: flags.posture ? postureIndex(tok.posture) : 0, elevation: flags.elevation ? e : 0 };
+}
+function tokenCtx(map, tok, flags) {   // everything a token gives the built-in names: { facing, stance } (flags: { turning, posture, elevation }), or null with no token
+    if (!isObj(tok) || !isObj(flags)) return null;
+    return { facing: facingCtx(map, tok, !!flags.turning), stance: stanceCtx(tok, flags) };
+}
 function norm180(d) { d = d % 360; if (d <= -180) d += 360; if (d > 180) d -= 360; return d; }
 function sideOf(deg, sides) { var n = sides === 4 ? 4 : 6, x = deg % 360; if (x < 0) x += 360; return Math.round(x / (360 / n)) % n; }   // the dial side a bearing falls on (side 0 = up)
 function threatArc(fc, bearing) {   // 0 front, 1 side, 2 rear
@@ -600,7 +626,7 @@ function facingValue(fc, l) {   // a built-in facing name's value; with no conte
     }
     return undefined;
 }
-function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base); ropts.facing: facingCtx(...) for the built-in facing names
+function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base); ropts.facing / ropts.stance: tokenCtx(...) for the built-in token names
     var ix = keyIndex(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char), detail = map();
     // 5h: where a derived value's effects came from — the sources recorded on the names its formula read (theirs and their own "via")
     function viaOf(names) {
@@ -632,7 +658,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function loopError(name) { return { error: { message: 'Formulas refer to each other in a loop: ' + chain.concat(name).join(' → '), pos: 0, len: 0 } }; }
     function builtin(l) {   // 5h Fold 3: Facing, Arc, Arc.front|side|rear, Threats, Threats.front|side|rear — a field named Facing, Arc or Threats keeps its whole family
-        var fam = l.split('.')[0]; if (ix[fam] || (fam !== 'facing' && fam !== 'arc' && fam !== 'threats')) return undefined;
+        var fam = l.split('.')[0]; if (ix[fam]) return undefined;
+        if (l === 'posture' || l === 'elevation') { var stc = ropts && isObj(ropts.stance) ? ropts.stance : null; return stc && typeof stc[l] === 'number' ? stc[l] : 0; }   // Stage 6: the token's stance
+        if (fam !== 'facing' && fam !== 'arc' && fam !== 'threats') return undefined;
         return facingValue(ropts && ropts.facing ? ropts.facing : null, l);
     }
     function fn(name) {
@@ -688,9 +716,10 @@ function captionParts(sys, char, F, text, vars) {   // vars: the render's own re
     return out;
 }
 // Every field's value for a render: { fieldId: { value, text, error, max } } (max for resources)
-function resolveAll(sys, char, F, facing) {   // facing (5h Fold 3): facingCtx(...) for the built-in Facing / Arc / Threats names; none reads them neutral
-    var r = makeResolver(sys, char, F, facing ? { facing: facing } : null), out = map(), r0 = null;
-    var base0 = function(name) { r0 = r0 || makeResolver(sys, char, F, { noFx: true, facing: facing || null }); var v = r0(name); return (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; };
+function resolveAll(sys, char, F, tctx) {   // tctx: tokenCtx(...) = { facing, stance } for the built-in token names (Facing, Arc, Threats, Posture, Elevation); none reads them neutral
+    var ro = isObj(tctx) ? { facing: tctx.facing || null, stance: tctx.stance || null } : null;
+    var r = makeResolver(sys, char, F, ro), out = map(), r0 = null;
+    var base0 = function(name) { r0 = r0 || makeResolver(sys, char, F, { noFx: true, facing: ro ? ro.facing : null, stance: ro ? ro.stance : null }); var v = r0(name); return (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; };
     Object.defineProperty(out, 'vars', { value: r });   // Fold B: the warm resolver, for captions (not enumerable: every field loop over the result is unchanged)
     sys.fields.forEach(function(f) {
         var e = { value: undefined, text: '', error: null };
@@ -753,8 +782,8 @@ function headerEntry(f, e) {
     return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error
-function hoverLines(sys, char, F, facing) {
-    var all = resolveAll(sys, char, F, facing), lines = [];
+function hoverLines(sys, char, F, tctx) {
+    var all = resolveAll(sys, char, F, tctx), lines = [];
     sys.fields.forEach(function(f) {
         if (!f.hover) return;
         var e = all[f.id]; if (!e || e.error) return;
@@ -772,7 +801,7 @@ function validateSystem(sys, F) {
     if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };
     var keys = sys.fields.map(function(f) { return f.key; }), lowerKeys = keys.map(lower), ix = keyIndex(sys);
     var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } if (f.kind === 'number') known[lower(f.key) + '.base'] = f; });   // 5h: "ST.base" is the stored number, before effects (a points cost reads it)
-    FACING_NAMES.forEach(function(n) { var l = lower(n), fam = l.split('.')[0]; if (!ix[fam] && !known[l]) known[l] = { id: '', key: n, kind: fam === 'arc' && l !== 'arc' ? 'toggle' : 'number', vis: 'all' }; });   // 5h Fold 3: the facing names (a field named Facing, Arc or Threats keeps the family)
+    TOKEN_NAMES.forEach(function(n) { var l = lower(n), fam = l.split('.')[0]; if (!ix[fam] && !known[l]) known[l] = { id: '', key: n, kind: fam === 'arc' && l !== 'arc' ? 'toggle' : 'number', vis: 'all' }; });   // 5h Fold 3: the facing names (a field named Facing, Arc or Threats keeps the family)
     var edges = map();
     function checkFormula(owner, prop, text, allowDice, vis) {
         if (text === null) return;
@@ -1051,6 +1080,6 @@ function gmEffectNames(vars, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };

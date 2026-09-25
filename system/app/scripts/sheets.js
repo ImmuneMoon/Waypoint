@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -1594,6 +1594,8 @@ function effectForm(f, c, sys, onClose) {
     if (!st.name) setTimeout(function() { try { nameI.focus(); } catch (e) {} }, 0);   // a reopened form keeps the page's focus where it is
     return form;
 }
+// Stage 6 look fold (L7): a badge's colour class, looked up from a constant map (never built from a stored string)
+var TONE_CLASS = Object.freeze({ good: ' sheet-tone-good', warn: ' sheet-tone-warn', danger: ' sheet-tone-danger', accent: ' sheet-tone-accent', primary: ' sheet-tone-primary' });
 // Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
 function signTone(f, e) { if (!f.sign || !e || e.error || e.label || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
 // A field on the sheet: its control, then (Fold B) its caption line — text, with each {formula} worked out for this character, drawn as text
@@ -1620,7 +1622,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
         var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined ? f.def : raw);
         ls.dataset.fid = f.id; f.labels.forEach(function(t, i) { ls.appendChild(opt(String(i), t || String(i), curL === i)); });
@@ -1658,6 +1660,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     if (k === 'resource') {
         var cur = e && typeof e.value === 'number' ? e.value : 0, max = e && typeof e.max === 'number' ? e.max : null;
         var r = el('div', 'sheet-ctl');
+        if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) { box.classList.add('sheet-pool-colored'); box.style.setProperty('--sheet-pool', f.color); }   // Stage 6 look fold (L7): the pool's own colour
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !editable;
@@ -1964,14 +1967,27 @@ function fieldRow(f) {
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(input('sys-vnames field', (f.labels || []).join(', '), 'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'Value names (optional)'));   // Stage 6
+    if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own colour'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'Caption (optional)'));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
         var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'Icon'); flags.appendChild(rIcoIn); flags.appendChild(glyphButton(rIcoIn));
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
+        var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own colour: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Colour')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
+        if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No colour'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colours'; flags.appendChild(rcc); }
         var bcl = el('label', 'sys-hover'); var bcc = el('input'); bcc.type = 'checkbox'; bcc.checked = f.bar !== false; bcc.className = 'sys-bar-chk'; bcl.appendChild(bcc); bcl.appendChild(document.createTextNode(' Bar')); bcl.title = 'The bar under the value (untick for just the numbers)'; flags.appendChild(bcl);
     }
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
+    if (f.kind === 'formula' && f.badge && Array.isArray(f.labels) && f.labels.length) {   // Stage 6 look fold (L7): a colour per value name on the badge
+        var trow = el('div', 'sys-sec-style sys-tones-row'); trow.appendChild(el('span', 'sys-sec-style-lbl', 'Colours'));
+        f.labels.forEach(function(lbN, ti) {
+            if (!lbN) return;
+            var lab = el('label', 'sys-tone-lbl'); lab.appendChild(el('span', 'sys-sec-style-lbl', lbN));
+            var ts = select('sys-tone-sel', [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['danger', 'Danger (red)'], ['accent', 'Accent'], ['primary', 'Primary']], (Array.isArray(f.tones) && f.tones[ti]) || '', 'The badge\u2019s colour when the value is ' + lbN);
+            ts.dataset.ti = String(ti); lab.appendChild(ts); trow.appendChild(lab);
+        });
+        row.appendChild(trow);
+    }
     if (f.kind === 'number' && f.slider) {   // Stage 5e: the slider's end labels and track colours
         var srow = el('div', 'sys-sec-style sys-slider-row'); srow.appendChild(el('span', 'sys-sec-style-lbl', 'Slider'));
         srow.appendChild(input('sys-slider-low field', f.slider.low, 'The label at the low end (e.g. Dark Side)', 'Low end label'));
@@ -2187,6 +2203,7 @@ function onInput(e) {
         else if (c.indexOf('sys-caption') >= 0) { if (t.value.trim()) f.caption = t.value.slice(0, 400); else delete f.caption; }   // Fold B (Save cuts it to 200)
         else if (c.indexOf('sys-vnames') >= 0) { var vn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (vn.length && !vn[vn.length - 1]) vn.pop(); if (vn.some(Boolean)) f.labels = vn; else delete f.labels; }   // Stage 6: a blank between names keeps its place (every later name keeps its number)
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
+        else if (c.indexOf('sys-res-color') >= 0) { if (/^#[0-9a-fA-F]{6}$/.test(t.value)) f.color = t.value.toLowerCase(); }   // Stage 6 look fold (L7)
         else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
         else if (c.indexOf('sys-slider-highColor') >= 0) { f.slider = f.slider || {}; f.slider.highColor = t.value; }
         else if (c.indexOf('sys-slider-low') >= 0) { f.slider = f.slider || {}; f.slider.low = t.value; }
@@ -2252,6 +2269,9 @@ function onChange(e) {
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
         else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: colour by sign
+        else if (c.indexOf('sys-badge-chk') >= 0) { if (t.checked) f.badge = true; else delete f.badge; markDirty(); renderAll(); return; }   // L7: the tones row follows
+        else if (c.indexOf('sys-tone-sel') >= 0) { var tiN = Number(t.dataset.ti), tArr = Array.isArray(f.tones) ? f.tones.slice() : []; if (isFinite(tiN) && tiN >= 0 && tiN < LIMITS.labels) { while (tArr.length <= tiN) tArr.push(''); tArr[tiN] = t.value; while (tArr.length && !tArr[tArr.length - 1]) tArr.pop(); if (tArr.length) f.tones = tArr; else delete f.tones; } }   // L7
+        else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a colour picked — "No colour" appears
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button
         else if (c.indexOf('sys-bar-chk') >= 0) { if (t.checked) delete f.bar; else f.bar = false; }   // Fold B: the bar (absent = shown)
         else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) f.slider = f.slider || {}; else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
@@ -2261,6 +2281,7 @@ function onChange(e) {
         else if (c.indexOf('sys-itbl-chips') >= 0) { f.table = f.table || {}; if (t.checked) f.table.chips = true; else delete f.table.chips; }
         else if (c.indexOf('sys-itbl-footer') >= 0) { f.table = f.table || {}; if (t.checked) f.table.footer = true; else delete f.table.footer; }
         else if (c.indexOf('sys-def-bool') >= 0) f.def = t.checked;
+        else if (c.indexOf('sys-vnames') >= 0 && f.kind === 'formula' && f.badge) { markDirty(); renderAll(); return; }   // L7: the tones row follows the value names
         else if (c.indexOf('sys-vnames') >= 0) { if (f.kind === 'number') { var rwV = t.closest('.sys-row'), dcV = rwV && rwV.querySelector('.sys-def'); if (dcV) buildDefCell(dcV, f); } markDirty(); patchErrors(); return; }   // Stage 6: a number's default cell follows (a pick of the names, or its own range back when they are cleared); nothing else in the row moves, so focus stays
         else if (c.indexOf('sys-def-lbl') >= 0) f.def = Number(t.value);
         else return;
@@ -2330,6 +2351,7 @@ function onClick(e) {
     else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }
     else if (act === 'del') { list.splice(i, 1); }
     else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colours
+    else if (act === 'rescolorclr') { delete item.color; }   // Stage 6 look fold (L7): the pool back to the theme's colours
     else return;
     markDirty(); renderAll();
 }

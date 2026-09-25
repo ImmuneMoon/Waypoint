@@ -1008,6 +1008,42 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
     }
 
+    /* ---- Stage 6 look fold (L7): a formula as a badge coloured by its value name; a pool's own colour ---- */
+    {
+        const fl7 = [
+            { id: 'f_lvl', key: 'Lvl', kind: 'number', def: 1, vis: 'all', edit: 'owner' },
+            { id: 'f_st', key: 'Stun', kind: 'formula', formula: 'Lvl', labels: ['Ready', 'Shaken', 'Down'], tones: ['good', 'constructor', 'danger', 'warn', 'accent'], badge: true, vis: 'all' },
+            { id: 'f_b2', key: 'Plain', kind: 'formula', formula: 'Lvl', badge: true, tones: ['good'], vis: 'all' },
+            { id: 'f_bl', key: 'Blank', kind: 'formula', formula: 'Lvl', labels: ['A', 'B'], tones: ['', 'x'], vis: 'all' },
+            { id: 'f_nb', key: 'NumB', kind: 'number', def: 0, badge: true, tones: ['good'], color: '#AABBCC', vis: 'all', edit: 'owner' },
+            { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '10', def: 'max', color: '#AABBCC', badge: true, vis: 'all', edit: 'owner' },
+            { id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '10', def: 'max', color: 'red', vis: 'all', edit: 'owner' },
+            { id: 'f_gm', key: 'Secret', kind: 'formula', formula: 'Lvl', labels: ['a', 'b'], tones: ['good', 'danger'], badge: true, vis: 'gm' }
+        ];
+        const s7 = cleanSystem({ v: 1, name: 'L7', fields: fl7, rolls: [] }, { F, gmView: true }), fb = id => s7.fields.find(x => x.id === id);
+        check('look L7: badge is kept only on a formula; tones only with value names, each a known tone (good|warn|danger|accent|primary) or blank, cut to the names, trailing blanks trimmed, all-blank = absent; color only on a resource, hex, lower-cased',
+            fb('f_st').badge === true && j(fb('f_st').tones) === j(['good', '', 'danger']) && fb('f_b2').badge === true && !('tones' in fb('f_b2')) && !('tones' in fb('f_bl')) && !('badge' in fb('f_bl'))
+            && !('badge' in fb('f_nb')) && !('tones' in fb('f_nb')) && !('color' in fb('f_nb')) && fb('f_hp').color === '#aabbcc' && !('badge' in fb('f_hp')) && !('color' in fb('f_fp')), j(s7.fields.map(x => [x.id, x.badge, x.tones, x.color])));
+        const p7 = cleanSystem(s7, { F, gmView: false }), pb = id => p7.fields.find(x => x.id === id);
+        check('look L7: the players\' view keeps badge, tones and color on visible fields; a GM-only field is still dropped whole', pb('f_st').badge === true && j(pb('f_st').tones) === j(['good', '', 'danger']) && pb('f_hp').color === '#aabbcc' && !pb('f_gm'), j(p7.fields.map(x => x.id)));
+        const vt = S.valueTone, ft = fb('f_st');
+        const tonesOut = [vt(ft, { value: 0, label: 'Ready' }), vt(ft, { value: 1, label: 'Shaken' }), vt(ft, { value: 2, label: 'Down' }), vt(ft, { value: 3, label: '3' }), vt(ft, { value: 0.5, label: 'x' }), vt(ft, { value: 0, error: 'bad' }), vt(ft, { value: 0 }), vt({ tones: ['__proto__'] }, { value: 0, label: 'a' }), vt(null, { value: 0, label: 'a' })];
+        check('look L7: valueTone gives the value name\'s tone, and "" out of range, for a fraction, on an error, with no name, for an unknown tone or a prototype name', j(tonesOut) === j(['good', '', 'danger', '', '', '', '', '', '']), j(tonesOut));
+        const sh7 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('look L7: the badge wraps the value\'s text only with no error, its class from the constant TONE_CLASS map (never built from the stored tone); the pool colour is checked again as hex at the sink and set as a CSS variable',
+            /if \(f\.badge && e && !e\.error\) \{ var tnB = valueTone\(f, e\), bd = el\('span', 'sheet-badge' \+ \(Object\.prototype\.hasOwnProperty\.call\(TONE_CLASS, tnB\) \? TONE_CLASS\[tnB\] : ''\), v\.textContent\); v\.textContent = ''; v\.appendChild\(bd\); \}/.test(sh7)
+            && /var TONE_CLASS = Object\.freeze\(\{ good: ' sheet-tone-good', warn: ' sheet-tone-warn', danger: ' sheet-tone-danger', accent: ' sheet-tone-accent', primary: ' sheet-tone-primary' \}\);/.test(sh7)
+            && /if \(typeof f\.color === 'string' && \/\^#\[0-9a-fA-F\]\{6\}\$\/\.test\(f\.color\)\) \{ box\.classList\.add\('sheet-pool-colored'\); box\.style\.setProperty\('--sheet-pool', f\.color\); \}/.test(sh7));
+        check('look L7: the Fields tab has Badge on a formula, a colour and "No colour" on a resource, and a colour per value name for a badge with names; each change goes through its own branch',
+            /bgc\.className = 'sys-badge-chk'/.test(sh7) && /rci\.className = 'sys-res-color'/.test(sh7) && /rcc\.dataset\.act = 'rescolorclr'/.test(sh7) && /select\('sys-tone-sel', \[\['', 'Plain'\], \['good', 'Good \(green\)'\], \['warn', 'Warning \(amber\)'\], \['danger', 'Danger \(red\)'\], \['accent', 'Accent'\], \['primary', 'Primary'\]\]/.test(sh7)
+            && /else if \(c\.indexOf\('sys-badge-chk'\) >= 0\) \{ if \(t\.checked\) f\.badge = true; else delete f\.badge;/.test(sh7) && /else if \(act === 'rescolorclr'\) \{ delete item\.color; \}/.test(sh7));
+        const css7 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), l7css = css7.slice(css7.indexOf('/* Stage 6 look fold (L7)'), css7.indexOf('/* Stage 6 look fold (L6)'));
+        check('look L7: the badge, its five tones and the pool colour rules are there (a pool rule only under .sheet-pool-colored); tour and Help say so',
+            /\.sheet-badge \{ display: inline-flex;/.test(l7css) && ['good', 'warn', 'danger', 'accent', 'primary'].every(t => l7css.indexOf('.sheet-badge.sheet-tone-' + t + ' {') >= 0)
+            && /\.sheet-pool-colored \.sheet-pool-icon \{ color: var\(--sheet-pool\); \}/.test(l7css) && /\.sheet-pool-colored \.sheet-bar-fill \{ background: var\(--sheet-pool\); \}/.test(l7css)
+            && /a formula with value names can show as a coloured <b>badge<\/b>, and a resource can have its own <b>colour<\/b>/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /On the Fields tab a formula can show as a <b>badge<\/b>/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+    }
+
     /* ---- Stage 6 look fold (L6): status effects as cards, a pill per change ---- */
     {
         const sysL6 = look => cleanSystem({ v: 1, name: 'L6', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true });

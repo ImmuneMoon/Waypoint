@@ -1989,6 +1989,31 @@
   .sheet-eff-up { color: var(--green); }
   .sheet-eff-down { color: var(--red); }
   .sheet-eff-same { color: var(--dim); }
+  /* Stage 5h Fold 3: the facing dial — the token's facing (inner wedges) and threat marks (outer ring, coloured by arc) */
+  .sheet-dial { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .sheet-dial[hidden] { display: none; }
+  .sheet-dial.sheet-row { grid-column: 1 / -1; }
+  .sheet-dial-svg { width: 132px; height: 132px; flex: none; }
+  .sheet-dial-svg:focus-visible, .sheet-dial-seg:focus-visible { outline: 2px solid var(--sheet-accent, var(--gold)); outline-offset: 1px; }
+  .sheet-dial-side { fill: color-mix(in srgb, var(--sheet-ink, var(--ink)) 8%, transparent); stroke: var(--sheet-dim, var(--dim)); stroke-width: 1; }
+  .sheet-dial-side.sheet-dial-facing { fill: var(--sheet-accent, var(--gold)); }
+  .sheet-dial-live .sheet-dial-side, .sheet-dial-live .sheet-dial-seg { cursor: pointer; }
+  .sheet-dial-live .sheet-dial-side:not(.sheet-dial-facing):hover { fill: color-mix(in srgb, var(--sheet-accent, var(--gold)) 30%, transparent); }
+  .sheet-dial-num { font-size: 10px; fill: var(--sheet-ink, var(--ink)); pointer-events: none; }
+  .sheet-dial-num.sheet-dial-num-on { fill: var(--sheet-accent-ink, #111318); }
+  .sheet-dial-needle { stroke: var(--sheet-ink, var(--ink)); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+  .sheet-dial-seg { opacity: .3; }
+  .sheet-dial-live .sheet-dial-seg:not(.sheet-dial-threat):hover { opacity: .55; }
+  .sheet-dial-seg.sheet-dial-threat { opacity: .75; }
+  .sheet-dial-seg.sheet-dial-active { opacity: 1; stroke: var(--sheet-ink, var(--ink)); stroke-width: 1.5; }
+  .sheet-arc-front { fill: var(--green, #4caf50); }
+  .sheet-arc-side { fill: var(--gold, #e0a54f); }
+  .sheet-arc-rear { fill: var(--red, #e5534b); }
+  .sheet-dial-arrow { fill: var(--sheet-ink, var(--ink)); pointer-events: none; }
+  .sheet-dial-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; }
+  .sheet-dial-map, .sheet-dial-note { color: var(--sheet-dim, var(--dim)); font-size: 11px; }
+  .sheet-dial-note { font-style: italic; }
+  .sheet-dial-btns { display: flex; gap: 6px; flex-wrap: wrap; }
   .sys-fx-mods { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
   .sys-fx-mod { display: flex; gap: 6px; align-items: center; }
   .sys-fx-mod .sys-fx-amt { width: 80px; }

@@ -18,14 +18,15 @@ var LIMITS = Object.freeze({
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
     caption: 200, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
-    effects: 100, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40   // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
+    effects: 100, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
+    threats: 6                               // Stage 5h Fold 3: threat marks on a token (world bearings; the first is the active one)
 });
 // item-list is a STORED, non-numeric list kind (a character's carried items); never in NUMERIC/DEF_PROP.
 var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });
 var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });   // effects (5h): a character's status effects — rows, never a number
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
-var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1 });   // link (Stage 5f): a button that opens a handbook page
+var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1 });   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial
 var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // Stage 5c: what the pinned band can hold — kinds that read in one row (text, notes, selects and item lists stay in sections)
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
 var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
@@ -516,7 +517,76 @@ function fxIndex(sys, char) {
     });
     return idx;
 }
-function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base)
+// Stage 5h Fold 3: facing. A token faces rot + front (0 = up, clockwise, as in fog.js and whiteboard.js); threat marks are world bearings on
+// the token (w.threats, the first the active one), one per side of the dial (6 on a hex or gridless map, 4 on a square one). A threat's arc
+// counts sides from the one the token faces, so a free-angle token reads the side the dial shows: on a hex grid that side and the two beside
+// it are front, the next two side, the back one rear (ShadowBase's 3 / 2 / 1); on a square grid 1 / 2 / 1. Pure; a token's values from a
+// save or the wire are re-checked here.
+var FACING_NAMES = Object.freeze(['Facing', 'Arc', 'Arc.front', 'Arc.side', 'Arc.rear', 'Threats', 'Threats.front', 'Threats.side', 'Threats.rear']);
+function norm180(d) { d = d % 360; if (d <= -180) d += 360; if (d > 180) d -= 360; return d; }
+function sideOf(deg, sides) { var n = sides === 4 ? 4 : 6, x = deg % 360; if (x < 0) x += 360; return Math.round(x / (360 / n)) % n; }   // the dial side a bearing falls on (side 0 = up)
+function threatArc(fc, bearing) {   // 0 front, 1 side, 2 rear
+    var n = fc && fc.sides === 4 ? 4 : 6, k = ((sideOf(bearing, n) - sideOf(fc ? fc.deg : 0, n)) % n + n) % n, d = Math.min(k, n - k);
+    return n === 4 ? d : d <= 1 ? 0 : d === 2 ? 1 : 2;
+}
+function cleanThreats(v) {   // at most LIMITS.threats whole-degree bearings in (-180, 180], each once, in order; [] for anything else
+    var out = []; if (!Array.isArray(v)) return out;
+    for (var i = 0; i < v.length && i < 64 && out.length < LIMITS.threats; i++) {
+        var n = v[i]; if (typeof n !== 'number' || !isFinite(n) || Math.abs(n) > 1e6) continue;
+        n = Math.round(norm180(n)); if (n === -180) n = 180; if (n === 0) n = 0;   // the last one turns -0 into 0
+        if (out.indexOf(n) < 0) out.push(n);
+    }
+    return out;
+}
+function facingCtx(map, tok, on) {   // what the facing names read for one token on one map: { deg, sides, threats }, or null (facing off, no token, a facing that is not a number)
+    if (!on || !isObj(tok)) return null;
+    var rot = tok.rot === undefined || tok.rot === null ? 0 : tok.rot, fr = tok.front === undefined || tok.front === null ? 0 : tok.front;   // numbers only: a host's object is refused, never converted (its valueOf can throw)
+    if (typeof rot !== 'number' || typeof fr !== 'number' || !isFinite(rot) || !isFinite(fr) || Math.abs(rot) > 1e6 || Math.abs(fr) > 1e6) return null;
+    var gt = isObj(map) && isObj(map.meta) ? map.meta.gridType : null, sides = gt === 'square' ? 4 : 6, deg = (rot + fr) % 360; if (deg < 0) deg += 360;
+    var th = [];   // each mark on its side, one per side (a mark set on a hex map keeps meaning one side after the grid turns square)
+    cleanThreats(tok.threats).forEach(function(b) { var s = sideOf(b, sides); if (th.some(function(x) { return sideOf(x, sides) === s; })) return; var v = norm180(s * 360 / sides); th.push(v === -180 ? 180 : v); });
+    return { deg: deg, sides: sides, threats: th };
+}
+// A character's token on a map: a character token, shown (opts.hidden: a hidden one too, for the GM's NPCs), the owner's first, else the
+// first (opts.strict: the owner's only — what a player reads, and what the host reads for them)
+function charTokenOn(map, charId, ownerId, opts) {
+    if (!isObj(map) || !Array.isArray(map.whiteboard) || typeof charId !== 'string' || !charId) return null;
+    var first = null, hid = !!(opts && opts.hidden), strict = !!(opts && opts.strict);
+    for (var i = 0; i < map.whiteboard.length; i++) {
+        var w = map.whiteboard[i]; if (!isObj(w) || !w.isChar || (w.hidden && !hid) || w.charId !== charId) continue;
+        if (ownerId && w.ownerId === ownerId) return w;
+        if (!first && !strict) first = w;
+    }
+    return first;
+}
+// The dial's ring click (ShadowBase's cycle): a side with no mark is marked (the active threat when it is the first, else queued); the
+// active one clicked is cleared and the next queued one takes over; a queued one clicked becomes active and the old active is queued
+function cycleThreat(list, bearing, sides) {
+    var cur = cleanThreats(list), n = sides === 4 ? 4 : 6;
+    if (typeof bearing !== 'number' || !isFinite(bearing)) return cur;
+    var segOf = function(b) { return sideOf(b, n); }, s = segOf(bearing), at = -1;
+    cur.forEach(function(b, i) { if (at < 0 && segOf(b) === s) at = i; });
+    if (at < 0) return cleanThreats(cur.concat([bearing]));
+    if (at === 0) return cur.slice(1);
+    return [cur[at]].concat(cur.filter(function(b, i) { return i !== at; }));
+}
+function facingValue(fc, l) {   // a built-in facing name's value; with no context it is neutral: facing up, the arc front, nothing marked
+    var th = fc && Array.isArray(fc.threats) ? fc.threats : [], arcs = th.map(function(b) { return threatArc(fc, b); }), a0 = arcs.length ? arcs[0] : 0;
+    var count = function(k) { return arcs.filter(function(a) { return a === k; }).length; };
+    switch (l) {
+        case 'facing': return fc ? Math.round(fc.deg) % 360 : 0;
+        case 'arc': return a0;
+        case 'arc.front': return a0 === 0;
+        case 'arc.side': return a0 === 1;
+        case 'arc.rear': return a0 === 2;
+        case 'threats': return th.length;
+        case 'threats.front': return count(0);
+        case 'threats.side': return count(1);
+        case 'threats.rear': return count(2);
+    }
+    return undefined;
+}
+function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base); ropts.facing: facingCtx(...) for the built-in facing names
     var ix = keyIndex(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char), detail = map();
     // 5h: where a derived value's effects came from — the sources recorded on the names its formula read (theirs and their own "via")
     function viaOf(names) {
@@ -547,12 +617,16 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         return { error: res.error };
     }
     function loopError(name) { return { error: { message: 'Formulas refer to each other in a loop: ' + chain.concat(name).join(' → '), pos: 0, len: 0 } }; }
+    function builtin(l) {   // 5h Fold 3: Facing, Arc, Arc.front|side|rear, Threats, Threats.front|side|rear — a field named Facing, Arc or Threats keeps its whole family
+        var fam = l.split('.')[0]; if (ix[fam] || (fam !== 'facing' && fam !== 'arc' && fam !== 'threats')) return undefined;
+        return facingValue(ropts && ropts.facing ? ropts.facing : null, l);
+    }
     function fn(name) {
         var l = lower(name);
         if (l in cache) return cache[l];
         var field = ix[l], suffix = null;
         if (!field) { var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)]) { field = ix[l.slice(0, dot)]; suffix = l.slice(dot + 1); } }
-        if (!field) return undefined;
+        if (!field) return builtin(l);
         if (chain.indexOf(l) >= 0) return loopError(l);
         var out, r, k = field.kind;
         if (k === 'text' || k === 'select') out = storedOf(field, char);
@@ -597,9 +671,9 @@ function captionParts(sys, char, F, text, vars) {   // vars: the render's own re
     return out;
 }
 // Every field's value for a render: { fieldId: { value, text, error, max } } (max for resources)
-function resolveAll(sys, char, F) {
-    var r = makeResolver(sys, char, F), out = map(), r0 = null;
-    var base0 = function(name) { r0 = r0 || makeResolver(sys, char, F, { noFx: true }); var v = r0(name); return (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; };
+function resolveAll(sys, char, F, facing) {   // facing (5h Fold 3): facingCtx(...) for the built-in Facing / Arc / Threats names; none reads them neutral
+    var r = makeResolver(sys, char, F, facing ? { facing: facing } : null), out = map(), r0 = null;
+    var base0 = function(name) { r0 = r0 || makeResolver(sys, char, F, { noFx: true, facing: facing || null }); var v = r0(name); return (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; };
     Object.defineProperty(out, 'vars', { value: r });   // Fold B: the warm resolver, for captions (not enumerable: every field loop over the result is unchanged)
     sys.fields.forEach(function(f) {
         var e = { value: undefined, text: '', error: null };
@@ -661,8 +735,8 @@ function headerEntry(f, e) {
     return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error
-function hoverLines(sys, char, F) {
-    var all = resolveAll(sys, char, F), lines = [];
+function hoverLines(sys, char, F, facing) {
+    var all = resolveAll(sys, char, F, facing), lines = [];
     sys.fields.forEach(function(f) {
         if (!f.hover) return;
         var e = all[f.id]; if (!e || e.error) return;
@@ -680,6 +754,7 @@ function validateSystem(sys, F) {
     if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };
     var keys = sys.fields.map(function(f) { return f.key; }), lowerKeys = keys.map(lower), ix = keyIndex(sys);
     var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } if (f.kind === 'number') known[lower(f.key) + '.base'] = f; });   // 5h: "ST.base" is the stored number, before effects (a points cost reads it)
+    FACING_NAMES.forEach(function(n) { var l = lower(n), fam = l.split('.')[0]; if (!ix[fam] && !known[l]) known[l] = { id: '', key: n, kind: fam === 'arc' && l !== 'arc' ? 'toggle' : 'number', vis: 'all' }; });   // 5h Fold 3: the facing names (a field named Facing, Arc or Threats keeps the family)
     var edges = map();
     function checkFormula(owner, prop, text, allowDice, vis) {
         if (text === null) return;
@@ -955,6 +1030,6 @@ function gmEffectNames(vars, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };

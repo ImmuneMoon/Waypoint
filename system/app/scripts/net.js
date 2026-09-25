@@ -695,6 +695,7 @@ function applyItem(msg) {
 
 // Host-side validation: from a player's patch, apply ONLY position/rotation of
 // whiteboard items owned by that player. Everything else is ignored.
+// [netcheck:patch-start]
 function applyClientItemFiltered(msg, profile) {
     if (!profile) return false;
     var camp = state.appState.campaigns[msg.campId];
@@ -717,6 +718,7 @@ function applyClientItemFiltered(msg, profile) {
             return;
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
+        if (lw.hidden) return;   // a hidden token reaches the player as a stub (no front, stance or marks): their copy never overwrites the host's
         if (lw.type === 'path' && lw.byPlayer) {
             var re = playerStroke(w, profile.id);
             if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; }
@@ -741,6 +743,8 @@ function applyClientItemFiltered(msg, profile) {
             if (postC !== 'standing') lw.posture = postC; else delete lw.posture;
             changed = true;
         }
+        // Threat marks (5h Fold 3) never ride a patch: a player's own arrive as a 'threats' message (see there), so a stale copy in a
+        // patch sent a moment after the GM marked a threat cannot undo it
     });
     // A player's own drawing missing from their copy was erased by them
     var before = liveItem.whiteboard.length;
@@ -748,6 +752,7 @@ function applyClientItemFiltered(msg, profile) {
     if (liveItem.whiteboard.length !== before) changed = true;
     return changed;
 }
+// [netcheck:patch-end]
 
 // A drawing a player may hand the host: a freehand path signed with their id, whitelisted fields only.
 function playerStroke(w, pid) {
@@ -1620,6 +1625,7 @@ function offlinePlayerTravel(item, map) {
     if (!mine) {
         mine = JSON.parse(JSON.stringify(item));
         mine.id = 'wb' + Math.random().toString(36).slice(2, 10);
+        delete mine.threats;   // 5h: threat marks belong to the map they were set on
         delete mine.hidden;
         var spot = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, null, nodeEl);
         mine.x = spot.x; mine.y = spot.y;
@@ -1657,6 +1663,7 @@ function npcTravel(item, map) {
     if (!there) {
         there = JSON.parse(JSON.stringify(item));
         there.id = 'wb' + Math.random().toString(36).slice(2, 10);
+        delete there.threats;   // 5h: threat marks belong to the map they were set on
         delete there.hidden;
         var spot = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, null, nodeEl);
         there.x = spot.x; there.y = spot.y;
@@ -1702,6 +1709,7 @@ function handlePos(msg, conn) {
         msg = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front, final: msg.final === true };   // relayed as rebuilt: nothing else a peer added travels on
         applyPosToDom(msg);
         broadcastPos(msg, conn, camp, map, w);
+        if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final);   // 5h Fold 3: a sheet's facing dial follows (in place; a final turn redraws numbers that read it)
         if (msg.final) {
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
@@ -1711,8 +1719,16 @@ function handlePos(msg, conn) {
     } else {
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         applyPosToDom(msg);
+        if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final === true);   // 5h Fold 3: the facing dial (the values are re-checked by facingCtx)
     }
 }
+
+// Client: a player's threat marks from their sheet's facing dial (5h Fold 3), as their own message — a map patch never carries them
+net.sendThreats = function(campId, itemId, wbId, list) {
+    if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
+    var SCs = SC(); if (!SCs || !SCs.cleanThreats) return;
+    try { net.conns[0].send({ type: 'threats', campId: String(campId), itemId: String(itemId), wbId: String(wbId), threats: SCs.cleanThreats(list) }); } catch (e) { sendFailed(e); }
+};
 
 // Client: ask the host to travel through a portal item on the current map.
 net.requestTravel = function(viaItemId) {
@@ -2137,6 +2153,7 @@ function ensurePlayerToken(pid, mapId, landRoomId) {
             if (src) {
                 var nw = JSON.parse(JSON.stringify(src));
                 nw.id = 'wb' + Math.random().toString(36).slice(2, 10);
+                delete nw.threats;   // 5h: threat marks belong to the map they were set on
                 nw.ownerId = pid;
                 delete nw.hidden;
                 // Spawn on the landing room's whiteboard item when there is one, else at home
@@ -2379,12 +2396,34 @@ function handleMessage(msg, conn) {
                 setTimeout(function() { checkRoomHandouts(state.appState.campaigns[msg.campId].items[msg.itemId]); }, 50);
                 var myActive = getActiveCampaign();
                 if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
+                else if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(null, true);   // 5h Fold 3: the GM's dial may follow a token on a map off screen
                 saveRemoteSoon();
                 net.sendItem(msg.campId, msg.itemId);   // the filtered result goes back out as a delta
             }
         } else {
             applyItem(msg);
         }
+    } else if (msg.type === 'threats' && net.role === 'host') {
+        // [netcheck:threats-start]
+        // 5h Fold 3: a player's threat marks from their sheet's facing dial — on the hosted campaign, on the map they are on, on a shown
+        // character token they own, with Token facing on and nobody paused; cleaned (at most six whole-degree bearings), stored, sent out
+        var campT = getActiveCampaign(), prT = net.roster[conn.peer], SCt = SC();
+        if (!campT || !prT || !SCt || msg.campId !== campT.id || typeof msg.itemId !== 'string' || typeof msg.wbId !== 'string') return;
+        if (net.paused || peerPaused(conn.peer)) return;
+        if (!allow('threats', { perMs: 80, burst: 20, windowMs: 5000, table: 600 }, conn.peer)) return;
+        if (window.wpVtt && !window.wpVtt.campaignOn('turning', campT)) return;
+        if (msg.itemId !== prT.location || !own(campT.items, msg.itemId)) return;
+        var mapT = campT.items[msg.itemId]; if (!mapT || mapT.type !== 'map' || !Array.isArray(mapT.whiteboard)) return;
+        var tokT = mapT.whiteboard.find(function(x) { return x && x.id === msg.wbId; });
+        if (!tokT || !tokT.isChar || tokT.hidden || tokT.ownerId !== prT.id) return;
+        var thT = SCt.cleanThreats(msg.threats);
+        if (JSON.stringify(tokT.threats === undefined ? [] : tokT.threats) === JSON.stringify(thT)) return;
+        if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's change lands
+        if (thT.length) tokT.threats = thT; else delete tokT.threats;
+        if (campT.activeItemId === msg.itemId) render(); else if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, true);
+        saveRemoteSoon();
+        net.sendItem(campT.id, msg.itemId);
+        // [netcheck:threats-end]
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
         applyItemDelta(msg);
     } else if (msg.type === 'itemGone' && net.role === 'client') {
@@ -2686,7 +2725,8 @@ function handleMessage(msg, conn) {
             if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || !SQ || !campQ.system) { denyQ('char'); return; }
             var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system) }) : null;
             if (!viewQ || !chvQ) { denyQ('char'); return; }
-            chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq);
+            var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
+            chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, { facing: SQ.facingCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), !window.wpVtt || window.wpVtt.on('turning')) });
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
@@ -3330,7 +3370,7 @@ net.diceRoll = function(expr, o) {
         return { ok: true, pending: true };
     }
     var campR = getActiveCampaign(), SR = SC(), chR = null, varsR = null;   // a character makes its sheet's names available (character sheets, 1.5.0)
-    if (o.charId) { chR = campR && campR.chars && campR.chars[o.charId]; if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F); }
+    if (o.charId) { chR = campR && campR.chars && campR.chars[o.charId]; if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F, { facing: window.wpSheets && window.wpSheets.facingCtxFor ? window.wpSheets.facingCtxFor(chR.id, campR) : null }); }
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     var why = D.checkTableRoll(res); if (why) return { error: D.denyText(why) };
@@ -3880,6 +3920,7 @@ net.bringPlayerHere = function(pid, wbX, wbY) {
         if (!tok && src) {
             tok = JSON.parse(JSON.stringify(src));
             tok.id = 'wb' + Math.random().toString(36).slice(2, 10);
+            delete tok.threats;   // 5h: threat marks belong to the map they were set on
             tok.ownerId = pid;
             map.whiteboard.push(tok); copied = true;
         }

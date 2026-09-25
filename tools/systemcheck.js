@@ -587,6 +587,61 @@ const j = v => JSON.stringify(v);
             fxSrc.length > 1000 && !/innerHTML/.test(fxSrc) && /row\.dataset\.cid \|\| row\.dataset\.iid \|\| row\.dataset\.eid\) return null;/.test(shX) && /SC2\.cleanValue\(f, msg\.values\[fid\], SC2\.valueOpts\(sysC\)\)/.test(netSrcX));
     }
 
+    /* ---- Stage 5h Fold 3: facing — the arc, threat marks, the built-in names, the dial's cycle, the player's patch ---- */
+    {
+        const A = (deg, b, sides) => S.threatArc({ deg, sides: sides || 6 }, b);
+        check('5h F3: threatArc counts sides from the one the token faces — hex: that side and the two beside it front, the next two side, the back one rear; square: 1 / 2 / 1; a free-angle token reads the side the dial shows (a rear exists at 90 on a hex dial)',
+            [0, 60, -60].every(b => A(0, b) === 0) && A(0, 120) === 1 && A(0, -120) === 1 && A(0, 180) === 2 && A(0, 90, 4) === 1 && A(0, -90, 4) === 1 && A(0, 180, 4) === 2 && A(0, 0, 4) === 0 && A(300, 0) === 0 && A(90, 300) === 2 && A(15, 90, 4) === 1 && A(45, 270, 4) === 2
+            && S.sideOf(90, 6) === 2 && S.sideOf(-60, 6) === 5 && S.sideOf(359, 4) === 0 && [0, 60, 120, 180, 240, 300].some(b => A(90, b) === 2));
+        const ct = S.cleanThreats([0, 0, 360, -180, 181, 'x', NaN, 1e300, null, 60.4, -0.2, 120, 240, 300, 45]);
+        check('5h F3: cleanThreats — whole degrees in (-180, 180], each once, junk dropped, at most 6; anything but a list is []', j(ct) === '[0,180,-179,60,120,-120]' && j(S.cleanThreats('x')) === '[]' && j(S.cleanThreats({ 0: 5 })) === '[]' && Object.is(S.cleanThreats([-0.3])[0], 0), j(ct));
+        const fcx = S.facingCtx({ meta: { gridType: 'square' } }, { rot: -90, front: 0, threats: [180, 'x'] }, true);
+        check('5h F3: facingCtx — rot + front as 0–360 degrees, 4 sides on a square grid and 6 otherwise, cleaned threats; null with facing off, no token, or a facing that is not a bounded number',
+            fcx && fcx.deg === 270 && fcx.sides === 4 && j(fcx.threats) === '[180]' && S.facingCtx({}, { rot: 30 }, true).sides === 6 && S.facingCtx({}, { rot: 30, front: 45 }, true).deg === 75
+            && S.facingCtx({}, { rot: 10 }, false) === null && S.facingCtx({}, null, true) === null && S.facingCtx({}, { rot: 'x' }, true) === null && S.facingCtx({}, { rot: 1e300 }, true) === null
+            && S.facingCtx({}, { rot: { valueOf() { throw new Error('boom'); } } }, true) === null && S.facingCtx({}, { rot: '30' }, true) === null, j(fcx));
+        const sq = S.facingCtx({ meta: { gridType: 'square' } }, { rot: 0, threats: [60, 120, 200] }, true);
+        check('5h F3: facingCtx puts each mark on its side, one per side (marks set on a hex map read as the square dial shows them)', j(sq.threats) === '[90,180]', j(sq));
+        const mapT = { whiteboard: [{ id: 'a', isChar: true, charId: 'c_1', hidden: true, ownerId: 'u_p' }, { id: 'b', charId: 'c_1', ownerId: 'u_p' }, { id: 'c', isChar: true, charId: 'c_1', ownerId: 'u_x' }, { id: 'd', isChar: true, charId: 'c_1', ownerId: 'u_p' }] };
+        check('5h F3: charTokenOn — a shown character token only, the owner\'s first, else the first; strict = the owner\'s only; hidden = a hidden one too', S.charTokenOn(mapT, 'c_1', 'u_p').id === 'd' && S.charTokenOn(mapT, 'c_1', 'u_q').id === 'c' && S.charTokenOn(mapT, 'c_2', 'u_p') === null && S.charTokenOn(null, 'c_1') === null && S.charTokenOn(mapT, undefined) === null
+            && S.charTokenOn(mapT, 'c_1', 'u_q', { strict: true }) === null && S.charTokenOn(mapT, 'c_1', 'u_p', { strict: true }).id === 'd' && S.charTokenOn({ whiteboard: [mapT.whiteboard[0]] }, 'c_1', null, { hidden: true }).id === 'a' && S.charTokenOn({ whiteboard: [mapT.whiteboard[0]] }, 'c_1', null) === null);
+        const cy = S.cycleThreat;
+        check('5h F3: cycleThreat — a new side is marked (active when first, else queued); the active one clicked is cleared; a queued one clicked becomes active, the old active queued',
+            j(cy([], 60, 6)) === '[60]' && j(cy([60], 120, 6)) === '[60,120]' && j(cy([60, 120], 60, 6)) === '[120]' && j(cy([60, 120, 180], 180, 6)) === '[180,60,120]' && j(cy([60], 61, 6)) === '[]' && j(cy([0], 90, 4)) === '[0,90]' && j(cy([60], NaN, 6)) === '[60]');
+        const fsys = cleanSystem({ v: 1, name: 'FC', fields: [{ id: 'f_dg', key: 'Dodge', kind: 'number', def: 8, vis: 'all' }, { id: 'f_ed', key: 'EffDodge', kind: 'formula', formula: 'if(Arc.rear, 0, Dodge - Arc)', vis: 'all' }, { id: 'f_tr', key: 'Rear', kind: 'formula', formula: 'Threats.rear * 10 + Threats', vis: 'all' }, { id: 'f_fc', key: 'Face', kind: 'formula', formula: 'Facing', vis: 'all' }], rolls: [] }, { F, gmView: true });
+        const chF3 = { id: 'c_1', values: {} };
+        const neutral = S.resolveAll(fsys, chF3, F), sideR = S.resolveAll(fsys, chF3, F, { deg: 0, sides: 6, threats: [120, 180] }), rearR = S.resolveAll(fsys, chF3, F, { deg: 90, sides: 6, threats: [270] });
+        check('5h F3: the built-in names — neutral with no context (Arc 0, no threats, Facing 0); an active side threat takes 1 off Dodge, a rear one zeroes it; the counts by arc',
+            neutral.f_ed.value === 8 && neutral.f_tr.value === 0 && neutral.f_fc.value === 0 && sideR.f_ed.value === 7 && sideR.f_tr.value === 12 && rearR.f_ed.value === 0 && rearR.f_fc.value === 90 && rearR.f_tr.value === 11, j([neutral.f_ed, sideR.f_ed, sideR.f_tr, rearR.f_ed, rearR.f_tr]));
+        const shadow = cleanSystem({ v: 1, name: 'SH', fields: [{ id: 'f_arc', key: 'Arc', kind: 'number', def: 3, vis: 'all' }, { id: 'f_x', key: 'X', kind: 'formula', formula: 'Arc + Arc.front', vis: 'all' }], rolls: [] }, { F, gmView: true });
+        const vs = S.validateSystem(fsys, F), vsh = S.validateSystem(shadow, F), rsh = S.resolveAll(shadow, chF3, F, { deg: 0, sides: 6, threats: [180] });
+        check('5h F3: validateSystem knows the facing names; a field named Arc keeps the whole family (Arc.front is then unknown) and reads as the field', vs.ok && !vsh.ok && vsh.errors.some(e => /Arc\.front/.test(e.message)) && rsh.f_arc.value === 3, j([vs.errors, vsh.errors]));
+        const withDial = cleanSystem({ v: 1, name: 'D', fields: [], rolls: [], sheet: { sections: [{ id: 's_1', title: 'Dash', fields: [{ kind: 'facing', w: 1 }, { kind: 'bogus' }] }] } }, { F, gmView: false });
+        check('5h F3: a Facing dial placement is kept (the players\' view too); an unknown kind is dropped', withDial.sheet && withDial.sheet.sections[0].fields.length === 1 && withDial.sheet.sections[0].fields[0].kind === 'facing', j(withDial.sheet));
+        // the host's patch gate, sliced from net.js and run with the real module
+        const netSrcP = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const iP = netSrcP.indexOf('// [netcheck:patch-start]'), kP = netSrcP.indexOf('// [netcheck:patch-end]');
+        const mkCamp = () => ({ id: 'camp1', items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_1', ownerId: 'u_p', x: 10, y: 10, rot: 0, front: 0 }, { id: 't2', isChar: true, charId: 'c_2', ownerId: 'u_q', x: 50, y: 50, rot: 0, front: 0, threats: [60] }] } } });
+        const runP = (camp, wb, on) => new Function('state', 'window', 'playerStroke', 'cleanElevation', 'cleanPosture', 'msg', 'prof', netSrcP.slice(iP, kP) + '\nreturn applyClientItemFiltered(msg, prof);')(
+            { appState: { campaigns: { camp1: camp } } }, { wpVtt: { campaignOn: k => k !== 'turning' || on }, wpSystemCore: S }, () => null, v => Number(v) || 0, v => typeof v === 'string' ? v : 'standing', { campId: 'camp1', itemId: 'm1', item: { whiteboard: wb } }, { id: 'u_p' });
+        const c1 = mkCamp(), ch1 = runP(c1, [{ id: 't1', x: 10, y: 10, rot: 0, front: 0, threats: [120, 180] }, { id: 't2', x: 50, y: 50, rot: 0, front: 0 }], true);
+        const c3 = mkCamp(); c3.items.m1.whiteboard[0].threats = [120]; const ch3 = runP(c3, [{ id: 't1', x: 10, y: 10, rot: 0, front: 0 }], true);
+        const c4 = mkCamp(); Object.assign(c4.items.m1.whiteboard[0], { hidden: true, front: 90, elevation: 3, threats: [120] }); const ch4 = runP(c4, [{ id: 't1', type: 'rect', hidden: true, x: 10, y: 10, rot: 0, locked: true }], true);
+        check('5h F3 host: a map patch never carries threat marks (a stale copy cannot undo the GM\'s: they come as their own message), and a hidden token\'s stub never overwrites the host\'s token (front, stance, marks kept) — the real applyClientItemFiltered, sliced from net.js',
+            iP > 0 && kP > iP && ch1 === false && !('threats' in c1.items.m1.whiteboard[0]) && j(c1.items.m1.whiteboard[1].threats) === '[60]' && ch3 === false && j(c3.items.m1.whiteboard[0].threats) === '[120]'
+            && ch4 === false && c4.items.m1.whiteboard[0].front === 90 && c4.items.m1.whiteboard[0].elevation === 3 && j(c4.items.m1.whiteboard[0].threats) === '[120]', j([c1.items.m1.whiteboard, c3.items.m1.whiteboard[0], c4.items.m1.whiteboard[0]]));
+        const shF3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), dialSrc = shF3.slice(shF3.indexOf('function facingNode('), shF3.indexOf('function tokenTurned('));
+        check('5h F3 UI: the dial draws with createElementNS and textContent only (no markup), is live only on the real sheet for the GM or the token\'s own unpaused player, and acts only through the whiteboard setters; the sheet and both roll sites pass the facing context',
+            dialSrc.length > 1500 && !/innerHTML/.test(dialSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);/.test(dialSrc) && /wpSetTokenFacing/.test(dialSrc) && /wpSetTokenThreats/.test(dialSrc)
+            && /var all = resolveAll\(sys, c, F\(\), facingCtxFor\(c\.id, camp\)\);/.test(shF3) && /resolveAll\(sys, c, F\(\), facingCtxFor\(c\.id, camp\)\), true, false, function\(\) \{ renderSheetInto/.test(shF3)
+            && /if \(inSession\) return \(loc && /.test(shF3) && /charTokenOn\(am, c\.id, myId\(\), \{ strict: true \}\)/.test(shF3) && /if \(body && ae && body\.contains\(ae\) && \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(ae\.tagName\)\)/.test(shF3)
+            && /SQ\.makeResolver\(viewQ, chvQ, Fq, \{ facing: SQ\.facingCtx\(mapQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\)/.test(netSrcP) && (netSrcP.match(/delete (mine|there|nw|tok)\.threats;/g) || []).length === 4 && /SR\.makeResolver\(campR\.system, chR, F, \{ facing:/.test(netSrcP));
+        const wbF3 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
+        check('5h F3: the dial\'s setters turn on the token\'s own map under the arrow\'s rule (a player: their own token, not paused; facing on) and end with a final pos, or a whole-map send for a map off screen',
+            /if \(n && n\.active && n\.role === 'client' && \(n\.paused \|\| n\.selfPaused \|\| tok\.ownerId !== n\.myId\)\) return null;/.test(wbF3) && /if \(!tok \|\| !tok\.isChar \|\| \(window\.wpVtt && !window\.wpVtt\.on\('turning'\)\)\) return null;/.test(wbF3)
+            && /window\.wpNet\.streamPos\(t\.tok, true\)/.test(wbF3) && /n\.broadcastItemFiltered\(t\.camp\.id, t\.mapId\)/.test(wbF3) && /var step = facingStepFor\(\(t\.map\.meta && t\.map\.meta\.gridType\) \|\| 'off', t\.tok\);/.test(wbF3));
+    }
+
     /* ---- the System editor's click dispatch: the Layout handler must claim only its own buttons ---- */
     {
         const shSrcD = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');

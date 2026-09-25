@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, charTokenOn, cycleThreat } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -215,12 +215,141 @@ function hoverLinesForToken(w, camp) {
     if (!sys || !c) return [];
     if (c.npc && isClient()) return [];
     if (c.partial && Array.isArray(c.lines)) return c.lines.slice();   // 5h: a teammate's copy shows the host's lines (it lacks the fields their formulas read)
-    try { return hoverLines(sys, c, F()); } catch (e) { return []; }
+    try { var amH = camp.items && camp.items[camp.activeItemId]; return hoverLines(sys, c, F(), facingCtx(amH, w, turningOn())); } catch (e) { return []; }   // 5h Fold 3: this token's own facing
 }
 function hoverLinesForTokenId(camp, tokId) {
     if (!camp || !tokId) return [];
     var w = null; Object.values(camp.items || {}).some(function(m) { if (!m || m.type !== 'map') return false; w = (m.whiteboard || []).find(function(x) { return x && x.id === tokId; }) || null; return !!w; });
     return w ? hoverLinesForToken(w, camp) : [];
+}
+
+/* ---------- the facing dial (Stage 5h Fold 3): a view of the token's own facing, with threat marks formulas read as Arc / Threats ---------- */
+var SVGNS = 'http://www.w3.org/2000/svg', _dialSig = '', _dialStale = false, _dialRedraw = null, _dialOn = null;
+function turningOn() { return window.wpVtt ? !!window.wpVtt.on('turning') : true; }
+function mapOk(m) { return !!(m && m.type === 'map' && Array.isArray(m.whiteboard)); }
+// Which token the dial (and every facing name on the sheet and in rolls) reads:
+// - a player: their own shown token on the map they are on — the token the host reads for their rolls;
+// - the GM: the selected token when it is this character's (a hidden one only for an NPC: a player's rolls never read a token they cannot
+//   see); else, for a player's character while they are connected, their own token on the map they are on, as their rolls read it (none
+//   when they are on no map); else the character's token on the GM's map (an NPC's hidden one too)
+function facingTarget(c, camp) {
+    camp = camp || getActiveCampaign(); if (!camp || !c || !camp.items) return null;
+    var items = camp.items, amId = camp.activeItemId, am = amId && Object.prototype.hasOwnProperty.call(items, amId) ? items[amId] : null, pc = !!(c.ownerId && !c.npc);
+    var hit = function(mapId, m, t) { return t ? { mapId: mapId, map: m, tok: t } : null; };
+    if (isClient()) return mapOk(am) ? hit(amId, am, charTokenOn(am, c.id, myId(), { strict: true })) : null;
+    if (mapOk(am) && state.selWbId) { var sel = am.whiteboard.find(function(w) { return w && w.id === state.selWbId; }); if (sel && sel.isChar && sel.charId === c.id && (!sel.hidden || !pc)) return hit(amId, am, sel); }
+    var n = net(), inSession = false, loc = null;
+    if (pc && n && n.active && n.role === 'host' && n.roster) Object.keys(n.roster).forEach(function(k) { var r = n.roster[k]; if (r && r.id === c.ownerId) { inSession = true; if (typeof r.location === 'string') loc = r.location; } });
+    if (inSession) return (loc && Object.prototype.hasOwnProperty.call(items, loc) && mapOk(items[loc])) ? hit(loc, items[loc], charTokenOn(items[loc], c.id, c.ownerId, { strict: true })) : null;
+    return mapOk(am) ? hit(amId, am, charTokenOn(am, c.id, c.ownerId, { hidden: !pc })) : null;
+}
+function facingCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? facingCtx(t.map, t.tok, turningOn()) : null; }
+function dialSigOf(c, camp) {
+    var t = c ? facingTarget(c, camp) : null, fc = t ? facingCtx(t.map, t.tok, turningOn()) : null, n = net();
+    return [turningOn(), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') : '', fc ? fc.deg + '|' + fc.sides + '|' + fc.threats.join(',') : '', !!(n && (n.paused || n.selfPaused))].join('#');
+}
+function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in a caption) name a built-in facing name, so a finished turn redraws its numbers?
+    var Fm = F(); if (!sys || !Array.isArray(sys.fields) || !Fm || !Fm.names) return false;
+    var own = {}; sys.fields.forEach(function(f) { own[String(f.key).toLowerCase()] = 1; });
+    var hit = function(text) {
+        if (typeof text !== 'string' || !text) return false;
+        var ns = []; try { ns = Fm.names(text) || []; } catch (e) {}
+        return ns.some(function(nm) { var fam = String(nm).toLowerCase().split('.')[0]; return (fam === 'facing' || fam === 'arc' || fam === 'threats') && own[fam] !== 1; });   // a field of that name keeps it
+    };
+    return sys.fields.some(function(f) {
+        if (hit(f.formula) || hit(f.maxFormula) || hit(f.base)) return true;
+        var re = /\{([^{}]{1,300})\}/g, m, cap = typeof f.caption === 'string' ? f.caption : '';
+        while ((m = re.exec(cap))) if (hit(m[1])) return true;
+        return false;
+    });
+}
+// A finished turn redraws the numbers that read facing — never under someone's typing (a redraw commits a half-typed value): while a box
+// on the sheet has focus, the redraw waits for it to lose focus
+function redrawForFacing() {
+    clearTimeout(_dialRedraw);
+    _dialRedraw = setTimeout(function() {
+        _dialRedraw = null;
+        var body = ui('sheetBody'), ae = document.activeElement;
+        if (body && ae && body.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { ae.addEventListener('blur', function() { setTimeout(redrawForFacing, 0); }, { once: true }); return; }
+        renderSheet();
+    }, 150);
+}
+function facingNode(c, gm) {
+    var wrap = el('div', 'sheet-dial'), on = turningOn();
+    if (!on) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token facing is off (Settings \u25b8 VTT features).')); return wrap; }
+    var t = facingTarget(c, getActiveCampaign()), fc = t ? facingCtx(t.map, t.tok, true) : null;
+    if (!fc) { wrap.appendChild(el('div', 'sheet-dial-note', t ? 'This token\u2019s facing cannot be read.' : 'No token on this map.')); return wrap; }
+    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !(n && (n.paused || n.selfPaused))));
+    if (live) wrap.classList.add('sheet-dial-live');
+    var N = fc.sides, step = 360 / N, half = step / 2, C0 = 66, ARC = ['front', 'side', 'rear'];
+    var xy = function(deg, r) { var a = deg * Math.PI / 180; return [(C0 + r * Math.sin(a)).toFixed(2), (C0 - r * Math.cos(a)).toFixed(2)]; }, pt = function(deg, r) { return xy(deg, r).join(' '); };
+    var segOf = function(b) { return sideOf(b, N); };
+    var faceSide = segOf(fc.deg), th = fc.threats, active = th.length ? segOf(th[0]) : -1, marked = {}; th.forEach(function(b) { marked[segOf(b)] = 1; });
+    var mk = function(tag, attrs, cls) { var e = document.createElementNS(SVGNS, tag); Object.keys(attrs).forEach(function(k) { e.setAttribute(k, attrs[k]); }); if (cls) e.setAttribute('class', cls); return e; };
+    var tip = function(node, text) { var tt = mk('title', {}); tt.textContent = text; node.appendChild(tt); };
+    var svg = mk('svg', { viewBox: '0 0 132 132', role: 'group' }, 'sheet-dial-svg');
+    for (var i = 0; i < N; i++) (function(i) {
+        var b = i * step, a = threatArc(fc, b);
+        // the outer ring: where a threat comes from, coloured by the arc it falls in against the token's facing
+        var seg = mk('path', { d: 'M ' + pt(b - half + 3, 60) + ' A 60 60 0 0 1 ' + pt(b + half - 3, 60) + ' L ' + pt(b + half - 3, 44) + ' A 44 44 0 0 0 ' + pt(b - half + 3, 44) + ' Z', 'data-dk': 'seg' + i },
+            'sheet-dial-seg sheet-arc-' + ARC[a] + (marked[i] ? ' sheet-dial-threat' : '') + (i === active ? ' sheet-dial-active' : ''));
+        var what = (i === active ? 'Active threat' : marked[i] ? 'Queued threat' : 'No threat') + ' from side ' + (i + 1) + ' (' + ARC[a] + ')';
+        tip(seg, what);
+        if (live) {
+            seg.setAttribute('tabindex', '0'); seg.setAttribute('role', 'button'); seg.setAttribute('aria-label', what + (i === active ? ': clear it' : marked[i] ? ': make it the active threat' : ': mark a threat here'));
+            var cyc = function() { if (window.wpSetTokenThreats) window.wpSetTokenThreats(t.mapId, t.tok.id, cycleThreat(th, b, N)); };
+            seg.addEventListener('click', cyc);
+            seg.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cyc(); } });
+        }
+        svg.appendChild(seg);
+        if (i === active) svg.appendChild(mk('path', { d: 'M ' + pt(b, 47) + ' L ' + pt(b - 7, 57) + ' L ' + pt(b + 7, 57) + ' Z' }, 'sheet-dial-arrow'));   // points in at the token
+        // the inner shape: one wedge per side, the one the token faces filled
+        var wedge = mk('path', { d: 'M ' + C0 + ' ' + C0 + ' L ' + pt(b - half, 36) + ' L ' + pt(b + half, 36) + ' Z' }, 'sheet-dial-side' + (i === faceSide ? ' sheet-dial-facing' : ''));
+        tip(wedge, (i === faceSide ? 'Facing side ' : 'Turn to side ') + (i + 1));
+        if (live) wedge.addEventListener('click', function() { if (window.wpSetTokenFacing) window.wpSetTokenFacing(t.mapId, t.tok.id, b); });
+        svg.appendChild(wedge);
+        var lp = xy(b, 24), lb = mk('text', { x: lp[0], y: lp[1], 'text-anchor': 'middle', 'dominant-baseline': 'central' }, 'sheet-dial-num' + (i === faceSide ? ' sheet-dial-num-on' : '')); lb.textContent = String(i + 1); svg.appendChild(lb);
+    })(i);
+    var np = xy(fc.deg, 40); svg.appendChild(mk('line', { x1: C0, y1: C0, x2: np[0], y2: np[1] }, 'sheet-dial-needle'));   // the exact facing (a free-angle token sits between sides)
+    if (live) {
+        svg.setAttribute('tabindex', '0'); svg.setAttribute('data-dk', 'dial'); svg.setAttribute('aria-label', 'Facing side ' + (faceSide + 1) + ' of ' + N + '. Left and right arrow keys turn it.');
+        svg.addEventListener('keydown', function(e) { if (e.target !== svg) return; var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!d) return; e.preventDefault(); if (window.wpSetTokenFacing) window.wpSetTokenFacing(t.mapId, t.tok.id, (faceSide + d) * step); });
+    } else svg.setAttribute('aria-label', 'Facing side ' + (faceSide + 1) + ' of ' + N);
+    var info = el('div', 'sheet-dial-info'), a0 = th.length ? threatArc(fc, th[0]) : -1;
+    info.appendChild(el('span', 'sheet-dial-state', 'Facing ' + (faceSide + 1) + (th.length ? ' \u00b7 threat from the ' + ARC[a0] + (th.length > 1 ? ' (+' + (th.length - 1) + ' queued)' : '') : ' \u00b7 no threat marked')));
+    var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) info.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
+    if (live) {
+        var btns = el('div', 'sheet-dial-btns');
+        var tf = el('button', 'tool ghost sys-btn', 'Turn to face'); tf.title = 'Turn toward the active threat'; tf.dataset.dk = 'face'; tf.disabled = !th.length || Math.abs(((th[0] - fc.deg) % 360 + 540) % 360 - 180) < 0.5;   // already facing it exactly (a free-angle token between sides may still turn to it)
+        tf.addEventListener('click', function() { if (th.length && window.wpSetTokenFacing) window.wpSetTokenFacing(t.mapId, t.tok.id, th[0]); });
+        var cl = el('button', 'tool ghost sys-btn', 'Clear threats'); cl.dataset.dk = 'clear'; cl.disabled = !th.length;
+        cl.addEventListener('click', function() { if (window.wpSetTokenThreats) window.wpSetTokenThreats(t.mapId, t.tok.id, []); });
+        btns.appendChild(tf); btns.appendChild(cl); info.appendChild(btns);
+    }
+    wrap.appendChild(svg); wrap.appendChild(info);
+    return wrap;
+}
+// whiteboard.js / net.js / main.js: a token turned or its threat marks changed. The dial follows in place (focus kept); a sheet whose
+// numbers read a facing name redraws once the turn is final, debounced (a drag's stream never redraws a sheet someone is typing in)
+function tokenTurned(tokId, final) {
+    try {
+        if (!sheetOpen) return;
+        var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
+        var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!c) return;
+        var sig = dialSigOf(c, camp), on = turningOn();
+        if (sig !== _dialSig) {
+            _dialSig = sig; _dialStale = true;
+            if (_dialOn !== null && on !== _dialOn) { _dialOn = on; _dialStale = false; redrawForFacing(); return; }   // facing switched on or off: the whole sheet (a player's dial comes and goes with it)
+            var gm = !isClient();
+            Array.prototype.forEach.call(p.querySelectorAll('.sheet-dial'), function(d) {
+                var ae = document.activeElement, fk = ae && d.contains(ae) && ae.getAttribute ? ae.getAttribute('data-dk') : null;
+                var nd = facingNode(c, gm); if (d.classList.contains('sheet-row')) nd.classList.add('sheet-row');
+                d.replaceWith(nd);
+                if (fk && /^[a-z0-9]{1,8}$/.test(fk)) { var q = nd.querySelector('[data-dk="' + fk + '"]'); if (q && q.disabled) q = nd.querySelector('[data-dk="dial"]'); if (q) { try { q.focus({ preventScroll: true }); } catch (e) {} } }   // a button now disabled hands focus to the dial
+            });
+        }
+        if (final && _dialStale) { _dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(); }
+    } catch (e) {}   // it runs at the end of every render: a sheet problem never stops the map
 }
 
 /* ---------- the sheet panel ---------- */
@@ -242,8 +371,8 @@ function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos 
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
 function panelPref() { try { var o = JSON.parse(pref('wp_sheetPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
-function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae) || !ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
-function restoreFocus(root, k) { if (!k) return; var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
+function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; var dk = ae.closest && ae.closest('.sheet-dial') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
+function restoreFocus(root, k) { if (!k) return; if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -256,7 +385,8 @@ function renderSheet() {
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; if (gm) { charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
-    var all = resolveAll(sys, c, F());
+    var all = resolveAll(sys, c, F(), facingCtxFor(c.id, camp));   // 5h Fold 3: the facing names read this character's token
+    _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = turningOn();
     _sheetRefSig = refSig(sys);
     buildSections(body, sys, c, all, gm, own, renderSheet);
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
@@ -303,7 +433,7 @@ function renderSheetInto(container, charId, camp) {
     // so every sink below (the look's accent, section colours, icons, the portrait) sees validated values
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
-    _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F()), true, false, function() { renderSheetInto(container, charId, camp); }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
+    _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), facingCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
@@ -475,12 +605,13 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
             else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
+            else if (pl.kind === 'facing') node = facingNode(c, gm);   // 5h Fold 3
             else if (pl.kind === 'portrait') { node = el('div', 'sheet-portrait-slot'); if (c.portrait) { var im = el('img'); im.src = imgSrc(c.portrait); im.alt = ''; node.appendChild(im); } }
             if (!node) return;
             if (pl.w === 'row') node.classList.add('sheet-row');
             grid.appendChild(node);
         });
-        var hasOwn = grid.childNodes.length > 0;
+        var hasOwn = Array.prototype.some.call(grid.childNodes, function(n) { return !n.hidden; });   // 5h: a player's dial with facing off is a hidden placeholder
         if (hasOwn) s.appendChild(grid);
         var kids = 0;
         if (!isChild && children[sec.id]) children[sec.id].forEach(function(ch) { var ce = renderOneSection(ch, true); if (ce) { s.appendChild(ce); kids++; } });   // sub-sections after the parent's own fields
@@ -502,7 +633,7 @@ function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sh
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
-    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link';
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial';
     return null;
 }
 function renderLayout() {
@@ -688,9 +819,9 @@ function renderLayout() {
         var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']];
         draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
-        opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait']);
+        opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial']);
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages
-        addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider or the portrait'));
+        addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait or a facing dial'));
         row.appendChild(addRow);
         root.appendChild(row);
     });
@@ -703,7 +834,7 @@ function renderPreview() {
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
-    _fxLive = false; try { buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false, renderPreview); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
+    _fxLive = false; try { buildSections(box, clean, pc, resolveAll(clean, pc, F(), pc && pc.id ? facingCtxFor(pc.id, camp) : null), true, false, renderPreview); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
 }
 function onLayoutInput(t) {
@@ -743,7 +874,7 @@ function onLayoutChange(t) {
         var kind = v.slice(0, 1), id = v.slice(2), pl = null;
         if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id; })) pl = { id: id, w: 1 }; }
         else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) pl = { roll: id, w: 1 }; }
-        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' || id === 'link' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; if (id === 'link') { var firstPage = pageOptions('', null)[0]; pl.text = ''; pl.page = firstPage ? firstPage[0] : ''; } }
+        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' || id === 'link' || id === 'facing' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; if (id === 'link') { var firstPage = pageOptions('', null)[0]; pl.text = ''; pl.page = firstPage ? firstPage[0] : ''; } }
         if (pl) { sec.fields.push(pl); markDirty(); renderLayout(); }
         return true;
     }
@@ -1749,7 +1880,7 @@ setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
-    openSheet: openSheet, closeSheet: closeSheet, canOpen: canOpen, renderSheet: renderSheet, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, tokenTurned: tokenTurned, facingCtxFor: facingCtxFor, canOpen: canOpen, renderSheet: renderSheet, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
 (function wireSheetPopout() {

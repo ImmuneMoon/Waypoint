@@ -57,6 +57,7 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
     check('replay: mismatched draws (too few, too many, out of range) fail', !replay(rec({ draws: [4] }), F, V).ok && !replay(rec({ draws: [4, 5, 6] }), F, V).ok && !replay(rec({ draws: [4, 7] }), F, V).ok);
     check('replay: a formula that does not parse fails; a different engine version is reported as such', replay(rec({ expr: '2d' }), F, V).reason === 'error' && replay(rec({ v: V + 1 }), F, V).reason === 'version');
     check('replay: reroll and explode chains replay from their draws', (() => { const a = roll('2d6!r1', [1, 6, 2, 4]); const r = replay(rec({ expr: '2d6!r1', draws: a.draws }), F, V); return a.ok && r.ok && r.result.value === a.value && r.result.breakdown.text === a.breakdown.text; })());
+    check('replay: the facing names a host recorded (Arc.front true, Threats.rear 1) replay as recorded', (() => { const nm = cleanNames([{ name: 'Arc.front', value: true }, { name: 'Threats.rear', value: 1 }]); const r = replay(rec({ expr: '2d6 + if(Arc.front, 1, 0) + Threats.rear', names: nm }), F, V); return nm && nm.length === 2 && r.ok && r.result.value === 11; })());
     check('replay: fudge and percentile', (() => { const a = roll('4dF + d%', [1, 3, 2, 2, 57]); const r = replay(rec({ expr: '4dF + d%', draws: a.draws }), F, V); return a.ok && r.ok && r.result.value === a.value; })());
 
     /* ---- caps ---- */

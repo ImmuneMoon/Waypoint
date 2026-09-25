@@ -844,6 +844,55 @@ const j = v => JSON.stringify(v);
             && /select\('sys-item-rmmode'/.test(sh4) && /input\('sys-item-rmtext field'/.test(sh4) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(sh4) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(sh4) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(sh4) && !/commitItem\(c, f, '/.test(sh4));
     }
 
+    /* ---- Stage 6 look fold (L1): the sheet palette ---- */
+    {
+        const crypto = require('crypto'), H = o => crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex');
+        const tutSrc = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const fnSrc = name => { const i = tutSrc.indexOf('function ' + name + '('); let d = 0; const k = tutSrc.indexOf('{', i); for (let p = k; p < tutSrc.length; p++) { if (tutSrc[p] === '{') d++; else if (tutSrc[p] === '}') { d--; if (d === 0) return tutSrc.slice(i, p + 1); } } return ''; };
+        const tutorialSystem = new Function(fnSrc('tutorialEffects') + '\n' + fnSrc('tutorialSystem') + '\nreturn tutorialSystem;')();
+        const preset = n => JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', n + '.json'), 'utf8'));
+        // the pre-fold hashes (taken at 516b22b, before any look-fold key existed): a system without the new keys cleans exactly as before
+        const PRE = {
+            d20: ['96c44fc592448813542d72f24129e788304634fcdab1649e3942daa6ae42b894', 'c8733a11848517e9b02ffaf86072506ef224cccbbb4eca17d6403b6d3c1de269', '32be92883bbdfd0fb9975e29bf00f9632b296a13d1fdab3c0e801458f9f97cc8'],
+            '3d6': ['0292986b3be8f1c8b5d38c000e66b7a15cc9569b1a318a96d9a1bb395dd2e756', 'a7733f1f3820bbcfc1fdacb52e767e78df634d323e2cca503254d8977c7e29f8', '37fe78c2036ca85291471ddac6f04a816257e02bc78763df705390136a92c992'],
+            tutorial: ['fc23d44c307799bd26a0300680a1f8292c464f6cc33205c0f3d1a20ecd8b041f', '3b15bedb3bdda9ec82a54f1a1309007fa153fda72285008e6a085f92aab2c04a', 'cd9c017de98546ae4998169122c200153c4c0dc451925a6a2602d8a977e380df']
+        };
+        const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
+        check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));
+        const GRAPH = { text: '#ADD8E6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#1a1a1a', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' };
+        const mkL = look => cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all' }], rolls: [], sheet: { sections: [], look } }, { F, gmView: true });
+        const lk = mkL({ labels: 'caps', palette: Object.assign({ extra: '#000000' }, GRAPH), titles: 'headline' }).sheet.look;
+        check('look L1: a palette is kept whole — ten hex colours, lower-cased, extra keys dropped, a plain object after the existing look keys', !!lk && j(Object.keys(lk)) === j(['titles', 'labels', 'palette']) && lk.palette.text === '#add8e6' && Object.keys(lk.palette).length === 10 && !('extra' in lk.palette) && Object.getPrototypeOf(lk.palette) === Object.prototype, j(lk));
+        const nine = Object.assign({}, GRAPH); delete nine.warn;
+        const bads = ['#abc', '#aabbccdd', ' #aabbcc', '#aabbcc;x', 'url(x)', 'red', 'var(--x)', 42, null].map(b => mkL({ palette: Object.assign({}, GRAPH, { edge: b }) }).sheet);
+        check('look L1: a palette missing one colour, or with any one colour that is not six hex digits (#abc, 8 digits, a leading space, ;x, url(), a name, var(), a number), is dropped whole — a look with nothing else leaves no look key', !('look' in mkL({ palette: nine }).sheet) && bads.every(s => !('look' in s)) && !('look' in mkL({ palette: '#aabbcc' }).sheet), j(bads.map(s => s.look)));
+        const pvL = cleanSystem({ v: 1, name: 'L', fields: [], rolls: [], sheet: { sections: [], look: { palette: GRAPH } } }, { F, gmView: false });
+        check('look L1: the players\' view keeps the palette (nothing in a look is secret)', pvL.sheet && pvL.sheet.look && pvL.sheet.look.palette && pvL.sheet.look.palette.primary === '#add8e6', j(pvL.sheet));
+        // the two look test systems (tools/fixtures): clean once and again to the same thing, on the GM's side and the way a client re-cleans the players' view
+        const fixtures = ['look-d20', 'look-3d6'].map(n => [n, JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'))]);
+        const fixOk = fixtures.map(([n, raw]) => { const g1 = cleanSystem(raw, { F, gmView: true }), g2 = cleanSystem(g1, { F, gmView: true }), p1 = cleanSystem(raw, { F, gmView: false }), p2 = cleanSystem(p1, { F, gmView: false }), v = S.validateSystem(g1, F); return [n, j(g1) === j(g2) && j(p1) === j(p2) && v.errors.length === 0 && !!(p1.sheet.look && p1.sheet.look.palette) && g1.fields.length === raw.fields.length]; });
+        check('look L1: both look test systems (generic d20 on Parchment, 3d6 points on Graphite) clean idempotently in both views, validate with no errors, and keep their palette for players', fixOk.every(x => x[1]), j(fixOk));
+        // the sink, sliced from sheets.js (the live panel draws the campaign's raw system, so the palette is checked again where it meets a style)
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        const accSrc = shL.slice(shL.indexOf('function accentInk('), shL.indexOf('// [systemcheck:palette-start]')), palSrc = shL.slice(shL.indexOf('// [systemcheck:palette-start]'), shL.indexOf('// [systemcheck:palette-end]'));
+        const PL = new Function(accSrc + palSrc + '\nreturn { applyPaletteTo: applyPaletteTo, PAL_VARS: PAL_VARS, PAL_ALL: PAL_ALL };')();
+        const node = () => { const props = {}, cls = {}; const n = { props, cls, style: { colorScheme: '', setProperty: (k, v) => { props[k] = v; }, removeProperty: k => { delete props[k]; } }, classList: { toggle: (c, on) => { cls[c] = !!on; } } }; return n; };
+        const n0 = node(); PL.PAL_ALL.forEach(v => { n0.props[v] = 'x'; }); n0.style.colorScheme = 'dark'; const r0 = PL.applyPaletteTo(n0, {});
+        const nU = node(), rU = PL.applyPaletteTo(nU, { palette: Object.fromEntries(Object.keys(GRAPH).map(k => [k, 'url(x)'])) }), n1 = node(), r1 = PL.applyPaletteTo(n1, { palette: Object.assign({}, GRAPH, { text: '#add8e6', edge: 'red' }) });
+        const G = Object.assign({}, GRAPH, { text: '#add8e6' }), nG = node(), rG = PL.applyPaletteTo(nG, { palette: G, accent: '#ab94b3' }), nP = node(), PARCH = { text: '#2b2118', muted: '#6b5a48', panel: '#f3ead6', card: '#e8dcc0', field: '#fbf6ea', edge: '#c4b393', primary: '#7a2e1f', danger: '#a3261b', good: '#2f7a3b', warn: '#9a6410' }, rP = PL.applyPaletteTo(nP, { palette: PARCH });
+        const mapped = Object.keys(PL.PAL_VARS).every(k => PL.PAL_VARS[k].every(v => nG.props[v] === G[k])), extras = ['--sheet-primary-ink', '--sheet-danger-ink', '--gold', '--scroll', '--scroll-hover'];
+        check('look L1: applyPaletteTo (sliced from sheets.js) — no palette removes every variable and the class; a palette with any value that is not a hex colour sets nothing; a whole one sets exactly its variables, the inks, --gold (the accent, else primary), a colour scheme of dark or light and matching scrollbars',
+            !r0 && Object.keys(n0.props).length === 0 && n0.cls['sheet-paletted'] === false && n0.style.colorScheme === '' && !rU && Object.keys(nU.props).length === 0 && !r1 && Object.keys(n1.props).length === 0
+            && rG && mapped && Object.keys(nG.props).length === PL.PAL_ALL.length && extras.every(v => v in nG.props) && nG.props['--gold'] === '#ab94b3' && nG.style.colorScheme === 'dark' && nG.cls['sheet-paletted'] === true && nG.props['--sheet-danger-ink'] === '#ffffff'
+            && rP && nP.props['--gold'] === '#7a2e1f' && nP.style.colorScheme === 'light' && /^rgba\(0,0,0,/.test(nP.props['--scroll']), j([nG.props, nP.style.colorScheme]));
+        const cssL = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), palCss = cssL.slice(cssL.indexOf('/* Stage 6 look fold (L1): a sheet palette.'), cssL.indexOf('.sys-lookpalette {'));
+        const palRules = palCss.split('\n').filter(l => /\{/.test(l) && !/^\s*\/\*/.test(l));
+        check('look L1: the renders — applyLook before the frame is measured in buildSections; the look (and its font) before syncFramePad in the live panel and the pop-out; the palette on the whole panel; a palette drops the page colours (font and picture stay); the preview\'s children are inert; every palette CSS rule is gated by .sheet-paletted',
+            /applyLook\(body, look, vctx\);[^\n]*\n\s*syncFramePad\(body\);\s*\n\s*if \(tabs \? !tabN : !secN\)/.test(shL) && /applySheetLookTo\(body, sheetLook\(camp, sys\)\);\s*\n\s*syncFramePad\(body\);/.test(shL) && /applySheetLookTo\(container, sheetLook\(camp, sys\)\);\s*\n\s*syncFramePad\(container\);/.test(shL)
+            && /applyPaletteTo\(p, sys\.sheet && sys\.sheet\.look\);/.test(shL) && /if \(st && paletteOf\(sys && sys\.sheet && sys\.sheet\.look\)\) \{ st = Object\.assign\(\{\}, st\); delete st\.textColor; delete st\.bgColor; \}/.test(shL)
+            && /Array\.prototype\.forEach\.call\(box\.children, function\(ch\) \{ ch\.inert = true; \}\);/.test(shL) && palRules.length >= 18 && palRules.every(l => /\.sheet-paletted/.test(l)), j(palRules.filter(l => !/\.sheet-paletted/.test(l))));
+    }
+
     /* ---- Stage 6 Fold 2: the token's stance — Posture / Elevation names, the Stance placement ---- */
     {
         const SC6 = S.stanceCtx, on2 = { posture: true, elevation: true };

@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -431,11 +431,12 @@ function renderSheet() {
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
     _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags());
     _sheetRefSig = refSig(sys);
-    buildSections(body, sys, c, all, gm, own, renderSheet);
+    buildSections(body, sys, c, all, gm, own, renderSheet, { campId: camp.id, view: 'sheet', preview: false });
+    applyPaletteTo(p, sys.sheet && sys.sheet.look);   // Stage 6 look fold: the palette also dresses the panel's own head, border and grip
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
-    syncFramePad(body);   // the width may have changed the sticky frame's height
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
     applySheetLookTo(body, sheetLook(camp, sys));
+    syncFramePad(body);   // the width (and the look's font) may have changed the sticky frame's height
     restoreFocus(body, fk);
 }
 // The campaign default's background picture + readability scrim on a sheet body (same rendering as a page:
@@ -448,7 +449,12 @@ function applySheetBg(node, style) {
 }
 // The look a sheet renders with (doc theming): the system's own sheet look over the campaign default, validated here on
 // every machine (a player's copy re-cleans what the host sent).
-function sheetLook(camp, sys) { var DR = window.wpDocRender; if (!DR || !DR.cleanDocStyle) return null; return DR.cleanDocStyle(DR.mergeDocStyle ? DR.mergeDocStyle(camp && camp.docStyle, sys && sys.sheetStyle) : (camp && camp.docStyle)); }
+function sheetLook(camp, sys) {
+    var DR = window.wpDocRender; if (!DR || !DR.cleanDocStyle) return null;
+    var st = DR.cleanDocStyle(DR.mergeDocStyle ? DR.mergeDocStyle(camp && camp.docStyle, sys && sys.sheetStyle) : (camp && camp.docStyle));
+    if (st && paletteOf(sys && sys.sheet && sys.sheet.look)) { st = Object.assign({}, st); delete st.textColor; delete st.bgColor; }   // Stage 6: a palette wins over page colours (the font and the picture still apply)
+    return st;
+}
 function applySheetLookTo(node, style) {
     node.style.fontFamily = ''; node.style.color = ''; node.style.backgroundColor = '';   // reset first so turning a look off restores the app style
     if (style) { var DF = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {}; if (style.font && DF[style.font]) node.style.fontFamily = DF[style.font]; if (style.textColor) node.style.color = style.textColor; if (style.bgColor) node.style.backgroundColor = style.bgColor; }
@@ -476,12 +482,12 @@ function renderSheetInto(container, charId, camp) {
     // so every sink below (the look's accent, section colours, icons, the portrait) sees validated values
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
-    _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
+    _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
-    syncFramePad(container);
     applySheetLookTo(container, sheetLook(camp, sys));
+    syncFramePad(container);   // measured in the look's own font
     return { title: c.name || 'Character' };
 }
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
@@ -551,7 +557,42 @@ function accentInk(hex) {
     var L = 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
     return (L + 0.05) / 0.0567 >= 1.05 / (L + 0.05) ? '#111318' : '#ffffff';
 }
-function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
+// [systemcheck:palette-start]
+// Stage 6 look fold (L1): a sheet palette remaps the theme's own variables on the sheet (and the panel around it), so every rule
+// that already reads them — labels, values, inputs, edges, buttons, tiles, chips — takes the palette at once; absent, nothing is set
+// and the sheet is exactly the theme's. Re-checked here: the live panel draws the campaign's raw system, so only a whole palette of
+// plain hex colours ever reaches a style property.
+var PAL_VARS = { text: ['--ink', '--text'], muted: ['--dim', '--muted'], panel: ['--panel2', '--surface'], card: ['--sheet-card'], field: ['--panel'], edge: ['--edge', '--border'], primary: ['--sheet-primary'], danger: ['--red', '--danger'], good: ['--green'], warn: ['--sheet-warn'] };
+var PAL_ALL = ['--ink', '--text', '--dim', '--muted', '--panel2', '--surface', '--sheet-card', '--panel', '--edge', '--border', '--sheet-primary', '--sheet-primary-ink', '--red', '--danger', '--sheet-danger-ink', '--green', '--sheet-warn', '--gold', '--scroll', '--scroll-hover'];
+function paletteOf(look) {
+    var HEX = /^#[0-9a-fA-F]{6}$/, pal = look && look.palette && typeof look.palette === 'object' ? look.palette : null; if (!pal) return null;
+    for (var k in PAL_VARS) if (Object.prototype.hasOwnProperty.call(PAL_VARS, k) && (typeof pal[k] !== 'string' || !HEX.test(pal[k]))) return null;
+    return pal;
+}
+function applyPaletteTo(node, look) {
+    var HEX = /^#[0-9a-fA-F]{6}$/, pal = paletteOf(look);
+    PAL_ALL.forEach(function(v) { node.style.removeProperty(v); }); if (node.style.colorScheme) node.style.colorScheme = '';
+    if (pal) {
+        Object.keys(PAL_VARS).forEach(function(k) { PAL_VARS[k].forEach(function(v) { node.style.setProperty(v, pal[k]); }); });
+        node.style.setProperty('--sheet-primary-ink', accentInk(pal.primary)); node.style.setProperty('--sheet-danger-ink', accentInk(pal.danger));
+        node.style.setProperty('--gold', look && typeof look.accent === 'string' && HEX.test(look.accent) ? look.accent : pal.primary);   // hover and focus borders follow the palette under either theme
+        var dark = accentInk(pal.panel) === '#ffffff'; node.style.colorScheme = dark ? 'dark' : 'light';
+        node.style.setProperty('--scroll', dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)'); node.style.setProperty('--scroll-hover', dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.32)');
+    }
+    node.classList.toggle('sheet-paletted', !!pal);
+    return !!pal;
+}
+// [systemcheck:palette-end]
+// The sheet's look on a container (the live body, the Layout preview, a pop-out): the palette now; later look options add their
+// classes here. vctx = { campId, view, preview } — the options object a second view of the sheet extends.
+function applyLook(body, look, vctx) { var L = look || {}; applyPaletteTo(body, L); }
+// Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colours into the look)
+var LOOK_PRESETS = {
+    graphite: { name: 'Graphite', accent: '#ab94b3', palette: { text: '#add8e6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#1a1a1a', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' } },
+    parchment: { name: 'Parchment', accent: '#7a2e1f', palette: { text: '#2b2118', muted: '#6b5a48', panel: '#f3ead6', card: '#e8dcc0', field: '#fbf6ea', edge: '#c4b393', primary: '#7a2e1f', danger: '#a3261b', good: '#2f7a3b', warn: '#9a6410' } }
+};
+var PAL_CAPS = { text: 'Text', muted: 'Muted', panel: 'Panel', card: 'Card', field: 'Field', edge: 'Edge', primary: 'Primary', danger: 'Danger', good: 'Good', warn: 'Warning' };
+function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
@@ -667,6 +708,7 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         var secEl = renderOneSection(sec, false);
         if (secEl) { body.appendChild(secEl); secN++; tabN++; }
     });
+    applyLook(body, look, vctx);   // Stage 6 look fold
     syncFramePad(body);
     if (tabs ? !tabN : !secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
 }
@@ -733,6 +775,27 @@ function renderLayout() {
     var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);
     if (shape.accent) { var aclr = el('button', 'tool ghost sys-btn', 'Theme accent'); aclr.title = 'Back to the theme\u2019s gold'; aclr.addEventListener('click', function() { setShape('accent', null); renderLayout(); }); shapeRow.appendChild(aclr); }
     lookBox.appendChild(shapeRow);
+    // Stage 6 look fold (L1): a palette — ten colours for every part of the sheet, from a preset or the GM's own swatches
+    var pal = paletteOf(shape);
+    var presetOf = function(p0) { if (!p0) return ''; var hit = 'custom'; Object.keys(LOOK_PRESETS).forEach(function(pn) { if (hit === 'custom' && PALETTE_KEYS.every(function(k) { return LOOK_PRESETS[pn].palette[k] === p0[k]; })) hit = pn; }); return hit; };
+    var curPreset = presetOf(pal), presetOpts = [['', 'No palette']].concat(Object.keys(LOOK_PRESETS).map(function(pn) { return [pn, LOOK_PRESETS[pn].name]; })); if (curPreset === 'custom') presetOpts.push(['custom', 'Custom']);
+    var palRow = el('div', 'sys-sec-style sys-lookpalette');
+    palRow.appendChild(el('span', 'sys-sec-style-lbl', 'Palette'));
+    var presetSel = select('sys-look-preset', presetOpts, curPreset, 'Colour every part of the sheet at once: pick a preset, then change any swatch'); palRow.appendChild(presetSel);
+    if (pal) {
+        PALETTE_KEYS.forEach(function(k) {
+            var lb = el('label', 'sys-look-palsw'), sw = el('input', 'sys-look-pal'); sw.type = 'color'; sw.value = pal[k]; sw.dataset.key = k; sw.title = PAL_CAPS[k];
+            lb.appendChild(el('span', 'sys-sec-style-lbl', PAL_CAPS[k])); lb.appendChild(sw); palRow.appendChild(lb);
+            sw.addEventListener('input', function() { setPalette(k, sw.value); });
+            sw.addEventListener('change', function() { renderLayout(); });   // the preset select turns to Custom
+        });
+        var pclr = el('button', 'tool ghost sys-btn', 'Clear palette'); pclr.title = 'Back to the Text and Panel colours above, and the theme'; pclr.addEventListener('click', function() { setShape('palette', null); renderLayout(); }); palRow.appendChild(pclr);
+        Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.disabled = true; ci.title = 'The palette sets the sheet\u2019s colours; clear it to use these'; });
+    }
+    lookBox.appendChild(palRow);
+    lookBox.appendChild(el('div', 'sys-hint', 'A palette colours every part of the sheet at once, in place of the Text and Panel colours above and the campaign\u2019s page colours (the font and picture still apply). Players see the same colours, under either theme.'));
+    var setPalette = function(k, v) { if (!/^#[0-9a-fA-F]{6}$/.test(v)) return; var lk = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {}; var np = Object.assign({}, lk.palette || {}); np[k] = v.toLowerCase(); setShape('palette', np); };
+    presetSel.addEventListener('change', function() { var pv = presetSel.value; if (pv === 'custom') return; if (!pv) setShape('palette', null); else { var pr = LOOK_PRESETS[pv]; if (!pr) return; setShape('palette', Object.assign({}, pr.palette)); setShape('accent', pr.accent); } renderLayout(); });
     root.appendChild(lookBox);
     var setShape = function(key, val) { if (!draft.sheet) draft.sheet = {}; var lk = (draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {}; if (val === null || val === '' || val === false || val === undefined) delete lk[key]; else lk[key] = val; if (Object.keys(lk).length) draft.sheet.look = lk; else delete draft.sheet.look; markDirty(); renderPreview(); };
     titlesSel.addEventListener('change', function() { setShape('titles', titlesSel.value); });
@@ -878,8 +941,10 @@ function renderPreview() {
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
-    _fxLive = false; try { buildSections(box, clean, pc, resolveAll(clean, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
+    _fxLive = false; try { buildSections(box, clean, pc, resolveAll(clean, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: 'sheet', preview: true }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
+    syncFramePad(box);
+    Array.prototype.forEach.call(box.children, function(ch) { ch.inert = true; });   // Stage 6: the preview draws a real character's values as the GM — no keyboard edit may reach it (the box itself stays the scroller)
 }
 function onLayoutInput(t) {
     var c = t.className || '';

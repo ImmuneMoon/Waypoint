@@ -1008,6 +1008,34 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
     }
 
+    /* ---- Stage 6 look fold (L6): status effects as cards, a pill per change ---- */
+    {
+        const sysL6 = look => cleanSystem({ v: 1, name: 'L6', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true });
+        const l6 = sysL6({ effects: 'cards', sticky: true, titles: 'accordion' }), l6bad = ['card', 'lines', 'constructor', true, 1].map(v => sysL6({ effects: v }));
+        check('look L6: cleanLook keeps effects "cards" only, after sticky (titles, tabs, accent, portrait, labels, sticky, effects, palette); any other value leaves no look key; the players\' view keeps it',
+            l6.sheet.look && j(Object.keys(l6.sheet.look)) === j(['titles', 'sticky', 'effects']) && l6bad.every(s => !s.sheet.look) && cleanSystem(l6, { F, gmView: false }).sheet.look.effects === 'cards', j([l6.sheet.look, l6bad.map(s => s.sheet.look)]));
+        const sh6 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fxSlice6 = sh6.slice(sh6.indexOf('function effectsInto('), sh6.indexOf('// Stage 5g: a value coloured by its sign'));
+        const pillSrc = sh6.slice(sh6.indexOf('function fxPillText('), sh6.indexOf('\n', sh6.indexOf('function fxPillText(')));
+        const fxPillText = new Function('fmtNum', pillSrc + '\nreturn fxPillText;')(S.fmtNum);
+        const lab6 = { f_st: 'ST', f_hp: 'HP', f_pr: 'Prone' };
+        const pills = [fxPillText({ f: 'f_st', op: 'add', v: 2 }, lab6), fxPillText({ f: 'f_hp', op: 'add', v: -5, part: 'max' }, lab6), fxPillText({ f: 'f_pr', op: 'on' }, lab6), fxPillText({ f: 'f_gone', op: 'add', v: 0.5 }, lab6)];
+        check('look L6: a pill reads amount first (the owner\'s Q10) — "+2 ST", "−5 HP max", the name alone for a switch, "?" for a field that is gone', j(pills) === j(['+2 ST', '\u22125 HP max', 'Prone', '+0.5 ?']), j(pills));
+        check('look L6: fxCard and fxPillText sit inside the effects slice (no innerHTML there); the card is used only when the look asks, with the switch built once above the branch; a pill\'s class is picked by comparison; the × is the existing remove, for whoever may end it',
+            /function fxCard\(/.test(fxSlice6) && /function fxPillText\(/.test(fxSlice6) && !/innerHTML/.test(fxSlice6)
+            && /var cards = !!\(sys && sys\.sheet && sys\.sheet\.look && sys\.sheet\.look\.effects === 'cards'\);/.test(fxSlice6)
+            && /sw\.addEventListener\('change', function\(\) \{ commitEffect\(c, f, \{ op: 'on', rowId: r\.id, on: sw\.checked \}\); \}\);\n\s*if \(cards\) \{ wrap\.appendChild\(fxCard\(line, sw, r, d, f, c, labels, editable\)\); return; \}/.test(fxSlice6)
+            && /'sheet-fx-mod ' \+ \(m\.op === 'on' \? 'sheet-fx-mod-on' : m\.v >= 0 \? 'sheet-fx-mod-pos' : 'sheet-fx-mod-neg'\)/.test(fxSlice6)
+            && /if \(editable\) \{ var rm = el\('button', 'tool ghost sheet-pm sheet-fx-rm sheet-fx-x', '\\u00d7'\);[^\n]*commitEffect\(c, f, \{ op: 'remove', rowId: r\.id \}\)/.test(fxSlice6)
+            && /iconNode\('icon:hourglass-half', 'sheet-fx-durico'\)/.test(fxSlice6));
+        const css6 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), l6css = css6.slice(css6.indexOf('/* Stage 6 look fold (L6)'), css6.indexOf('/* Stage 6 look fold (L5)'));
+        const l6rules = l6css.split('\n').filter(x => /\{/.test(x) && !/^\s*\/\*/.test(x)), ungated = l6rules.filter(x => !/\.sheet-fx-cards /.test(x.split('{')[0]));
+        check('look L6: every card rule is gated by .sheet-fx-cards; the only global rules are the pill\'s own (.sheet-fx-mod, -pos, -neg, -on), which exist only on cards; applyLook toggles the class by comparison; the Sheet look box offers Effect cards; tour and Help say so',
+            l6rules.length === 16 && j(ungated.map(x => x.trim().split(' {')[0])) === j(['.sheet-fx-mod', '.sheet-fx-mod-pos', '.sheet-fx-mod-neg', '.sheet-fx-mod-on'])
+            && /body\.classList\.toggle\('sheet-fx-cards', L\.effects === 'cards'\);/.test(sh6) && /\['cards', 'Effect cards'\]/.test(sh6) && /fxSel\.addEventListener\('change', function\(\) \{ setShape\('effects', fxSel\.value\); \}\);/.test(sh6)
+            && /status effects can show as <b>cards<\/b> with a pill per change/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /<b>Effect cards<\/b> show each status effect as a card/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), j([l6rules.length, ungated]));
+    }
+
     /* ---- Stage 6 look fold (L5): accordion titles, sticky titles, angular tabs ---- */
     {
         const pal10 = { text: '#111111', muted: '#222222', panel: '#333333', card: '#444444', field: '#555555', edge: '#666666', primary: '#777777', danger: '#888888', good: '#999999', warn: '#aaaaaa' };

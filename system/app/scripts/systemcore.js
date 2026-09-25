@@ -321,6 +321,7 @@ function cleanLook(v) {
     if (v.portrait === true) out.portrait = true;
     if (v.labels === 'caps') out.labels = 'caps';   // Fold B: field labels in small bold capitals
     if (v.sticky === true) out.sticky = true;   // L5: a section's title stays at the top while that section scrolls
+    if (v.effects === 'cards') out.effects = 'cards';   // L6: status effects as cards, a pill per change
     var pal = cleanPalette(v.palette); if (pal) out.palette = pal;   // Stage 6 look fold: every part of the sheet in ten colours
     return Object.keys(out).length ? out : null;
 }

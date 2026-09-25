@@ -1043,7 +1043,7 @@ window.wpFitToGrid = fitToGrid;
       its.forEach(function(src) {
           var it = JSON.parse(JSON.stringify(src));
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
-          delete it.ownerId; delete it.charId;   // a copy is a new creature, not a second token of the character
+          delete it.ownerId; delete it.charId; delete it.threats;   // a copy is a new creature, not a second token of the character (5h: nor its threat marks)
           if (it.groupId) {
               if (!gidMap[it.groupId]) gidMap[it.groupId] = 'group_' + Date.now() + Math.random().toString(36).slice(2, 6);
               it.groupId = gidMap[it.groupId];
@@ -1402,11 +1402,61 @@ window.wpFitToGrid = fitToGrid;
       if (rRange && rNum) { rRange.value = item.rot || 0; rNum.value = item.rot || 0; }
       if (window.wpUpdateHandles) window.wpUpdateHandles();
       if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item);
+      if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(item.id, false);   // 5h Fold 3: a sheet's facing dial follows the arrow as it turns
   }
   window.wpTurnToken = function(item, steps) {   // programmatic / keyboard: +1 = clockwise
       var st = facingStep(item) || (state.gridType === 'hex' ? 60 : 90);
       applyFacing(item, (item.rot || 0) + (item.front || 0) + steps * st, false);
       refreshTokenDom(item);
+  };
+  /* Stage 5h Fold 3: the character sheet's facing dial. It turns a token on ITS OWN map (the step from that map's grid, never the
+     viewer's Snap setting or the grid on screen) under the arrow's rule (a player turns their own token, while not paused; facing on),
+     and ends like the arrow's release: a final pos (the host saves it), then save + render. A token on a map off screen (the GM's dial
+     following a player elsewhere): save, and the host sends that map whole (a pos always names the map on screen). */
+  function tokenOnMap(mapId, tokId) {
+      var camp = getActiveCampaign(), items = camp && camp.items;
+      var map = items && typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(items, mapId) ? items[mapId] : null;
+      if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard)) return null;
+      var tok = map.whiteboard.find(function(x) { return x && x.id === tokId; });
+      if (!tok || !tok.isChar || (window.wpVtt && !window.wpVtt.on('turning'))) return null;
+      var n = window.wpNet;
+      if (n && n.active && n.role === 'client' && (n.paused || n.selfPaused || tok.ownerId !== n.myId)) return null;
+      return { camp: camp, map: map, mapId: mapId, tok: tok, onScreen: camp.activeItemId === mapId };
+  }
+  function endDialTurn(t) {
+      if (t.onScreen) {
+          var el = state.wbEls[t.tok.id];
+          if (el) { el.style.transform = t.tok.rot ? 'rotate(' + t.tok.rot + 'deg)' : 'none'; var fw = el.querySelector(':scope > .token-front'); if (fw) fw.style.transform = t.tok.front ? 'rotate(' + t.tok.front + 'deg)' : ''; }
+          if (state.selWbId === t.tok.id) { var rRange = document.getElementById('wbRot'), rNum = document.getElementById('wbRotNum'); if (rRange && rNum) { rRange.value = t.tok.rot || 0; rNum.value = t.tok.rot || 0; } }
+          if (window.wpUpdateHandles) window.wpUpdateHandles();
+          if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(t.tok, true);
+      }
+      save(); render();
+      var n = window.wpNet;
+      if (!t.onScreen && n && n.active && n.role === 'host' && n.broadcastItemFiltered) n.broadcastItemFiltered(t.camp.id, t.mapId);
+      if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(t.tok.id, true);
+  }
+  window.wpSetTokenFacing = function(mapId, tokId, worldDeg) {
+      var t = tokenOnMap(mapId, tokId); if (!t || typeof worldDeg !== 'number' || !isFinite(worldDeg)) return false;
+      var step = facingStepFor((t.map.meta && t.map.meta.gridType) || 'off', t.tok);
+      var target = step ? snapFacing(worldDeg, step, 0) : Math.round(worldDeg);
+      if (t.tok.faceMode === 'arrow') t.tok.front = ((Math.round(target - (t.tok.rot || 0)) % 360) + 360) % 360;
+      else t.tok.rot = normDeg(target - (t.tok.front || 0));
+      endDialTurn(t); return true;
+  };
+  // Threat marks: a player's go to the host as their own message (a map patch never carries them, so a stale copy cannot undo the
+  // GM's); the GM's go out with the map at once
+  window.wpSetTokenThreats = function(mapId, tokId, list) {
+      var t = tokenOnMap(mapId, tokId), S = window.wpSystemCore; if (!t || !S || !S.cleanThreats) return false;
+      var th = S.cleanThreats(list); if (th.length) t.tok.threats = th; else delete t.tok.threats;
+      var n = window.wpNet;
+      if (n && n.active && n.role === 'client') { if (n.sendThreats) n.sendThreats(t.camp.id, mapId, tokId, th); render(); }
+      else {
+          save(); render();
+          if (n && n.active && n.role === 'host') { if (t.onScreen && n.sendItem) n.sendItem(t.camp.id, mapId); else if (!t.onScreen && n.broadcastItemFiltered) n.broadcastItemFiltered(t.camp.id, mapId); }
+      }
+      if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(tokId, true);
+      return true;
   };
   function attachArrowTurn() {
       var turning = null;

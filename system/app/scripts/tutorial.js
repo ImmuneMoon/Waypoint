@@ -73,7 +73,12 @@ function tutorialSystem() {
         items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }],
         effects: tutorialEffects(),
         combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp' },
-        sheet: { sections: [], identity: [{ id: 'f_tut_class' }], ledger: [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }, { roll: 'r_tut_init' }] } };   // the automatic layout, with a header block (Stage 5d) and a pinned band (Stage 5c) so the tour shows them
+        sheet: { sections: [], identity: [{ id: 'f_tut_class' }], ledger: [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }, { roll: 'r_tut_init' }], hud: tutorialHud() } };   // the automatic layout, with a header block (Stage 5d), a pinned band (Stage 5c) and a HUD (Stage 6) so the tour shows them
+}
+// the HUD (Stage 6): Bren's compact second window — checks and his attack on one tab, his condition on the other
+function tutorialHud() {
+    return { title: 'Combat HUD', tabs: [{ id: 't_tut_hact', label: 'Actions', icon: 'icon:dice' }, { id: 't_tut_hstat', label: 'Status', icon: 'icon:heart-pulse' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }],
+        sections: [{ id: 's_tut_hchk', title: 'Checks', tab: 't_tut_hact', cols: 1, fields: [{ id: 'f_tut_str', w: 1 }, { id: 'f_tut_sword', w: 1 }, { roll: 'r_tut_atk', w: 1 }] }, { id: 's_tut_hfx', title: 'Condition', tab: 't_tut_hstat', cols: 1, fields: [{ id: 'f_tut_hp', w: 1 }, { id: 'f_tut_fx', w: 'row' }] }] };
 }
 // status effects (5h): Blessed (+1 to the Sword total) and Poisoned (−2 STR, so everything built on STR follows)
 function tutorialEffects() {
@@ -108,6 +113,8 @@ function ensureTutorialSheet(camp) {
         if (Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f && f.id === 'f_tut_class'; })) { camp.system.fields.push({ id: 'f_tut_class', key: 'Class', label: 'Class', kind: 'text', def: 'Fighter', max: 60, edit: 'owner', vis: 'all', hover: false }); changed = true; }
         if (tsh && typeof tsh === 'object' && !Array.isArray(tsh.identity) && !Array.isArray(tsh.ledger) && !(Array.isArray(tsh.sections) && tsh.sections.length) && !(Array.isArray(tsh.tabs) && tsh.tabs.length)) { tsh.identity = [{ id: 'f_tut_class' }]; tsh.ledger = [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }]; changed = true; }
         if (tsh && typeof tsh === 'object' && JSON.stringify(tsh.identity) === JSON.stringify([{ id: 'f_tut_class' }, { id: 'f_tut_str' }, { id: 'f_tut_dex' }, { id: 'f_tut_con' }])) { tsh.identity = [{ id: 'f_tut_class' }]; changed = true; }   // Stage 6: the header now edits its rows in place — the abilities stay tiles, Class moves up
+        // the HUD (Stage 6 HUD frame): seeded onto an untouched layout only (no HUD, sections or tabs of the owner's own), with its own guard
+        if (tsh && typeof tsh === 'object' && !tsh.hud && !(Array.isArray(tsh.sections) && tsh.sections.length) && !(Array.isArray(tsh.tabs) && tsh.tabs.length)) { tsh.hud = tutorialHud(); changed = true; }
     }
     if (camp.chars && camp.chars.c_tut_bren && camp.chars.c_tut_bren.values && !camp.chars.c_tut_bren.values.f_tut_fx) { camp.chars.c_tut_bren.values.f_tut_fx = [{ id: 'x_tut_bless', ref: 'e_tut_bless', on: true }]; changed = true; }   // 5h: Bren is Blessed
     if (camp.chars && camp.chars.c_tut_bren && camp.chars.c_tut_bren.values && !camp.chars.c_tut_bren.values.f_tut_kit) { camp.chars.c_tut_bren.values.f_tut_kit = [{ defId: 'i_tut_firepot', qty: 1 }]; changed = true; }
@@ -642,6 +649,9 @@ var STEPS = [
     { target: '#sheetPanel', title: 'A character sheet',
       html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (right-click a token &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; the <b>header block</b> under the name says who Bren is (Fighter, his STR modifier, Sight) and the <b>band</b> keeps HP, AC, Prone and Initiative in reach on every tab &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. Drag its head to move it and its bottom-right corner to resize it; both are remembered. Text, select, number and yes/no rows under the name are changed right there by whoever may edit them, so a field is never on the sheet twice. Bren is <b>Blessed</b>: the &#9650; beside his Sword total is the effect &mdash; hover it for the source. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip. Bren&rsquo;s <b>Kit</b> holds a <b>Firepot</b> with a &#128165; <b>Throw</b> &mdash; press it, then click the map.',
       before: function() { if (window.wpSheets) window.wpSheets.close(true); var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) window.wpSheets.openSheet('c_tut_bren'); } },
+    { target: '#hudLayer .hud-panel', opens: true, title: 'The HUD',
+      html: 'A <b>HUD</b> is a second, compact window for the same character &mdash; laid out by you on the Layout tab (switch <b>Sheet</b> to <b>HUD</b>) with its own tabs, sections, band and ledger, so a value can sit on the sheet <em>and</em> in the HUD. Open it from <b>HUD</b> in the sheet&rsquo;s title bar. Each character has its own window and several can be open at once; drag its head, resize from its corner, and click one to bring it to the front &mdash; the place and size are remembered. A change made in either shows in both. A player opens their own character&rsquo;s; a system with no HUD shows no button.',
+      before: function() { if (window.wpSheets) window.wpSheets.close(true); var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) { window.wpSheets.openSheet('c_tut_bren'); if (window.wpSheets.openHud) window.wpSheets.openHud('c_tut_bren'); } } },
     { section: 'Multiplayer & the table', target: '#netBtn', title: 'Multiplayer',
       html: 'Host a table from here: players join with a room code, follow the map you are on (or, once the campaign has had players, come back to their <b>last location</b> and stay put until they travel or you summon them, with a second choice for where first-timers start), move only their own tokens, and receive a <b>sanitised</b> copy of the campaign — no notes, no planners, no hidden items, only the handbook pages you leave open to them. Pause, whisper, summon (to the table&rsquo;s map, or &mdash; when you have it pinned elsewhere &mdash; to the map you&rsquo;re viewing), run combat and hand out handouts from the same place. Right-click a player&rsquo;s chip on the party strip &#9656; <b>Give a character&hellip;</b> to hand them a character: its token appears on their map, copied or made from the character. A player with several plays one at a time &mdash; <b>In play</b> in the Characters tab switches it; the others stay theirs, and you move those tokens. The <b>&#9208;&#65039;</b> button in the top bar pauses the whole table in one click; to freeze just one player, right-click their token and pick <b>Pause this player</b>. Your own <b>name</b> (required to host or join), plus a <b>color</b> and <b>picture</b>, live in <b>Settings &rsaquo; Profile</b> and follow you to every table. The table is the campaign you host: switching campaigns while hosting asks first and ends the session. Your campaign\'s <b>VTT features</b> are the most your players see; a player who joins a table that differs from their own defaults gets one notice listing what is on there but off for them, and what is off and hidden. Dice roll from Table Chat: <b>/roll 2d6 + 3</b>, or the &#127922; roller beside the message box (next).',
       before: function() { if (window.wpSheets) window.wpSheets.closeSheet(); } },
@@ -716,7 +726,7 @@ function place() {
 function show(i, dir) {
     dir = dir || 1;
     // skip steps whose target has gone missing (the app moved on; tutorialcheck.js should have caught it)
-    while (i >= 0 && i < STEPS.length && STEPS[i].target && !document.querySelector(STEPS[i].target)) {
+    while (i >= 0 && i < STEPS.length && STEPS[i].target && !STEPS[i].opens && !document.querySelector(STEPS[i].target)) {   // opens: the step's setup makes its target (a HUD window)
         console.warn('[tutorial] step target missing, skipped:', STEPS[i].target);
         i += dir;
     }
@@ -725,6 +735,7 @@ function show(i, dir) {
     tour.i = i;
     var step = STEPS[i];
     document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // each step re-opens a toolbar flyout only if it needs it
+    if (!step.opens && window.wpSheets && window.wpSheets.closeHuds) window.wpSheets.closeHuds();   // no HUD left floating on another step (Back, a section jump)
     try { if (step.before) step.before(); } catch (e) { console.warn('[tutorial] step setup failed', e); }
     var sec = sectionAt(i), sp = sec.spans, secLabel = sp[sec.idx] ? sp[sec.idx].label : '';
     // Progress reads by PART, never as "step 1 of 32": the position inside the current part on the right, and a slim
@@ -781,7 +792,7 @@ function endTour() {
     document.body.classList.remove('tour-on');
     closeSettingsForTour();   // the VTT step may have left Settings open
     var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
-    if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet + the layout step's System editor
+    if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
     if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
     document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
 }

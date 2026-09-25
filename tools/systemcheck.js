@@ -850,14 +850,15 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const crypto = require('crypto'), H = o => crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex');
         const tutSrc = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         const fnSrc = name => { const i = tutSrc.indexOf('function ' + name + '('); let d = 0; const k = tutSrc.indexOf('{', i); for (let p = k; p < tutSrc.length; p++) { if (tutSrc[p] === '{') d++; else if (tutSrc[p] === '}') { d--; if (d === 0) return tutSrc.slice(i, p + 1); } } return ''; };
-        const tutorialSystem = new Function(fnSrc('tutorialEffects') + '\n' + fnSrc('tutorialSystem') + '\nreturn tutorialSystem;')();
+        const tutorialSystem = new Function(fnSrc('tutorialEffects') + '\n' + fnSrc('tutorialHud') + '\n' + fnSrc('tutorialSystem') + '\nreturn tutorialSystem;')();
         const preset = n => JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', n + '.json'), 'utf8'));
         // the pre-fold hashes (taken at 516b22b, before any look-fold key existed): a system without the new keys cleans exactly as before
         const PRE = {
             d20: ['96c44fc592448813542d72f24129e788304634fcdab1649e3942daa6ae42b894', 'c8733a11848517e9b02ffaf86072506ef224cccbbb4eca17d6403b6d3c1de269', '32be92883bbdfd0fb9975e29bf00f9632b296a13d1fdab3c0e801458f9f97cc8'],
             '3d6': ['0292986b3be8f1c8b5d38c000e66b7a15cc9569b1a318a96d9a1bb395dd2e756', 'a7733f1f3820bbcfc1fdacb52e767e78df634d323e2cca503254d8977c7e29f8', '37fe78c2036ca85291471ddac6f04a816257e02bc78763df705390136a92c992'],
-            // re-taken after the L3 seed change (the tour's identity is Class alone, edited in the header; the abilities stay tiles) — a deliberate change, not drift
-            tutorial: ['1414bb05d14493d5d6640167f65b8c897e232130d9bf5dfe4fd26c97e20109f3', '82a86b0edd99106481b447f3e4a6caa2808ca74966cc06de1c720df457b4a148', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
+            // re-taken after the L3 seed change (the tour's identity is Class alone, edited in the header; the abilities stay tiles) — a deliberate change, not drift;
+            // re-taken again at HUD frame HF2a: a deliberate change, the tour's HUD seed (the automatic layout's hash is unchanged)
+            tutorial: ['093883af23ee22deaa2ac7fcda306af8afd935df01620274be79223d75976510', '10d10f5cb752f1aada16e9586f3ad282c46bd845446fdf567afb815ae4a1f2c8', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
         };
         const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
         check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));
@@ -1101,6 +1102,92 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /<div class="sys-toolbar"><span id="sysLayoutView" class="sys-seg"[^>]*><button class="tool ghost sys-btn on" data-view="sheet" aria-pressed="true">Sheet<\/button><button class="tool ghost sys-btn" data-view="hud" aria-pressed="false">HUD<\/button><\/span><button class="tool" id="sysAddSection"/.test(htmlH1) && /<span class="sys-note" id="sysLayoutNote">/.test(htmlH1)
             && iPort > 0 && iBlk > iPort && !/\/\* Stage 6 look fold \(L/.test(cssH1.slice(iBlk)) && /\.sys-seg \{/.test(cssH1.slice(iBlk)) && /\.sys-layout-preview-hud \{ max-width: 470px; \}/.test(cssH1.slice(iBlk))
             && /The <b>Sheet \| HUD<\/b> switch at the top lays out the character&rsquo;s HUD window the same way\./.test(tutH1) && /The <b>Sheet \| HUD<\/b> switch at the top of the tab lays out a second view, the <b>HUD<\/b>/.test(htmlH1));
+    }
+
+    /* ---- Stage 6 HUD frame (HF2a): the HUD window — one per character, drawn from sys.sheet.hud by the sheet's own renderer ---- */
+    {
+        const sh2 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), html2 = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const css2 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), tut2 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, '\n'), wb2 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
+        const hudSlice = sh2.slice(sh2.indexOf('// [systemcheck:hud-start]'), sh2.indexOf('// [systemcheck:hud-end]'));
+        const tpl = (html2.match(/<template id="hudTpl">([\s\S]*?)<\/template>/) || [])[1] || '';
+        const iSheet = html2.indexOf('<div id="sheetPanel"'), iLayer = html2.indexOf('<div id="hudLayer"></div>'), iDoc = html2.indexOf('<div id="docPanel"');
+        check('HUD frame HF2a: the markup — #hudLayer and the template sit between the sheet panel and the doc panel (the handbook still lands on top by DOM order); the template holds the head, body, foot and grip and no id; the sheet head\'s HUD button starts hidden',
+            ['hud-panel', 'hud-head', 'hud-portrait', 'hud-name', 'hud-sub', 'hud-sheet', 'hud-close', 'hud-body', 'hud-foot', 'hud-resize'].every(c => new RegExp('class="[^"]*\\b' + c + '\\b').test(tpl)) && !/\sid=/.test(tpl)
+            && iSheet > 0 && iLayer > iSheet && html2.indexOf('<template id="hudTpl">') > iLayer && iDoc > html2.indexOf('<template id="hudTpl">')
+            && /<button class="tool ghost notepad-btn" id="sheetHud" title="Open the HUD" style="display:none;">/.test(html2), j({ iSheet, iLayer, iDoc }));
+        check('HUD frame HF2a: the HUD slice writes no markup; one window per character (opening it again brings it forward); openHud gates on the character id, canOpen and a HUD with content; a tab is checked before it reaches the body; the panel\'s character id is checked before it is stored; the place and size are one record',
+            hudSlice.length > 3000 && !/innerHTML|outerHTML|insertAdjacentHTML/.test(hudSlice)
+            && /function openHud\(charId, opts\) \{\n    if \(!HUD_CID\.test\(String\(charId\)\)\) return;\n    if \(!canOpen\(charId\)\) \{[^\n]*\n    if \(!hudHasContent\(systemOf\(getActiveCampaign\(\)\)\)\) \{/.test(hudSlice)
+            && /if \(opts && typeof opts\.tab === 'string' && HUD_TAB\.test\(opts\.tab\)\) v\.body\.dataset\.wpTab = opts\.tab;/.test(hudSlice) && /HUD_TAB = \/\^t_\[A-Za-z0-9_\]\{1,24\}\$\//.test(hudSlice)
+            && /!HUD_CID\.test\(String\(charId\)\)\) return null;\n    var p = tpl\.content\.firstElementChild\.cloneNode\(true\); p\.dataset\.cid = charId;/.test(hudSlice)
+            && /var v = huds\[charId\];\n    if \(!v\) \{/.test(hudSlice) && (hudSlice.match(/setPref\('wp_hudPanel'/g) || []).length === 2 && !/wp_sheetPanel/.test(hudSlice)
+            && /var sys = hudView\(full\)/.test(hudSlice) && /\{ campId: camp\.id, view: 'hud', preview: false, targets: pinTargetsAll\(full\.sheet\) \}/.test(hudSlice) && /v\.name\.textContent = c\.name; v\.sub\.textContent = /.test(hudSlice));
+        // raisePanel / resetZ / floatPanels, run for real
+        const zSrc = sh2.slice(sh2.indexOf('var _zTop = 9000;'), sh2.indexOf('// Where a handbook page opens beside'));
+        const mkP = n => ({ n, style: { zIndex: '' } }), sp = mkP('sheet'), dp = mkP('doc'), h1 = mkP('hud1'), h2 = mkP('hud2'), hudsZ = Object.create(null);
+        const Z = new Function('ui', 'huds', zSrc + '\nreturn { raisePanel: raisePanel, resetZ: resetZ, floatPanels: floatPanels, top: function() { return _zTop; } };')(id => id === 'sheetPanel' ? sp : id === 'docPanel' ? dp : null, hudsZ);
+        Z.raisePanel(sp); const noHud = sp.style.zIndex === '' && Z.top() === 9000;
+        hudsZ.c_a = { panel: h1 }; Z.raisePanel(sp); Z.raisePanel(h1); Z.raisePanel(dp);
+        const order0 = [sp, h1, dp].sort((a, b) => +a.style.zIndex - +b.style.zIndex).map(p => p.n).join(',');
+        let maxZ = 0, topOk = true; const seq = [sp, h1, dp];
+        for (let k = 0; k < 1000; k++) { const p = seq[k % 3]; Z.raisePanel(p); maxZ = Math.max(maxZ, +sp.style.zIndex, +dp.style.zIndex, +h1.style.zIndex); if (+p.style.zIndex !== Math.max(+sp.style.zIndex, +dp.style.zIndex, +h1.style.zIndex)) topOk = false; }
+        Z.raisePanel(dp); Z.raisePanel(sp); const before = [h1, dp, sp].map(p => +p.style.zIndex); for (let k = 0; k < 500; k++) Z.raisePanel(k % 2 ? h1 : h1 === h1 ? h1 : h1);
+        const keptOrder = +dp.style.zIndex < +sp.style.zIndex;   // raising only the HUD, renumbering keeps the others' order (doc under sheet)
+        hudsZ.c_b = { panel: h2 }; const fl = Z.floatPanels().map(p => p.n).join(',');
+        Z.resetZ(); const reset = sp.style.zIndex === '' && dp.style.zIndex === '' && Z.top() === 9000;
+        check('HUD frame HF2a: click-to-raise (the owner\'s Q5) — a no-op with no HUD open; with one, the raised panel is on top, 1000 raises never pass 9400, renumbering keeps the others\' order; every HUD is a floating panel; closing the last HUD puts back today\'s stacking',
+            noHud && order0 === 'sheet,hud1,doc' && topOk && maxZ <= 9400 && maxZ > 9000 && keptOrder && fl === 'sheet,doc,hud1,hud2' && reset && before.length === 3, j({ noHud, order0, topOk, maxZ, keptOrder, fl, reset }));
+        // renderViews, run for real
+        const rvSrc = sh2.slice(sh2.indexOf('function renderViews(charId, skip) {'), sh2.indexOf('// A token turned (tokenTurned)'));
+        const painted = [], sb = { n: 'sheetBody' }, hb1 = { n: 'b1' }, hb2 = { n: 'b2' }, hudsV = Object.create(null); hudsV.c_a = { body: hb1 }; hudsV.c_b = { body: hb2 };
+        const RV = so => new Function('ui', 'huds', 'sheetOpen', 'renderSheet', 'renderHud', rvSrc + '\nreturn renderViews;')(() => sb, hudsV, so, () => painted.push('sheet'), id => painted.push(id));
+        const run = (so, ...a) => { painted.length = 0; RV(so)(...a); return painted.join(','); };
+        const rv = [run('c_a', null), run('c_a'), run('c_b', 'c_a'), run('c_a', 'c_a'), run('c_a', 'c_a', sb), run('c_a', null, hb2), run(null, null)];
+        check('HUD frame HF2a: renderViews — null or nothing paints every view; a character paints its sheet and its HUD only; the body that just painted itself is skipped',
+            j(rv) === j(['sheet,c_a,c_b', 'sheet,c_a,c_b', 'c_a', 'sheet,c_a', 'c_a', 'sheet,c_a', 'c_a,c_b']), j(rv));
+        const body = h => { const i = sh2.indexOf(h); return i < 0 ? '' : sh2.slice(i, sh2.indexOf('\n}\n', i)); };
+        const commits = ['function commit(c, f, value) {', 'function commitEffect(c, f, q) {', 'function commitItem(c, f, q) {'].map(body);
+        check('HUD frame HF2a: one refresh path — no sheetOpen guard wraps a repaint any more; a change, an Undo expiring, a result, a save, a pin in another window, the feature and the campaign reach the HUDs with or without a sheet; a lost or deleted character closes its HUD (one notice)',
+            !/sheetOpen[^;\n]{0,40}\)\s*(renderViews|renderSheet)\(/.test(sh2.replace(/function renderViews[\s\S]*?\n\}\n/, '')) && commits.every(b => b.length > 100 && !/renderSheet\(\)/.test(b) && /renderViews\(c\.id\)/.test(b))
+            && /if \(window\.appRender\) window\.appRender\(\);\n    renderViews\(c\.id\);/.test(body('function afterCharChange(')) && /delete _undo\[k\]; renderViews\(c\.id\);/.test(sh2)
+            && /'That value was not accepted\.'\); renderViews\(null\); \}/.test(sh2) && /renderAll\(\); renderViews\(null\);/.test(sh2) && /if \(!e \|\| e\.key !== PIN_KEY\) return; renderViews\(null\);/.test(sh2)
+            && /if \(!featureOn\(\)\) \{ if \(sheetOpen\) closeSheet\(\); closeHuds\(\); \}/.test(sh2) && /if \(_lastCamp !== null && id !== _lastCamp\) \{ if \(sheetOpen\) closeSheet\(\); closeHuds\(\); \}/.test(sh2)
+            && /if \(sheetOpen === id\) closeSheet\(\);\n    closeHud\(id\);/.test(sh2) && /if \(typeof id === 'string' && huds\[id\]\) \{ closeHud\(id\); shown = true; \}/.test(sh2)
+            && /if \(isClient\(\)\) Object\.keys\(huds\)\.forEach\(function\(hid\) \{[^\n]*closeHud\(hid\); if \(!lost\[hid\]\)/.test(sh2) && /lost\[gone\.id\] = 1; closeSheet\(\);/.test(sh2)
+            && /if \(!\(ctx\.vctx && ctx\.vctx\.preview\)\) renderViews\(ctx\.c\.id, ctx\.body\);/.test(sh2) && /var hp = tb\.closest\('\.hud-panel'\); if \(hp\) closeHud\(hp\.dataset\.cid\); else closeSheet\(\);/.test(sh2)
+            && /Object\.keys\(huds\)\.forEach\(function\(id\) \{ syncFramePad\(huds\[id\]\.body\); \}\)/.test(sh2) && /if \(!sheetOpen && !Object\.keys\(huds\)\.length\) return false;/.test(sh2) && /sh\.sections\.concat\(sh\.hud && Array\.isArray\(sh\.hud\.sections\) \? sh\.hud\.sections : \[\]\)/.test(sh2));
+        const tt = body('function tokenTurned(tokId, final) {'), rf = body('function redrawForFacing(v) {');
+        check('HUD frame HF2a: a turn reaches every HUD first, whatever the sheet does; the dial and stance swap is one function for both; a HUD\'s redraw waits for its own focus and repaints the HUD, with its own timer',
+            /^function tokenTurned\(tokId, final\) \{\n    try \{ Object\.keys\(huds\)\.forEach\(function\(id\) \{ turnView\(huds\[id\], final\); \}\); \} catch \(e\) \{\}[^\n]*\n    try \{\n        if \(!sheetOpen\) return;/.test(tt) && /swapTokenControls\(p, c, camp\);/.test(tt) && /swapTokenControls\(v\.panel, c, camp\);/.test(hudSlice)
+            && sh2.indexOf('function swapTokenControls(') > sh2.indexOf('function facingNode(') && sh2.indexOf('function swapTokenControls(') < sh2.indexOf('function tokenTurned(')
+            && /var body = v \? v\.body : ui\('sheetBody'\)/.test(rf) && /setTimeout\(function\(\) \{ redrawForFacing\(v\); \}, 0\)/.test(rf) && /if \(v\) \{ if \(huds\[v\.charId\] === v\) renderHud\(v\.charId\); \} else renderSheet\(\);/.test(rf) && /if \(v\) v\.redraw = tmr; else _dialRedraw = tmr;/.test(rf));
+        check('HUD frame HF2a: the entries and exports — the sheet head\'s HUD button shows only for a HUD they can open; the sheet and the doc panel come forward when clicked or shown; a page opens beside the view in front; window.wpSheets carries openHud/closeHud/closeHuds/hudFor and renderSheet repaints every view; a click inside a HUD keeps the map\'s selection',
+            /var hOn = hudHasContent\(sys\) && canOpen\(c\.id\); hb\.style\.display = hOn \? '' : 'none';/.test(sh2) && /if \(hdB\) hdB\.addEventListener\('click', function\(\) \{ if \(sheetOpen\) openHud\(sheetOpen\); \}\);/.test(sh2)
+            && /p\.addEventListener\('pointerdown', function\(\) \{ raisePanel\(p\); \}, true\);/.test(sh2) && /if \(now && !dpShown\) raisePanel\(dpn\);/.test(sh2) && /placeSheet\(\); raisePanel\(p\); renderSheet\(\);/.test(sh2)
+            && /var dp = ui\('docPanel'\), sp = frontView\(\);/.test(sh2) && /\n    raisePanel\(dp\);/.test(sh2)
+            && /openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor,/.test(sh2) && /renderSheet: renderViews,/.test(sh2) && !/renderSheet: renderSheet/.test(sh2)
+            && /\[id\$="Modal"\], #sheetPanel, \.hud-panel, #soundPanel,/.test(wb2));
+        const iBlk2 = css2.indexOf('/* ---- Stage 6 HUD frame:'), blk = css2.slice(iBlk2);
+        check('HUD frame HF2a: the window\'s CSS lives in the HUD block (after the look fold\'s): the panel, the grip strip, the twins of the sheet panel\'s field rules, the palette on its head, GM-only fields hidden from players as on the sheet; the glyph files exist',
+            iBlk2 > 0 && /\.hud-panel \{ position: fixed;[^}]*width: 470px;[^}]*height: min\(760px, calc\(100vh - 140px\)\);/.test(blk) && /\.hud-foot:empty \{ display: none; \}/.test(blk) && /body\.net-client \.hud-panel \.sheet-gm \{ display: none; \}/.test(blk)
+            && /\.hud-panel input\.field, \.hud-panel select\.field, \.hud-panel textarea\.field \{ padding: 3px 6px; font-size: 12\.5px; \}/.test(blk) && /\.hud-panel\.sheet-paletted \.hud-name \{ color: var\(--sheet-primary\); \}/.test(blk)
+            && ['user', 'wave-square'].every(g => fs.existsSync(path.join(app, 'assets', 'icons', 'fa', 'solid', g + '.svg')) && blk.indexOf('assets/icons/fa/solid/' + g + '.svg') > 0) && !/Stage 6 look fold \(L/.test(blk));
+        // the tour: its seed, run for real on an older campaign, and the step that opens its own target
+        const fnT = name => { const i = tut2.indexOf('function ' + name + '('); let d = 0; const k = tut2.indexOf('{', i); for (let p = k; p < tut2.length; p++) { if (tut2[p] === '{') d++; else if (tut2[p] === '}') { d--; if (d === 0) return tut2.slice(i, p + 1); } } return ''; };
+        const T = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
+        const older = { system: T.sys(), chars: { c_tut_bren: T.ch('/x/') }, items: {} }; delete older.system.sheet.hud;
+        const pre = JSON.parse(JSON.stringify(older)), ch1 = T.ensure(older), post = JSON.parse(JSON.stringify(older)); delete post.system.sheet.hud;
+        const built = { system: T.sys(), chars: {}, items: {} }; delete built.system.sheet.hud; built.system.sheet.sections = [{ id: 's_mine', title: 'Mine', fields: [] }]; T.ensure(built);
+        const again = T.ensure(older);
+        check('HUD frame HF2a: the tour\'s HUD seed — an older Tutorial (band present, no HUD, no sections) gains exactly the HUD and nothing else, once; a layout someone built there is left alone; the seed validates',
+            ch1 === true && j(older.system.sheet.hud) === j(T.hud()) && j(post) === j(pre) && again === false && !('hud' in built.system.sheet)
+            && validateSystem(cleanSystem(T.sys(), { F, gmView: true }), F).errors.length === 0 && S.hudHasContent(cleanSystem(T.sys(), { F, gmView: false })), j({ ch1, again }));
+        check('HUD frame HF2a: the tour step opens its own target (show() does not skip it for a missing target before its setup runs); every other step starts with no HUD floating, and ending the tour closes them',
+            /STEPS\[i\]\.target && !STEPS\[i\]\.opens && !document\.querySelector\(STEPS\[i\]\.target\)/.test(tut2) && /if \(!step\.opens && window\.wpSheets && window\.wpSheets\.closeHuds\) window\.wpSheets\.closeHuds\(\);[^\n]*\n    try \{ if \(step\.before\) step\.before\(\); \}/.test(tut2)
+            && /\{ target: '#hudLayer \.hud-panel', opens: true, title: 'The HUD',/.test(tut2) && /window\.wpSheets\.openSheet\('c_tut_bren'\); if \(window\.wpSheets\.openHud\) window\.wpSheets\.openHud\('c_tut_bren'\);/.test(tut2)
+            && /window\.wpSheets\.closeSheet\(\); if \(window\.wpSheets\.closeHuds\) window\.wpSheets\.closeHuds\(\); window\.wpSheets\.close\(true\);/.test(tut2)
+            && tut2.indexOf("{ target: '#hudLayer .hud-panel'") > tut2.indexOf("{ target: '#sheetPanel', title: 'A character sheet'") && tut2.indexOf("{ target: '#hudLayer .hud-panel'") < tut2.indexOf("target: '#netBtn'")
+            && /<li><b>The HUD\.<\/b> When the saved system has a HUD/.test(html2));
     }
 
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */

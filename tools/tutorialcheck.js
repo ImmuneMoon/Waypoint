@@ -13,6 +13,13 @@ const targets = [...src.matchAll(/target:\s*'([^']+)'/g)].map(m => m[1]);
 let bad = 0;
 for (const t of targets) {
     const m = /^#([A-Za-z0-9_-]+)$/.exec(t);
+    const mc = /^#([A-Za-z0-9_-]+) \.([A-Za-z0-9_-]+)$/.exec(t);   // "#layer .cls": a window the step's own setup opens (opens: true), cloned from a template
+    if (mc) {
+        const opens = src.includes("target: '" + t + "', opens: true"), cls = new RegExp('class="[^"]*\\b' + mc[2] + '\\b').test(html);
+        if (ids.has(mc[1]) && cls && opens) console.log('ok       ', t, '(opened by its step)');
+        else { bad++; console.log('MISSING  ', t, '— needs #' + mc[1] + ' in index.html, class ' + mc[2] + ' in its template, and opens: true on the step'); }
+        continue;
+    }
     if (!m) { console.log('skip     ', t, '(not a plain id — checked at run time only)'); continue; }
     if (ids.has(m[1])) console.log('ok       ', t);
     else { bad++; console.log('MISSING  ', t, '— that element is gone from index.html; update STEPS in scripts/tutorial.js'); }

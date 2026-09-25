@@ -2395,3 +2395,35 @@
   .sys-seg .sys-btn:hover { color: var(--ink); }
   .sys-seg .sys-btn.on { background: var(--panel2); color: var(--gold); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
   .sys-layout-preview-hud { max-width: 470px; }
+  /* HF2a: the HUD window — its own chrome after the reference's HUD (a card-coloured head with a square portrait and the name in the primary
+     colour, compact sections), in the sheet's palette; the twins of the #sheetPanel rules the section renderer relies on */
+  .hud-panel { position: fixed; top: 120px; left: 0; width: 470px; max-width: 96vw; height: min(760px, calc(100vh - 140px)); z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); color: var(--ink); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  .hud-panel.sheet-sized { max-height: none; }
+  .hud-head { display: flex; align-items: center; gap: 9px; padding: 9px 10px 8px 12px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; flex: none; }
+  .hud-head .notepad-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .hud-panel .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  .hud-portrait { width: 38px; height: 38px; border-radius: 6px; object-fit: cover; border: 1px solid var(--edge); flex: none; }
+  .hud-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .hud-namerow { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .hud-name { font-weight: 700; font-size: 16px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud-sub { font-size: 11px; }
+  .hud-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px 10px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; font-size: 12.8px; line-height: 1.35; }
+  .hud-body:has(> .sheet-frame), .hud-body:has(> .sheet-head:first-child) { padding-top: 0; }
+  .hud-body:has(> .sheet-frame) > .sheet-section:first-child { margin-top: 8px; }
+  .hud-body > .sheet-head, .hud-body > .sheet-frame > .sheet-band { background: var(--sheet-bg, rgba(0,0,0,0.12)); }   /* the header's figures sit in the head's colour, as the reference's chips */
+  .hud-panel input.field, .hud-panel select.field, .hud-panel textarea.field { padding: 3px 6px; font-size: 12.5px; }
+  .hud-panel .field { margin-bottom: 0; }
+  .hud-panel .sheet-hdr-edit input.field { font-size: 14px; padding: 4px; }
+  .hud-panel .sheet-idn-edit .field { width: 100%; min-width: 0; border: 0; background: transparent; padding: 4px 8px; font-size: 12.5px; color: inherit; }
+  .hud-body.sheet-titles-accordion .sheet-sec-title { font-size: 14px; padding: 8px 0 4px; }
+  .hud-body.sheet-titles-accordion .sheet-section:not(.sheet-subsection) { padding-bottom: 8px; }
+  .hud-body .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab { font-size: 12.5px; }
+  .hud-panel.sheet-paletted { border-color: var(--edge); }
+  .hud-panel.sheet-paletted .hud-head, .hud-panel.sheet-paletted .hud-foot, .hud-panel.sheet-paletted .hud-body > .sheet-head, .hud-panel.sheet-paletted .hud-body > .sheet-frame > .sheet-band { background: var(--sheet-card); }
+  .hud-panel.sheet-paletted .hud-name { color: var(--sheet-primary); }
+  body.net-client .hud-panel .sheet-gm { display: none; }
+  .hud-foot:empty { display: none; }
+  .hud-ico-user, .hud-ico-open, .hud-ico-wave { width: 13px; height: 13px; }
+  .hud-ico-user { -webkit-mask-image: url("assets/icons/fa/solid/user.svg"); mask-image: url("assets/icons/fa/solid/user.svg"); }
+  .hud-ico-open, .hud-ico-wave { -webkit-mask-image: url("assets/icons/fa/solid/wave-square.svg"); mask-image: url("assets/icons/fa/solid/wave-square.svg"); }
+  .hud-ico-wave { width: 15px; height: 15px; color: var(--sheet-primary, var(--gold)); }

@@ -1820,6 +1820,14 @@
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
   .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
   .sheet-sec-name { flex: 1; min-width: 0; }
+  /* Stage 5f: a handbook chip in a section header (the owner's Foundry chip: a small pill, icon + page title) and a handbook link button */
+  .sheet-sec-chip { flex: 0 1 auto; min-width: 0; max-width: 55%; align-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 9999px; border: 1px solid var(--edge); background: rgba(0,0,0,0.12); color: var(--dim); font-size: 10px; font-weight: 700; line-height: 17px; letter-spacing: .02em; text-transform: none; cursor: pointer; white-space: nowrap; }
+  .sheet-sec-chip .sheet-chip-txt { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .sheet-sec-chip .sheet-chip-ico { flex: none; font-size: 10px; }
+  .sheet-sec-chip:hover, .sheet-sec-chip:focus-visible { border-color: var(--gold); color: var(--gold); outline: none; }
+  .sheet-chip-gm { border-style: dashed; }
+  .sheet-link { border-style: dashed; overflow: hidden; text-overflow: ellipsis; }   /* a long page title ends in … (the whole title is the tooltip) */
+  .sheet-link.sheet-chip-gm { border-style: dotted; opacity: .8; }   /* a link players won't see: dotted, against every link's dashed */
   .sheet-sec-meta { flex: 0 0 auto; color: var(--dim); font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; font-size: 11px; }
   .sheet-section.sheet-collap { display: block; }
   .sheet-section.sheet-collap > summary.sheet-sec-title { cursor: pointer; list-style: none; margin-bottom: 4px; }

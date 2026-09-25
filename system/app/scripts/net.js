@@ -423,7 +423,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.music;    // the music library (1.5.0): likewise travels only as the validated 'music' message, never raw in the snapshot
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
-            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false }); if (psys) camp.system = psys; else delete camp.system;
+            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [] }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
             var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId); if (v) outCh[id] = v; }); camp.chars = outCh;
@@ -648,7 +648,7 @@ function applyItem(msg) {
     var myActive = getActiveCampaign();
     if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && incoming.type === 'map') render();
     updateSidebarNav();
-    if (incoming.type === 'doc') { try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {} }   // never let the reader wedge applyingRemote
+    if (incoming.type === 'doc') { try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {} try { if (window.wpSheets && window.wpSheets.sheetRefsChanged && window.wpSheets.sheetRefsChanged()) window.wpSheets.renderSheet(); } catch (e) {} }   // never let the reader wedge applyingRemote; a sheet's handbook chips/links follow their page (Stage 5f) — only when what they show changes
     if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // a received map may change sight-blockers (doors/walls) — recompute occlusion
     net.applyingRemote = false;
 }
@@ -871,6 +871,7 @@ function applyItemDelta(msg) {
         var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(it, { keepHidden: true }) : null;
         if (cd) camp.items[msg.itemId] = cd; else delete camp.items[msg.itemId];
         try { if (window.wpDocReaderRefresh) window.wpDocReaderRefresh(msg.campId, msg.itemId); } catch (e) {}
+        try { if (window.wpSheets && window.wpSheets.sheetRefsChanged && window.wpSheets.sheetRefsChanged()) window.wpSheets.renderSheet(); } catch (e) {}   // a renamed page's chips/links follow (Stage 5f)
     }
     var myActive = getActiveCampaign();
     if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && it.type === 'map') render();
@@ -2286,6 +2287,7 @@ function handleMessage(msg, conn) {
             delete campG.items[msg.itemId];
             if (campG.activeItemId === msg.itemId) { campG.activeItemId = Object.keys(campG.items).find(function(id) { return campG.items[id].type === 'map'; }) || null; state.selId = null; state.selWbId = null; state.selWbIds = []; }
             try { if (window.wpDocGone) window.wpDocGone(msg.campId, msg.itemId); } catch (e) {}
+            try { if (window.wpSheets && window.wpSheets.sheetRefsChanged && window.wpSheets.sheetRefsChanged()) window.wpSheets.renderSheet(); } catch (e) {}   // a chip/link to that page goes with it (Stage 5f)
             updateSidebarNav(); render();
             net.applyingRemote = false;
         }

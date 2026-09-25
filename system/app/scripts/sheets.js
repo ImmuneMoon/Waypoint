@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -522,13 +522,15 @@ function headerBlocks(head, sys, c, all, gm, own) {
         main = el('div', 'sheet-head-main'); head.appendChild(main);
         var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; main.appendChild(nm);
     }
+    var IDN_EDIT = { text: 1, select: 1, number: 1, toggle: 1 };   // Stage 6 look fold: identity rows edited in place
+    var idnOk = function(f) { return !c.partial && (gm || (own && f.edit === 'owner' && f.vis === 'all')); };   // the section's own rule
     function block(list, cls, itemCls, ledger) {
         if (!Array.isArray(list) || !list.length) return;
         var box = el('div', cls);
         list.forEach(function(q) {
             var f = q && q.id ? byId[q.id] : null; if (!f) return;
             if (c.partial && !f.hover) return;
-            var en = headerEntry(f, all[f.id]); if (!en) return;
+            var en = headerEntry(f, all[f.id]); if (!en) { if (ledger || f.kind !== 'toggle' || !idnOk(f)) return; en = { text: f.label }; }   // an off toggle shows as a chip only while on — unless it can be switched on here
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
             var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
             var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
@@ -543,6 +545,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
                 var eL = all[f.id]; if (eL && eL.mods && eL.mods.length) { var fbL = fxMark(eL); if (fbL) { fbL.textContent = '\u2192 ' + fmtNum(eL.value); ed.appendChild(fbL); } }   // 5h: the effective value beside the base
                 it.appendChild(ed); box.appendChild(it); return;
             }
+            if (!ledger && IDN_EDIT[f.kind] === 1 && !en.error && idnOk(f)) { it.appendChild(idnControl(f, c, all[f.id], tone)); box.appendChild(it); return; }   // Stage 6: changed right here, so the field needs no second copy
             var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
             v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
             it.appendChild(v); box.appendChild(it);
@@ -551,6 +554,29 @@ function headerBlocks(head, sys, c, all, gm, own) {
     }
     block(sh.identity, 'sheet-identity', 'sheet-identity-item', false);
     block(sh.ledger, 'sheet-ledger', 'sheet-ledger-fig', true);
+}
+// Stage 6 look fold (L3): an identity row edited in place — text, a select, a number (or its value names) and a toggle — for whoever may
+// edit the field. data-part 'idn' keeps it apart from a section's copy for focus; the host judges every change (char-edit), as everywhere.
+function idnControl(f, c, e, tone) {
+    var raw = c.values ? c.values[f.id] : undefined, wrap = el('span', 'sheet-hdr-val sheet-hdr-edit sheet-idn-edit'), ctl;
+    var named = f.kind === 'number' && Array.isArray(f.labels) && f.labels.length;
+    if (f.kind === 'text') { ctl = el('input', 'field sheet-text sheet-idn-input'); ctl.type = 'text'; ctl.maxLength = f.max || 200; ctl.value = raw === undefined ? String(f.def || '') : String(raw); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); }
+    else if (f.kind === 'select') { ctl = el('select', 'field sheet-select sheet-idn-input'); var sv = raw === undefined ? f.def : raw; (f.options || []).forEach(function(o) { ctl.appendChild(opt(o, o, sv === o)); }); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); }
+    else if (f.kind === 'toggle') { ctl = el('input', 'sheet-idn-check'); ctl.type = 'checkbox'; ctl.checked = raw === undefined ? f.def === true : raw === true; ctl.addEventListener('change', function() { commit(c, f, ctl.checked); }); }
+    else if (named) {
+        ctl = el('select', 'field sheet-select sheet-idn-input'); var nv = raw === undefined ? f.def : raw;
+        f.labels.forEach(function(nm, i) { ctl.appendChild(opt(String(i), nm, nv === i)); });
+        if (typeof nv === 'number' && !(nv >= 0 && nv < f.labels.length && nv === Math.floor(nv))) { var xo = opt(String(nv), String(nv), true); xo.disabled = true; ctl.appendChild(xo); }   // a stored value past the names, as the section shows it
+        ctl.addEventListener('change', function() { commit(c, f, Number(ctl.value)); });
+    } else {
+        ctl = el('input', 'field sheet-num sheet-idn-input' + tone); ctl.type = 'number'; ctl.value = raw === undefined ? String(f.def) : String(raw); ctl.step = String(f.step || 1);
+        if (f.min !== undefined) ctl.min = String(f.min); if (f.max !== undefined) ctl.max = String(f.max);
+        ctl.addEventListener('change', function() { commit(c, f, Number(ctl.value)); });
+    }
+    ctl.dataset.fid = f.id; ctl.dataset.part = 'idn'; ctl.title = f.label + (f.unit && f.kind === 'number' && !named ? ' (' + f.unit + ')' : '');
+    wrap.appendChild(ctl);
+    if (f.kind === 'number' && !named) { if (f.unit) wrap.appendChild(el('span', 'sheet-unit', f.unit)); if (e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); wrap.appendChild(fb); } } }   // 5h: the effective value beside the base
+    return wrap;
 }
 // Stage 5g: the text colour for a label on a filled accent (the open filled tab) — near-black or white, whichever reads better
 function accentInk(hex) {
@@ -1003,8 +1029,8 @@ function renderLayout() {
             list.appendChild(pr);
         });
         row.appendChild(list);
-        var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']];
-        draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
+        var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft);
+        draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages

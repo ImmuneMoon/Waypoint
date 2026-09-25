@@ -928,7 +928,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     var ownerOpts = '<option value="">&mdash; GM controlled &mdash;</option>' + Object.keys(playersKnown).map(function(pid) {
                         return '<option value="'+esc(pid)+'"'+(w.ownerId===pid?' selected':'')+'>'+esc(playersKnown[pid])+'</option>';
                     }).join('');
-                    html += '<div class="field"><label for="wbOwner">Player Owner (can move this token)</label><select id="wbOwner">'+ownerOpts+'</select></div>';
+                    var npcTok = !!(w.charId && campNow && campNow.chars && Object.prototype.hasOwnProperty.call(campNow.chars, w.charId) && campNow.chars[w.charId] && campNow.chars[w.charId].npc);   // a player never owns an NPC's token
+                    html += '<div class="field"><label for="wbOwner">Player Owner (can move this token)</label><select id="wbOwner"' + (npcTok ? ' disabled title="An NPC\u2019s token \u2014 unlink it from the NPC first"' : '') + '>'+ownerOpts+'</select></div>';
                     if (window.wpSheets) html += window.wpSheets.charSelectHtml(w);   // character sheets (1.5.0): which campaign character this token stands for
                     // ShadowBase sheet: attach the site's character JSON and this token
                     // round-trips it — Export re-emits it with the token's art as portrait
@@ -1180,16 +1181,16 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 });
                 var wbOwner = document.getElementById('wbOwner');
                 if(wbOwner) wbOwner.addEventListener('change', function() {
+                    var campO = getActiveCampaign(), linkedO = !!(window.wpSheets && w.charId && campO && campO.chars && Object.prototype.hasOwnProperty.call(campO.chars, w.charId));
                     if (this.value) {
                         w.ownerId = this.value;
-                        // bind the player to this CHARACTER so arrival on any map auto-adopts/spawns their token
-                        var campO = getActiveCampaign();
-                        if (campO && w.charName) {
+                        // a token with no character: bind the player to its NAME so arrival on any map adopts or copies it (a linked token's give does the binding)
+                        if (campO && w.charName && !linkedO) {
                             campO.players = campO.players || {};
                             campO.players[this.value] = campO.players[this.value] || { name: this.value };
                             campO.players[this.value].charName = w.charName;
                         }
-                    } else delete w.ownerId;
+                    } else { var wasO = w.ownerId; delete w.ownerId; if (wasO && !linkedO && campO && window.wpSheets && window.wpSheets.unbindName) window.wpSheets.unbindName(campO, wasO, w.charName || ''); }   // taken back: the name binding goes once they hold no other copy of it
                     save(); toast(this.value ? 'Token assigned — this player now plays ' + (w.charName || 'this character') + ' everywhere.' : 'Token set to GM control.');
                     if (window.wpSheets && w.charId) window.wpSheets.ownerFromToken(w);   // the character follows, and every token of it
                 });

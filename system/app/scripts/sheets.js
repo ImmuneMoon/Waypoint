@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -128,28 +128,77 @@ function ownerName(c, camp) {
     var pn = playerNames(camp);
     return pn[c.ownerId] || (away ? 'a player' : c.ownerId);
 }
-// write-through: a character's owner is stamped on every token that points at it (moves, arrival and the party strip keep reading the token)
-function syncOwners(camp) {
+// write-through: a character's owner holds its tokens (moves, arrival and the party strip keep reading the token) — through ONE rule
+// (systemcore ownedTokenPlan) that the loader and every arrival path share: one token per map, and only for the character IN PLAY (the
+// others are kept: their tokens pass to the GM, still linked). First the binding is healed: a player whose record names no character they
+// still own has the one they play written down (their only one, or a guess, which goes in the Session Log). keep: the token that wins a give.
+function syncOwners(camp, keep) {
     camp = camp || getActiveCampaign(); if (!camp) return 0;
-    var cs = charsOf(camp), n = 0;
-    Object.values(camp.items || {}).forEach(function(m) {
-        if (!m || m.type !== 'map') return;
-        (m.whiteboard || []).forEach(function(w) {
-            if (!w || !w.charId) return;
-            var c = cs[w.charId]; if (!c) return;
-            if (c.ownerId) { if (w.ownerId !== c.ownerId) { w.ownerId = c.ownerId; n++; } }
-            else if (w.ownerId) { delete w.ownerId; n++; }
-        });
-    });
-    return n;
+    var heal = migrateBindings(camp, { link: false }), n = net();
+    heal.guesses.forEach(function(g) { var ch = charsOf(camp)[g.id]; if (ch && n && n.logEvent) n.logEvent('char', (playerNames(camp)[g.pid] || 'A player') + ' plays ' + ch.name + ' (their other characters are kept) \u2014 change it in System \u25B8 Characters'); });
+    var maps = applyOwnerOps(camp, ownedTokenPlan(camp, { keep: keep || '', all: !sheetsOnIn(camp) }));
+    if (maps.length && n && n.active && n.role === 'host' && n.pushItems && camp === getActiveCampaign()) n.pushItems(maps);   // a host save sends only the open item
+    return maps.length;
 }
-function bindPlayer(camp, c) { if (!c.ownerId) return; camp.players = camp.players || {}; camp.players[c.ownerId] = camp.players[c.ownerId] || { name: c.ownerId }; camp.players[c.ownerId].charName = c.name; }
+// Is the sheets feature on for this campaign? Off, characters do not drive tokens: every owned one counts as in play and none is made on arrival
+function sheetsOnIn(camp) { return !window.wpVtt || !window.wpVtt.campaignOn || window.wpVtt.campaignOn('sheets', camp) !== false; }
+function okPid(pid) { return typeof pid === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(pid) && !(pid in Object.prototype); }
+function playerRecOf(camp, pid, make) { if (!okPid(pid)) return null; camp.players = camp.players || {}; if (!Object.prototype.hasOwnProperty.call(camp.players, pid)) { if (!make) return null; camp.players[pid] = { name: pid }; } return camp.players[pid]; }
+// The character a player plays from now on (host-only record; the old name binding kept in step for older builds and generated campaigns)
+function setInPlay(camp, c) { var r = playerRecOf(camp, c.ownerId, true); if (!r) return; r.charId = c.id; r.charName = c.name; }
+// A renamed character keeps its player's name binding in step, but only when it is the one they play (renaming a kept one re-points nothing)
+function nameInStep(camp, c) { var r = c.ownerId ? playerRecOf(camp, c.ownerId, false) : null; if (r && r.charId === c.id) r.charName = c.name; }
+function ownsTokenNamed(camp, pid, name) { return Object.values(camp.items || {}).some(function(m) { return m && m.type === 'map' && (m.whiteboard || []).some(function(w) { return w && w.isChar && w.ownerId === pid && w.charName === name; }); }); }
+// A character left its player (reassigned, unassigned, made an NPC, deleted, taken by the GM): their record stops naming it, and their old name
+// binding goes too once they hold no token of that name (so a stale name never hands them a token the GM took back). Runs AFTER the chooser.
+function unbindStale(camp, pid, c) { var r = playerRecOf(camp, pid, false); if (!r) return; if (r.charId === c.id) delete r.charId; unbindName(camp, pid, c.name); }
+function unbindName(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name && !ownsTokenNamed(camp, pid, name)) delete r.charName; }
+// Where a player's token stood on their current map, so a new one appears beside it
+function tokenSpotOf(camp, pid, charId) {
+    var n = net(), p = n && n.active && n.role === 'host' ? Object.values(n.roster || {}).find(function(x) { return x && x.id === pid; }) : null;
+    var m = p && p.location && camp.items[p.location]; if (!m || m.type !== 'map') return null;
+    var w = (m.whiteboard || []).find(function(x) { return x && x.isChar && (charId ? x.charId === charId : x.ownerId === pid); });
+    return w ? { x: (w.x || 0) + (w.w || 60) / 2, y: (w.y || 0) + (w.h || 52) / 2 } : null;
+}
+// EVERY path that gives a character an owner (the Characters tab's owner select and In play, token Properties' Player Owner, linking a
+// player's token, a new character from one, the ShadowBase bridge) comes here, and so does taking one away (pid ''). o: { play (default on:
+// the newly given character is the one they play, the one they played before is kept), keep (the token that wins) }. GM side only.
+function giveCharacter(pid, charId, o) {
+    var camp = getActiveCampaign(), c = charById(charId, camp); if (!camp || !c) return false;
+    o = o || {}; pid = pid && okPid(pid) ? pid : '';
+    var prev = c.ownerId || '', was = pid ? activeCharOf(camp, pid).id : null;
+    var nearNew = pid && o.nearTok ? spotOnPlayersMap(camp, pid, o.nearTok) : pid && was && was !== c.id ? tokenSpotOf(camp, pid, was) : null, nearPrev = prev && prev !== pid ? tokenSpotOf(camp, prev, c.id) : null;
+    c.ownerId = pid; if (pid) c.npc = false;
+    if (pid && o.play !== false) setInPlay(camp, c);
+    syncOwners(camp, o.keep);
+    if (prev && prev !== pid) unbindStale(camp, prev, c);
+    afterCharChange(c, true);
+    var n = net();
+    if (n && n.reconcilePresence) {
+        if (pid) n.reconcilePresence(pid, { mode: 'give', keep: o.keep, near: nearNew });
+        if (prev && prev !== pid) n.reconcilePresence(prev, { mode: 'give', near: nearPrev });
+    }
+    if (prev !== pid && n && n.logEvent) n.logEvent('char', c.name + ': ' + (prev ? playerNames(camp)[prev] || 'a player' : 'unassigned') + ' \u2192 ' + (pid ? playerNames(camp)[pid] || 'a player' : 'unassigned'));
+    else if (pid && o.play !== false && was && was !== c.id && n && n.logEvent) { var wasC = charById(was, camp); n.logEvent('char', (playerNames(camp)[pid] || 'A player') + ' plays ' + c.name + (wasC ? '; ' + wasC.name + ' is kept' : '')); }   // a switch within one player
+    return true;
+}
+// A token's centre when it stands on the map that player is on now (else nothing: it never places a token on a map they are not on)
+function spotOnPlayersMap(camp, pid, w) {
+    var n = net(), p = n && n.active && n.role === 'host' ? Object.values(n.roster || {}).find(function(x) { return x && x.id === pid; }) : null;
+    var m = p && typeof p.location === 'string' && camp.items[p.location]; if (!m || m.type !== 'map' || (m.whiteboard || []).indexOf(w) < 0) return null;
+    return { x: (w.x || 0) + (w.w || 60) / 2, y: (w.y || 0) + (w.h || 52) / 2 };
+}
+// A character made from (or linked to) a player's token: it comes into play only when they have none in play. When they already play one, the
+// new character is kept — its token passes to you — and the toast says so; the character they play is never switched by a Sheet… click on a pet.
+function giveTokenChar(camp, w, c) {
+    var pid = w.ownerId, playing = activeCharOf(camp, pid).id, play = !playing;
+    giveCharacter(pid, c.id, { keep: w.id, play: play, nearTok: w });
+    if (!play) { var cur = charById(playing, camp); toast(c.name + ' is kept: ' + (playerNames(camp)[pid] || 'the player') + ' plays ' + (cur ? cur.name : 'another character') + ', so you move its token. Switch with In play in System \u25B8 Characters.'); }
+}
 function newCharacter(o) {
     var camp = getActiveCampaign(); if (!camp) return null;
-    var c = { id: uid('c_'), name: String(o && o.name || 'New character').slice(0, LIMITS.charName), ownerId: o && o.ownerId ? String(o.ownerId).slice(0, 60) : '', portrait: o && o.portrait || '', npc: !!(o && o.npc), values: {}, updated: Date.now() };
-    if (c.npc) c.ownerId = '';
-    charsOf(camp)[c.id] = c;
-    if (c.ownerId) bindPlayer(camp, c);
+    var c = { id: uid('c_'), name: String(o && o.name || 'New character').slice(0, LIMITS.charName), ownerId: '', portrait: o && o.portrait || '', npc: !!(o && o.npc), values: {}, updated: Date.now() };
+    charsOf(camp)[c.id] = c;   // born unassigned: an owner is given through giveCharacter
     return c;
 }
 function afterCharChange(c, whole, values) {
@@ -164,10 +213,13 @@ function afterCharChange(c, whole, values) {
 }
 function deleteCharacter(id) {
     var camp = getActiveCampaign(), c = charById(id, camp); if (!c) return;
+    var prev = c.ownerId || '';
     delete charsOf(camp)[id];
     Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === id) delete w.charId; }); });
+    if (prev) { unbindStale(camp, prev, c); syncOwners(camp); var nD = net(); if (nD && nD.logEvent) nD.logEvent('char', c.name + ' deleted (played by ' + (playerNames(camp)[prev] || 'a player') + '; they keep its tokens)'); }   // their leftover tokens stay theirs (by name); another character of theirs may now be in play
     save(true);
     var n = net(); if (n && n.active && n.role === 'host') n.syncCharGone(id);
+    if (prev && n && n.reconcilePresence) n.reconcilePresence(prev, { mode: 'give' });
     if (sheetOpen === id) closeSheet();
     if (window.appRender) window.appRender();
 }
@@ -178,14 +230,14 @@ function linkToken(w, charId) {
     var c = charById(charId, camp); if (!c) return;
     w.charId = c.id;
     if (!w.charName) w.charName = c.name;
-    if (!c.ownerId && w.ownerId && !c.npc) { c.ownerId = w.ownerId; bindPlayer(camp, c); afterCharChange(c, true); return; }
+    if (!c.ownerId && w.ownerId && !c.npc) { giveTokenChar(camp, w, c); return; }
     syncOwners(camp); save(true);
 }
 function newFromToken(w) {
     var camp = getActiveCampaign(); if (!camp || !w) return null;
-    var c = newCharacter({ name: w.charName || w.name || 'Character', ownerId: w.ownerId || '', portrait: w.src && /^[/]saves[/]images[/]/.test(w.src) ? w.src : '' });
+    var c = newCharacter({ name: w.charName || w.name || 'Character', portrait: w.src && /^[/]saves[/]images[/]/.test(w.src) ? w.src : '' });
     w.charId = c.id;
-    afterCharChange(c, true);
+    if (w.ownerId) giveTokenChar(camp, w, c); else afterCharChange(c, true);
     return c;
 }
 function charSelectHtml(w) {
@@ -425,7 +477,7 @@ function renderSheet() {
     head.textContent = c.name;
     sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (gm && lastChange && lastChange.charId === c.id ? '' : '');
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
-    var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; if (gm) { charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
+    var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
@@ -1597,7 +1649,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     if (k === 'item-list') {
         var sysI = sysArg || systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
-        var canThrow = (gm || (own && !gmThrows)) && !c.partial;   // who-rolls='gm' means only the GM throws
+        var canThrow = (gm || (own && !gmThrows && !!facingTarget(c))) && !c.partial;   // who-rolls='gm' means only the GM throws; a player throws from the character whose token they hold here (never a kept one)
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
         if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm);   // Stage 4: rich table
         else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm);            // the plain carried list (as before)
@@ -1720,20 +1772,21 @@ function fromShadowBase(w) {
     var r = aliasFromShadowBase(w.sheet, sys, F());
     if (!r.matched) return { error: 'Nothing on the sheet matches the system\'s keys (ST or STR, DX or DEX, HT or CON, IQ or INT, HP, FP, Will, Per, Dodge, Parry, skills by name).' };
     var c = w.charId ? charById(w.charId, camp) : null;
-    if (!c) { c = newCharacter({ name: w.charName || w.name || w.sheet.name || 'Character', ownerId: w.ownerId || '' }); linkToken(w, c.id); }
+    if (!c) { c = newCharacter({ name: w.charName || w.name || w.sheet.name || 'Character' }); linkToken(w, c.id); }
     c.values = c.values || {}; Object.keys(r.values).forEach(function(k) { c.values[k] = r.values[k]; });
     afterCharChange(c, true);
     toast(r.matched + ' value' + (r.matched === 1 ? '' : 's') + ' copied into ' + c.name + '\'s sheet.');
     return { ok: true, charId: c.id, matched: r.matched };
 }
 // net.js hooks: a character arrived, changed or went
-function charChanged(id) { if (sheetOpen && (id === null || sheetOpen === id)) renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
+function charChanged(id) {
+    if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
+    if (sheetOpen && (id === null || sheetOpen === id)) renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
 // the token's owner select moved (inspector.js): the character follows, and every token of it
 function ownerFromToken(w) {
     var camp = getActiveCampaign(), c = w && w.charId ? charById(w.charId, camp) : null; if (!c || c.npc) return;
-    if ((c.ownerId || '') === (w.ownerId || '')) return;
-    c.ownerId = w.ownerId || ''; if (c.ownerId) bindPlayer(camp, c);
-    afterCharChange(c, true);
+    if (!c.ownerId && !w.ownerId) return;
+    giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { if (sheetOpen === id) { closeSheet(); toast('That character is no longer shared with you.'); } if (window.appRender) window.appRender(); }
 function editResult(rid, ok, reason, msg) { if (!ok) toast(reason === 'stays' ? (msg || 'You can\u2019t get rid of it.') : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
@@ -1951,14 +2004,18 @@ function charRow(c, camp) {
     var row = el('div', 'sys-row sys-char-row'); row.dataset.cid = c.id;
     var top = el('div', 'sys-row-main');
     var nm = input('sys-char-name field', c.name, 'The character\'s name', 'Name'); top.appendChild(nm);
-    var pn = playerNames(camp), owner = select('sys-char-owner', [['', '— unassigned —']].concat(Object.keys(pn).map(function(pid) { return [pid, pn[pid]]; })), c.ownerId || '', 'The player who plays this character (their token moves and their sheet edits)'); owner.disabled = !!c.npc; top.appendChild(owner);
+    var pn = playerNames(camp), ownOpts = [['', '— unassigned —']].concat(Object.keys(pn).map(function(pid) { return [pid, pn[pid]]; }));
+    if (c.ownerId && !Object.prototype.hasOwnProperty.call(pn, c.ownerId)) ownOpts.push([c.ownerId, c.ownerId + ' (forgotten player)']);   // so unassigning them is a real change
+    var owner = select('sys-char-owner', ownOpts, c.ownerId || '', 'The player who plays this character (their token moves and their sheet edits)'); owner.disabled = !!c.npc; top.appendChild(owner);
+    var active = c.ownerId && !c.npc ? activeCharOf(camp, c.ownerId).id : null, several = !!c.ownerId && !c.npc && playableChars(camp, c.ownerId).length > 1;
+    if (several) { var plL = el('label', 'sys-hover sys-char-playsl'); var pl = el('input'); pl.type = 'radio'; pl.name = 'sys-plays-' + c.ownerId; pl.className = 'sys-char-plays'; pl.checked = active === c.id; plL.appendChild(pl); plL.appendChild(document.createTextNode(' In play')); plL.title = 'The character this player plays now: their token follows them from map to map. Their other characters are kept: the sheets stay theirs, and you move those tokens.'; top.appendChild(plL); }
     var npcL = el('label', 'sys-hover'); var npc = el('input'); npc.type = 'checkbox'; npc.className = 'sys-char-npc'; npc.checked = !!c.npc; npcL.appendChild(npc); npcL.appendChild(document.createTextNode(' NPC')); npcL.title = 'An NPC has no player and never reaches players'; top.appendChild(npcL);
     var por = el('button', 'tool ghost sys-btn sys-char-portrait', c.portrait ? 'Portrait ✓' : 'Portrait…'); por.title = c.portrait ? c.portrait + ' (click to change, right-click to clear)' : 'Pick a picture from the Image Library'; por.dataset.act = 'portrait'; top.appendChild(por);
     var openB = el('button', 'tool ghost sys-btn', 'Open sheet'); openB.dataset.act = 'open'; openB.title = 'Open this character\'s sheet over the play map'; top.appendChild(openB);
     top.appendChild(btnRow([['delchar', 'Delete this character (tokens keep their name, lose the link)', '&times;']]));
     row.appendChild(top);
     var tokens = 0; Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === c.id) tokens++; }); });
-    row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)')));
+    row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' (in play)' : ' (kept: you move its tokens)') : '') : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)')));
     return row;
 }
 // 5h: one library effect in the editor: name, icon, tone, duration note, its changes (a field and an amount, or a toggle switched on),
@@ -2138,9 +2195,10 @@ function onChange(e) {
     var crow = t.closest && t.closest('.sys-char-row');
     if (crow) {   // characters save as you go
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;
-        if (c.indexOf('sys-char-name') >= 0) { ch.name = t.value.trim().slice(0, LIMITS.charName) || ch.name; t.value = ch.name; if (ch.ownerId) bindPlayer(camp, ch); afterCharChange(ch, true); }
-        else if (c.indexOf('sys-char-owner') >= 0) { ch.ownerId = t.value; if (ch.ownerId) { ch.npc = false; bindPlayer(camp, ch); } afterCharChange(ch, true); renderAll(); }
-        else if (c.indexOf('sys-char-npc') >= 0) { ch.npc = t.checked; if (ch.npc) ch.ownerId = ''; afterCharChange(ch, true); renderAll(); }
+        if (c.indexOf('sys-char-name') >= 0) { ch.name = t.value.trim().slice(0, LIMITS.charName) || ch.name; t.value = ch.name; nameInStep(camp, ch); afterCharChange(ch, true); }
+        else if (c.indexOf('sys-char-owner') >= 0) { giveCharacter(t.value, ch.id); renderAll(); }
+        else if (c.indexOf('sys-char-plays') >= 0) { if (t.checked && ch.ownerId) giveCharacter(ch.ownerId, ch.id); renderAll(); }
+        else if (c.indexOf('sys-char-npc') >= 0) { if (t.checked && ch.ownerId) giveCharacter('', ch.id); ch.npc = t.checked; afterCharChange(ch, true); renderAll(); }
         return;
     }
     var ctx = fieldOfRow(t); if (!ctx) return;
@@ -2321,7 +2379,7 @@ setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
-    charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, ownerFromToken: ownerFromToken,
+    charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderSheet, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 

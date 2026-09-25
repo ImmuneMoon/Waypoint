@@ -594,9 +594,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           var absentOwner = false;
 
-          if (item.isChar && item.ownerId && window.wpNet && window.wpNet.active) {
+          var presOwner = item.ownerId || keptOwnerOf(item);   // Onboarding F0: a kept character's token shows only where its player is, like their own
 
-              absentOwner = !window.wpNet.isPresent(item.ownerId, activeMap.id);
+          if (item.isChar && presOwner && window.wpNet && window.wpNet.active) {
+
+              absentOwner = !window.wpNet.isPresent(presOwner, activeMap.id);
 
           }
 
@@ -675,7 +677,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               // Stand-in token: initials until a portrait arrives
               var ini = String(item.charName || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?';
-              if (el.dataset.ini !== ini) { el.innerHTML = '<span class="token-initials">' + ini + '</span>'; el.dataset.ini = ini; }
+              if (el.dataset.ini !== ini || !el.querySelector(':scope > .token-initials')) { el.textContent = ''; var iniS = document.createElement('span'); iniS.className = 'token-initials'; iniS.textContent = ini; el.appendChild(iniS); el.dataset.ini = ini; }
 
           } else if(item.type === 'path') {
 
@@ -1887,10 +1889,15 @@ window.wpFitToGrid = fitToGrid;
 
   // The token the table assigned to a player: on the current map if they have one here, else
   // wherever it is in the campaign (a player targeting from another map still shows their face).
+  // The player of a kept character (its token has no owner: the GM moves it), for presence — never an NPC's or an unassigned character's
+  function keptOwnerOf(w) {
+      var camp = getActiveCampaign(), cs = camp && camp.chars, c = w && w.charId && cs && Object.prototype.hasOwnProperty.call(cs, w.charId) ? cs[w.charId] : null;
+      return c && typeof c === 'object' && !c.npc && typeof c.ownerId === 'string' ? c.ownerId : '';
+  }
   function targeterToken(pid) {
       var camp = getActiveCampaign(); if (!camp) return null;
       var am = getActiveMap();
-      var find = function(m) { return m && m.type === 'map' && (m.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === pid && w.type === 'image' && w.src; }); };
+      var find = function(m) { var wb = m && m.type === 'map' ? (m.whiteboard || []) : [], ok = function(w) { return w.isChar && w.ownerId === pid && w.type === 'image' && w.src; }; return wb.find(function(w) { return ok(w) && w.charId; }) || wb.find(ok); };   // their character before a pet
       var t = find(am);
       if (!t) { var ids = Object.keys(camp.items); for (var i = 0; i < ids.length && !t; i++) t = find(camp.items[ids[i]]); }
       return t ? { src: t.src, name: t.charName || t.name || '' } : null;
@@ -2083,18 +2090,44 @@ window.wpFitToGrid = fitToGrid;
           if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', label: '\u27A4 Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
           if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', label: String.fromCharCode(55357, 56523) + ' ' + (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
+          if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', label: '\uD83C\uDFAD Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
           if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
-          menu.innerHTML = items.map(function(i) {
-              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(tok.dataset.key) + '" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
-          }).join('');
+          fillPartyMenu(items, tok.dataset.key);
           menu.classList.add('show');
           window.wpClampMenu(menu, e.clientX, e.clientY);
       });
+      function fillPartyMenu(items, key) {
+          menu.innerHTML = items.map(function(i) {
+              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
+          }).join('');
+      }
+      // Onboarding F0: what the GM can give a player — their own characters first (the one they play: its token onto their map; a kept one:
+      // play it now), then the unassigned ones, then other players' (a reassignment). Never an NPC.
+      function giveList(camp, pid) {
+          var S = window.wpSystemCore; if (!S || !S.activeCharOf || !camp || !camp.chars) return [];
+          var act = S.activeCharOf(camp, pid).id, names = {}, out = [];
+          Object.keys(camp.players || {}).forEach(function(k) { var r = camp.players[k]; if (r && typeof r.name === 'string') names[k] = r.name; });
+          var cs = Object.keys(camp.chars).map(function(k) { return camp.chars[k]; }).filter(function(c) { return c && typeof c === 'object' && !c.npc && !c.draft; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
+          var live = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(pid));
+          cs.forEach(function(c) { if (c.ownerId !== pid) return; if (c.id !== act) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' (theirs, kept) \u2014 play it now' }); else if (live) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' (plays) \u2014 put its token on their map' }); });   // putting it back needs them at the table
+          cs.forEach(function(c) { if (!c.ownerId) out.push({ act: 'giveTo', cid: c.id, label: c.name }); });
+          cs.forEach(function(c) { if (c.ownerId && c.ownerId !== pid) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' \u2014 from ' + (Object.prototype.hasOwnProperty.call(names, c.ownerId) ? names[c.ownerId] : 'another player'), from: true }); });
+          return out;
+      }
       if (menu) menu.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('.party-menu-item'); if (!b) return;
           e.stopPropagation();
           var key = b.dataset.key, act = b.dataset.act;
+          if (act === 'give') { var campG = getActiveCampaign(); fillPartyMenu(giveList(campG, key.slice(2)).concat([{ act: 'none', label: 'The one you give is the one they play; the one they played before stays theirs (kept).', dim: true }]), key); var rG = menu.getBoundingClientRect(); if (rG.bottom > window.innerHeight - 6) menu.style.top = Math.max(6, window.innerHeight - rG.height - 6) + 'px'; if (rG.right > window.innerWidth - 6) menu.style.left = Math.max(6, window.innerWidth - rG.width - 6) + 'px'; return; }   // the list replaces the menu in place, kept inside the window
           closePartyMenu();
+          if (act === 'giveTo') {
+              var campT = getActiveCampaign(), pidT = key.slice(2), cidT = b.dataset.cid, chT = campT && campT.chars && Object.prototype.hasOwnProperty.call(campT.chars, cidT) ? campT.chars[cidT] : null;
+              if (!chT || !window.wpSheets) return;
+              var doGive = function() { if (window.wpSheets.giveCharacter(pidT, cidT)) toast(chT.name + ' given.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
+              if (chT.ownerId && chT.ownerId !== pidT) showConfirm('Give ' + chT.name + ' to this player? Their current player loses it: its sheet closes for them, and its tokens go to the new player.', function(yes) { if (yes) doGive(); });
+              else doGive();
+              return;
+          }
           if (act === 'jump') { if (window.wpStream && window.wpStreamFocusChar) window.wpStreamFocusChar(key); else focusCharacter(key); }
           else if (act === 'summon') { window.wpNet.summonPlayerById(key.slice(2)); }
           else if (act === 'summonHere') { var amH = getActiveMap(); if (amH && amH.type === 'map' && window.wpNet.summonPlayerToMap) window.wpNet.summonPlayerToMap(key.slice(2), amH.id); }
@@ -4282,7 +4315,7 @@ if(_el_clearWbBtn) _el_clearWbBtn.addEventListener('click', function() {
       var myId = my && my.id;
       var toks = (m && m.whiteboard || []).filter(function(i) { return i.isChar; });
       var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-      if (isClient) return toks.find(function(i) { return i.ownerId === myId; }) || null;
+      if (isClient) return toks.find(function(i) { return i.ownerId === myId && i.charId; }) || toks.find(function(i) { return i.ownerId === myId; }) || null;   // their character before a pet
       return toks.find(function(i) { return i.id === state.selWbId; }) || toks.find(function(i) { return i.ownerId === myId; }) || toks[0] || null;
   }
 

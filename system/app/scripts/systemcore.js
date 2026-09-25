@@ -102,6 +102,7 @@ function cleanIcon(v) {
 var ROLL_TONES = Object.freeze({ primary: 1, danger: 1, neutral: 1, outline: 1 });   // Stage 6 look fold: a roll button's tone (filled, red, grey, outline)
 function fin(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; }   // bounded: the wire's packer refuses a whole number past 64 bits (1e20 typed into a field once stopped every join)
 function map() { return Object.create(null); }
+var PID_RE = /^[A-Za-z0-9_.:-]{1,80}$/;   // a player's profile id (net.js validProfileId)
 function lower(s) { return String(s).toLowerCase(); }
 function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 10); }
 function emptySystem() { return { v: 1, name: '', preset: '', updated: 0, fields: [], rolls: [], items: [], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', cover: { on: false, style: 'graded' } }, sheet: { sections: [] } }; }
@@ -552,7 +553,7 @@ function stepRound(n, field) { var step = field.step > 0 ? field.step : 1, base 
 function cleanChar(c, sys) {
     if (!isObj(c) || typeof c.id !== 'string' || !CHAR_ID.test(c.id) || !sys) return null;
     var out = { id: c.id, name: str(c.name, LIMITS.charName).replace(CTRL_RE, ' ').trim() || 'Character', ownerId: str(c.ownerId, 60).replace(CTRL_RE, ''), portrait: '', npc: c.npc === true, values: {}, updated: fin(Number(c.updated)) ? Number(c.updated) : 0 };
-    if (out.npc) out.ownerId = '';
+    if (out.npc || !PID_RE.test(out.ownerId) || out.ownerId in Object.prototype) out.ownerId = '';   // a profile id or nobody (never a prototype key)
     if (typeof c.portrait === 'string' && PATH_RE.test(c.portrait) && c.portrait.indexOf('..') < 0 && !CTRL_RE.test(c.portrait)) out.portrait = c.portrait;
     var vals = isObj(c.values) ? c.values : {}, vo = valueOpts(sys);
     Object.keys(vals).forEach(function(fid) { var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return; var v = cleanValue(f, vals[fid], vo); if (v !== undefined) out.values[fid] = v; });
@@ -844,6 +845,154 @@ function charTokenOn(map, charId, ownerId, opts) {
     }
     return first;
 }
+// ---- Onboarding F0: which character a player plays, and which token of it they hold ----
+// A player plays the characters whose ownerId is theirs; camp.players[pid].charId (kept on the host, never sent) names the one IN PLAY and the
+// others are KEPT: their sheets, rolls and downloads stay the player's, their tokens are the GM's to move. Pure — the host writes back what
+// these derive. The legacy name binding (players[pid].charName) is read only for a player who owns no character.
+var LAYER_Z = Object.freeze({ back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 });
+function hasOwn(o, k) { return !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
+function stackZ(w) { var z = hasOwn(LAYER_Z, w.layer) ? LAYER_Z[w.layer] : (fin(Number(w.z)) && Number(w.z) ? Number(w.z) : 10); return w.aboveGrid ? z + 15020 : z; }   // the map's own stacking (whiteboard.js)
+function playerRec(camp, pid) { var ps = camp && isObj(camp.players) ? camp.players : null; return ps && hasOwn(ps, pid) && isObj(ps[pid]) ? ps[pid] : null; }
+function mapsOf(camp) { var out = []; if (camp && isObj(camp.items)) Object.keys(camp.items).forEach(function(k) { var m = camp.items[k]; if (isObj(m) && m.type === 'map' && Array.isArray(m.whiteboard)) out.push(m); }); return out; }
+function charsIn(camp) { return camp && isObj(camp.chars) ? camp.chars : {}; }
+// What a player may have in play: their characters that are not NPCs and not drafts
+function playableChars(camp, pid) {
+    var cs = charsIn(camp), out = [];
+    if (typeof pid !== 'string' || !pid) return out;
+    Object.keys(cs).forEach(function(id) { var c = cs[id]; if (isObj(c) && c.id === id && c.npc !== true && !c.draft && c.ownerId === pid) out.push(c); });
+    return out;
+}
+// The character in play: the record's charId when it is still theirs; else their only one; else a guess (the one named like their old name
+// binding, then one with a token they hold on their last map, then the most recently changed) — the host writes it down and logs a guess
+function activeCharOf(camp, pid) {
+    var mine = playableChars(camp, pid); if (!mine.length) return { id: null, how: 'none' };
+    var rec = playerRec(camp, pid);
+    if (rec && typeof rec.charId === 'string') for (var i = 0; i < mine.length; i++) if (mine[i].id === rec.charId) return { id: rec.charId, how: 'record' };
+    if (mine.length === 1) return { id: mine[0].id, how: 'only' };
+    var cands = mine, byName = rec && typeof rec.charName === 'string' ? mine.filter(function(c) { return c.name === rec.charName; }) : [];
+    if (byName.length) cands = byName;
+    var lm = rec && hasOwn(camp.items, rec.lastMap) ? camp.items[rec.lastMap] : null;
+    if (isObj(lm) && Array.isArray(lm.whiteboard)) { var on = cands.filter(function(c) { return lm.whiteboard.some(function(w) { return isObj(w) && w.isChar && w.charId === c.id && w.ownerId === pid; }); }); if (on.length) cands = on; }
+    // with a record the guess is written down once, so "the most recently changed" is fine; without one (never joined, or forgotten) it is made
+    // again at every change, and a recency order would follow whoever last touched a character — so it is by name, stable
+    var byId = function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; };
+    cands = cands.slice().sort(rec ? function(a, b) { return ((Number(b.updated) || 0) - (Number(a.updated) || 0)) || byId(a, b); } : function(a, b) { return String(a.name).localeCompare(String(b.name)) || byId(a, b); });
+    return { id: cands[0].id, how: 'guess' };
+}
+// { pid: charId } for every owner of a playable character (prototype-free)
+function activeChars(camp) {
+    var out = map(), seen = map(), cs = charsIn(camp);
+    Object.keys(cs).forEach(function(id) { var c = cs[id]; if (!isObj(c) || typeof c.ownerId !== 'string' || !c.ownerId || seen[c.ownerId]) return; seen[c.ownerId] = 1; var a = activeCharOf(camp, c.ownerId); if (a.id) out[c.ownerId] = a.id; });
+    return out;
+}
+// ONE rule for which tokens a player holds, shared by syncOwners, the loader and every arrival path, so no two places fight: per map, of the
+// tokens linked to a character its owner has IN PLAY, one is owned — keep (passed only at a give) else one the owner already holds else the
+// topmost — and every other stays LINKED and passes to the GM (never unlinked or deleted: an undo that restores a link cannot hand a second
+// copy back). Tokens of a kept character, an NPC, a draft or an unowned character have no owner; a token linked to a missing character is
+// left alone. A token with no character keeps its owner, one per name per owner per map. opts: { keep, mapId (this map only), active,
+// all (the campaign has sheets off: every owned character counts as in play, nothing is kept) }. Returns the changes: [{ mapId, wbId, ownerId ('' = the GM) }].
+function ownedTokenPlan(camp, opts) {
+    opts = opts || {};
+    var keep = typeof opts.keep === 'string' ? opts.keep : '', act = opts.all ? null : (opts.active || activeChars(camp)), cs = charsIn(camp), ops = [];
+    mapsOf(camp).forEach(function(m) {
+        if (opts.mapId && m.id !== opts.mapId) return;
+        var groups = map(), order = [];
+        m.whiteboard.forEach(function(w, i) {
+            if (!isObj(w) || typeof w.id !== 'string') return;
+            var gk, want;
+            if (typeof w.charId === 'string' && w.charId) {
+                var c = hasOwn(cs, w.charId) ? cs[w.charId] : null; if (!isObj(c)) return;
+                if (!(c.ownerId && c.npc !== true && !c.draft && (!act || act[c.ownerId] === c.id))) { if (w.ownerId) ops.push({ mapId: m.id, wbId: w.id, ownerId: '' }); return; }
+                want = c.ownerId; gk = 'c:' + c.id;
+            } else if (w.isChar && typeof w.ownerId === 'string' && w.ownerId) { want = w.ownerId; gk = 'n:' + w.ownerId + '|' + String(w.charName || ''); }
+            else return;
+            if (!groups[gk]) { groups[gk] = { want: want, toks: [] }; order.push(gk); }
+            groups[gk].toks.push({ w: w, i: i });
+        });
+        order.forEach(function(gk) {
+            var g = groups[gk], win = null;
+            g.toks.forEach(function(t) { if (keep && t.w.id === keep) win = t; });
+            if (!win) {   // never hand out a hidden copy nobody holds (GM staging): the resolver makes a visible one instead; a hidden token they hold stays theirs
+                var shown = function(l) { return l.filter(function(t) { return !t.w.hidden; }); }, held = g.toks.filter(function(t) { return t.w.ownerId === g.want; });
+                win = held.length ? topmostOf(shown(held).length ? shown(held) : held) : topmostOf(shown(g.toks));
+            }
+            g.toks.forEach(function(t) { var to = t === win ? g.want : ''; if ((t.w.ownerId || '') !== to) ops.push({ mapId: m.id, wbId: t.w.id, ownerId: to }); });
+        });
+    });
+    return ops;
+}
+function topmostOf(list) { var best = null; list.forEach(function(t) { var z = stackZ(t.w), bz = best ? stackZ(best.w) : 0; if (!best || z > bz || (z === bz && t.i > best.i)) best = t; }); return best; }
+function applyOwnerOps(camp, ops) {
+    var maps = [];   // the ids of the maps it changed, once each: a host save sends only the open item, so the caller sends these
+    (Array.isArray(ops) ? ops : []).forEach(function(o) {
+        var m = camp && hasOwn(camp.items, o.mapId) ? camp.items[o.mapId] : null; if (!isObj(m) || !Array.isArray(m.whiteboard)) return;
+        for (var i = 0; i < m.whiteboard.length; i++) { var w = m.whiteboard[i]; if (!isObj(w) || w.id !== o.wbId) continue; if (o.ownerId) w.ownerId = o.ownerId; else delete w.ownerId; if (maps.indexOf(o.mapId) < 0) maps.push(o.mapId); break; }
+    });
+    return maps;
+}
+// Existing saves: each KNOWN player (one with a record) who owns characters gets the one in play written down once (their only one, else the
+// guess above, listed for the GM), and each token THEY own that is bound to it only by name is linked to it. Never an unowned token or another player's (so a GM's
+// same-named NPC token stays unlinked; arrival adopts by name, as it always has). Idempotent. opts.link false: the binding only (syncOwners
+// heals with it at every change; linking by name is the loader's, once). Returns { bound, linked, guesses, several }.
+function migrateBindings(camp, opts) {
+    var out = { bound: 0, linked: 0, guesses: [], several: [] }, cs = charsIn(camp), seen = map(), owners = [], link = !opts || opts.link !== false;
+    Object.keys(cs).forEach(function(id) { var c = cs[id]; if (isObj(c) && typeof c.ownerId === 'string' && c.ownerId && !seen[c.ownerId]) { seen[c.ownerId] = 1; owners.push(c.ownerId); } });
+    owners.forEach(function(pid) {
+        if (!PID_RE.test(pid) || pid in Object.prototype) return;
+        var a = activeCharOf(camp, pid); if (!a.id) return;
+        var c = cs[a.id], rec = playerRec(camp, pid);
+        if (!rec) return;   // never a new record: a Forget stays forgotten, and a copy with no registry (another GM's table) is left exactly as it is
+        if (a.how !== 'record') {
+            rec.charId = a.id; out.bound++;
+            if (a.how === 'guess') out.guesses.push({ pid: pid, id: a.id });
+            var mine = playableChars(camp, pid);
+            if (mine.length > 1) out.several.push({ pid: pid, id: a.id, kept: mine.filter(function(k) { return k.id !== a.id; }).map(function(k) { return k.id; }) });
+        }
+        if (rec.charName !== c.name) rec.charName = c.name;   // kept in step for older builds and generated campaigns
+        if (link && a.how !== 'record') mapsOf(camp).forEach(function(m) { m.whiteboard.forEach(function(w) { if (isObj(w) && w.isChar && !w.charId && w.ownerId === pid && w.charName === c.name) { w.charId = c.id; out.linked++; } }); });
+    });
+    return out;
+}
+// Where a player's token on a map comes from — ONE resolver for arrival, a give, Bring and the GM walking them through a portal:
+//   keep   their own token of the character in play, here            adopt  an unowned token of it, here (never a hidden one)
+//   (then their own token here bound only by name is linked, before anything is copied in)
+//   prefer the token the GM dragged (offline travel), copied          clone  a token of it on another map (theirs first, never another player's)
+//   link   a token bound only by NAME (no charId): theirs, here or from afar; or an unowned, shown one here that no room roster placed
+//   spawn  nothing anywhere: a new token from the character (not when the campaign has sheets off: opts.noSpawn)
+// A player with no character: the old name binding, which only ever matches a token with no charId or one they hold, never another player's.
+// Returns { op, tok, mapId, here, charId } or { op: 'none' }.
+function tokenSourceFor(camp, pid, mapId, opts) {
+    var m = camp && hasOwn(camp.items, mapId) ? camp.items[mapId] : null;
+    if (!isObj(m) || m.type !== 'map' || typeof pid !== 'string' || !pid) return { op: 'none' };
+    var wb = Array.isArray(m.whiteboard) ? m.whiteboard : [], prefer = opts && isObj(opts.prefer) ? opts.prefer : null;
+    var others = mapsOf(camp).filter(function(o) { return o !== m; });
+    function find(list, test) { for (var i = 0; i < list.length; i++) { var w = list[i]; if (isObj(w) && typeof w.id === 'string' && test(w)) return w; } return null; }
+    function elsewhere(test) { var hit = null; others.some(function(o) { var w = find(o.whiteboard, test); if (w) hit = { tok: w, mapId: o.id }; return !!w; }); return hit; }
+    var a = activeCharOf(camp, pid), t, e;
+    if (a.id) {
+        var c = charsIn(camp)[a.id], cid = c.id;
+        if ((t = find(wb, function(w) { return w.charId === cid && w.ownerId === pid; }))) return { op: 'keep', tok: t, mapId: m.id, charId: cid };
+        if ((t = find(wb, function(w) { return w.charId === cid && !w.ownerId && !w.hidden; }))) return { op: 'adopt', tok: t, mapId: m.id, charId: cid };
+        var named = function(w) { return w.isChar && !w.charId && w.charName === c.name && (!w.ownerId || w.ownerId === pid); };
+        var namedMine = function(w) { return named(w) && w.ownerId === pid; };
+        if ((t = find(wb, namedMine))) return { op: 'link', tok: t, mapId: m.id, here: true, charId: cid };   // the token they already hold here, bound by name: linked, never a second one beside it
+        if (prefer && prefer.charId === cid && (!prefer.ownerId || prefer.ownerId === pid)) return { op: 'clone', tok: prefer, mapId: null, charId: cid };
+        if ((e = elsewhere(function(w) { return w.charId === cid && w.ownerId === pid; }) || elsewhere(function(w) { return w.charId === cid && !w.ownerId; }))) return { op: 'clone', tok: e.tok, mapId: e.mapId, charId: cid };
+        if ((t = find(wb, function(w) { return named(w) && !w.ownerId && !w.hidden && !w.charRef; }))) return { op: 'link', tok: t, mapId: m.id, here: true, charId: cid };
+        if ((e = elsewhere(namedMine))) return { op: 'link', tok: e.tok, mapId: e.mapId, here: false, charId: cid };   // an unowned namesake elsewhere (a GM's NPC, a room roster token) is never captured for good
+        return opts && opts.noSpawn ? { op: 'none' } : { op: 'spawn', charId: cid };
+    }
+    if ((t = find(wb, function(w) { return w.isChar && w.ownerId === pid; }))) return { op: 'keep', tok: t, mapId: m.id };
+    if (prefer && prefer.isChar && prefer.ownerId === pid && !prefer.charId) return { op: 'clone', tok: prefer, mapId: null };
+    var rec = playerRec(camp, pid), nm = rec && typeof rec.charName === 'string' ? rec.charName : '';
+    if (!nm) return { op: 'none' };
+    var legacy = function(w) { return w.isChar && w.charName === nm && (!w.charId || w.ownerId === pid) && (!w.ownerId || w.ownerId === pid); };
+    if ((t = find(wb, function(w) { return legacy(w) && !w.ownerId && !w.hidden; }))) return { op: 'adopt', tok: t, mapId: m.id };
+    if ((e = elsewhere(function(w) { return legacy(w) && w.ownerId === pid; }) || elsewhere(legacy))) return { op: 'clone', tok: e.tok, mapId: e.mapId };
+    return { op: 'none' };
+}
+// "What a player plays", for labels: the character in play, else the old name binding
+function playsAs(camp, pid) { var a = activeCharOf(camp, pid); if (a.id) return charsIn(camp)[a.id].name; var rec = playerRec(camp, pid); return rec && typeof rec.charName === 'string' ? rec.charName : ''; }
 // The dial's ring click (ShadowBase's cycle): a side with no mark is marked (the active threat when it is the first, else queued); the
 // active one clicked is cleared and the next queued one takes over; a queued one clicked becomes active and the old active is queued
 function cycleThreat(list, bearing, sides) {
@@ -1323,6 +1472,6 @@ function gmEffectNames(vars, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

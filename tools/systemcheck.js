@@ -894,6 +894,119 @@ const j = v => JSON.stringify(v);
             && /Array\.prototype\.forEach\.call\(box\.children, function\(ch\) \{ ch\.inert = true; \}\);/.test(shL) && palRules.length >= 18 && palRules.every(l => /\.sheet-paletted/.test(l)), j(palRules.filter(l => !/\.sheet-paletted/.test(l))));
     }
 
+    /* ---- Onboarding F0: who plays what — the binding by id, one chooser for owned tokens, one resolver for a player's token ---- */
+    {
+        const tok = (id, o) => Object.assign({ id, type: 'circle', isChar: true, x: 0, y: 0, w: 60, h: 52 }, o || {});
+        const base = () => ({
+            chars: { c_a: { id: 'c_a', name: 'Brakka', ownerId: 'u_a', npc: false, values: {}, updated: 5 }, c_w: { id: 'c_w', name: 'Wolf', ownerId: 'u_a', npc: false, values: {}, updated: 9 },
+                     c_b: { id: 'c_b', name: 'Mira', ownerId: 'u_b', npc: false, values: {}, updated: 1 }, c_n: { id: 'c_n', name: 'Guard', ownerId: '', npc: true, values: {}, updated: 1 } },
+            players: { u_a: { name: 'Alice', charName: 'Brakka', lastMap: 'm1' }, u_b: { name: 'Bob' } },
+            items: { m1: { id: 'm1', type: 'map', whiteboard: [] }, m2: { id: 'm2', type: 'map', whiteboard: [] }, d1: { id: 'd1', type: 'doc' } } });
+        // activeCharOf: the record, the only one, the guess (old name, then a token on their last map, then the most recent); NPCs and drafts never
+        const a1 = base(); a1.players.u_a.charId = 'c_w';
+        const a2 = base(); a2.players.u_a.charId = 'c_b';   // names another player's character: not theirs
+        const a3 = base(); delete a3.players.u_a.charName; a3.items.m1.whiteboard.push(tok('t1', { charId: 'c_a', ownerId: 'u_a' }));
+        const a4 = base(); delete a4.players.u_a.charName;
+        const a5 = base(); a5.chars.c_a.draft = true; a5.chars.c_w.npc = true;
+        const r = [S.activeCharOf(a1, 'u_a'), S.activeCharOf(a2, 'u_a'), S.activeCharOf(a3, 'u_a'), S.activeCharOf(a4, 'u_a'), S.activeCharOf(base(), 'u_b'), S.activeCharOf(a5, 'u_a'), S.activeCharOf(base(), 'u_z'), S.activeCharOf(base(), '__proto__')];
+        check('onboarding F0: activeCharOf — the record when it still names one of theirs; else their only one; else a guess (their old name, then a token they hold on their last map, then the most recently changed); never an NPC, a draft or another player\'s; nobody for a player with none',
+            j(r) === j([{ id: 'c_w', how: 'record' }, { id: 'c_a', how: 'guess' }, { id: 'c_a', how: 'guess' }, { id: 'c_w', how: 'guess' }, { id: 'c_b', how: 'only' }, { id: null, how: 'none' }, { id: null, how: 'none' }, { id: null, how: 'none' }]), j(r));
+        // ownedTokenPlan: one owned token per character per map, only for the character in play; keep, then already held, then topmost
+        const p1 = base(); p1.players.u_a.charId = 'c_a';
+        p1.items.m1.whiteboard.push(tok('t1', { charId: 'c_a', ownerId: 'u_a' }), tok('t2', { charId: 'c_a', layer: 'front' }), tok('t3', { charId: 'c_w', ownerId: 'u_a' }), tok('t4', { charName: 'Pet', ownerId: 'u_a' }),
+            tok('t5', { charName: 'Pet', ownerId: 'u_a' }), tok('t6', { charId: 'c_n', ownerId: 'u_a' }), tok('t7', { charId: 'c_gone', ownerId: 'u_a' }), tok('t8', { charName: 'Horse', ownerId: 'u_a' }));
+        p1.items.m2.whiteboard.push(tok('t9', { charId: 'c_a' }), tok('t10', { charId: 'c_b' }));
+        const pl1 = S.ownedTokenPlan(p1, {}), plK = S.ownedTokenPlan(p1, { keep: 't2' }), plM = S.ownedTokenPlan(p1, { mapId: 'm2' });
+        const want1 = [{ mapId: 'm1', wbId: 't3', ownerId: '' }, { mapId: 'm1', wbId: 't6', ownerId: '' }, { mapId: 'm1', wbId: 't4', ownerId: '' }, { mapId: 'm2', wbId: 't9', ownerId: 'u_a' }, { mapId: 'm2', wbId: 't10', ownerId: 'u_b' }];
+        const byKey = l => l.map(o => o.mapId + '|' + o.wbId + '|' + o.ownerId).sort();
+        check('onboarding F0: ownedTokenPlan — the copy the player already holds stays theirs, a kept character\'s token and an NPC\'s pass to the GM, one token per name for tokens without a character (the topmost), a token of a missing character is left alone, and a map with none held gives the character\'s owner one',
+            j(byKey(pl1)) === j(byKey(want1)), j(pl1));
+        check('onboarding F0: ownedTokenPlan — keep (a give) wins over the copy already held, which passes to the GM still linked; mapId limits the plan to one map',
+            byKey(plK).indexOf('m1|t2|u_a') >= 0 && byKey(plK).indexOf('m1|t1|') >= 0 && plM.every(o => o.mapId === 'm2') && plM.length === 2, j([plK, plM]));
+        S.applyOwnerOps(p1, pl1);
+        const after = p1.items.m1.whiteboard.map(w => w.id + ':' + (w.ownerId || '')).join(',');
+        check('onboarding F0: applying the plan, then planning again, changes nothing (stable), and links are never removed',
+            after === 't1:u_a,t2:,t3:,t4:,t5:u_a,t6:,t7:u_a,t8:u_a' && S.ownedTokenPlan(p1, {}).length === 0 && p1.items.m1.whiteboard.filter(w => w.charId).length === 5, after);
+        // the undo-shaped merge: two copies both owned (live owner, snapshot link) — exactly one stays owned; the topmost with nothing held
+        const p2 = base(); p2.players.u_a.charId = 'c_a'; p2.items.m1.whiteboard.push(tok('u1', { charId: 'c_a', ownerId: 'u_a' }), tok('u2', { charId: 'c_a', ownerId: 'u_a' }));
+        S.applyOwnerOps(p2, S.ownedTokenPlan(p2, {}));
+        const p3 = base(); p3.players.u_a.charId = 'c_a'; p3.items.m1.whiteboard.push(tok('v1', { charId: 'c_a', z: 40 }), tok('v2', { charId: 'c_a' }));
+        S.applyOwnerOps(p3, S.ownedTokenPlan(p3, {}));
+        check('onboarding F0: after an undo brings back two owned copies, exactly one stays owned; with none held, the topmost (its layer or z, then the later one) is given',
+            p2.items.m1.whiteboard.filter(w => w.ownerId === 'u_a').length === 1 && p3.items.m1.whiteboard.map(w => w.ownerId || '').join(',') === 'u_a,', j([p2.items.m1.whiteboard, p3.items.m1.whiteboard]));
+        // migrateBindings: the one in play written once, name-only tokens THEY hold linked, idempotent, never a prototype write
+        const m1 = base();
+        m1.chars.c_c = { id: 'c_c', name: 'Cato', ownerId: 'u_c', npc: false, values: {}, updated: 2 };
+        m1.chars.c_p = { id: 'c_p', name: 'Poison', ownerId: '__proto__', npc: false, values: {}, updated: 2 };
+        m1.items.m1.whiteboard.push(tok('n1', { charId: 'c_a', ownerId: 'u_a' }), tok('n2', { charId: 'c_w', ownerId: 'u_a' }));
+        m1.items.m2.whiteboard.push(tok('n3', { charName: 'Brakka', ownerId: 'u_a' }), tok('n4', { charName: 'Brakka' }), tok('n5', { charName: 'Mira', ownerId: 'u_a' }));
+        const mg = S.migrateBindings(m1), snapM = j(m1), mg2 = S.migrateBindings(m1);
+        check('onboarding F0: migrateBindings — each KNOWN owner gets the character in play written down (a guess listed, a player with several listed with the kept ones), the name kept in step; an owner with no record gets none (a Forget stays forgotten); only a name-only token THEY hold is linked (never an unowned one or a different name); a second run changes nothing; a prototype owner is skipped',
+            m1.players.u_a.charId === 'c_a' && m1.players.u_a.charName === 'Brakka' && m1.players.u_b.charId === 'c_b' && !('u_c' in m1.players)
+            && mg.bound === 2 && mg.linked === 1 && j(mg.guesses) === j([{ pid: 'u_a', id: 'c_a' }]) && j(mg.several) === j([{ pid: 'u_a', id: 'c_a', kept: ['c_w'] }])
+            && m1.items.m2.whiteboard[0].charId === 'c_a' && !m1.items.m2.whiteboard[1].charId && !m1.items.m2.whiteboard[2].charId
+            && mg2.bound === 0 && mg2.linked === 0 && j(m1) === snapM && ({}).charId === undefined && ({}).charName === undefined, j([mg, m1.players]));
+        const m2 = base(); m2.items.m1.whiteboard.push(tok('k1', { charName: 'Brakka', ownerId: 'u_a' })); const mgNo = S.migrateBindings(m2, { link: false });
+        check('onboarding F0: migrateBindings { link: false } (syncOwners\' heal) writes the binding but links nothing', mgNo.linked === 0 && !m2.items.m1.whiteboard[0].charId && m2.players.u_a.charId === 'c_a', j(mgNo));
+        // tokenSourceFor: keep, adopt (never a hidden copy), prefer, clone (theirs first, never another player's), link by name, spawn; the legacy path
+        const s = base(); s.players.u_a.charId = 'c_a';
+        const src = (camp, pid, map, o) => { const x = S.tokenSourceFor(camp, pid, map, o); return x.op + (x.tok ? ':' + x.tok.id : '') + (x.here === false ? '@far' : ''); };
+        const sK = base(); sK.players.u_a.charId = 'c_a'; sK.items.m1.whiteboard.push(tok('s1', { charId: 'c_a', ownerId: 'u_a' }), tok('s2', { charId: 'c_a' }));
+        const sA = base(); sA.players.u_a.charId = 'c_a'; sA.items.m1.whiteboard.push(tok('s3', { charId: 'c_a', hidden: true }), tok('s4', { charId: 'c_a' }));
+        const sH = base(); sH.players.u_a.charId = 'c_a'; sH.items.m1.whiteboard.push(tok('s5', { charId: 'c_a', hidden: true }));
+        const sC = base(); sC.players.u_a.charId = 'c_a'; sC.items.m2.whiteboard.push(tok('s6', { charId: 'c_a' }), tok('s7', { charId: 'c_a', ownerId: 'u_a' }), tok('s8', { charId: 'c_a', ownerId: 'u_b' }));
+        const sX = base(); sX.players.u_a.charId = 'c_a'; sX.items.m2.whiteboard.push(tok('s9', { charId: 'c_a', ownerId: 'u_b' }));
+        const sL = base(); sL.players.u_a.charId = 'c_a'; sL.items.m1.whiteboard.push(tok('l1', { charName: 'Brakka', ownerId: 'u_b' }), tok('l2', { charName: 'Brakka' }));
+        const sF = base(); sF.players.u_a.charId = 'c_a'; sF.items.m2.whiteboard.push(tok('l3', { charName: 'Brakka', ownerId: 'u_a' }));
+        const drag = tok('dr', { charId: 'c_a', ownerId: 'u_a' });
+        const rs = [src(sK, 'u_a', 'm1'), src(sA, 'u_a', 'm1'), src(sH, 'u_a', 'm1'), src(sC, 'u_a', 'm1'), src(sX, 'u_a', 'm1'), src(sL, 'u_a', 'm1'), src(sF, 'u_a', 'm1'), src(s, 'u_a', 'm1', { prefer: drag }), src(sK, 'u_a', 'm1', { prefer: drag }), src(s, 'u_a', 'd1'), src(s, 'u_a', 'nope')];
+        check('onboarding F0: tokenSourceFor — their own copy here is kept; an unowned copy here adopted (a hidden one is GM staging: a copy is made instead); a copy from another map, theirs first and never another player\'s; a token bound only by name (theirs or nobody\'s, never another player\'s) linked, here or from afar; the GM\'s dragged token preferred over a copy but never over one already here; a new token when there is none; nothing for a map that is not a play map',
+            j(rs) === j(['keep:s1', 'adopt:s4', 'spawn', 'clone:s7', 'spawn', 'link:l2', 'link:l3@far', 'clone:dr', 'keep:s1', 'none', 'none']), j(rs));
+        // the legacy name binding (a player without a character): never another player's token (H2), never a linked one, nothing once unbound (H1)
+        const g = base(); delete g.chars.c_b; g.players.u_b.charName = 'Mira';
+        g.items.m1.whiteboard.push(tok('g1', { charName: 'Mira', ownerId: 'u_x' }), tok('g2', { charName: 'Mira', charId: 'c_a' }));
+        g.items.m2.whiteboard.push(tok('g3', { charName: 'Mira', ownerId: 'u_x' }), tok('g4', { charName: 'Mira' }));
+        const g2 = base(); delete g2.chars.c_b; g2.players.u_b.charName = 'Mira'; g2.items.m1.whiteboard.push(tok('g5', { charName: 'Mira', hidden: true }), tok('g6', { charName: 'Other', ownerId: 'u_b' }));
+        const g3 = base(); delete g3.chars.c_b;
+        const lg = [src(g, 'u_b', 'm1'), src(g2, 'u_b', 'm1'), src(g3, 'u_b', 'm1')];
+        check('onboarding F0: the old name binding (no character) — a copy of an unowned, unlinked token of that name; never another player\'s token or one linked to a character (H2); a token they hold is kept; nothing without a binding (H1: the GM took it back)',
+            j(lg) === j(['clone:g4', 'keep:g6', 'none']), j(lg));
+        const pa = base(); pa.players.u_a.charId = 'c_w'; const pg = base(); delete pg.chars.c_b; pg.players.u_b.charName = 'Mira';
+        check('onboarding F0: playsAs — the character in play, else the old name binding, else nothing', S.playsAs(pa, 'u_a') === 'Wolf' && S.playsAs(pg, 'u_b') === 'Mira' && S.playsAs(base(), 'u_z') === '');
+        const ow = ['u_a', '__proto__', 'constructor', 'bad id!', ''].map(o => cleanChar({ id: 'c_1', name: 'X', ownerId: o, values: {} }, cleanSystem({ v: 1, name: 'O', fields: [], rolls: [] }, { F, gmView: true })).ownerId);
+        check('onboarding F0: cleanChar keeps an owner only when it is a profile id (never a prototype key or a stray string)', j(ow) === j(['u_a', '', '', '', '']), j(ow));
+        // the critic's fixes: a guess without a record is stable (by name, never "whoever was touched last"); sheets off keeps every owned character
+        // in play; an unowned namesake elsewhere or a room roster's token is never captured by name; nothing is made on arrival with sheets off
+        const q = base(); q.chars.c_z = { id: 'c_z', name: 'Zed', ownerId: 'u_q', npc: false, values: {}, updated: 99 }; q.chars.c_y = { id: 'c_y', name: 'Abe', ownerId: 'u_q', npc: false, values: {}, updated: 1 };
+        const qa = S.activeCharOf(q, 'u_q'); q.chars.c_y.updated = 500; const qb = S.activeCharOf(q, 'u_q');
+        const al = base(); al.players.u_a.charId = 'c_a'; al.items.m1.whiteboard.push(tok('a1', { charId: 'c_w', ownerId: 'u_a' }), tok('a2', { charId: 'c_w' }));
+        const alOps = S.ownedTokenPlan(al, { all: true }), alKept = S.ownedTokenPlan(al, {});
+        const nm = base(); nm.players.u_a.charId = 'c_a'; nm.items.m2.whiteboard.push(tok('x1', { charName: 'Brakka' })); nm.items.m1.whiteboard.push(tok('x2', { charName: 'Brakka', charRef: 'r_npc' }));
+        const nmR = [src(nm, 'u_a', 'm1'), src(nm, 'u_a', 'm1', { noSpawn: true }), src(base(), 'u_b', 'm1', { noSpawn: true })];
+        const opsMaps = (() => { const x = base(); x.players.u_a.charId = 'c_a'; x.items.m2.whiteboard.push(tok('y1', { charId: 'c_a' })); return S.applyOwnerOps(x, S.ownedTokenPlan(x, {})); })();
+        check('onboarding F0 (critic): a guess without a record is by name and stays put when a character is edited; sheets off keeps every owned character in play (no kept stripping); a namesake elsewhere or a room roster\'s token is never captured; nothing is made on arrival with sheets off; applyOwnerOps names the maps it changed (the host sends them)',
+            qa.id === 'c_y' && qb.id === 'c_y' && qa.how === 'guess' && alOps.length === 0 && byKey(alKept).indexOf('m1|a1|') >= 0 && j(nmR) === j(['spawn', 'none', 'none']) && j(opsMaps) === j(['m2']), j([qa, qb, alOps, alKept, nmR, opsMaps]));
+        // the code review's fixes: a hidden copy nobody holds is never handed out (a shown one wins; a hidden one they hold stays theirs); their own
+        // name-bound token here is linked before anything is copied in; name links happen once (not again at a later load)
+        const h1 = base(); h1.players.u_a.charId = 'c_a'; h1.items.m1.whiteboard.push(tok('h1', { charId: 'c_a', hidden: true }));
+        const h2 = base(); h2.players.u_a.charId = 'c_a'; h2.items.m1.whiteboard.push(tok('h2s', { charId: 'c_a', layer: 'middle' }), tok('h2h', { charId: 'c_a', layer: 'front', hidden: true }));
+        const h3 = base(); h3.players.u_a.charId = 'c_a'; h3.items.m1.whiteboard.push(tok('h3s', { charId: 'c_a', ownerId: 'u_a' }), tok('h3h', { charId: 'c_a', ownerId: 'u_a', hidden: true, layer: 'front' }));
+        const h4 = base(); h4.players.u_a.charId = 'c_a'; h4.items.m1.whiteboard.push(tok('h4', { charId: 'c_a', ownerId: 'u_a', hidden: true }));
+        const hr = [S.ownedTokenPlan(h1, {}), S.ownedTokenPlan(h2, {}), S.ownedTokenPlan(h3, {}), S.ownedTokenPlan(h4, {})].map(byKey);
+        const ln = base(); ln.players.u_a.charId = 'c_a'; ln.items.m1.whiteboard.push(tok('ln1', { charName: 'Brakka', ownerId: 'u_a' })); ln.items.m2.whiteboard.push(tok('ln2', { charId: 'c_a', ownerId: 'u_a' }));
+        const once = base(); once.players.u_a.charId = 'c_a'; once.items.m1.whiteboard.push(tok('o1', { charId: 'c_a', ownerId: 'u_a' }), tok('o2', { charName: 'Brakka', ownerId: 'u_a' }));
+        const onceR = S.migrateBindings(once);
+        check('onboarding F0 (review): a hidden copy nobody holds gets no owner and a shown one beats a hidden one on a higher layer; among held copies the shown one stays; a hidden token they hold stays theirs; their name-bound token here is linked before a copy comes in from another map; a later load links nothing by name',
+            j(hr) === j([[], ['m1|h2s|u_a'], ['m1|h3h|'], []]) && src(ln, 'u_a', 'm1') === 'link:ln1' && onceR.linked === 0 && !once.items.m1.whiteboard[1].charId, j([hr, src(ln, 'u_a', 'm1'), onceR]));
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), ioF = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), inF = fs.readFileSync(path.join(app, 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('onboarding F0: every owner write goes through giveCharacter (no bindPlayer left; newCharacter is born unassigned); syncOwners is the shared chooser; the loader and undo run the same chooser; Player Owner is disabled on an NPC\'s token and binds by name only a token without a character',
+            !/bindPlayer/.test(shF) && /ownerId: '', portrait: o && o\.portrait/.test(shF) && /var maps = applyOwnerOps\(camp, ownedTokenPlan\(camp, \{ keep: keep \|\| '', all: !sheetsOnIn\(camp\) \}\)\);\n\s*if \(maps\.length && n && n\.active && n\.role === 'host' && n\.pushItems/.test(shF)
+            && (shF.match(/giveCharacter\(/g) || []).length >= 6 && /SCm\.applyOwnerOps\(c, SCm\.ownedTokenPlan\(c, \{ all: !sheetsOnM \}\)\)/.test(ioF) && /if \(SCm\.migrateBindings && !c\._foreign\)/.test(ioF) && /applyContent\(item, parsed\);\n\n\s*if \(item\.type === 'map' && window\.wpSheets && window\.wpSheets\.syncOwners\) window\.wpSheets\.syncOwners\(camp\);/.test(ioF)
+            && /if \(campO && w\.charName && !linkedO\) \{/.test(inF) && /disabled title="An NPC/.test(inF)
+            && /var pid = w\.ownerId, playing = activeCharOf\(camp, pid\)\.id, play = !playing;\n\s*giveCharacter\(pid, c\.id, \{ keep: w\.id, play: play, nearTok: w \}\);/.test(shF)
+            && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
+    }
+
     /* ---- Stage 6 look fold (L4): pin groups — band groups, the Pin button, a viewer's pins per character ---- */
     {
         const gf4 = [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all' }, { id: 'f_b', key: 'B', kind: 'number', def: 1, vis: 'all' }, { id: 'f_s', key: 'S', kind: 'number', def: 1, vis: 'gm' }];

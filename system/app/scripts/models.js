@@ -339,9 +339,11 @@ export function characterList(camp, ownedOnly, preferMapId) {
             if (ownedOnly && !w.ownerId) return;
             var key = w.ownerId ? 'o:' + w.ownerId : 'i:' + w.id;
             var entry = { key: key, ownerId: w.ownerId || null, tokId: w.id, name: w.charName || w.name || 'Unnamed', src: w.src || null,
-                          mapId: m.id, map: (m.meta && m.meta.title) || m.id, x: w.x, y: w.y, w: w.w, h: w.h };
+                          mapId: m.id, map: (m.meta && m.meta.title) || m.id, x: w.x, y: w.y, w: w.w, h: w.h, cid: w.charId ? 1 : 0 };
+            // one chip per player: a token on the preferred map first, then one of a character (the one they play owns it) before a pet or a leftover
+            var rank = function(e) { return (preferMapId && e.mapId === preferMapId ? 2 : 0) + e.cid; };
             if (!byKey[key]) { byKey[key] = entry; order.push(key); }
-            else if (preferMapId && m.id === preferMapId && byKey[key].mapId !== preferMapId) byKey[key] = entry;
+            else if (rank(entry) > rank(byKey[key])) byKey[key] = entry;
         });
     });
     return order.map(function(k) { return byKey[k]; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
@@ -354,7 +356,7 @@ export function locateCharacter(camp, key, preferMapId) {
     if (camp.items[first]) ids = [first].concat(ids.filter(function(k) { return k !== first; }));
     for (var i = 0; i < ids.length; i++) {
         var m = camp.items[ids[i]]; if (!m || m.type !== 'map') continue;
-        var w = (m.whiteboard || []).find(match);
+        var w = (m.whiteboard || []).find(function(x) { return match(x) && x.charId; }) || (m.whiteboard || []).find(match);   // a player's character before a pet
         if (w) return { map: m, tok: w };
     }
     return null;

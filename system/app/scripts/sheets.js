@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, charTokenOn, cycleThreat } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -259,7 +259,7 @@ function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in 
     return sys.fields.some(function(f) {
         if (hit(f.formula) || hit(f.maxFormula) || hit(f.base)) return true;
         var re = /\{([^{}]{1,300})\}/g, m, cap = typeof f.caption === 'string' ? f.caption : '';
-        while ((m = re.exec(cap))) if (hit(m[1])) return true;
+        while ((m = re.exec(cap))) if (hit(capExpr(m[1]).expr)) return true;   // Stage 6: a {\u00b1\u2026} too
         return false;
     });
 }
@@ -482,7 +482,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
             var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
             var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
-            if (ledger && f.kind === 'number' && !en.error && !c.partial && (gm || (own && f.edit === 'owner' && f.vis === 'all'))) {
+            if (ledger && f.kind === 'number' && !f.labels && !en.error && !c.partial && (gm || (own && f.edit === 'owner' && f.vis === 'all'))) {
                 var raw = c.values ? c.values[f.id] : undefined;
                 var inp = el('input', 'field sheet-num sheet-hdr-input' + tone); inp.type = 'number'; inp.dataset.fid = f.id; inp.dataset.part = 'hdr';
                 inp.value = raw === undefined ? String(f.def) : String(raw); inp.step = String(f.step || 1); inp.title = f.label + (f.unit ? ' (' + f.unit + ')' : '');
@@ -1125,7 +1125,7 @@ function effectForm(f, c, sys, onClose) {
     return form;
 }
 // Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
-function signTone(f, e) { if (!f.sign || !e || e.error || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
+function signTone(f, e) { if (!f.sign || !e || e.error || e.label || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
 // A field on the sheet: its control, then (Fold B) its caption line — text, with each {formula} worked out for this character, drawn as text
 function fieldNode(f, c, e, gm, own, sysArg, vars) {   // vars: the render's resolver (sections pass it; the band shows no captions)
     var box = fieldNodeBody(f, c, e, gm, own, sysArg);
@@ -1150,7 +1150,16 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
+    if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
+        var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined ? f.def : raw);
+        ls.dataset.fid = f.id; f.labels.forEach(function(t, i) { ls.appendChild(opt(String(i), t || String(i), curL === i)); });
+        if (!(curL === Math.floor(curL) && curL >= 0 && curL < f.labels.length)) { var ob = opt(String(curL), fmtNum(curL), true); ob.disabled = true; ls.insertBefore(ob, ls.firstChild); }   // a stored value past the names shows as its number (what formulas read) until a name is picked
+        ls.disabled = !editable; ls.addEventListener('change', function() { commit(c, f, Number(ls.value)); });
+        rowL.appendChild(ls);
+        if (e && e.mods && e.mods.length) { var fbL0 = fxMark(e); if (fbL0) { fbL0.textContent = '\u2192 ' + (e.text || fmtNum(e.value)); rowL.appendChild(fbL0); } }   // 5h: an effect moved it — the effective value beside the choice
+        box.appendChild(rowL); return box;
+    }
     if (k === 'number' || k === 'skill') {
         var row = el('div', 'sheet-ctl');
         var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined ? String(f.def) : String(raw);
@@ -1365,6 +1374,21 @@ function close(force) {
     m.style.display = 'none'; draft = null;
 }
 function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); }
+// Stage 6: each stored value of a field the saved system still has, checked against it again (a value past new value names, a lowered max,
+// a removed library entry) — what a reload does, at once, so the GM's sheet, their formulas and every player agree. Other ids stay as they are.
+function reCleanChars(camp, sys) {
+    var vo = valueOpts(sys);
+    Object.keys(camp.chars || {}).forEach(function(id) {
+        var c = camp.chars[id]; if (!c || !c.values || typeof c.values !== 'object') return;
+        Object.keys(c.values).forEach(function(fid) {
+            var f = fieldById(sys, fid); if (!f || !STORED[f.kind]) return;
+            var v = cleanValue(f, c.values[fid], vo);
+            if (JSON.stringify(v) === JSON.stringify(c.values[fid])) return;
+            if (v === undefined) delete c.values[fid]; else c.values[fid] = v;
+            c.updated = Date.now();
+        });
+    });
+}
 function saveDraft() {
     if (!draft || !canWrite()) return;
     var camp = getActiveCampaign(); if (!camp) return;
@@ -1374,6 +1398,7 @@ function saveDraft() {
     var dropped = draft.fields.length - clean.fields.length;
     clean.updated = Date.now();
     camp.system = clean;
+    reCleanChars(camp, clean);   // Stage 6: before the save and the sync (syncSystem re-sends every character after the system)
     draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
     save(true);
     var n = net(); if (n && n.syncSystem) n.syncSystem();
@@ -1444,7 +1469,8 @@ function fieldRow(f) {
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft)', 'Unit'));   // Stage 5g
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
-    flags.appendChild(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, e.g. Base: {ST * 2}', 'Caption (optional)'));   // Fold B
+    if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(input('sys-vnames field', (f.labels || []).join(', '), 'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'Value names (optional)'));   // Stage 6
+    flags.appendChild(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'Caption (optional)'));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
         flags.appendChild(input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a symbol', 'Icon'));
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
@@ -1470,6 +1496,12 @@ function buildDefCell(def, f) {
     var k = f.kind;
     if (k === 'number' || k === 'skill') {
         if (k === 'skill') def.appendChild(input('sys-formula field', f.base, 'The base added to the ranks (a formula, no dice): DEXmod. Empty = ranks alone.', 'Base formula (optional)'));
+        if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a named number — its default is one of its names; the range is the names
+            var dl = Math.max(0, Math.min(f.labels.length - 1, Math.round(Number(f.def) || 0)));
+            def.appendChild(select('sys-def-lbl', f.labels.map(function(t, i) { return [String(i), t || String(i)]; }), String(dl), 'The value a new character starts with'));
+            def.appendChild(el('span', 'sys-note', 'Values 0\u2013' + (f.labels.length - 1) + ', one per name'));
+            return;
+        }
         def.appendChild(numField('sys-def-num', f.def, k === 'skill' ? 'Default ranks' : 'Default value', k === 'skill' ? 'Ranks' : 'Default'));
         def.appendChild(numField('sys-min', f.min, 'Minimum (empty = none)', 'Min'));
         def.appendChild(numField('sys-max', f.max, 'Maximum (empty = none)', 'Max'));
@@ -1649,6 +1681,7 @@ function onInput(e) {
         else if (c.indexOf('sys-roll') >= 0) f.roll = t.value.trim() || undefined;
         else if (c.indexOf('sys-unit') >= 0) { if (t.value.trim()) f.unit = t.value.slice(0, 32); else delete f.unit; }   // Stage 5g (Save cuts it to 8 code points, never half an emoji)
         else if (c.indexOf('sys-caption') >= 0) { if (t.value.trim()) f.caption = t.value.slice(0, 400); else delete f.caption; }   // Fold B (Save cuts it to 200)
+        else if (c.indexOf('sys-vnames') >= 0) { var vn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (vn.length && !vn[vn.length - 1]) vn.pop(); if (vn.some(Boolean)) f.labels = vn; else delete f.labels; }   // Stage 6: a blank between names keeps its place (every later name keeps its number)
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
         else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
         else if (c.indexOf('sys-slider-highColor') >= 0) { f.slider = f.slider || {}; f.slider.highColor = t.value; }
@@ -1721,6 +1754,8 @@ function onChange(e) {
         else if (c.indexOf('sys-itbl-chips') >= 0) { f.table = f.table || {}; if (t.checked) f.table.chips = true; else delete f.table.chips; }
         else if (c.indexOf('sys-itbl-footer') >= 0) { f.table = f.table || {}; if (t.checked) f.table.footer = true; else delete f.table.footer; }
         else if (c.indexOf('sys-def-bool') >= 0) f.def = t.checked;
+        else if (c.indexOf('sys-vnames') >= 0) { if (f.kind === 'number') { var rwV = t.closest('.sys-row'), dcV = rwV && rwV.querySelector('.sys-def'); if (dcV) buildDefCell(dcV, f); } markDirty(); patchErrors(); return; }   // Stage 6: a number's default cell follows (a pick of the names, or its own range back when they are cleared); nothing else in the row moves, so focus stays
+        else if (c.indexOf('sys-def-lbl') >= 0) f.def = Number(t.value);
         else return;
     } else if (r) {
         if (c.indexOf('sys-vis') >= 0) r.vis = t.value;

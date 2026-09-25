@@ -1950,6 +1950,21 @@
   /* with a look pair and no accent of its own, the accent-coloured bits fall back to the look's ink, not the theme gold (a light look panel) */
   .sheet-head .sheet-gm .sheet-label::after, .sheet-frame .sheet-gm .sheet-label::after { color: var(--sheet-accent, var(--sheet-ink, var(--gold))); }
   .sheet-frame .sheet-tabs:not(.sheet-tabs-filled) > .sheet-tab.active { color: var(--sheet-accent, var(--sheet-ink, var(--gold))); border-bottom-color: var(--sheet-accent, var(--sheet-ink, var(--gold))); }
+  /* Stage 5g Fold B: capital labels (a look option), the caption line, a pool's icon and reset, the panel's resize grip */
+  .sheet-labels-caps .sheet-field > .sheet-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; white-space: normal; overflow: visible; }   /* wraps, so a field's roll die is never ellipsised away */
+  .sheet-caption { font-size: 11.5px; line-height: 1.35; color: var(--dim); margin-top: 3px; white-space: normal; overflow-wrap: anywhere; }
+  .sheet-caption-val { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sheet-caption-val.sheet-err { color: var(--red); font-weight: 400; }
+  .sheet-ctl.sheet-ctl-wrap { flex-wrap: wrap; }
+  .sheet-band .sheet-caption { display: none; }   /* the band stays one compact row */
+  .sheet-pool-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; margin-right: 2px; }
+  .sheet-reset { font-size: 15px; }
+  #sheetPanel > #sheetBody { margin-bottom: 12px; }   /* a strip for the grip, so it never sits over the body's scrollbar */
+  .sheet-resize { position: absolute; right: 0; bottom: 0; width: 14px; height: 12px; cursor: nwse-resize; z-index: 3; touch-action: none; background: linear-gradient(135deg, transparent 0 55%, var(--edge) 55% 62%, transparent 62% 72%, var(--edge) 72% 79%, transparent 79%); }
+  #sheetPanel.sheet-sized { max-height: none; }
+  #sheetPanel.sheet-sized #sheetBody { flex: 1 1 auto; min-height: 0; }
+  .sys-flags .sys-caption { width: 240px; }
+  .sys-flags .sys-res-icon { width: 52px; text-align: center; }
   .sheet-hdr-val.sheet-hdr-edit:focus-within { border-color: var(--sheet-accent, var(--gold)); }   /* the ledger box's focus ring (the input itself is borderless) */
   .sheet-pos, .sheet-hdr-pos, .sheet-field input.sheet-pos, .sheet-hdr-edit input.sheet-hdr-pos { color: var(--green); }
   .sheet-neg, .sheet-field input.sheet-neg, .sheet-hdr-edit input.sheet-hdr-neg { color: var(--red); }
@@ -1984,7 +1999,7 @@
   .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
   .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
   /* the Layout tab's Sheet look box (doc theming): the whole sheet's font / colors / picture over the campaign default */
-  .sys-lookbox .sys-look-font, .sys-lookbox .sys-look-titles, .sys-lookbox .sys-look-tabs { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }
+  .sys-lookbox .sys-look-font, .sys-lookbox .sys-look-titles, .sys-lookbox .sys-look-tabs, .sys-lookbox .sys-look-labels { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }
   .sys-lookbox input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; }
   .sys-lookbox .sys-look-dim { width: 90px; accent-color: var(--gold); cursor: pointer; }
   /* Stage 5c: the Layout tab's Pinned band box — chips with left/right/remove, a select to pin more */

@@ -364,7 +364,7 @@ const j = v => JSON.stringify(v);
             /\.sheet-head \.tool\.ghost, \.sheet-frame \.tool\.ghost, \.sheet-head \.tool\.ghost:hover, \.sheet-frame \.tool\.ghost:hover \{ color: var\(--sheet-ink, var\(--ink\)\); \}/.test(css5) && /\.sheet-frame \.sheet-slider-ends \{ color: var\(--sheet-dim, var\(--dim\)\); \}/.test(css5)
             && /\.sheet-frame \.sheet-tabs:not\(\.sheet-tabs-filled\) > \.sheet-tab\.active \{ color: var\(--sheet-accent, var\(--sheet-ink, var\(--gold\)\)\);/.test(css5) && /\.sheet-head-name \{[^}]*color: var\(--sheet-accent, var\(--sheet-ink, var\(--gold\)\)\);/.test(css5)
             && /\.sheet-hdr-val\.sheet-hdr-edit:focus-within \{ border-color:/.test(css5) && /\.sheet-tabs-filled \.sheet-tab\.active \{ background: var\(--sheet-accent, var\(--gold\)\); color: var\(--sheet-accent-ink, #111318\); \}/.test(css5));
-        check('Stage 5g: the item list resolves its definitions from the system being drawn (the pop-out\'s cleaned copy, the preview\'s draft), not the raw campaign', /function fieldNode\(f, c, e, gm, own, sysArg\)/.test(sh5) && /var sysI = sysArg \|\| systemOf\(getActiveCampaign\(\)\)/.test(sh5) && (sh5.match(/fieldNode\([^)]*, gm, own, sys\)/g) || []).length === 2);
+        check('Stage 5g: the item list resolves its definitions from the system being drawn (the pop-out\'s cleaned copy, the preview\'s draft), not the raw campaign', /function fieldNodeBody\(f, c, e, gm, own, sysArg\)/.test(sh5) && /var sysI = sysArg \|\| systemOf\(getActiveCampaign\(\)\)/.test(sh5) && (sh5.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2);
         check('Stage 5g: a section is boxed only for a panel, a border or a stripe (an accent with no stripe colours the title alone); headline titles and filled tabs are class-gated',
             /var stripe = !!\(sec\.style && sec\.style\.accent && sec\.style\.stripe !== false\);[\s\S]{0,200}?if \(sec\.style && \(sec\.style\.bg \|\| sec\.style\.border \|\| stripe\)\)/.test(sh5) && /if \(stripe\) s\.style\.borderLeft/.test(sh5)
             && /body\.classList\.toggle\('sheet-titles-headline', look\.titles === 'headline'\);/.test(sh5) && /el\('div', 'sheet-tabs' \+ \(look\.tabs === 'filled' \? ' sheet-tabs-filled' : ''\)\)/.test(sh5)
@@ -373,6 +373,51 @@ const j = v => JSON.stringify(v);
             /var keepLook = [\s\S]{0,200}?draft\.sheet = \{ sections: autoLayout\(cl \|\| draft\)\.sections \}; if \(keepLook\) draft\.sheet\.look = keepLook;/.test(sh5)
             && /var keepShape = draft\.sheet && draft\.sheet\.look; draft\.sheet = \{ sections: \[\] \}; if \(keepShape\) draft\.sheet\.look = keepShape;/.test(sh5)
             && /if \(c\.indexOf\('sys-tab-icon'\) >= 0\) \{ var itr = t\.closest && t\.closest\('\.sys-row\.sys-tab'\);/.test(sh5));
+    }
+
+    /* ---- Stage 5g (Fold B): captions, capital labels, a pool's icon / reset / bar, the resizable panel ---- */
+    {
+        const bf = [
+            { id: 'f_st', key: 'ST', kind: 'number', def: 10, vis: 'all', caption: ' Base: {ST * 2} ({Nope}) {d20}\u0001 ' },
+            { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '10', vis: 'all', icon: ' \u2764\uFE0F ', reset: true, bar: false, caption: 'x'.repeat(300) },
+            { id: 'f_ep', key: 'EP', kind: 'resource', maxFormula: '5', vis: 'all', reset: 'yes', bar: true },
+            { id: 'f_n', key: 'N', kind: 'number', def: 1, vis: 'all', icon: '\u2764', reset: true, bar: false }
+        ];
+        const B = cleanSystem({ v: 1, name: 'FB', fields: bf, rolls: [], sheet: { look: { labels: 'caps' }, sections: [] } }, { F, gmView: true });
+        const BF = id => B.fields.find(f => f.id === id);
+        check('Fold B: a caption is kept on any kind (control characters out, trimmed, at most 200 code points); a pool keeps an icon, reset only as true, bar only as false; other kinds keep none of them; look.labels "caps"',
+            BF('f_st').caption === 'Base: {ST * 2} ({Nope}) {d20}' && BF('f_hp').caption.length === 200 && BF('f_hp').icon === '\u2764\uFE0F' && BF('f_hp').reset === true && BF('f_hp').bar === false
+            && !('reset' in BF('f_ep')) && !('bar' in BF('f_ep')) && !('icon' in BF('f_n')) && !('reset' in BF('f_n')) && !('bar' in BF('f_n')) && B.sheet.look && B.sheet.look.labels === 'caps', JSON.stringify(B.fields));
+        const cp = S.captionParts(B, { id: 'c', name: 'C', values: { f_st: 12 } }, F, BF('f_st').caption);
+        check('Fold B: captionParts works each {formula} out for the character (no dice; an unknown name or a die is an error part, never thrown) and keeps the text around them',
+            cp.length === 6 && cp[0].text === 'Base: ' && cp[1].value === 24 && cp[1].text === '24' && cp[2].text === ' (' && typeof cp[3].error === 'string' && cp[4].text === ') ' && typeof cp[5].error === 'string', JSON.stringify(cp));
+        const many = S.captionParts(B, { id: 'c', name: 'C', values: {} }, F, Array.from({ length: 10 }, (_, i) => '{' + i + '}').join(' '));
+        check('Fold B: at most 8 {formula} values in one caption (the rest stays text); an empty caption is no parts', many.filter(p => p.value !== undefined).length === 8 && many[many.length - 1].text === ' {8} {9}' && S.captionParts(B, {}, F, '').length === 0, JSON.stringify(many.slice(-2)));
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), cssB = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), htB = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('Fold B: a caption is drawn as text nodes only (no markup), hidden in the band; capital labels are class-gated', /function captionNode\(text, sys, c, vars\) \{[\s\S]{0,600}?document\.createTextNode\(p\.text\)/.test(shB) && !/function captionNode[\s\S]{0,600}?innerHTML/.test(shB) && /\.sheet-band \.sheet-caption \{ display: none; \}/.test(cssB) && /body\.classList\.toggle\('sheet-labels-caps', look\.labels === 'caps'\);/.test(shB));
+        check('Fold B: the ↻ button fills to the max through the same commit as an edit, only for whoever may edit, never with no max or when already full; no bar when turned off',
+            /rs\.disabled = !editable \|\| max === null \|\| cur === max;\s*rs\.addEventListener\('click', function\(\) \{ if \(max !== null\) commit\(c, f, \{ cur: max \}\); \}\);/.test(shB) && /if \(f\.bar === false\) return box;/.test(shB));
+        check('Fold B: the sheet panel resizes from its corner grip, clamped to the window, and the size is remembered with the position (a move keeps the size; double-click forgets it)',
+            /<div id="sheetResize" class="sheet-resize"/.test(htB) && /function sizePanel\(p, w, h\) \{ var r = p\.getBoundingClientRect\(\); w = Math\.max\(360, Math\.min\(window\.innerWidth - Math\.max\(0, r\.left\) - 8/.test(shB) && /h = Math\.max\(240, Math\.min\(window\.innerHeight - Math\.max\(0, r\.top\) - 8/.test(shB) && /if \(pos && isFinite\(pos\.w\) && isFinite\(pos\.h\)\) sizePanel\(p, pos\.w, pos\.h\);/.test(shB)
+            && /o = panelPref\(\); o\.x = Math\.round\(r\.left\); o\.y = Math\.round\(r\.top\); if \(sized\) \{ o\.w = Math\.round\(r\.width\); o\.h = Math\.round\(r\.height\); \}/.test(shB)
+            && /if \(!rz \|\| \(e\.clientX === rz\.x && e\.clientY === rz\.y\)\) return; rz\.moved = true;/.test(shB) && /var moved = rz\.moved; rz = null; if \(!moved\) return;/.test(shB) && /delete o\.w; delete o\.h;/.test(shB) && !/setPref\('wp_sheetPanel', JSON\.stringify\(\{ x:/.test(shB));
+    }
+
+    /* ---- Fold B review: captions and GM-only names, the shared resolver, focus after ↻ ---- */
+    {
+        const gs = { v: 1, name: 'G', fields: [{ id: 'f_sec', key: 'Secret', kind: 'number', def: 7, vis: 'gm' }, { id: 'f_st', key: 'ST', kind: 'number', def: 10, vis: 'all', caption: 'Bonus: {Secret + ST}' }, { id: 'f_dx', key: 'DX', kind: 'number', def: 10, vis: 'all', caption: 'Half: {DX / 2}' }], rolls: [] };
+        const gmV = cleanSystem(gs, { F, gmView: true }), plV = cleanSystem(gs, { F, gmView: false });
+        const plST = plV.fields.find(f => f.id === 'f_st'), plDX = plV.fields.find(f => f.id === 'f_dx');
+        check('Fold B review: a caption whose {formula} names a GM-only field never reaches players (the GM keeps it; a caption without one travels as it is)', gmV.fields.find(f => f.id === 'f_st').caption === 'Bonus: {Secret + ST}' && plST && !('caption' in plST) && plDX.caption === 'Half: {DX / 2}', JSON.stringify(plV.fields));
+        const vw = S.validateSystem(cleanSystem({ v: 1, name: 'V', fields: [gs.fields[0], gs.fields[1], { id: 'f_x', key: 'X', kind: 'number', def: 1, vis: 'all', caption: '{Nope} {d20} {Name} {(}' }, { id: 'f_nm', key: 'Name', kind: 'text', def: '', vis: 'all' }], rolls: [] }, { F, gmView: true }), F);
+        const cw = vw.warnings.filter(w => w.prop === 'caption').map(w => w.message).join(' | ');
+        check('Fold B review: the editor warns about a caption (GM-only name, unknown name, dice, a text field, bad syntax) without blocking a save', vw.ok !== false && /"Secret" is GM only/.test(cw) && /unknown name "Nope"/.test(cw) && /dice are not worked out/.test(cw) && /"Name" is not a number/.test(cw) && (cw.match(/Caption:/g) || []).length >= 5 && !vw.errors.some(e => e.prop === 'caption'), cw + ' || errors: ' + JSON.stringify(vw.errors));
+        const chainFields = Array.from({ length: 80 }, (_, i) => i === 0 ? { id: 'f_k0', key: 'K0', kind: 'number', def: 1, vis: 'all' } : { id: 'f_k' + i, key: 'K' + i, kind: 'formula', formula: 'K' + (i - 1) + ' + 1', vis: 'all' });
+        const chS = cleanSystem({ v: 1, name: 'CH', fields: chainFields, rolls: [] }, { F, gmView: true }), chC = { id: 'c', name: 'C', values: {} };
+        const allCh = S.resolveAll(chS, chC, F), capCh = S.captionParts(chS, chC, F, 'Top: {K79}', allCh.vars);
+        check('Fold B review: captions read the render\'s resolver (resolveAll(...).vars, not enumerable): a long chain the field shows is shown in its caption too, and nothing is worked out twice', typeof allCh.vars === 'function' && Object.keys(allCh).indexOf('vars') < 0 && allCh.f_k79.value === 80 && capCh[1] && capCh[1].value === 80, JSON.stringify(capCh));
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        check('Fold B review: a control that disabled itself (↻ once full) hands keyboard focus to its field\'s own box; sections pass the resolver to captions, the band does not', /if \(q && q\.disabled && k\.part\) q = root\.querySelector\('\[data-fid="' \+ k\.fid \+ '"\]:not\(\[data-part\]\)'/.test(shR) && /fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars\)/.test(shR) && /fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shR));
     }
 
     /* ---- the System editor's click dispatch: the Layout handler must claim only its own buttons ---- */

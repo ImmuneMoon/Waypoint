@@ -6,6 +6,7 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
+import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
 
@@ -22,7 +23,9 @@ function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.cl
 function opt(value, text, selected) { var o = el('option', null, text); o.value = value; if (selected) o.selected = true; return o; }
 function pref(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
 function setPref(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) {} }
-function imgSrc(p) { var n = net(); return n && n.assetSrc ? n.assetSrc(p) : p; }
+// [sinkcheck:sheetimg-start]
+function imgSrc(p) { var n = net(), out = n && n.assetSrc ? n.assetSrc(p) : p; return out === p ? picRef(p) : out; }   // unchanged (the GM; a bundled asset): the app's own pictures only — a web address from a file never loads
+// [sinkcheck:sheetimg-end]
 
 /* ---------- the campaign's system and characters ---------- */
 function systemOf(camp) { camp = camp || getActiveCampaign(); return camp && camp.system && typeof camp.system === 'object' ? camp.system : null; }

@@ -32,7 +32,9 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks } from './docrender.js';
+
+import { num, picRef } from './safecore.js';
 
 import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord } from './io.js';
 
@@ -152,7 +154,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
 
-          html += '<div class="block-head"><span>' + (b.type === 'node' ? (b.mode === 'table' ? 'TABLE' : 'SCENE NODE') : b.type.toUpperCase()) + '</span>';
+          html += '<div class="block-head"><span>' + (b.type === 'node' ? (b.mode === 'table' ? 'TABLE' : 'SCENE NODE') : esc(String(b.type).toUpperCase())) + '</span>';
 
           html += '<div class="block-tools"><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'">✖</button></div></div>';
 
@@ -174,7 +176,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += rteHtml(idx, b);
 
           } else if (b.type === 'image') {
-              html += '<div class="b-img-row"><div class="b-img-thumb">' + (b.src ? '<img src="' + esc(b.src) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
+              html += '<div class="b-img-row"><div class="b-img-thumb">' + (picRef(b.src) ? '<img src="' + esc(picRef(b.src)) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
                     + '<div class="b-img-ctl"><div class="fc-opts"><button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
                     + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
                     + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
@@ -522,12 +524,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       ['\u201C', 'open quote'], ['\u201D', 'close quote'], ['\u2018', 'open single'], ['\u2019', 'apostrophe'], ['\u00AB', 'guillemet open'], ['\u00BB', 'guillemet close'],
       ['\u2122', 'trademark'], ['\u00A9', 'copyright'], ['\u00AE', 'registered'], ['\u2699', 'gear'], ['\u2694', 'crossed swords'], ['\u2620', 'skull'], ['\u2691', 'flag'], ['\u2690', 'empty flag']
   ];
+  // [sinkcheck:rte-start]
+  // The box holds what the preview renders — the page sanitiser's HTML — so a planner from a file runs and loads nothing here either
   function rteInitial(b) {
       var c = String(b.content || '');
-      if (/<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;   // already block HTML
+      if (/<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return sanitizeHtml(c);   // already block HTML
       var body = nl(c, b.type === 'text');
-      return b.type === 'text' && body ? '<p>' + body + '</p>' : body;
+      return sanitizeHtml(b.type === 'text' && body ? '<p>' + body + '</p>' : body);
   }
+  // [sinkcheck:rte-end]
   function rteHtml(idx, b) {
       var bar = RTE_CMDS.map(function(k) {
           if (k.sep) return '<span class="rte-sep"></span>';
@@ -896,6 +901,73 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
   })();
   window.wpPlannerFind = plannerFindApply;
+  // [sinkcheck:planner-preview-start]
+  // The planner preview's markup. A planner is the GM's own notes, but a campaign can come in from a file someone else made,
+  // and this is where its planners land: titles, node fields and table cells keep their inline formatting through the page
+  // sanitiser (docrender sanitizeHtml: a typed <br> or &mdash; reads as before, nothing that runs survives), prose blocks read
+  // as a page's do (proseHtml), a diagram's source is cleaned and loses its click directives before mermaid reads it, a
+  // picture is the app's own (safecore picRef), and sizes are numbers. Only a Raw HTML block is the GM's HTML as written.
+  function plannerPreviewHtml(activeMap, camp) {
+      var blocks = Array.isArray(activeMap.blocks) ? activeMap.blocks : [];
+      var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
+      var html = '<div class="wrap"' + (_pCss ? ' style="' + _pCss + '"' : '') + '>';
+      if (blocks.length === 0) html += '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
+      blocks.forEach(function(b, _bi) {
+          if (!b || typeof b !== 'object') return;
+          html += '<div class="pv-blk" data-blk="' + _bi + '">';
+          if (b.type === 'h1') {
+              html += '<h1>' + sanitizeHtml(b.title || '') + (b.sub ? '<span class="sub">' + sanitizeHtml(b.sub) + '</span>' : '') + '</h1>';
+          } else if (b.type === 'h2') {
+              html += '<h2>' + sanitizeHtml(b.title || '') + '</h2>';
+          } else if (b.type === 'lede') {
+              html += '<p class="lede">' + proseHtml(b.content) + '</p>';
+          } else if (b.type === 'oneline') {
+              html += '<div class="oneline">' + proseHtml(b.content) + '</div>';
+          } else if (b.type === 'text') {
+              html += proseHtml(b.content, 'text');
+          } else if (b.type === 'flare') {
+              html += '<div class="flare">' + proseHtml(b.content) + '</div>';
+          } else if (b.type === 'callout') {
+              html += '<div class="callout">' + proseHtml(b.content) + '</div>';
+          } else if (b.type === 'diagram') {
+              html += '<div class="diagram"><pre class="mermaid">' + sanitizeHtml(stripMermaidLinks(b.content)) + '</pre></div>';   // mermaid reads the pre's HTML and decodes it: typed source, <br> labels and an import's &lt; all read as before
+          } else if (b.type === 'image') {
+              var pSrc = picRef(b.src), pW = num(b.width, 0, 0, 100) || 100;
+              html += pSrc ? '<figure class="planner-img" style="width:' + pW + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(pSrc) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>' : '';
+          } else if (b.type === 'raw') {
+              html += (b.content||'');   // the GM's own HTML, as written (an import rebuilds a raw block)
+          } else if (b.type === 'node') {
+              var plainPv = b.mode === 'table';
+              html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
+              if (!plainPv || b.title) html += '<h3>' + sanitizeHtml(b.title || '') + (!plainPv && b.tag ? ' <span class="tag">' + sanitizeHtml(b.tag) + '</span>' : '') + '</h3>';
+              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> ' + sanitizeHtml(b.must) + '</p>';
+              if (!plainPv && b.linkMapId) {
+                  var mapP = camp && camp.items && typeof b.linkMapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, b.linkMapId) ? camp.items[b.linkMapId] : null;
+                  if (mapP && typeof mapP === 'object') {
+                      var roomP = b.linkRoomId && Array.isArray(mapP.rooms) ? mapP.rooms.find(function(r) { return r && r.id === b.linkRoomId; }) : null;
+                      html += '<p class="pv-linkrow"><a href="#" class="pv-link" data-map="' + esc(b.linkMapId) + '" data-room="' + esc(b.linkRoomId || '') + '" title="Open this map' + (roomP ? ' at ' + esc(roomP.name || '') : '') + '">&#128205; Open ' + esc((mapP.meta && mapP.meta.title) || 'map') + (roomP ? ' · ' + esc(roomP.name || '') : '') + '</a></p>';
+                  }
+              }
+              if (Array.isArray(b.rows) && b.rows.length > 0) {
+                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
+                  html += '<table><thead><tr>' + cols.map(function(c) { return '<th>' + sanitizeHtml(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  b.rows.forEach(function(r) {
+                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + sanitizeHtml((r && r['col' + (ci + 1)]) || '') + '</td>'; }).join('') + '</tr>';
+                  });
+                  html += '</tbody></table>';
+              }
+              html += '</div>';
+          } else if (b.type === 'flowchart') {
+              var m = compileFlowchart(b);   // docrender.js: one compiler for planners and pages
+              var bw = num(b.boxW, 0), bh = num(b.boxH, 0);
+              var boxStyle = (bw ? 'width:' + bw + 'px;' : '') + (bh ? 'height:' + bh + 'px;' : '');
+              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(m)) + '</pre></div>';   // as a page renders it: labels are text, mermaid decodes them
+          }
+          html += '</div>';
+      });
+      return html + '</div>';
+  }
+  // [sinkcheck:planner-preview-end]
   function renderPlannerPreview() {
       renderPlannerPreviewCore();
       var box = document.getElementById('plannerFind');
@@ -916,104 +988,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           return;
       }
 
-      var _pCamp = getActiveCampaign();
-      var _pCss = docStyleCss(mergeDocStyle(_pCamp && _pCamp.docStyle, activeMap.meta && activeMap.meta.style));
-      var html = '<div class="wrap"' + (_pCss ? ' style="' + _pCss + '"' : '') + '>';
-
-      if (activeMap.blocks.length === 0) {
-
-          html += '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
-
-      }
-
-      activeMap.blocks.forEach(function(b, _bi) {
-
-          html += '<div class="pv-blk" data-blk="' + _bi + '">';
-
-          if (b.type === 'h1') {
-
-              html += '<h1>' + (b.title||'') + (b.sub ? '<span class="sub">'+b.sub+'</span>' : '') + '</h1>';
-
-          } else if (b.type === 'h2') {
-
-              html += '<h2>' + (b.title||'') + '</h2>';
-
-          } else if (b.type === 'lede') {
-
-              html += '<p class="lede">' + nl(b.content) + '</p>';
-
-          } else if (b.type === 'oneline') {
-
-              html += '<div class="oneline">' + nl(b.content) + '</div>';
-
-          } else if (b.type === 'text') {
-
-              html += /<(p|div|ul|ol|h[1-6]|blockquote|pre|table)\b/i.test(String(b.content || '')) ? String(b.content) : '<p>' + nl(b.content, true) + '</p>';
-
-          } else if (b.type === 'flare') {
-
-              html += '<div class="flare">' + nl(b.content) + '</div>';
-
-          } else if (b.type === 'callout') {
-
-              html += '<div class="callout">' + nl(b.content) + '</div>';
-
-          } else if (b.type === 'diagram') {
-
-              html += '<div class="diagram"><pre class="mermaid">' + (b.content||'') + '</pre></div>';
-
-          } else if (b.type === 'image') {
-              html += b.src ? '<figure class="planner-img" style="width:' + (b.width || 100) + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(b.src) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>' : '';
-          } else if (b.type === 'raw') {
-
-              html += (b.content||'');
-
-          } else if (b.type === 'node') {
-
-              var plainPv = b.mode === 'table';
-              html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
-              if (!plainPv || b.title) html += '<h3>' + (b.title||'') + (!plainPv && b.tag ? ' <span class="tag">'+b.tag+'</span>' : '') + '</h3>';
-              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> '+b.must+'</p>';
-              if (!plainPv && b.linkMapId) {
-                  var campP = getActiveCampaign(), mapP = campP && campP.items[b.linkMapId];
-                  if (mapP) {
-                      var roomP = b.linkRoomId ? (mapP.rooms || []).find(function(r) { return r.id === b.linkRoomId; }) : null;
-                      html += '<p class="pv-linkrow"><a href="#" class="pv-link" data-map="' + esc(b.linkMapId) + '" data-room="' + esc(b.linkRoomId || '') + '" title="Open this map' + (roomP ? ' at ' + esc(roomP.name || '') : '') + '">&#128205; Open ' + esc(mapP.meta.title || 'map') + (roomP ? ' · ' + esc(roomP.name || '') : '') + '</a></p>';
-                  }
-              }
-              if (b.rows && b.rows.length > 0) {
-                  var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
-
-                  html += '<table><thead><tr>' + cols.map(function(c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
-
-                  b.rows.forEach(function(r) {
-
-                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + (r['col' + (ci + 1)] || '') + '</td>'; }).join('') + '</tr>';
-
-                  });
-
-                  html += '</tbody></table>';
-
-              }
-
-              html += '</div>';
-
-          } else if (b.type === 'flowchart') {
-              var m = compileFlowchart(b);   // docrender.js: one compiler for planners and pages
-              var boxStyle = (b.boxW ? 'width:' + b.boxW + 'px;' : '') + (b.boxH ? 'height:' + b.boxH + 'px;' : '');
-              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + m + '</pre></div>';
-
-          }
-
-          html += '</div>';
-
-      });
-
-      html += '</div>';
-
-      
-
-      preview.innerHTML = html;
+      preview.innerHTML = plannerPreviewHtml(activeMap, getActiveCampaign());
       runPreviewMermaid();
   }
   function runPreviewMermaid() {
@@ -1060,17 +1035,17 @@ function openAppearanceMenu(anchor) {
     var st = (item.meta && item.meta.style && typeof item.meta.style === 'object') ? item.meta.style : {};
     var cd = (camp.docStyle && typeof camp.docStyle === 'object') ? camp.docStyle : {};
     var kind = item.type === 'doc' ? 'page' : 'planner';
-    var esc = (window.wpDocRender && window.wpDocRender.esc) ? window.wpDocRender.esc : function(x) { return x; };
-    var effImg = st.bgImage || cd.bgImage || '';   // this page's image, else the campaign default
-    var dimVal = (typeof st.bgDim === 'number') ? st.bgDim : (typeof cd.bgDim === 'number') ? cd.bgDim : 40;
+    var stC = cleanDocStyle(st) || {}, cdC = cleanDocStyle(cd) || {};   // what the menu shows is what renders: hex colours, a picture that is the app's own (a file from elsewhere may carry anything)
+    var effImg = stC.bgImage || cdC.bgImage || '';   // this page's image, else the campaign default
+    var dimVal = (typeof stC.bgDim === 'number') ? stC.bgDim : (typeof cdC.bgDim === 'number') ? cdC.bgDim : 40;
     var fontOpts = '<option value="">Default</option>' + Object.keys(FONTS).map(function(k) { return '<option value="' + k + '"' + (st.font === k ? ' selected' : '') + '>' + k.charAt(0).toUpperCase() + k.slice(1) + '</option>'; }).join('');
     var m = document.createElement('div'); m.id = 'docAppearanceMenu'; m.className = 'doc-appearance-menu';
     m.innerHTML =
         '<div class="dam-head">Appearance &mdash; this ' + kind + '</div>' +
         '<label class="dam-row"><span>Font</span> <select id="damFont">' + fontOpts + '</select></label>' +
-        '<label class="dam-row"><span>Text</span> <input type="color" id="damText" value="' + (st.textColor || cd.textColor || '#e8e2d0') + '"><button class="dam-clear" data-f="textColor" title="Use the default">&times;</button></label>' +
-        '<label class="dam-row"><span>Background</span> <input type="color" id="damBg" value="' + (st.bgColor || cd.bgColor || '#181510') + '"><button class="dam-clear" data-f="bgColor" title="Use the default">&times;</button></label>' +
-        '<label class="dam-row"><span>Bg image</span> <button id="damBgImg" class="tool ghost" style="flex:1">' + (effImg ? 'Change picture&hellip;' : 'Choose picture&hellip;') + '</button><button class="dam-clear" data-f="bgImage" title="Remove this ' + kind + '&rsquo;s own picture (back to the default)"' + (st.bgImage ? '' : ' style="visibility:hidden"') + '>&times;</button></label>' +   // × only for the page's OWN picture: an inherited campaign picture can't be removed here (that is Clear default), only re-dimmed
+        '<label class="dam-row"><span>Text</span> <input type="color" id="damText" value="' + (stC.textColor || cdC.textColor || '#e8e2d0') + '"><button class="dam-clear" data-f="textColor" title="Use the default">&times;</button></label>' +
+        '<label class="dam-row"><span>Background</span> <input type="color" id="damBg" value="' + (stC.bgColor || cdC.bgColor || '#181510') + '"><button class="dam-clear" data-f="bgColor" title="Use the default">&times;</button></label>' +
+        '<label class="dam-row"><span>Bg image</span> <button id="damBgImg" class="tool ghost" style="flex:1">' + (effImg ? 'Change picture&hellip;' : 'Choose picture&hellip;') + '</button><button class="dam-clear" data-f="bgImage" title="Remove this ' + kind + '&rsquo;s own picture (back to the default)"' + (stC.bgImage ? '' : ' style="visibility:hidden"') + '>&times;</button></label>' +   // × only for the page's OWN picture: an inherited campaign picture can't be removed here (that is Clear default), only re-dimmed
         (effImg ? '<img class="dam-bgthumb" src="' + esc(effImg) + '" alt="">' : '') +
         (effImg ? '<label class="dam-row"><span>Dim</span> <input type="range" id="damDim" min="0" max="90" step="5" value="' + dimVal + '"> <span id="damDimVal" class="dam-dimval">' + dimVal + '%</span></label>' : '') +
         '<div class="dam-actions"><button id="damReset" class="tool ghost">Reset this ' + kind + '</button></div>' +

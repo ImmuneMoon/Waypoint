@@ -244,7 +244,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               bc.style.display = 'flex';
 
               // Deep trees: keep the root and the last two ancestors; fold the rest into a "…" menu.
-              var crumbHtml = function(m) { return '<button class="crumb" data-id="' + m.id + '" title="Go to ' + esc(m.meta.title || 'Untitled') + '">' + esc(m.meta.title || 'Untitled') + '</button>'; };
+              var crumbHtml = function(m) { return '<button class="crumb" data-id="' + esc(m.id) + '" title="Go to ' + esc(m.meta.title || 'Untitled') + '">' + esc(m.meta.title || 'Untitled') + '</button>'; };
               var sep = '<span class="crumb-sep">&rsaquo;</span>';
               var shown = chain, hidden = [];
               if (chain.length > 3) { hidden = chain.slice(1, chain.length - 2); shown = [chain[0]].concat(chain.slice(chain.length - 2)); }

@@ -51,6 +51,7 @@ Every suite is plain Node, no dependencies, exits 1 on any failure:
 | `tools/soundcheck.js`, `fxcheck.js`, `musiccheck.js` | sound, effects, music playlists |
 | `tools/cleanupcheck.js` | save cleanup classifier + the asset gate (slices the real code out of `net.js`) |
 | `tools/netcheck.js` | host-side wire gates: admission, identity, rate limits, chat (slices `net.js` by `[netcheck:*]` markers) |
+| `tools/sinkcheck.js` | the GM's own renderers against a campaign from a file: `safecore.js` (esc, cssColor, num, picRef), the planner preview and editor boxes, room inspector, pictures, ruler, music fetch, category-file deletion, the mermaid label config in `index.html` (slices by `[sinkcheck:*]` markers) |
 
 Run them all before a commit:
 
@@ -80,7 +81,9 @@ for anything multiplayer, before a commit that touches it.
   without colors is byte-for-byte unchanged). Keep default shapes stable — suites assert them.
 - **Wire and file safety:** nothing from the wire, a save file, an import or another origin reaches `innerHTML`, an
   attribute, a URL or a disk path without a tested sanitiser; a client re-validates what a host sends; GM-only data
-  (`vis: 'gm'`, `gmInfo`, table keys) never leaves the host. New host-side handlers get a `netcheck` case.
+  (`vis: 'gm'`, `gmInfo`, table keys) never leaves the host. New host-side handlers get a `netcheck` case. The GM's own
+  renderers show imported campaigns too: campaign data reaches markup through `esc` / docrender `sanitizeHtml`, a style
+  through `safecore.js` `cssColor` / `num`, a picture through `picRef` (never a web address), with a `sinkcheck` case.
 - Every user-facing feature is documented in **both** the tour (`tutorial.js` `STEPS`) and Help (`#helpModal` in
   `index.html`); fixes, passive visuals and security work need neither. Text stays brand-neutral.
 - Put a design choice to the maintainer as a short multi-choice question with the recommended option first, then build.

@@ -346,7 +346,7 @@ export function characterList(camp, ownedOnly, preferMapId) {
             else if (rank(entry) > rank(byKey[key])) byKey[key] = entry;
         });
     });
-    return order.map(function(k) { return byKey[k]; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    return order.map(function(k) { return byKey[k]; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
 }
 export function locateCharacter(camp, key, preferMapId) {
     if (!camp || !key) return null;

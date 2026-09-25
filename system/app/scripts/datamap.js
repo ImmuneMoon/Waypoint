@@ -132,7 +132,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (r.icon) {
 
-          var em = {'Stairs Up':'🪜↑', 'Stairs Down':'🪜↓', 'Door':'🚪', 'Gate':'⛩️', 'Cave':'🦇', 'Tower':'🗼', 'Camp':'⛺'}[r.icon] || r.icon.substring(0,2);
+          var em = {'Stairs Up':'🪜↑', 'Stairs Down':'🪜↓', 'Door':'🚪', 'Gate':'⛩️', 'Cave':'🦇', 'Tower':'🗼', 'Camp':'⛺'}[r.icon] || String(r.icon).substring(0,2);
 
           badges.innerHTML += '<div class="badge-char" style="background:var(--blue); font-size:12px; margin-right:4px;" title="'+escA(r.icon)+'">'+escA(em)+'</div>';
 
@@ -241,7 +241,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var sg = document.getElementById('snapGuides');
       if (!sg) return;
       var z = state.zoomLevel || 1;
-      var label = function(o) { return o ? (o.name || o.charName || (o.type === 'image' ? 'image' : o.type)) : ''; };
+      var label = function(o) { return o ? escA(o.name || o.charName || (o.type === 'image' ? 'image' : o.type)) : ''; };   // a name from a file lands in innerHTML
       // Bars along the matched edge of BOTH items, so the match reads as a pair
       var bar = function(x, y, w, h) {
           var el = document.createElement('div');

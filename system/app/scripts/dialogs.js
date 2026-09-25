@@ -198,7 +198,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       for(var k in state.appState.campaigns) {
 
-          if (k !== ignoreId && state.appState.campaigns[k].name.toLowerCase() === name.trim().toLowerCase()) return true;
+          if (k !== ignoreId && String(state.appState.campaigns[k].name || '').toLowerCase() === name.trim().toLowerCase()) return true;
 
       }
 
@@ -260,7 +260,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       for(var k in camp.items) {
 
-          if (k !== ignoreId && camp.items[k].meta.title.toLowerCase() === name.trim().toLowerCase()) return true;
+          if (k !== ignoreId && String((camp.items[k].meta && camp.items[k].meta.title) || '').toLowerCase() === name.trim().toLowerCase()) return true;
 
       }
 
@@ -673,7 +673,7 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
           var html = '';
           if (!q) {                                   // empty query → every planner by name (A–Z), as before
               var plannerKeys = Object.keys(camp.items).filter(k => camp.items[k].type === 'planner');
-              plannerKeys.sort((a,b) => camp.items[a].meta.title.localeCompare(camp.items[b].meta.title));
+              plannerKeys.sort((a,b) => String(camp.items[a].meta.title || '').localeCompare(String(camp.items[b].meta.title || '')));
               plannerKeys.forEach(k => {
                   html += '<button class="tool ghost doc-search-res" data-id="'+esc(k)+'"><span class="dsr-title">' + esc(camp.items[k].meta.title || '') + '</span></button>';
               });
@@ -780,7 +780,7 @@ if(_el_searchMapsBtn) _el_searchMapsBtn.addEventListener('click', function() {
 
           var mapKeys = Object.keys(camp.items).filter(k => camp.items[k].type === 'map');   // maps only; planners have their own search
 
-          mapKeys.sort((a,b) => camp.items[a].meta.title.localeCompare(camp.items[b].meta.title));
+          mapKeys.sort((a,b) => String(camp.items[a].meta.title || '').localeCompare(String(camp.items[b].meta.title || '')));
 
           
 
@@ -788,11 +788,11 @@ if(_el_searchMapsBtn) _el_searchMapsBtn.addEventListener('click', function() {
 
               var map = camp.items[k];
 
-              var title = map.meta.title || '';
+              var title = String(map.meta.title || '');
 
               if (title.toLowerCase().indexOf(q) !== -1 || q === '') {
 
-                  html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="'+k+'">' + esc(title) + '</button>';
+                  html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="'+esc(k)+'">' + esc(title) + '</button>';
 
               }
 
@@ -886,10 +886,10 @@ export {
           keys.sort(function(a, b) { return String(state.appState.campaigns[a].name || '').localeCompare(String(state.appState.campaigns[b].name || '')); });
           var html = '';
           keys.forEach(function(k) {
-              var c = state.appState.campaigns[k], name = c.name || 'Unnamed Campaign';
+              var c = state.appState.campaigns[k], name = String(c.name || 'Unnamed Campaign');
               if (q && name.toLowerCase().indexOf(q) === -1) return;
               var nMaps = Object.values(c.items || {}).filter(function(i) { return i.type === 'map'; }).length, nPl = Object.values(c.items || {}).filter(function(i) { return i.type === 'planner'; }).length, nPg = Object.values(c.items || {}).filter(function(i) { return i.type === 'doc'; }).length;
-              html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + k + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span style="color:var(--gold); font-size:11px;">current</span>' : '') + '<span style="color:var(--dim); font-size:11px; float:right;">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + (nPg ? ' · ' + nPg + ' page' + (nPg === 1 ? '' : 's') : '') + '</span></button>';
+              html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + esc(k) + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span style="color:var(--gold); font-size:11px;">current</span>' : '') + '<span style="color:var(--dim); font-size:11px; float:right;">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + (nPg ? ' · ' + nPg + ' page' + (nPg === 1 ? '' : 's') : '') + '</span></button>';
           });
           if (!html) html = '<div class="muted">No campaigns match.</div>';
           res.innerHTML = html;

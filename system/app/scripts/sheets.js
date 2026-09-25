@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -414,8 +414,8 @@ function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos 
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
 function panelPref() { try { var o = JSON.parse(pref('wp_sheetPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
-function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; var dk = ae.closest && ae.closest('.sheet-dial, .sheet-stance') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
-function restoreFocus(root, k) { if (!k) return; if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"], .sheet-stance [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
+function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; if (ae.dataset && typeof ae.dataset.pin === 'string' && PIN_GID.test(ae.dataset.pin)) return { pin: ae.dataset.pin, where: ae.closest('.sheet-band') ? 'band' : ae.closest('.sheet-sec-title') ? 'head' : 'sec' }; var dk = ae.closest && ae.closest('.sheet-dial, .sheet-stance') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
+function restoreFocus(root, k) { if (!k) return; if (k.pin) { if (!PIN_GID.test(k.pin)) return; var ps = '[data-pin="' + k.pin + '"]', pp = k.where === 'band' ? '.sheet-band ' : k.where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ', qp = root.querySelector(pp + ps) || root.querySelector(ps); if (qp) { try { qp.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"], .sheet-stance [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -475,8 +475,10 @@ document.addEventListener('wp-asset', function(e) {
 });
 // Render a character sheet READ-ONLY into an arbitrary container (the pop-out window; the pop-out never owns
 // the save — window.wpPopout no-ops it — so nothing here can write data.json). GM view (full sheet), fields disabled.
+var _lastInto = null;   // Stage 6: the pop-out's last render (it redraws when a pin changes in another window)
+window.addEventListener('storage', function(e) { if (!e || e.key !== PIN_KEY) return; if (sheetOpen) renderSheet(); if (_lastInto && _lastInto.container && _lastInto.container.isConnected) renderSheetInto(_lastInto.container, _lastInto.charId, _lastInto.camp); });
 function renderSheetInto(container, charId, camp) {
-    camp = camp || getActiveCampaign();
+    camp = camp || getActiveCampaign(); _lastInto = { container: container, charId: charId, camp: camp };
     var raw = systemOf(camp), c0 = charById(charId, camp);
     if (!container || !c0 || !raw || !F()) return null;
     // the pop-out renders the RAW save (popout.js reads /api/data unsanitised): clean the system and the character here, as a load does,
@@ -647,6 +649,90 @@ var EMOJI_SET = [
     ['\u262F\uFE0F', 'balance alignment'], ['\uD83D\uDD6F\uFE0F', 'candle light'], ['\uD83C\uDF56', 'food ration meat'], ['\uD83C\uDF7A', 'drink ale'], ['\u23F3', 'hourglass time duration'], ['\u2699\uFE0F', 'gear settings tech'],
     ['\uD83D\uDD27', 'wrench repair tool'], ['\uD83E\uDD16', 'robot droid'], ['\uD83D\uDE80', 'rocket ship space'], ['\uD83E\uDDEC', 'dna species biology'], ['\uD83D\uDCCD', 'pin location']
 ];
+// [systemcheck:pins-start]
+// Stage 6 look fold (L4): a viewer's pins — which band groups they keep on the band, per campaign and per character, on their own machine
+// (never on the wire). { "c:<campId>": { "<charId>": { "<groupId>": 1 | 0 } } }; every read re-checks the shape (the prefs mirror is
+// another source), and the stores are capped: 16 groups a character, 60 characters a campaign, 40 campaigns.
+var PIN_KEY = 'wp_sheetPins', PIN_GID = /^g_[A-Za-z0-9_]{1,24}$/, PIN_CHAR = /^c_[A-Za-z0-9_]{1,24}$/;
+function pinStore() { try { var o = JSON.parse(pref(PIN_KEY, '{}')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
+function pinCamp(id) { return (typeof id === 'string' && id.length <= 80 && !/[\u0000-\u001f]/.test(id)) ? 'c:' + id : 'c:'; }   // the "c:" prefix: never a prototype name
+function pinState(campId, charId) {
+    var out = Object.create(null); if (typeof charId !== 'string' || !PIN_CHAR.test(charId)) return out;
+    var camp = pinStore()[pinCamp(campId)]; if (!camp || typeof camp !== 'object' || Array.isArray(camp) || !Object.prototype.hasOwnProperty.call(camp, charId)) return out;
+    var raw = camp[charId]; if (raw && typeof raw === 'object' && !Array.isArray(raw)) Object.keys(raw).slice(0, 16).forEach(function(g) { if (PIN_GID.test(g) && (raw[g] === 1 || raw[g] === 0)) out[g] = raw[g]; });
+    return out;
+}
+function isPinned(campId, charId, gid) { return pinState(campId, charId)[gid] === 1; }   // hidden until pinned, as the reference website
+function setPinned(campId, charId, gid, on) {
+    if (typeof gid !== 'string' || !PIN_GID.test(gid) || typeof charId !== 'string' || !PIN_CHAR.test(charId)) return;
+    var all = pinStore(), k = pinCamp(campId), camp = (all[k] && typeof all[k] === 'object' && !Array.isArray(all[k])) ? all[k] : {}, cur = pinState(campId, charId), next = {};
+    Object.keys(cur).forEach(function(g) { if (g !== gid) next[g] = cur[g]; }); next[gid] = on ? 1 : 0;
+    var gk = Object.keys(next); gk.slice(0, Math.max(0, gk.length - 16)).forEach(function(g) { delete next[g]; });
+    var nc = {}; Object.keys(camp).forEach(function(cid) { if (PIN_CHAR.test(cid) && cid !== charId) nc[cid] = camp[cid]; }); nc[charId] = next;   // this character last: the oldest fall away first
+    var ck = Object.keys(nc); ck.slice(0, Math.max(0, ck.length - 60)).forEach(function(cid) { delete nc[cid]; });
+    delete all[k]; all[k] = nc;
+    var cs = Object.keys(all); cs.slice(0, Math.max(0, cs.length - 40)).forEach(function(c0) { delete all[c0]; });
+    setPref(PIN_KEY, JSON.stringify(all));
+}
+// A group shows on the band when its viewer pinned it — and always in the Layout preview, and always when it has no Pin button anywhere
+function groupShown(g, targets, vctx, charId) { return !!(vctx && vctx.preview) || targets[g.id] !== 1 || isPinned(vctx && vctx.campId, charId, g.id); }
+// [systemcheck:pins-end]
+// A Pin button: pinning (or unpinning) redraws the sheet without moving what the viewer is looking at — the button that was clicked stays
+// where it was (for the band's own unpin, which goes away, the first section under the frame does)
+function pinToggle(g, ctx, btn) {
+    if (!g || !ctx || !ctx.c || (ctx.vctx && ctx.vctx.preview) || !PIN_GID.test(g.id)) return;
+    var body = ctx.body, inBand = !!btn.closest('.sheet-band'), where = inBand ? 'band' : btn.closest('.sheet-sec-title') ? 'head' : 'sec';
+    var anchor0 = inBand ? body.querySelector(':scope > .sheet-section') : btn, top0 = anchor0 ? anchor0.getBoundingClientRect().top : null;
+    setPinned(ctx.vctx && ctx.vctx.campId, ctx.c.id, g.id, !isPinned(ctx.vctx && ctx.vctx.campId, ctx.c.id, g.id));
+    (ctx.rerender || renderSheet)();
+    var sel = '[data-pin="' + g.id + '"]', pre = where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ';
+    var nb = inBand ? body.querySelector(':scope > .sheet-section') : (body.querySelector(pre + sel) || body.querySelector(sel));
+    if (nb && top0 !== null) { body.scrollTop += nb.getBoundingClientRect().top - top0; syncFramePad(body); }
+    var fb = inBand ? null : (body.querySelector(pre + sel) || body.querySelector(sel)); if (fb) { try { fb.focus({ preventScroll: true }); } catch (er) {} }
+}
+function pinOn(g, ctx) { return !(ctx.vctx && ctx.vctx.preview) && isPinned(ctx.vctx && ctx.vctx.campId, ctx.c.id, g.id); }
+function pinNode(pl, g, ctx) {   // the Pin placement: a button beside the figures it pins
+    if (!g) return null;
+    var on = pinOn(g, ctx), b = el('button', 'tool sheet-pin'); b.type = 'button'; b.dataset.pin = g.id; b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.appendChild(iconNode(on ? 'icon:thumbtack-slash' : 'icon:thumbtack', 'sheet-pin-icon')); b.appendChild(el('span', 'sheet-pin-label', pl.text || ((on ? 'Unpin ' : 'Pin ') + g.label)));
+    b.title = on ? 'Take ' + g.label + ' off the band' : 'Keep ' + g.label + ' on the band while you scroll';
+    b.addEventListener('click', function(e) { e.preventDefault(); pinToggle(g, ctx, b); });
+    var box = el('div', 'sheet-field sheet-kind-pin'); box.appendChild(b); return box;
+}
+function pinChip(g, ctx) {   // a Pin in a section's header (like a handbook chip: it never folds the section)
+    if (!g) return null;
+    var on = pinOn(g, ctx), ch = el('span', 'sheet-sec-chip sheet-sec-pin'); ch.setAttribute('role', 'button'); ch.tabIndex = 0; ch.dataset.pin = g.id; ch.setAttribute('aria-pressed', on ? 'true' : 'false');
+    ch.title = on ? 'Take ' + g.label + ' off the band' : 'Keep ' + g.label + ' on the band while you scroll';
+    ch.appendChild(iconNode(on ? 'icon:thumbtack-slash' : 'icon:thumbtack', 'sheet-chip-ico')); ch.appendChild(el('span', 'sheet-chip-txt', (on ? 'Unpin ' : 'Pin ') + g.label));
+    var go = function(e) { e.preventDefault(); e.stopPropagation(); if (ch.closest('#systemModal')) return; pinToggle(g, ctx, ch); };
+    ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
+    return ch;
+}
+// Stage 5c / Stage 6 (L4): the pinned band — built by the same node factories as a section (a field's rights, its −/+ and its roll behave as
+// they do below; data-band tells the copies apart for focus). An entry of a group shows while its viewer has the group pinned (or the group
+// has no Pin anywhere); a band with no groups is exactly what it was.
+function bandInto(frame, bandDef, ctx) {
+    if (!bandDef || !bandDef.length) return;
+    var c = ctx.c, all = ctx.all, gm = ctx.gm, own = ctx.own, sys = ctx.sys, byId = ctx.byId, rollById = ctx.rollById;
+    var bandEl = el('div', 'sheet-band'), boxes = {};
+    bandDef.forEach(function(q) {
+        var g = typeof q.g === 'string' && PIN_GID.test(q.g) && Object.prototype.hasOwnProperty.call(ctx.grpById, q.g) ? ctx.grpById[q.g] : null;
+        if (g && !groupShown(g, ctx.targets, ctx.vctx, c.id)) return;
+        var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own, sys) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c) : null;
+        if (!node) return;
+        node.classList.add('sheet-band-item'); node.classList.remove('sheet-tile');   // the band has its own compact look; a stat tile's column layout (and hidden bar) would out-specify it
+        node.querySelectorAll('[data-fid]').forEach(function(x) { x.dataset.band = '1'; });
+        if (!g) { bandEl.appendChild(node); return; }
+        var box = boxes[g.id]; if (!box) { box = boxes[g.id] = el('div', 'sheet-band-grp'); box.dataset.g = g.id; bandEl.appendChild(box); }
+        box.appendChild(node);
+    });
+    Object.keys(boxes).forEach(function(gid) {   // a pinned group can be unpinned right there (only one that has a Pin to put it back with)
+        if (ctx.targets[gid] !== 1 || (ctx.vctx && ctx.vctx.preview)) return;
+        var g = ctx.grpById[gid], ub = el('button', 'tool ghost sheet-band-unpin'); ub.type = 'button'; ub.dataset.pin = gid; ub.title = 'Unpin ' + g.label; ub.appendChild(iconNode('icon:thumbtack-slash', 'sheet-pin-icon'));
+        ub.addEventListener('click', function(e) { e.preventDefault(); pinToggle(g, ctx, ub); }); boxes[gid].appendChild(ub);
+    });
+    if (bandEl.childNodes.length) frame.appendChild(bandEl);
+}
 var _glyphPop = null;
 function closeGlyphPicker() { if (_glyphPop) { _glyphPop.remove(); _glyphPop = null; document.removeEventListener('mousedown', glyphOutside, true); } }
 function glyphOutside(e) { if (_glyphPop && !_glyphPop.contains(e.target) && !(e.target.closest && e.target.closest('.sys-glyph-btn'))) closeGlyphPicker(); }
@@ -721,17 +807,9 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     // band) and built by the same node factories as a section, so a field's permissions, its −/+ and its roll behave exactly as they
     // do below; the band's inputs carry data-band so focus restore tells the copies apart.
     var bandDef = (sys.sheet && Array.isArray(sys.sheet.band)) ? sys.sheet.band : null;
-    if (bandDef && bandDef.length) {
-        var bandEl = el('div', 'sheet-band');
-        bandDef.forEach(function(q) {
-            var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own, sys) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c) : null;
-            if (!node) return;
-            node.classList.add('sheet-band-item'); node.classList.remove('sheet-tile');   // the band has its own compact look; a stat tile's column layout (and hidden bar) would out-specify it
-            node.querySelectorAll('[data-fid]').forEach(function(x) { x.dataset.band = '1'; });
-            bandEl.appendChild(node);
-        });
-        if (bandEl.childNodes.length) frame.appendChild(bandEl);
-    }
+    var grpById = {}; ((sys.sheet && Array.isArray(sys.sheet.bandGroups)) ? sys.sheet.bandGroups : []).forEach(function(g) { if (g && typeof g.id === 'string' && PIN_GID.test(g.id)) grpById[g.id] = g; });   // Stage 6: band groups (built even with no band: a Pin in a section still draws)
+    var pctx = { byId: byId, rollById: rollById, c: c, all: all, gm: gm, own: own, sys: sys, grpById: grpById, targets: pinTargets(layout), vctx: vctx, rerender: rerender, body: body };   // the targets: the Pins in the layout actually drawn (the automatic one has none, so every group shows)
+    bandInto(frame, bandDef, pctx);
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
     var active = '', stripEl = null;   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other; the strip is appended after the dashboard sections
     if (tabs) {
@@ -778,13 +856,15 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else metaText = String(mvv);
         }
         var chipNode = sec.chip ? pageChip(sec.chip) : null;   // Stage 5f: a handbook chip
-        if (sec.title || sec.icon || metaText || collap || chipNode) {   // a collapsible section always needs a summary to toggle from
+        var pinCh = sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
+        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
             if (sec.icon) head.appendChild(iconNode(sec.icon, 'sheet-sec-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
             head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
             if (chipNode) head.appendChild(chipNode);
+            if (pinCh) head.appendChild(pinCh);
             s.appendChild(head);
         }
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
@@ -797,6 +877,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
             else if (pl.kind === 'facing') node = facingNode(c, gm);   // 5h Fold 3
             else if (pl.kind === 'stance') node = stanceNode(c, gm);   // Stage 6
+            else if (pl.kind === 'pin') node = pl.g && Object.prototype.hasOwnProperty.call(grpById, pl.g) ? pinNode(pl, grpById[pl.g], pctx) : null;   // Stage 6: a band group's Pin button
             else if (pl.kind === 'portrait') { node = el('div', 'sheet-portrait-slot'); if (c.portrait) { var im = el('img'); im.src = imgSrc(c.portrait); im.alt = ''; node.appendChild(im); } }
             if (!node) return;
             if (pl.w === 'row') node.classList.add('sheet-row');
@@ -825,7 +906,7 @@ function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sh
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
-    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)';
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button';
     return null;
 }
 function renderLayout() {
@@ -923,6 +1004,15 @@ function renderLayout() {
     // (read-only) and the band (live controls). One builder: chips with left/right/remove, a select of what is not on the list yet, Clear.
     // Wired directly (the delegated handlers key on sections and tabs). What Save would drop is pruned from the draft at render (a field
     // deleted, or switched to a kind the list can't hold) so the chips, the hint and Clear never claim what the preview does not show.
+    var sheetGroups = function() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.bandGroups)) draft.sheet.bandGroups = []; return draft.sheet.bandGroups; };   // Stage 6 look fold (L4)
+    var grpList = (draft.sheet && Array.isArray(draft.sheet.bandGroups)) ? draft.sheet.bandGroups.filter(function(g) { return g && typeof g.id === 'string' && PIN_GID.test(g.id); }) : [];
+    var deleteGroup = function(gid) {   // its figures stay on the band (always shown); its Pin buttons and section-header pins go
+        if (!draft.sheet) return;
+        draft.sheet.bandGroups = (draft.sheet.bandGroups || []).filter(function(g) { return g && g.id !== gid; }); if (!draft.sheet.bandGroups.length) delete draft.sheet.bandGroups;
+        (draft.sheet.band || []).forEach(function(q) { if (q && q.g === gid) delete q.g; });
+        (draft.sheet.sections || []).forEach(function(s) { if (s.pin === gid) delete s.pin; if (Array.isArray(s.fields)) s.fields = s.fields.filter(function(p) { return !(p && p.kind === 'pin' && p.g === gid); }); });
+        markDirty(); renderLayout();
+    };
     function pinBox(cfg) {
         var list = (draft.sheet && Array.isArray(draft.sheet[cfg.key])) ? draft.sheet[cfg.key] : [];
         var keep = list.filter(function(q) { return q && (q.id ? !!(byId[q.id] && cfg.kinds[byId[q.id].kind] === 1) : !!(cfg.rolls && q.roll && rollById[q.roll])); });
@@ -936,10 +1026,28 @@ function renderLayout() {
             on[q.id || q.roll] = 1;
             var chip = el('div', 'sys-band-pl'); chip.dataset.bi = String(bi);
             chip.appendChild(el('span', 'sys-pl-name', text));
+            if (cfg.groups && grpList.length) { var gsel = select('sys-band-g', [['', 'Always shown']].concat(grpList.map(function(g) { return [g.id, g.label || 'Group']; })), q.g || '', 'Put this figure in a band group, shown while its viewer has the group pinned'); gsel.addEventListener('change', function(e) { e.stopPropagation(); if (gsel.value) q.g = gsel.value; else delete q.g; markDirty(); renderLayout(); }); chip.appendChild(gsel); }   // Stage 6
             chip.appendChild(btnRow([['pinleft', 'Move left', '&#9664;'], ['pinright', 'Move right', '&#9654;'], ['pindel', cfg.delTitle, '&times;']]));
             chips.appendChild(chip);
         });
         if (chips.childNodes.length) box.appendChild(chips);
+        if (cfg.groups) {   // Stage 6 look fold (L4): the band's groups — each gets a Pin button placed beside its figures
+            var gline = el('div', 'sys-band-grps'); gline.appendChild(el('span', 'sys-sec-style-lbl', 'Groups'));
+            var targetsG = pinTargets(draft.sheet && draft.sheet.sections);
+            grpList.forEach(function(g, gi) {
+                var gr = el('div', 'sys-band-grp'); gr.dataset.gi = String(gi);
+                var gl = input('sys-bgrp-label field', g.label, 'The group\u2019s name (on its Pin button: \u201cPin <name>\u201d)', 'Group name'); gl.addEventListener('input', function(e) { e.stopPropagation(); g.label = gl.value.slice(0, LIMITS.label); markDirty(); renderPreview(); }); gl.addEventListener('change', function(e) { e.stopPropagation(); }); gr.appendChild(gl);
+                var where = null; (draft.sheet && Array.isArray(draft.sheet.sections) ? draft.sheet.sections : []).forEach(function(s) { if (where) return; if (s.pin === g.id || (s.fields || []).some(function(p) { return p && p.kind === 'pin' && p.g === g.id; })) where = s.title || 'a section'; });
+                gr.appendChild(el('span', 'sys-hint sys-bgrp-note', targetsG[g.id] === 1 ? 'Pin: ' + where : 'No Pin button yet: always shown'));
+                var gd = el('button', 'tool ghost sys-btn', '\u00d7'); gd.title = 'Delete this group (its figures stay on the band, always shown; its Pin buttons go)'; gd.addEventListener('click', function(e) { e.stopPropagation(); deleteGroup(g.id); }); gr.appendChild(gd);
+                gline.appendChild(gr);
+            });
+            var gadd = el('button', 'tool ghost sys-btn', '+ Group'); gadd.title = 'A named group of band figures (points, spell slots) that each viewer pins from its Pin button'; gadd.disabled = grpList.length >= LIMITS.bandGroups;
+            gadd.addEventListener('click', function(e) { e.stopPropagation(); var gl2 = sheetGroups(); if (gl2.length >= LIMITS.bandGroups) return; gl2.push({ id: uid('g_'), label: 'Group ' + (gl2.length + 1) }); markDirty(); renderLayout(); });
+            gline.appendChild(gadd);
+            box.appendChild(gline);
+            box.appendChild(el('div', 'sys-hint', 'Put figures in a group and give it a Pin button beside where they live (a Pin placement in a section, or Pin in a section\u2019s header). Each viewer pins a group to the band while they scroll, remembered on their own machine for each character. A group with no Pin button, and figures in no group, are always shown.'));
+        }
         var opts = [['', cfg.addLabel]];
         draft.fields.forEach(function(f) { if (cfg.kinds[f.kind] === 1 && !on[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
         if (cfg.rolls) draft.rolls.forEach(function(r) { if (!on[r.id]) opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
@@ -972,14 +1080,14 @@ function renderLayout() {
         root.appendChild(box);
     }
     pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows (optional)', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
-        hintFull: 'Read-only, under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Editing stays in the sections; players see the same rows.',
+        hintFull: 'Under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Text, select, number and yes/no rows are changed right here by whoever may edit them, so they need no second copy in a section; formulas, skills and resources are read-only here. Players see the same rows.',
         hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
-        addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number, formula, skill, resource or toggle to show read-only under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
+        addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number or toggle (changed right there) or a formula, skill or resource (read-only) to show under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
     pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures (optional)', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
         hintFull: 'Figures under the identity rows: a small label over a bold value (a negative reads red). A number is a box whoever may edit it can change right there; formulas, skills and resources are edited in the sections.',
         hintEmpty: 'No ledger \u2014 pick a few numbers (points spent, remaining, a total) and they read as bold figures under the name.',
         addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a figure (a number stays editable there)', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
-    pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band (optional)', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band,
+    pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band (optional)', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band, groups: true,
         hintFull: 'Shown on every tab, just above the tab strip, and it stays at the top with the strip while the sheet scrolls. A field can be here and in a section too.',
         hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
         addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
@@ -1013,6 +1121,11 @@ function renderLayout() {
             chipRow.appendChild(select('sys-sec-chip', chipOpts, sec.chip || '', 'A chip in this section\u2019s header that opens a handbook page (players see it only when they can read the page)'));
             row.appendChild(chipRow);
         }
+        if (grpList.length) {   // Stage 6: a band group's Pin in this section's header (as the website's Resource Pools header)
+            var pinRow = el('div', 'sys-sec-style'); pinRow.appendChild(el('span', 'sys-sec-style-lbl', 'Pin'));
+            pinRow.appendChild(select('sys-sec-pin', [['', 'No pin in the header']].concat(grpList.map(function(g) { return [g.id, 'Pin ' + (g.label || 'Group')]; })), sec.pin || '', 'A Pin button in this section\u2019s header for a band group'));
+            row.appendChild(pinRow);
+        }
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
         (sec.fields || []).forEach(function(pl, pi) {
             var text = placementLabel(pl, byId, rollById); if (text === null) return;
@@ -1020,6 +1133,10 @@ function renderLayout() {
             pr.appendChild(el('span', 'sys-pl-grip', String.fromCharCode(8942)));
             pr.appendChild(el('span', 'sys-pl-name', text));
             if (pl.kind === 'heading') pr.appendChild(input('sys-pl-text field', pl.text, 'The heading\'s text', 'Heading text'));
+            if (pl.kind === 'pin') {   // Stage 6: which group it pins, and an optional label (blank = "Pin <group>")
+                pr.appendChild(select('sys-pl-group', grpList.map(function(g) { return [g.id, g.label || 'Group']; }), pl.g || '', 'The band group this button pins'));
+                var pgl = grpList.find(function(g) { return g.id === pl.g; }); pr.appendChild(input('sys-pl-text field', pl.text, 'The button\u2019s label (blank = \u201cPin\u201d and the group\u2019s name)', pgl ? 'Pin ' + (pgl.label || 'Group') : 'Label (optional)'));
+            }
             if (pl.kind === 'link') {   // Stage 5f: which page, and an optional label (blank = the page's own title)
                 pr.appendChild(select('sys-pl-page', pageOptions(pl.page, pl.page ? null : 'Choose a page\u2026'), pl.page || '', 'The handbook page this button opens'));
                 pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = the page\'s title)', 'Label (optional)'));
@@ -1033,6 +1150,7 @@ function renderLayout() {
         draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
+        grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages
         addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);
@@ -1071,6 +1189,8 @@ function onLayoutChange(t) {
     if (c.indexOf('sys-sec-tab') >= 0) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-collap') >= 0) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-chip') >= 0) { if (t.value) sec.chip = t.value; else delete sec.chip; markDirty(); renderPreview(); return true; }   // Stage 5f
+    if (c.indexOf('sys-sec-pin') >= 0) { if (t.value && PIN_GID.test(t.value)) sec.pin = t.value; else delete sec.pin; markDirty(); renderLayout(); return true; }   // Stage 6
+    if (c.indexOf('sys-pl-group') >= 0) { var plg = t.closest('.sys-pl'), plq = plg ? (sec.fields || [])[+plg.dataset.pi] : null; if (plq && plq.kind === 'pin' && PIN_GID.test(t.value)) { plq.g = t.value; markDirty(); renderLayout(); } return true; }   // Stage 6: a Pin button's group
     if (c.indexOf('sys-pl-page') >= 0) { var plp = t.closest('.sys-pl'), plk = plp ? (sec.fields || [])[+plp.dataset.pi] : null; if (plk && plk.kind === 'link') { plk.page = t.value; markDirty(); renderLayout(); } return true; }   // Stage 5f: a link's page
     if (c.indexOf('sys-sec-pinned') >= 0) { if (t.value) sec.pinned = true; else delete sec.pinned; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
@@ -1089,6 +1209,7 @@ function onLayoutChange(t) {
         var kind = v.slice(0, 1), id = v.slice(2), pl = null;
         if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id; })) pl = { id: id, w: 1 }; }
         else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) pl = { roll: id, w: 1 }; }
+        else if (kind === 'p') { if (PIN_GID.test(id) && (draft.sheet && Array.isArray(draft.sheet.bandGroups) ? draft.sheet.bandGroups : []).some(function(g) { return g && g.id === id; })) pl = { kind: 'pin', g: id, w: 1 }; }   // Stage 6
         else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' || id === 'link' || id === 'facing' || id === 'stance' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; if (id === 'link') { var firstPage = pageOptions('', null)[0]; pl.text = ''; pl.page = firstPage ? firstPage[0] : ''; } }
         if (pl) { sec.fields.push(pl); markDirty(); renderLayout(); }
         return true;
@@ -1098,10 +1219,12 @@ function onLayoutChange(t) {
 function onLayoutClick(b) {
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
     if (b.id === 'sysLayoutAuto') {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
+        var keepGrp = sheetList('bandGroups');   // Stage 6: the band's groups are kept with it (the new sections have no Pin yet, so they show)
         var cl = cleanSystem(draft, { F: F(), gmView: true }), keepId = sheetList('identity'), keepLed = sheetList('ledger'), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
         var keepLook = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : null;   // Stage 5g: the shape lives in the Sheet look box — kept
         draft.sheet = { sections: autoLayout(cl || draft).sections }; if (keepLook) draft.sheet.look = keepLook; if (keepTabs.length) draft.sheet.tabs = keepTabs; if (keepBand.length) draft.sheet.band = keepBand;
         if (keepId.length) draft.sheet.identity = keepId; if (keepLed.length) draft.sheet.ledger = keepLed;   // Stage 5d: the header block is kept as well
+        if (keepGrp.length) draft.sheet.bandGroups = keepGrp;
         var keptAny = keepTabs.length || keepBand.length || keepId.length || keepLed.length;
         markDirty(); renderLayout(); toast(keptAny ? 'The automatic layout is now yours to change; your tabs, header block and band are kept.' : 'The automatic layout is now yours to change.'); return true;
     }

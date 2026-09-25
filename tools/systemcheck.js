@@ -216,7 +216,7 @@ const j = v => JSON.stringify(v);
         check('Stage 5c: BAND_KINDS is published and is exactly number/formula/resource/skill/toggle', S.BAND_KINDS && j(Object.keys(S.BAND_KINDS)) === j(['number', 'formula', 'resource', 'skill', 'toggle']));
         // the render: the band is built from sys.sheet (never the auto-layout fallback) BEFORE the tab strip, its inputs tagged for focus restore
         const shSrc = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
-        check('Stage 5c: buildSections renders the band from sys.sheet before the tab strip and tags its inputs with data-band', /body\.textContent = '';[\s\S]{0,1900}?sys\.sheet\.band[\s\S]{0,900}?'sheet-band'[\s\S]{0,900}?dataset\.band = '1'[\s\S]{0,600}?if \(tabs\) \{/.test(shSrc) && /k\.band \? '\[data-band\]' : ':not\(\[data-band\]\)'/.test(shSrc));
+        check('Stage 5c: buildSections renders the band from sys.sheet before the tab strip and tags its inputs with data-band (Stage 6: through bandInto)', /body\.textContent = '';[\s\S]{0,2200}?var bandDef = \(sys\.sheet && Array\.isArray\(sys\.sheet\.band\)\) \? sys\.sheet\.band : null;[\s\S]{0,900}?bandInto\(frame, bandDef, pctx\);[\s\S]{0,900}?if \(tabs\) \{/.test(shSrc) && /function bandInto\(frame, bandDef, ctx\) \{[\s\S]{0,1500}?'sheet-band'[\s\S]{0,1200}?dataset\.band = '1'/.test(shSrc) && /k\.band \? '\[data-band\]' : ':not\(\[data-band\]\)'/.test(shSrc));
         check('Stage 5c: "Start from the automatic layout" keeps the tabs and the band; "Use the automatic layout" asks about both', /sysLayoutAuto'\) \{[\s\S]{0,700}?keepBand[\s\S]{0,700}?draft\.sheet\.band = keepBand/.test(shSrc) && /sysLayoutClear'\) \{[\s\S]{0,300}?draft\.sheet\.band[\s\S]{0,300}?no pinned band/.test(shSrc));
     }
 
@@ -892,6 +892,54 @@ const j = v => JSON.stringify(v);
             /applyLook\(body, look, vctx\);[^\n]*\n\s*syncFramePad\(body\);\s*\n\s*if \(tabs \? !tabN : !secN\)/.test(shL) && /applySheetLookTo\(body, sheetLook\(camp, sys\)\);\s*\n\s*syncFramePad\(body\);/.test(shL) && /applySheetLookTo\(container, sheetLook\(camp, sys\)\);\s*\n\s*syncFramePad\(container\);/.test(shL)
             && /applyPaletteTo\(p, sys\.sheet && sys\.sheet\.look\);/.test(shL) && /if \(st && paletteOf\(sys && sys\.sheet && sys\.sheet\.look\)\) \{ st = Object\.assign\(\{\}, st\); delete st\.textColor; delete st\.bgColor; \}/.test(shL)
             && /Array\.prototype\.forEach\.call\(box\.children, function\(ch\) \{ ch\.inert = true; \}\);/.test(shL) && palRules.length >= 18 && palRules.every(l => /\.sheet-paletted/.test(l)), j(palRules.filter(l => !/\.sheet-paletted/.test(l))));
+    }
+
+    /* ---- Stage 6 look fold (L4): pin groups — band groups, the Pin button, a viewer's pins per character ---- */
+    {
+        const gf4 = [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all' }, { id: 'f_b', key: 'B', kind: 'number', def: 1, vis: 'all' }, { id: 'f_s', key: 'S', kind: 'number', def: 1, vis: 'gm' }];
+        const mk4 = (sheet, gmView) => cleanSystem({ v: 1, name: 'P', fields: gf4, rolls: [{ id: 'r_i', label: 'I', formula: 'd20', vis: 'all' }], sheet }, { F, gmView: gmView !== false });
+        const g4 = mk4({ bandGroups: [{ id: 'g_a', label: ' Points\u0001 ', icon: 'x', on: true }, { id: 'g_a', label: 'Dup' }, { id: 'bad', label: 'B' }, { id: 'g_b', label: '' }, { id: 'g_c' }, { id: 'g_d' }, { id: 'g_e' }, { id: 'g_f' }, { id: 'g_g' }, 'x', null],
+            band: [{ id: 'f_a', g: 'g_a' }, { id: 'f_b', g: 'g_zz' }, { roll: 'r_i', g: 'g_b' }], sections: [{ id: 's_1', title: 'T', cols: 1, pin: 'g_a', fields: [{ kind: 'pin', g: 'g_b', w: 1, text: ' Keep\u0007it ' }, { kind: 'pin', g: 'g_nope', w: 1 }, { kind: 'pin', w: 1 }] }, { id: 's_2', title: 'U', cols: 1, pin: 'g_zz', fields: [] }] });
+        check('look L4: band groups — ids g_…, once, at most 6, the label cleaned (blank reads "Group"), nothing else kept; a band entry keeps its group only when it exists; a Pin placement and a section-header pin only for a group that exists (the label optional, cleaned)',
+            j(g4.sheet.bandGroups) === j([{ id: 'g_a', label: 'Points' }, { id: 'g_b', label: 'Group' }, { id: 'g_c', label: 'Group' }, { id: 'g_d', label: 'Group' }, { id: 'g_e', label: 'Group' }, { id: 'g_f', label: 'Group' }]) && LIMITS.bandGroups === 6
+            && j(g4.sheet.band) === j([{ id: 'f_a', g: 'g_a' }, { id: 'f_b' }, { roll: 'r_i', g: 'g_b' }]) && j(g4.sheet.sections[0].fields) === j([{ kind: 'pin', w: 1, g: 'g_b', text: 'Keep it' }]) && g4.sheet.sections[0].pin === 'g_a' && !('pin' in g4.sheet.sections[1])
+            && j(Object.keys(g4.sheet)) === j(['tabs', 'sections', 'band', 'bandGroups']), j(g4.sheet));
+        const none = mk4({ band: [{ id: 'f_a' }], sections: [] });
+        check('look L4: a sheet with no groups is unchanged — no bandGroups key, band entries as bare { id }', !('bandGroups' in none.sheet) && j(none.sheet.band) === j([{ id: 'f_a' }]));
+        const gmOnly = { bandGroups: [{ id: 'g_v', label: 'Visible' }, { id: 'g_h', label: 'Secret figures' }, { id: 'g_e', label: 'Empty' }], band: [{ id: 'f_a', g: 'g_v' }, { id: 'f_s', g: 'g_h' }], sections: [{ id: 's_1', title: 'T', cols: 1, pin: 'g_h', fields: [{ kind: 'pin', g: 'g_h', w: 1 }, { kind: 'pin', g: 'g_v', w: 1 }] }] };
+        const gmV = mk4(gmOnly), plV = mk4(gmOnly, false);
+        check('look L4: the players\' view keeps a group only while a visible band entry of it survives — a group over GM-only figures, and its Pins, never travel (its label is the GM\'s text); the GM keeps an empty group (nothing set is lost on Save)',
+            j(gmV.sheet.bandGroups.map(g => g.id)) === j(['g_v', 'g_h', 'g_e']) && j(plV.sheet.bandGroups) === j([{ id: 'g_v', label: 'Visible' }]) && !('pin' in plV.sheet.sections[0]) && j(plV.sheet.sections[0].fields) === j([{ kind: 'pin', w: 1, g: 'g_v' }]) && !/Secret figures/.test(j(plV)), j(plV.sheet));
+        const fx = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'look-d20.json'), 'utf8')), fxP = cleanSystem(fx, { F, gmView: false }), fxG = cleanSystem(fx, { F, gmView: true });
+        const pr2 = S.pruneGroups({ list: [{ id: 'g_1', label: 'A' }, { id: 'g_2', label: 'B' }], ids: Object.assign(Object.create(null), { g_1: 1, g_2: 1 }) }, [[{ id: 'f_a', g: 'g_1' }], [{ id: 'f_b', g: 'g_2' }]]);
+        const pt = S.pinTargets([{ id: 's', pin: 'g_x', fields: [{ kind: 'pin', g: 'g_y' }, { id: 'f_a' }] }, null, { id: 't', fields: 'x' }]);
+        const vw4 = S.validateSystem(fxG, F).warnings.filter(w => /band group/.test(w.message));
+        check('look L4: on the d20 test system the players lose the GM figures\' group and its Pin but keep Spell slots (with its header Pin) and Rest; pruneGroups keeps a group used only on a second band (a later view); pinTargets finds both Pin forms; the editor says a group with no Pin is always shown',
+            j(fxP.sheet.bandGroups.map(g => g.id)) === j(['g_slots', 'g_rest']) && fxP.sheet.sections.find(s => s.id === 's_spell').pin === 'g_slots' && !fxP.sheet.sections.some(s => (s.fields || []).some(p => p.kind === 'pin' && p.g === 'g_gm'))
+            && j(pr2.list.map(g => g.id)) === j(['g_1', 'g_2']) && j(Object.keys(pt).sort()) === j(['g_x', 'g_y']) && Object.getPrototypeOf(pt) === null
+            && vw4.length === 1 && vw4[0].id === 'g_rest', j([fxP.sheet.bandGroups, vw4]));
+        // a viewer's pins (sliced from sheets.js): stored per campaign and character, on this machine only; every read re-checks the shape
+        const sh4p = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), pinSrc = sh4p.slice(sh4p.indexOf('// [systemcheck:pins-start]'), sh4p.indexOf('// [systemcheck:pins-end]'));
+        let store = null, thrown = false; const pref = (k, d) => { if (thrown) throw new Error('blocked'); return store === null ? d : store; }, setPref = (k, v) => { store = String(v); };
+        const P = new Function('pref', 'setPref', pinSrc + '\nreturn { pinState: pinState, isPinned: isPinned, setPinned: setPinned, groupShown: groupShown };')(pref, setPref);
+        const bads = ['{nope', '[1,2]', '"x"', '42', 'null'].map(v => { store = v; return j(P.pinState('camp1', 'c_a')); });
+        thrown = true; let threw = false; try { P.pinState('camp1', 'c_a'); } catch (e) { threw = true; } thrown = false;
+        store = null; P.setPinned('camp1', 'c_a', 'g_pts', true); P.setPinned('camp1', 'c_a', 'g_pools', false); P.setPinned('camp1', 'c_b', 'g_pts', false);
+        const aPts = P.isPinned('camp1', 'c_a', 'g_pts'), bPts = P.isPinned('camp1', 'c_b', 'g_pts'), aPools = P.isPinned('camp1', 'c_a', 'g_pools'), other = P.isPinned('camp2', 'c_a', 'g_pts');
+        P.setPinned('camp1', 'c_a', 'bad id', true); P.setPinned('camp1', 'constructor', 'g_x', true); P.setPinned('__proto__', 'c_z', 'g_x', true);
+        const raw = JSON.parse(store);
+        store = JSON.stringify({ 'c:camp1': { c_a: { g_ok: 1, g_two: 2, 'no-good': 1, constructor: 1 }, junk: 5 } }); const rd = P.pinState('camp1', 'c_a');
+        store = null; for (let i = 0; i < 20; i++) P.setPinned('camp1', 'c_a', 'g_' + i, true); const gCount = Object.keys(P.pinState('camp1', 'c_a')).length; for (let i = 0; i < 65; i++) P.setPinned('camp1', 'c_' + i, 'g_x', true); for (let i = 0; i < 45; i++) P.setPinned('k' + i, 'c_a', 'g_x', true);
+        const capped = JSON.parse(store);
+        const tg = Object.assign(Object.create(null), { g_p: 1 });
+        check('look L4: pins (sliced from sheets.js) — corrupt, wrong-shaped or blocked storage reads as nothing and never throws; a pin belongs to one campaign AND one character (hidden until pinned); bad group or character ids are never stored; a "__proto__" campaign is stored under its "c:" key and leaves Object.prototype alone; stored junk is re-checked on read; caps of 16 groups, 60 characters and 40 campaigns; the Layout preview shows every group, a group with no Pin always shows',
+            bads.every(b => b === '{}') && !threw && aPts && !bPts && !aPools && !other && j(Object.keys(raw)) === j(['c:camp1', 'c:__proto__']) && !('constructor' in raw['c:camp1'] && raw['c:camp1'].constructor !== Object) && j(Object.keys(raw['c:camp1'])) === j(['c_a', 'c_b']) && ({}).g_x === undefined
+            && j(rd) === j({ g_ok: 1 }) && gCount === 16 && Object.keys(capped).length === 40 && Object.keys(capped['c:camp1'] || {}).length <= 60
+            && P.groupShown({ id: 'g_p' }, tg, { preview: true, campId: 'camp1' }, 'c_a') === true && P.groupShown({ id: 'g_q' }, tg, { campId: 'camp1' }, 'c_a') === true && P.groupShown({ id: 'g_p' }, tg, { campId: 'camp1' }, 'c_nobody') === false, j([bads, raw, rd, gCount, Object.keys(capped).length]));
+        const pinUI = sh4p.slice(sh4p.indexOf('function pinToggle('), sh4p.indexOf('function bandInto('));
+        check('look L4: the Pin controls — a pin toggles only outside the Layout preview and never moves the content (scroll corrected by the clicked control, or the first section for the band\'s unpin); the header Pin never folds its section and does nothing inside the editor; a pin changed in another window redraws this one; no innerHTML',
+            /if \(!g \|\| !ctx \|\| !ctx\.c \|\| \(ctx\.vctx && ctx\.vctx\.preview\) \|\| !PIN_GID\.test\(g\.id\)\) return;/.test(pinUI) && /body\.scrollTop \+= nb\.getBoundingClientRect\(\)\.top - top0;/.test(pinUI)
+            && /var go = function\(e\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); if \(ch\.closest\('#systemModal'\)\) return;/.test(pinUI) && !/innerHTML/.test(pinUI) && /window\.addEventListener\('storage', function\(e\) \{ if \(!e \|\| e\.key !== PIN_KEY\) return;/.test(sh4p));
     }
 
     /* ---- Stage 6 look fold (L3): identity rows edited in the header — one field, once; the name shown once ---- */

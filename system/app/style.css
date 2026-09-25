@@ -2050,6 +2050,16 @@
   #sheetPanel .sheet-idn-edit .field, #sysLayoutPreview .sheet-idn-edit .field, #popoutBody.sheet-view .sheet-idn-edit .field { width: 100%; min-width: 0; border: 0; background: transparent; padding: 4px 8px; font-size: 12.5px; color: inherit; }
   .sheet-idn-edit:focus-within { border-color: var(--sheet-accent, var(--gold)); }
   .sheet-idn-check { margin: 6px 8px; }
+  /* Stage 6 look fold (L4): pin groups on the band, the Pin button and the Pin in a section's header (filled while pinned, as the reference) */
+  .sheet-band-grp { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: stretch; padding-left: 8px; border-left: 1px solid var(--edge); }
+  .sheet-band-unpin { align-self: center; padding: 2px 6px; opacity: .6; }
+  .sheet-band-unpin:hover, .sheet-band-unpin:focus-visible { opacity: 1; }
+  .sheet-pin { display: inline-flex; align-items: center; gap: 6px; }
+  .sheet-pin[aria-pressed="true"], .sheet-sec-pin[aria-pressed="true"] { background: var(--sheet-primary, var(--sheet-accent, var(--gold))); color: var(--sheet-primary-ink, var(--sheet-accent-ink, #111318)); border-color: transparent; }
+  .sys-band-grps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+  .sys-band-grp { display: inline-flex; align-items: center; gap: 4px; }
+  .sys-band-grp .sys-bgrp-label { width: 130px; }
+  .sys-bgrp-note { margin: 0; }
   #sheetPanel.sheet-has-headportrait #sheetTitle, body:has(#popoutBody .sheet-head-name) #popoutTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .sys-look-palsw { display: inline-flex; align-items: center; gap: 3px; }
   .sheet-stance.sheet-row { grid-column: 1 / -1; }

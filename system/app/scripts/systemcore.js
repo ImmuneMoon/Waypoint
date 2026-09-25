@@ -9,7 +9,7 @@
 
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
-    fields: 300, rolls: 50, sections: 20, tabs: 12, placements: 200, options: 50, optionChars: 60,
+    fields: 300, rolls: 50, sections: 40, tabs: 12, placements: 300, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a Foundry-sized sheet)
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
     text: 200, notes: 20000, name: 60, charName: 60, names: 200,
     items: 200, carried: 100, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5)
@@ -18,6 +18,7 @@ var LIMITS = Object.freeze({
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
     caption: 200, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
+    labels: 10,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number)
     effects: 100, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
     threats: 6                               // Stage 5h Fold 3: threat marks on a token (world bearings; the first is the active one)
 });
@@ -140,10 +141,21 @@ function cleanField(f, F, gmView) {
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
     if ((k === 'number' || k === 'formula' || k === 'skill' || k === 'resource') && typeof f.unit === 'string') { var un = cutPoints(f.unit, LIMITS.unit, ' '); if (un) out.unit = un; }   // Stage 5g: a unit after the value ("pts", "kg")
     if ((k === 'number' || k === 'formula' || k === 'skill') && f.sign === true) out.sign = true;   // Stage 5g: colour the value by its sign (green above zero, red below)
+    if ((k === 'number' || k === 'formula') && Array.isArray(f.labels)) {   // Stage 6: names for the values 0, 1, 2… — a number becomes a dropdown that stores the position, a formula shows the name for its value; formulas always read the number
+        var lbs = cleanLabels(f.labels);
+        if (lbs) { out.labels = lbs; if (k === 'number') { out.min = 0; out.max = lbs.length - 1; out.step = 1; out.def = clampNum(Math.round(out.def), 0, out.max); } }
+    }
     if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colours) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
     return out;
 }
 function clampNum(v, lo, hi) { if (lo !== undefined && v < lo) v = lo; if (hi !== undefined && v > hi) v = hi; return v; }
+// Stage 6: a field's value names — at most LIMITS.labels, each a short plain label (a blank keeps its place and shows the number); null when none is set
+function cleanLabels(v) {
+    if (!Array.isArray(v)) return null;
+    var out = v.slice(0, LIMITS.labels).map(function(s) { return typeof s === 'string' ? str(s, LIMITS.label).replace(CTRL_RE_G, ' ').replace(/,/g, ' ').replace(/\s{2,}/g, ' ').trim() : ''; });   // no commas: the editor separates names with them
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out.some(function(s) { return !!s; }) ? out : null;
+}
 // Stage 5e: the slider's own bits — two end labels and two hex track colours, each optional; {} = a slider with the defaults
 function cleanSlider(v) {
     var out = {}; if (!isObj(v)) return out;
@@ -365,9 +377,11 @@ function cleanSystem(sys, opts) {
         var isDropped = map(); dropped.forEach(function(k) { isDropped[k] = 1; });
         var mentions = function(text) {
             if (!text) return false;
-            return F.names(text).some(function(n) { var l = lower(n), dot = l.lastIndexOf('.'); if (isDropped[l]) return true; return dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; });
+            var hit = function(n) { var l = lower(n), dot = l.lastIndexOf('.'); if (isDropped[l]) return true; return dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };
+            if (F.parse(text).ok) return F.names(text).some(hit);
+            return (String(text).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).some(function(t) { return hit(t) || hit(t.split('.')[0]); });   // Stage 6: text that does not parse is checked word by word — a typo never carries a GM-only name to players
         };
-        var capMentions = function(t) { var re = /\{([^{}]{1,300})\}/g, m, n = 0; while (n++ < LIMITS.captionExprs && (m = re.exec(t))) { if (mentions(m[1].trim())) return true; } return false; };   // Fold B: a caption's {formula} is formula text too
+        var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
         out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; });
         out.rolls = out.rolls.filter(function(r) { return !mentions(r.formula); });
     }
@@ -653,6 +667,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     fn.detail = function(name) { return detail[lower(name)] || null; };   // 5h: { base, mods: [{name, op, v, gm}], via: [{through, name, op, v, gm}] } or null
     return fn;
 }
+// Stage 6: a caption's {…} — "±X" (or "+/-X") shows X with its sign (+2, -1, +0); the sign is never formula syntax, so no older caption reads differently
+function capExpr(s) { var t = String(s).trim(), m = /^(\u00b1|\+\/-)\s*/.exec(t); return m ? { expr: t.slice(m[0].length), signed: true } : { expr: t, signed: false }; }
 // Stage 5g Fold B: a field's caption as parts for the sheet to draw — plain text, and each {formula} worked out for this character (no
 // dice; at most LIMITS.captionExprs, the rest stays text). [{ text }] | [{ value, text }] | [{ error }]; the sheet draws them as text only.
 function captionParts(sys, char, F, text, vars) {   // vars: the render's own resolver (resolveAll(...).vars), so a caption reads values already worked out
@@ -662,10 +678,11 @@ function captionParts(sys, char, F, text, vars) {   // vars: the render's own re
         if (m.index > last) out.push({ text: text.slice(last, m.index) });
         n++; last = re.lastIndex;
         if (!fn) fn = typeof vars === 'function' ? vars : makeResolver(sys, char, F);
-        var res = F.evaluate(m[1].trim(), { vars: fn, random: noDice });
+        var ce = capExpr(m[1]), res = F.evaluate(ce.expr, { vars: fn, random: noDice });
         if (!res || !res.ok) { out.push({ error: String((res && res.error && res.error.message) || 'error') }); continue; }
         var v = res.value;
-        out.push({ value: v, text: typeof v === 'number' ? fmtNum(v) : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v).slice(0, 60) });
+        var mag = typeof v === 'number' ? fmtNum(Math.abs(v)) : '';
+        out.push({ value: v, text: typeof v === 'number' ? (ce.signed ? (v < 0 && mag !== '0' ? '-' : '+') + mag : fmtNum(v)) : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v).slice(0, 60) });
     }
     if (last < text.length) out.push({ text: text.slice(last) });
     return out;
@@ -692,6 +709,7 @@ function resolveAll(sys, char, F, facing) {   // facing (5h Fold 3): facingCtx(.
         var dt = (k === 'number' || k === 'toggle' || k === 'formula' || k === 'skill') ? r.detail(f.key) : null;   // 5h: where the value came from — only when an effect touched it
         if (dt) { var b0 = base0(f.key); e.base = b0 !== undefined ? b0 : dt.base; e.mods = dt.mods; e.via = dt.via; }
         if (k === 'resource') { var dm = r.detail(f.key + '.max'); if (dm) { var bm = base0(f.key + '.max'); e.maxBase = bm !== undefined ? bm : dm.base; e.maxMods = dm.mods; e.maxVia = dm.via; } }
+        if (f.labels && !e.error && typeof e.value === 'number' && e.value === Math.floor(e.value) && e.value >= 0 && e.value < f.labels.length && f.labels[e.value]) { e.text = f.labels[e.value]; e.label = true; }   // Stage 6: a named value shows its name (formulas still read the number)
         out[f.id] = e;
     });
     return out;
@@ -728,8 +746,8 @@ function headerEntry(f, e) {
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
     if (e.error) return { text: '\u2014', error: String(e.error) };
     if (e.text === undefined || e.text === null || e.text === '') return { text: '\u2014', empty: true };
-    var numeric = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number';
-    var out = { text: f.unit ? e.text + ' ' + f.unit : e.text };
+    var numeric = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number' && !e.label;   // a named value is a word, never red or green
+    var out = { text: f.unit && !e.label ? e.text + ' ' + f.unit : e.text };   // Stage 6: a named value is a word (no unit)
     if (numeric && e.value < 0) out.neg = true; else if (numeric && f.sign && e.value > 0) out.pos = true;
     var why = fxText(e) || (f.kind === 'resource' ? fxText(e, true) : ''); if (why) out.why = why;   // 5h: where the number came from
     return out;
@@ -776,17 +794,18 @@ function validateSystem(sys, F) {
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
         if (f.caption) {   // Fold B: each {formula} in the caption, as warnings
             var cre = /\{([^{}]{1,300})\}/g, cm, cn = 0;
-            while (cn++ < LIMITS.captionExprs && (cm = cre.exec(f.caption))) {
-                var cp = F.parse(cm[1].trim());
-                if (!cp.ok) { warnings.push({ id: f.id, prop: 'caption', message: 'Caption: ' + cp.error.message }); continue; }
-                if (hasDice(cp.ast.body)) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: dice are not worked out in a caption; put them in a roll.' });
+            while ((cm = cre.exec(f.caption))) {
+                var drawn = ++cn <= LIMITS.captionExprs, cp = F.parse(capExpr(cm[1]).expr);
+                if (!cp.ok) { if (drawn) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: ' + cp.error.message }); continue; }
+                if (drawn && hasDice(cp.ast.body)) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: dice are not worked out in a caption; put them in a roll.' });
                 cp.names.forEach(function(nm) {
                     var tg = known[lower(nm)];
-                    if (!tg) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: unknown name "' + nm + '".' });
-                    else if (!NUMERIC[tg.kind]) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: "' + nm + '" is not a number.' });
+                    if (!tg) { if (drawn) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: unknown name "' + nm + '".' }); }
+                    else if (!NUMERIC[tg.kind]) { if (drawn) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: "' + nm + '" is not a number.' }); }
                     else if (f.vis === 'all' && tg.vis === 'gm') warnings.push({ id: f.id, prop: 'caption', message: 'Caption: "' + nm + '" is GM only, so players will not see this caption.' });
                 });
             }
+            if (cn > LIMITS.captionExprs) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: only the first ' + LIMITS.captionExprs + ' {\u2026} values are worked out; the rest show as written.' });   // Stage 6
         }
     });
     sys.rolls.forEach(function(r) { checkFormula({ id: r.id, key: r.id }, 'rollFormula', r.formula, true, r.vis); });
@@ -993,14 +1012,16 @@ function aliasFromShadowBase(json, sys, F) {
     });
     var temp = { id: 'c_tmp', name: '', ownerId: '', npc: true, values: values };
     (Array.isArray(json.skills) ? json.skills : []).forEach(function(s) {
-        if (!isObj(s) || typeof s.name !== 'string' || typeof s.level !== 'number') return;
+        if (!isObj(s) || typeof s.name !== 'string') return;
+        var lvl = typeof s.level === 'number' ? s.level : (typeof s.level === 'string' && /^-?\d{1,6}(\.\d+)?$/.test(s.level.trim()) ? Number(s.level.trim()) : NaN);   // Stage 6: the website exports the level as text ("11")
+        if (!fin(lvl)) return;
         var want = lower(s.name).replace(/[^a-z0-9]/g, '');
         var f = null;
         for (var i = 0; i < sys.fields.length; i++) { var c = sys.fields[i]; if (c.kind !== 'skill') continue; var last = lower(c.key).split('.').pop().replace(/[^a-z0-9]/g, ''), lab = lower(c.label).replace(/[^a-z0-9]/g, ''); if (last === want || lab === want) { f = c; break; } }
         if (!f) return;
         var base = 0;
         if (f.base) { var r = makeResolver(sys, temp, F)(f.key + '.base'); if (typeof r === 'number' && isFinite(r)) base = r; }
-        values[f.id] = cleanValue(f, s.level - base, null);
+        values[f.id] = cleanValue(f, lvl - base, null);
         if (values[f.id] === undefined) delete values[f.id]; else matched++;
     });
     return { values: values, matched: matched };
@@ -1030,6 +1051,6 @@ function gmEffectNames(vars, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };

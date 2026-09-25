@@ -2195,7 +2195,7 @@ window.wpFitToGrid = fitToGrid;
       if (!state.selWbId && !(state.selWbIds && state.selWbIds.length)) return;
       var t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, #soundPanel, #dicePanel, #cmdkModal, input, select, textarea, [contenteditable="true"]')) return;
+      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, input, select, textarea, [contenteditable="true"]')) return;
       state.selWbId = null; state.selWbIds = [];
       if (window.appRender) window.appRender();
   }, true);

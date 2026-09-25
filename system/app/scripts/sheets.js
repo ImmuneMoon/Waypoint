@@ -59,8 +59,8 @@ function openPage(id) {
     }
     if (!window.wpDocPanel) return;
     window.wpDocPanel.open(id);
-    var dp = ui('docPanel'), sp = ui('sheetPanel');
-    if (dp && sp && sp.style.display !== 'none') {   // the doc panel opens where the sheet is by default: put it beside the sheet instead
+    var dp = ui('docPanel'), sp = frontView();   // HUD frame (HF2a): the sheet or a HUD, whichever is in front
+    if (dp && sp) {   // the doc panel opens where the sheet is by default: put it beside the view instead
         var a = dp.getBoundingClientRect(), b = sp.getBoundingClientRect();
         var ox = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)), oy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
         if (ox > 0 && oy > 0) {   // any overlap: beside the sheet, left if it fits, else right; where neither fits it stays (it is on top anyway)
@@ -68,6 +68,7 @@ function openPage(id) {
             if (left !== null) { dp.style.left = Math.round(left) + 'px'; dp.style.right = 'auto'; dp.style.top = Math.round(Math.max(8, b.top)) + 'px'; }
         }
     }
+    raisePanel(dp);   // HF2a: over the HUDs too (a no-op while none is open)
     var si = ui('docPanelSearchInput'); if (si) { try { si.focus({ preventScroll: true }); } catch (e) {} }   // so Esc closes the page before the sheet
 }
 // What the open sheet's chips and links show (each referenced page: here or not, its title, GM-only), recorded at every live render;
@@ -76,11 +77,12 @@ function openPage(id) {
 var _sheetRefSig = '';
 function refSig(sys) {
     var ids = [], sh = sys && sys.sheet; if (!sh || !Array.isArray(sh.sections)) return '';
-    sh.sections.forEach(function(s) { if (s.chip) ids.push(s.chip); (s.fields || []).forEach(function(p) { if (p && p.kind === 'link' && p.page) ids.push(p.page); }); });
+    var secs = sh.sections.concat(sh.hud && Array.isArray(sh.hud.sections) ? sh.hud.sections : []);   // HUD frame (HF2a): the HUD's chips and links too
+    secs.forEach(function(s) { if (s.chip) ids.push(s.chip); (s.fields || []).forEach(function(p) { if (p && p.kind === 'link' && p.page) ids.push(p.page); }); });
     return ids.map(function(id) { var r = pageRef(id); return id + '=' + (r ? (r.gmOnly ? 'g:' : 'p:') + r.title : '-'); }).join('\n');
 }
 function sheetRefsChanged() {
-    if (!sheetOpen) return false;
+    if (!sheetOpen && !Object.keys(huds).length) return false;   // HF2a: the sheet or a HUD
     var camp = getActiveCampaign(); return refSig(systemOf(camp)) !== _sheetRefSig;
 }
 // A handbook chip for a section header (the owner's Foundry chips): a span, not a button, inside the <summary> of a collapsible
@@ -212,7 +214,7 @@ function afterCharChange(c, whole, values) {
     var n = net();
     if (n && n.active && n.role === 'host') { if (whole || !values) n.syncChar(c.id); else n.syncCharDelta(c.id, values); }
     if (window.appRender) window.appRender();
-    if (sheetOpen === c.id) renderSheet();
+    renderViews(c.id);   // HUD frame (HF2a): the sheet and every HUD of this character
 }
 function deleteCharacter(id) {
     var camp = getActiveCampaign(), c = charById(id, camp); if (!c) return;
@@ -224,6 +226,7 @@ function deleteCharacter(id) {
     var n = net(); if (n && n.active && n.role === 'host') n.syncCharGone(id);
     if (prev && n && n.reconcilePresence) n.reconcilePresence(prev, { mode: 'give' });
     if (sheetOpen === id) closeSheet();
+    closeHud(id);
     if (window.appRender) window.appRender();
 }
 // Link a token to a character (GM): the token adopts the character's owner, or an ownerless character adopts the token's
@@ -327,15 +330,16 @@ function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in 
 }
 // A finished turn redraws the numbers that read facing — never under someone's typing (a redraw commits a half-typed value): while a box
 // on the sheet has focus, the redraw waits for it to lose focus
-function redrawForFacing() {
-    clearTimeout(_dialRedraw);
-    _dialRedraw = setTimeout(function() {
-        _dialRedraw = null;
-        var body = ui('sheetBody'), ae = document.activeElement;
+function redrawForFacing(v) {   // v: a HUD's record (HUD frame HF2a), each with its own timer; none: the sheet
+    clearTimeout(v ? v.redraw : _dialRedraw);
+    var tmr = setTimeout(function() {
+        if (v) v.redraw = null; else _dialRedraw = null;
+        var body = v ? v.body : ui('sheetBody'), ae = document.activeElement;
         var inStance = ae && ae.closest && ae.closest('.sheet-stance'), committed = inStance && (ae.tagName === 'SELECT' || ae.value === ae.getAttribute('data-cur'));   // the stance control's own value is already on the token
-        if (body && ae && body.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && !committed) { ae.addEventListener('blur', function() { setTimeout(redrawForFacing, 0); }, { once: true }); return; }
-        renderSheet();
+        if (body && ae && body.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && !committed) { ae.addEventListener('blur', function() { setTimeout(function() { redrawForFacing(v); }, 0); }, { once: true }); return; }
+        if (v) { if (huds[v.charId] === v) renderHud(v.charId); } else renderSheet();
     }, 150);
+    if (v) v.redraw = tmr; else _dialRedraw = tmr;
 }
 function facingNode(c, gm) {
     var wrap = el('div', 'sheet-dial'), on = turningOn();
@@ -427,7 +431,22 @@ function stanceNode(c, gm) {
 }
 // whiteboard.js / net.js / main.js: a token turned or its threat marks changed. The dial follows in place (focus kept); a sheet whose
 // numbers read a facing name redraws once the turn is final, debounced (a drag's stream never redraws a sheet someone is typing in)
+// The dial and stance controls in one panel (the sheet's or a HUD's) follow the token in place, keeping focus
+function swapTokenControls(p, c, camp) {
+    var gm = !isClient();
+    Array.prototype.forEach.call(p.querySelectorAll('.sheet-dial, .sheet-stance'), function(d) {
+        var ae = document.activeElement, fk = ae && d.contains(ae) && ae.getAttribute ? ae.getAttribute('data-dk') : null;
+        if (d.classList.contains('sheet-stance')) {   // its own signature: a turn of the token never rebuilds it, and a half-typed elevation is never replaced
+            if (d.dataset.sig === stanceSigOf(c, camp)) return;
+            var fe = d.querySelector('[data-dk="elev"]'); if (fe && ae === fe && fe.value !== fe.getAttribute('data-cur')) return;
+        }
+        var nd = d.classList.contains('sheet-stance') ? stanceNode(c, gm) : facingNode(c, gm); if (d.classList.contains('sheet-row')) nd.classList.add('sheet-row');
+        d.replaceWith(nd);
+        if (fk && /^[a-z0-9]{1,8}$/.test(fk)) { var q = nd.querySelector('[data-dk="' + fk + '"]'); if (q && q.disabled) q = nd.querySelector('[data-dk="dial"]'); if (q) { try { q.focus({ preventScroll: true }); } catch (e) {} } }   // a button now disabled hands focus to the dial
+    });
+}
 function tokenTurned(tokId, final) {
+    try { Object.keys(huds).forEach(function(id) { turnView(huds[id], final); }); } catch (e) {}   // HUD frame (HF2a): every HUD, whether or not a sheet is open
     try {
         if (!sheetOpen) return;
         var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
@@ -436,17 +455,7 @@ function tokenTurned(tokId, final) {
         if (sig !== _dialSig) {
             _dialSig = sig; _dialStale = true;
             if (_dialOn !== null && on !== _dialOn) { _dialOn = on; _dialStale = false; redrawForFacing(); return; }   // a token feature switched on or off: the whole sheet (a player's dial or stance control comes and goes with it)
-            var gm = !isClient();
-            Array.prototype.forEach.call(p.querySelectorAll('.sheet-dial, .sheet-stance'), function(d) {
-                var ae = document.activeElement, fk = ae && d.contains(ae) && ae.getAttribute ? ae.getAttribute('data-dk') : null;
-                if (d.classList.contains('sheet-stance')) {   // its own signature: a turn of the token never rebuilds it, and a half-typed elevation is never replaced
-                    if (d.dataset.sig === stanceSigOf(c, camp)) return;
-                    var fe = d.querySelector('[data-dk="elev"]'); if (fe && ae === fe && fe.value !== fe.getAttribute('data-cur')) return;
-                }
-                var nd = d.classList.contains('sheet-stance') ? stanceNode(c, gm) : facingNode(c, gm); if (d.classList.contains('sheet-row')) nd.classList.add('sheet-row');
-                d.replaceWith(nd);
-                if (fk && /^[a-z0-9]{1,8}$/.test(fk)) { var q = nd.querySelector('[data-dk="' + fk + '"]'); if (q && q.disabled) q = nd.querySelector('[data-dk="dial"]'); if (q) { try { q.focus({ preventScroll: true }); } catch (e) {} } }   // a button now disabled hands focus to the dial
-            });
+            swapTokenControls(p, c, camp);
         }
         if (final && _dialStale) { _dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(); }
     } catch (e) {}   // it runs at the end of every render: a sheet problem never stops the map
@@ -464,7 +473,7 @@ function openSheet(charId) {
     if (!canOpen(charId)) { toast(featureOn() ? 'That sheet is not yours to open.' : 'Character sheets are off here.'); return; }
     sheetOpen = charId;
     var p = ui('sheetPanel'); if (!p) return;
-    p.style.display = 'flex'; placeSheet(); renderSheet();
+    p.style.display = 'flex'; placeSheet(); raisePanel(p); renderSheet();
 }
 function closeSheet() { sheetOpen = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} }
@@ -484,6 +493,7 @@ function renderSheet() {
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
+    var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
     _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags());
@@ -524,7 +534,7 @@ function applySheetLookTo(node, style) {
     if (style && style.bgColor) node.style.setProperty('--sheet-canvas', style.bgColor); else node.style.removeProperty('--sheet-canvas');   // Stage 6 look fold (L5): what a sticky title is painted with
     applySheetBg(node, style);
 }
-if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function() { var b = ui('sheetBody'); if (b && sheetOpen) syncFramePad(b); var pv = ui('sysLayoutPreview'); if (pv) syncFramePad(pv); });   // Stage 6: a look font arriving late changes the frame's height
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function() { var b = ui('sheetBody'); if (b && sheetOpen) syncFramePad(b); Object.keys(huds).forEach(function(id) { syncFramePad(huds[id].body); }); var pv = ui('sysLayoutPreview'); if (pv) syncFramePad(pv); });   // Stage 6: a look font arriving late changes the frame's height
 document.addEventListener('wp-asset', function(e) {
     var p = e.detail && e.detail.path, DR = window.wpDocRender; if (!p || !DR || !DR.docBgImage) return;
     document.querySelectorAll('[data-bgpath]:not(.wrap)').forEach(function(node) {   // sheet bodies (the live panel + a pop-out); page wraps are handbook.js's
@@ -534,7 +544,7 @@ document.addEventListener('wp-asset', function(e) {
 // Render a character sheet READ-ONLY into an arbitrary container (the pop-out window; the pop-out never owns
 // the save — window.wpPopout no-ops it — so nothing here can write data.json). GM view (full sheet), fields disabled.
 var _lastInto = null;   // Stage 6: the pop-out's last render (it redraws when a pin changes in another window)
-window.addEventListener('storage', function(e) { if (!e || e.key !== PIN_KEY) return; if (sheetOpen) renderSheet(); if (_lastInto && _lastInto.container && _lastInto.container.isConnected) renderSheetInto(_lastInto.container, _lastInto.charId, _lastInto.camp); });
+window.addEventListener('storage', function(e) { if (!e || e.key !== PIN_KEY) return; renderViews(null); if (_lastInto && _lastInto.container && _lastInto.container.isConnected) renderSheetInto(_lastInto.container, _lastInto.charId, _lastInto.camp); });
 function renderSheetInto(container, charId, camp) {
     camp = camp || getActiveCampaign(); _lastInto = { container: container, charId: charId, camp: camp };
     var raw = systemOf(camp), c0 = charById(charId, camp);
@@ -552,6 +562,113 @@ function renderSheetInto(container, charId, camp) {
     syncFramePad(container);   // measured in the look's own font
     return { title: c.name || 'Character' };
 }
+// [systemcheck:hud-start]
+/* ---------- the HUD (Stage 6 HUD frame, HF2a): a second window per character, drawn from the system's HUD layout (sys.sheet.hud, through
+   hudView) by the same section renderer as the sheet — the reference's Tactical HUD made generic. One window per character, several at
+   once; drag the head, resize from the corner, click to bring it forward; the place and size are ONE record for every HUD (wp_hudPanel,
+   as the reference keeps one per user). Everything drawn here is text or goes through the sheet's own tested setters. ---------- */
+var huds = Object.create(null), HUD_CAP = 8, HUD_CID = /^c_[A-Za-z0-9_]{1,24}$/, HUD_TAB = /^t_[A-Za-z0-9_]{1,24}$/;   // charId -> { charId, panel, head, body, name, sub, por, dialSig, dialStale, dialOn, redraw }
+function hudFor(charId) { var camp = getActiveCampaign(); return !!(HUD_CID.test(String(charId)) && canOpen(charId) && hudHasContent(systemOf(camp))); }
+function openHud(charId, opts) {
+    if (!HUD_CID.test(String(charId))) return;
+    if (!canOpen(charId)) { toast(featureOn() ? 'That HUD is not yours to open.' : 'Character sheets are off here.'); return; }
+    if (!hudHasContent(systemOf(getActiveCampaign()))) { toast('This system has no HUD yet (System editor \u25b8 Layout \u25b8 HUD, then Save).'); return; }
+    var v = huds[charId];
+    if (!v) { var ids = Object.keys(huds); if (ids.length >= HUD_CAP) closeHud(ids[0]); v = makeHud(charId); if (!v) return; huds[charId] = v; placeHud(v); }   // opening it again brings it forward (the reference's open())
+    if (opts && typeof opts.tab === 'string' && HUD_TAB.test(opts.tab)) v.body.dataset.wpTab = opts.tab;   // buildSections falls back to the first tab if it is not one
+    raisePanel(v.panel); renderHud(charId);
+}
+function makeHud(charId) {
+    var tpl = ui('hudTpl'), layer = ui('hudLayer'); if (!tpl || !tpl.content || !tpl.content.firstElementChild || !layer || !HUD_CID.test(String(charId))) return null;
+    var p = tpl.content.firstElementChild.cloneNode(true); p.dataset.cid = charId;
+    var q = function(cls) { return p.querySelector('.' + cls); };
+    var v = { charId: charId, panel: p, head: q('hud-head'), body: q('hud-body'), name: q('hud-name'), sub: q('hud-sub'), por: q('hud-portrait'), dialSig: '', dialStale: false, dialOn: null, redraw: null };
+    layer.appendChild(p);
+    p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeHud(charId); } });
+    p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
+    q('hud-sheet').addEventListener('click', function() { openSheet(charId); });
+    q('hud-close').addEventListener('click', function() { closeHud(charId); });
+    var head = v.head, drag = null;
+    head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
+    head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; });
+    head.addEventListener('pointerup', function() { if (!drag) return; drag = null; var sized = p.classList.contains('sheet-sized'); if (sized) sizePanel(p, p.offsetWidth, p.offsetHeight); saveHudPref(p, sized); });
+    var grip = q('hud-resize'), rz = null;
+    grip.addEventListener('pointerdown', function(e) { e.preventDefault(); e.stopPropagation(); var r = p.getBoundingClientRect(); p.style.left = r.left + 'px'; p.style.top = r.top + 'px'; rz = { x: e.clientX, y: e.clientY, w: r.width, h: r.height }; grip.setPointerCapture(e.pointerId); });
+    grip.addEventListener('pointermove', function(e) { if (!rz || (e.clientX === rz.x && e.clientY === rz.y)) return; rz.moved = true; sizePanel(p, rz.w + e.clientX - rz.x, rz.h + e.clientY - rz.y); syncFramePad(v.body); });
+    grip.addEventListener('pointerup', function() { if (!rz) return; var moved = rz.moved; rz = null; if (moved) saveHudPref(p, true); });   // a click never saves
+    grip.addEventListener('dblclick', function() { p.style.width = ''; p.style.height = ''; p.classList.remove('sheet-sized'); var o = hudPref(); delete o.w; delete o.h; setPref('wp_hudPanel', JSON.stringify(o)); syncFramePad(v.body); });
+    return v;
+}
+function hudPref() { try { var o = JSON.parse(pref('wp_hudPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
+function saveHudPref(p, sized) { var r = p.getBoundingClientRect(), o = hudPref(); o.x = Math.round(r.left); o.y = Math.round(r.top); if (sized) { o.w = Math.round(r.width); o.h = Math.round(r.height); } setPref('wp_hudPanel', JSON.stringify(o)); }
+// The first HUD opens in the middle of the window (the owner's Q4, as the reference); after that, wherever a HUD was last left. A second one
+// opened onto the same spot steps down and right (at most five times), so it never hides the first.
+function placeHud(v) {
+    var p = v.panel, o = hudPref(), W = window.innerWidth, H = window.innerHeight, num = function(x) { return typeof x === 'number' && isFinite(x); };
+    var sized = num(o.w) && num(o.h), w = sized ? Math.min(W - 16, Math.max(360, o.w)) : (p.offsetWidth || 470), h = sized ? Math.min(H - 16, Math.max(240, o.h)) : (p.offsetHeight || 700), x, y;
+    if (num(o.x) && num(o.y)) { x = o.x; y = o.y; } else { x = (W - w) / 2; y = (H - h) / 2; }
+    var near = function() { return Object.keys(huds).some(function(id) { var u = huds[id]; if (!u || u === v) return false; var r = u.panel.getBoundingClientRect(); return Math.abs(r.left - x) <= 8 && Math.abs(r.top - y) <= 8; }); };
+    for (var k = 0; k < 5 && near(); k++) { x += 24; y += 24; }
+    p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max(0, Math.min(H - 80, y))) + 'px';
+    if (sized) sizePanel(p, o.w, o.h);
+}
+function closeHud(charId) { var v = huds[charId]; if (!v) return; clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); if (!Object.keys(huds).length) resetZ(); }
+function closeHuds() { Object.keys(huds).forEach(function(id) { closeHud(id); }); }
+// The HUD's twin of renderSheet: its head (portrait, name, the HUD's title), then the HUD's own layout in the sheet's look
+function renderHud(charId) {
+    var v = huds[charId]; if (!v) return;
+    var camp = getActiveCampaign(), full = systemOf(camp), c = charById(charId, camp);
+    if (!c || !full || !F() || !canOpen(charId) || !hudHasContent(full)) { closeHud(charId); return; }   // the HUD removed, the feature off, the character gone or no longer theirs
+    var sys = hudView(full), fk = focusKeyOf(v.body), gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
+    v.name.textContent = c.name; v.sub.textContent = (full.sheet.hud.title || 'HUD') + (c.npc ? ' \u00b7 NPC' : '');
+    v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
+    if (c.portrait) { v.por.src = imgSrc(c.portrait); v.por.style.display = ''; } else { v.por.removeAttribute('src'); v.por.style.display = 'none'; }
+    var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));
+    v.dialSig = dialSigOf(c, camp); v.dialStale = false; v.dialOn = JSON.stringify(tokenFlags());
+    _sheetRefSig = refSig(full);
+    buildSections(v.body, sys, c, all, gm, own, function() { renderHud(charId); }, { campId: camp.id, view: 'hud', preview: false, targets: pinTargetsAll(full.sheet) });
+    applyPaletteTo(v.panel, sys.sheet && sys.sheet.look);
+    applySheetLookTo(v.body, sheetLook(camp, sys));
+    syncFramePad(v.body);
+    restoreFocus(v.body, fk);
+}
+// One refresh path for every view of a character: the sheet when it shows charId (any when null), then every HUD of it (all when null) —
+// never the body that just painted itself (skip)
+function renderViews(charId, skip) {
+    var any = charId == null;
+    if (sheetOpen && (any || sheetOpen === charId) && ui('sheetBody') !== skip) renderSheet();
+    Object.keys(huds).forEach(function(id) { var v = huds[id]; if (v && (any || id === charId) && v.body !== skip) renderHud(id); });
+}
+// A token turned (tokenTurned): a HUD's dial and stance follow in place; its numbers that read a facing name redraw once the turn is final
+function turnView(v, final) {
+    var camp = getActiveCampaign(), c = charById(v.charId, camp); if (!c) return;
+    var sig = dialSigOf(c, camp), on = JSON.stringify(tokenFlags());
+    if (sig !== v.dialSig) {
+        v.dialSig = sig; v.dialStale = true;
+        if (v.dialOn !== null && on !== v.dialOn) { v.dialOn = on; v.dialStale = false; redrawForFacing(v); return; }   // a token feature switched: the whole HUD
+        swapTokenControls(v.panel, c, camp);
+    }
+    if (final && v.dialStale) { v.dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(v); }
+}
+// The floating panels (the sheet, every HUD, the doc panel) come to the front when clicked or opened — only while a HUD is open (with none,
+// the sheet and the doc panel stack by DOM order as before): z from 9001, renumbered in order before it passes 9400 (the map tooltip is at
+// 20000, the context menu at 100000, chat at 90000, modals above)
+var _zTop = 9000;
+function floatPanels() { var l = [ui('sheetPanel'), ui('docPanel')]; Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
+function raisePanel(p) {
+    if (!p || !Object.keys(huds).length || String(p.style.zIndex) === String(_zTop)) return;
+    if (_zTop >= 9400) { var ps = floatPanels().filter(function(x) { return x !== p; }).sort(function(a, b) { return (+a.style.zIndex || 9000) - (+b.style.zIndex || 9000); }); _zTop = 9000; ps.forEach(function(x) { x.style.zIndex = String(++_zTop); }); }
+    p.style.zIndex = String(++_zTop);
+}
+function resetZ() { [ui('sheetPanel'), ui('docPanel')].forEach(function(x) { if (x) x.style.zIndex = ''; }); _zTop = 9000; }   // the last HUD closed: today's stacking again
+// Where a handbook page opens beside: the view in front (the most recently raised of the open sheet and the HUDs)
+function frontView() {
+    var l = []; var sp = ui('sheetPanel'); if (sp && sp.style.display !== 'none') l.push(sp);
+    Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); });
+    l.sort(function(a, b) { return (+b.style.zIndex || 9000) - (+a.style.zIndex || 9000); });
+    return l[0] || null;
+}
+// [systemcheck:hud-end]
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
 // Where the sticky frame (band + tab strip) sits in the body's flow, in the body's scroll coordinates: the scrollTop at which it
 // just starts to stick. Infinity when there is no frame (so nothing counts as stuck).
@@ -752,6 +869,7 @@ function pinToggle(g, ctx, btn) {
     var anchor0 = inBand ? body.querySelector(':scope > .sheet-section') : btn, top0 = anchor0 ? anchor0.getBoundingClientRect().top : null;
     setPinned(ctx.vctx && ctx.vctx.campId, ctx.c.id, g.id, !isPinned(ctx.vctx && ctx.vctx.campId, ctx.c.id, g.id));
     (ctx.rerender || renderSheet)();
+    if (!(ctx.vctx && ctx.vctx.preview)) renderViews(ctx.c.id, ctx.body);   // HUD frame (HF2a): the sheet and the HUDs of this character follow
     var sel = '[data-pin="' + g.id + '"]', pre = where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ';
     var nb = inBand ? body.querySelector(':scope > .sheet-section') : (body.querySelector(pre + sel) || body.querySelector(sel));
     if (nb && top0 !== null) { body.scrollTop += nb.getBoundingClientRect().top - top0; syncFramePad(body); }
@@ -1407,7 +1525,7 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
 var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
 function itemThrowBtn(def, c, f, rid) {   // Stage 6 F4a: the throw names the carried row (the host reads its definition)
     var tb = el('button', 'tool ghost sheet-item-throw', '💥 Throw'); tb.title = 'Throw ' + def.name + ' — then click the map';
-    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '' }); closeSheet(); } });
+    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '' }); var hp = tb.closest('.hud-panel'); if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
     return tb;
 }
 function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has the same controls on a player's sheet (a bound or cursed one never shows it)
@@ -1444,7 +1562,7 @@ function noteUndo(c, f, res) {
     if (!res || typeof res.row !== 'string' || !(res.added > 0)) return;
     var k = undoKey(c, f, res.row), now = Date.now(), u = _undo[k];
     if (u && u.until > now) { u.added += res.added; u.until = now + LIMITS.undoMs; } else _undo[k] = { until: now + LIMITS.undoMs, added: res.added };
-    setTimeout(function() { if (_undo[k] && _undo[k].until <= Date.now()) { delete _undo[k]; if (sheetOpen === c.id) renderSheet(); } }, LIMITS.undoMs + 50);
+    setTimeout(function() { if (_undo[k] && _undo[k].until <= Date.now()) { delete _undo[k]; renderViews(c.id); } }, LIMITS.undoMs + 50);
 }
 function takeBack(c, f, rid, n) { var k = undoKey(c, f, rid), u = _undo[k]; if (!u || !(n > 0)) return; u.added -= n; if (u.added <= 0) delete _undo[k]; }
 function undoBtn(entry, c, f) {
@@ -1814,12 +1932,12 @@ function commit(c, f, value) {
         var n = net(); if (!n || !n.charEdit) return;
         var r = n.charEdit(c.id, f.id, value);
         if (r && r.error) toast(r.error);
-        renderSheet();
+        renderViews(c.id);
         return;
     }
     if (!canWrite()) return;
     var res = applyEdit(sys, c, f.id, value, F(), {});
-    if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderSheet(); return; }
+    if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
     c.values = c.values || {}; c.values[f.id] = res.value;
@@ -1832,10 +1950,10 @@ function commit(c, f, value) {
 // with any pool an effect's end brought down to its new max in the same change
 function commitEffect(c, f, q) {
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
-    if (isClient()) { var n = net(); if (!n || !n.charEffect) return; var r = n.charEffect(c.id, f.id, q); if (r && r.error) toast(r.error); renderSheet(); return; }
+    if (isClient()) { var n = net(); if (!n || !n.charEffect) return; var r = n.charEffect(c.id, f.id, q); if (r && r.error) toast(r.error); renderViews(c.id); return; }
     if (!canWrite()) return;
     var res = applyEffectOp(sys, c, f.id, q, F(), {});
-    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed.' : res.reason === 'missing' ? 'That effect is gone.' : 'That change is not allowed.'); renderSheet(); return; }
+    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed.' : res.reason === 'missing' ? 'That effect is gone.' : 'That change is not allowed.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined, extra = null;
     if (res.clamp) { extra = {}; Object.keys(res.clamp).forEach(function(fid) { extra[fid] = c.values && Object.prototype.hasOwnProperty.call(c.values, fid) ? clone(c.values[fid]) : undefined; }); }
     lastChange = { charId: c.id, fieldId: f.id, prev: prev, extra: extra };   // revert brings a clamped pool back too
@@ -1852,12 +1970,12 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
         var n = net(); if (!n || !n.charItem) return;
         var r = n.charItem(c.id, f.id, q);
         if (r && r.error) toast(r.error); else undoFollow(r);
-        renderSheet();
+        renderViews(c.id);
         return;
     }
     if (!canWrite()) return;
     var res = applyRowOp(sys, c, f.id, q, F(), {});
-    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderSheet(); return; }
+    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderViews(c.id); return; }
     undoFollow(res);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
@@ -1900,16 +2018,18 @@ function fromShadowBase(w) {
 }
 // net.js hooks: a character arrived, changed or went
 function charChanged(id) {
-    if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
-    if (sheetOpen && (id === null || sheetOpen === id)) renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
+    var lost = {};   // HUD frame (HF2a): one notice per character, however many of its views close
+    if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; lost[gone.id] = 1; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
+    if (isClient()) Object.keys(huds).forEach(function(hid) { if (id !== null && id !== undefined && hid !== id) return; var gh = charById(hid); if (gh && !gh.partial && gh.ownerId === myId()) return; closeHud(hid); if (!lost[hid]) { lost[hid] = 1; toast((gh ? gh.name : 'That character') + ' is no longer your character.'); var nH = net(); if (nH && nH.dropPending) nH.dropPending(hid); } });
+    renderViews(id); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
 // the token's owner select moved (inspector.js): the character follows, and every token of it
 function ownerFromToken(w) {
     var camp = getActiveCampaign(), c = w && w.charId ? charById(w.charId, camp) : null; if (!c || c.npc) return;
     if (!c.ownerId && !w.ownerId) return;
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
-function charGone(id) { if (sheetOpen === id) { closeSheet(); toast('That character is no longer shared with you.'); } if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg) { if (!ok) toast(reason === 'stays' ? (msg || 'You can\u2019t get rid of it.') : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
+function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
+function editResult(rid, ok, reason, msg) { if (!ok) toast(reason === 'stays' ? (msg || 'You can\u2019t get rid of it.') : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
@@ -1976,7 +2096,7 @@ function saveDraft() {
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
     var v = validateSystem(clean, F());
     toast((orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));
-    renderAll(); if (sheetOpen) renderSheet();
+    renderAll(); renderViews(null);
 }
 function refreshErrors() {
     errorsById = {}; warningsById = {};
@@ -2489,6 +2609,10 @@ function importFile(file) {
     var sc = ui('sheetClose'); if (sc) sc.addEventListener('click', closeSheet);
     var rv = ui('sheetRevert'); if (rv) rv.addEventListener('click', revertLast);
     var pk = ui('sheetPick'); if (pk) pk.addEventListener('change', function() { if (pk.value) openSheet(pk.value); });
+    var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });   // HUD frame (HF2a): the reference's header button
+    p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
+    var dpn = ui('docPanel');   // the doc panel (docpanel.js, not edited here) comes forward when clicked or shown — only while a HUD is open
+    if (dpn) { dpn.addEventListener('pointerdown', function() { raisePanel(dpn); }, true); if (window.MutationObserver) { var dpShown = dpn.style.display !== 'none'; new MutationObserver(function() { var now = dpn.style.display !== 'none'; if (now && !dpShown) raisePanel(dpn); dpShown = now; }).observe(dpn, { attributes: true, attributeFilter: ['style'] }); } }
     var drag = null;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
     head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
@@ -2510,17 +2634,17 @@ function importFile(file) {
 function sync() {
     var b = ui('systemBtn'); if (b) b.style.display = canWrite() ? '' : 'none';
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
-    if (!featureOn() && sheetOpen) closeSheet();
-    else if (sheetOpen) renderSheet();
+    if (!featureOn()) { if (sheetOpen) closeSheet(); closeHuds(); }   // HUD frame (HF2a): each view on its own
+    else renderViews(null);
 }
 var _lastCamp = null;
-setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp && sheetOpen) closeSheet(); _lastCamp = id; }, 1000);
+setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; }, 1000);
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
-    openSheet: openSheet, closeSheet: closeSheet, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderSheet, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
 (function wireSheetPopout() {

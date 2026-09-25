@@ -1965,6 +1965,34 @@
   #sheetPanel.sheet-sized #sheetBody { flex: 1 1 auto; min-height: 0; }
   .sys-flags .sys-caption { width: 240px; }
   .sys-flags .sys-res-icon { width: 52px; text-align: center; }
+  /* Stage 5h: status effects on the sheet, the breakdown marks, and the Effects tab */
+  .sheet-fx-list { display: flex; flex-direction: column; gap: 4px; }
+  .sheet-fx { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 3px 6px; border: 1px solid var(--edge); border-radius: 6px; font-size: 12.5px; }
+  .sheet-fx-off { opacity: .5; }
+  .sheet-fx-buff { border-left: 3px solid var(--green); }
+  .sheet-fx-debuff { border-left: 3px solid var(--red); }
+  .sheet-fx-name { font-weight: 600; }
+  .sheet-fx-tone { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+  .sheet-fx-dur { font-size: 11px; color: var(--dim); font-style: italic; }
+  .sheet-fx-rm { margin-left: auto; }
+  .sheet-fx-mods { flex: 1 1 100%; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .sheet-fx-add-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .sheet-fx-add { flex: 1 1 auto; }
+  .sheet-fx-form { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px dashed var(--edge); border-radius: 6px; }
+  .sheet-fx-form input.sheet-fx-fname, .sheet-fx-form input.sheet-fx-fdur { flex: 1 1 140px; width: auto; }
+  .sheet-fx-flines { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; }
+  .sheet-fx-fline { display: flex; gap: 4px; align-items: center; }
+  .sheet-fx-fline .sheet-fx-ftarget { flex: 1 1 auto; width: auto; }
+  .sheet-fx-fline .sheet-fx-famt { flex: 0 0 72px; width: 72px; }
+  .sheet-fx-fbtns { display: flex; gap: 6px; }
+  .sheet-eff { flex: 0 0 auto; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 4px; cursor: help; }
+  .sheet-eff-up { color: var(--green); }
+  .sheet-eff-down { color: var(--red); }
+  .sheet-eff-same { color: var(--dim); }
+  .sys-fx-mods { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+  .sys-fx-mod { display: flex; gap: 6px; align-items: center; }
+  .sys-fx-mod .sys-fx-amt { width: 80px; }
+  .sys-fx-row .sys-fx-icon { width: 52px; flex: 0 0 52px; text-align: center; }
   .sheet-hdr-val.sheet-hdr-edit:focus-within { border-color: var(--sheet-accent, var(--gold)); }   /* the ledger box's focus ring (the input itself is borderless) */
   .sheet-pos, .sheet-hdr-pos, .sheet-field input.sheet-pos, .sheet-hdr-edit input.sheet-hdr-pos { color: var(--green); }
   .sheet-neg, .sheet-field input.sheet-neg, .sheet-hdr-edit input.sheet-hdr-neg { color: var(--red); }

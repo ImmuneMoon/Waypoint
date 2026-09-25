@@ -357,7 +357,7 @@ const j = v => JSON.stringify(v);
             && /if \(typeof look\.accent === 'string' && \/\^#\[0-9a-fA-F\]\{6\}\$\/\.test\(look\.accent\)\) \{ body\.style\.setProperty\('--sheet-accent', look\.accent\);[\s\S]{0,300}?else \{ body\.style\.removeProperty\('--sheet-accent'\); body\.style\.removeProperty\('--sheet-accent-ink'\); \}/.test(sh5)
             && /\.sheet-frame \.sheet-tab:not\(\.active\) \{ color: var\(--sheet-dim, var\(--dim\)\); \}/.test(css5) && /\.sheet-frame \.sheet-value:not\(\.sheet-pos\):not\(\.sheet-neg\):not\(\.sheet-err\), \.sheet-frame \.sheet-tab:not\(\.active\):hover \{ color: var\(--sheet-ink, var\(--ink\)\); \}/.test(css5)
             && /\.sheet-head, \.sheet-frame \{ margin: 0 -10px; background: var\(--sheet-bg, var\(--panel2\)\); color: var\(--sheet-ink, var\(--ink\)\);/.test(css5) && /\.sheet-tab\.active \{ color: var\(--sheet-accent, var\(--gold\)\);/.test(css5));
-        check('Stage 5g: the pop-out cleans the raw save (system and character) before rendering, so its sinks see validated values like the panel\'s', /var sys = cleanSystem\(raw, \{ F: F\(\), gmView: true \}\), c = sys \? cleanChar\(c0, sys\) : null;\s*if \(!sys \|\| !c\) return null;\s*buildSections\(container, sys, c,/.test(sh5) && /import \{[^}]*\bcleanChar\b[^}]*\} from '\.\/systemcore\.js';/.test(sh5));
+        check('Stage 5g: the pop-out cleans the raw save (system and character) before rendering, so its sinks see validated values like the panel\'s', /var sys = cleanSystem\(raw, \{ F: F\(\), gmView: true \}\), c = sys \? cleanChar\(c0, sys\) : null;\s*if \(!sys \|\| !c\) return null;\s*_fxLive = false; try \{ buildSections\(container, sys, c,/.test(sh5) && /import \{[^}]*\bcleanChar\b[^}]*\} from '\.\/systemcore\.js';/.test(sh5));
         const aInk = (() => { const src = sh5.slice(sh5.indexOf('function accentInk('), sh5.indexOf('function buildSections(')); return new Function(src + '; return accentInk;')(); })();
         check('Stage 5g: the open filled tab\'s label picks near-black on a light accent and white on a dark one', aInk('#e0a54f') === '#111318' && aInk('#4db3d3') === '#111318' && aInk('#7a1f1f') === '#ffffff' && aInk('#101010') === '#ffffff', [aInk('#e0a54f'), aInk('#7a1f1f')].join());
         check('Stage 5g: inside the head and the frame, transparent buttons, slider ends, the GM marker, the open underlined tab and the name follow a look pair (the fallbacks are the old theme values); the filled open tab keeps its own ink; the ledger box shows focus',
@@ -470,7 +470,121 @@ const j = v => JSON.stringify(v);
         const pcEmpty = cleanChar({ id: 'c_3', name: 'Q', ownerId: 'u_q', values: {}, partial: true, lines: [] }, fx1);
         check('5h F1: an empty list of host lines is kept (the owner\'s "no lines" is the answer; the teammate never recomputes from its own defaults)', Array.isArray(pcEmpty.lines) && pcEmpty.lines.length === 0);
         const shF1 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
-        check('5h F1: the join snapshot gives a teammate\'s copy the host\'s hover lines too, and a teammate\'s hover card draws them', /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId\), camp\.chars\[id\], camp\.system\)/.test(netSrcF) && /if \(c\.partial && Array\.isArray\(c\.lines\)\) return c\.lines\.slice\(\);/.test(shF1));
+        check('5h F1: the join snapshot gives a teammate\'s copy the host\'s hover lines too, and a teammate\'s hover card draws them', /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx \}\), camp\.chars\[id\], camp\.system, libFx\)/.test(netSrcF) && /if \(c\.partial && Array\.isArray\(c\.lines\)\) return c\.lines\.slice\(\);/.test(shF1));
+    }
+
+    /* ---- Stage 5h Fold 2: status effects ---- */
+    {
+        const base5 = { v: 1, name: 'FX', fields: [
+            { id: 'f_st', key: 'ST', kind: 'number', def: 10, vis: 'all', edit: 'owner' },
+            { id: 'f_dx', key: 'DX', kind: 'number', def: 10, vis: 'all', edit: 'owner' },
+            { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: 'ST', def: 'max', min: 0, vis: 'all', edit: 'owner', hover: true },
+            { id: 'f_spd', key: 'Speed', kind: 'formula', formula: '(DX + 10) / 4', vis: 'all' },
+            { id: 'f_dodge', key: 'Dodge', kind: 'formula', formula: 'floor(Speed) + 3', vis: 'all', hover: true },
+            { id: 'f_sw', key: 'Sword', kind: 'skill', base: 'DX - 5', def: 2, vis: 'all', edit: 'owner' },
+            { id: 'f_prone', key: 'Prone', kind: 'toggle', def: false, vis: 'all', edit: 'owner' },
+            { id: 'f_name', key: 'Name', kind: 'text', def: '', vis: 'all' },
+            { id: 'f_sec', key: 'Secret', kind: 'number', def: 1, vis: 'gm' },
+            { id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects', vis: 'all', edit: 'owner', hover: true },
+            { id: 'f_fxgm', key: 'FxGM', kind: 'effects', vis: 'all', edit: 'gm' }
+        ], rolls: [], effects: [
+            { id: 'e_rage', name: 'Rage', icon: '\uD83D\uDE21', tone: 'buff', dur: '3 rounds', vis: 'all', mods: [{ f: 'f_st', op: 'add', v: 2 }, { f: 'f_name', op: 'add', v: 1 }, { f: 'f_prone', op: 'add', v: 1 }, { f: 'f_st', op: 'on' }, { f: 'f_dx', op: 'add', v: 1e20 }, { f: 'f_nope', op: 'add', v: 1 }, { f: 'f_hp', op: 'add', v: 1 }] },
+            { id: 'e_knock', name: 'Knocked', tone: 'debuff', vis: 'all', mods: [{ f: 'f_prone', op: 'on' }, { f: 'f_dx', op: 'add', v: -4 }] },
+            { id: 'e_bless', name: 'Blessed', vis: 'all', mods: [{ f: 'f_sw', op: 'add', v: 1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }] },
+            { id: 'e_curse', name: 'Curse', vis: 'gm', mods: [{ f: 'f_st', op: 'add', v: -3 }, { f: 'f_sec', op: 'add', v: 2 }] },
+            { id: '__proto__', name: 'Bad', mods: [] }, { id: 'e_rage', name: 'Dup', mods: [] }
+        ] };
+        const GM5 = cleanSystem(base5, { F, gmView: true }), PL5 = cleanSystem(base5, { F, gmView: false });
+        const rage = GM5.effects.find(d => d.id === 'e_rage');
+        check('5h: the library keeps valid ids once; a change fits its field (add on a number, skill, formula or a resource max; on only a toggle), is finite and within 1e6; plain objects',
+            GM5.effects.map(d => d.id).join() === 'e_rage,e_knock,e_bless,e_curse' && j(rage.mods) === j([{ f: 'f_st', op: 'add', v: 2 }]) && j(GM5.effects[2].mods) === j([{ f: 'f_sw', op: 'add', v: 1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }]) && Object.getPrototypeOf(rage) === Object.prototype && Object.getPrototypeOf(rage.mods[0]) === Object.prototype, j(GM5.effects));
+        check('5h: the players\' view drops a GM-only effect and any change to a GM-only field; no effects means no "effects" key (a system without them is unchanged)',
+            PL5.effects.map(d => d.id).join() === 'e_rage,e_knock,e_bless' && !('effects' in cleanSystem({ v: 1, name: 'N', fields: [], rolls: [] }, { F, gmView: true })), j(PL5.effects));
+        const vo5 = S.valueOpts(GM5), fxF = GM5.fields.find(f => f.id === 'f_fx');
+        const rowsIn = [{ id: 'x_1', ref: 'e_rage' }, { id: 'x_2', ref: 'e_rage' }, { id: 'x_1', ref: 'e_knock' }, { id: 'x_3', ref: 'e_nope' }, { id: 'x_4', ref: '__proto__' }, { id: 'x_5', name: ' Shaken\u0001 ', tone: 'debuff', on: false, mods: [{ f: 'f_dx', op: 'add', v: -1 }, { f: 'f_name', op: 'add', v: 1 }] }, { id: 'bad', ref: 'e_knock' }];
+        const rowsOut = cleanValue(fxF, rowsIn, vo5);
+        check('5h: a character\'s rows: a library row once per effect, unknown or prototype refs and bad ids dropped, an ad hoc row cleaned (its changes checked), "on" true unless false',
+            j(rowsOut) === j([{ id: 'x_1', ref: 'e_rage', on: true }, { id: 'x_5', name: 'Shaken', icon: '', tone: 'debuff', dur: '', notes: '', on: false, mods: [{ f: 'f_dx', op: 'add', v: -1 }] }]) && cleanValue(fxF, Array.from({ length: 50 }, (_, i) => ({ id: 'x_r' + i, name: 'E' + i })), vo5).length === 30, j(rowsOut));
+        const ch5 = (rows) => ({ id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_sw: 2, f_fx: rows } });
+        const none = S.resolveAll(GM5, ch5([]), F), rg = S.resolveAll(GM5, ch5([{ id: 'x_1', ref: 'e_rage', on: true }]), F);
+        check('5h: +2 ST from Rage: ST 12, HP max 12 and a full HP 12 (not counted twice); nothing else moves; with no effects no value carries a breakdown',
+            rg.f_st.value === 12 && rg.f_hp.max === 12 && rg.f_hp.value === 12 && rg.f_dodge.value === none.f_dodge.value && Object.keys(none).every(k => !('mods' in none[k]) && !('via' in none[k]) && !('maxMods' in none[k])), j([rg.f_st, rg.f_hp]));
+        const kn = S.resolveAll(GM5, ch5([{ id: 'x_1', ref: 'e_knock', on: true }, { id: 'x_2', ref: 'e_bless', on: true }]), F);
+        check('5h: Knocked switches Prone on and takes 4 DX, so Speed and Dodge follow (via DX); Blessed adds 1 to the Sword total (ranks stay 2) and 5 to HP\'s max',
+            kn.f_prone.value === true && kn.f_dx.value === 6 && kn.f_spd.value === 4 && kn.f_dodge.value === 7 && kn.f_sw.ranks === 2 && kn.f_sw.value === 2 + (6 - 5) + 1 && kn.f_hp.max === 15 && /Knocked/.test(S.fxText(kn.f_dodge)) && /on DX/.test(S.fxText(kn.f_dodge)), j([kn.f_dodge, kn.f_sw, S.fxText(kn.f_dodge)]));
+        const off = S.resolveAll(GM5, ch5([{ id: 'x_1', ref: 'e_rage', on: false }, { id: 'x_2', ref: 'e_gone', on: true }]), F);
+        const baseSys = cleanSystem(Object.assign({}, base5, { fields: base5.fields.concat([{ id: 'f_cost', key: 'Cost', kind: 'formula', formula: '(ST.base - 10) * 10', vis: 'all' }]) }), { F, gmView: true });
+        const baseAll = S.resolveAll(baseSys, ch5([{ id: 'x_1', ref: 'e_rage', on: true }]), F), baseVal = S.validateSystem(baseSys, F);
+        check('5h: a formula that should ignore effects reads the stored number as "ST.base" (a points cost stays 0 under Rage), and the editor knows the name', baseAll.f_st.value === 12 && baseAll.f_cost.value === 0 && !baseVal.errors.some(e => /ST\.base/i.test(e.message)), j([baseAll.f_cost, baseVal.errors]));
+        check('5h: a row switched off, or naming an effect that is gone, changes nothing', off.f_st.value === 10 && !('mods' in off.f_st));
+        check('5h: the breakdown text: "12 base" is the stored base, then each source; a formula built from a changed field names it', S.fxText(rg.f_st) === '10 base \u00b7 Rage +2' && /Rage \+2 on ST/.test(S.fxText(rg.f_hp, true)), [S.fxText(rg.f_st), S.fxText(rg.f_hp, true)].join(' | '));
+        // applyEffectOp: rights, ops, the clamp
+        const cP = ch5([{ id: 'x_1', ref: 'e_bless', on: true }]); cP.values.f_hp = { cur: 14 };
+        const aP = S.applyEffectOp(GM5, cP, 'f_fx', { op: 'add', rowId: 'x_9', ref: 'e_rage' }, F, { player: true, view: PL5 }), aGm = S.applyEffectOp(GM5, cP, 'f_fx', { op: 'add', rowId: 'x_9', ref: 'e_curse' }, F, { player: true, view: PL5 });
+        const aLock = S.applyEffectOp(GM5, cP, 'f_fxgm', { op: 'add', rowId: 'x_9', ref: 'e_rage' }, F, { player: true, view: PL5 }), aAdhoc = S.applyEffectOp(GM5, cP, 'f_fx', { op: 'adhoc', row: { id: 'x_8', name: 'Peek', mods: [{ f: 'f_sec', op: 'add', v: 1 }] } }, F, { player: true, view: PL5 });
+        check('5h: a player adds a visible effect; a GM-only effect, a GM-edit list and an ad hoc change to a GM-only field are refused; the GM may apply a GM-only effect',
+            aP.ok && aP.value.length === 2 && !aGm.ok && aGm.reason === 'missing' && !aLock.ok && aLock.reason === 'field' && !aAdhoc.ok && aAdhoc.reason === 'value' && S.applyEffectOp(GM5, cP, 'f_fx', { op: 'add', rowId: 'x_9', ref: 'e_curse' }, F, {}).ok, j([aP, aGm, aLock, aAdhoc]));
+        const again = S.applyEffectOp(GM5, ch5([{ id: 'x_1', ref: 'e_rage', on: false }]), 'f_fx', { op: 'add', rowId: 'x_2', ref: 'e_rage' }, F, {});
+        const endBless = S.applyEffectOp(GM5, cP, 'f_fx', { op: 'remove', rowId: 'x_1' }, F, {});
+        check('5h: adding an effect a character already has turns it back on (once per character); ending Blessed brings HP 14 down to the new max 10 in the same change',
+            again.ok && j(again.value) === j([{ id: 'x_1', ref: 'e_rage', on: true }]) && endBless.ok && endBless.value.length === 0 && endBless.clamp && j(endBless.clamp.f_hp) === j({ cur: 10 }), j([again, endBless]));
+        check('5h: switching and ending need an existing row; a plain edit can never set an effects list', !S.applyEffectOp(GM5, cP, 'f_fx', { op: 'on', rowId: 'x_404', on: false }, F, {}).ok && S.applyEffectOp(GM5, cP, 'f_fx', { op: 'on', rowId: 'x_1', on: false }, F, {}).value[0].on === false && !S.applyEdit(GM5, cP, 'f_fx', [], F, {}).ok);
+        // the projection: the owner gets a GM-only effect inline, a teammate names only
+        const cc = { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_fx: [{ id: 'x_1', ref: 'e_rage', on: true }, { id: 'x_2', ref: 'e_curse', on: true }] } };
+        const libAll = {}; GM5.effects.forEach(d => { libAll[d.id] = d; });
+        const own = S.charFor(cc, PL5, 'u_p', { lib: libAll }), mate = S.charFor(cc, PL5, 'u_m', { lib: libAll });
+        check('5h: the owner holds a visible effect as a reference and a GM-only one inline (changes to GM-only fields removed); a teammate gets names only',
+            j(own.values.f_fx[0]) === j({ id: 'x_1', ref: 'e_rage', on: true }) && own.values.f_fx[1].name === 'Curse' && j(own.values.f_fx[1].mods) === j([{ f: 'f_st', op: 'add', v: -3 }]) && !('ref' in own.values.f_fx[1])
+            && mate.values.f_fx.every(r => j(r.mods) === '[]' && !('ref' in r)) && mate.values.f_fx.map(r => r.name).join() === 'Rage,Curse', j([own.values.f_fx, mate.values.f_fx]));
+        const ownClean = cleanChar(own, PL5), plAll = S.resolveAll(PL5, ownClean, F), gmAll = S.resolveAll(GM5, cc, F);
+        check('5h: the player\'s copy works the same numbers out as the GM\'s (ST 10 + 2 − 3 = 9, HP max 9)', plAll.f_st.value === 9 && gmAll.f_st.value === 9 && plAll.f_hp.max === gmAll.f_hp.max, j([plAll.f_st, gmAll.f_st]));
+        const hl = S.hoverLines(GM5, cc, F);
+        check('5h: the hover card names the active effects, and a GM\'s public roll that a GM-only effect changed stays private', hl.some(l => /^Effects Rage, Curse$/.test(l)) && S.gmEffectNames(S.makeResolver(GM5, cc, F), [{ name: 'ST', value: 9 }]).join() === 'ST' && S.gmEffectNames(S.makeResolver(GM5, ch5([{ id: 'x_1', ref: 'e_rage', on: true }]), F), [{ name: 'ST', value: 12 }]).length === 0, j(hl));
+        const cx = S.cleanCharEffect({ rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'adhoc', row: { id: 'x_7', name: 'X', mods: [{ f: 'f_st', op: 'add', v: '2' }] } });
+        check('5h: the wire shape: only the known ops, ids and types pass (the rules are applyEffectOp\'s)', cx && cx.row.id === 'x_7' && !S.cleanCharEffect({ rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'nuke', rowId: 'x_1' }) && !S.cleanCharEffect({ rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'add', rowId: 'x_1', ref: '__proto__' }) && !S.cleanCharEffect({ rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'on', rowId: 'x_1', on: 'yes' }));
+        // review fixes
+        const two = S.resolveAll(GM5, { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_fx: [{ id: 'x_1', ref: 'e_rage', on: true }], f_fxgm: [{ id: 'x_2', ref: 'e_rage', on: true }] } }, F);
+        const cross = S.applyEffectOp(GM5, { id: 'c_1', values: { f_fx: [{ id: 'x_1', ref: 'e_rage', on: true }] } }, 'f_fxgm', { op: 'add', rowId: 'x_2', ref: 'e_rage' }, F, {});
+        check('5h review: one library effect counts once per character across lists (ST 12, not 14), and adding it to a second list is refused', two.f_st.value === 12 && !cross.ok && cross.reason === 'value', j([two.f_st, cross]));
+        const hid = cleanSystem({ v: 1, name: 'H', fields: [{ id: 'f_fx', key: 'Fx', kind: 'effects', vis: 'gm', edit: 'gm' }], rolls: [] }, { F, gmView: true });
+        check('5h review: a Status effects list is always visible (GM-only is a property of an effect, never of the list)', hid.fields[0].vis === 'all' && cleanSystem({ v: 1, name: 'H', fields: [{ id: 'f_fx', key: 'Fx', kind: 'effects', vis: 'gm' }], rolls: [] }, { F, gmView: false }).fields.length === 1);
+        const knD = S.fxText(kn.f_dodge);
+        check('5h review: the breakdown\'s base is the value with no effect, so its parts add up to what is shown ("8 base · Knocked −4 on DX" for Dodge 7); a switched-on toggle reads "(on)"', knD === '8 base \u00b7 Knocked \u22124 on DX' && kn.f_dodge.base === 8 && S.fxText(kn.f_prone) === 'Knocked (on)', [knD, S.fxText(kn.f_prone)].join(' | '));
+        const curseFull = { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_fx: [{ id: 'x_1', ref: 'e_curse', on: true }] } };
+        const rvC = S.makeResolver(GM5, curseFull, F); rvC('HP');
+        check('5h review: a GM-only effect on a full pool (through its max) is found, so a public roll of "HP" stays private', S.gmEffectNames(rvC, [{ name: 'HP', value: 7 }]).join() === 'HP', j(rvC.detail('HP')));
+        const fr = { v: 1, name: 'FR', fields: [{ id: 'f_ht', key: 'HT', kind: 'number', def: 11, vis: 'all' }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: 'HT / 2 + 3', def: 'max', min: 0, vis: 'all', edit: 'owner' }, { id: 'f_fx', key: 'Fx', kind: 'effects', vis: 'all', edit: 'owner' }], rolls: [], effects: [{ id: 'e_t', name: 'Tough', vis: 'all', mods: [{ f: 'f_hp', op: 'add', v: 5, part: 'max' }] }, { id: 'e_o', name: 'Other', vis: 'all', mods: [] }] };
+        const FRs = cleanSystem(fr, { F, gmView: true }), chFr = { id: 'c_1', values: { f_hp: { cur: 13 }, f_fx: [{ id: 'x_1', ref: 'e_t', on: true }] } };
+        const endT = S.applyEffectOp(FRs, chFr, 'f_fx', { op: 'remove', rowId: 'x_1' }, F, {}), other = S.applyEffectOp(FRs, { id: 'c_1', values: { f_hp: { cur: 13 }, f_fx: [] } }, 'f_fx', { op: 'add', rowId: 'x_2', ref: 'e_o' }, F, {});
+        check('5h review: the clamp is a whole number (max 8.5 → 8), and only where this change lowered the max (an unrelated add clamps nothing)', endT.ok && j(endT.clamp) === j({ f_hp: { cur: 8 } }) && other.ok && !other.clamp, j([endT.clamp, other.clamp]));
+        const kc = S.charFor({ id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_name: [{ id: 'x_1', ref: 'e_curse', on: true }], f_st: 12 } }, PL5, 'u_p', { lib: libAll });
+        check('5h review: a value from before a kind change (effects rows now in a text field) never travels; a probe still sees every field', !('f_name' in kc.values) && kc.values.f_st === 12 && S.charFor({ id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_prone: 0 } }, PL5, 'u_p', { probe: true }).values.f_prone === 0, j(kc.values));
+        const al = S.autoLayout(GM5);
+        check('5h: the automatic layout gives status effects their own full-row section', al.sections.some(s => s.title === 'Effects' && s.fields.some(p => p.id === 'f_fx' && p.w === 'row')));
+        // the host's handler, sliced from net.js and run with the real modules
+        const netSrcX = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const iX = netSrcX.indexOf('// [netcheck:charfx-start]'), kX = netSrcX.indexOf('// [netcheck:charfx-end]');
+        const runFx = new Function('SC', 'window', 'conn', 'msg', 'net', 'peerPaused', 'charLimit', '_charSlowSaid', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', netSrcX.slice(iX, kX) + '\nreturn "ran";');
+        const hostRun = (msg, opts) => { opts = opts || {}; const camp = { id: 'camp1', system: GM5, chars: { c_1: JSON.parse(JSON.stringify(cc)), c_2: { id: 'c_2', name: 'Q', ownerId: 'u_q', npc: false, values: {} } } }; const sent = [], deltas = [];
+            const netX = { paused: !!opts.paused, roster: { pA: { id: 'u_p' } }, syncCharDelta: (id, d) => deltas.push([id, d]) };
+            runFx(() => S, { wpFormula: F, wpVtt: { on: () => !opts.off }, wpSheets: { playerSystem: () => PL5, charChanged() {} } }, { peer: 'pA', send: m => sent.push(m) }, msg, netX, () => false, { allow: () => true }, {}, () => camp, () => {}, () => {});
+            return { sent, deltas, camp }; };
+        const okR = hostRun({ type: 'char-effect', rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'add', rowId: 'x_9', ref: 'e_bless' });
+        const denyOf = r => (r.sent.find(m => m.type === 'char-deny') || {}).reason;
+        check('5h host: a player\'s change is judged and stored, acked, then synced; not their character, a GM-only effect, a GM-edit list, paused and sheets off are each refused; junk is dropped silently',
+            okR.sent.some(m => m.type === 'char-ack') && okR.deltas.length === 1 && okR.camp.chars.c_1.values.f_fx.length === 3
+            && denyOf(hostRun({ type: 'char-effect', rid: 'r2', charId: 'c_2', fieldId: 'f_fx', op: 'add', rowId: 'x_9', ref: 'e_bless' })) === 'owner'
+            && denyOf(hostRun({ type: 'char-effect', rid: 'r3', charId: 'c_1', fieldId: 'f_fx', op: 'add', rowId: 'x_9', ref: 'e_curse' })) === 'missing'
+            && denyOf(hostRun({ type: 'char-effect', rid: 'r4', charId: 'c_1', fieldId: 'f_fxgm', op: 'add', rowId: 'x_9', ref: 'e_rage' })) === 'field'
+            && denyOf(hostRun({ type: 'char-effect', rid: 'r5', charId: 'c_1', fieldId: 'f_fx', op: 'remove', rowId: 'x_1' }, { paused: true })) === 'paused'
+            && denyOf(hostRun({ type: 'char-effect', rid: 'r6', charId: 'c_1', fieldId: 'f_fx', op: 'remove', rowId: 'x_1' }, { off: true })) === 'off'
+            && hostRun({ type: 'char-effect', charId: 'c_1', fieldId: 'f_fx', op: 'remove', rowId: 'x_1' }).sent.length === 0, j(okR));
+        const shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), fxSrc = shX.slice(shX.indexOf('function effectsInto('), shX.indexOf('// Stage 5g: a value coloured by its sign'));
+        check('5h review UI: the mark\'s direction is the value against its true base; controls are dead in the Layout preview and the pop-out; the New… form survives a re-render; revert restores a clamped pool; a number box is toned by what it shows',
+            /var dir = \(typeof v === 'number' && typeof b === 'number'\) \? \(v > b \? 'up' : v < b \? 'down' : 'same'\) : 'same';/.test(shX) && (shX.match(/_fxLive = false; try \{ buildSections\(/g) || []).length === 2 && /editable = editable && _fxLive;/.test(shX)
+            && /if \(_fxForm && _fxForm\.charId === c\.id && _fxForm\.fieldId === f\.id\)/.test(shX) && /if \(lastChange\.extra\) Object\.keys\(lastChange\.extra\)/.test(shX) && /signTone\(f, \{ value: Number\(inp\.value\) \}\)/.test(shX));
+        check('5h UI: the effects list and its form draw text only (no markup), the editor\'s field dispatch skips effect rows, and every value from the host is re-cleaned against the players\' ids',
+            fxSrc.length > 1000 && !/innerHTML/.test(fxSrc) && /row\.dataset\.cid \|\| row\.dataset\.iid \|\| row\.dataset\.eid\) return null;/.test(shX) && /SC2\.cleanValue\(f, msg\.values\[fid\], SC2\.valueOpts\(sysC\)\)/.test(netSrcX));
     }
 
     /* ---- the System editor's click dispatch: the Layout handler must claim only its own buttons ---- */

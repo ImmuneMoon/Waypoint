@@ -259,7 +259,7 @@ function hbTick() {
         setIndicator(stale ? 'warn' : 'ok', stale ? stale + ' player' + (stale > 1 ? 's' : '') + ' not responding' : 'hosting, ' + n + ' player' + (n === 1 ? '' : 's') + ' connected');
     } else {
         var c0 = net.conns[0];
-        if (c0 && c0.open) { try { c0.send({ type: 'hb' }); } catch (e) {} }
+        if (c0 && c0.open) { try { c0.send({ type: 'hb' }); } catch (e) { sendFailed(e); } }
         if (!hostLastSeen) hostLastSeen = now;
         var age0 = now - hostLastSeen;
         if (reconn.pending) { setIndicator('warn', 'reconnecting to the GM'); return; }
@@ -399,7 +399,7 @@ function sanitizeItem(item) {
     if (item.type === 'planner') return null;
     if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
-    var m = JSON.parse(JSON.stringify(item));
+    var m = JSON.parse(JSON.stringify(item), wireNum);
     // fog of war (1.5.0 FV2): map.fog travels so a player's client can paint its own-vision overlay; the host
     // separately DROPS the creatures a recipient cannot see (fogFilterClean, per recipient) before each send.
     (m.rooms || []).forEach(function(r) {
@@ -439,8 +439,11 @@ function anyFog(camp) {
     if (!window.wpFog || !window.wpVtt || !window.wpVtt.on('fog') || !camp || !camp.items) return false;
     return Object.keys(camp.items).some(function(id) { var it = camp.items[id]; return !!(it && it.type === 'map' && it.fog && it.fog.on); });
 }
+// Everything a player receives is built from the two clones above and below: a number the wire's packer would refuse (a whole number past
+// 64 bits — typed into a box, imported, computed) is bounded as it is copied, so one value can never stop a map, a join or a snapshot.
+function wireNum(k, v) { return (typeof v === 'number' && (v > 1e15 || v < -1e15)) ? (v > 0 ? 1e15 : -1e15) : v; }
 function sanitizeAppState(s, recipientId) {   // recipientId: the player this copy is for (characters are per recipient); absent = nobody's (the stream window)
-    var c = JSON.parse(JSON.stringify(s));
+    var c = JSON.parse(JSON.stringify(s), wireNum);
     delete c.imageCats;   // the GM's picture-library categories
     delete c._foreign; delete c._cleanup; delete c._picsV;   // origin marker, cleanup notes and the picture-category migration marker stay on this machine
     Object.values(c.campaigns || {}).forEach(function(camp) {
@@ -720,7 +723,7 @@ function applyClientItemFiltered(msg, profile) {
         }
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
         if (!isFinite(wx) || !isFinite(wy) || !isFinite(wr) || !isFinite(wf)) return;
-        w.x = Math.max(-30000, Math.min(60000, wx)); w.y = Math.max(-30000, Math.min(60000, wy)); w.rot = wr; w.front = wf;
+        w.x = Math.max(-30000, Math.min(60000, wx)); w.y = Math.max(-30000, Math.min(60000, wy)); w.rot = Math.max(-1e6, Math.min(1e6, wr)); w.front = Math.max(-1e6, Math.min(1e6, wf));   // bounded: a finite 1e300 is an "integer" the packer refuses
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
@@ -749,7 +752,7 @@ function applyClientItemFiltered(msg, profile) {
 function playerStroke(w, pid) {
     if (!w || w.type !== 'path' || w.ownerId !== pid || !Array.isArray(w.pts)) return null;
     if (w.pts.length < 2 || w.pts.length > 4000) return null;
-    var num = function(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; };
+    var num = function(v, d) { return (typeof v === 'number' && isFinite(v)) ? Math.max(-1e6, Math.min(1e6, v)) : d; };   // bounded: the packer refuses a whole number past 64 bits
     var pts = [];
     for (var i = 0; i < w.pts.length; i++) { var p = w.pts[i]; if (!Array.isArray(p) || p.length < 2) return null; pts.push([num(p[0], 0), num(p[1], 0)]); }
     var color = (typeof w.color === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d.,\s%]+\)|var\(--[a-z0-9-]+\)|[a-z]{3,20})$/i.test(w.color)) ? w.color : '#e9e9f0';
@@ -845,6 +848,8 @@ function broadcast(msg, exceptConn) {   // on the host: admitted peers only — 
     });
 }
 // [netcheck:broadcast-end]
+// A per-peer send the packer (or the channel) refused: logged, never swallowed — a silent catch hid the roster from every player for a release
+function sendFailed(e, what) { try { console.warn('wire send failed' + (what ? ' (' + what + ')' : ''), e); } catch (_) {} }
 
 // Skip re-sending an item that hasn't actually changed — camera saves fire
 // constantly and used to rebroadcast the whole map every time.
@@ -933,13 +938,13 @@ net.sendItem = function(campId, itemId, onlyConn) {
         var sendOne = function(conn) {
             var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
             var out = fogFilterClean(clean, fogDrop(camp, it, pr.id));
-            try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) {}
+            try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); }
         };
         if (onlyConn) sendOne(onlyConn); else net.conns.forEach(sendOne);
         return;
     }
     var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
-    if (onlyConn) { try { onlyConn.send(full); } catch (e) {} return; }              // one player asked for the whole thing
+    if (onlyConn) { try { onlyConn.send(full); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing
     var d = itemDelta(itemId, clean);
     if (d === false) return;                                                          // unchanged since the last send
     var msg = full;
@@ -956,7 +961,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
     net.conns.forEach(function(conn) {
         var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
         var out = fogFilterClean(clean, fogDrop(camp, it, pr.id));
-        try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) {}
+        try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); }
     });
 };
 // Host: an item leaves every admitted player's copy — a deleted map or planner, a page turned GM-only.
@@ -965,7 +970,7 @@ net.itemGone = function(campId, itemId) {
     delete _lastSent[itemId];
     if (!(net.active && net.role === 'host')) return;
     var msg = { type: 'itemGone', campId: campId, itemId: itemId };
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta; net._handleMessage = handleMessage;   // sandbox testing hooks
 
@@ -1015,7 +1020,7 @@ function scheduleStageFollow() {
             var p = net.roster[c.peer];
             if (p && p.detached) return;
             if (p) { p.location = s2.itemId; ensurePlayerToken(p.id, s2.itemId); moved++; }
-            if (c.open) { try { c.send({ type: 'stage', stage: s2 }); } catch (e) {} }
+            if (c.open) { try { c.send({ type: 'stage', stage: s2 }); } catch (e) { sendFailed(e); } }
             if (c.open && net.sendFxArrival) net.sendFxArrival(c, s2.itemId);
         });
         renderRoster();
@@ -1069,7 +1074,7 @@ net.pausePlayer = function(playerId, on) {
     if (on) net.pausedPlayers[playerId] = true; else delete net.pausedPlayers[playerId];
     var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === playerId; });
     var c = key && net.conns.find(function(x) { return x.peer === key; });
-    if (c && c.open) { try { c.send({ type: 'pausePlayer', on: !!on }); } catch (e) {} }
+    if (c && c.open) { try { c.send({ type: 'pausePlayer', on: !!on }); } catch (e) { sendFailed(e); } }
     var nm = (key && net.roster[key] && net.roster[key].name) || 'Player';
     renderRoster();
     if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();   // mark/unmark the paused player's party-strip chip
@@ -1105,7 +1110,7 @@ net.broadcastStance = function() {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign();
     var msg = { type: 'stance', flags: net.stanceFlags(), campId: camp ? camp.id : '', camps: window.wpVtt ? window.wpVtt.hostCamps() : null };
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // The one place the ceiling is re-sent from: every path that changes the hosted campaign or its settings
 // reaches save() → onLocalSave, and the stage timer covers a switch that has not saved yet. A signature
@@ -1132,7 +1137,7 @@ net.syncSounds = function(force) {
     var s = soundSig(msg);
     if (!force && s === net._lastSoundSig) return;
     net._lastSoundSig = s;
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // A cue for the table: start a loop, fire a one-shot, stop, or a volume. Ids only; the path is the entry's own on
 // the player's side (a player fetches nothing a cue names).
@@ -1142,7 +1147,7 @@ net.sendSound = function(cue) {
     if (cue.id !== undefined) msg.id = cue.id;
     if (cue.gain !== undefined) msg.gain = cue.gain;
     if (cue.fade !== undefined) msg.fade = cue.fade;
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // Music (1.5.0): its own library list travels like sounds (to one peer at admit, to admitted peers on a change),
 // and a "take control" override (music-ctl) lets the GM drive every client's music in sync. camp.music is stripped
@@ -1157,7 +1162,7 @@ net.syncMusic = function(force) {
     var s = musicSig(msg);
     if (!force && s === net._lastMusicSig) return;
     net._lastMusicSig = s;
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // The GM's take-control override: drive every admitted client's music (or release with on:false). Host-only — a
 // client never drives another player's music (there is deliberately no host receive branch). Cleaned before it goes.
@@ -1166,7 +1171,7 @@ net.sendMusicControl = function(ctrl) {
     var msg = window.wpMusicCore.cleanControl(ctrl, window.wpMusic && window.wpMusic.idSets ? window.wpMusic.idSets() : null);
     if (!msg) return;
     msg.type = 'music-ctl';
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // Visual effects (1.5.0, S3): a short-lived effect to the players ON THAT MAP (a stop reaches everyone); the host
 // makes every effect, a player never triggers one on anyone. The renderer and the presets live in fx.js / fxcore.js.
@@ -1177,12 +1182,12 @@ net.sendFx = function(fx) {
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
         if (clean.kind !== 'stop' && net.roster[c.peer].location !== clean.mapId) return;   // same-map reach; a stop clears everyone
-        try { c.send(msg); } catch (e) {}
+        try { c.send(msg); } catch (e) { sendFailed(e); }
     });
 };
 net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets its running weather / held wash
     if (!net.active || net.role !== 'host' || !conn || !conn.open || !mapId || !window.wpFx) return;
-    window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) {} });
+    window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } });
 };
 // A blast thrown from a character sheet, shown to the players ON THAT MAP (item library, 1.5.0). Host only; no GM-only data.
 net.broadcastBlast = function(blast, mapId) {
@@ -1191,13 +1196,13 @@ net.broadcastBlast = function(blast, mapId) {
     if (!isFinite(b.x) || !isFinite(b.y) || !(b.ft > 0)) return;
     var camp = getActiveCampaign(); if (!camp) return;
     var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b };
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 net.broadcastBlastClear = function(mapId) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;
     var msg = { type: 'blastClear', campId: camp.id, mapId: mapId };
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // The hosted campaign's system (character sheets) reaches the table as the players' view — GM-only fields and rolls
 // gone, formulas that named them blanked — in the snapshot and on every save or editor Save that changed it (a
@@ -1213,7 +1218,7 @@ net.syncDocStyle = function(force) {
     var s = quickHash(JSON.stringify(msg.docStyle));
     if (!force && s === net._lastDocStyleSig) return;
     net._lastDocStyleSig = s;
-    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 net._lastSystemSig = null;
 net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
@@ -1223,7 +1228,7 @@ net.syncSystem = function(force) {
     var s = quickHash(JSON.stringify(msg.system));
     if (!force && s === net._lastSystemSig) return;
     net._lastSystemSig = s;
-    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
     net.syncChars();   // values keyed by field ids the peers now know
 };
 // ---------- characters (character sheets, 1.5.0): per-recipient copies, deltas, a player's edits ----------
@@ -1245,7 +1250,7 @@ net.syncChars = function() {   // every character, per peer (after the system ch
         if (!c.open || !net.roster[c.peer]) return;
         var pid = peerProfileId(c), outC = {};
         Object.keys(camp.chars || {}).forEach(function(id) { var v = charViewFor(id, pid); if (v) outC[id] = v; });
-        try { c.send({ type: 'chars', campId: camp.id, chars: outC }); } catch (e) {}
+        try { c.send({ type: 'chars', campId: camp.id, chars: outC }); } catch (e) { sendFailed(e); }
     });
 };
 net.syncChar = function(id) {   // one character whole (renamed, reassigned, portrait) or gone for a peer that may not see it
@@ -1254,7 +1259,7 @@ net.syncChar = function(id) {   // one character whole (renamed, reassigned, por
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
         var v = charViewFor(id, peerProfileId(c));
-        try { c.send(v ? { type: 'char', campId: camp.id, char: v } : { type: 'charGone', campId: camp.id, id: id }); } catch (e) {}
+        try { c.send(v ? { type: 'char', campId: camp.id, char: v } : { type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); }
     });
 };
 net.syncCharDelta = function(id, values) {   // changed values, filtered to what each peer may see (null = reverted to the default)
@@ -1268,10 +1273,10 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
         var allowed = S.charFor(probe, view, peerProfileId(c)); if (!allowed) return;
         var sub = {}, any = false;
         Object.keys(values).forEach(function(f) { if (allowed.values[f] !== undefined) { sub[f] = values[f]; any = true; } });
-        if (any) { try { c.send({ type: 'charDelta', campId: camp.id, id: id, values: sub }); } catch (e) {} }
+        if (any) { try { c.send({ type: 'charDelta', campId: camp.id, id: id, values: sub }); } catch (e) { sendFailed(e); } }
     });
 };
-net.syncCharGone = function(id) { if (!net.active || net.role !== 'host') return; var camp = getActiveCampaign(); if (!camp) return; net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send({ type: 'charGone', campId: camp.id, id: id }); } catch (e) {} } }); };
+net.syncCharGone = function(id) { if (!net.active || net.role !== 'host') return; var camp = getActiveCampaign(); if (!camp) return; net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send({ type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); } } }); };
 // A player's edit of their own sheet: applied here at once, judged on the host, undone on a refusal or silence
 net.charEdit = function(charId, fieldId, value) {
     var S = SC(), camp = getActiveCampaign();
@@ -1394,7 +1399,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
     net.conns.forEach(function(c) {
         if (c === exceptConn || !c.open) return;
         var pr = net.roster[c.peer]; if (!pr) return;
-        if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy))) { try { c.send(msg); } catch (e) {} }
+        if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy))) { try { c.send(msg); } catch (e) { sendFailed(e); } }
     });
 }
 net.streamPos = function(wItem, final) {
@@ -1407,7 +1412,7 @@ net.streamPos = function(wItem, final) {
     _posLast = now;
     var msg = { type: 'pos', campId: camp.id, itemId: camp.activeItemId, wbId: wItem.id, x: wItem.x, y: wItem.y, rot: wItem.rot || 0, front: wItem.front || 0, final: !!final };
     if (net.role === 'host') broadcastPos(msg, null, camp, camp.items[camp.activeItemId], wItem);
-    else if (net.conns[0] && net.conns[0].open) { try { net.conns[0].send(msg); } catch (e) {} }
+    else if (net.conns[0] && net.conns[0].open) { try { net.conns[0].send(msg); } catch (e) { sendFailed(e); } }
 };
 
 // Fast path: move the DOM node directly, no full re-render per frame.
@@ -1432,7 +1437,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     if (!traveler || !tCamp || !fromMap || !portal) return false;
     if (net.travelLocked) {
         var k = traveler.id || 'x', now = Date.now();
-        if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) {} }
+        if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) { sendFailed(e); } }
         return false;
     }
     if ((portal.hidden && !portal.trap) || !(portal.nodeId || portal.targetMapId)) return false;   // a hidden decorative portal stays inert; a hidden TRAP still fires (playerLock below still applies)
@@ -1442,7 +1447,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     var destLockM = tCamp.items[pRoom.targetMapId];
     if (destLockM.meta && destLockM.meta.playerLock) {   // closed to players until the GM opens it (summon and bring still work)
         var kL = (traveler.id || 'x') + '|' + pRoom.targetMapId, nowL = Date.now();
-        if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) {} }
+        if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) { sendFailed(e); } }
         return false;
     }
     var destMap = tCamp.items[pRoom.targetMapId];
@@ -1468,7 +1473,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     }
     if (window.wpHistBarrier) window.wpHistBarrier([fromMap.id, destMap.id]);   // a move between two maps: neither side can be undone past it
     broadcastRoster();
-    if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) {} }
+    if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) { sendFailed(e); } }
     var destTitle = (tCamp.items[pRoom.targetMapId].meta || {}).title || pRoom.targetMapId;
     toast((traveler.name || 'A player') + ' traveled to ' + destTitle + '.');
     logEvent('travel', (traveler.name || 'A player') + ' traveled to ' + destTitle + (pRoom && pRoom.name ? ' via ' + pRoom.name : ''));
@@ -1645,13 +1650,14 @@ function handlePos(msg, conn) {
         if (!allow('pos', { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;   // ~60 moves a second is a drag; more is a flood
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
-        msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = prot; msg.front = pfr;
+        msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = Math.max(-1e6, Math.min(1e6, prot)); msg.front = Math.max(-1e6, Math.min(1e6, pfr));   // bounded (see the item gate)
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
         // Host is the authority on cells: seat the token here too, in case the
         // player's copy didn't (grid state not yet applied on their side)
         if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }
+        msg = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front, final: msg.final === true };   // relayed as rebuilt: nothing else a peer added travels on
         applyPosToDom(msg);
         broadcastPos(msg, conn, camp, map, w);
         if (msg.final) {
@@ -1670,7 +1676,7 @@ function handlePos(msg, conn) {
 net.requestTravel = function(viaItemId) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
     if (net.paused || net.selfPaused) { toast(net.selfPaused && !net.paused ? 'The GM has paused you.' : 'The table is paused.'); return; }
-    try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) {}
+    try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) { sendFailed(e); }
 };
 
 // [netcheck:roster-start]
@@ -1804,7 +1810,7 @@ function cleanCombats(c) {
     Object.keys(c).slice(0, 40).forEach(function(mapId) {
         var k = c[mapId]; if (!k || typeof k !== 'object' || !Array.isArray(k.rows)) return;
         var rows = k.rows.slice(0, 60).map(function(r) {
-            return r && typeof r === 'object' ? { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Number(r.init) || 0, src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null } : null;
+            return r && typeof r === 'object' ? { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null } : null;
         }).filter(Boolean);
         if (!rows.length) return;
         out[String(mapId).slice(0, 80)] = { mapId: String(mapId).slice(0, 80), round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
@@ -1847,12 +1853,12 @@ function targetsFor(recipientId) {
 function broadcastCombats() {
     var camp = getActiveCampaign();
     if (!anyFog(camp)) { broadcast({ type: 'combats', combats: net.combats }, null); return; }
-    net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'combats', combats: combatsFor(pr.id) }); } catch (e) {} });
+    net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'combats', combats: combatsFor(pr.id) }); } catch (e) { sendFailed(e); } });
 }
 function broadcastTargets() {
     var camp = getActiveCampaign();
     if (!anyFog(camp)) { broadcast({ type: 'targets', targets: net.targets }, null); return; }
-    net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) {} });
+    net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) { sendFailed(e); } });
 }
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
@@ -1913,7 +1919,7 @@ net.setTarget = function(itemId, mapId, itemName) {
     var next = (cur && cur.id === itemId) ? null : { id: itemId, mapId: mapId };
     if (net.role === 'client') {
         var c0 = net.conns[0];
-        if (c0 && c0.open) { try { c0.send({ type: 'target', id: next ? itemId : null, mapId: mapId }); } catch (e) {} }
+        if (c0 && c0.open) { try { c0.send({ type: 'target', id: next ? itemId : null, mapId: mapId }); } catch (e) { sendFailed(e); } }
         applyTarget(me, getProfile().name, next);   // show it at once; the host's broadcast confirms
     } else if (net.role === 'host') {
         applyTarget(me, getProfile().name || 'GM', next);
@@ -1940,6 +1946,7 @@ function relayShare(msg, conn, sender) {
     var en = msg.entry; if (!en || typeof en !== 'object') return;
     if (conn) {   // from a player: a few a minute, and a budget for the session (a share lands on the GM's disk or in another player's journal)
         if (!allow('share', { perMs: 1000, burst: 6, windowMs: 60000, table: 300 }, conn.peer)) return;
+        if (en.data && !(en.data instanceof ArrayBuffer || ArrayBuffer.isView(en.data))) return;   // binary or nothing: a decoded map could claim any byteLength
         var szS = (en.data && en.data.byteLength) || (typeof en.text === 'string' ? en.text.length : 0);
         if ((_shareBytes[conn.peer] || 0) + szS > 60 * 1024 * 1024) return;
         _shareBytes[conn.peer] = (_shareBytes[conn.peer] || 0) + szS;
@@ -1966,7 +1973,7 @@ function relayShare(msg, conn, sender) {
         var p = net.roster[c.peer];
         if (!c.open || !p || (conn && c === conn)) return;
         if (to !== '*' && p.id !== to) return;
-        try { c.send(out); names.push(p.name || 'a player'); } catch (e) {}
+        try { c.send(out); names.push(p.name || 'a player'); } catch (e) { sendFailed(e); }
     });
     if (names.length) toast((sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', ') + '.');
     if (names.length) logEvent('share', (sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', '));
@@ -1982,7 +1989,7 @@ net.revealHandout = function(hid, pids) {
             var p = net.roster[c.peer];
             try { c.send(pl.kind === 'text'
                 ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }
-                : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }); } catch (e) {}
+                : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
             camp.handoutReveals[p.id][h.id] = Date.now();
@@ -2013,7 +2020,7 @@ function sendMissedHandouts(conn, prof) {
                 if (!conn.open) return;
                 try { conn.send(pl.kind === 'text'
                     ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, replay: true, tags: (h.tags || []).slice(0, 8) }
-                    : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true, tags: (h.tags || []).slice(0, 8) }); } catch (e) {}
+                    : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true, tags: (h.tags || []).slice(0, 8) }); } catch (e) { sendFailed(e, 'handout'); }
             }).catch(function() {});
         }, 1500 + i * 400);
     });
@@ -2121,7 +2128,7 @@ var approvalOpen = false;
 var approvedIds = {};      // profile id -> true: the GM said yes, but that connection was already gone — next attempt goes straight in
 
 function denyJoin(conn, reason) {
-    try { conn.send({ type: 'denied', reason: reason }); } catch (e) {}
+    try { conn.send({ type: 'denied', reason: reason }); } catch (e) { sendFailed(e); }
     setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
 }
 
@@ -2139,7 +2146,7 @@ function admitPlayer(conn, prof, provenKey) {
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
         var recent = chatLog.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: m.roll } : m; });
-        if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) {} }
+        if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) { sendFailed(e); } }
     }, 1200);
     var camp = getActiveCampaign();
     if (camp) {
@@ -2159,11 +2166,11 @@ function admitPlayer(conn, prof, provenKey) {
     if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
-    try { conn.send({ type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) {}
+    try { conn.send({ type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }); } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); }
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
-    var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) {} net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
-    var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) {} net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
-    var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) {} }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
+    var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
+    var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
+    var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
@@ -2175,7 +2182,7 @@ function admitPlayer(conn, prof, provenKey) {
 function queueJoin(conn, prof, why) {
     if (pendingJoins.some(function(j) { return j.conn === conn; })) return;
     if (pendingJoins.length >= 12) { denyJoin(conn, 'The table is busy — try again in a moment.'); return; }
-    try { conn.send({ type: 'wait' }); } catch (e) {}
+    try { conn.send({ type: 'wait' }); } catch (e) { sendFailed(e); }
     pendingJoins.push({ conn: conn, prof: prof, why: why || '' });
     processNextApproval();
 }
@@ -2208,7 +2215,7 @@ net.kickPlayer = function(peerKey) {
     var p = own(net.roster, peerKey) ? net.roster[peerKey] : null;
     if (p) { bannedIds[p.id] = true; delete net.roster[peerKey]; renderRoster(); }   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
     if (conn) {
-        try { conn.send({ type: 'kicked' }); } catch (e) {}
+        try { conn.send({ type: 'kicked' }); } catch (e) { sendFailed(e); }
         setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
     }
     toast((p && p.name ? p.name : 'Player') + ' removed from the session.');
@@ -2257,7 +2264,7 @@ function handleMessage(msg, conn) {
         if (APP_VERSION) {
             var theirV = (typeof msg.version === 'string') ? msg.version.slice(0, 20) : null;
             if (!theirV || versionCmp(theirV, APP_VERSION) < 0) {
-                try { conn.send({ type: 'denied', reason: updateMessage(theirV, APP_VERSION), update: true }); } catch (e) {}
+                try { conn.send({ type: 'denied', reason: updateMessage(theirV, APP_VERSION), update: true }); } catch (e) { sendFailed(e); }
                 setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
                 toast((prof.name || 'A player') + ' tried to join on Waypoint ' + (theirV || 'older than 1.1.2') + ' — turned away to update.');
                 return;
@@ -2289,7 +2296,7 @@ function handleMessage(msg, conn) {
             admitPlayer(conn, prof, keyOk ? rec0.key : null);
         } else if (rec0 && rec0.key && !cm.authAsked) {
             cm.authAsked = true;
-            try { conn.send({ type: 'auth', gmId: net.myId }); } catch (e) {}
+            try { conn.send({ type: 'auth', gmId: net.myId }); } catch (e) { sendFailed(e); }
             cm.authTimer = setTimeout(function() { cm.authTimer = null; if (!conn.open || own(net.roster, conn.peer)) return; queueJoin(conn, prof, 'nokey'); }, 2500);   // no keyed hello came back: the GM decides
         } else {
             queueJoin(conn, prof, rec0 ? 'nokey' : '');
@@ -2298,7 +2305,7 @@ function handleMessage(msg, conn) {
         // the host asks this player to prove a known id: answer with the table key it issued (per GM); with none, the GM is simply asked
         if (!net.conns[0] || conn !== net.conns[0]) return;
         var pwA = ui('netJoinPassInput');
-        try { conn.send({ type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION, key: tableKeyFor(String(msg.gmId || '').slice(0, 80)) }); } catch (e) {}
+        try { conn.send({ type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION, key: tableKeyFor(String(msg.gmId || '').slice(0, 80)) }); } catch (e) { sendFailed(e); }
     // [netcheck:gate-end]
     } else if (msg.type === 'wait' && net.role === 'client') {
         setStatus('Connected — waiting for the GM to let you in…');
@@ -2464,7 +2471,7 @@ function handleMessage(msg, conn) {
         // a player's value for their own character: shape, rate, feature, ownership, then the field's own rules; every refusal answered
         var Se = SC(), Fe = window.wpFormula; if (!Se || !Fe) return;
         var q = Se.cleanCharEdit(msg); if (!q) return;
-        var denyE = function(reason) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: reason }); } catch (e) {} };
+        var denyE = function(reason) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: reason }); } catch (e) { sendFailed(e); } };
         if (net.paused || peerPaused(conn.peer)) { denyE('paused'); return; }   // frozen table (or this player is paused): no edits
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Se.LIMITS.editsPerWindow, windowMs: Se.LIMITS.editWindowMs, table: 400 });
         var limE = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
@@ -2477,14 +2484,14 @@ function handleMessage(msg, conn) {
         if (!resE.ok) { denyE(resE.reason); return; }
         chE.values = chE.values || {}; chE.values[q.fieldId] = resE.value; chE.updated = Date.now();
         saveRemoteSoon();
-        try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) {}
+        try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) { sendFailed(e); }
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
     } else if (msg.type === 'char-item' && net.role === 'host') {
         // a player's inventory op on their own character (item-list): same gates as char-edit, then applyItemOp reads the def from the system
         var Si = SC(), Fi = window.wpFormula; if (!Si || !Fi) return;
         var qi = Si.cleanCharItem(msg); if (!qi) return;
-        var denyI = function(reason) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: reason }); } catch (e) {} };
+        var denyI = function(reason) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: reason }); } catch (e) { sendFailed(e); } };
         if (net.paused || peerPaused(conn.peer)) { denyI('paused'); return; }
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Si.LIMITS.editsPerWindow, windowMs: Si.LIMITS.editWindowMs, table: 400 });
         var limI = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
@@ -2497,7 +2504,7 @@ function handleMessage(msg, conn) {
         if (!resI.ok) { denyI(resI.reason); return; }
         chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = Date.now();
         saveRemoteSoon();
-        try { conn.send({ type: 'char-ack', rid: qi.rid }); } catch (e) {}
+        try { conn.send({ type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
     } else if (msg.type === 'throw-req' && net.role === 'host') {
@@ -2527,7 +2534,7 @@ function handleMessage(msg, conn) {
         if (window.wpVtt && !window.wpVtt.on('fog')) return;                           // fog off -> doors are meaningless
         if (!_doorLimit && window.wpDiceCore) _doorLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: 3, windowMs: 3000, table: 200 });
         if (_doorLimit && _doorLimit.allow(conn.peer, Date.now()) !== true) return;    // a toggle triggers a per-recipient resend, so keep it tight; silent drop
-        var denyDR = function(reason) { try { conn.send({ type: 'door-deny', reason: reason }); } catch (e) {} };
+        var denyDR = function(reason) { try { conn.send({ type: 'door-deny', reason: reason }); } catch (e) { sendFailed(e); } };
         var campDR = getActiveCampaign(); if (!campDR) return;
         var amDR = getActiveMap(); if (!amDR || amDR.id !== msg.mapId) return;         // only the GM's current map
         var profDR = net.roster[conn.peer]; if (!profDR) return;
@@ -2597,8 +2604,8 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'roll-req' && net.role === 'host') {
         // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
-        var q = Dq.cleanRollReq(msg); if (!q) { var ridBad = Dq.cleanRid(msg); if (ridBad) { try { conn.send({ type: 'roll-deny', rid: ridBad, reason: 'error', message: 'That roll could not be read.' }); } catch (e) {} } return; }
-        var denyQ = function(reason, r) { var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) {} };
+        var q = Dq.cleanRollReq(msg); if (!q) { var ridBad = Dq.cleanRid(msg); if (ridBad) { try { conn.send({ type: 'roll-deny', rid: ridBad, reason: 'error', message: 'That roll could not be read.' }); } catch (e) { sendFailed(e); } } return; }
+        var denyQ = function(reason, r) { var d = { type: 'roll-deny', rid: q.rid, reason: reason }; if (r) { d.message = r.error.message; d.pos = r.error.pos; d.len = r.error.len; } try { conn.send(d); } catch (e) { sendFailed(e); } };
         if (!diceLimit) diceLimit = Dq.RateLimit(Dq.LIMITS);
         var lim = diceLimit.allow(conn.peer, Date.now());
         if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
@@ -2620,7 +2627,7 @@ function handleMessage(msg, conn) {
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
-        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) {} pushRoll(recQ, resQ, 'whisper'); }
+        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper'); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global'); }
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
@@ -3098,7 +3105,7 @@ net.assetSrc = function(path) {
     if (assetCache[path]) return assetCache[path];
     if (!assetPending[path] && net.conns[0] && net.conns[0].open) {
         assetPending[path] = true;
-        try { net.conns[0].send({ type: 'asset-req', path: path }); } catch (e) {}
+        try { net.conns[0].send({ type: 'asset-req', path: path }); } catch (e) { sendFailed(e); }
     }
     return ASSET_PLACEHOLDER;   // transparent 1px placeholder until the bytes arrive (whiteboard shows the character's initials over it)
 };
@@ -3106,7 +3113,7 @@ var ASSET_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAA
 net.ASSET_PLACEHOLDER = ASSET_PLACEHOLDER;
 var _assetRetries = Object.create(null);   // client: per picture, how many 'busy' answers were retried
 
-function answerAsset(conn, path, error) { try { conn.send({ type: 'asset', path: path, error: error }); } catch (e) {} }
+function answerAsset(conn, path, error) { try { conn.send({ type: 'asset', path: path, error: error }); } catch (e) { sendFailed(e); } }
 // The one kind of path a peer may ask for: a campaign picture or sound under /saves/images/. Checked on the
 // CANONICAL pathname — the browser collapses %2e%2e (and .%2e, %2e.) into dot segments before a request ever
 // leaves, so a raw-string check alone could be walked past to /api/data or /saves/data.json — then decoded and
@@ -3153,7 +3160,7 @@ function handleAssetRequest(msg, conn) {
         if (!conn.open) return;
         if (!buf) { answerAsset(conn, msg.path, 'missing'); return; }
         if (buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); return; }   // a picture past the cap is never sent whole
-        try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) {}
+        try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) { sendFailed(e); }
     }).catch(function() { answerAsset(conn, msg.path, 'missing'); });
 }
 
@@ -3221,7 +3228,7 @@ function handleAssetArrival(msg) {
 var diceLimit = null, _dicePending = null, _diceSlowSaid = {};
 function DC() { return window.wpDiceCore || null; }
 function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() would reach a peer still waiting for the GM's Allow
-    net.conns.forEach(function(c) { if (c !== exceptConn && c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) {} } });
+    net.conns.forEach(function(c) { if (c !== exceptConn && c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 }
 function diceFrom(prof, gm) { return { id: String((prof && prof.id) || 'x').slice(0, 60), name: String((prof && prof.name) || (gm ? 'GM' : 'Player')).slice(0, 60), gm: !!gm }; }
 function pushRoll(rec, res, scope, opts) {
@@ -3268,7 +3275,7 @@ net.diceRoll = function(expr, o) {
     else if (hosting) {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
         var target = toKey ? net.conns.find(function(c) { return c.peer === toKey; }) : null;
-        if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(rec); } catch (e) {} }
+        if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(rec); } catch (e) { sendFailed(e); } }
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     if (hosting && scope === 'global') sendTable(rec, null);
@@ -3405,7 +3412,7 @@ function sendChat() {
         if (toKey) {
             msg.scope = 'whisper';
             var target = net.conns.find(function(c) { return c.peer === toKey; });
-            if (target && target.open) { try { target.send(msg); } catch (e) {} }
+            if (target && target.open) { try { target.send(msg); } catch (e) { sendFailed(e); } }
         } else {
             broadcast(msg, null);
         }
@@ -3631,7 +3638,7 @@ syncSessionButtons();
 function summonConn(c, stage) {
     var p = net.roster[c.peer];
     if (p) { p.detached = false; p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId); }
-    if (c.open) { try { c.send({ type: 'stage', stage: stage, personal: true }); } catch (e) {} }
+    if (c.open) { try { c.send({ type: 'stage', stage: stage, personal: true }); } catch (e) { sendFailed(e); } }
     if (c.open && net.sendFxArrival) net.sendFxArrival(c, stage.itemId);
     return p;
 }
@@ -3732,7 +3739,7 @@ net.openSessionLog = function() {
             html += '<div class="log-session">' + escText(when) + ' · ' + escText(g.head ? g.head.text : 'Between sessions') + (ended ? ' <span class="log-ended">→ ended ' + escText(hm(ended.at)) + '</span>' : '') + '</div>';
             g.rows.slice().reverse().forEach(function(e) {
                 if (e.kind === 'session') return;
-                html += '<div class="log-row"><span class="log-time">' + escText(hm(e.at)) + '</span><span class="log-kind k-' + escText(e.kind) + '">' + escText(_logKinds[e.kind] || e.kind) + '</span><span class="log-text">' + escText(e.text) + '</span></div>';
+                html += '<div class="log-row"><span class="log-time">' + escText(hm(e.at)) + '</span><span class="log-kind k-' + (Object.prototype.hasOwnProperty.call(_logKinds, e.kind) ? e.kind : 'other') + '">' + escText(_logKinds[e.kind] || e.kind) + '</span><span class="log-text">' + escText(e.text) + '</span></div>';
             });
         });
         list.innerHTML = html;

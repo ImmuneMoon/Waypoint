@@ -2497,7 +2497,7 @@ window.wpFitToGrid = fitToGrid;
 
           var v = parseFloat(document.getElementById('measureCellValue').value);
 
-          if (!isNaN(v) && v > 0) m.meta.cellValue = v;
+          if (isFinite(v) && v > 0 && v <= 1e9) m.meta.cellValue = v;   // a sane scale (the wire refuses a whole number past 64 bits)
 
           m.meta.cellUnit = document.getElementById('measureCellUnit').value;
 

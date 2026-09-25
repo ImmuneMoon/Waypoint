@@ -831,10 +831,19 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
      Shown on launch per wp_welcome (always | first | never); fronts New / Import / Join and
      captures the profile. Reopen any time from the header brand. */
   function welcomePref() { try { var v = localStorage.getItem('wp_welcome'); return (v === 'first' || v === 'never') ? v : 'always'; } catch (e) { return 'always'; } }
-  function wcProfile() { return (window.wpNet && window.wpNet.getProfile) ? window.wpNet.getProfile() : {}; }
+  // The stored profile. main.js runs before net.js (index.html order) and shows the welcome at once, so wpNet may not exist yet:
+  // then read the same wp_profile record directly — never {} (that filled the boxes with '' and the color fallback, and the next
+  // welcome button saved them over the real profile, blanking the name so hosting refused).
+  function wcProfile() {
+      if (window.wpNet && window.wpNet.getProfile) return window.wpNet.getProfile();
+      try { var p = JSON.parse(localStorage.getItem('wp_profile') || 'null'); if (p && typeof p === 'object') return p; } catch (e) {}
+      return {};
+  }
   function saveWcProfile() {
       var nm = document.getElementById('wcNameInput'), col = document.getElementById('wcColorInput');
-      if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile({ name: (nm && nm.value || '').trim(), color: (col && col.value) || '' });
+      var name = (nm && nm.value || '').trim(), patch = { color: (col && col.value) || '' };
+      if (name || !(wcProfile().name || '').trim()) patch.name = name;   // an empty box never blanks a stored name (a name is how the table knows you; hosting needs it)
+      if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile(patch);
   }
   function hideWelcome() { var w = document.getElementById('welcomeScreen'); if (w) w.style.display = 'none'; }
   function renderWcContinue() {

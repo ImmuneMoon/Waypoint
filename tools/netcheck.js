@@ -40,6 +40,7 @@ function packCheck(v) {
     if (typeof v.hasOwnProperty !== 'function') throw new TypeError('obj.hasOwnProperty is not a function');
     for (const k in v) if (v.hasOwnProperty(k)) packCheck(v[k]);
 }
+const pendingChecks = [];   // checks that finish asynchronously, awaited before the summary
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? '  -> ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); } }
 
 /* ---- the sliced code, built once ---- */
@@ -383,6 +384,17 @@ const j = JSON.stringify;
     check('Session Log: the entry kind in the class attribute is a known kind or "other" (an imported log cannot break out of it)', /<span class="log-kind k-' \+ \(Object\.prototype\.hasOwnProperty\.call\(_logKinds, e\.kind\) \? e\.kind : 'other'\) \+ '">'/.test(src) && !/log-kind k-' \+ escText\(e\.kind\)/.test(src));
 }
 
+/* ================= the local server: request bodies are decoded as UTF-8 across chunk boundaries ================= */
+{
+    const rdS = rel => fs.readFileSync(path.join(__dirname, '..', ...rel.split('/')), 'utf8');
+    const srvs = [['system/resources/app/main.js', 6], ['tools/dev-server.js', 5]].map(([rel, n]) => { const s = rdS(rel); return { rel, n, readers: (s.match(/req\.on\('data'/g) || []).length, utf8: (s.match(/req\.setEncoding\('utf8'\); req\.on\('data', (c|chunk) => body \+= \1\);/g) || []).length, raw: (s.match(/body \+= (c|chunk)\.toString\(\)/g) || []).length }; });
+    check('local server: every request body is read as UTF-8 text (setEncoding before the data handler) — a character split between two chunks can never be saved as \uFFFD (main.js and the dev server alike)',
+        srvs.every(x => x.readers === x.n && x.utf8 === x.n && x.raw === 0), j(srvs));
+    const { PassThrough } = require('stream'); const em = Buffer.from('a\u2014b \uD83D\uDC09', 'utf8');   // an em dash (3 bytes) and an emoji (4 bytes)
+    const splitRead = (cut) => new Promise(res => { const req = new PassThrough(); let body = ''; req.setEncoding('utf8'); req.on('data', c => body += c); req.on('end', () => res(body)); req.write(em.slice(0, cut)); req.write(em.slice(cut)); req.end(); });
+    pendingChecks.push(Promise.all([2, 3, 7, 8, 9].map(splitRead)).then(outs => check('local server: a body split inside an em dash or an emoji decodes whole', outs.every(o => o === 'a\u2014b \uD83D\uDC09'), j(outs))));
+}
+
 /* ================= threat marks from a player (5h Fold 3): the host's own gate, run on the real code ================= */
 {
     const core = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8').replace(/\r\n/g, '\n');
@@ -422,5 +434,7 @@ const j = JSON.stringify;
         /S\.charFor\(src, view, pid, \{ lib: libD \}\)/.test(src) && /S\.charFor\(probe, view, pid, \{ probe: true \}\)/.test(src) && /charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx \}\)/.test(src) && /SQ\.charFor\(srcQ, viewQ, pidQ, \{ lib: fxLib\(campQ\.system\) \}\)/.test(src));
 }
 
-console.log('\n' + pass + ' passed, ' + fail + ' failed.');
-if (fail) process.exit(1);
+Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
+    console.log('\n' + pass + ' passed, ' + fail + ' failed.');
+    if (fail) process.exit(1);
+});

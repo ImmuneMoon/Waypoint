@@ -112,7 +112,7 @@ const server = http.createServer((req, res) => {
     // Open a release page or installer link in the system browser — GitHub URLs for our repo only
     if (url.pathname === '/api/open-external' && req.method === 'POST') {
         let body = '';
-        req.on('data', c => body += c.toString());
+        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => {
             let target = null;
             try { target = JSON.parse(body).url; } catch (e) {}
@@ -155,7 +155,7 @@ const server = http.createServer((req, res) => {
         }
         if (req.method === 'POST') {
             let body = '';
-            req.on('data', chunk => body += chunk.toString());
+            req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
             req.on('end', () => {
                 let parsed;
                 try { parsed = JSON.parse(body); } catch (e) { res.writeHead(400); return res.end('{"error":"invalid json"}'); }
@@ -191,7 +191,7 @@ const server = http.createServer((req, res) => {
     }
     if ((url.pathname === '/api/restore-backup' || url.pathname === '/api/delete-backup') && req.method === 'POST') {
         let body = '';
-        req.on('data', c => body += c.toString());
+        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => {
             try {
                 const file = String((JSON.parse(body || '{}') || {}).file || '');
@@ -218,7 +218,7 @@ const server = http.createServer((req, res) => {
         }
         if (req.method === 'POST') {
             let body = '';
-            req.on('data', chunk => body += chunk.toString());
+            req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
             req.on('end', () => {
                 // Atomic save: validate, write to a temp file, then rename —
                 // a crash mid-write can never leave a truncated data.json.
@@ -262,7 +262,7 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === '/api/log' && req.method === 'POST') {
         let body = '';
-        req.on('data', chunk => body += chunk.toString());
+        req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => {
             fs.appendFileSync(path.join(savesDir, 'error.log'), new Date().toISOString() + ': ' + body + '\n');
             res.writeHead(200);
@@ -275,7 +275,7 @@ const server = http.createServer((req, res) => {
         // Delete one picture file under saves/images (the Image Library's Delete picture). The save itself is
         // untouched: anything still referencing the path simply shows a broken picture until re-pointed.
         let body = '';
-        req.on('data', c => body += c.toString());
+        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
         req.on('end', () => {
             try {
                 const p = String((JSON.parse(body || '{}') || {}).path || '').replace(/^\/saves\//, '');

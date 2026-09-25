@@ -921,12 +921,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     }
                     html += '<div class="field"><label for="wbStatus">Condition</label><select id="wbStatus"><option value=""' + (!w.status ? ' selected' : '') + '>Alive</option><option value="down"' + (w.status === 'down' ? ' selected' : '') + '>Incapacitated (red X)</option><option value="dead"' + (w.status === 'dead' ? ' selected' : '') + '>Dead (skull, darkened)</option></select></div>';
                     // Multiplayer ownership: known players from this campaign + anyone connected now
-                    var playersKnown = {};
+                    var playersKnown = Object.create(null);   // keyed by player ids (the host's roster on a player): never a prototype hit
                     var campNow = getActiveCampaign();
                     if (campNow && campNow.players) Object.keys(campNow.players).forEach(function(pid) { playersKnown[pid] = campNow.players[pid].name || pid; });
                     if (window.wpNet && window.wpNet.roster) Object.values(window.wpNet.roster).forEach(function(p) { if (p && p.id) playersKnown[p.id] = p.name || p.id; });
                     var ownerOpts = '<option value="">&mdash; GM controlled &mdash;</option>' + Object.keys(playersKnown).map(function(pid) {
-                        return '<option value="'+pid+'"'+(w.ownerId===pid?' selected':'')+'>'+esc(playersKnown[pid])+'</option>';
+                        return '<option value="'+esc(pid)+'"'+(w.ownerId===pid?' selected':'')+'>'+esc(playersKnown[pid])+'</option>';
                     }).join('');
                     html += '<div class="field"><label for="wbOwner">Player Owner (can move this token)</label><select id="wbOwner">'+ownerOpts+'</select></div>';
                     if (window.wpSheets) html += window.wpSheets.charSelectHtml(w);   // character sheets (1.5.0): which campaign character this token stands for

@@ -290,9 +290,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var chips = players.slice(0, 6).map(function(p) {
               var nm = String(p.name || '');
               var initials = (nm.trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase()) || '?';
-              var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar);
+              var avOk = !!(net.safeAvatar && net.safeAvatar(p.avatar));   // the whole data URL (net.js), and escaped anyway
               var face = avOk
-                  ? '<img src="' + p.avatar + '" alt="">'
+                  ? '<img src="' + esc(p.avatar) + '" alt="">'
                   : '<img src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + (p.hue || 0) + ',55%,55%)')) : '') + '" alt="">';   // no photo → the color-tinted silhouette default
               return '<span class="si-pres' + (p.connected ? '' : ' off') + '" title="' + esc(nm) + (p.connected ? ' — here now' : ' — last seen here') + '">' + face + '</span>';
           }).join('');

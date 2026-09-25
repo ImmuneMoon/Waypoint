@@ -839,6 +839,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       try { var p = JSON.parse(localStorage.getItem('wp_profile') || 'null'); if (p && typeof p === 'object') return p; } catch (e) {}
       return {};
   }
+  // the stored profile's picture, checked WHOLE (the same check as net.js safeAvatar, which may not be loaded yet): never markup
+  function wcSafeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
   function saveWcProfile() {
       var nm = document.getElementById('wcNameInput'), col = document.getElementById('wcColorInput');
       var name = (nm && nm.value || '').trim(), patch = { color: (col && col.value) || '' };
@@ -902,7 +904,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
       var col = document.getElementById('wcColorInput'); if (col) col.value = prof.color || '#7aa7ff';
       var av = document.getElementById('wcAvatarPrev');
-      if (av) { av.innerHTML = '<img src="' + (prof.avatar || wpDefaultAvatar(prof.color)) + '" alt="">'; av.style.background = ''; }   // a photo, else the color-tinted silhouette default
+      if (av) { av.textContent = ''; var avI = document.createElement('img'); avI.alt = ''; avI.src = wcSafeAvatar(prof.avatar) ? prof.avatar : wpDefaultAvatar(prof.color); av.appendChild(avI); av.style.background = ''; }   // a photo, else the color-tinted silhouette default (built as a node)
       var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
       w.style.display = 'flex';
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
@@ -964,7 +966,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           if (!f || !window.wpProcessAvatar) return;
           window.wpProcessAvatar(f, function(data) {
               if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile({ avatar: data });
-              var av = document.getElementById('wcAvatarPrev'); if (av) { av.innerHTML = '<img src="' + data + '" alt="">'; av.style.background = ''; }
+              var av = document.getElementById('wcAvatarPrev'); if (av && wcSafeAvatar(data)) { av.textContent = ''; var avN = document.createElement('img'); avN.alt = ''; avN.src = data; av.appendChild(avN); av.style.background = ''; }
           });
       });
       var brand = document.getElementById('headerBrand'); if (brand) brand.addEventListener('click', showWelcome);

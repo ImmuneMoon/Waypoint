@@ -269,12 +269,12 @@ function cleanBlock(b, used, ctx) {
             // see the chart as arranged: planner.js fcApplyNudges / fcApplySizes read nodePos, nodeSize, nodePosSig
             if (b.nodePos && typeof b.nodePos === 'object' && !Array.isArray(b.nodePos)) {
                 var nd = {}, nk = 0;
-                Object.keys(b.nodePos).forEach(function(k) { if (nk++ > LIMITS.nodes || !/^[A-Za-z0-9_]{1,40}$/.test(k)) return; var v = b.nodePos[k]; if (v && typeof v === 'object') nd[k] = { x: num(v.x, -1e5, 1e5, 0), y: num(v.y, -1e5, 1e5, 0) }; });
+                Object.keys(b.nodePos).forEach(function(k) { if (nk++ > LIMITS.nodes || !/^[A-Za-z0-9_]{1,40}$/.test(k) || (k in Object.prototype) || k === 'BYTES_PER_ELEMENT') return; var v = b.nodePos[k]; if (v && typeof v === 'object') nd[k] = { x: num(v.x, -1e5, 1e5, 0), y: num(v.y, -1e5, 1e5, 0) }; });
                 if (Object.keys(nd).length) o.nodePos = nd;
             }
             if (b.nodeSize && typeof b.nodeSize === 'object' && !Array.isArray(b.nodeSize)) {
                 var sz = {}, sk = 0;
-                Object.keys(b.nodeSize).forEach(function(k) { if (sk++ > LIMITS.nodes || !/^[A-Za-z0-9_]{1,40}$/.test(k)) return; var v = b.nodeSize[k]; if (v && typeof v === 'object') sz[k] = { x: num(v.x, 0.1, 10, 1), y: num(v.y, 0.1, 10, 1) }; });
+                Object.keys(b.nodeSize).forEach(function(k) { if (sk++ > LIMITS.nodes || !/^[A-Za-z0-9_]{1,40}$/.test(k) || (k in Object.prototype) || k === 'BYTES_PER_ELEMENT') return; var v = b.nodeSize[k]; if (v && typeof v === 'object') sz[k] = { x: num(v.x, 0.1, 10, 1), y: num(v.y, 0.1, 10, 1) }; });
                 if (Object.keys(sz).length) o.nodeSize = sz;
             }
             if (o.nodePos || o.nodeSize) o.nodePosSig = str(b.nodePosSig, 8000);

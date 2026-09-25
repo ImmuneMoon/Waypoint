@@ -326,7 +326,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                       }
                       // built from nodes (1.5.0): a portrait, the name, the (capped) stats line, the sheet's hover fields, the stance line
                       var ttRoot = document.createElement('div'); ttRoot.className = 'room'; ttRoot.style.cssText = 'border-left-color:var(--gold); margin:0; pointer-events:none;';
-                      var ownerAv = (!wItem.src && wItem.ownerId && window.wpNet && window.wpNet.roster) ? (function() { var p = Object.keys(window.wpNet.roster).map(function(k) { return window.wpNet.roster[k]; }).find(function(x) { return x && x.id === wItem.ownerId; }); return p && p.avatar; })() : null;
+                      var ownerAv = (!wItem.src && wItem.ownerId && window.wpNet && window.wpNet.roster) ? (function() { var p = Object.keys(window.wpNet.roster).map(function(k) { return window.wpNet.roster[k]; }).find(function(x) { return x && x.id === wItem.ownerId; }); return p && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar) ? p.avatar : null; })() : null;
                       var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → color-tinted silhouette default
                       if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
                       var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; ttRoot.appendChild(ttName);
@@ -1854,7 +1854,7 @@ window.wpFitToGrid = fitToGrid;
           var owned = {}; list.forEach(function(c) { if (c.ownerId) owned[c.ownerId] = true; });
           Object.values(window.wpNet.roster || {}).forEach(function(p) {
               if (!p || !p.id || owned[p.id]) return;
-              var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
+              var avOk = !!(window.wpNet && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar));   // the whole data URL (net.js)
               var locMap = p.location && camp.items[p.location];
               list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true, color: p.color || null,
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
@@ -1994,7 +1994,7 @@ window.wpFitToGrid = fitToGrid;
           var connected = hosting && ownerId && window.wpNet.isConnected(ownerId);
           var here = loc && am && loc.map.id === am.id;
           var items = [];
-          var whereName = loc ? (loc.map.meta && loc.map.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta.title) || 'their map';
+          var whereName = loc ? (loc.map.meta && loc.map.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta && camp.items[rosterP.location].meta.title) || 'their map';
           var isClientM = window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream;
           if (isClientM && !here) items.push({ act: 'none', label: name + ' \u2014 on ' + whereName, dim: true });
           else items.push({ act: 'jump', label: '\uD83C\uDFAF ' + (isClientM ? 'Find ' : 'Jump to ') + name + (here ? '' : ' (' + whereName + ')') });

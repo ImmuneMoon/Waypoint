@@ -52,13 +52,15 @@ function processAvatar(file, cb) {
 }
 window.wpProcessAvatar = processAvatar;   // the welcome screen reuses the same crop/shrink pipeline
 
+// the stored profile's picture, checked WHOLE (the same check as net.js safeAvatar): a profile restored from a prefs file never writes markup
+function safeAv(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
 function renderAvatarPreview() {
     var p = getProfile();
     var def = window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color) : '';   // color-tinted silhouette default (no photo)
     ['setAvatarPreview', 'netJoinAvatar'].forEach(function(id) {
         var el = ui(id);
         if (!el) return;
-        el.innerHTML = '<img src="' + (p.avatar || def) + '" alt="">'; el.style.background = '';
+        el.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = safeAv(p.avatar) ? p.avatar : def; el.appendChild(im); el.style.background = '';   // built as a node
     });
 }
 

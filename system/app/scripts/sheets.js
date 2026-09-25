@@ -113,12 +113,21 @@ function charsOf(camp) { camp = camp || getActiveCampaign(); if (!camp) return {
 function charList(camp) { return Object.values(charsOf(camp)).filter(function(c) { return c && typeof c === 'object'; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); }); }
 function charById(id, camp) { var cs = charsOf(camp); return id && cs[id] && typeof cs[id] === 'object' ? cs[id] : null; }
 function playerNames(camp) {
-    var out = {};
+    var out = Object.create(null);   // keyed by player ids (the host's roster on a player): never a prototype hit
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) { out[pid] = camp.players[pid].name || pid; });
     var n = net(); if (n && n.roster) Object.values(n.roster).forEach(function(p) { if (p && p.id) out[p.id] = p.name || p.id; });
     return out;
 }
-function ownerName(c, camp) { if (!c || !c.ownerId) return ''; var pn = playerNames(camp); return pn[c.ownerId] || c.ownerId; }
+// The owner's name for the sheet's subtitle and the character picker. A player's copy of the table knows only who is at it now
+// (camp.players, every name the campaign has seen, never leaves the host): their own character reads with their own name, an owner
+// who is not at the table as "a player" — never a bare id. The GM's view is unchanged.
+function ownerName(c, camp) {
+    if (!c || !c.ownerId) return '';
+    var n = net(), away = !!(n && ((n.active && n.role === 'client') || n.foreign));
+    if (away && c.ownerId === myId() && n.getProfile) { var pr = n.getProfile(); if (pr && typeof pr.name === 'string' && pr.name.trim()) return pr.name.trim().slice(0, 40); }
+    var pn = playerNames(camp);
+    return pn[c.ownerId] || (away ? 'a player' : c.ownerId);
+}
 // write-through: a character's owner is stamped on every token that points at it (moves, arrival and the party strip keep reading the token)
 function syncOwners(camp) {
     camp = camp || getActiveCampaign(); if (!camp) return 0;

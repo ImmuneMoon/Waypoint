@@ -164,6 +164,8 @@ function inert(html) {
         const f = c.blocks[10];
         check('cleanDoc: flowchart fields validated (zoom clamp, boxW rounded, bad nudge key dropped, extra dropped)', f.zoom === 4 && f.boxW === 300 && f.nodePos.n1.x === 1 && !f.nodePos['bad id!'] && f.nodeSize.n1.y === 0.5 && f.nodePosSig === 'n1' && f.nodes[0].extra === undefined && f.nodes[0].shape === 'hex', JSON.stringify(f));
         check('cleanDoc: h3 title coerced to string', c.blocks[12].title === '7');
+        const fp = cleanDoc({ type: 'doc', id: 'doc_fp', meta: { title: 'F' }, blocks: [JSON.parse('{"id":"b_p","type":"flowchart","nodes":[{"id":"n1","text":"t"}],"edges":[],"nodePos":{"n1":{"x":1,"y":2},"constructor":{"x":3,"y":3},"__proto__":{"x":4,"y":4},"hasOwnProperty":{"x":5,"y":5},"BYTES_PER_ELEMENT":{"x":6,"y":6}},"nodeSize":{"toString":{"x":2,"y":2},"n1":{"x":2,"y":2}}}')] }).blocks[0];
+        check('cleanDoc: a flowchart nudge or size keyed by an Object.prototype name is dropped (the packer refuses an own "constructor" or "hasOwnProperty": the doc and every join snapshot would fail silently)', Object.keys(fp.nodePos).join() === 'n1' && Object.getPrototypeOf(fp.nodePos) === Object.prototype && Object.keys(fp.nodeSize).join() === 'n1', JSON.stringify(fp));
         check('cleanDoc: flare in a 3-col section cannot float', c.blocks[13].layout.float === 'none' && c.blocks[13].layout.width === 50, JSON.stringify(c.blocks[13].layout));
         check('cleanDoc: hidden page is null', cleanDoc(page({ meta: { title: 'x', players: false } })) === null);
         const kept = cleanDoc(page({ meta: { title: 'x', players: false } }), { keepHidden: true });

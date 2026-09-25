@@ -88,13 +88,14 @@ function setProfile(patch) {
     if (patch && typeof patch === 'object') {
         if (typeof patch.name === 'string') p.name = patch.name.slice(0, 40);
         if (typeof patch.color === 'string') { if (/^#[0-9a-fA-F]{6}$/.test(patch.color)) p.color = patch.color; else if (patch.color === '') delete p.color; }
-        if (typeof patch.avatar === 'string') { if (/^data:image\/(png|jpe?g|webp|gif);base64,/.test(patch.avatar) && patch.avatar.length <= 200000) p.avatar = patch.avatar; else if (patch.avatar === '') delete p.avatar; }
+        if (typeof patch.avatar === 'string') { if (safeAvatar(patch.avatar)) p.avatar = patch.avatar; else if (patch.avatar === '') delete p.avatar; }
     }
     try { localStorage.setItem('wp_profile', JSON.stringify(p)); } catch (e) {}
     return p;
 }
 function setProfileName(name) { return setProfile({ name: String(name == null ? '' : name) }); }
 net.getProfile = getProfile; net.setProfile = setProfile; net.setProfileName = setProfileName;   // for the Settings + welcome profile editor
+net.safeAvatar = safeAvatar;   // the whole-data-URL check, for the other modules that draw a profile picture (the party strip, hover cards, Maps presence)
 // [netcheck:helpers-start]
 // Own-property lookup for a plain-object map keyed by a peer-supplied string: a key like "constructor" or
 // "__proto__" must never read Object.prototype as a hit (an admitted-roster or ban lookup would be fooled).
@@ -108,9 +109,39 @@ function newKey() { var a = new Uint8Array(16); try { crypto.getRandomValues(a);
 function tableKeys() { try { var k = JSON.parse(localStorage.getItem('wp_tableKeys') || 'null'); return k && typeof k === 'object' && !Array.isArray(k) ? k : {}; } catch (e) { return {}; } }
 function tableKeyFor(gmId) { var k = tableKeys(); return (own(k, gmId) && typeof k[gmId] === 'string') ? k[gmId].slice(0, 64) : ''; }
 function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); k[gmId] = key.slice(0, 64); try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }
+// A profile picture a peer may show: a small inline image whose WHOLE string is base64. A prefix check let a quote-breaking tail
+// (x" onerror=…) ride into an src="…" — script on the GM's screen, and through the roster on every player's.
+function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
+// A display name a peer may show: control, bidi-override and zero-width characters out, trimmed, at most 40; 'Player' when blank.
+function cleanRosterName(v) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; return s || 'Player'; }
 // [netcheck:helpers-end]
 // What a client accepts from a host, beyond the shape checks the wire already does.
+// [netcheck:rosterclean-start]
 function validKey(k) { return typeof k === 'string' && k.length > 0 && k.length <= 160 && !(k in Object.prototype); }   // an id used as an object key: never a prototype key
+// (client) The roster exactly as a player keeps it, rebuilt from what the host sent: entries from an array (or a 1.4.9 host's
+// peer-keyed object), every field checked, keyed by player id in a prototype-free map, at most 64. The party strip, hover cards,
+// renderRoster, the sheet's owner names and token presence read it — some into markup — so nothing unchecked gets in.
+function cleanHostRoster(raw) {
+    var out = Object.create(null), n = 0;
+    var list = Array.isArray(raw) ? raw : (raw && typeof raw === 'object') ? Object.keys(raw).map(function(k) { return raw[k]; }) : [];
+    for (var i = 0; i < list.length && n < 64; i++) {
+        var p = list[i];
+        if (!p || typeof p !== 'object' || Array.isArray(p) || !validProfileId(p.id) || out[p.id]) continue;
+        var e = { id: p.id, name: cleanRosterName(p.name), location: validKey(p.location) ? p.location : null, detached: p.detached === true };
+        if (typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color)) e.color = p.color;
+        if (safeAvatar(p.avatar)) e.avatar = p.avatar;
+        out[p.id] = e; n++;
+    }
+    return out;
+}
+// (client) Where each absent player was last seen: player id -> map id, both checked, prototype-free, at most 500.
+function cleanHostAway(raw) {
+    var out = Object.create(null), n = 0;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    Object.keys(raw).forEach(function(k) { if (n >= 500 || !validProfileId(k) || !validKey(raw[k])) return; out[k] = raw[k]; n++; });
+    return out;
+}
+// [netcheck:rosterclean-end]
 function campOf(id) { var cs = state.appState && state.appState.campaigns; return (cs && validKey(id) && own(cs, id)) ? cs[id] : null; }
 function safeColor(v) { return (typeof v === 'string' && v.length <= 40 && /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/.test(v)) ? v : ''; }
 function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -248,12 +279,16 @@ function hbTick() {
 // Where each player was last seen, for presence after they leave. Host: from the campaign record
 // (kept in step with the roster); client: from the last roster broadcast.
 net.away = {};
+// [netcheck:away-start]
 function awayMap() {
     if (net.role !== 'host') return net.away || {};
+    // a PLAIN object (the packer refuses one without a prototype) of checked player ids to checked map ids: camp.players comes from a
+    // save or an import, and one record keyed "constructor" or "hasOwnProperty" made the packer refuse the whole roster message
     var camp = getActiveCampaign(), out = {};
-    if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) { if (camp.players[pid] && camp.players[pid].lastMap) out[pid] = camp.players[pid].lastMap; });
+    if (camp && camp.players && typeof camp.players === 'object') Object.keys(camp.players).forEach(function(pid) { var r = camp.players[pid]; if (validProfileId(pid) && r && typeof r === 'object' && validKey(r.lastMap)) out[pid] = r.lastMap; });
     return out;
 }
+// [netcheck:away-end]
 function syncLastMaps() {
     if (net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;
@@ -293,20 +328,20 @@ function renderRoster() {
             el.innerHTML = players.map(function(p) {
                 var name = escTextRoster(p.name || p.id);
                 var initials = name.trim().split(/\s+/).map(function(s) { return s[0]; }).join('').slice(0, 2).toUpperCase();
-                var it = camp && p.location ? camp.items[p.location] : null;
+                var it = camp && p.location && own(camp.items, p.location) ? camp.items[p.location] : null;
                 var locTitle = it && it.meta && it.meta.title ? it.meta.title : (p.location || '');
                 var sub = net.role === 'host' && p.location
                     ? '<span class="roster-loc">' + (p.detached ? '🧭 ' : '👣 ') + escTextRoster(locTitle) + '</span>'
                     : '';
-                var jump = net.role === 'host' && p.location ? ' data-jump="' + p.location + '" title="Click to view this player\'s map"' : '';
-                var avOk = typeof p.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(p.avatar) && p.avatar.length <= 200000;
+                var jump = net.role === 'host' && p.location ? ' data-jump="' + escTextRoster(p.location) + '" title="Click to view this player\'s map"' : '';
+                var avOk = safeAvatar(p.avatar);   // the whole data URL checked, and escaped anyway
                 var face = avOk
-                    ? '<img class="roster-avatar" src="' + p.avatar + '" alt="">'
+                    ? '<img class="roster-avatar" src="' + escTextRoster(p.avatar) + '" alt="">'
                     : '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(p.id) + ',55%,60%)')) : '') + '" alt="">';   // no photo → the color-tinted silhouette default
                 var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
-                    ? '<button class="roster-summon" data-summon="' + peerKey + '" title="Summon this player to the map you are on">&#128227;</button>' +
-                      '<button class="roster-kick" data-kick="' + peerKey + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
+                    ? '<button class="roster-summon" data-summon="' + escTextRoster(peerKey) + '" title="Summon this player to the map you are on">&#128227;</button>' +
+                      '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
                     : '';
                 var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues">&#9203;</span>' : '';
                 return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + '"' + jump + '>' + face +
@@ -320,6 +355,7 @@ function renderRoster() {
     // Spectator chrome stays while a host's campaign is on screen, connected or not (net.foreign)
     document.body.classList.toggle('net-client', (net.active && net.role === 'client') || !!net.foreign);
 }
+function countOf(v) { var n = Math.floor(Number(v)); return isFinite(n) && n > 0 ? n : 0; }   // a count from a player record (a save or an import): a number, never markup
 function escTextRoster(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -726,6 +762,9 @@ function playerStroke(w, pid) {
 
 function applySnapshot(msg) {
     if (!msg || !msg.appState || typeof msg.appState !== 'object' || !msg.appState.campaigns || typeof msg.appState.campaigns !== 'object') return;   // a host that sends no state gets nothing applied — and nothing left half-set
+    // BinaryPack decodes a map by ASSIGNING its keys, so a packed "__proto__" re-parents the decoded object: the state and the campaign map get
+    // a plain prototype back first, or a campaign (or a field deleted below) could still be inherited from the host's choice
+    [msg.appState, msg.appState.campaigns].forEach(function(o) { if (Object.getPrototypeOf(o) !== Object.prototype) Object.setPrototypeOf(o, Object.prototype); });
     ['__proto__', 'constructor', 'prototype'].forEach(function(k) { if (Object.prototype.hasOwnProperty.call(msg.appState.campaigns, k)) delete msg.appState.campaigns[k]; });
     net.applyingRemote = true;
     // Origin marker: this state came from someone else's table. Lives in the appState so it rides
@@ -737,6 +776,9 @@ function applySnapshot(msg) {
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
     // handbook pages are normalised before anything renders them, and the active item is a map (never a page: guard 1 client-side)
     Object.values(state.appState.campaigns || {}).forEach(function(cS) {
+        if (!cS || typeof cS !== 'object') return;
+        if (Object.getPrototypeOf(cS) !== Object.prototype) Object.setPrototypeOf(cS, Object.prototype);   // (see above) or the delete below is a no-op for an inherited players map
+        delete cS.players;   // names and table keys are the host's (sanitizeAppState strips them); the Players panel and the owner pickers must never draw a hostile snapshot's
         Object.keys(cS.items || {}).forEach(function(id) {
             var itS = cS.items[id];
             if (id in Object.prototype) { delete cS.items[id]; return; }
@@ -799,7 +841,7 @@ function broadcast(msg, exceptConn) {   // on the host: admitted peers only — 
     net.conns.forEach(function(c) {
         if (c === exceptConn || !c.open) return;
         if (net.role === 'host' && !own(net.roster, c.peer)) return;
-        try { c.send(msg); } catch (e) {}
+        try { c.send(msg); } catch (e) { try { console.warn('wire send failed', msg && msg.type, e); } catch (_) {} }   // never silent: a payload the packer refused (a prototype-free roster) hid the table from every player for a release
     });
 }
 // [netcheck:broadcast-end]
@@ -1631,7 +1673,24 @@ net.requestTravel = function(viaItemId) {
     try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) {}
 };
 
-function broadcastRoster() { broadcast({ type: 'roster', roster: net.roster, away: awayMap() }, null); }
+// [netcheck:roster-start]
+// The roster as players get it: a plain ARRAY of entries rebuilt field by field — never the prototype-free map itself (BinaryPack
+// cannot pack an object without a prototype: from 9526489 every roster broadcast threw inside broadcast() and no player saw the table),
+// no peer-id keys (players never need a connection handle), no host-internal fields (stale, anything a future edit adds).
+function rosterPayload() {
+    var out = [];
+    Object.keys(net.roster).forEach(function(k) {
+        var p = net.roster[k];
+        if (!p || typeof p !== 'object' || !validProfileId(p.id)) return;
+        var e = { id: p.id, name: cleanRosterName(p.name), location: typeof p.location === 'string' ? p.location : null, detached: p.detached === true };
+        if (typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color)) e.color = p.color;
+        if (safeAvatar(p.avatar)) e.avatar = p.avatar;
+        out.push(e);
+    });
+    return out;
+}
+function broadcastRoster() { broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); }
+// [netcheck:roster-end]
 
 // Is this player currently on the given map? (self is always present to itself)
 net.refreshUi = function() {               // own campaign is back: spectator class, party strip, badge, and the host picker lists only own campaigns
@@ -2187,8 +2246,8 @@ function handleMessage(msg, conn) {
         var dupC = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
         if (dupC) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // a live duplicate would read and edit that player's sheet; a dropped one (silent past 8 s) may come back
         // Peer-supplied avatar: accept only a small image data URL, else drop it
-        if (!(typeof prof.avatar === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(prof.avatar) && prof.avatar.length <= 200000)) delete prof.avatar;
-        prof.name = (typeof prof.name === 'string' && prof.name.trim()) ? prof.name.slice(0, 40) : 'Player';   // cap a peer-supplied name
+        if (!safeAvatar(prof.avatar)) delete prof.avatar;   // the whole data URL (a valid prefix with a quote-breaking tail used to pass)
+        prof.name = cleanRosterName(prof.name);   // cap a peer-supplied name; control, bidi-override and zero-width characters out
         if (!(typeof prof.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prof.color))) delete prof.color;    // a chosen roster color, hex only
         // Bans first: a removed peer gets no version notice and no password try
         if (own(bannedIds, prof.id)) { denyJoin(conn, 'You were removed from this session.'); return; }
@@ -2627,8 +2686,9 @@ function handleMessage(msg, conn) {
         while (chatLog.length > 200) chatLog.shift();
         if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none') { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
     } else if (msg.type === 'roster' && net.role === 'client') {   // the host owns the roster; a player's copy never replaces it
-        net.roster = msg.roster || {};
-        net.away = msg.away || {};
+        if (conn.peer !== net.syncedPeer) return;   // only the table this player is synced to
+        net.roster = cleanHostRoster(msg.roster);   // rebuilt field by field (renderRoster, the party strip, hover cards and owner names draw it)
+        net.away = cleanHostAway(msg.away);
         renderRoster();
         refreshChatRecipients();
         if (net.role === 'client' && state.viewMode === 'visual') render();  // presence changed → token visibility may change
@@ -2654,6 +2714,7 @@ function giveUpAndRestore(msg) {
     net.music = null; net.sounds = null; net.soundNow = null;   // the table is gone: drop its media so nothing plays on forever / stays wedged
     if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(true);
     if (window.wpSound && window.wpSound.tableLeft) window.wpSound.tableLeft(true);
+    net.roster = Object.create(null); net.away = Object.create(null);   // the old table's players never carry into this machine's own campaign
     renderRoster();
     setStatus(msg);
     toast(msg + ' Restoring your own campaign.');
@@ -2722,6 +2783,7 @@ function wireConn(conn) {
                 if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(true);   // else a take-control track plays forever and per-map auto-play stays wedged (controlled=true)
                 if (window.wpSound && window.wpSound.tableLeft) window.wpSound.tableLeft(true);
                 stopHeartbeat(); setIndicator(null);
+                net.roster = Object.create(null); net.away = Object.create(null);   // the old table's players never carry into this machine's own campaign
                 renderRoster();
                 load();   // the 'end' handler already told the player what happened
             }
@@ -2977,7 +3039,7 @@ function leaveSession(silent) {
     if (!silent && wasClient) net.leaving = true;
     if (!silent) cancelReconnect();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
-    net.peer = null; net.conns = []; net.roster = Object.create(null); net.active = false; net.role = null; net.code = null; net.lastStage = null;
+    net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries net.role = null; net.code = null; net.lastStage = null;
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
@@ -3323,7 +3385,7 @@ function refreshChatRecipients() {
     sel.style.display = 'block';
     var cur = sel.value;
     sel.innerHTML = '<option value="">Everyone</option>' + Object.entries(net.roster).map(function(e) {
-        return '<option value="' + e[0] + '">Whisper: ' + escText(e[1].name || e[1].id) + '</option>';
+        return '<option value="' + escTextRoster(e[0]) + '">Whisper: ' + escText(e[1].name || e[1].id) + '</option>';
     }).join('');
     sel.value = cur;
 }
@@ -3408,12 +3470,12 @@ function renderPlayersPanel() {
                 (online[pid] ? ' <span class="player-online">● online</span>' : '') +
                 (isBanned ? ' <span class="player-bantag">BANNED</span>' : '') +
                 (p.charName ? ' <span class="player-char">as ' + escTextRoster(p.charName) + '</span>' : '') + '</div>' +
-                '<div class="player-meta">first ' + fmtDay(p.firstSeen) + ' · last ' + fmtDay(p.lastSeen) + ' · ' + (p.joinCount || 0) + ' join' + ((p.joinCount || 0) === 1 ? '' : 's') + '</div>' +
+                '<div class="player-meta">first ' + fmtDay(p.firstSeen) + ' · last ' + fmtDay(p.lastSeen) + ' · ' + countOf(p.joinCount) + ' join' + (countOf(p.joinCount) === 1 ? '' : 's') + '</div>' +
             '</div>' +
             (isBanned
-                ? '<button class="tool ghost player-act" data-unban="' + pid + '">Unban</button>'
-                : '<button class="tool ghost player-act" data-ban="' + pid + '">Ban</button>') +
-            '<button class="tool ghost player-act" data-forget="' + pid + '" title="Remove from history — they\'ll need approval to join again">Forget</button>' +
+                ? '<button class="tool ghost player-act" data-unban="' + escTextRoster(pid) + '">Unban</button>'
+                : '<button class="tool ghost player-act" data-ban="' + escTextRoster(pid) + '">Ban</button>') +
+            '<button class="tool ghost player-act" data-forget="' + escTextRoster(pid) + '" title="Remove from history — they\'ll need approval to join again">Forget</button>' +
             '</div>';
     });
 
@@ -3426,7 +3488,7 @@ function renderPlayersPanel() {
                 '<span class="roster-dot" style="background:#555;">✕</span>' +
                 '<div class="player-info"><div><b>' + escTextRoster(bans[pid].name || pid) + '</b> <span class="player-bantag">BANNED</span></div>' +
                 '<div class="player-meta">banned ' + fmtDay(bans[pid].bannedAt) + '</div></div>' +
-                '<button class="tool ghost player-act" data-unban="' + pid + '">Unban</button></div>';
+                '<button class="tool ghost player-act" data-unban="' + escTextRoster(pid) + '">Unban</button></div>';
         });
     }
     list.innerHTML = html;

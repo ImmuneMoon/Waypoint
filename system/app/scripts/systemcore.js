@@ -17,11 +17,12 @@ var LIMITS = Object.freeze({
     band: 12,                                // Stage 5c: placements on the pinned band (one row under the name)
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
-    caption: 200, captionExprs: 8            // Stage 5g Fold B: a field's caption line and the {formula} values in it
+    caption: 200, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
+    effects: 100, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40   // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
 });
 // item-list is a STORED, non-numeric list kind (a character's carried items); never in NUMERIC/DEF_PROP.
-var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1 });
-var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1 });
+var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });
+var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });   // effects (5h): a character's status effects — rows, never a number
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
 var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1 });   // link (Stage 5f): a button that opens a handbook page
@@ -34,6 +35,8 @@ var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, 
 // docrender.cleanDoc; never an Object.prototype name. The system cannot see the campaign, so this is the format only — which pages a
 // player may see is decided by the host (cleanSystem's opts.pages) and again when the sheet is drawn.
 var PAGE_ID = /^[A-Za-z0-9_.:-]{1,80}$/;
+var EFFECT_ID = /^e_[A-Za-z0-9_]{1,24}$/, FXROW_ID = /^x_[A-Za-z0-9_]{1,24}$/;   // 5h: a library effect, a row on a character's list
+var FX_OPS = Object.freeze({ add: 1, adhoc: 1, on: 1, remove: 1 });
 function validPageId(id) { return typeof id === 'string' && PAGE_ID.test(id) && !(id in Object.prototype); }
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 }), ITEM_OP = Object.freeze({ add: 1, remove: 1, setQty: 1 });
@@ -98,7 +101,7 @@ function cleanNum(v, dflt) { v = Number(v); return fin(v) ? v : dflt; }
 function cleanField(f, F, gmView) {
     if (!isObj(f) || typeof f.id !== 'string' || !FIELD_ID.test(f.id) || !KINDS[f.kind]) return null;
     if (!validKey(f.key, F)) return null;
-    var vis = f.vis === 'gm' ? 'gm' : 'all';
+    var vis = f.vis === 'gm' && f.kind !== 'effects' ? 'gm' : 'all';   // 5h: a Status effects list is always visible — GM-only is a property of an effect, never of the list (a hidden list moved the GM's numbers but not the owner's)
     if (!gmView && vis === 'gm') return null;
     var out = { id: f.id, key: f.key, label: str(f.label, LIMITS.label).replace(CTRL_RE, ' ').trim() || f.key, kind: f.kind, vis: vis, hover: f.hover === true };
     if (STORED[f.kind]) out.edit = f.edit === 'gm' ? 'gm' : 'owner';
@@ -216,6 +219,32 @@ function cleanSecStyle(v) {
     ['accent', 'bg', 'border'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
     if (out.accent && v.stripe === false) out.stripe = false;   // Stage 5g: the accent colours the title only, without the left stripe (kept only beside an accent)
     return Object.keys(out).length ? out : null;
+}
+// 5h: one change an effect makes — ADD a number to a number, a skill's total, a formula or a resource's max, or switch a toggle ON. The
+// target must exist (fieldKinds: id -> kind; in the players' view GM-only fields are absent, so such a change is dropped) and fit its kind.
+function cleanMod(m, fieldKinds) {
+    if (!isObj(m) || typeof m.f !== 'string' || !FIELD_ID.test(m.f) || !fieldKinds || !fieldKinds[m.f]) return null;
+    var k = fieldKinds[m.f];
+    if (m.op === 'on') return k === 'toggle' ? { f: m.f, op: 'on' } : null;
+    if (m.op !== 'add') return null;
+    var v = typeof m.v === 'number' ? m.v : Number(m.v); if (!isFinite(v) || Math.abs(v) > LIMITS.effectAmount) return null;
+    if (m.part === 'max') return k === 'resource' ? { f: m.f, op: 'add', v: v, part: 'max' } : null;
+    return (k === 'number' || k === 'skill' || k === 'formula') ? { f: m.f, op: 'add', v: v } : null;
+}
+// 5h: what a library effect and an ad hoc row share — name, icon, tone, duration note, notes, changes (plain literals, fixed key order)
+function cleanEffectCore(d, fieldKinds) {
+    var mods = [];
+    (Array.isArray(d.mods) ? d.mods : []).forEach(function(m) { if (mods.length >= LIMITS.effectMods) return; var c = cleanMod(m, fieldKinds); if (c) mods.push(c); });
+    return { name: str(d.name, LIMITS.name).replace(CTRL_RE_G, ' ').trim() || 'Effect', icon: cleanIcon(d.icon), tone: d.tone === 'buff' || d.tone === 'debuff' ? d.tone : '',
+             dur: cutPoints(d.dur, LIMITS.effectDur, ' '), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' ').trim(), mods: mods };
+}
+// 5h: a library effect (camp.system.effects). A GM-only one never reaches the players' library (it can still reach its owner inline, once
+// applied: see charFor).
+function cleanEffectDef(d, fieldKinds, gmView) {
+    if (!isObj(d) || typeof d.id !== 'string' || !EFFECT_ID.test(d.id)) return null;
+    var vis = d.vis === 'gm' ? 'gm' : 'all'; if (!gmView && vis === 'gm') return null;
+    var c = cleanEffectCore(d, fieldKinds);
+    return { id: d.id, name: c.name, icon: c.icon, tone: c.tone, dur: c.dur, notes: c.notes, vis: vis, mods: c.mods };
 }
 // Stage 5g: the sheet's own shape — headline section titles, filled (angled) tabs, one accent colour, the portrait and the name leading
 // the header block. Whitelisted values only; absent (or nothing valid) = today's look, and the key is left out.
@@ -350,6 +379,9 @@ function cleanSystem(sys, opts) {
         if (!c || seenIt[c.id]) return;
         seenIt[c.id] = 1; out.items.push(c);
     });
+    var seenFx = map(), effs = [];   // 5h: the status-effect library, after the fields (its changes are checked against them); absent when empty
+    (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (effs.length >= LIMITS.effects) return; var c = cleanEffectDef(d, fieldIds, gmView); if (!c || seenFx[c.id]) return; seenFx[c.id] = 1; effs.push(c); });
+    if (effs.length) out.effects = effs;
     out.combat = cleanCombat(sys.combat, resIds);
     var pages = null;   // Stage 5f: the host passes the ids of the pages players may read, so a chip or link to any other page never travels
     if (opts.pages !== undefined) { pages = map(); (Array.isArray(opts.pages) ? opts.pages : []).forEach(function(id) { if (validPageId(id)) pages[id] = 1; }); }
@@ -381,6 +413,22 @@ function cleanValue(field, v, opts) {
         cur = clampNum(Math.round(cur), field.min, opts && fin(opts.max) ? opts.max : undefined);
         return { cur: cur };
     }
+    if (k === 'effects') {   // 5h: [{id, ref, on}] library rows or [{id, name, icon, tone, dur, notes, on, mods}] ad hoc rows; opts.effects / opts.fields from valueOpts
+        if (!Array.isArray(v)) return undefined;
+        var fxIds = (opts && opts.effects) || map(), fk = (opts && opts.fields) || map(), rows = [], seenRow = map(), seenRef = map();
+        for (var ri = 0; ri < v.length && rows.length < LIMITS.effectRows; ri++) {
+            var row = v[ri];
+            if (!isObj(row) || typeof row.id !== 'string' || !FXROW_ID.test(row.id) || seenRow[row.id]) continue;
+            var on = row.on !== false;
+            if (row.ref !== undefined) {
+                if (typeof row.ref !== 'string' || !EFFECT_ID.test(row.ref) || fxIds[row.ref] !== 1 || seenRef[row.ref]) continue;   // once per character (a second add turns it back on)
+                seenRow[row.id] = 1; seenRef[row.ref] = 1; rows.push({ id: row.id, ref: row.ref, on: on }); continue;
+            }
+            var core = cleanEffectCore(row, fk); seenRow[row.id] = 1;
+            rows.push({ id: row.id, name: core.name, icon: core.icon, tone: core.tone, dur: core.dur, notes: core.notes, on: on, mods: core.mods });
+        }
+        return rows;
+    }
     if (k === 'item-list') {   // [{defId,qty}] — drop unknown/dup defIds, cap, clamp qty; opts.items is a proto-safe id set
         if (!Array.isArray(v)) return undefined;
         var items = (opts && opts.items) || map(), seen = map(), list = [];
@@ -408,8 +456,11 @@ function cleanChar(c, sys) {
 // What a value is checked against, the same on every machine (5h): the system's item ids (a prototype-free set). A client re-cleaning a
 // delta with no options used to check an item list against nothing and drop every entry.
 function valueOpts(sys) {
-    var items = map(); (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (it && typeof it.id === 'string') items[it.id] = 1; });
-    return { items: items };
+    var items = map(), effects = map(), fields = map();
+    (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (it && typeof it.id === 'string') items[it.id] = 1; });
+    (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') effects[d.id] = 1; });   // 5h: a library row must name one of these
+    (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && typeof f.id === 'string') fields[f.id] = f.kind; });   // 5h: an ad hoc row's changes are checked against these
+    return { items: items, effects: effects, fields: fields };
 }
 function cleanCharEdit(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.fieldId !== 'string' || !FIELD_ID.test(msg.fieldId)) return null;
@@ -435,18 +486,64 @@ function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'val
 function noDice() { return NaN; }   // a die inside a definition fails at the die: "The random source returned NaN"
 function storedOf(field, char) {
     var v = char && char.values ? char.values[field.id] : undefined;
-    if (v === undefined) return field.kind === 'resource' ? (field.def === 'max' ? { cur: null } : { cur: field.def }) : field.kind === 'notes' ? '' : field.kind === 'item-list' ? [] : field.def;
+    if (v === undefined) return field.kind === 'resource' ? (field.def === 'max' ? { cur: null } : { cur: field.def }) : field.kind === 'notes' ? '' : (field.kind === 'item-list' || field.kind === 'effects') ? [] : field.def;
     return v;
 }
-function makeResolver(sys, char, F) {
-    var ix = keyIndex(sys), cache = map(), chain = [];
+// 5h: every change the character's active effects make, keyed by the name the resolver works it out under (a key, or "key.max" for a
+// resource's max), in a fixed order (fields, then rows) so every machine adds in the same order. Null when nothing applies: the resolver
+// then behaves exactly as before. Each change is checked against the field's CURRENT kind (the system may have moved on since the row).
+function fxIndex(sys, char) {
+    var idx = null, lib = null, byId = null, seenRef = map();   // a library effect counts once per character, whichever list holds it
+    (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
+        if (f.kind !== 'effects') return;
+        var rows = char && char.values && Array.isArray(char.values[f.id]) ? char.values[f.id] : null; if (!rows || !rows.length) return;
+        if (!byId) { byId = map(); sys.fields.forEach(function(x) { byId[x.id] = x; }); }
+        rows.forEach(function(r) {
+            if (!isObj(r) || r.on === false) return;
+            var def = r;
+            if (typeof r.ref === 'string') { if (seenRef[r.ref]) return; if (!lib) { lib = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') lib[d.id] = d; }); } def = lib[r.ref]; if (!def) return; seenRef[r.ref] = 1; }
+            (Array.isArray(def.mods) ? def.mods : []).forEach(function(m) {
+                var tf = isObj(m) ? byId[m.f] : null; if (!tf) return;
+                if (m.op === 'on') { if (tf.kind !== 'toggle') return; }
+                else if (m.op === 'add') { if (typeof m.v !== 'number' || !isFinite(m.v)) return; if (m.part === 'max' ? tf.kind !== 'resource' : !(tf.kind === 'number' || tf.kind === 'skill' || tf.kind === 'formula')) return; }
+                else return;
+                var key = lower(tf.key) + (m.part === 'max' ? '.max' : '');
+                idx = idx || map(); var slot = idx[key] || (idx[key] = { add: 0, on: false, src: [] });
+                if (m.op === 'on') slot.on = true; else slot.add += m.v;
+                if (slot.src.length < 12) slot.src.push({ name: def.name || 'Effect', op: m.op, v: m.op === 'add' ? m.v : 0, gm: def.vis === 'gm' });
+            });
+        });
+    });
+    return idx;
+}
+function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base)
+    var ix = keyIndex(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char), detail = map();
+    // 5h: where a derived value's effects came from — the sources recorded on the names its formula read (theirs and their own "via")
+    function viaOf(names) {
+        if (!fx || !Array.isArray(names)) return null;
+        var out = [], seen = map();
+        names.forEach(function(n) {
+            var nm = n && typeof n.name === 'string' ? n.name : null, d = nm ? detail[lower(nm)] : null; if (!d) return;
+            d.mods.forEach(function(m) { var sk = nm + '|' + m.name + '|' + m.op + '|' + m.v; if (seen[sk] || out.length >= 12) return; seen[sk] = 1; out.push({ through: nm, name: m.name, op: m.op, v: m.v, gm: m.gm }); });
+            d.via.forEach(function(m) { var sk = m.through + '|' + m.name + '|' + m.op + '|' + m.v; if (seen[sk] || out.length >= 12) return; seen[sk] = 1; out.push(m); });
+        });
+        return out.length ? out : null;
+    }
+    // 5h: a value with its effects applied (a toggle switched on; a number added to, kept within the wire-safe range), the sources recorded
+    function withFx(l, v, via) {
+        var s = fx ? fx[l] : null; if (!s && !via) return v;
+        var out = v;
+        if (s) { if (s.on) out = true; else if (typeof out === 'number') { out = out + s.add; if (out > 1e15) out = 1e15; else if (out < -1e15) out = -1e15; } }
+        detail[l] = { base: v, mods: s ? s.src : [], via: via || [] };
+        return out;
+    }
     function evalDef(name, text) {
         if (text === null) return { error: { message: 'GM only', pos: 0, len: 0 } };
         if (!text) return { error: { message: 'Missing formula', pos: 0, len: 0 } };
         chain.push(name);
         var res = F.evaluate(text, { vars: fn, random: noDice, depth: chain.length, stack: chain.slice() });
         chain.pop();
-        if (res.ok) return { value: res.value };
+        if (res.ok) return { value: res.value, via: viaOf(res.breakdown && res.breakdown.names) };
         return { error: res.error };
     }
     function loopError(name) { return { error: { message: 'Formulas refer to each other in a loop: ' + chain.concat(name).join(' → '), pos: 0, len: 0 } }; }
@@ -460,25 +557,26 @@ function makeResolver(sys, char, F) {
         var out, r, k = field.kind;
         if (k === 'text' || k === 'select') out = storedOf(field, char);
         else if (k === 'notes') return undefined;
-        else if (k === 'number' || k === 'toggle') out = storedOf(field, char);
+        else if (k === 'number' || k === 'toggle') { var sv = storedOf(field, char); out = suffix ? sv : withFx(l, sv, null); }   // 5h: an effect adds to a number or switches a toggle on (a suffixed name reads the stored value, as before)
         else if (k === 'skill') {
             var ranks = storedOf(field, char);
             if (suffix === 'ranks') out = ranks;
-            else if (suffix === 'base' || !suffix) { var b = field.base ? evalDef(l, field.base) : { value: 0 }; if (b.error) return b; out = suffix === 'base' ? b.value : ranks + b.value; }
+            else if (suffix === 'base' || !suffix) { var b = field.base ? evalDef(l, field.base) : { value: 0 }; if (b.error) return b; out = suffix === 'base' ? withFx(l, b.value, b.via || null) : withFx(l, ranks + b.value, b.via || null); }   // 5h: effects reach the total; ranks and base stay raw
             else return undefined;
         } else if (k === 'resource') {
             if (suffix && suffix !== 'max' && suffix !== 'cur') return undefined;
             var stored = storedOf(field, char);   // { cur } — cur null means "full" (def: 'max')
-            if (suffix === 'max') { r = (field.maxFormula || field.maxFormula === null) ? evalDef(l, field.maxFormula) : { value: field.min || 0 }; if (r.error) return r; out = r.value; }   // l is already "key.max": one chain name, so a max naming itself is reported as the loop it is
-            else if (stored.cur === null) { var mxv = fn(field.key + '.max'); if (mxv && typeof mxv === 'object' && mxv.error) return mxv; out = mxv; }   // a full pool reads its max through the resolver (worked out once, cached)
+            if (suffix === 'max') { r = (field.maxFormula || field.maxFormula === null) ? evalDef(l, field.maxFormula) : { value: field.min || 0 }; if (r.error) return r; out = withFx(l, r.value, r.via || null); }   // l is already "key.max": one chain name, so a max naming itself is reported as the loop it is
+            else if (stored.cur === null) { var mxv = fn(field.key + '.max'); if (mxv && typeof mxv === 'object' && mxv.error) return mxv; out = withFx(l, mxv, viaOf([{ name: field.key + '.max' }])); }   // a full pool reads its max through the resolver (worked out once, cached)
             else out = stored.cur;
-        } else if (k === 'formula') { if (suffix) return undefined; r = evalDef(l, field.formula); if (r.error) return r; out = r.value; }
+        } else if (k === 'formula') { if (suffix) return undefined; r = evalDef(l, field.formula); if (r.error) return r; out = withFx(l, r.value, r.via || null); }
         else return undefined;
         cache[l] = out;   // values only; an error is path-dependent and is never cached
         return out;
     }
-    fn.reset = function() { cache = map(); chain = []; };
+    fn.reset = function() { cache = map(); chain = []; detail = map(); };
     fn.chain = function() { return chain.slice(); };
+    fn.detail = function(name) { return detail[lower(name)] || null; };   // 5h: { base, mods: [{name, op, v, gm}], via: [{through, name, op, v, gm}] } or null
     return fn;
 }
 // Stage 5g Fold B: a field's caption as parts for the sheet to draw — plain text, and each {formula} worked out for this character (no
@@ -500,14 +598,16 @@ function captionParts(sys, char, F, text, vars) {   // vars: the render's own re
 }
 // Every field's value for a render: { fieldId: { value, text, error, max } } (max for resources)
 function resolveAll(sys, char, F) {
-    var r = makeResolver(sys, char, F), out = map();
+    var r = makeResolver(sys, char, F), out = map(), r0 = null;
+    var base0 = function(name) { r0 = r0 || makeResolver(sys, char, F, { noFx: true }); var v = r0(name); return (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; };
     Object.defineProperty(out, 'vars', { value: r });   // Fold B: the warm resolver, for captions (not enumerable: every field loop over the result is unchanged)
     sys.fields.forEach(function(f) {
         var e = { value: undefined, text: '', error: null };
         var k = f.kind;
         if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
         else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; }   // a carried list; sheets.js renders it, not a number
-        else if (k === 'toggle' || k === 'number') { e.value = storedOf(f, char); e.text = fmtNum(e.value); }
+        else if (k === 'effects') { e.value = storedOf(f, char); e.text = ''; e.active = activeEffects(sys, e.value); }   // 5h: the rows; e.active names the ones switched on
+        else if (k === 'toggle' || k === 'number') { var tv = r(f.key); e.value = (tv === undefined || (tv && typeof tv === 'object')) ? storedOf(f, char) : tv; e.text = fmtNum(e.value); }   // 5h: through the resolver, so an effect shows
         else {
             var v = r(f.key);
             if (v && typeof v === 'object' && v.error) { e.error = v.error.message; e.text = '—'; }
@@ -515,9 +615,34 @@ function resolveAll(sys, char, F) {
             if (k === 'resource') { var m = r(f.key + '.max'); if (m && typeof m === 'object' && m.error) { e.max = null; if (!e.error) e.error = m.error.message; } else { e.max = m; e.text = fmtNum(e.value) + ' / ' + fmtNum(m); } }
             if (k === 'skill') { var rk = r(f.key + '.ranks'); e.ranks = rk; }
         }
+        var dt = (k === 'number' || k === 'toggle' || k === 'formula' || k === 'skill') ? r.detail(f.key) : null;   // 5h: where the value came from — only when an effect touched it
+        if (dt) { var b0 = base0(f.key); e.base = b0 !== undefined ? b0 : dt.base; e.mods = dt.mods; e.via = dt.via; }
+        if (k === 'resource') { var dm = r.detail(f.key + '.max'); if (dm) { var bm = base0(f.key + '.max'); e.maxBase = bm !== undefined ? bm : dm.base; e.maxMods = dm.mods; e.maxVia = dm.via; } }
         out[f.id] = e;
     });
     return out;
+}
+// 5h: the rows of an effects list that are switched on, as { name, icon, tone } (a library row by its definition; a missing one is skipped)
+function activeEffects(sys, rows) {
+    var out = [], lib = null; if (!Array.isArray(rows)) return out;
+    rows.forEach(function(r) {
+        if (!isObj(r) || r.on === false) return;
+        var d = r;
+        if (typeof r.ref === 'string') { if (!lib) { lib = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (x && typeof x.id === 'string') lib[x.id] = x; }); } d = lib[r.ref]; if (!d) return; }
+        out.push({ name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '' });
+    });
+    return out;
+}
+// 5h: a value's breakdown as plain text — "12 = 10 base · Rage +2", and on a derived value "· Rage +2 on ST"
+function fxText(e, max) {
+    var base = max ? e.maxBase : e.base, mods = (max ? e.maxMods : e.mods) || [], via = (max ? e.maxVia : e.via) || [];
+    if (!mods.length && !via.length) return '';
+    var amt = function(m) { return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); };
+    var parts = [];
+    if (typeof base === 'number') parts.push(fmtNum(base) + ' base');   // the value with no effect at all, so the parts add up to what is shown
+    mods.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (on)' : m.name + ' ' + amt(m)); });
+    via.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (' + m.through + ' on)' : m.name + ' ' + amt(m) + ' on ' + m.through); });
+    return parts.slice(0, 13).join(' \u00b7 ');
 }
 function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (typeof v !== 'number' || !isFinite(v)) return v === null || v === undefined ? '' : String(v); if (Math.floor(v) === v) return String(v); return String(Number(v.toFixed(2))); }
 // Stage 5d: one read-only header-block entry (an identity row or a ledger figure) for a field: what the sheet prints for it, or null
@@ -532,6 +657,7 @@ function headerEntry(f, e) {
     var numeric = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number';
     var out = { text: f.unit ? e.text + ' ' + f.unit : e.text };
     if (numeric && e.value < 0) out.neg = true; else if (numeric && f.sign && e.value > 0) out.pos = true;
+    var why = fxText(e) || (f.kind === 'resource' ? fxText(e, true) : ''); if (why) out.why = why;   // 5h: where the number came from
     return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error
@@ -542,6 +668,7 @@ function hoverLines(sys, char, F) {
         var e = all[f.id]; if (!e || e.error) return;
         if (f.kind === 'toggle') { if (e.value === true) lines.push(f.label); return; }
         if (f.kind === 'notes') return;
+        if (f.kind === 'effects') { if (e.active && e.active.length) lines.push(f.label + ' ' + e.active.map(function(a) { return a.name; }).join(', ')); return; }   // 5h
         if (e.text) lines.push(f.label + ' ' + e.text);
     });
     return lines;
@@ -552,7 +679,7 @@ function validateSystem(sys, F) {
     var errors = [], warnings = [];
     if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };
     var keys = sys.fields.map(function(f) { return f.key; }), lowerKeys = keys.map(lower), ix = keyIndex(sys);
-    var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } });
+    var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } if (f.kind === 'number') known[lower(f.key) + '.base'] = f; });   // 5h: "ST.base" is the stored number, before effects (a points cost reads it)
     var edges = map();
     function checkFormula(owner, prop, text, allowDice, vis) {
         if (text === null) return;
@@ -563,7 +690,7 @@ function validateSystem(sys, F) {
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
-            if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
+            if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (vis === 'all' && target.vis === 'gm') warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.' });
             if (prop !== 'roll' && prop !== 'rollFormula') { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
         });
@@ -609,17 +736,41 @@ function validateSystem(sys, F) {
 
 /* ---------- what a player receives ---------- */
 // An NPC or an ownerless character: nothing. The owner: every visible value. Another player: the hover fields only.
-function charFor(c, sys, recipientId) {
+// 5h: a character's effects rows as one recipient may hold them (sys = the players' view; lib = the FULL library by id). The owner gets a
+// visible library row as a reference, a GM-only one INLINE (so their sheet and rolls agree with the GM's), ad hoc rows as they are — every
+// change filtered to fields in the view. A teammate (hover only) gets names, never changes. A row with no definition anywhere is dropped.
+function projectEffects(rows, sys, own, lib) {
+    if (!Array.isArray(rows)) return undefined;
+    var view = map(), vf = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { view[d.id] = d; }); sys.fields.forEach(function(x) { vf[x.id] = 1; });
+    var out = [];
+    rows.forEach(function(r) {
+        if (!isObj(r) || typeof r.id !== 'string') return;
+        var on = r.on !== false, d = r;
+        if (typeof r.ref === 'string') {
+            if (own && view[r.ref]) { out.push({ id: r.id, ref: r.ref, on: on }); return; }
+            d = view[r.ref] || (lib && lib[r.ref]) || null; if (!d) return;
+        }
+        var mods = own ? (Array.isArray(d.mods) ? d.mods : []).filter(function(m) { return isObj(m) && vf[m.f] === 1; }).map(function(m) { var o = { f: m.f, op: m.op }; if (m.op === 'add') o.v = m.v; if (m.part) o.part = m.part; return o; }) : [];
+        out.push({ id: r.id, name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '', dur: own ? (d.dur || '') : '', notes: own ? (d.notes || '') : '', on: on, mods: mods });
+    });
+    return out;
+}
+function fitsKind(k, v) {   // a list only in a list kind, a pool's {cur} only in a pool (a value from before a kind change never travels; the client's cleaner does the rest)
+    if (k === 'effects' || k === 'item-list') return Array.isArray(v);
+    if (k === 'resource') return isObj(v) || typeof v === 'number';
+    return !Array.isArray(v) && !isObj(v);
+}
+function charFor(c, sys, recipientId, opts) {
     if (!c || c.npc || !c.ownerId) return null;
-    var own = c.ownerId === recipientId, values = {};
+    var own = c.ownerId === recipientId, values = {}, libFull = opts && opts.lib ? opts.lib : null, probe = !!(opts && opts.probe);   // probe: which fields a recipient may see (syncCharDelta), values as given
     var viewItems = valueOpts(sys).items;   // the recipient's view (players' system): a GM-only item in the list never travels
-    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv)) ? cv.filter(function(e) { return isObj(e) && typeof e.defId === 'string' && viewItems[e.defId] === 1; }) : cv; } });   // a carried list never travels to another player, hover flag or not
+    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; if (!probe && !fitsKind(f.kind, cv)) return; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv)) ? cv.filter(function(e) { return isObj(e) && typeof e.defId === 'string' && viewItems[e.defId] === 1; }) : (f.kind === 'effects' && Array.isArray(cv) && !probe) ? projectEffects(cv, sys, own, libFull) : cv; } });   // 5h: effects rows projected per recipient   // a carried list never travels to another player, hover flag or not
     return { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
 }
 // The host's answer to one edit (its own or a player's): { ok, value } or { ok: false, reason }
 function applyEdit(sys, char, fieldId, value, F, opts) {
     opts = opts || {};
-    var f = fieldById(sys, fieldId); if (!f || !STORED[f.kind]) return { ok: false, reason: 'field' };
+    var f = fieldById(sys, fieldId); if (!f || !STORED[f.kind] || f.kind === 'effects') return { ok: false, reason: 'field' };   // 5h: an effects list changes only through applyEffectOp
     if (opts.player && f.edit !== 'owner') return { ok: false, reason: 'field' };
     if (opts.player && f.vis !== 'all') return { ok: false, reason: 'field' };
     var max = null;
@@ -647,18 +798,93 @@ function applyItemOp(sys, char, fieldId, op, defId, qty, opts) {
     else if (op === 'setQty') { if (n <= 0) { if (idx >= 0) list.splice(idx, 1); } else if (idx >= 0) list[idx].qty = n; else if (list.length < LIMITS.carried) list.push({ defId: defId, qty: n }); else return { ok: false, reason: 'field' }; }
     return { ok: true, value: list };
 }
+// 5h: the host's (or the GM's own) answer to one change of a character's status effects: { ok, value, clamp } or { ok: false, reason }.
+// q = { op: add|adhoc|on|remove, rowId, ref?, on?, row? }. Rights follow the list field (Player may edit / GM edits, visible); a player can
+// add only what their view holds (opts.view: the players' system). clamp: a resource whose effective max fell below its current value
+// is brought down in the same change (fieldId -> { cur }).
+function applyEffectOp(sys, char, fieldId, q, F, opts) {
+    opts = opts || {};
+    var f = fieldById(sys, fieldId); if (!f || f.kind !== 'effects') return { ok: false, reason: 'field' };
+    if (opts.player && (f.edit !== 'owner' || f.vis !== 'all')) return { ok: false, reason: 'field' };
+    if (!isObj(q) || !FX_OPS[q.op]) return { ok: false, reason: 'value' };
+    var src = char && char.values && Array.isArray(char.values[fieldId]) ? char.values[fieldId] : [];
+    var list = JSON.parse(JSON.stringify(src)), idx = -1, rowId = q.op === 'adhoc' ? (isObj(q.row) ? q.row.id : null) : q.rowId;
+    if (typeof rowId !== 'string' || !FXROW_ID.test(rowId)) return { ok: false, reason: 'value' };
+    for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === rowId) { idx = i; break; }
+    var vo = valueOpts(sys);
+    if (q.op === 'add') {
+        if (typeof q.ref !== 'string' || !EFFECT_ID.test(q.ref)) return { ok: false, reason: 'value' };
+        if (opts.player) { var inView = false; (opts.view && Array.isArray(opts.view.effects) ? opts.view.effects : []).forEach(function(d) { if (d.id === q.ref) inView = true; }); if (!inView) return { ok: false, reason: 'missing' }; }   // outside the view reads exactly as gone (a GM-only id is never confirmed)
+        var def = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d.id === q.ref) def = d; });
+        if (!def || (opts.player && def.vis === 'gm')) return { ok: false, reason: 'missing' };
+        var had = -1; for (var j = 0; j < list.length; j++) if (list[j] && list[j].ref === q.ref) { had = j; break; }
+        var elsewhere = had < 0 && sys.fields.some(function(x) { var o = x.kind === 'effects' && x.id !== fieldId && char && char.values ? char.values[x.id] : null; return Array.isArray(o) && o.some(function(r0) { return r0 && r0.ref === q.ref; }); });
+        if (elsewhere) return { ok: false, reason: 'value' };   // once per character, across every list (another list may have other rights)
+        if (had >= 0) list[had].on = true;   // once per character: adding it again turns it back on
+        else if (idx >= 0) return { ok: false, reason: 'value' };
+        else if (list.length >= LIMITS.effectRows) return { ok: false, reason: 'field' };
+        else list.push({ id: rowId, ref: q.ref, on: true });
+    } else if (q.op === 'adhoc') {
+        if (idx >= 0 && list[idx].ref !== undefined) return { ok: false, reason: 'value' };
+        var fk = vo.fields;
+        if (opts.player) {   // every change must name a field the player can see
+            fk = map(); (opts.view && Array.isArray(opts.view.fields) ? opts.view.fields : []).forEach(function(x) { fk[x.id] = x.kind; });
+            var bad = (Array.isArray(q.row.mods) ? q.row.mods : []).some(function(m) { return !isObj(m) || typeof m.f !== 'string' || !fk[m.f]; });
+            if (bad) return { ok: false, reason: 'value' };
+        }
+        var core = cleanEffectCore(q.row, fk);
+        var nr = { id: rowId, name: core.name, icon: core.icon, tone: core.tone, dur: core.dur, notes: core.notes, on: q.row.on !== false, mods: core.mods };
+        if (idx >= 0) list[idx] = nr; else if (list.length >= LIMITS.effectRows) return { ok: false, reason: 'field' }; else list.push(nr);
+    } else if (q.op === 'on') {
+        if (idx < 0 || typeof q.on !== 'boolean') return { ok: false, reason: idx < 0 ? 'missing' : 'value' };
+        list[idx].on = q.on;
+    } else {   // remove
+        if (idx < 0) return { ok: false, reason: 'missing' };
+        list.splice(idx, 1);
+    }
+    var value = cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
+    var clamp = null;
+    if (F) {   // a max this change lowered: a current value above it comes down with it — a whole number, at least the field's min
+        var after = { id: char.id, values: Object.assign({}, char.values || {}) }; after.values[fieldId] = value;
+        var rv = makeResolver(sys, after, F), rb = makeResolver(sys, char, F);
+        sys.fields.forEach(function(rf) {
+            if (rf.kind !== 'resource') return;
+            var st = char.values ? char.values[rf.id] : undefined; if (!isObj(st) || typeof st.cur !== 'number') return;
+            var mx = rv(rf.key + '.max'), mb = rb(rf.key + '.max');
+            if (!fin(mx) || !(typeof mb === 'number' && mx < mb) || st.cur <= mx) return;
+            var to = Math.floor(mx); if (fin(rf.min) && to < rf.min) to = rf.min;
+            if (fin(to) && to < st.cur) { clamp = clamp || {}; clamp[rf.id] = { cur: to }; }
+        });
+    }
+    return clamp ? { ok: true, value: value, clamp: clamp } : { ok: true, value: value };
+}
+// 5h: a player's effects change off the wire — shape only; the system's rules are applyEffectOp's
+function cleanCharEffect(msg) {
+    if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.fieldId !== 'string' || !FIELD_ID.test(msg.fieldId) || !FX_OPS[msg.op]) return null;
+    var q = { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, op: msg.op };
+    if (msg.op === 'adhoc') {
+        if (!isObj(msg.row) || typeof msg.row.id !== 'string' || !FXROW_ID.test(msg.row.id)) return null;
+        var mods = Array.isArray(msg.row.mods) ? msg.row.mods.slice(0, LIMITS.effectMods).map(function(m) { return isObj(m) ? { f: typeof m.f === 'string' ? m.f.slice(0, 40) : '', op: m.op === 'on' ? 'on' : 'add', v: Number(m.v), part: m.part === 'max' ? 'max' : undefined } : null; }) : [];
+        q.row = { id: msg.row.id, name: str(msg.row.name, LIMITS.name), icon: str(msg.row.icon, 32), tone: msg.row.tone === 'buff' || msg.row.tone === 'debuff' ? msg.row.tone : '', dur: str(msg.row.dur, 200), notes: str(msg.row.notes, LIMITS.text), on: msg.row.on !== false, mods: mods };
+        return q;
+    }
+    if (typeof msg.rowId !== 'string' || !FXROW_ID.test(msg.rowId)) return null; q.rowId = msg.rowId;
+    if (msg.op === 'add') { if (typeof msg.ref !== 'string' || !EFFECT_ID.test(msg.ref)) return null; q.ref = msg.ref; }
+    if (msg.op === 'on') { if (typeof msg.on !== 'boolean') return null; q.on = msg.on; }
+    return q;
+}
 // The item def a token/character would throw, by id (host reads area.ft from here, never from the wire). Null if absent.
 function itemDef(sys, defId) { var a = Array.isArray(sys && sys.items) ? sys.items : []; for (var i = 0; i < a.length; i++) if (a[i].id === defId) return a[i]; return null; }
 
 /* ---------- the auto layout (SB2): one section per kind group, then the rolls ---------- */
 function autoLayout(sys) {
-    var groups = [['number', 'Attributes'], ['formula', 'Derived'], ['resource', 'Resources'], ['skill', 'Skills'], ['toggle', 'Conditions'], ['item-list', 'Items'], ['text', 'Details'], ['select', 'Details'], ['notes', 'Notes']];
+    var groups = [['number', 'Attributes'], ['formula', 'Derived'], ['resource', 'Resources'], ['skill', 'Skills'], ['toggle', 'Conditions'], ['item-list', 'Items'], ['effects', 'Effects'], ['text', 'Details'], ['select', 'Details'], ['notes', 'Notes']];
     var secs = [], byTitle = map();
     groups.forEach(function(g) {
         sys.fields.forEach(function(f) {
             if (f.kind !== g[0]) return;
-            var s = byTitle[g[1]]; if (!s) { s = byTitle[g[1]] = { id: 's_auto_' + g[1].toLowerCase(), title: g[1], cols: g[0] === 'notes' || g[0] === 'item-list' ? 1 : g[0] === 'toggle' ? 4 : g[0] === 'skill' ? 2 : 3, fields: [] }; secs.push(s); }
-            s.fields.push({ id: f.id, w: f.kind === 'notes' || f.kind === 'item-list' ? 'row' : 1 });
+            var s = byTitle[g[1]]; if (!s) { s = byTitle[g[1]] = { id: 's_auto_' + g[1].toLowerCase(), title: g[1], cols: g[0] === 'notes' || g[0] === 'item-list' || g[0] === 'effects' ? 1 : g[0] === 'toggle' ? 4 : g[0] === 'skill' ? 2 : 3, fields: [] }; secs.push(s); }
+            s.fields.push({ id: f.id, w: f.kind === 'notes' || f.kind === 'item-list' || f.kind === 'effects' ? 'row' : 1 });
         });
     });
     if (sys.rolls.length) secs.push({ id: 's_auto_rolls', title: 'Rolls', cols: 3, fields: sys.rolls.map(function(r) { return { roll: r.id, w: 1 }; }) });
@@ -716,8 +942,19 @@ function gmOnlyNames(sys, names) {
     });
     return out;
 }
+// 5h: the names a roll used whose value a GM-only effect changed (directly or through what they read) — such a public roll stays private
+function gmEffectNames(vars, names) {
+    if (typeof vars !== 'function' || typeof vars.detail !== 'function' || !Array.isArray(names)) return [];
+    var out = [];
+    names.forEach(function(n) {
+        if (!n || typeof n.name !== 'string') return;
+        var d = vars.detail(n.name); if (!d) { try { vars(n.name); } catch (e) {} d = vars.detail(n.name); }   // worked out now if this resolver has not yet
+        if (d && d.mods.concat(d.via).some(function(m) { return m.gm; })) out.push(n.name);
+    });
+    return out;
+}
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, valueOpts: valueOpts, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, valueOpts, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };

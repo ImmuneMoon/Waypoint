@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -303,7 +303,7 @@ function renderSheetInto(container, charId, camp) {
     // so every sink below (the look's accent, section colours, icons, the portrait) sees validated values
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
-    buildSections(container, sys, c, resolveAll(sys, c, F()), true, false, function() { renderSheetInto(container, charId, camp); });
+    _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F()), true, false, function() { renderSheetInto(container, charId, camp); }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
@@ -358,11 +358,13 @@ function headerBlocks(head, sys, c, all, gm, own) {
                 inp.value = raw === undefined ? String(f.def) : String(raw); inp.step = String(f.step || 1); inp.title = f.label + (f.unit ? ' (' + f.unit + ')' : '');
                 if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max);
                 inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
+                var rawN = Number(inp.value); inp.className = inp.className.replace(/ sheet-hdr-(neg|pos)/g, '') + (rawN < 0 ? ' sheet-hdr-neg' : f.sign && rawN > 0 ? ' sheet-hdr-pos' : '');   // 5h: toned by the number the box shows
                 var ed = el('span', 'sheet-hdr-val sheet-hdr-edit'); ed.appendChild(inp); if (f.unit) ed.appendChild(el('span', 'sheet-unit', f.unit));
+                var eL = all[f.id]; if (eL && eL.mods && eL.mods.length) { var fbL = fxMark(eL); if (fbL) { fbL.textContent = '\u2192 ' + fmtNum(eL.value); ed.appendChild(fbL); } }   // 5h: the effective value beside the base
                 it.appendChild(ed); box.appendChild(it); return;
             }
             var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
-            v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
+            v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
             it.appendChild(v); box.appendChild(it);
         });
         if (box.childNodes.length) main.appendChild(box);
@@ -701,7 +703,7 @@ function renderPreview() {
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
-    buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false, renderPreview);
+    _fxLive = false; try { buildSections(box, clean, pc, resolveAll(clean, pc, F()), true, false, renderPreview); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
 }
 function onLayoutInput(t) {
@@ -894,6 +896,103 @@ function itemTableInto(wrap, f, c, carried, byId, canThrow, editable) {
     }
     wrap.appendChild(table);
 }
+// 5h: an effect's changes as short text, with the field labels ("+2 ST · HP max +5 · Prone on")
+function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); }
+// 5h: what an effect can change, for a picker: [value, label] with value "fieldId|add" / "fieldId|max" / "fieldId|on"
+function fxTargets(sys) {
+    var out = [];
+    ((sys && sys.fields) || []).forEach(function(x) {
+        var nm = x.label || x.key || '(field)';
+        if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]);
+        else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']);
+        else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']);
+        else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ' \u2014 switch on']);
+    });
+    return out;
+}
+// 5h: a ▲ / ▼ beside a value an effect touched, its tooltip the breakdown ("12 = 10 base · Rage +2"); null when nothing touched it
+function fxMark(e, max) {
+    if (!e) return null; var why = fxText(e, max); if (!why) return null;
+    var v = max ? e.max : e.value, b = max ? e.maxBase : e.base;
+    var dir = (typeof v === 'number' && typeof b === 'number') ? (v > b ? 'up' : v < b ? 'down' : 'same') : 'same';   // the shown value against its value with no effect
+    var s = el('span', 'sheet-eff sheet-eff-' + dir, dir === 'up' ? '\u25b2' : dir === 'down' ? '\u25bc' : '\u25c6'); s.title = why; return s;
+}
+// 5h: a character's status effects — each row with its switch, icon, name, tone, duration and what it changes; add one from the library
+// in a click, or make one on the spot (New…). Rights are the list field's (the host judges every change again).
+var _fxLive = true, _fxForm = null;   // live: false while drawing the Layout preview or a pop-out (their controls act on nothing real); the open New… form's state
+function effectsInto(wrap, f, c, rows, sys, editable) {
+    editable = editable && _fxLive;
+    var lib = {}, labels = {};
+    ((sys && sys.effects) || []).forEach(function(d) { lib[d.id] = d; });
+    ((sys && sys.fields) || []).forEach(function(x) { labels[x.id] = x.label || x.key; });
+    rows.forEach(function(r) {
+        var d = typeof r.ref === 'string' ? lib[r.ref] : r; if (!d) return;
+        var line = el('div', 'sheet-fx' + (r.on === false ? ' sheet-fx-off' : '') + (d.tone === 'buff' || d.tone === 'debuff' ? ' sheet-fx-' + d.tone : ''));
+        var sw = el('input'); sw.type = 'checkbox'; sw.checked = r.on !== false; sw.disabled = !editable; sw.dataset.fid = f.id; sw.dataset.part = 'fx-' + r.id;
+        sw.title = r.on === false ? 'Suspended \u2014 tick to apply it again' : 'Applied \u2014 untick to suspend it';
+        sw.addEventListener('change', function() { commitEffect(c, f, { op: 'on', rowId: r.id, on: sw.checked }); });
+        line.appendChild(sw);
+        if (d.icon) line.appendChild(el('span', 'sheet-fx-icon', d.icon));
+        var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
+        if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
+        if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
+        if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
+        var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
+        wrap.appendChild(line);
+    });
+    if (!wrap.childNodes.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No effects.'));
+    if (!editable) return;
+    var bar = el('div', 'sheet-fx-add-row'), defs = (sys && sys.effects) || [];
+    if (defs.length) {
+        var add = el('select', 'field sheet-fx-add'); add.appendChild(opt('', '+ Add effect\u2026', true));
+        defs.forEach(function(d2) { add.appendChild(opt(d2.id, (d2.icon ? d2.icon + ' ' : '') + d2.name + (d2.tone ? ' (' + d2.tone + ')' : ''))); });
+        add.addEventListener('change', function() { if (add.value) commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: add.value }); });
+        bar.appendChild(add);
+    }
+    var nb = el('button', 'tool ghost sys-btn sheet-fx-new', 'New\u2026'); nb.title = 'An effect made on the spot, with its own numbers';
+    nb.addEventListener('click', function() { _fxForm = { charId: c.id, fieldId: f.id, name: '', tone: '', dur: '', lines: null }; nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); });
+    bar.appendChild(nb);
+    wrap.appendChild(bar);
+    if (_fxForm && _fxForm.charId === c.id && _fxForm.fieldId === f.id) { nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); }   // reopened with what was typed
+}
+// 5h: the New… form: a name, a tone, a duration note and up to LIMITS.effectMods changes (a field and an amount, or a toggle switched on)
+function effectForm(f, c, sys, onClose) {
+    var form = el('div', 'sheet-fx-form');
+    var st = _fxForm || { name: '', tone: '', dur: '', lines: null };
+    var nameI = el('input', 'field sheet-fx-fname'); nameI.type = 'text'; nameI.placeholder = 'Name (Blessed, Shaken\u2026)'; nameI.maxLength = 60; nameI.value = st.name || '';
+    var toneS = el('select', 'field sheet-fx-ftone'); [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']].forEach(function(o) { toneS.appendChild(opt(o[0], o[1])); }); toneS.value = st.tone || '';
+    var durI = el('input', 'field sheet-fx-fdur'); durI.type = 'text'; durI.placeholder = 'Duration (3 rounds)'; durI.maxLength = 40; durI.value = st.dur || '';
+    var keep = function() { if (!_fxForm) return; _fxForm.name = nameI.value; _fxForm.tone = toneS.value; _fxForm.dur = durI.value; _fxForm.lines = Array.prototype.map.call(form.querySelectorAll('.sheet-fx-fline'), function(ln) { return [ln.querySelector('.sheet-fx-ftarget').value, ln.querySelector('.sheet-fx-famt').value]; }); };
+    form.addEventListener('input', keep); form.addEventListener('change', keep);
+    form.appendChild(nameI); form.appendChild(toneS); form.appendChild(durI);
+    var lines = el('div', 'sheet-fx-flines'), targets = fxTargets(sys); form.appendChild(lines);
+    var addLine = function(init) {
+        if (lines.childNodes.length >= LIMITS.effectMods || !targets.length) return;
+        var ln = el('div', 'sheet-fx-fline'), ts = el('select', 'field sheet-fx-ftarget'); targets.forEach(function(tg) { ts.appendChild(opt(tg[0], tg[1])); });
+        var am = el('input', 'field sheet-num sheet-fx-famt'); am.type = 'number'; am.value = '1'; am.step = 'any'; am.title = 'How much it adds (negative to take away)';
+        if (Array.isArray(init)) { ts.value = init[0]; am.value = init[1]; }
+        var sync = function() { am.style.display = /\|on$/.test(ts.value) ? 'none' : ''; }; ts.addEventListener('change', sync); sync();
+        var x = el('button', 'tool ghost sheet-pm', '\u00d7'); x.title = 'Remove this change'; x.addEventListener('click', function() { ln.remove(); keep(); });
+        ln.appendChild(ts); ln.appendChild(am); ln.appendChild(x); lines.appendChild(ln);
+    };
+    if (Array.isArray(st.lines)) st.lines.forEach(function(l0) { addLine(l0); }); else addLine();
+    if (targets.length) { var more = el('button', 'tool ghost sys-btn', '+ Change'); more.addEventListener('click', function() { addLine(); keep(); }); form.appendChild(more); }
+    var ok = el('button', 'tool sys-btn', 'Add'), cancel = el('button', 'tool ghost sys-btn', 'Cancel');
+    ok.addEventListener('click', function() {
+        var mods = [];
+        lines.querySelectorAll('.sheet-fx-fline').forEach(function(ln) {
+            var parts = ln.querySelector('.sheet-fx-ftarget').value.split('|'), amt = Number(ln.querySelector('.sheet-fx-famt').value); if (!parts[0]) return;
+            if (parts[1] === 'on') mods.push({ f: parts[0], op: 'on' });
+            else if (isFinite(amt) && amt !== 0) { var m = { f: parts[0], op: 'add', v: amt }; if (parts[1] === 'max') m.part = 'max'; mods.push(m); }
+        });
+        _fxForm = null; form.remove(); onClose();
+        commitEffect(c, f, { op: 'adhoc', row: { id: uid('x_'), name: nameI.value.trim() || 'Effect', icon: '', tone: toneS.value, dur: durI.value.trim(), notes: '', on: true, mods: mods } });
+    });
+    cancel.addEventListener('click', function() { _fxForm = null; form.remove(); onClose(); });
+    var btns = el('div', 'sheet-fx-fbtns'); btns.appendChild(ok); btns.appendChild(cancel); form.appendChild(btns);
+    if (!st.name) setTimeout(function() { try { nameI.focus(); } catch (e) {} }, 0);   // a reopened form keeps the page's focus where it is
+    return form;
+}
 // Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
 function signTone(f, e) { if (!f.sign || !e || e.error || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
 // A field on the sheet: its control, then (Fold B) its caption line — text, with each {formula} worked out for this character, drawn as text
@@ -920,7 +1019,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' || k === 'skill') {
         var row = el('div', 'sheet-ctl');
         var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined ? String(f.def) : String(raw);
@@ -939,9 +1038,10 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
             rg.addEventListener('change', function() { clearTimeout(rgTimer); rgTimer = setTimeout(function() { if (rg.value === rgSent) return; rgSent = rg.value; commit(c, f, Number(rg.value)); }, 200); });
             sw.appendChild(rg); row.appendChild(sw);
         }
-        if (k === 'number') inp.className += signTone(f, e);   // Stage 5g (a skill colours its total instead)
+        if (k === 'number') inp.className += signTone(f, { value: Number(inp.value) });   // Stage 5g (a skill colours its total instead); 5h: by the number the box shows
         row.appendChild(inp);
-        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); }
+        if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); } }   // 5h: the box edits the base; the effective value beside it
+        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } }
         if (f.unit) row.appendChild(el('span', 'sheet-unit', f.unit));   // Stage 5g
         box.appendChild(row); return box;
     }
@@ -953,7 +1053,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !editable;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !editable; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !editable;
-        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + f.unit : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max');
+        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + f.unit : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
         ci.addEventListener('change', function() { commit(c, f, { cur: Number(ci.value) }); });
@@ -969,10 +1069,15 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
         var bar = el('div', 'sheet-bar'); var fill = el('div', 'sheet-bar-fill'); var pct = max ? Math.max(0, Math.min(100, (cur - (f.min || 0)) / Math.max(1, max - (f.min || 0)) * 100)) : 0; fill.style.width = pct + '%'; bar.appendChild(fill); box.appendChild(bar);
         return box;
     }
-    if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !editable; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); return box; }
+    if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !editable; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
     if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !editable; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
     if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !editable; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
     if (k === 'select') { var se = el('select', 'field sheet-select'); se.dataset.fid = f.id; (f.options || []).forEach(function(o) { se.appendChild(opt(o, o, (raw === undefined ? f.def : raw) === o)); }); se.disabled = !editable; se.addEventListener('change', function() { commit(c, f, se.value); }); box.appendChild(se); return box; }
+    if (k === 'effects') {   // 5h: status effects (the host judges every change; a teammate's copy is names only)
+        var wrapE = el('div', 'sheet-fx-list');
+        effectsInto(wrapE, f, c, Array.isArray(raw) ? raw : [], sysArg || systemOf(getActiveCampaign()), editable && !c.partial);
+        box.appendChild(wrapE); return box;
+    }
     if (k === 'item-list') {
         var sysI = sysArg || systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
         var byId = {}; ((sysI && sysI.items) || []).forEach(function(it) { byId[it.id] = it; });
@@ -1034,6 +1139,22 @@ function commit(c, f, value) {
 }
 // One inventory change on the open sheet (add / remove / setQty). Like commit, but for the item-list kind, which
 // travels its own per-entry op (arrays can't ride the scalar char-edit path).
+// 5h: one change to a character's status effects: a player asks the host (shown at once, undone on a refusal); the GM applies it here,
+// with any pool an effect's end brought down to its new max in the same change
+function commitEffect(c, f, q) {
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
+    if (isClient()) { var n = net(); if (!n || !n.charEffect) return; var r = n.charEffect(c.id, f.id, q); if (r && r.error) toast(r.error); renderSheet(); return; }
+    if (!canWrite()) return;
+    var res = applyEffectOp(sys, c, f.id, q, F(), {});
+    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed.' : res.reason === 'missing' ? 'That effect is gone.' : 'That change is not allowed.'); renderSheet(); return; }
+    var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined, extra = null;
+    if (res.clamp) { extra = {}; Object.keys(res.clamp).forEach(function(fid) { extra[fid] = c.values && Object.prototype.hasOwnProperty.call(c.values, fid) ? clone(c.values[fid]) : undefined; }); }
+    lastChange = { charId: c.id, fieldId: f.id, prev: prev, extra: extra };   // revert brings a clamped pool back too
+    c.values = c.values || {}; c.values[f.id] = res.value;
+    var d = {}; d[f.id] = res.value;
+    if (res.clamp) Object.keys(res.clamp).forEach(function(fid) { c.values[fid] = res.clamp[fid]; d[fid] = res.clamp[fid]; });
+    afterCharChange(c, false, d);
+}
 function commitItem(c, f, op, defId, qty) {
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     if (isClient()) {
@@ -1058,6 +1179,7 @@ function revertLast() {
     var d = {};
     if (lastChange.prev === undefined) { delete c.values[lastChange.fieldId]; d[lastChange.fieldId] = null; }
     else { c.values[lastChange.fieldId] = lastChange.prev; d[lastChange.fieldId] = lastChange.prev; }
+    if (lastChange.extra) Object.keys(lastChange.extra).forEach(function(fid) { var pv = lastChange.extra[fid]; if (pv === undefined) { delete c.values[fid]; d[fid] = null; } else { c.values[fid] = pv; d[fid] = pv; } });   // 5h: a pool an effect's end brought down
     lastChange = null;
     afterCharChange(c, d[Object.keys(d)[0]] === null, d);
     toast('Reverted.');
@@ -1087,12 +1209,12 @@ function ownerFromToken(w) {
     afterCharChange(c, true);
 }
 function charGone(id) { if (sheetOpen === id) { closeSheet(); toast('That character is no longer shared with you.'); } if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That character is gone.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
+function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {};
-var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list' };
-var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.' };
+var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
+var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 function open(which) {
     if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return; }
     var camp = getActiveCampaign(); if (!camp) return;
@@ -1184,13 +1306,13 @@ function fieldRow(f) {
     var def = el('div', 'sys-def'); top.appendChild(def); buildDefCell(def, f);
     var flags = el('div', 'sys-flags');
     if (STORED[f.kind]) flags.appendChild(select('sys-edit', [['owner', 'Player may edit'], ['gm', 'GM edits']], f.edit || 'owner', 'Who may change the value at the table'));
-    flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
+    if (f.kind !== 'effects') flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
     if (f.kind === 'number') { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft)', 'Unit'));   // Stage 5g
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
-    if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
+    if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     flags.appendChild(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, e.g. Base: {ST * 2}', 'Caption (optional)'));   // Fold B
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
         flags.appendChild(input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a symbol', 'Icon'));
@@ -1229,6 +1351,7 @@ function buildDefCell(def, f) {
     } else if (k === 'toggle') { var t = el('label', 'sys-toggle-def'); var c = el('input'); c.type = 'checkbox'; c.className = 'sys-def-bool'; c.checked = f.def === true; t.appendChild(c); t.appendChild(document.createTextNode(' On by default')); def.appendChild(t); }
     else if (k === 'text') { def.appendChild(input('sys-def-text field', f.def, 'Default text', 'Default')); def.appendChild(numField('sys-max', f.max === undefined ? 200 : f.max, 'Most characters (up to 200)', 'Chars')); }
     else if (k === 'notes') def.appendChild(el('span', 'sys-note', 'A long text on the sheet; not read by formulas.'));
+    else if (k === 'effects') def.appendChild(el('span', 'sys-note', 'Status effects on the sheet; the library is the Effects tab. Who may change the list: the edit setting beside.'));
     else if (k === 'item-list') {
         def.appendChild(el('span', 'sys-note', 'A list the character fills from the Items library on the sheet (a throwable item shows a Throw button).'));
         var itbl = f.table || null;
@@ -1274,6 +1397,34 @@ function charRow(c, camp) {
     row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)')));
     return row;
 }
+// 5h: one library effect in the editor: name, icon, tone, duration note, its changes (a field and an amount, or a toggle switched on),
+// notes, visibility and the usual move / duplicate / delete
+function effectRow(d) {
+    var row = el('div', 'sys-row sys-fx-row'); row.dataset.eid = d.id;
+    var top = el('div', 'sys-row-main');
+    top.appendChild(input('sys-fx-icon field', d.icon, 'An icon (an emoji or a symbol)', 'Icon'));
+    top.appendChild(input('sys-fx-name field', d.name, 'The effect\u2019s name on the sheet (Rage, Prone, Blessed\u2026)', 'Name'));
+    top.appendChild(select('sys-fx-tone', [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']], d.tone || '', 'Buff or Debuff (a colour on the sheet)'));
+    top.appendChild(input('sys-fx-dur field', d.dur, 'A duration note (3 rounds, until dawn) \u2014 you end the effect by hand', 'Duration'));
+    var mods = el('div', 'sys-fx-mods'), targets = fxTargets(draft);
+    (d.mods || []).forEach(function(m, mi) {
+        var ln = el('div', 'sys-fx-mod'); ln.dataset.mi = String(mi);
+        var val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : 'add'), opts = targets.slice();
+        if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
+        ln.appendChild(select('sys-fx-target', opts, val, 'What this change affects'));
+        if (m.op !== 'on') { var am = numInput('sys-fx-amt', m.v, 'How much it adds (negative to take away)'); am.step = 'any'; ln.appendChild(am); }
+        ln.appendChild(btnRow([['fxmoddel', 'Remove this change', '&times;']]));
+        mods.appendChild(ln);
+    });
+    var madd = el('button', 'tool ghost sys-btn', '+ Change'); madd.dataset.act = 'fxmodadd'; madd.title = 'Add a number to a field, or switch a toggle on'; if (!targets.length) madd.disabled = true; mods.appendChild(madd);
+    var flags = el('div', 'sys-flags');
+    flags.appendChild(input('sys-fx-notes field', d.notes, 'Notes shown as the effect\u2019s tooltip on the sheet', 'Notes'));
+    flags.appendChild(select('sys-fx-vis', [['all', 'Visible to players'], ['gm', 'GM only']], d.vis || 'all', 'GM only: off the players\u2019 list until you apply it to their character'));
+    flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this effect', '&times;']]));
+    row.appendChild(top); row.appendChild(mods); row.appendChild(flags);
+    return row;
+}
+function fxOfRow(target) { var row = target.closest && target.closest('.sys-fx-row'); if (!row) return null; return (draft.effects || []).find(function(x) { return x.id === row.dataset.eid; }) || null; }
 function itemRow(it) {
     var row = el('div', 'sys-row sys-item-row'); row.dataset.iid = it.id;
     var top = el('div', 'sys-row-main');
@@ -1314,6 +1465,8 @@ function renderAll() {
     ui('sysRolls').style.display = tab === 'rolls' ? '' : 'none';
     var sc = ui('sysChars'); if (sc) sc.style.display = tab === 'chars' ? '' : 'none';
     var siEl = ui('sysItems'); if (siEl) siEl.style.display = tab === 'items' ? '' : 'none';
+    var sfEl = ui('sysEffects'); if (sfEl) sfEl.style.display = tab === 'effects' ? '' : 'none';   // 5h
+    var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var fr = ui('sysFieldRows'); fr.textContent = '';
     if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
@@ -1326,11 +1479,22 @@ function renderAll() {
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     patchErrors();
 }
-function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid || row.dataset.iid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
+function fieldOfRow(target) { var row = target.closest('.sys-row'); if (!row || row.dataset.cid || row.dataset.iid || row.dataset.eid) return null; return { row: row, f: draft.fields.find(function(x) { return x.id === row.dataset.id; }), r: draft.rolls.find(function(x) { return x.id === row.dataset.id; }) }; }
 function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
 function onInput(e) {
     if (!draft) return;
     var t = e.target; if (onLayoutInput(t)) return;
+    var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
+    if (fxd) {
+        var fc = t.className || '';
+        if (fc.indexOf('sys-fx-name') >= 0) fxd.name = t.value.slice(0, LIMITS.name);
+        else if (fc.indexOf('sys-fx-icon') >= 0) fxd.icon = t.value.slice(0, 32);
+        else if (fc.indexOf('sys-fx-dur') >= 0) fxd.dur = t.value.slice(0, 200);
+        else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.text);
+        else if (fc.indexOf('sys-fx-amt') >= 0) { var mln = t.closest('.sys-fx-mod'), mm = mln ? (fxd.mods || [])[+mln.dataset.mi] : null; if (mm) mm.v = t.value === '' ? 0 : Number(t.value); }
+        else return;
+        markDirty(); patchErrors(); return;
+    }
     var it = itemOfRow(t);
     if (it) {
         var ic = t.className || '';
@@ -1383,6 +1547,17 @@ function onChange(e) {
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-on') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.on = t.value === 'on'; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-style') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.style = t.value === 'binary' ? 'binary' : 'graded'; markDirty(); patchErrors(); return; }
+    var fxc = fxOfRow(t);   // 5h: a library effect's selects
+    if (fxc) {
+        if (c.indexOf('sys-fx-tone') >= 0) { fxc.tone = t.value; markDirty(); patchErrors(); return; }
+        if (c.indexOf('sys-fx-vis') >= 0) { fxc.vis = t.value; markDirty(); patchErrors(); return; }
+        if (c.indexOf('sys-fx-target') >= 0) {
+            var tln = t.closest('.sys-fx-mod'), tm = tln ? (fxc.mods || [])[+tln.dataset.mi] : null;
+            if (tm) { var tp = t.value.split('|'); tm.f = tp[0]; if (tp[1] === 'on') { tm.op = 'on'; delete tm.v; delete tm.part; } else { tm.op = 'add'; if (typeof tm.v !== 'number') tm.v = 1; if (tp[1] === 'max') tm.part = 'max'; else delete tm.part; } markDirty(); renderAll(); }
+            return;
+        }
+        return;
+    }
     var iit = itemOfRow(t);
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
@@ -1430,6 +1605,7 @@ function onClick(e) {
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
     if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }
+    if (b.id === 'sysAddEffect') { if (!Array.isArray(draft.effects)) draft.effects = []; if (draft.effects.length >= LIMITS.effects) { toast('At most ' + LIMITS.effects + ' effects.'); return; } draft.effects.push({ id: uid('e_'), name: '', icon: '', tone: '', dur: '', notes: '', vis: 'all', mods: [] }); markDirty(); renderAll(); var lastE = ui('sysEffectRows') && ui('sysEffectRows').lastElementChild; if (lastE) { var ni = lastE.querySelector('.sys-fx-name'); if (ni) ni.focus(); } return; }   // 5h
     if (b.dataset.tab) { tab = b.dataset.tab; renderAll(); return; }
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
@@ -1440,6 +1616,25 @@ function onClick(e) {
         if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return; }
         if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { ch.portrait = src; afterCharChange(ch, true); renderAll(); } }); return; }
         return;
+    }
+    var erow = b.closest('.sys-fx-row');   // 5h: a library effect's buttons
+    if (erow) {
+        if (!b.dataset.act) return;
+        var ed = (draft.effects || []).find(function(x) { return x.id === erow.dataset.eid; }); if (!ed) return;
+        var ei = draft.effects.indexOf(ed), eact = b.dataset.act;
+        if (eact === 'up' && ei > 0) { draft.effects.splice(ei, 1); draft.effects.splice(ei - 1, 0, ed); }
+        else if (eact === 'down' && ei < draft.effects.length - 1) { draft.effects.splice(ei, 1); draft.effects.splice(ei + 1, 0, ed); }
+        else if (eact === 'dup') { var dd = clone(ed); dd.id = uid('e_'); if (dd.name) dd.name = dd.name + ' copy'; draft.effects.splice(ei + 1, 0, dd); }
+        else if (eact === 'del') { draft.effects.splice(ei, 1); }
+        else if (eact === 'fxmodadd') {
+            var tg = fxTargets(draft)[0]; if (!tg) return; ed.mods = Array.isArray(ed.mods) ? ed.mods : [];
+            if (ed.mods.length >= LIMITS.effectMods) { toast('At most ' + LIMITS.effectMods + ' changes per effect.'); return; }
+            var tp2 = tg[0].split('|'), nm2 = { f: tp2[0], op: tp2[1] === 'on' ? 'on' : 'add' }; if (nm2.op === 'add') { nm2.v = 1; if (tp2[1] === 'max') nm2.part = 'max'; }
+            ed.mods.push(nm2);
+        }
+        else if (eact === 'fxmoddel') { var dln = b.closest('.sys-fx-mod'); if (dln) (ed.mods || []).splice(+dln.dataset.mi, 1); }
+        else return;
+        markDirty(); renderAll(); return;
     }
     var irow = b.closest('.sys-item-row');
     if (irow) {

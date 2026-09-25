@@ -1995,6 +1995,13 @@
   /* Stage 6: the token's stance on the sheet */
   .sheet-stance { display: flex; flex-direction: column; gap: 6px; }
   .sheet-stance[hidden] { display: none; }
+  /* Stage 6 F4a: a copy of an item deleted from the library */
+  .sheet-chip.sheet-item-lost { color: var(--red, #e5534b); box-shadow: inset 0 0 0 1px currentColor; }
+  .sheet-item-keep { font-size: 11px; padding: 1px 6px; }
+  /* Stage 6: the GM's marks on a row (a bound or cursed item; a curse the player dropped, kept out of their sight) and a pickup's Undo */
+  .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; }
+  .sheet-item-hid { opacity: 0.6; }
+  .sheet-item-undo { font-size: 11px; padding: 1px 6px; }
   .sheet-stance.sheet-row { grid-column: 1 / -1; }
   .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sheet-stance-row > .sheet-label { min-width: 64px; }

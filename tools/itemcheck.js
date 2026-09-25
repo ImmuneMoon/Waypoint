@@ -1,6 +1,6 @@
 /* Offline check of the item-library / blast-from-sheet pure model in system/app/scripts/systemcore.js
-   (Stage-5 slice 1): item defs, the item-list value kind, per-recipient stripping, the per-entry
-   inventory op, the throw item lookup, and validation. Runs under Node against the real formula engine.
+   (Stage-5 slice 1): item defs, the item-list value kind, per-recipient stripping, the per-row
+   inventory op (applyRowOp, Stage 6), the throw item lookup (rowDef), and validation. Runs under Node against the real formula engine.
    Usage: node tools/itemcheck.js   (exit 1 on any failure) */
 'use strict';
 const path = require('path');
@@ -16,7 +16,7 @@ const j = v => JSON.stringify(v);
     try { S = await import(url('systemcore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
     check('modules load in Node with no window', !!S && !!F && !err, err && err.message);
     if (!S || !F) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, KINDS, STORED, emptySystem, cleanItemDef, cleanCombat, cleanSystem, cleanValue, cleanChar, cleanCharItem, applyItemOp, itemDef, resolveAll, hoverLines, validateSystem, charFor, autoLayout } = S;
+    const { LIMITS, KINDS, STORED, emptySystem, cleanItemDef, cleanCombat, cleanSystem, cleanValue, cleanChar, cleanCharItem, applyRowOp, rowDef, rowIdOf, itemDef, resolveAll, hoverLines, validateSystem, charFor, autoLayout } = S;
 
     /* ---- KINDS / emptySystem ---- */
     check('item-list is a KIND and STORED, not a formula-namable numeric', KINDS['item-list'] === 1 && STORED['item-list'] === 1 && !S.DEF_PROP['item-list']);
@@ -72,7 +72,7 @@ const j = v => JSON.stringify(v);
         return Array.isArray(v) && v.length === 2 && v[0].defId === 'i_frag' && v[0].qty === LIMITS.maxQty && v[1].defId === 'i_secret' && v[1].qty === 1 && cleanValue({ kind: 'item-list' }, 'x', { items }) === undefined;
     })());
     check('cleanValue item-list: caps at LIMITS.carried', (() => {
-        const big = Object.create(null); const raw = []; for (let i = 0; i < 130; i++) { big['i_x' + i] = 1; raw.push({ defId: 'i_x' + i, qty: 1 }); }
+        const big = Object.create(null); const raw = []; for (let i = 0; i < 200; i++) { big['i_x' + i] = 1; raw.push({ defId: 'i_x' + i, qty: 1 }); }
         const v = cleanValue({ kind: 'item-list' }, raw, { items: big });
         return v.length === LIMITS.carried;
     })());
@@ -85,27 +85,35 @@ const j = v => JSON.stringify(v);
 
     /* ---- cleanCharItem: the per-entry op message ---- */
     check('cleanCharItem: valid ops pass; bad op/defId/qty rejected', (() => {
-        const ok = cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'add', defId: 'i_frag', qty: 3 });
-        return ok && ok.op === 'add' && ok.qty === 3
+        const ok = cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'add', defId: 'i_frag', rowId: 'w_f9', qty: 3 });
+        return ok && ok.op === 'add' && ok.qty === 3 && ok.rowId === 'w_f9'
+            && cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'add', defId: 'i_frag', qty: 3 }) === null   // Stage 6: an add names its new row
             && cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'nope', defId: 'i_frag' }) === null
             && cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'add', defId: 'x' }) === null
             && cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'add', defId: 'i_frag', qty: -1 }) === null;
     })());
 
-    /* ---- applyItemOp: host-side add/remove/setQty + permissions ---- */
+    /* ---- applyRowOp: host-side add/remove/setQty by row (Stage 6: one q-object per change) + permissions ---- */
     const charA = { id: 'c_a', values: {} };
-    check('applyItemOp: add/remove/setQty over a growing list', (() => {
-        let r = applyItemOp(gm, charA, 'f_kit', 'add', 'i_frag', 1, {}); if (!r.ok) return false; charA.values.f_kit = r.value;
-        r = applyItemOp(gm, charA, 'f_kit', 'add', 'i_frag', 1, {}); charA.values.f_kit = r.value; if (r.value[0].qty !== 2) return false;
-        r = applyItemOp(gm, charA, 'f_kit', 'setQty', 'i_frag', 5, {}); charA.values.f_kit = r.value; if (r.value[0].qty !== 5) return false;
-        r = applyItemOp(gm, charA, 'f_kit', 'setQty', 'i_frag', 0, {}); charA.values.f_kit = r.value; return r.value.length === 0;
+    check('applyRowOp: add (a new row takes its maker\'s id) / add again (quantity) / setQty / setQty 0 removes, by row id', (() => {
+        let r = applyRowOp(gm, charA, 'f_kit', { op: 'add', defId: 'i_frag', rowId: 'w_f1', qty: 1 }, F, {}); if (!r.ok || r.row !== 'w_f1') return false; charA.values.f_kit = r.value;
+        r = applyRowOp(gm, charA, 'f_kit', { op: 'add', defId: 'i_frag', qty: 1 }, F, {}); charA.values.f_kit = r.value; if (r.value[0].qty !== 2 || r.row !== 'w_f1') return false;
+        r = applyRowOp(gm, charA, 'f_kit', { op: 'setQty', rowId: 'w_f1', qty: 5 }, F, {}); charA.values.f_kit = r.value; if (r.value[0].qty !== 5) return false;
+        r = applyRowOp(gm, charA, 'f_kit', { op: 'setQty', rowId: 'w_f1', qty: 0 }, F, {}); charA.values.f_kit = r.value; return r.value.length === 0;
     })());
-    check('applyItemOp: player cannot touch a GM-edit list, a GM-only item, or an unknown item', (() => {
-        const asPlayer = { player: true };
-        return applyItemOp(gm, charA, 'f_gmkit', 'add', 'i_frag', 1, asPlayer).ok === false
-            && applyItemOp(gm, charA, 'f_kit', 'add', 'i_secret', 1, asPlayer).ok === false
-            && applyItemOp(gm, charA, 'f_kit', 'add', 'i_nope', 1, asPlayer).reason === 'missing'
-            && applyItemOp(gm, charA, 'f_kit', 'add', 'i_secret', 1, {}).ok === true;   // the GM may
+    check('applyRowOp: a player cannot touch a GM-edit list; a GM-only or unknown item reads as gone (missing); the GM may add the GM-only one; a legacy row is addressed by its derived id', (() => {
+        const asPlayer = { player: true, view: pv }, legacyC = { id: 'c_l', values: { f_kit: [{ defId: 'i_frag', qty: 2 }] } };
+        const rm = applyRowOp(gm, legacyC, 'f_kit', { op: 'remove', rowId: 'w_frag' }, F, asPlayer);
+        return applyRowOp(gm, charA, 'f_gmkit', { op: 'add', defId: 'i_frag' }, F, asPlayer).reason === 'field'
+            && applyRowOp(gm, charA, 'f_kit', { op: 'add', defId: 'i_secret', rowId: 'w_s1' }, F, asPlayer).reason === 'missing'
+            && applyRowOp(gm, charA, 'f_kit', { op: 'add', defId: 'i_nope', rowId: 'w_s2' }, F, asPlayer).reason === 'missing'
+            && applyRowOp(gm, charA, 'f_kit', { op: 'add', defId: 'i_secret', rowId: 'w_s3' }, F, {}).ok === true   // the GM may
+            && rm.ok && rm.value.length === 0;
+    })());
+    check('the throw lookup: a row\'s definition by its row id — a legacy row reads the library (area and damage); a deleted item\'s copy throws from its snapshot; an unknown id finds nothing', (() => {
+        const rows = [{ defId: 'i_frag', qty: 1 }, { id: 'w_old', defId: 'i_gone', qty: 1, snap: { name: 'Old charge', area: { ft: 8 } } }];
+        const byRid = rid => rows.find(r => rowIdOf(r) === rid), a = rowDef(gm, byRid('w_frag')), b = rowDef(gm, byRid('w_old'));
+        return !!a && a.src === 'lib' && a.def.area.ft === 12 && a.def.damage === '3d6' && !!b && b.src === 'lost' && b.def.area.ft === 8 && rowDef(gm, byRid('w_nope')) === null;
     })());
 
     /* ---- charFor: an item-list never travels to another player, even with hover set ---- */

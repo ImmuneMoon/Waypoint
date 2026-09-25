@@ -461,12 +461,12 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
         delete camp.music;    // the music library (1.5.0): likewise travels only as the validated 'music' message, never raw in the snapshot
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
-        var libFx = fxLib(camp.system);   // 5h: the full library, before the players' view replaces the system (a GM-only effect reaches its owner inline)
+        var libFx = fxLib(camp.system), libIt = itemLib(camp.system);   // 5h / Stage 6: the full libraries, before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [] }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
-            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx }), camp.chars[id], camp.system, libFx); if (v) outCh[id] = v; }); camp.chars = outCh;
+            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt }), camp.chars[id], camp.system, libFx, libIt); if (v) outCh[id] = v; }); camp.chars = outCh;
         } else delete camp.chars;
         // fog of war (1.5.0 FV2): the sight-field mapping + default travel for the hosted campaign, so a client resolves
         // its own sight the same way the host does (character sheets already travel per recipient above)
@@ -819,6 +819,7 @@ function applySnapshot(msg) {
         var cleanCh = {}; Object.keys(cs.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(cs.chars[id], cs.system); if (cc && cc.id === id) { cc.partial = cs.chars[id].partial === true; cleanCh[id] = cc; } }); cs.chars = cleanCh;
     });
     charSessionReset();
+    Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { noteHostCopy(id, cs.chars[id].values); }); });   // Stage 6: the host's copy of every character, whole, from the start (a refusal goes back to it)
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
     net.combats = cleanCombats(msg.combats);
@@ -1241,16 +1242,20 @@ net.syncSystem = function(force) {
 // A player holds their own character in full (minus GM-only fields), other PCs' hover fields only, no NPCs. Every
 // payload is built per peer from a fresh view; nothing a client says about a character is applied unchecked.
 var charLimit = null, _doorLimit = null, _charPending = {}, _charSlowSaid = {};
+var _charHost = {};    // Stage 6 (client): the last copy of each character's values the host sent — a refused change goes back to it, never to an older one
+var _rowGrace = {};    // Stage 6 (host): a pickup's Undo window, 'charId|fieldId|rowId' -> { until, base } (memory only; a bound item may go back to base)
 function SC() { return window.wpSystemCore || null; }
 function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id : null; }
 // [netcheck:chardelta-start]
 // 5h: the full status-effect library by id (host-local, never sent): a GM-only effect applied to a PC reaches its owner inline through it
 function fxLib(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }
+// Stage 6 F4a: the full item library by id (host-local, never sent): a GM-only item on a PC reaches its owner inline through it (players' fields only)
+function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }
 // 5h: a teammate's copy (partial: hover fields only) cannot work out a hover line whose formula reads a field it does not hold (HP max from
 // ST read the default: "HP 9 / 10" where the owner saw "9 / 14"), so the host sends the lines it works out from the owner's own view.
-function withHoverLines(v, src, view, lib) {
+function withHoverLines(v, src, view, lib, items) {
     var S = SC(); if (!v || !v.partial || !S || !window.wpFormula || !src) return v;
-    var ownV = S.charFor(src, view, src.ownerId, { lib: lib || null }); if (!ownV) return v;
+    var ownV = S.charFor(src, view, src.ownerId, { lib: lib || null, items: items || null }); if (!ownV) return v;
     var ln = []; try { ln = S.hoverLines(view, ownV, window.wpFormula); } catch (e) {}
     v.lines = ln.slice(0, 12).map(function(s) { return String(s).slice(0, 120); });   // always, even [] — the owner's "no lines" is the answer; a teammate never falls back to its own defaults
     return v;
@@ -1258,10 +1263,19 @@ function withHoverLines(v, src, view, lib) {
 function charViewFor(charId, recipientId) {   // the copy one peer may hold, or null
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !camp.chars || !camp.chars[charId] || !window.wpSheets) return null;
     var view = window.wpSheets.playerSystem(camp); if (!view) return null;
-    var lib = fxLib(camp.system);
-    return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib }), camp.chars[charId], view, lib);
+    var lib = fxLib(camp.system), items = itemLib(camp.system);
+    return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items }), camp.chars[charId], view, lib, items);
 }
-function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; if (charLimit) charLimit.reset(); }
+function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; _charHost = {}; _rowGrace = {}; if (charLimit) charLimit.reset(); }
+// Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
+function itemNotice(ch, name, what) {
+    var who = ch && ch.name ? ch.name : 'A character', nm = name || 'an item';
+    var t = what === 'bound-pick' ? who + ' picked up ' + nm + ' — bound: it stays until you remove it.'
+        : what === 'curse-pick' ? who + ' picked up ' + nm + ' — curse on contact: if they drop it, you keep it on their sheet.'
+        : what === 'bound-try' ? who + ' tried to remove ' + nm + ' — it stays (bound).'
+        : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
+    toast(t); logEvent('items', t);
+}
 net.syncChars = function() {   // every character, per peer (after the system changed)
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;
@@ -1287,7 +1301,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, values: {} };
     Object.keys(values).forEach(function(f) { probe.values[f] = 0; });
-    var libD = fxLib(camp.system), ownSees = S.charFor(probe, view, src.ownerId, { probe: true }), linesMove = !!ownSees && Object.keys(values).some(function(f) { return ownSees.values[f] !== undefined; });   // any input a teammate's host-worked lines may read
+    var libD = fxLib(camp.system), itD = itemLib(camp.system), ownSees = S.charFor(probe, view, src.ownerId, { probe: true }), linesMove = !!ownSees && Object.keys(values).some(function(f) { return ownSees.values[f] !== undefined; });   // any input a teammate's host-worked lines may read
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
         var pid = peerProfileId(c), allowed = S.charFor(probe, view, pid, { probe: true }); if (!allowed) return;
@@ -1297,8 +1311,9 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
             return;
         }
         var fields = Object.keys(values).filter(function(f) { return allowed.values[f] !== undefined; }); if (!fields.length) return;
-        var proj = S.charFor(src, view, pid, { lib: libD }), sub = {};   // 5h: each value as this peer's own projection holds it (effects rows differ per peer)
-        fields.forEach(function(f) { sub[f] = values[f] === null ? null : (proj && proj.values[f] !== undefined ? proj.values[f] : values[f]); });
+        var proj = S.charFor(src, view, pid, { lib: libD, items: itD }), sub = {};   // 5h: each value as this peer's own projection holds it (effects rows differ per peer)
+        fields.forEach(function(f) { if (values[f] === null) sub[f] = null; else if (proj && proj.values[f] !== undefined) sub[f] = proj.values[f]; });   // Stage 6: fail closed — a value with no projection is never sent raw
+        if (!Object.keys(sub).length) return;
         try { c.send({ type: 'charDelta', campId: camp.id, id: id, values: sub }); } catch (e) { sendFailed(e); }
     });
 };
@@ -1321,22 +1336,24 @@ net.charEdit = function(charId, fieldId, value) {
     try { net.conns[0].send({ type: 'char-edit', rid: rid, charId: charId, fieldId: fieldId, value: res.value }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
-// A player's inventory op on their own character (item-list): a per-entry add/remove/setQty, applied optimistically, judged on the host.
-net.charItem = function(charId, fieldId, op, defId, qty) {
+// A player's change of a carried list on their own character (Stage 6 F4a: a row op q = { op, defId?, rowId?, qty? }), applied at once, judged on the host.
+net.charItem = function(charId, fieldId, q) {
     var S = SC(), camp = getActiveCampaign();
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (!camp.system) return { error: 'No system at this table.' };
-    var res = S.applyItemOp(camp.system, c, fieldId, op, defId, qty, { player: true });
-    if (!res.ok) return { error: res.reason === 'field' ? 'That list cannot be edited.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.' };
+    var res = S.applyRowOp(camp.system, c, fieldId, q, window.wpFormula, { player: true, view: camp.system });   // a player's copy IS the players' view
+    if (!res.ok) return { error: res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.' };
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
     c.values = c.values || {}; c.values[fieldId] = res.value;
-    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
-    try { net.conns[0].send({ type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: op, defId: defId, qty: qty }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
-    return { ok: true, pending: true };
+    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, kind: 'item', q: JSON.parse(JSON.stringify(q)), timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };   // Stage 6: the op itself, worked out again over a newer host copy
+    var mI = { type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: q.op };   // only the keys this op uses
+    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty;
+    try { net.conns[0].send(mI); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true, row: res.row, added: res.added, qty: res.qty };   // Stage 6: the row a pickup landed on, how much it added (the Undo), its quantity now
 };
 // 5h: a player's change to their character's status effects (add from the library, make one, switch, end): applied at once, judged on the host
 net.charEffect = function(charId, fieldId, q) {
@@ -1351,7 +1368,7 @@ net.charEffect = function(charId, fieldId, q) {
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
     c.values = c.values || {}; c.values[fieldId] = res.value;
-    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, kind: 'fx', q: JSON.parse(JSON.stringify(q)), timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
     var m = { type: 'char-effect', rid: rid, charId: charId, fieldId: fieldId, op: q.op };   // only the keys this op uses
     if (q.op === 'adhoc') m.row = q.row; else m.rowId = q.rowId;
     if (q.op === 'add') m.ref = q.ref; if (q.op === 'on') m.on = q.on === true;
@@ -1360,10 +1377,10 @@ net.charEffect = function(charId, fieldId, q) {
 };
 // A player throws an item from their sheet: the host validates ownership + the carried item and places/shares the blast
 // (the thrower sees nothing until the host's broadcast returns — no optimistic placement, the host is the authority).
-net.throwReq = function(charId, itemId, x, y, mapId) {
+net.throwReq = function(charId, fieldId, rowId, x, y, mapId) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    try { net.conns[0].send({ type: 'throw-req', charId: charId, itemId: itemId, x: Number(x), y: Number(y), mapId: mapId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    try { net.conns[0].send({ type: 'throw-req', charId: charId, fieldId: fieldId, rowId: rowId, x: Number(x), y: Number(y), mapId: mapId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
 // A player requests opening/closing a door their token is next to; the host validates and resyncs (no optimistic change).
@@ -1373,12 +1390,41 @@ net.doorReq = function(mapId, itemId) {
     try { net.conns[0].send({ type: 'door-req', mapId: mapId, itemId: itemId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
-function charPendingDone(rid, ok, reason) {
+// [netcheck:pending-start]
+function charPendingDone(rid, ok, reason, msg) {
     var p = _charPending[rid]; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];
-    if (!ok) { var camp = getActiveCampaign(), c = camp && camp.chars && camp.chars[p.charId]; if (c) { c.values = c.values || {}; if (p.prev === undefined) delete c.values[p.fieldId]; else c.values[p.fieldId] = p.prev; } }
-    if (window.wpSheets) { if (ok) window.wpSheets.charChanged(p.charId); else window.wpSheets.editResult(rid, false, reason); }
+    if (!ok) {   // Stage 6: back to the host's last copy (never the one this change was made on), the changes still waiting laid over it again
+        var camp = getActiveCampaign(), c = camp && camp.chars && camp.chars[p.charId], b = _charHost[p.charId];
+        if (c) {
+            c.values = c.values || {};
+            var back = b ? (Object.prototype.hasOwnProperty.call(b, p.fieldId) ? b[p.fieldId] : undefined) : p.prev;
+            if (back === undefined) delete c.values[p.fieldId]; else c.values[p.fieldId] = JSON.parse(JSON.stringify(back));
+            reapplyPending(p.charId);
+        }
+    }
+    if (window.wpSheets) { if (ok) window.wpSheets.charChanged(p.charId); else window.wpSheets.editResult(rid, false, reason, msg); }
+    if (ok && msg) toast(msg);   // Stage 6: a cursed item's message as it leaves the sheet
 }
-function reapplyPending(charId) { var camp = getActiveCampaign(), c = camp && camp.chars && camp.chars[charId]; if (!c) return; Object.keys(_charPending).forEach(function(rid) { var p = _charPending[rid]; if (p.charId === charId) { c.values = c.values || {}; c.values[p.fieldId] = p.value; } }); }
+// The changes still waiting for the host, laid over the character again (a new host copy arrived, or one change was refused): each field an
+// item or effects change is waiting on starts again from the host's copy and those changes are worked out on it in order (Stage 6 — never on
+// top of their own earlier result: a pickup into a stack is not idempotent); a value goes back as it was sent
+function reapplyPending(charId) {
+    var camp = getActiveCampaign(), c = camp && camp.chars && camp.chars[charId], S = SC(), b = _charHost[charId]; if (!c) return;
+    c.values = c.values || {};
+    var mine = Object.keys(_charPending).filter(function(rid) { return _charPending[rid].charId === charId; });
+    if (b) mine.forEach(function(rid) { var p = _charPending[rid]; if (!p.q) return; if (Object.prototype.hasOwnProperty.call(b, p.fieldId)) c.values[p.fieldId] = JSON.parse(JSON.stringify(b[p.fieldId])); else delete c.values[p.fieldId]; });
+    mine.forEach(function(rid) {
+        var p = _charPending[rid];
+        if (p.q && S && camp.system && b) {
+            var o = { player: true, view: camp.system }, r = p.kind === 'fx' ? S.applyEffectOp(camp.system, c, p.fieldId, p.q, window.wpFormula, o) : S.applyRowOp(camp.system, c, p.fieldId, p.q, window.wpFormula, o);
+            if (r && r.ok) c.values[p.fieldId] = r.value;
+            return;
+        }
+        c.values[p.fieldId] = p.value;
+    });
+}
+function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
+// [netcheck:pending-end]
 // A session is exactly one campaign. Anything that would put another campaign on screen while hosting
 // asks first, and on yes ends the session for everyone before going ahead; Cancel and Esc do nothing.
 // onCancel lets a picker put its selection back.
@@ -2524,13 +2570,14 @@ function handleMessage(msg, conn) {
         // characters from the synced host only (character sheets, 1.5.0): copies are replaced, never merged; every value re-cleaned against the system on hand
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
         var SC2 = window.wpSystemCore;
-        if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !_charPending[msg.rid]) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason)); return; }
+        if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !_charPending[msg.rid]) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason), SC2.cleanItemMsg(msg.msg)); return; }   // Stage 6: a bound or cursed item's message, as text
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campC = campOf(msg.campId); if (!campC || !campC.system) return;   // the system always comes first
         var sysC = campC.system;
         if (msg.type === 'chars') {
             var outC = {};
             if (msg.chars && typeof msg.chars === 'object') Object.keys(msg.chars).forEach(function(id) { var cc = SC2.cleanChar(msg.chars[id], sysC); if (cc && cc.id === id) { cc.partial = msg.chars[id].partial === true; outC[id] = cc; } });
+            _charHost = {}; Object.keys(outC).forEach(function(id) { noteHostCopy(id, outC[id].values); });
             campC.chars = outC; Object.keys(outC).forEach(reapplyPending);
             if (window.wpSheets) window.wpSheets.charChanged(null);
             return;
@@ -2538,15 +2585,15 @@ function handleMessage(msg, conn) {
         campC.chars = campC.chars || {};
         if (msg.type === 'charGone') {
             if (typeof msg.id !== 'string' || !campC.chars[msg.id]) return;
-            delete campC.chars[msg.id];
+            delete campC.chars[msg.id]; delete _charHost[msg.id];
             Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === msg.id) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } });
             if (window.wpSheets) window.wpSheets.charGone(msg.id);
             return;
         }
-        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); campC.chars[c1.id] = c1; reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
+        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;
-        var tgt = campC.chars[msg.id]; tgt.values = tgt.values || {};
-        Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) tgt.values[fid] = v; });
+        var tgt = campC.chars[msg.id], hb = _charHost[msg.id] || null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
+        Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });
         reapplyPending(msg.id);
         if (window.wpSheets) window.wpSheets.charChanged(msg.id);
         // [netcheck:charin-end]
@@ -2571,7 +2618,8 @@ function handleMessage(msg, conn) {
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
     } else if (msg.type === 'char-item' && net.role === 'host') {
-        // a player's inventory op on their own character (item-list): same gates as char-edit, then applyItemOp reads the def from the system
+        // [netcheck:charitem-start]
+        // a player's change of a carried list on their own character: same gates as char-edit, then applyRowOp reads every definition from the system
         var Si = SC(), Fi = window.wpFormula; if (!Si || !Fi) return;
         var qi = Si.cleanCharItem(msg); if (!qi) return;
         var denyI = function(reason) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: reason }); } catch (e) { sendFailed(e); } };
@@ -2583,13 +2631,25 @@ function handleMessage(msg, conn) {
         var campI = getActiveCampaign(), chI = campI && campI.chars && campI.chars[qi.charId];
         if (!campI || !campI.system || !chI) { denyI('missing'); return; }
         var profI = net.roster[conn.peer]; if (chI.npc || !chI.ownerId || !profI || chI.ownerId !== profI.id) { denyI('owner'); return; }
-        var resI = Si.applyItemOp(campI.system, chI, qi.fieldId, qi.op, qi.defId, qi.qty, { player: true });
-        if (!resI.ok) { denyI(resI.reason); return; }
-        chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = Date.now();
+        var nowI = Date.now(), gkI = qi.charId + '|' + qi.fieldId + '|' + (qi.rowId || ''), grI = qi.op !== 'add' && _rowGrace[gkI] && _rowGrace[gkI].until > nowI ? _rowGrace[gkI] : null;   // Stage 6: inside a pickup's Undo window
+        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI });
+        if (!resI.ok) {
+            if (resI.reason === 'stays') { itemNotice(chI, resI.name, 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
+            denyI(resI.reason); return;
+        }
+        chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = nowI;
+        Object.keys(_rowGrace).forEach(function(k) { if (_rowGrace[k].until <= nowI) delete _rowGrace[k]; });
+        if (resI.added > 0 && typeof resI.row === 'string') {   // a pickup (a new row, a merge, a +) opens the row's Undo window, or folds into it and extends it
+            var gkA = qi.charId + '|' + qi.fieldId + '|' + resI.row, gA = _rowGrace[gkA];
+            if (gA) { gA.added += resI.added; gA.until = nowI + Si.LIMITS.undoGraceMs; } else _rowGrace[gkA] = { until: nowI + Si.LIMITS.undoGraceMs, added: resI.added };
+        } else if (grI && resI.undone > 0) grI.added = Math.max(0, grI.added - resI.undone);   // taken back: the window stays until it lapses (a later Undo takes back nothing and says nothing)
         saveRemoteSoon();
-        try { conn.send({ type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }
+        try { conn.send(resI.hid && resI.msg ? { type: 'char-ack', rid: qi.rid, msg: resI.msg } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets)
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
+        if (resI.note && resI.added > 0) itemNotice(chI, resI.name, resI.note === 'bound' ? 'bound-pick' : 'curse-pick');
+        else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
+        // [netcheck:charitem-end]
     } else if (msg.type === 'char-effect' && net.role === 'host') {
         // [netcheck:charfx-start]
         // 5h: a player's status-effects change on their own character: shape, pause, rate, feature, ownership, then the list's own rules
@@ -2618,7 +2678,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'throw-req' && net.role === 'host') {
         // a player throws an item from their sheet: ownership + carried-item + area read from the system, then place & share on the GM's current map
         var St = SC(); if (!St || !window.wpPlaceThrownBlast) return;
-        if (typeof msg.charId !== 'string' || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string') return;
+        if (typeof msg.charId !== 'string' || typeof msg.fieldId !== 'string' || typeof msg.rowId !== 'string' || typeof msg.mapId !== 'string') return;
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): no throws
         if (window.wpVtt && !window.wpVtt.on('sheets')) return;
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: St.LIMITS.editsPerWindow, windowMs: St.LIMITS.editWindowMs, table: 400 });
@@ -2628,9 +2688,9 @@ function handleMessage(msg, conn) {
         var chT = campT.chars && campT.chars[msg.charId], profT = net.roster[conn.peer];
         if (!chT || chT.npc || !chT.ownerId || !profT || chT.ownerId !== profT.id) return;
         if (!(amT.whiteboard || []).some(function(w) { return w && w.isChar && !w.hidden && w.ownerId === profT.id; })) return;   // the thrower must be on this map
-        var defT = St.itemDef(campT.system, msg.itemId); if (!defT || defT.vis === 'gm' || !defT.area) return;
-        var carries = false; (campT.system.fields || []).forEach(function(f) { if (f.kind === 'item-list') { var v = chT.values && chT.values[f.id]; if (Array.isArray(v) && v.some(function(en) { return en.defId === msg.itemId; })) carries = true; } });
-        if (!carries) return;
+        var fT = St.fieldById(campT.system, msg.fieldId); if (!fT || fT.kind !== 'item-list' || fT.vis !== 'all') return;   // Stage 6: a visible list only (a GM-only list's items are never thrown by a player)
+        var vT = chT.values && chT.values[fT.id], rowT = Array.isArray(vT) ? vT.find(function(r) { return r && r.hid !== 1 && St.rowIdOf(r) === msg.rowId; }) : null; if (!rowT) return;   // the carried row, on the host's copy
+        var rdT = St.rowDef(campT.system, rowT), defT = rdT ? rdT.def : null; if (!defT || defT.vis === 'gm' || !defT.area) return;
         if (campT.system.combat && campT.system.combat.blastRoller === 'gm') return;   // who-rolls = 'gm': only the GM throws
         var xT = Math.max(0, Math.min(30000, Number(msg.x))), yT = Math.max(0, Math.min(30000, Number(msg.y)));
         if (!isFinite(xT) || !isFinite(yT)) return;
@@ -2723,7 +2783,7 @@ function handleMessage(msg, conn) {
         if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = campQ && campQ.chars && campQ.chars[q.charId];
             if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || !SQ || !campQ.system) { denyQ('char'); return; }
-            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system) }) : null;
+            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system) }) : null;
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
             var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };
@@ -3045,6 +3105,7 @@ function startHosting(forceFresh) {
         renderRoster();
         toast(resumed ? 'Hosting resumed with the same room code — players can rejoin as before.' : 'Hosting started. Share the room code.');
         logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + String(code).toUpperCase());
+        var campH = getActiveCampaign(), Sh = SC(); if (campH && campH.system && Sh && Sh.stampRows) Sh.stampRows(campH.system, campH.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id before anything is sent
         net.applyingRemote = true; save(true); net.applyingRemote = false;
     });
     peer.on('connection', function(conn) {
@@ -3827,7 +3888,7 @@ net.syncSessionButtons = syncSessionButtons;
     });
 })();
 // Session Log window
-var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table' };
+var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table', items: 'Items' };
 function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 net.openSessionLog = function() {
     var m = ui('sessionLogModal'), list = ui('sessionLogList'), sel = ui('sessionLogKind'); if (!m || !list) return;

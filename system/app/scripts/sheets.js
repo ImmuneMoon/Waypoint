@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -984,21 +984,21 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
 }
 // ---- item-list widgets (Stage 4: the plain list and the rich table share these) ----
 var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
-function itemThrowBtn(def, c) {
+function itemThrowBtn(def, c, f, rid) {   // Stage 6 F4a: the throw names the carried row (the host reads its definition)
     var tb = el('button', 'tool ghost sheet-item-throw', '💥 Throw'); tb.title = 'Throw ' + def.name + ' — then click the map';
-    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, itemId: def.id, by: c.name, damage: def.damage || '' }); closeSheet(); } });
+    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '' }); closeSheet(); } });
     return tb;
 }
-function itemQtyCell(entry, c, f) {
+function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has the same controls on a player's sheet (a bound or cursed one never shows it)
     var qc = el('span', 'sheet-item-qty');
-    var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, 'setQty', entry.defId, entry.qty - 1); });
+    var mn = el('button', 'tool ghost sheet-pm', '−'); mn.title = 'One less (removes at zero)'; mn.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty - 1 }); });
     qc.appendChild(mn); qc.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
-    var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, 'add', entry.defId, 1); });
+    var pl = el('button', 'tool ghost sheet-pm', '+'); pl.title = 'One more'; pl.addEventListener('click', function() { commitItem(c, f, { op: 'setQty', rowId: rowIdOf(entry), qty: entry.qty + 1 }); });
     qc.appendChild(pl); return qc;
 }
 function itemRmBtn(entry, def, c, f) {
-    var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = 'Remove ' + def.name;
-    rm.addEventListener('click', function() { commitItem(c, f, 'remove', entry.defId, 0); }); return rm;
+    var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name;
+    rm.addEventListener('click', function() { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }); return rm;
 }
 function itemCellText(col, def) {
     if (col === 'category') return def.category || '';
@@ -1007,20 +1007,56 @@ function itemCellText(col, def) {
     if (col === 'area') return def.area ? (def.area.ft + ' ft' + (def.area.shape && def.area.shape !== 'circle' ? ' ' + def.area.shape : '')) : '';
     return '';
 }
-function itemListInto(wrap, f, c, carried, byId, canThrow, editable) {
+// Stage 6: what only the GM sees on a row — a bound or cursed item, and a curse the player dropped (kept here, out of their sight)
+function gmItemBits(host, def, entry, gm) {
+    if (!gm) return;
+    if (entry.hid === 1) { var hc = el('span', 'sheet-chip sheet-item-kept', 'hidden from player'); hc.title = 'The player dropped it; it stays on this character, out of their sight, until you remove it'; host.appendChild(hc); }
+    else if (def.rm === 'bound') { var bc = el('span', 'sheet-chip sheet-item-bound', 'bound'); bc.title = 'Only you can remove it: a player\u2019s attempt fails' + (def.rmMsg ? ' with \u201c' + def.rmMsg + '\u201d' : ''); host.appendChild(bc); }
+    else if (def.rm === 'curse') { var cc = el('span', 'sheet-chip sheet-item-curse', 'curse'); cc.title = 'Curse on contact: if the player drops it, it stays on this character, out of their sight'; host.appendChild(cc); }
+}
+// Stage 6: a pickup's Undo — for a moment after an item is picked up (added, or its + pressed), an Undo sits on its row, every item alike so
+// it tells nothing. It takes back what those pickups added; the host judges it by its own count and keeps its window a little longer (the
+// round trip). Each pickup extends the window on both sides; a drop meanwhile takes the Undo down by as much.
+var _undo = {};
+function undoKey(c, f, rid) { return c.id + '|' + f.id + '|' + rid; }
+function noteUndo(c, f, res) {
+    if (!res || typeof res.row !== 'string' || !(res.added > 0)) return;
+    var k = undoKey(c, f, res.row), now = Date.now(), u = _undo[k];
+    if (u && u.until > now) { u.added += res.added; u.until = now + LIMITS.undoMs; } else _undo[k] = { until: now + LIMITS.undoMs, added: res.added };
+    setTimeout(function() { if (_undo[k] && _undo[k].until <= Date.now()) { delete _undo[k]; if (sheetOpen === c.id) renderSheet(); } }, LIMITS.undoMs + 50);
+}
+function takeBack(c, f, rid, n) { var k = undoKey(c, f, rid), u = _undo[k]; if (!u || !(n > 0)) return; u.added -= n; if (u.added <= 0) delete _undo[k]; }
+function undoBtn(entry, c, f) {
+    var rid = rowIdOf(entry), k = undoKey(c, f, rid), u = _undo[k]; if (!u || u.until <= Date.now()) return null;
+    var b = el('button', 'tool ghost sheet-item-undo', '\u21b6 Undo'); b.title = 'Put it back (just after picking it up)';
+    b.addEventListener('click', function() { var n = u.added; delete _undo[k]; commitItem(c, f, { op: 'undo', rowId: rid, qty: n }); });
+    return b;
+}
+function rowQty(c, f, rid) { var v = c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], r = v.find(function(x) { return rowIdOf(x) === rid; }); return r ? (r.qty | 0) : 0; }
+// Stage 6 F4a: a copy of an entry deleted from the library — marked; the GM may make it the character's own item
+function lostBits(host, rd, entry, c, f, gm, editable) {
+    if (!rd || rd.src !== 'lost') return;
+    var chip = el('span', 'sheet-chip sheet-item-lost', 'not in library'); chip.title = 'Deleted from the library; the character keeps their copy'; host.appendChild(chip);
+    if (gm && editable) { var mk = el('button', 'tool ghost sheet-item-keep', 'Make custom'); mk.title = 'Make this copy the character\u2019s own item'; mk.addEventListener('click', function() { commitItem(c, f, { op: 'keep', rowId: rowIdOf(entry) }); }); host.appendChild(mk); }
+}
+function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
+    editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     carried.forEach(function(entry) {
-        var def = byId[entry.defId]; if (!def) return;
-        var line = el('div', 'sheet-item');
+        var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
+        var rid = rowIdOf(entry);
+        var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : ''));
         if (def.icon) line.appendChild(el('span', 'sheet-item-icon', def.icon));
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
-        if (def.area && canThrow) line.appendChild(itemThrowBtn(def, c));
-        if (editable) { line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
+        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm);
+        if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
+        if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
         else line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
     });
     if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No items.'));
 }
-function itemTableInto(wrap, f, c, carried, byId, canThrow, editable) {
+function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
+    editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var tbl = f.table, cols = (tbl.columns || []).slice();
     if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
     var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
@@ -1033,13 +1069,15 @@ function itemTableInto(wrap, f, c, carried, byId, canThrow, editable) {
     thead.appendChild(htr); table.appendChild(thead);
     var tbody = el('tbody'), shown = 0, totalQty = 0;
     carried.forEach(function(entry) {
-        var def = byId[entry.defId]; if (!def) return;
+        var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
+        var rid = rowIdOf(entry);
         shown++; totalQty += entry.qty;
-        var tr = el('tr'), nameTd = el('td', 'sheet-itcol-name');
+        var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name');
         if (def.icon) nameTd.appendChild(el('span', 'sheet-item-icon', def.icon));
         nameTd.appendChild(document.createTextNode(def.name));
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
+        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         var qtyTd = el('td', 'sheet-itcol-qty');
@@ -1048,14 +1086,14 @@ function itemTableInto(wrap, f, c, carried, byId, canThrow, editable) {
         var notesRow = null;
         if (hasAct) {
             var actTd = el('td', 'sheet-itcol-act');
-            if (def.area && canThrow) actTd.appendChild(itemThrowBtn(def, c));
+            if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) actTd.appendChild(itemThrowBtn(def, c, f, rid));
             if (wantNotes && def.notes) {
                 notesRow = el('tr', 'sheet-itemtable-notes'); var ntd = el('td', null, def.notes); ntd.colSpan = span; notesRow.appendChild(ntd); notesRow.style.display = 'none';
                 var nt = el('button', 'tool ghost sheet-item-notes-t', '📝'); nt.title = 'Notes';
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
                 actTd.appendChild(nt);
             }
-            if (editable) actTd.appendChild(itemRmBtn(entry, def, c, f));
+            if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); actTd.appendChild(itemRmBtn(entry, def, c, f)); }
             tr.appendChild(actTd);
         }
         tbody.appendChild(tr);
@@ -1264,16 +1302,15 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     }
     if (k === 'item-list') {
         var sysI = sysArg || systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
-        var byId = {}; ((sysI && sysI.items) || []).forEach(function(it) { byId[it.id] = it; });
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
         var canThrow = (gm || (own && !gmThrows)) && !c.partial;   // who-rolls='gm' means only the GM throws
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
-        if (f.table) itemTableInto(wrap, f, c, carried, byId, canThrow, editable);   // Stage 4: rich table
-        else itemListInto(wrap, f, c, carried, byId, canThrow, editable);            // the plain carried list (as before)
-        if (editable && sysI && sysI.items && sysI.items.length) {
+        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm);   // Stage 4: rich table
+        else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm);            // the plain carried list (as before)
+        if (editable && _fxLive && sysI && sysI.items && sysI.items.length) {
             var add = el('select', 'field sheet-item-add'); add.appendChild(opt('', '+ Add item…', true));
             sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (it.icon ? it.icon + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
-            add.addEventListener('change', function() { if (add.value) commitItem(c, f, 'add', add.value, 1); });
+            add.addEventListener('change', function() { if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
             wrap.appendChild(add);
         }
         box.appendChild(wrap); return box;
@@ -1339,23 +1376,33 @@ function commitEffect(c, f, q) {
     if (res.clamp) Object.keys(res.clamp).forEach(function(fid) { c.values[fid] = res.clamp[fid]; d[fid] = res.clamp[fid]; });
     afterCharChange(c, false, d);
 }
-function commitItem(c, f, op, defId, qty) {
+function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|setQty|keep|undo, defId?, rowId, qty? }
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
+    var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
+    var undoFollow = function(r) { if (!r || !r.ok) return; if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
     if (isClient()) {
         var n = net(); if (!n || !n.charItem) return;
-        var r = n.charItem(c.id, f.id, op, defId, qty);
-        if (r && r.error) toast(r.error);
+        var r = n.charItem(c.id, f.id, q);
+        if (r && r.error) toast(r.error); else undoFollow(r);
         renderSheet();
         return;
     }
     if (!canWrite()) return;
-    var res = applyItemOp(sys, c, f.id, op, defId, qty, {});
-    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be edited.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderSheet(); return; }
+    var res = applyRowOp(sys, c, f.id, q, F(), {});
+    if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderSheet(); return; }
+    undoFollow(res);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
     c.values = c.values || {}; c.values[f.id] = res.value;
     var d = {}; d[f.id] = res.value;
+    if (ownerSeesSame(camp, sys, prev, res.value)) d = {};   // Stage 6: a change only to a row its owner never holds (a kept curse) is saved and never sent — even an unchanged copy would tell them
     afterCharChange(c, false, d);
+}
+// Stage 6: whether the owner's copy of a list is the same before and after (the players' view, the full library for GM-only inline rows)
+function ownerSeesSame(camp, sys, a, b) {
+    var pv = playerSystem(camp); if (!pv) return false;
+    var lib = {}; (sys.items || []).forEach(function(it) { if (it && typeof it.id === 'string') lib[it.id] = it; });
+    return JSON.stringify(projectRows(Array.isArray(a) ? a : [], pv, lib)) === JSON.stringify(projectRows(Array.isArray(b) ? b : [], pv, lib));
 }
 function revertLast() {
     if (!lastChange || isClient()) return;
@@ -1393,7 +1440,7 @@ function ownerFromToken(w) {
     afterCharChange(c, true);
 }
 function charGone(id) { if (sheetOpen === id) { closeSheet(); toast('That character is no longer shared with you.'); } if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason) { if (!ok) toast(reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
+function editResult(rid, ok, reason, msg) { if (!ok) toast(reason === 'stays' ? (msg || 'You can\u2019t get rid of it.') : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {};
@@ -1433,6 +1480,15 @@ function reCleanChars(camp, sys) {
         });
     });
 }
+// Stage 6 F4a: what GM-only items and effects look like to the players who carry them (their inline copies)
+// [systemcheck:gmfacing-start]
+function gmFacing(sys) {
+    if (!sys) return '';
+    var its = (Array.isArray(sys.items) ? sys.items : []).filter(function(it) { return it && it.vis === 'gm'; }).map(function(it) { return [it.id, cleanRowDef(it, false)]; });
+    var fx = (Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.vis === 'gm'; });
+    return JSON.stringify([its, fx]);
+}
+// [systemcheck:gmfacing-end]
 function saveDraft() {
     if (!draft || !canWrite()) return;
     var camp = getActiveCampaign(); if (!camp) return;
@@ -1441,13 +1497,16 @@ function saveDraft() {
     if (!clean) { toast('The system could not be saved.'); return; }
     var dropped = draft.fields.length - clean.fields.length;
     clean.updated = Date.now();
+    var prevSys = camp.system, orphaned = orphanRows(prevSys, clean, camp.chars || {});   // Stage 6 F4a: a copy of a deleted entry keeps it (before the re-check drops unknown rows)
     camp.system = clean;
     reCleanChars(camp, clean);   // Stage 6: before the save and the sync (syncSystem re-sends every character after the system)
+    stampRows(clean, camp.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id (its derived one would name the item)
     draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
     save(true);
     var n = net(); if (n && n.syncSystem) n.syncSystem();
+    if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
     var v = validateSystem(clean, F());
-    toast('System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));
+    toast((orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));
     renderAll(); if (sheetOpen) renderSheet();
 }
 function refreshErrors() {
@@ -1646,7 +1705,9 @@ function itemRow(it) {
     flags.appendChild(input('sys-item-cost field', it.cost, 'Point/credit cost (a formula, no dice) — used by budgets in a later slice', 'Cost (optional)'));
     flags.appendChild(input('sys-item-throw field', it.throwSkill, 'Optional: a field whose roll is posted as the to-hit', 'Throw skill (optional)'));
     flags.appendChild(input('sys-item-icon field', it.icon, 'A single emoji shown on the row', 'Icon'));
-    flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: the item and its formulas never leave your machine'));
+    flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: kept out of the players\u2019 list. One you give a character reaches its owner (name, icon, category and notes); its formulas never leave your machine'));
+    flags.appendChild(select('sys-item-rmmode', [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], it.rm || '', 'When a player removes it from their character. Bound: it stays on their sheet and they see your message. Curse on contact: it leaves their sheet but stays on the character, out of their sight, until you remove it. Players never see this setting.'));   // Stage 6
+    var rmIn = input('sys-item-rmtext field', it.rmMsg || '', 'Shown to the player when they try to remove it (optional)', 'Message on removal'); rmIn.maxLength = LIMITS.rmMsg; if (!it.rm) rmIn.style.opacity = '0.5'; flags.appendChild(rmIn);
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
@@ -1713,6 +1774,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-throw') >= 0) it.throwSkill = t.value.trim();
         else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 8);
         else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.text);
+        else if (ic.indexOf('sys-item-rmtext') >= 0) it.rmMsg = t.value.slice(0, LIMITS.rmMsg);   // Stage 6
         else return;
         markDirty(); patchErrors(); return;
     }
@@ -1769,6 +1831,7 @@ function onChange(e) {
     var iit = itemOfRow(t);
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
+        if (c.indexOf('sys-item-rmmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.rm = t.value; else delete iit.rm; markDirty(); renderAll(); return; }   // Stage 6
         if (c.indexOf('sys-item-shape') >= 0) { if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' }; markDirty(); renderAll(); return; }
         return;
     }

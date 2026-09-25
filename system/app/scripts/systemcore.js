@@ -12,7 +12,8 @@ var LIMITS = Object.freeze({
     fields: 300, rolls: 50, sections: 40, tabs: 12, placements: 300, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a Foundry-sized sheet)
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
     text: 200, notes: 20000, name: 60, charName: 60, names: 200,
-    items: 200, carried: 100, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5)
+    items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
+    rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000,
     band: 12,                                // Stage 5c: placements on the pinned band (one row under the name)
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
@@ -41,12 +42,18 @@ var EFFECT_ID = /^e_[A-Za-z0-9_]{1,24}$/, FXROW_ID = /^x_[A-Za-z0-9_]{1,24}$/;  
 var FX_OPS = Object.freeze({ add: 1, adhoc: 1, on: 1, remove: 1 });
 function validPageId(id) { return typeof id === 'string' && PAGE_ID.test(id) && !(id in Object.prototype); }
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
-var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 }), ITEM_OP = Object.freeze({ add: 1, remove: 1, setQty: 1 });
+var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 });
+// Stage 6 F4a: a carried row's id (w_…; a legacy {defId, qty} row's is derived from its item) and the row ops a change may carry
+var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1 });   // undo (Stage 6): a pickup taken back
+// Stage 6: what a player's removal of an item does. bound: it stays (only the GM removes it); curse (on contact): it leaves their sheet and
+// the GM keeps it on the character, out of their sight, until the GM removes it. Absent: an ordinary removal. The GM's secret: never in the
+// players' view, so every item looks and behaves the same on a player's sheet until they try.
+var RM_MODES = Object.freeze({ bound: 1, curse: 1 });
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
 var CTRL_RE_G = new RegExp(CTRL_RE.source, 'g');   // for replace(): every control character, not just the first
 var CTRL_KEEP_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
 var PATH_RE = /^[/]saves[/]images[/][^?#]{1,300}$/;
-var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1, paused: 1 });
+var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1, paused: 1, stays: 1 });   // stays (Stage 6): a bound item did not come off
 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
@@ -182,12 +189,13 @@ function cleanItemDef(it, F, gmView) {
     if (!gmView && vis === 'gm') return null;
     var out = {
         id: it.id,
-        name: str(it.name, LIMITS.name).replace(CTRL_RE, ' ').trim() || 'Item',
-        category: str(it.category, LIMITS.category).replace(CTRL_RE, ' ').trim(),
-        icon: str(it.icon, 8).replace(CTRL_RE, ''),
-        notes: str(it.notes, LIMITS.text).replace(CTRL_RE, ' '),
+        name: str(it.name, LIMITS.name).replace(CTRL_RE_G, ' ').trim() || 'Item',   // Stage 6: every control character (the non-global pattern replaced only the first)
+        category: str(it.category, LIMITS.category).replace(CTRL_RE_G, ' ').trim(),
+        icon: cleanIcon(it.icon),                                                    // Stage 6: cut by code points (never half an emoji)
+        notes: str(it.notes, LIMITS.text).replace(CTRL_RE_G, ' '),
         vis: vis, area: null, damage: '', cost: '', throwSkill: ''
     };
+    if (gmView && RM_MODES[it.rm] === 1) { out.rm = it.rm; var rmm = cutText(it.rmMsg, LIMITS.rmMsg); if (rmm) out.rmMsg = rmm; }   // Stage 6: a player's removal (bound / curse on contact) and its message — the GM's secret, never in the players' view
     if (isObj(it.area)) {
         var ft = cleanNum(it.area.ft, 0) | 0;
         if (ft > 0) out.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[it.area.shape] ? it.area.shape : 'circle', name: str(it.area.name, LIMITS.label).replace(CTRL_RE, ' ').trim() };
@@ -444,13 +452,14 @@ function cleanValue(field, v, opts) {
         }
         return rows;
     }
-    if (k === 'item-list') {   // [{defId,qty}] — drop unknown/dup defIds, cap, clamp qty; opts.items is a proto-safe id set
+    if (k === 'item-list') {   // Stage 6 F4a: rows (cleanRow) — at most LIMITS.carried; one id-less row per item (the rule before Stage 6); a row id once; nothing minted. opts.items is a proto-safe id set
         if (!Array.isArray(v)) return undefined;
-        var items = (opts && opts.items) || map(), seen = map(), list = [];
-        for (var i = 0; i < v.length && list.length < LIMITS.carried; i++) {
-            var e = v[i];
-            if (!isObj(e) || typeof e.defId !== 'string' || !ITEM_ID.test(e.defId) || !items[e.defId] || seen[e.defId]) continue;
-            seen[e.defId] = 1; list.push({ defId: e.defId, qty: clampNum(cleanNum(e.qty, 1) | 0, 1, LIMITS.maxQty) });
+        var items = (opts && opts.items) || map(), seenD = map(), seenR = map(), list = [], nVis = 0, nHid = 0;
+        for (var i = 0; i < v.length && i < LIMITS.carried * 4 && (nVis < LIMITS.carried || nHid < LIMITS.carried); i++) {   // Stage 6: visible rows and kept curses counted apart (a kept row never pushes out, or blocks, a visible one)
+            var rw = cleanRow(v[i], items); if (!rw) continue;
+            var rk = rowIdOf(rw); if (!rk || seenR[rk] || (!rw.id && rw.defId && seenD[rw.defId])) continue;
+            if (rw.hid === 1 ? nHid >= LIMITS.carried : nVis >= LIMITS.carried) continue;
+            seenR[rk] = 1; if (rw.defId && rw.hid !== 1) seenD[rw.defId] = 1; if (rw.hid === 1) nHid++; else nVis++; list.push(rw);
         }
         return list;
     }
@@ -487,15 +496,168 @@ function cleanCharEdit(msg) {
     else return null;
     return { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, value: v };
 }
-// A per-entry inventory edit (item-list can't ride cleanCharEdit — arrays are refused there). { op, defId, qty }
+// A per-row change of a carried list (an item list can't ride cleanCharEdit — arrays are refused there). Stage 6 F4a: { op, defId (add), rowId, qty }
+// — the keys each op uses, checked by shape only (applyRowOp judges the rest). Every op names its row: a player's add brings its new row's id
 function cleanCharItem(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.fieldId !== 'string' || !FIELD_ID.test(msg.fieldId)) return null;
-    if (!ITEM_OP[msg.op] || typeof msg.defId !== 'string' || !ITEM_ID.test(msg.defId)) return null;
-    var qty = msg.qty === undefined ? 1 : (cleanNum(msg.qty, NaN) | 0);
-    if (!(qty >= 0)) return null;
-    return { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, op: msg.op, defId: msg.defId, qty: clampNum(qty, 0, LIMITS.maxQty) };
+    if (typeof msg.op !== 'string' || !ROW_OPS[msg.op]) return null;
+    var out = { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, op: msg.op };
+    if (msg.op === 'add') { if (typeof msg.defId !== 'string' || !ITEM_ID.test(msg.defId)) return null; out.defId = msg.defId; }
+    if (typeof msg.rowId !== 'string' || !ROW_ID.test(msg.rowId)) return null; out.rowId = msg.rowId;
+    if (msg.op === 'add' || msg.op === 'setQty' || msg.op === 'undo') { var qty = msg.qty === undefined ? 1 : (cleanNum(msg.qty, NaN) | 0); if (!(qty >= 0)) return null; out.qty = clampNum(qty, 0, LIMITS.maxQty); }
+    return out;
 }
 function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'value'; }
+function cleanItemMsg(v) { return cutText(v, LIMITS.rmMsg); }   // Stage 6: a bound or cursed item's message as a player receives it (shown as text)
+
+/* ---------- Stage 6 F4a: carried rows ----------
+   A row of an item list is a carried item: a legacy {defId, qty}; a linked {id, defId, qty, snap?} (snap: the entry as it was when it left
+   the library — the character keeps the item); a custom {id, qty, def} (the character's own item: the GM's "Make custom"). An owner's copy of
+   a GM-only entry, or of a deleted one, arrives inline {id, qty, def, lnk:1} with its players' fields only. A cleaner never mints an id: a
+   legacy row's id is derived from its item (rowIdOf); a new row's id comes from whoever made it, and the host refuses a taken one. A row the
+   player dropped of a curse-on-contact item stays on the host with hid:1 under a fresh id (the GM's; never projected to its owner). */
+function rowIdOf(r) { if (!isObj(r)) return null; if (typeof r.id === 'string' && ROW_ID.test(r.id)) return r.id; return typeof r.defId === 'string' && ITEM_ID.test(r.defId) ? 'w_' + r.defId.slice(2) : null; }
+function cutText(v, n) { return str(v, n).replace(CTRL_RE_G, ' ').trim(); }
+function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by the item rules; a GM-only one keeps no area (it is never thrown by a player)
+    if (!isObj(d)) return null;
+    var vis = d.vis === 'gm' ? 'gm' : 'all';
+    var out = { name: cutText(d.name, LIMITS.name) || 'Item', category: cutText(d.category, LIMITS.category), icon: cleanIcon(d.icon), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' '), vis: vis };
+    if (isObj(d.area) && (gmView || vis === 'all')) { var ft = cleanNum(d.area.ft, 0) | 0; if (ft > 0) out.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[d.area.shape] ? d.area.shape : 'circle', name: cutText(d.area.name, LIMITS.label) }; }
+    if (gmView && RM_MODES[d.rm] === 1) { out.rm = d.rm; var rmm = cutText(d.rmMsg, LIMITS.rmMsg); if (rmm) out.rmMsg = rmm; }   // Stage 6: secret, the GM's copy only
+    if (gmView) {   // formula text stays on the GM's machine, as an item's does
+        var dmg = cleanFormulaText(d.damage); if (dmg) out.damage = dmg;
+        var cst = cleanFormulaText(d.cost); if (cst) out.cost = cst;
+        if (typeof d.throwSkill === 'string' && /^[A-Za-z][A-Za-z0-9_.]{0,63}$/.test(d.throwSkill)) out.throwSkill = d.throwSkill;
+    }
+    return out;
+}
+function cleanRow(e, items) {
+    if (!isObj(e)) return null;
+    var id = typeof e.id === 'string' && ROW_ID.test(e.id) ? e.id : null, qty = clampNum(cleanNum(e.qty, 1) | 0, 1, LIMITS.maxQty);
+    if (typeof e.defId === 'string' && ITEM_ID.test(e.defId)) {
+        var known = items[e.defId] === 1, snap = !known && isObj(e.snap) ? cleanRowDef(e.snap, true) : null;   // a copy of a deleted entry keeps its snapshot; once the entry is back the row reads the library again
+        if (!known && !snap) return null;   // an unknown item with no copy is dropped (the rule before Stage 6)
+        var o = {}; if (id) o.id = id; o.defId = e.defId; o.qty = qty; if (snap) o.snap = snap; if (id && e.hid === 1) o.hid = 1; return o;
+    }
+    if (!id || !isObj(e.def)) return null;
+    var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null;
+    var c = { id: id, qty: qty, def: d }; if (e.lnk === 1) c.lnk = 1; else if (e.hid === 1) c.hid = 1; return c;
+}
+// The definition a row draws and throws from: the library entry, else the deleted entry's copy, else the row's own. { def, src } or null.
+function rowDef(sys, row) {
+    if (!isObj(row)) return null;
+    if (typeof row.defId === 'string') { var it = itemDef(sys, row.defId); if (it) return { def: it, src: 'lib' }; if (isObj(row.snap)) return { def: row.snap, src: 'lost' }; return null; }
+    if (isObj(row.def)) return { def: row.def, src: row.lnk === 1 ? 'inline' : 'custom' };
+    return null;
+}
+// The owner's copy of a carried list (charFor): a visible entry as a pointer; a GM-only entry, or a deleted one's copy, inline with its
+// players' fields only (the 5h rule: the owner's sheet, their rolls and the host agree); a custom row without its GM texts; a kept curse
+// (hid) not at all. lib: the host's full items by id — without it a GM-only row is left out (fail closed).
+function projectRows(rows, view, lib) {
+    if (!Array.isArray(rows)) return undefined;
+    var vis = map(); (view && Array.isArray(view.items) ? view.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string') vis[it.id] = 1; });
+    var out = [];
+    rows.forEach(function(r) {
+        if (!isObj(r) || r.hid === 1) return;
+        var rid = rowIdOf(r); if (!rid) return;
+        if (typeof r.defId === 'string') {
+            if (vis[r.defId] === 1 && !r.snap) { var o = {}; if (r.id) o.id = r.id; o.defId = r.defId; o.qty = r.qty; out.push(o); return; }
+            var d = (lib && Object.prototype.hasOwnProperty.call(lib, r.defId)) ? lib[r.defId] : r.snap, pd = cleanRowDef(d, false); if (!pd) return;
+            out.push({ id: rid, qty: r.qty, def: pd, lnk: 1 }); return;
+        }
+        if (r.id && isObj(r.def)) { var cd = cleanRowDef(r.def, false); if (cd) out.push({ id: r.id, qty: r.qty, def: cd }); }
+    });
+    return out;
+}
+// The host's (or the GM's own) answer to one change of a carried list: { ok, value, row, qty, … } or { ok: false, reason }. q = { op: add|remove|
+// setQty|keep|undo, defId (add), rowId, qty }. Rights follow the list (Player may edit / GM edits, visible); a player adds only what their view
+// holds (anything else reads as gone). A player's removal follows the item (RM_MODES): a bound item stays ({ reason: 'stays', msg, name }) —
+// unless opts.grace (a pickup's Undo window, { added }: what its pickups added, by the host's own count) covers the drop; a curse-on-contact
+// item leaves their sheet but stays on the character, hidden under a fresh id ({ hid: true, msg, name }). undo takes back up to q.qty, never
+// more than the window's added (with a window open). A pickup (an add, a raised quantity) answers row, added (and base) for the Undo, note +
+// name (the item's removal mode) for the GM's notice; a drop answers undone. "Make custom" (keep) is the GM's, on a deleted entry's copy.
+function applyRowOp(sys, char, fieldId, q, F, opts) {
+    opts = opts || {};
+    var f = fieldById(sys, fieldId); if (!f || f.kind !== 'item-list') return { ok: false, reason: 'field' };
+    if (opts.player && (f.edit !== 'owner' || f.vis !== 'all')) return { ok: false, reason: 'field' };
+    if (!isObj(q) || !ROW_OPS[q.op]) return { ok: false, reason: 'value' };
+    var src = char && char.values && Array.isArray(char.values[fieldId]) ? char.values[fieldId] : [];
+    var list = JSON.parse(JSON.stringify(src)), vo = valueOpts(sys), extra = {};
+    var at = function(rid) { for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === rid) return i; return -1; };
+    if (q.op === 'add') {
+        if (typeof q.defId !== 'string' || !ITEM_ID.test(q.defId)) return { ok: false, reason: 'value' };
+        var ent = itemDef(sys, q.defId), inView = opts.player ? valueOpts(opts.view || null).items[q.defId] === 1 : !!ent;
+        if (!ent || !inView || (opts.player && ent.vis === 'gm')) return { ok: false, reason: 'missing' };
+        var n = clampNum((q.qty | 0) || 1, 1, LIMITS.maxQty), have = -1;
+        for (var j = 0; j < list.length; j++) if (isObj(list[j]) && list[j].defId === q.defId && !list[j].snap && list[j].hid !== 1) { have = j; break; }   // never into a kept curse
+        if (have >= 0) { extra.base = list[have].qty | 0; list[have].qty = clampNum(extra.base + n, 1, LIMITS.maxQty); extra.row = rowIdOf(list[have]); extra.qty = list[have].qty; extra.added = extra.qty - extra.base; }   // the same item again raises its quantity
+        else {
+            if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };   // kept curses never count against what the player sees
+            var row = { defId: q.defId, qty: n };
+            if (q.rowId !== undefined) {   // a new row's id: never one already in the list, never one an item's legacy row would derive (checked against the player's own view: a GM-only item's id is never confirmed)
+                var known = opts.player ? (opts.view && Array.isArray(opts.view.items) ? opts.view.items : []) : (Array.isArray(sys.items) ? sys.items : []);
+                if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId) || at(q.rowId) >= 0 || known.some(function(it) { return isObj(it) && typeof it.id === 'string' && 'w_' + it.id.slice(2) === q.rowId; })) return { ok: false, reason: 'value' };
+                row = { id: q.rowId, defId: q.defId, qty: n };
+            }
+            list.push(row); extra.base = 0; extra.row = rowIdOf(row); extra.qty = n; extra.added = n;
+        }
+        if (RM_MODES[ent.rm] === 1) { extra.note = ent.rm; extra.name = ent.name || 'Item'; }
+    } else {
+        if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId)) return { ok: false, reason: 'value' };
+        var idx = at(q.rowId); if (idx < 0 || (opts.player && list[idx].hid === 1)) return { ok: false, reason: 'missing' };   // a kept curse reads as gone to a player
+        extra.row = q.rowId;
+        if (q.op === 'keep') {   // "Make custom" — a deleted entry's copy becomes the character's own item
+            if (opts.player || !isObj(list[idx].snap)) return { ok: false, reason: 'field' };
+            var wasHid = list[idx].hid === 1;
+            list[idx] = { id: q.rowId, qty: list[idx].qty, def: list[idx].snap }; if (wasHid) list[idx].hid = 1;
+            extra.qty = list[idx].qty;
+        } else {
+            var cur = list[idx].qty | 0, nq = 0, gr = isObj(opts.grace) ? Math.max(0, opts.grace.added | 0) : -1;   // gr: what the open pickup window may still take back (-1: none open)
+            if (q.op === 'setQty') { nq = cleanNum(q.qty, NaN); if (!isFinite(nq)) return { ok: false, reason: 'value' }; nq = Math.min(Math.max(0, nq | 0), LIMITS.maxQty); }
+            else if (q.op === 'undo') { var back = clampNum(cleanNum(q.qty, 0) | 0, 0, LIMITS.maxQty); if (gr >= 0) back = Math.min(back, gr); nq = Math.max(0, cur - back); }   // the host's own count wins: never more than was picked up
+            var rd = rowDef(sys, list[idx]), rmode = rd && rd.def && RM_MODES[rd.def.rm] === 1 ? rd.def.rm : '', mode = opts.player ? rmode : '';
+            var msg = mode && typeof rd.def.rmMsg === 'string' ? rd.def.rmMsg : '', nm = rmode ? (rd.def.name || 'Item') : '';
+            if (nq > cur) { extra.added = nq - cur; if (opts.player && rmode) { extra.note = rmode; extra.name = nm; } }   // more of it: a pickup (the Undo, the GM's notice)
+            if (mode === 'bound' && nq < cur && !(gr >= 0 && cur - nq <= gr)) return { ok: false, reason: 'stays', msg: msg, name: nm };
+            if (nq < cur) extra.undone = cur - nq;
+            if (mode === 'curse' && nq <= 0) {   // it leaves their sheet; the GM keeps it on the character, under an id the player never held
+                var kept = JSON.parse(JSON.stringify(list[idx])); kept.id = uid('w_'); kept.hid = 1; list[idx] = kept;
+                extra.hid = true; extra.msg = msg; extra.name = nm; extra.qty = 0;
+            } else if (nq <= 0) { list.splice(idx, 1); extra.qty = 0; }
+            else { list[idx].qty = clampNum(nq, 1, LIMITS.maxQty); extra.qty = list[idx].qty; }
+        }
+    }
+    var value = cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
+    var out = { ok: true, value: value }; Object.keys(extra).forEach(function(k) { out[k] = extra[k]; });
+    return out;
+}
+// A copy of an entry that has just left the library keeps the entry as it was, so the character still has the item (prevSys: the system
+// before the change). Returns how many rows were given a copy; the rows are changed in place.
+function orphanRows(prevSys, sys, chars) {
+    if (!isObj(prevSys) || !isObj(sys) || !isObj(chars)) return 0;
+    var had = map(), now = map(), n = 0;
+    (Array.isArray(prevSys.items) ? prevSys.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string') had[it.id] = it; });
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string') now[it.id] = 1; });
+    var lists = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list'; });
+    Object.keys(chars).forEach(function(cid) {
+        var c = chars[cid]; if (!isObj(c) || !isObj(c.values)) return;
+        lists.forEach(function(f) { var v = c.values[f.id]; if (!Array.isArray(v)) return; v.forEach(function(r) { if (isObj(r) && typeof r.defId === 'string' && !now[r.defId] && had[r.defId] && !r.snap) { r.snap = cleanRowDef(had[r.defId], true); n++; } }); });
+    });
+    return n;
+}
+// Stage 6: a legacy row (no id) of a GM-only item, or of a deleted one's GM-only copy, takes an id of its own — its derived id would show its
+// owner the item's library id. Run on the GM's machine (a system save, the start of hosting). Returns how many rows were given one (in place).
+function stampRows(sys, chars) {
+    if (!isObj(sys) || !isObj(chars)) return 0;
+    var secret = map(), n = 0;
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string' && it.vis === 'gm') secret[it.id] = 1; });
+    var lists = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list'; });
+    Object.keys(chars).forEach(function(cid) {
+        var c = chars[cid]; if (!isObj(c) || !isObj(c.values)) return;
+        lists.forEach(function(f) { var v = c.values[f.id]; if (!Array.isArray(v)) return; v.forEach(function(r) { if (isObj(r) && !r.id && typeof r.defId === 'string' && (secret[r.defId] === 1 || (isObj(r.snap) && r.snap.vis === 'gm'))) { r.id = uid('w_'); n++; } }); });
+    });
+    return n;
+}
 
 /* ---------- the resolver: the engine reads a character's names through this ---------- */
 function noDice() { return NaN; }   // a die inside a definition fails at the die: "The random source returned NaN"
@@ -886,8 +1048,8 @@ function fitsKind(k, v) {   // a list only in a list kind, a pool's {cur} only i
 function charFor(c, sys, recipientId, opts) {
     if (!c || c.npc || !c.ownerId) return null;
     var own = c.ownerId === recipientId, values = {}, libFull = opts && opts.lib ? opts.lib : null, probe = !!(opts && opts.probe);   // probe: which fields a recipient may see (syncCharDelta), values as given
-    var viewItems = valueOpts(sys).items;   // the recipient's view (players' system): a GM-only item in the list never travels
-    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; if (!probe && !fitsKind(f.kind, cv)) return; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv)) ? cv.filter(function(e) { return isObj(e) && typeof e.defId === 'string' && viewItems[e.defId] === 1; }) : (f.kind === 'effects' && Array.isArray(cv) && !probe) ? projectEffects(cv, sys, own, libFull) : cv; } });   // 5h: effects rows projected per recipient   // a carried list never travels to another player, hover flag or not
+    var itemsFull = opts && opts.items ? opts.items : null;   // Stage 6 F4a: the host's items by id — a GM-only row reaches its owner inline
+    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; if (!probe && !fitsKind(f.kind, cv)) return; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv) && !probe) ? projectRows(cv, sys, itemsFull) : (f.kind === 'effects' && Array.isArray(cv) && !probe) ? projectEffects(cv, sys, own, libFull) : cv; } });   // 5h: effects rows projected per recipient   // a carried list never travels to another player, hover flag or not
     return { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
 }
 // The host's answer to one edit (its own or a player's): { ok, value } or { ok: false, reason }
@@ -901,25 +1063,6 @@ function applyEdit(sys, char, fieldId, value, F, opts) {
     var v = cleanValue(f, value, { max: max });
     if (v === undefined) return { ok: false, reason: 'value' };
     return { ok: true, value: v };
-}
-// The host's answer to one inventory op (its own or a player's): returns the new {defId,qty}[] or { ok:false, reason }.
-// The item def is read from the system (never trusted from the client); a player may not touch a GM item or a locked list.
-function applyItemOp(sys, char, fieldId, op, defId, qty, opts) {
-    opts = opts || {};
-    var f = fieldById(sys, fieldId); if (!f || f.kind !== 'item-list') return { ok: false, reason: 'field' };
-    if (opts.player && (f.edit !== 'owner' || f.vis !== 'all')) return { ok: false, reason: 'field' };
-    if (!ITEM_OP[op] || typeof defId !== 'string' || !ITEM_ID.test(defId)) return { ok: false, reason: 'value' };
-    var def = null; for (var i = 0; i < (Array.isArray(sys.items) ? sys.items : []).length; i++) if (sys.items[i].id === defId) { def = sys.items[i]; break; }
-    if (!def) return { ok: false, reason: 'missing' };
-    if (opts.player && def.vis === 'gm') return { ok: false, reason: 'field' };
-    var src = char && Array.isArray(char.values && char.values[fieldId]) ? char.values[fieldId] : [];
-    var list = src.map(function(e) { return { defId: e.defId, qty: e.qty }; });
-    var idx = -1; for (var j = 0; j < list.length; j++) if (list[j].defId === defId) { idx = j; break; }
-    var n = clampNum((qty | 0) || 0, 0, LIMITS.maxQty);
-    if (op === 'add') { if (idx >= 0) list[idx].qty = clampNum(list[idx].qty + (n || 1), 1, LIMITS.maxQty); else if (list.length < LIMITS.carried) list.push({ defId: defId, qty: n || 1 }); else return { ok: false, reason: 'field' }; }
-    else if (op === 'remove') { if (idx >= 0) list.splice(idx, 1); }
-    else if (op === 'setQty') { if (n <= 0) { if (idx >= 0) list.splice(idx, 1); } else if (idx >= 0) list[idx].qty = n; else if (list.length < LIMITS.carried) list.push({ defId: defId, qty: n }); else return { ok: false, reason: 'field' }; }
-    return { ok: true, value: list };
 }
 // 5h: the host's (or the GM's own) answer to one change of a character's status effects: { ok, value, clamp } or { ok: false, reason }.
 // q = { op: add|adhoc|on|remove, rowId, ref?, on?, row? }. Rights follow the list field (Player may edit / GM edits, visible); a player can
@@ -1080,6 +1223,6 @@ function gmEffectNames(vars, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, applyItemOp: applyItemOp, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, applyItemOp, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, LIMITS, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

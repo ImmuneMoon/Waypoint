@@ -570,11 +570,15 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           // the system (character sheets, 1.5.0): the imported one replaces when it is at least as new, cleaned like a file's; preset ids are stable, so values keep their fields
           if (ic.system && typeof ic.system === 'object' && window.wpSystemCore && window.wpFormula) {
               var isys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true });
-              if (isys && (!existing.system || (Number(isys.updated) || 0) >= (Number(existing.system.updated) || 0))) existing.system = isys;
+              if (isys && (!existing.system || (Number(isys.updated) || 0) >= (Number(existing.system.updated) || 0))) {
+                  if (existing.system && existing.chars && window.wpSystemCore.orphanRows) window.wpSystemCore.orphanRows(existing.system, isys, existing.chars);   // Stage 6 F4a: a character keeps a copy of an item the new system no longer has
+                  existing.system = isys;
+              }
           }
           if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore && existing.system) {   // characters (1.5.0): union by id, each cleaned against the system now in place
               existing.chars = existing.chars && typeof existing.chars === 'object' ? existing.chars : {};
               Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], existing.system); if (cc && cc.id === id) existing.chars[id] = cc; });
+              if (window.wpSystemCore.stampRows) window.wpSystemCore.stampRows(existing.system, existing.chars);   // Stage 6: a legacy row of a GM-only item gets its own id
               if (window.wpSheets) window.wpSheets.syncOwners(existing);
           }
           // the sound index merges by id (1.5.0): an imported entry replaces the same id, new ids are added

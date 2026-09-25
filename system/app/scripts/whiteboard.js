@@ -2781,7 +2781,7 @@ window.wpFitToGrid = fitToGrid;
       var y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
       if (_armedThrow) {   // a throw from a character sheet: one-shot, host-authoritative, shared to the map
           var ctx = _armedThrow; _armedThrow = null; document.body.classList.remove('placing');
-          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq) window.wpNet.throwReq(ctx.charId, ctx.itemId, x, y, map.id); }
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq) window.wpNet.throwReq(ctx.charId, ctx.fieldId, ctx.rowId, x, y, map.id); }
           else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by, charId: ctx.charId, damage: ctx.damage });
           var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click();
           return;
@@ -2860,7 +2860,7 @@ window.wpFitToGrid = fitToGrid;
   // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
   window.wpArmBlast = function(ft, name, ctx) {
       ft = Math.max(1, Math.min(3000, Math.round(ft || 0))); if (!(ft > 0)) return;
-      _armedThrow = { charId: ctx && ctx.charId, itemId: ctx && ctx.itemId, ft: ft, name: name || '', by: (ctx && ctx.by) || '', damage: (ctx && ctx.damage) || '' };
+      _armedThrow = { charId: ctx && ctx.charId, fieldId: ctx && ctx.fieldId, rowId: ctx && ctx.rowId, ft: ft, name: name || '', by: (ctx && ctx.by) || '', damage: (ctx && ctx.damage) || '' };
       window.isDrawingMode = false; window.isEraserMode = false; window.isFogMode = false;
       window.isMeasureMode = true; window.wpMeasureKind = 'blast';
       if (wbWrap) wbWrap.style.cursor = 'crosshair'; document.body.classList.add('placing');

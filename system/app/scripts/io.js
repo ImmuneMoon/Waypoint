@@ -1028,7 +1028,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
     var activeMap = getActiveMap();
 
-    if(activeMap) { activeMap.meta.updated = Date.now(); }
+    if(activeMap && activeMap.meta && typeof activeMap.meta === 'object') { activeMap.meta.updated = Date.now(); }   // an item from a file may have no meta
 
     saveNote.innerHTML = 'Saving...';
 

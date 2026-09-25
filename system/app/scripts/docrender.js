@@ -169,7 +169,8 @@ function compileFlowchart(b) {
     m += 'classDef red fill:#361f1e,stroke:#d9534f,color:#fff\n';
     m += 'classDef violet fill:#281f3b,stroke:#b98cff,color:#fff\n';
     m += 'classDef neutral fill:#26262a,stroke:#c9c9d4,color:#fff\n';
-    (b.nodes || []).forEach(function(n) {
+    (Array.isArray(b.nodes) ? b.nodes : []).forEach(function(n) {
+        if (!n || typeof n !== 'object') return;
         var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2, 5)));
         var txt = mmText(n.text || 'Node');
         var s1 = '[', s2 = ']';
@@ -179,8 +180,8 @@ function compileFlowchart(b) {
         else if (n.shape === 'hex') { s1 = '{{'; s2 = '}}'; }
         m += id + s1 + txt + s2 + ':::' + (/^(gold|blue|green|red|violet|neutral)$/.test(n.color || '') ? n.color : 'neutral') + '\n';
     });
-    (b.edges || []).forEach(function(e) {
-        if (!e.from || !e.to) return;
+    (Array.isArray(b.edges) ? b.edges : []).forEach(function(e) {
+        if (!e || typeof e !== 'object' || !e.from || !e.to) return;
         var line = e.style === 'dotted' ? '-.->' : '-->';
         if (e.text) line += '|' + mmText(e.text) + '|';
         m += mmId(e.from) + ' ' + line + ' ' + mmId(e.to) + '\n';
@@ -385,8 +386,9 @@ function layoutAttrs(b, cls) {
     if (l) {
         if (l.float === 'left') classes += ' fl-left'; else if (l.float === 'right') classes += ' fl-right';
         if (l.span) classes += ' doc-span';
-        if (l.width && l.width !== 100) style += 'width:' + l.width + '%;';
-        if (l.dx || l.dy) style += 'position:relative;left:' + (l.dx || 0) + 'px;top:' + (l.dy || 0) + 'px;';
+        var lw = l.width ? num(l.width, 1, 100, 100) : 100, ldx = num(l.dx, -200, 200, 0), ldy = num(l.dy, -200, 200, 0);   // numbers, even for a block that never met cleanDoc
+        if (lw !== 100) style += 'width:' + lw + '%;';
+        if (ldx || ldy) style += 'position:relative;left:' + ldx + 'px;top:' + ldy + 'px;';
     }
     return ' class="' + classes.trim() + '"' + (style ? ' style="' + style + '"' : '');
 }
@@ -445,7 +447,8 @@ function renderDoc(doc, opts) {
             }
             case 'flowchart': {
                 var l = effectiveLayout(b) || {}, boxStyle = (b.boxW ? 'width:' + Math.round(Number(b.boxW)) + 'px;' : '') + (b.boxH ? 'height:' + Math.round(Number(b.boxH)) + 'px;' : '');
-                if (l.dx || l.dy) boxStyle += 'position:relative;left:' + (l.dx || 0) + 'px;top:' + (l.dy || 0) + 'px;';
+                var fdx = num(l.dx, -200, 200, 0), fdy = num(l.dy, -200, 200, 0);
+                if (fdx || fdy) boxStyle += 'position:relative;left:' + fdx + 'px;top:' + fdy + 'px;';
                 var fcls = 'diagram fc-box' + (l.float === 'left' ? ' fl-left' : l.float === 'right' ? ' fl-right' : '') + (l.span ? ' doc-span' : '');
                 blk += '<div class="' + fcls + '" data-fc="' + i + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(compileFlowchart(b))) + '</pre></div>';
                 break;

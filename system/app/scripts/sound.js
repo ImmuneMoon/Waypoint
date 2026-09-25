@@ -12,6 +12,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { LIMITS, safeId, cleanSoundList, cleanSoundCue, mixGain, seamBlend, EXT_RE } from './soundcore.js';
 import { showConfirm } from './dialogs.js';
+import { num } from './safecore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -255,7 +256,7 @@ function openLib() { if (!canWrite()) { toast('Not while you\'re at someone else
 function closeLib() { var m = ui('soundLibModal'); if (m) m.style.display = 'none'; stopPreview(); }
 function stopPreview() { if (previewing) { try { previewing.src.stop(); } catch (e) {} previewing = null; } }
 function otherCampaigns() { var me = getActiveCampaign(); return Object.values((state.appState && state.appState.campaigns) || {}).filter(function(c) { return c && me && c.id !== me.id; }); }
-function bytesUsed(camp) { return ownEntries().filter(function(e) { return e.path && e.path.indexOf('/saves/images/audio/' + safeId(camp.id) + '/') === 0; }).reduce(function(s, e) { return s + (Number(e.size) || 0); }, 0); }
+function bytesUsed(camp) { return ownEntries().filter(function(e) { return typeof e.path === 'string' && e.path.indexOf('/saves/images/audio/' + safeId(camp.id) + '/') === 0; }).reduce(function(s, e) { return s + (Number(e.size) || 0); }, 0); }
 function rowHtml(e, mode) {
     var own = mode === 'camp', def = !!e.def;
     var from = e.from && state.appState.campaigns[e.from] ? ' <span class="snd-from" title="Brought in from another campaign (a reference, not a copy)">from ' + esc(state.appState.campaigns[e.from].name || e.from) + '</span>' : '';
@@ -264,7 +265,7 @@ function rowHtml(e, mode) {
         '<button class="tool ghost icon snd-prev" title="Preview here (players do not hear it)">&#9654;</button>' +
         (own && !def ? '<input type="text" class="snd-name field" value="' + esc(e.name) + '" maxlength="60">' + from : '<span class="snd-name-ro">' + esc(e.name) + from + (def ? ' <span class="snd-from">bundled</span>' : '') + '</span>') +
         (own && !def ? '<select class="snd-kind"><option value="loop"' + (e.kind === 'loop' ? ' selected' : '') + '>Loop</option><option value="cue"' + (e.kind === 'cue' ? ' selected' : '') + '>Cue</option></select>' : '<span class="snd-kind-ro">' + (e.kind === 'loop' ? 'Loop' : 'Cue') + '</span>') +
-        (own && !def ? '<label class="snd-gain" title="Gain 0.1–2">×<input type="number" class="snd-gainv" min="0.1" max="2" step="0.1" value="' + (e.gain || 1) + '"></label>' : '') +
+        (own && !def ? '<label class="snd-gain" title="Gain 0.1–2">×<input type="number" class="snd-gainv" min="0.1" max="2" step="0.1" value="' + (num(e.gain, 0, 0.1, 2) || 1) + '"></label>' : '') +
         '<span class="snd-meta">' + fmtDur(e.dur) + (e.size ? ' · ' + fmtSize(e.size) : '') + '</span>' +
         (own && !def ? '<button class="tool ghost danger snd-del" title="' + (e.from ? 'Take the reference out of this campaign (the other campaign keeps its file)' : 'Delete the file from your saves folder') + '">' + (e.from ? 'Remove' : 'Delete') + '</button>' : '') +
         (mode === 'shared' ? '<button class="tool ghost snd-hide" title="Hide this bundled sound on this install (an update brings it back; Show hidden restores it)">Hide</button>' : '') +
@@ -358,7 +359,7 @@ function uploadFiles(files) {
         if (b.classList.contains('snd-hide')) { var h = hiddenDefaults(); if (h.indexOf(id) < 0) h.push(id); setHiddenDefaults(h); if (ambient && ambient.entry.id === id) hostStopAmbient(); renderLib(); saveLib(true); return; }
         if (b.classList.contains('snd-del')) {
             var list = campListW(camp), entry = list.find(function(x) { return x.id === id; }); if (!entry) return;
-            var isRef = !!entry.from || entry.path.indexOf('/saves/images/audio/' + safeId(camp.id) + '/') !== 0;
+            var isRef = !!entry.from || String(entry.path || '').indexOf('/saves/images/audio/' + safeId(camp.id) + '/') !== 0;
             var go = function() {
                 if (ambient && ambient.entry.id === id) hostStopAmbient();
                 var idx = list.indexOf(entry); if (idx >= 0) list.splice(idx, 1);

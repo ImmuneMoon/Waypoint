@@ -159,7 +159,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   function mapQuickHtml(camp) {
       noteRecent(camp);
-      var pinned = (camp.pinnedMaps || []).filter(function(id) { return camp.items[id] && camp.items[id].type === 'map'; });
+      var pinned = (Array.isArray(camp.pinnedMaps) ? camp.pinnedMaps : []).filter(function(id) { return camp.items[id] && camp.items[id].type === 'map'; });
       var recent = [];
       try { recent = JSON.parse(localStorage.getItem(recentKey(camp)) || '[]'); } catch (e) {}
       recent = recent.filter(function(id) { return camp.items[id] && camp.items[id].type === 'map' && id !== camp.activeItemId && pinned.indexOf(id) < 0; }).slice(0, 5);
@@ -315,7 +315,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
-                 guides + caret + (item.type === 'planner' && item.meta.status ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '✅' : '⏭') + '</span>' : '') +
+                 guides + caret + (item.type === 'planner' && /^(next|played|skipped)$/.test(item.meta.status) ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '✅' : '⏭') + '</span>' : '') +
                  (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — they cannot travel here until you unlock it">&#128274;</span>' : '') +
                  (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only — players cannot read this page">&#128274;</span>' : '') +
                  '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +

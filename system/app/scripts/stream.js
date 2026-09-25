@@ -7,6 +7,7 @@
 import { state } from './state.js';
 import { net } from './net.js';
 import { characterList, locateCharacter } from './models.js';
+import { esc } from './safecore.js';
 
 const on = new URLSearchParams(location.search).get('stream') === '1';
 if (on) {
@@ -29,7 +30,7 @@ if (on) {
         if (charSel.dataset.sig === sig) return;
         charSel.dataset.sig = sig;
         var html = '<option value="">\u2014 no one \u2014</option>';
-        list.forEach(function(c) { html += '<option value="' + c.key + '"' + (c.key === charFocus ? ' selected' : '') + '>' + (c.name + ' (' + c.map + ')').replace(/[<>&]/g, '') + '</option>'; });
+        list.forEach(function(c) { html += '<option value="' + esc(c.key) + '"' + (c.key === charFocus ? ' selected' : '') + '>' + (c.name + ' (' + c.map + ')').replace(/[<>&]/g, '') + '</option>'; });
         charSel.innerHTML = html;
         if (sel) { sel.disabled = !!charFocus; sel.title = charFocus ? 'The map follows the focused character; clear "Focus on" to pick a map' : 'Follow the GM\'s current map, or focus one map until you change it'; }
     }
@@ -48,7 +49,7 @@ if (on) {
         sel.dataset.sig = sig;
         var html = '<option value="">Follow the GM (current map)</option>';
         maps.sort(function(a, b) { return String(a.meta && a.meta.title || '').localeCompare(String(b.meta && b.meta.title || '')); });
-        maps.forEach(function(m) { html += '<option value="' + m.id + '"' + (m.id === focus ? ' selected' : '') + '>' + String(m.meta && m.meta.title || m.id).replace(/[<>&]/g, '') + '</option>'; });
+        maps.forEach(function(m) { html += '<option value="' + esc(m.id) + '"' + (m.id === focus ? ' selected' : '') + '>' + String(m.meta && m.meta.title || m.id).replace(/[<>&]/g, '') + '</option>'; });
         sel.innerHTML = html;
     }
     if (sel) sel.addEventListener('change', function() { focus = sel.value; charFocus = ''; lastCam = ''; try { localStorage.setItem('wp_streamFocus', focus); localStorage.setItem('wp_streamChar', ''); } catch (e) {} tick(); });

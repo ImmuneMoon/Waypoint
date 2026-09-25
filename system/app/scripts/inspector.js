@@ -44,6 +44,8 @@ import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attac
 
 import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, uploadImageFile } from './whiteboard.js';
 
+import { cssColor, num, picRef } from './safecore.js';   // a campaign from a file reaches these panels too: colours, numbers and pictures are checked where they land
+
 
 
   /* ---------- link (line) inspector ----------
@@ -78,6 +80,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
       var rm = document.getElementById('lkRemove');
       if (rm) rm.addEventListener('click', function() { activeMap.links.splice(i, 1); state.selLink = null; save(); render(); import('./io.js').then(function(m) { m.toast('Link removed.'); }); });
   }
+  // [sinkcheck:room-start]
   function getRoomInspectorHtml(r, activeMap) {
 
       activeMap = activeMap || getActiveMap();
@@ -88,9 +91,9 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
       opts += Object.keys(activeMap.cats).map(function(k){
 
-        var c = activeMap.cats[k];
+        var c = activeMap.cats[k] || {};
 
-        return '<option value="'+k+'"'+(k===r.cat?' selected':'')+' style="color:'+c.color+'; font-weight:bold;">'+esc(c.label)+'</option>';
+        return '<option value="'+esc(k)+'"'+(k===r.cat?' selected':'')+' style="color:'+cssColor(c.color, '#c9c9d4')+'; font-weight:bold;">'+esc(c.label)+'</option>';
 
       }).join('');
 
@@ -98,7 +101,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 
 
-      var selColor = activeMap.cats[r.cat] ? activeMap.cats[r.cat].color : '#c9c9d4';
+      var selColor = cssColor(activeMap.cats[r.cat] ? activeMap.cats[r.cat].color : '', '#c9c9d4');
 
       var selName = activeMap.cats[r.cat] ? activeMap.cats[r.cat].label : '';
 
@@ -122,9 +125,9 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
       var charHtml = r.characters.map(function(c, i) {
 
-          var portrait = c.portrait
+          var portrait = picRef(c.portrait)
 
-              ? '<img class="char-portrait" src="'+esc(c.portrait)+'" alt="">'
+              ? '<img class="char-portrait" src="'+esc(picRef(c.portrait))+'" alt="">'
 
               : '<div class="char-portrait char-portrait-empty">?</div>';
 
@@ -167,7 +170,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
                       var indent = new Array(depth + 1).join('\u00A0\u00A0\u00A0');
 
-                      mapOpts += '<option value="'+item.id+'"'+(r.targetMapId===item.id?' selected':'')+'>'+indent+esc((item.meta && item.meta.title) || 'Untitled Map')+'</option>';
+                      mapOpts += '<option value="'+esc(item.id)+'"'+(r.targetMapId===item.id?' selected':'')+'>'+indent+esc((item.meta && item.meta.title) || 'Untitled Map')+'</option>';
 
                   }
 
@@ -191,7 +194,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
       return '<h2>Data Node</h2>'+
 
-             (r.image ? '<img class="room-image-preview" src="'+esc(r.image)+'" alt="Room image">' : '')+
+             (picRef(r.image) ? '<img class="room-image-preview" src="'+esc(picRef(r.image))+'" alt="Room image">' : '')+
 
              '<div class="row" style="margin-bottom:13px;"><button class="tool ghost" id="fImgBtn">&#128444;&#65039; '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</div>'+
 
@@ -220,6 +223,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
              '<div id="charList">' + charHtml + '</div>';
 
   }
+  // [sinkcheck:room-end]
 
 
 
@@ -624,18 +628,18 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
           var catHtml = Object.keys(activeMap.cats).map(function(k) {
 
-              var c = activeMap.cats[k];
+              var c = activeMap.cats[k] || {};
               var saved = inLib(c.label);
 
               return '<div class="cat-row" style="display:flex; gap:5px; margin-bottom:5px; align-items:center;">' +
 
-                     '<input type="color" aria-label="Category Color" class="cat-color" data-id="'+k+'" value="'+c.color+'" style="width:24px; height:24px; padding:0; cursor:pointer; border:none; background:none;">' +
+                     '<input type="color" aria-label="Category Color" class="cat-color" data-id="'+esc(k)+'" value="'+cssColor(c.color, '#c9c9d4')+'" style="width:24px; height:24px; padding:0; cursor:pointer; border:none; background:none;">' +
 
-                     '<input type="text" aria-label="Category Name" class="cat-label" data-id="'+k+'" value="'+esc(c.label)+'" style="flex:1;">' +
+                     '<input type="text" aria-label="Category Name" class="cat-label" data-id="'+esc(k)+'" value="'+esc(c.label)+'" style="flex:1;">' +
 
-                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+k+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '&#9733;' : '&#9734;') + '</button>' +
+                     '<button class="tool ghost cat-save' + (saved ? ' on' : '') + '" aria-label="Save to library" title="' + (saved ? 'Saved in the campaign library (click to update its color)' : 'Save to the campaign library so other maps can add it') + '" data-id="'+esc(k)+'" style="padding:2px 6px;' + (saved ? ' color:var(--gold);' : '') + '">' + (saved ? '&#9733;' : '&#9734;') + '</button>' +
 
-                     '<button class="tool ghost danger cat-del" aria-label="Delete Category" data-id="'+k+'" style="padding:2px 6px;">×</button>' +
+                     '<button class="tool ghost danger cat-del" aria-label="Delete Category" data-id="'+esc(k)+'" style="padding:2px 6px;">×</button>' +
 
                      '</div>';
 
@@ -645,7 +649,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
           var libHtml = '<div class="field" style="margin-top:10px;"><label title="Categories saved from any map in this campaign. Pick one to add it here with its color.">Category Library <span class="muted">(' + Object.keys(lib).length + ' saved)</span></label>' +
               (Object.keys(lib).length
                   ? '<div style="display:flex; gap:5px; align-items:center;">' +
-                    '<select id="catLibPick" style="flex:1;">' + (libMissing.length ? libMissing.map(function(id) { return '<option value="' + id + '">' + esc(lib[id].label) + '</option>'; }).join('') : '<option value="">All saved categories are on this map</option>') + '</select>' +
+                    '<select id="catLibPick" style="flex:1;">' + (libMissing.length ? libMissing.map(function(id) { return '<option value="' + esc(id) + '">' + esc(lib[id].label) + '</option>'; }).join('') : '<option value="">All saved categories are on this map</option>') + '</select>' +
                     '<button class="tool ghost" id="catLibAdd" title="Add the chosen category to this map"' + (libMissing.length ? '' : ' disabled') + ' style="padding:2px 8px;">Add</button>' +
                     '</div>' +
                     '<div style="display:flex; gap:5px; margin-top:5px;">' +
@@ -654,7 +658,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
                     '</div>' +
                     '<details style="margin-top:6px;"><summary class="muted" style="cursor:pointer;">Manage library</summary><div id="catLibList" style="margin-top:5px;">' +
                     Object.keys(lib).sort(function(a, b) { return String(lib[a].label).localeCompare(String(lib[b].label)); }).map(function(id) {
-                        return '<div style="display:flex; gap:5px; align-items:center; margin-bottom:3px;"><span style="width:14px; height:14px; border-radius:3px; background:' + lib[id].color + '; display:inline-block;"></span><span style="flex:1; font-size:12px;">' + esc(lib[id].label) + '</span><button class="tool ghost danger cat-lib-del" data-id="' + id + '" title="Remove from the library (maps keep their copies)" style="padding:0 6px; font-size:10px;">×</button></div>';
+                        return '<div style="display:flex; gap:5px; align-items:center; margin-bottom:3px;"><span style="width:14px; height:14px; border-radius:3px; background:' + cssColor(lib[id].color, '#888') + '; display:inline-block;"></span><span style="flex:1; font-size:12px;">' + esc(lib[id].label) + '</span><button class="tool ghost danger cat-lib-del" data-id="' + esc(id) + '" title="Remove from the library (maps keep their copies)" style="padding:0 6px; font-size:10px;">×</button></div>';
                     }).join('') + '</div></details>'
                   : '<div class="muted">Nothing saved yet. Press &#9734; on a category, or <b>Save all to library</b>, and other maps can add them in one click.</div>' +
                     '<button class="tool ghost" id="catLibSaveAll" title="Save every category on this map to the library" style="width:100%; margin-top:5px;">Save all to library</button>') +
@@ -856,7 +860,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             }).join('') + '<label class="color-btn custom" title="Custom color"><input type="color" id="wbStrokeCustomColor" value="' + (/^#[0-9a-f]{6}$/i.test(w.color || '') ? w.color : '#e9e9f0') + '"></label>';
             
             var nodeOpts = '<option value="">-- None --</option>' + activeMap.rooms.map(function(room) {
-                return '<option value="'+room.id+'"'+(w.nodeId===room.id?' selected':'')+'>'+esc(room.name||'(unnamed)')+'</option>';
+                return '<option value="'+esc(room.id)+'"'+(w.nodeId===room.id?' selected':'')+'>'+esc(room.name||'(unnamed)')+'</option>';
             }).join('');
             
             var typeLabel = w.type === 'text' ? 'Text Box' : w.type === 'path' ? 'Drawing' : w.type === 'image' ? 'Image' : w.type === 'trigger' ? 'Trigger Zone' : w.type.charAt(0).toUpperCase() + w.type.slice(1);
@@ -905,7 +909,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         }
                     }
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
-                        [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((w.front && [0, 90, 180, 270].indexOf(w.front) < 0) ? [[w.front, w.front + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + ((w.front || 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+                        [[0, 'Top'], [90, 'Right'], [180, 'Bottom'], [270, 'Left']].concat((num(w.front, 0) && [0, 90, 180, 270].indexOf(num(w.front, 0)) < 0) ? [[num(w.front, 0), num(w.front, 0) + '\u00b0 (turned)']] : []).map(function(o) { return '<option value="' + o[0] + '"' + (num(w.front, 0) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
                     html += '<div class="field"><label for="wbFaceMode">Turning</label><select id="wbFaceMode"><option value="art"' + (w.faceMode !== 'arrow' ? ' selected' : '') + '>Art turns with the arrow</option><option value="arrow"' + (w.faceMode === 'arrow' ? ' selected' : '') + '>Arrow only (art stays upright)</option></select></div>';
                     // Elevation (yards) and posture — only while the campaign's VTT features are on (Settings ▸ VTT features; at a table, the GM's setting and the player's own "off for me")
                     var stanceApi = window.wpStance, elevOnI = !!(stanceApi && stanceApi.on('elevation')), postOnI = !!(stanceApi && stanceApi.on('posture'));
@@ -934,7 +938,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     // ShadowBase sheet: attach the site's character JSON and this token
                     // round-trips it — Export re-emits it with the token's art as portrait
                     var sheetLabel = w.sheet
-                        ? '&#128196; ' + esc(w.sheet.name || 'sheet') + (w.sheet.points && w.sheet.points.total ? ' &middot; ' + w.sheet.points.total + ' pts' : '')
+                        ? '&#128196; ' + esc(w.sheet.name || 'sheet') + (w.sheet.points && num(w.sheet.points.total, 0) ? ' &middot; ' + num(w.sheet.points.total, 0) + ' pts' : '')
                         : 'No sheet attached &mdash; Export still makes a starter file.';
                     html += '<div class="field"><label>ShadowBase Sheet (shadow-base.com)</label>'
                         + '<div class="muted" style="margin-bottom:5px;">' + sheetLabel + '</div>'
@@ -955,13 +959,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var campP = getActiveCampaign();
             var parentIdP = activeMap.meta && activeMap.meta.parentId;
             if (campP && parentIdP && campP.items[parentIdP]) {
-                portalOpts += '<option value="' + parentIdP + '"' + (w.targetMapId === parentIdP ? ' selected' : '') + '>&#11014; Back to ' + esc((campP.items[parentIdP].meta || {}).title || 'parent map') + ' (parent)</option>';
+                portalOpts += '<option value="' + esc(parentIdP) + '"' + (w.targetMapId === parentIdP ? ' selected' : '') + '>&#11014; Back to ' + esc((campP.items[parentIdP].meta || {}).title || 'parent map') + ' (parent)</option>';
             }
             if (campP && campP.items) {
                 (function walkP(pid, depth) {
                     getMapChildren(campP, pid).forEach(function(it) {
                         if (it.id !== activeMap.id && it.id !== parentIdP) {
-                            portalOpts += '<option value="' + it.id + '"' + (w.targetMapId === it.id ? ' selected' : '') + '>' + new Array(depth + 1).join('   ') + esc((it.meta && it.meta.title) || 'Untitled Map') + '</option>';
+                            portalOpts += '<option value="' + esc(it.id) + '"' + (w.targetMapId === it.id ? ' selected' : '') + '>' + new Array(depth + 1).join('   ') + esc((it.meta && it.meta.title) || 'Untitled Map') + '</option>';
                         }
                         walkP(it.id, depth + 1);
                     });
@@ -987,8 +991,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.type !== 'image' && w.type !== 'trigger' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
-              (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (w.strokeWidth||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(w.strokeWidth||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(w.strokeWidth||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
-              '<div class="field"><label for="wbRot">Rotation</label><div style="display:flex; gap:8px;"><input type="range" id="wbRot" min="-180" max="180" value="'+(w.rot||0)+'" style="flex:1"><input type="number" id="wbRotNum" value="'+(w.rot||0)+'" style="width:60px" aria-label="Rotation degrees"></div></div>'+
+              (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (num(w.strokeWidth, 0)||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(num(w.strokeWidth, 0)||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(num(w.strokeWidth, 0)||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
+              '<div class="field"><label for="wbRot">Rotation</label><div style="display:flex; gap:8px;"><input type="range" id="wbRot" min="-180" max="180" value="'+num(w.rot, 0)+'" style="flex:1"><input type="number" id="wbRotNum" value="'+num(w.rot, 0)+'" style="width:60px" aria-label="Rotation degrees"></div></div>'+
               '<div class="field"><label for="wbLayer">Layer</label>'+
               '<select id="wbLayer">'+
               '<option value="front"'+(w.layer==='front'?' selected':'')+'>Front Layer (Above all)</option>'+
@@ -1280,14 +1284,14 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbGenNotesBtn = document.getElementById('wbGenNotesBtn');
             if(_el_wbGenNotesBtn && linkedRoom) _el_wbGenNotesBtn.addEventListener('click', function() {
                 var noteHtml = '';
-                if (linkedRoom.image) noteHtml += '<img src="' + esc(linkedRoom.image) + '" style="width:100%; border-radius:6px; margin-bottom:8px; display:block;">';
+                if (picRef(linkedRoom.image)) noteHtml += '<img src="' + esc(picRef(linkedRoom.image)) + '" style="width:100%; border-radius:6px; margin-bottom:8px; display:block;">';
                 noteHtml += '<b>' + esc(linkedRoom.name || 'Unnamed Room') + '</b>';
                 if (linkedRoom.notes) noteHtml += '<br>' + esc(linkedRoom.notes).replace(/\n/g, '<br>');
                 if (linkedRoom.characters && linkedRoom.characters.length > 0) {
                     noteHtml += '<br><br><b>Characters</b>';
                     linkedRoom.characters.forEach(function(c) {
-                        var bullet = c.portrait
-                            ? '<img src="' + esc(c.portrait) + '" style="width:22px; height:22px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:5px;">'
+                        var bullet = picRef(c.portrait)
+                            ? '<img src="' + esc(picRef(c.portrait)) + '" style="width:22px; height:22px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:5px;">'
                             : '&bull; ';
                         noteHtml += '<br>' + bullet + '<b>' + esc(c.name || 'Unnamed') + '</b>';
                         if (c.info) noteHtml += ' &mdash; ' + esc(c.info).replace(/\n/g, '<br>&nbsp;&nbsp;&nbsp;');
@@ -1319,7 +1323,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
             inspector.innerHTML=
 
-              '<h2>'+(activeMap.meta.title||'Map')+' · Play Map</h2>'+
+              '<h2>'+esc(activeMap.meta.title||'Map')+' · Play Map</h2>'+
 
               '<div class="help">'+
 
@@ -1403,12 +1407,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
           }
 
           var sel = (state.selWbIds || []).includes(item.id) || state.selWbId === item.id || state.selId === item.id;
-          html += '<div class="element-list-item' + (sel ? ' sel' : '') + '" data-id="' + item.id + '">' +
-                  '<div class="el-name" data-id="'+item.id+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
-                  '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+item.id+'">&#9998;</button>' +
-                  (visual ? '<button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+item.id+'">&#9650;</button>' +
-                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+item.id+'">&#9660;</button>' : '') +
-                  '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+item.id+'">X</button>' +
+          html += '<div class="element-list-item' + (sel ? ' sel' : '') + '" data-id="' + esc(item.id) + '">' +
+                  '<div class="el-name" data-id="'+esc(item.id)+'" title="Click to jump to it · double-click to rename">' + htmlName + '</div>' +
+                  '<button class="tool ghost el-rename" aria-label="Rename" title="Rename" data-id="'+esc(item.id)+'">&#9998;</button>' +
+                  (visual ? '<button class="tool ghost el-up" aria-label="Move up a layer" title="Move up a layer (toward the front)" data-id="'+esc(item.id)+'">&#9650;</button>' +
+                            '<button class="tool ghost el-down" aria-label="Move down a layer" title="Move down a layer (toward the back)" data-id="'+esc(item.id)+'">&#9660;</button>' : '') +
+                  '<button class="tool ghost danger el-del" aria-label="Delete Element" title="Delete Element" data-id="'+esc(item.id)+'">X</button>' +
                   '</div>';
       });
 
@@ -1434,7 +1438,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       // Inline rename: the name cell becomes an input; Enter/blur commits, Esc cancels.
       // Visual items get a user label (`name`); rooms rename their real name.
       function startRename(id) {
-          var cell = listEl.querySelector('.el-name[data-id="' + id + '"]');
+          var cell = listEl.querySelector('.el-name[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
           var target = items.find(function(x) { return x.id === id; });
           if (!cell || !target) return;
           var current = visual ? (target.name || '') : (target.name || '');
@@ -1581,6 +1585,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
      Where a portal drops you on the far map. "Automatic" follows the app's
      rule (same room id → same name → map home) and says which room that
      resolves to right now; picking a room pins it. */
+  // [sinkcheck:landing-start]
   function landingRoomFieldHtml(src, selectId) {
       if (!src || !src.targetMapId) return '';
       var campLR = getActiveCampaign();
@@ -1589,9 +1594,10 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var rooms = (dest.rooms || []).slice().sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
       var auto = findLandingRoom({ id: src.id, name: src.name, targetRoomId: null }, dest);
       var opts = '<option value="">Automatic' + (auto ? ' — ' + esc(auto.name || auto.id) : ' — map home') + '</option>' +
-          rooms.map(function(rm) { return '<option value="' + rm.id + '"' + (src.targetRoomId === rm.id ? ' selected' : '') + '>' + esc(rm.name || rm.id) + '</option>'; }).join('');
+          rooms.map(function(rm) { return '<option value="' + esc(rm.id) + '"' + (src.targetRoomId === rm.id ? ' selected' : '') + '>' + esc(rm.name || rm.id) + '</option>'; }).join('');
       return '<div class="field"><label for="' + selectId + '" title="Which room on the far map you arrive at. Automatic = a room with the same id or name as this one, else the map\'s home point.">Landing Room</label><select id="' + selectId + '">' + opts + '</select></div>';
   }
+  // [sinkcheck:landing-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in
@@ -1681,7 +1687,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       }).join('');
       return '<div class="field"><label>Content</label><div class="rte" id="wbTextContentRte"><div class="rte-bar">' + _rteBar + '</div><div class="rte-body" contenteditable="true" id="wbTextContentBody" data-placeholder="Type here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + (w.text || '') + '</div></div><div class="muted" style="margin-top:3px;">A live edit of the box\'s words. Bold / italic / lists / symbols — the same set as the planner\'s text blocks. Double-clicking the box on the canvas still works.</div></div>' +
              '<div class="field"><label for="wbTextFont">Font</label><select id="wbTextFont" style="width:100%;">' + fontOpts + '</select></div>' +
-             '<div class="field"><label for="wbTextSize">Text Size <span class="muted" id="wbTextSizeVal">' + (w.fontSize || 16) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbTextSize" min="8" max="96" value="' + (w.fontSize || 16) + '" style="flex:1"><input type="number" id="wbTextSizeNum" min="8" max="200" value="' + (w.fontSize || 16) + '" style="width:56px" aria-label="Text size in pixels"></div></div>' +
+             '<div class="field"><label for="wbTextSize">Text Size <span class="muted" id="wbTextSizeVal">' + (num(w.fontSize, 0) || 16) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbTextSize" min="8" max="96" value="' + (num(w.fontSize, 0) || 16) + '" style="flex:1"><input type="number" id="wbTextSizeNum" min="8" max="200" value="' + (num(w.fontSize, 0) || 16) + '" style="width:56px" aria-label="Text size in pixels"></div></div>' +
              '<div class="field text-align"><label>Text Alignment</label><div class="tal-grid"><span class="tal-cap">Horizontal</span><div class="tal-row">' + ab('left', '&#8676;', 'Align left') + ab('center', '&#8596;', 'Center') + ab('right', '&#8677;', 'Align right') + ab('justify', '&#8801;', 'Justify') + '</div><span class="tal-cap">Vertical</span><div class="tal-row tal-v">' + vb('top', '&#8679;', 'Top') + vb('middle', '&#8597;', 'Middle') + vb('bottom', '&#8681;', 'Bottom') + '</div></div></div>' +
              '<div class="field"><label>Box Background</label><div class="color-row">' + bgHtml + '</div></div>' +
              '<div class="field"><label for="wbTextOpacity">Text Opacity <span class="muted" id="wbTextOpacityVal">' + Math.round((w.textOpacity == null ? 1 : w.textOpacity) * 100) + '%</span></label><input type="range" id="wbTextOpacity" min="10" max="100" value="' + Math.round((w.textOpacity == null ? 1 : w.textOpacity) * 100) + '" style="width:100%"></div>' +

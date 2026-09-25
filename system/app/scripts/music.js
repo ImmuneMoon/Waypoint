@@ -11,6 +11,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { LIMITS, cleanMusic, cleanMapMusic, cleanControl, cleanName } from './musiccore.js';
+import { isUploadPath } from './soundcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -26,7 +27,13 @@ function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.cl
 function fmtTime(s) { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
 
 /* ---------- the campaign's music (camp.music, GM-only; readers never create it) ---------- */
-function campMusic(camp) { camp = camp || getActiveCampaign(); return (camp && camp.music && typeof camp.music === 'object') ? camp.music : { v: 1, tracks: [], playlists: [] }; }
+// A file from elsewhere may have shaped camp.music any way: readers see objects in arrays (the stored objects, not copies, so an edit through a playlist lands)
+function campMusic(camp) {
+    camp = camp || getActiveCampaign();
+    var m = camp && camp.music && typeof camp.music === 'object' ? camp.music : null, isObj = function(x) { return !!x && typeof x === 'object'; };
+    if (!m) return { v: 1, tracks: [], playlists: [] };
+    return { v: 1, tracks: Array.isArray(m.tracks) ? m.tracks.filter(isObj) : [], playlists: Array.isArray(m.playlists) ? m.playlists.filter(function(p) { return isObj(p) && Array.isArray(p.tracks); }) : [] };
+}
 function campMusicW(camp) { camp = camp || getActiveCampaign(); if (!camp) return null; if (!camp.music || typeof camp.music !== 'object') camp.music = { v: 1, tracks: [], playlists: [] }; if (!Array.isArray(camp.music.tracks)) camp.music.tracks = []; if (!Array.isArray(camp.music.playlists)) camp.music.playlists = []; return camp.music; }
 // what THIS machine may play now: the host/solo reads its own camp.music; a client (M3) reads net.music
 function musicNow() { if (isClient()) { var n = net(); return (n && n.music && typeof n.music === 'object') ? n.music : { v: 1, tracks: [], playlists: [] }; } return campMusic(); }
@@ -47,13 +54,16 @@ var controlled = false;    // client: following the GM's take-control override â
 function ac() { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } } return ctx; }
 function effGain() { return mmuted ? 0.0001 : Math.max(0.0001, mvol); }
 function emit() { renderPill(); refreshTransport(); listeners.forEach(function(fn) { try { fn(); } catch (e) {} }); }   // light transport update; structural changes call renderPanel explicitly
+// [sinkcheck:musicbytes-start]
 function bytesFor(entry) {
     if (bytes[entry.path]) return Promise.resolve(bytes[entry.path]);
     var p;
+    if (!isClient() && !isUploadPath(entry.path)) return Promise.reject(new Error('not an upload'));   // the GM's machine fetches the campaign's own uploads only (a client's list is cleaned on arrival)
     if (!isClient()) p = fetch(encodeURI(entry.path)).then(function(r) { if (!r.ok) throw new Error('missing'); return r.blob(); });
     else { var n = net(); if (!n || !n.fetchAsset) return Promise.reject(new Error('offline')); p = n.fetchAsset(entry.path, entry.size); }   // M3
     return p.then(function(blob) { if (blob.size > LIMITS.file * 2) throw new Error('too-big'); bytes[entry.path] = blob; return blob; });
 }
+// [sinkcheck:musicbytes-end]
 function bufferFor(entry) {
     var rec = cache[entry.path]; if (rec) { rec.last = Date.now(); return Promise.resolve(rec.buffer); }
     var a = ac(); if (!a) return Promise.reject(new Error('no audio'));
@@ -265,8 +275,8 @@ function uploadTracks(files) {
 }
 function removeTrack(id) {
     var camp = getActiveCampaign(), mw = campMusicW(camp); if (!mw) return;
-    mw.tracks = mw.tracks.filter(function(t) { return t.id !== id; });
-    mw.playlists.forEach(function(pl) { pl.tracks = pl.tracks.filter(function(t) { return t !== id; }); });   // drop it from every playlist too
+    mw.tracks = mw.tracks.filter(function(t) { return t && t.id !== id; });
+    mw.playlists.forEach(function(pl) { if (pl && Array.isArray(pl.tracks)) pl.tracks = pl.tracks.filter(function(t) { return t !== id; }); });   // drop it from every playlist too
     save(true); var n = net(); if (n && n.syncMusic) n.syncMusic(); if (panelOpen()) renderPanel();
 }
 

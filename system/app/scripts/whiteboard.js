@@ -96,6 +96,7 @@ function showStanceMenu(e, tok) {
 // A color at a given opacity, for the text / background opacity sliders. color-mix keeps any
 // CSS color intact (names, var(--ink), rgba); an older engine falls back to a canvas parse.
 function withAlpha(c, a) {
+    c = cssColor(c);   // a colour from a file could be url(…) or a second property: none
     a = Number(a); if (!isFinite(a) || a >= 1) return c;
     if (!c || c === 'transparent') return c;
     a = Math.max(0, Math.min(1, a));
@@ -126,9 +127,12 @@ function plateInk(bg) {
     var lum = 0.299 * r + 0.587 * g + 0.114 * b;
     return lum < 128 ? '#f2f2f7' : '#1f1d24';
 }
+// [sinkcheck:resolveimg-start]
 function resolveImg(src) {
-    return (window.wpNet && window.wpNet.assetSrc) ? window.wpNet.assetSrc(src) : src;
+    var out = (window.wpNet && window.wpNet.assetSrc) ? window.wpNet.assetSrc(src) : src;
+    return out === src ? picRef(src) : out;   // unchanged (the GM, solo or hosting; a bundled asset): the app's own pictures only — a web address from a file never loads
 }
+// [sinkcheck:resolveimg-end]
 function fixEmbeddedImgs(el) {
     if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) return;
     el.querySelectorAll('img').forEach(function(im) {
@@ -155,6 +159,8 @@ import { renderPlanner, renderPlannerPreview } from './planner.js';
 import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attachPanning, isLinkMode, setLinkMode, removeLinkAt, snapToHex, getSnapCoords } from './datamap.js';
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
+
+import { cssColor, picRef } from './safecore.js';   // a map from a file: colours that are colours, pictures that are the app's own
 
 
 
@@ -504,7 +510,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               if (_isPortal) {
 
-                  var _pc = item.portalColor || '#5ac8fa';
+                  var _pc = cssColor(item.portalColor) || '#5ac8fa';
                   el.style.background = withAlpha(_pc, 0.55);
                   el.style.boxShadow = 'inset 0 0 0 4px ' + _pc;
 
@@ -518,7 +524,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else {
 
               el.style.boxShadow = '';
-              el.style.background = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : (item.color || '');
+              el.style.background = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : cssColor(item.color);
 
           }
 
@@ -697,7 +703,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               
 
-              var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = item.color || 'var(--ink)';
+              var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = cssColor(item.color) || 'var(--ink)';
               var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3, item.holes);
               pathEl.setAttribute('d', _sp.d);
               if (_sp.fill) {
@@ -2391,6 +2397,7 @@ window.wpFitToGrid = fitToGrid;
   // Per-map scale: default 1 yd per hex / 5 ft per square, overridable in the
   // measure menu (meta.cellValue + meta.cellUnit) — e.g. 100 yd or 5 mi per cell.
 
+  // [sinkcheck:measure-start]
   function mapMeasureConfig() {
 
       var m = getActiveMap();
@@ -2407,7 +2414,7 @@ window.wpFitToGrid = fitToGrid;
 
           per: (typeof meta.cellValue === 'number' && meta.cellValue > 0) ? meta.cellValue : (hex ? 1 : 5),
 
-          unit: meta.cellUnit || (hex ? 'yd' : 'ft')
+          unit: (typeof meta.cellUnit === 'string' && /^(yd|ft|m|km|mi)$/.test(meta.cellUnit)) ? meta.cellUnit : (hex ? 'yd' : 'ft')
 
       };
 
@@ -2437,6 +2444,7 @@ window.wpFitToGrid = fitToGrid;
 
   }
 
+  // [sinkcheck:measure-end]
   function renderMeasures() {
 
       var layer = document.getElementById('measureLayer');
@@ -3543,13 +3551,28 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   };
   // Where a picture is used: play-map items, room scenes, portraits, handouts, page and planner pictures, the
   // cast, and campaigns that brought it in — across every campaign, encoded and plain spellings alike
+  // [sinkcheck:catfiles-start]
+  // Which of a category's pictures may lose their FILE with it (owner's rule, 2026-09-25): only the category's own. A picture another
+  // campaign owns (its folder) or uses keeps its file and only loses the tag, so a category brought in by a file someone else made
+  // can never take your other campaigns' pictures with it. store: the category's home ('shared' or a campaign id); owners(path) is
+  // imgCampsFor: 'shared' for the tutorial art, else the campaigns that own or use the picture ([] = nobody's).
+  function catFilesToDelete(paths, store, owners) {
+      var go = [], kept = [];
+      paths.forEach(function(p) {
+          var c = owners(p);
+          var mine = c === 'shared' ? store === 'shared' : Array.isArray(c) && c.every(function(id) { return id === store; });
+          (mine ? go : kept).push(p);
+      });
+      return { go: go, kept: kept };
+  }
+  // [sinkcheck:catfiles-end]
   function imgUsage(src) {
       var n = 0, maps = {}, keys = pathKeys(src);
       var hit = function(v) { return !!v && keys.indexOf(v) >= 0; };
       Object.values(state.appState.campaigns || {}).forEach(function(camp) {
           Object.values(camp.items || {}).forEach(function(it) {
               var name = (it.meta && it.meta.title) || it.id;
-              (it.whiteboard || []).forEach(function(w) { if (hit(w.src)) { n++; maps[name] = 1; } });
+              (it.whiteboard || []).forEach(function(w) { if (w && hit(w.src)) { n++; maps[name] = 1; } });
               (it.rooms || []).forEach(function(r) { if (hit(r.image)) { n++; maps[name] = 1; } (r.characters || []).forEach(function(ch) { if (hit(ch.portrait)) { n++; maps[name] = 1; } }); });
               (it.blocks || []).forEach(function(b) { if (b && hit(b.src)) { n++; maps[name] = 1; } });
           });
@@ -3749,22 +3772,27 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
                   cc.list = cc.list.filter(function(x) { return x !== del; }); delete cc.shelf[del];
                   Object.keys(cc.by).forEach(function(p) { var rest = tagsIn(cc, p); if (rest.length) cc.by[p] = rest; else delete cc.by[p]; });
                   _imgLibCat = ''; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
-                  // Offer to remove the pictures' files as well (the category itself is only a tag)
+                  // Offer to remove the pictures' files as well (the category itself is only a tag) — the category's OWN pictures only:
+                  // one another campaign owns or uses keeps its file and just loses the tag (catFilesToDelete)
                   if (members.length) {
-                      var used = members.filter(function(p) { return imgUsage(p).count > 0; }).length;
-                      showConfirm('Also delete the ' + members.length + ' picture file' + (members.length === 1 ? ' that was' : 's that were') + ' in "' + del + '" from your saves folder? This cannot be undone.' + (used ? '\n\n' + used + ' of them ' + (used === 1 ? 'is' : 'are') + ' still used somewhere (a map, a handout, a page, the cast, or brought into a campaign) and would show as broken there.' : ''), function(yesFiles) {
+                      var idxD = buildImgIndex(), split = catFilesToDelete(members, homeD, function(p) { return imgCampsFor(idxD, p, folderOf(p)); });
+                      var files = split.go, keptN = split.kept.length;
+                      var keptNote = keptN ? keptN + ' of its pictures ' + (keptN === 1 ? 'keeps its file — it belongs to another campaign or to Shared — and only loses' : 'keep their files — they belong to another campaign or to Shared — and only lose') + ' the tag.' : '';
+                      if (!files.length) { toast(keptNote); return; }
+                      var used = files.filter(function(p) { return imgUsage(p).count > 0; }).length;
+                      showConfirm('Also delete the ' + files.length + ' picture file' + (files.length === 1 ? ' that was' : 's that were') + ' in "' + del + '" from your saves folder? This cannot be undone.' + (used ? '\n\n' + used + ' of them ' + (used === 1 ? 'is' : 'are') + ' still used somewhere (a map, a handout, a page, the cast, or brought into a campaign) and would show as broken there.' : '') + (keptNote ? '\n\n' + keptNote : ''), function(yesFiles) {
                           if (!yesFiles) return;
-                          var i = 0, gone = 0, oldCore = false;
+                          var i = 0, gone = [], oldCore = false;
                           function next() {
-                              if (i >= members.length) {
-                                  var goneSet = {}; members.slice(0, gone).forEach(function(p) { goneSet[p] = 1; });
+                              if (i >= files.length) {
+                                  var goneSet = {}; gone.forEach(function(p) { goneSet[p] = 1; });
                                   _imgLibCache = (_imgLibCache || []).filter(function(im) { return !goneSet[im.path]; });
-                                  members.forEach(function(p) { catStores().forEach(function(s) { if (s.c.by[p]) delete s.c.by[p]; }); }); imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
-                                  toast(oldCore ? 'Deleting pictures needs the 1.4.6 core \u2014 run the installer from Settings \u2192 Updates & about.' : 'Deleted ' + gone + ' picture file' + (gone === 1 ? '' : 's') + '.');
+                                  gone.forEach(function(p) { catStores().forEach(function(s) { if (s.c.by[p]) delete s.c.by[p]; }); }); imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);
+                                  toast(oldCore ? 'Deleting pictures needs the 1.4.6 core \u2014 run the installer from Settings \u2192 Updates & about.' : 'Deleted ' + gone.length + ' picture file' + (gone.length === 1 ? '' : 's') + '.' + (keptN ? ' ' + keptNote : ''));
                                   return;
                               }
-                              var batch = members.slice(i, i + 4); i += 4;
-                              Promise.all(batch.map(function(src) { return fetch('/api/delete-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: src }) }).then(function(r) { if (r.status === 404 && !r.headers.get('content-type')) oldCore = true; else if (r.ok) gone++; }).catch(function() {}); })).then(next);
+                              var batch = files.slice(i, i + 4); i += 4;
+                              Promise.all(batch.map(function(src) { return fetch('/api/delete-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: src }) }).then(function(r) { if (r.status === 404 && !r.headers.get('content-type')) oldCore = true; else if (r.ok) gone.push(src); }).catch(function() {}); })).then(next);
                           }
                           next();
                       });
@@ -4087,8 +4115,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var camp = getActiveCampaign(), c = camp && castOf(camp)[cid]; if (!c) return;
       var pv = document.getElementById('imgLibPreview'), grid = document.getElementById('imgLibGrid'); if (!pv || !grid) return;
       pv.dataset.cid = cid; delete pv.dataset.src;
-      document.getElementById('imgLibPreviewImg').src = c.src ? encodeURI(c.src)
-          : 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><circle cx="60" cy="60" r="52" fill="' + (c.color || '#4db3d3') + '"/></svg>');
+      document.getElementById('imgLibPreviewImg').src = picRef(c.src) ? encodeURI(picRef(c.src))
+          : 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><circle cx="60" cy="60" r="52" fill="' + (cssColor(c.color) || '#4db3d3') + '"/></svg>');
       document.getElementById('imgLibPreviewName').textContent = c.name || 'Character';
       document.getElementById('imgLibPreviewMeta').innerHTML = '<div style="color:var(--gold);">★ Campaign Cast</div>' + (c.charStats ? '<div>' + esc(c.charStats) + '</div>' : '<div style="color:var(--dim);">No stat line</div>');
       var add = document.getElementById('imgLibPreviewAdd');
@@ -5217,11 +5245,11 @@ function castPlace(cid, x, y, count) {
 function castLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp) return '';
     var q = (filter || '').toLowerCase();
-    var list = Object.values(castOf(camp)).filter(function(c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    var list = Object.values(castOf(camp)).filter(function(c) { return !q || String(c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     _castOrder = list.map(function(c) { return c.id; });   // the shown order, for Shift-click runs
     if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
     return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span>&#9733; Campaign Cast</span><span class="cast-head-note">\u2014 click a face for a closer look; Ctrl-click to pick several; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
-        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look; Ctrl-click to pick several">' + (c.src ? '<img src="' + encodeURI(c.src) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
+        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ' — ' + esc(c.charStats) : '') + ' — click for a closer look; Ctrl-click to pick several">' + (picRef(c.src) ? '<img src="' + encodeURI(picRef(c.src)) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;">&#9733;</div>') + '<div class="img-lib-name">&#9733; ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
         + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
 }
 function viewCentre() {
@@ -5241,7 +5269,7 @@ function setCastBatch(v) {
     return n;
 }
 function castMenuHtml(camp) {
-    var list = Object.values(castOf(camp)).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    var list = Object.values(castOf(camp)).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     // One row; the members live in a flyout so the rest of the menu keeps its size whatever the cast holds
     if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it">&#9733; Campaign Cast <span style="color:var(--dim); font-size:11px;">— empty</span></div>';
     var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span>&#9733; Campaign Cast</span><span style="color:var(--dim); font-size:11px;">' + list.length + '</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
@@ -5249,7 +5277,7 @@ function castMenuHtml(camp) {
           + '<label class="cm-batch-wrap" title="How many copies the \u00d7 button drops (1\u201350)">\u00d7<input type="number" class="cm-batch" min="1" max="50" value="' + castBatch() + '"></label></div>';
     list.forEach(function(c) {
         html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" data-name="' + esc((c.name || '').toLowerCase()) + '" style="display:flex; align-items:center; gap:8px;">'
-              + (c.src ? '<img src="' + esc(c.src) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '&#9733;')
+              + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '&#9733;')
               + '<span style="flex:1;">' + esc(c.name) + '</span>'
               + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies here" style="padding:1px 7px; font-size:10.5px;">&times;' + castBatch() + '</button></div>';
     });
@@ -5390,9 +5418,9 @@ window.wpRenderCombatStrip = renderCombatStrip;
 function openCastModal() {
     var m = document.getElementById('castModal'), list = document.getElementById('castList'); if (!m || !list) return;
     var camp = getActiveCampaign(); if (!camp) return;
-    var entries = Object.values(castOf(camp)).sort(function(a, b) { return a.name.localeCompare(b.name); });
+    var entries = Object.values(castOf(camp)).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     list.innerHTML = entries.length ? entries.map(function(c) {
-        return '<div class="cast-row" data-cid="' + esc(c.id) + '">' + (c.src ? '<img src="' + esc(c.src) + '" alt="">' : '<div class="cast-thumb-empty">&#9733;</div>')
+        return '<div class="cast-row" data-cid="' + esc(c.id) + '">' + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="">' : '<div class="cast-thumb-empty">&#9733;</div>')
              + '<div style="flex:1; min-width:0;"><input class="field cast-name" value="' + esc(c.name) + '" placeholder="Name"><input class="field cast-stats" value="' + esc(c.charStats || '') + '" placeholder="Line under the name (optional)" style="margin-top:4px; font-size:12px;"></div>'
              + '<button class="tool ghost danger cast-del" title="Remove from the cast (tokens already placed stay)">&times;</button></div>';
     }).join('') : '<div style="color:var(--dim); padding:12px; line-height:1.5;">Nothing saved yet. Right-click a character token on a play map and choose <b>Save to Campaign Cast</b>; then right-click empty space to drop copies.</div>';
@@ -5445,7 +5473,7 @@ function tableMenuParts(e, role) {
     } else {
         var nextScene = camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null;
         if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '" title="The planner marked Next">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
-        var amPin = getActiveMap(), isPinned = !!(camp && amPin && (camp.pinnedMaps || []).indexOf(amPin.id) >= 0);
+        var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list">&#128204; ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
         if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log">&#128220; Session Log\u2026</div>';
         html += '<div class="menu-divider"></div>';
@@ -5519,7 +5547,7 @@ function tableMenuParts(e, role) {
                 else if (act === 'combat-end') { var amE = getActiveMap(); if (amE) n.combatEnd(amE.id); }
                 else if (act === 'pin') {
                     var campP = getActiveCampaign(), amP = getActiveMap(); if (!campP || !amP) return;
-                    campP.pinnedMaps = (campP.pinnedMaps || []).filter(function(id) { return campP.items[id]; });
+                    campP.pinnedMaps = (Array.isArray(campP.pinnedMaps) ? campP.pinnedMaps : []).filter(function(id) { return campP.items[id]; });
                     var atP = campP.pinnedMaps.indexOf(amP.id);
                     if (atP >= 0) campP.pinnedMaps.splice(atP, 1); else campP.pinnedMaps.push(amP.id);
                     import('./io.js').then(function(m) { m.save(true); m.toast(atP >= 0 ? 'Unpinned.' : 'Pinned — it sits at the top of the Maps list now.'); });

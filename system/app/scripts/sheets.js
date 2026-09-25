@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -853,7 +853,8 @@ function glyphPicker(inp, anchor, repaint) {
     try { q.focus(); } catch (er) {}
 }
 function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
-    var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
+    var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
+    var sheet = (hudV || (sys.sheet && sys.sheet.sections && sys.sheet.sections.length)) ? sys.sheet : autoLayout(sys);   // the HUD has no automatic layout of its own
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
@@ -876,7 +877,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     // do below; the band's inputs carry data-band so focus restore tells the copies apart.
     var bandDef = (sys.sheet && Array.isArray(sys.sheet.band)) ? sys.sheet.band : null;
     var grpById = {}; ((sys.sheet && Array.isArray(sys.sheet.bandGroups)) ? sys.sheet.bandGroups : []).forEach(function(g) { if (g && typeof g.id === 'string' && PIN_GID.test(g.id)) grpById[g.id] = g; });   // Stage 6: band groups (built even with no band: a Pin in a section still draws)
-    var pctx = { byId: byId, rollById: rollById, c: c, all: all, gm: gm, own: own, sys: sys, grpById: grpById, targets: pinTargets(layout), vctx: vctx, rerender: rerender, body: body };   // the targets: the Pins in the layout actually drawn (the automatic one has none, so every group shows)
+    var pctx = { byId: byId, rollById: rollById, c: c, all: all, gm: gm, own: own, sys: sys, grpById: grpById, targets: (vctx && vctx.targets) || pinTargetsAll(sys.sheet), vctx: vctx, rerender: rerender, body: body };   // the targets: the Pins in the layout actually drawn (the automatic one has none, so every group shows)
     bandInto(frame, bandDef, pctx);
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
     var active = '', stripEl = null;   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other; the strip is appended after the dashboard sections
@@ -911,7 +912,8 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     function renderOneSection(sec, isChild) {
         var collap = !!sec.collapsible;
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
-        if (collap) { s.open = (sec.id in _secOpen) ? _secOpen[sec.id] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[sec.id] = s.open; }); }
+        var secKey = (hudV ? 'h:' : '') + sec.id;   // HF1: remembered per view (sheet keys unchanged)
+        if (collap) { s.open = (secKey in _secOpen) ? _secOpen[secKey] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[secKey] = s.open; }); }
         var stripe = !!(sec.style && sec.style.accent && sec.style.stripe !== false);   // Stage 5g: an accent can colour the title alone
         if (sec.style && (sec.style.bg || sec.style.border || stripe)) {   // Stage 3: per-section colors (padding/radius so the panel reads as a box)
             s.style.padding = '8px 10px'; s.style.borderRadius = '8px';
@@ -966,11 +968,14 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     });
     applyLook(body, look, vctx);   // Stage 6 look fold
     syncFramePad(body);
-    if (tabs ? !tabN : !secN) body.appendChild(el('div', 'sys-empty', tabs ? 'Nothing on this tab yet.' : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.')));
+    if (tabs ? !tabN : !secN) { var emT = tabs ? 'Nothing on this tab yet.' : hudV ? (((sheet.band && sheet.band.length) || (sheet.ledger && sheet.ledger.length)) ? '' : 'Nothing in this view yet.') : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.'); if (emT) body.appendChild(el('div', 'sys-empty', emT)); }   // HF1: a band-only HUD shows no empty text under its chips
 }
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
-function layoutSections() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.sections)) draft.sheet.sections = []; return draft.sheet.sections; }
-function layoutTabs() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet.tabs)) draft.sheet.tabs = []; return draft.sheet.tabs; }
+// Stage 6 HUD frame (HF1): the Layout tab edits the sheet's layout or the HUD's (the Sheet | HUD switch). A HUD made by merely looking at
+// it is dropped by the cleaner on Save (nothing set).
+function layoutRoot() { if (!draft.sheet) draft.sheet = {}; if (layoutView !== 'hud') return draft.sheet; if (!draft.sheet.hud || typeof draft.sheet.hud !== 'object' || Array.isArray(draft.sheet.hud)) draft.sheet.hud = { tabs: [], sections: [] }; return draft.sheet.hud; }
+function layoutSections() { var r = layoutRoot(); if (!Array.isArray(r.sections)) r.sections = []; return r.sections; }
+function layoutTabs() { var r = layoutRoot(); if (!Array.isArray(r.tabs)) r.tabs = []; return r.tabs; }
 function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sheet[key])) ? draft.sheet[key].slice() : []; }   // a copy of one of the sheet's id lists (identity / ledger / band), [] when absent
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
@@ -980,10 +985,22 @@ function placementLabel(pl, byId, rollById) {
 }
 function renderLayout() {
     var root = ui('sysLayoutSecs'); if (!root || !draft) return;
-    var secs = layoutSections(), byId = {}, rollById = {}, placed = {};
+    var secs = layoutSections(), byId = {}, rollById = {}, placed = {}, onSheet = {}, hudOn = layoutView === 'hud';
     draft.fields.forEach(function(f) { byId[f.id] = f; }); draft.rolls.forEach(function(r) { rollById[r.id] = r; });
     secs.forEach(function(s) { (s.fields || []).forEach(function(p) { if (p.id) placed[p.id] = 1; }); });
+    if (hudOn) ((draft.sheet && Array.isArray(draft.sheet.sections)) ? draft.sheet.sections : []).forEach(function(s) { (s.fields || []).forEach(function(p) { if (p && p.id) onSheet[p.id] = 1; }); });
     root.textContent = '';
+    // Stage 6 HUD frame (HF1): the Sheet | HUD switch — the toolbar's words follow the view; the HUD's title comes first in its view
+    Array.prototype.forEach.call(document.querySelectorAll('#sysLayoutView [data-view]'), function(vb) { vb.classList.toggle('on', vb.dataset.view === layoutView); vb.setAttribute('aria-pressed', vb.dataset.view === layoutView ? 'true' : 'false'); });
+    var tbAuto = ui('sysLayoutAuto'), tbClear = ui('sysLayoutClear'), tbNote = ui('sysLayoutNote');
+    if (tbAuto) { tbAuto.textContent = hudOn ? 'Copy the sheet\u2019s sections' : 'Start from the automatic layout'; tbAuto.title = hudOn ? 'Put a copy of the sheet\u2019s sections (or the automatic layout\u2019s) on the HUD\u2019s first tab, to trim and re-tab' : 'Copy the automatic layout (one section per kind, then the rolls) as a starting point'; }
+    if (tbClear) { tbClear.textContent = hudOn ? 'Remove the HUD' : 'Use the automatic layout'; tbClear.title = hudOn ? 'Take the HUD away (its button goes from every sheet and menu; the sheet is untouched)' : 'Remove your layout and let the sheet arrange itself'; }
+    if (tbNote) { if (!tbNote.dataset.sheetText) tbNote.dataset.sheetText = tbNote.textContent; tbNote.textContent = hudOn ? 'The HUD is a second window for each character, with its own tabs, sections, band and ledger. A field can be on the sheet and here; within the HUD it appears once. Players get a HUD button once it holds something they can see.' : tbNote.dataset.sheetText; }
+    if (hudOn) {
+        var hudBox = el('div', 'sys-tabmgr sys-hudbox'); hudBox.appendChild(el('div', 'sys-tabmgr-head', 'HUD title (optional)'));
+        hudBox.appendChild(input('sys-hud-title field', layoutRoot().title, 'Shown under the name in the HUD\u2019s head (e.g. Combat HUD)', 'HUD'));
+        root.appendChild(hudBox);
+    }
     // Tabs (optional, Stage 1): group sections into a tab strip on the sheet. No tabs = one stacked page.
     var tabs = layoutTabs();
     var tabBox = el('div', 'sys-tabmgr');
@@ -1005,6 +1022,7 @@ function renderLayout() {
     // Wired directly (the layout's delegated handlers key on sections and data-act): each control edits draft.sheetStyle.
     var lookBox = el('div', 'sys-tabmgr sys-lookbox');
     lookBox.appendChild(el('div', 'sys-tabmgr-head', 'Sheet look (optional)'));
+    if (hudOn) lookBox.appendChild(el('div', 'sys-note', 'Shared by the sheet and the HUD (the HUD leaves out sticky titles and the header portrait; its head has its own).'));   // HUD frame HF1
     var look = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : null;
     var lookRow = el('div', 'sys-sec-style');
     var FONTS = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {};
@@ -1094,12 +1112,16 @@ function renderLayout() {
         draft.sheet.bandGroups = (draft.sheet.bandGroups || []).filter(function(g) { return g && g.id !== gid; }); if (!draft.sheet.bandGroups.length) delete draft.sheet.bandGroups;
         (draft.sheet.band || []).forEach(function(q) { if (q && q.g === gid) delete q.g; });
         (draft.sheet.sections || []).forEach(function(s) { if (s.pin === gid) delete s.pin; if (Array.isArray(s.fields)) s.fields = s.fields.filter(function(p) { return !(p && p.kind === 'pin' && p.g === gid); }); });
+        var hd = draft.sheet.hud; if (hd && typeof hd === 'object') {   // HUD frame HF1: the HUD's band and sections too
+            (Array.isArray(hd.band) ? hd.band : []).forEach(function(q) { if (q && q.g === gid) delete q.g; });
+            (Array.isArray(hd.sections) ? hd.sections : []).forEach(function(s) { if (s.pin === gid) delete s.pin; if (Array.isArray(s.fields)) s.fields = s.fields.filter(function(p) { return !(p && p.kind === 'pin' && p.g === gid); }); });
+        }
         markDirty(); renderLayout();
     };
     function pinBox(cfg) {
-        var list = (draft.sheet && Array.isArray(draft.sheet[cfg.key])) ? draft.sheet[cfg.key] : [];
+        var lroot = layoutRoot(), list = Array.isArray(lroot[cfg.key]) ? lroot[cfg.key] : [];   // HUD frame HF1: this view's list
         var keep = list.filter(function(q) { return q && (q.id ? !!(byId[q.id] && cfg.kinds[byId[q.id].kind] === 1) : !!(cfg.rolls && q.roll && rollById[q.roll])); });
-        if (keep.length !== list.length) { if (keep.length) draft.sheet[cfg.key] = list = keep; else { delete draft.sheet[cfg.key]; list = []; } }
+        if (keep.length !== list.length) { if (keep.length) lroot[cfg.key] = list = keep; else { delete lroot[cfg.key]; list = []; } }
         var box = el('div', 'sys-tabmgr sys-bandbox'); box.id = cfg.boxId;
         box.appendChild(el('div', 'sys-tabmgr-head', cfg.title));
         box.appendChild(el('div', 'sys-hint', list.length ? cfg.hintFull : cfg.hintEmpty));
@@ -1116,11 +1138,11 @@ function renderLayout() {
         if (chips.childNodes.length) box.appendChild(chips);
         if (cfg.groups) {   // Stage 6 look fold (L4): the band's groups — each gets a Pin button placed beside its figures
             var gline = el('div', 'sys-band-grps'); gline.appendChild(el('span', 'sys-sec-style-lbl', 'Groups'));
-            var targetsG = pinTargets(draft.sheet && draft.sheet.sections);
+            var targetsG = pinTargetsAll(draft.sheet);   // HF1: a Pin in either view
             grpList.forEach(function(g, gi) {
                 var gr = el('div', 'sys-band-grp'); gr.dataset.gi = String(gi);
                 var gl = input('sys-bgrp-label field', g.label, 'The group\u2019s name (on its Pin button: \u201cPin <name>\u201d)', 'Group name'); gl.addEventListener('input', function(e) { e.stopPropagation(); g.label = gl.value.slice(0, LIMITS.label); markDirty(); renderPreview(); }); gl.addEventListener('change', function(e) { e.stopPropagation(); }); gr.appendChild(gl);
-                var where = null; (draft.sheet && Array.isArray(draft.sheet.sections) ? draft.sheet.sections : []).forEach(function(s) { if (where) return; if (s.pin === g.id || (s.fields || []).some(function(p) { return p && p.kind === 'pin' && p.g === g.id; })) where = s.title || 'a section'; });
+                var where = null; [[draft.sheet && draft.sheet.sections, ''], [draft.sheet && draft.sheet.hud && draft.sheet.hud.sections, 'HUD: ']].forEach(function(lv) { (Array.isArray(lv[0]) ? lv[0] : []).forEach(function(s) { if (where) return; if (s.pin === g.id || (s.fields || []).some(function(p) { return p && p.kind === 'pin' && p.g === g.id; })) where = lv[1] + (s.title || 'a section'); }); });
                 gr.appendChild(el('span', 'sys-hint sys-bgrp-note', targetsG[g.id] === 1 ? 'Pin: ' + where : 'No Pin button yet: always shown'));
                 var gd = el('button', 'tool ghost sys-btn', '\u00d7'); gd.title = 'Delete this group (its figures stay on the band, always shown; its Pin buttons go)'; gd.addEventListener('click', function(e) { e.stopPropagation(); deleteGroup(g.id); }); gr.appendChild(gd);
                 gline.appendChild(gr);
@@ -1136,9 +1158,9 @@ function renderLayout() {
         if (cfg.rolls) draft.rolls.forEach(function(r) { if (!on[r.id]) opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
         var row = el('div', 'sys-row-main sys-band-addrow');
         var add = select('sys-band-add', opts, '', cfg.addTitle); row.appendChild(add);
-        if (list.length) { var clr = el('button', 'tool ghost sys-btn', 'Clear'); clr.title = cfg.clearTitle; clr.addEventListener('click', function() { delete draft.sheet[cfg.key]; markDirty(); renderLayout(); }); row.appendChild(clr); }
+        if (list.length) { var clr = el('button', 'tool ghost sys-btn', 'Clear'); clr.title = cfg.clearTitle; clr.addEventListener('click', function() { delete layoutRoot()[cfg.key]; markDirty(); renderLayout(); }); row.appendChild(clr); }
         box.appendChild(row);
-        var lst = function() { if (!draft.sheet) draft.sheet = {}; if (!Array.isArray(draft.sheet[cfg.key])) draft.sheet[cfg.key] = []; return draft.sheet[cfg.key]; };
+        var lst = function() { var lr = layoutRoot(); if (!Array.isArray(lr[cfg.key])) lr[cfg.key] = []; return lr[cfg.key]; };
         add.addEventListener('change', function(e) {
             e.stopPropagation();   // the modal's delegated change handler would otherwise look for a field row here
             var v = add.value; add.value = ''; if (!v) return;
@@ -1156,13 +1178,13 @@ function renderLayout() {
             var act = bb.dataset.act;
             if (act === 'pinleft' && bi > 0) { l.splice(bi, 1); l.splice(bi - 1, 0, q); }
             else if (act === 'pinright' && bi < l.length - 1) { l.splice(bi, 1); l.splice(bi + 1, 0, q); }
-            else if (act === 'pindel') { l.splice(bi, 1); if (!l.length) delete draft.sheet[cfg.key]; }
+            else if (act === 'pindel') { l.splice(bi, 1); if (!l.length) delete layoutRoot()[cfg.key]; }
             else return;
             markDirty(); renderLayout();
         });
         root.appendChild(box);
     }
-    pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows (optional)', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
+    if (!hudOn) pinBox({ key: 'identity', boxId: 'sysIdentityBox', title: 'Identity rows (optional)', kinds: IDENTITY_KINDS, rolls: false, limit: LIMITS.identity,
         hintFull: 'Under the name, in columns: a small label over each value; they scroll away with the sheet, leaving the band and the tabs at the top. Text, select, number and yes/no rows are changed right here by whoever may edit them, so they need no second copy in a section; formulas, skills and resources are read-only here. Players see the same rows.',
         hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
         addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number or toggle (changed right there) or a formula, skill or resource (read-only) to show under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
@@ -1174,7 +1196,7 @@ function renderLayout() {
         hintFull: 'Shown on every tab, just above the tab strip, and it stays at the top with the strip while the sheet scrolls. A field can be here and in a section too.',
         hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
         addLabel: 'Pin to the band\u2026', addTitle: 'A number, formula, skill, resource, toggle or roll to keep in view on every tab', delTitle: 'Take off the band (it stays wherever else it is on the sheet)', clearTitle: 'Take everything off the band', capMsg: 'The band holds at most ' + LIMITS.band + ' items.' });
-    if (!secs.length) root.appendChild(el('div', 'sys-empty', 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
+    if (!secs.length) root.appendChild(el('div', 'sys-empty', hudOn ? 'No HUD yet \u2014 add a section, a band figure or a ledger figure.' : 'No layout of your own yet: the sheet shows the automatic layout (one section per kind, then the rolls). Start from it, or add a section.'));
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
         var top = el('div', 'sys-row-main');
@@ -1229,8 +1251,8 @@ function renderLayout() {
             list.appendChild(pr);
         });
         row.appendChild(list);
-        var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft);
-        draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
+        var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft, hudOn ? (draft.sheet && draft.sheet.hud) || null : undefined);
+        draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
         grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
@@ -1248,7 +1270,10 @@ function renderPreview() {
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
-    _fxLive = false; try { buildSections(box, clean, pc, resolveAll(clean, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: 'sheet', preview: true }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
+    var pv = layoutView === 'hud' ? hudView(clean) : clean;   // Stage 6 HUD frame (HF1): the HUD's own layout, in the shared look
+    box.classList.toggle('sys-layout-preview-hud', layoutView === 'hud');
+    if (!pv) { box.textContent = ''; box.appendChild(el('div', 'sys-empty', 'No HUD yet: add a section, a band figure or a ledger figure on the left.')); return; }
+    _fxLive = false; try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, targets: pinTargetsAll(clean.sheet) }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
     syncFramePad(box);
     Array.prototype.forEach.call(box.children, function(ch) { ch.inert = true; });   // Stage 6: the preview draws a real character's values as the GM — no keyboard edit may reach it (the box itself stays the scroller)
@@ -1257,6 +1282,7 @@ function onLayoutInput(t) {
     var c = t.className || '';
     if (c.indexOf('sys-tab-icon') >= 0) { var itr = t.closest && t.closest('.sys-row.sys-tab'); if (itr) { var tbi = layoutTabs().find(function(x) { return x.id === itr.dataset.tid; }); if (tbi) { if (t.value.trim()) tbi.icon = t.value.slice(0, 32); else delete tbi.icon; markDirty(); renderPreview(); } } return true; }   // Stage 5g (Save trims it to a few code points)
     if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); renderPreview(); } } return true; }
+    if (t.classList && t.classList.contains('sys-hud-title')) { var hr = layoutRoot(); if (t.value.trim()) hr.title = t.value.slice(0, LIMITS.label); else delete hr.title; markDirty(); renderPreview(); return true; }   // HUD frame HF1 (before the section lookup: the title row is outside a section)
     var lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
@@ -1287,7 +1313,7 @@ function onLayoutChange(t) {
     if (c.indexOf('sys-pl-add') >= 0) {
         var v = t.value; t.value = ''; if (!v) return true;
         var total = 0; layoutSections().forEach(function(s) { total += (s.fields || []).length; });
-        if (total >= LIMITS.placements) { toast('The sheet holds at most ' + LIMITS.placements + ' placements.'); return true; }
+        if (total >= LIMITS.placements) { toast('This view holds at most ' + LIMITS.placements + ' placements.'); return true; }
         sec.fields = sec.fields || [];
         var kind = v.slice(0, 1), id = v.slice(2), pl = null;
         if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id; })) pl = { id: id, w: 1 }; }
@@ -1300,18 +1326,36 @@ function onLayoutChange(t) {
     return false;
 }
 function onLayoutClick(b) {
+    if (b.closest && b.closest('#sysLayoutView') && (b.dataset.view === 'sheet' || b.dataset.view === 'hud')) { if (layoutView !== b.dataset.view) { layoutView = b.dataset.view; var pvb = ui('sysLayoutPreview'); if (pvb) delete pvb.dataset.wpTab; renderLayout(); } return true; }   // HUD frame HF1: the Sheet | HUD switch (never marks the draft dirty)
+    if (b.id === 'sysLayoutAuto' && layoutView === 'hud') {   // HF1: copy the sheet's sections (or the automatic layout's) onto the HUD's first tab — fresh ids, parents remapped, no tab
+        var clH = cleanSystem(draft, { F: F(), gmView: true }) || draft, srcS = (clH.sheet && Array.isArray(clH.sheet.sections) && clH.sheet.sections.length) ? clH.sheet.sections : autoLayout(clH).sections;
+        var doCopy = function() {
+            var idMap = {}, copies = [];
+            srcS.slice(0, LIMITS.sections).forEach(function(s0) { idMap[s0.id] = uid('s_'); });
+            srcS.slice(0, LIMITS.sections).forEach(function(s0) { var cp = clone(s0); cp.id = idMap[s0.id]; delete cp.tab; if (cp.parent) { if (idMap[cp.parent]) cp.parent = idMap[cp.parent]; else delete cp.parent; } cp.fields = (cp.fields || []).filter(function(p) { return !(p && p.kind === 'hud'); }); copies.push(cp); });
+            layoutRoot().sections = copies; markDirty(); renderLayout(); toast('The HUD now has a copy of the sheet\u2019s sections, on its first tab: trim them, and put them on the HUD\u2019s own tabs.');
+        };
+        if (layoutSections().length) showConfirm('Replace the HUD\u2019s sections with a copy of the sheet\u2019s? The HUD\u2019s title, tabs, band and ledger are kept.', function(yes) { if (yes) doCopy(); }); else doCopy();
+        return true;
+    }
+    if (b.id === 'sysLayoutClear' && layoutView === 'hud') {   // HF1: take the HUD away (the sheet is untouched)
+        var hd0 = draft.sheet && draft.sheet.hud, ln = function(k) { return !!(hd0 && Array.isArray(hd0[k]) && hd0[k].length); };
+        if (!hd0 || !(hd0.title || ln('tabs') || ln('sections') || ln('band') || ln('ledger'))) return true;   // nothing set (the view itself made an empty one)
+        showConfirm('Remove the HUD? Its button goes from every sheet and menu; the sheet itself is untouched.', function(yes) { if (yes) { delete draft.sheet.hud; markDirty(); renderLayout(); } });
+        return true;
+    }
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
     if (b.id === 'sysLayoutAuto') {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
-        var keepGrp = sheetList('bandGroups');   // Stage 6: the band's groups are kept with it (the new sections have no Pin yet, so they show)
+        var keepGrp = sheetList('bandGroups'), keepHud = draft.sheet && draft.sheet.hud;   // Stage 6: the band's groups are kept with it (the new sections have no Pin yet, so they show)
         var cl = cleanSystem(draft, { F: F(), gmView: true }), keepId = sheetList('identity'), keepLed = sheetList('ledger'), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
         var keepLook = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : null;   // Stage 5g: the shape lives in the Sheet look box — kept
         draft.sheet = { sections: autoLayout(cl || draft).sections }; if (keepLook) draft.sheet.look = keepLook; if (keepTabs.length) draft.sheet.tabs = keepTabs; if (keepBand.length) draft.sheet.band = keepBand;
         if (keepId.length) draft.sheet.identity = keepId; if (keepLed.length) draft.sheet.ledger = keepLed;   // Stage 5d: the header block is kept as well
-        if (keepGrp.length) draft.sheet.bandGroups = keepGrp;
+        if (keepGrp.length) draft.sheet.bandGroups = keepGrp; if (keepHud) draft.sheet.hud = keepHud;   // HUD frame HF1: the HUD is kept
         var keptAny = keepTabs.length || keepBand.length || keepId.length || keepLed.length;
         markDirty(); renderLayout(); toast(keptAny ? 'The automatic layout is now yours to change; your tabs, header block and band are kept.' : 'The automatic layout is now yours to change.'); return true;
     }
-    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length) && !sheetList('identity').length && !sheetList('ledger').length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs, no identity rows or ledger figures and no pinned band (the Sheet look box is kept).', function(yes) { if (yes) { var keepShape = draft.sheet && draft.sheet.look; draft.sheet = { sections: [] }; if (keepShape) draft.sheet.look = keepShape; markDirty(); renderLayout(); } }); return true; }
+    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length) && !sheetList('identity').length && !sheetList('ledger').length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs, no identity rows or ledger figures and no pinned band (the Sheet look box and the HUD are kept).', function(yes) { if (yes) { var keepHud = draft.sheet && draft.sheet.hud, keepGrp2 = draft.sheet && draft.sheet.bandGroups; var keepShape = draft.sheet && draft.sheet.look; draft.sheet = { sections: [] }; if (keepShape) draft.sheet.look = keepShape; if (keepHud) { draft.sheet.hud = keepHud; if (keepGrp2 && Array.isArray(keepHud.band) && keepHud.band.some(function(q) { return q && q.g; })) draft.sheet.bandGroups = keepGrp2; } markDirty(); renderLayout(); } }); return true; }
     if (b.id === 'sysAddTab') { var tbs0 = layoutTabs(); if (tbs0.length >= LIMITS.tabs) { toast('At most ' + LIMITS.tabs + ' tabs.'); return true; } tbs0.push({ id: uid('t_'), label: 'Tab ' + (tbs0.length + 1) }); markDirty(); renderLayout(); return true; }
     var act = b.dataset.act; if (!act) return false;
     var ltab = b.closest('.sys-row.sys-tab');   // the Tabs manager's rows — every editor pane is a .sys-tab too, and matching the pane swallowed every other data-act button (fields, rolls, items, characters, sections)
@@ -1509,13 +1553,14 @@ function fxMark(e, max) {
 }
 // 5h: a character's status effects — each row with its switch, icon, name, tone, duration and what it changes; add one from the library
 // in a click, or make one on the spot (New…). Rights are the list field's (the host judges every change again).
-var _fxLive = true, _fxForm = null;   // live: false while drawing the Layout preview or a pop-out (their controls act on nothing real); the open New… form's state
+var _fxLive = true, _fxForm = null, _fxView = 'sheet';   // _fxView (HUD frame HF1): the view being drawn, so an open New… form shows in one view only   // live: false while drawing the Layout preview or a pop-out (their controls act on nothing real); the open New… form's state
 function effectsInto(wrap, f, c, rows, sys, editable) {
     editable = editable && _fxLive;
     var lib = {}, labels = {};
     ((sys && sys.effects) || []).forEach(function(d) { lib[d.id] = d; });
     ((sys && sys.fields) || []).forEach(function(x) { labels[x.id] = x.label || x.key; });
-    var cards = !!(sys && sys.sheet && sys.sheet.look && sys.sheet.look.effects === 'cards');   // Stage 6 look fold (L6): a card per effect
+    var cards = !!(sys && sys.sheet && sys.sheet.look && sys.sheet.look.effects === 'cards');
+    var fxV = _fxView;   // HUD frame HF1: the view this list is drawn in   // Stage 6 look fold (L6): a card per effect
     rows.forEach(function(r) {
         var d = typeof r.ref === 'string' ? lib[r.ref] : r; if (!d) return;
         var line = el('div', 'sheet-fx' + (r.on === false ? ' sheet-fx-off' : '') + (d.tone === 'buff' || d.tone === 'debuff' ? ' sheet-fx-' + d.tone : ''));
@@ -1542,10 +1587,10 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
         bar.appendChild(add);
     }
     var nb = el('button', 'tool ghost sys-btn sheet-fx-new', 'New\u2026'); nb.title = 'An effect made on the spot, with its own numbers';
-    nb.addEventListener('click', function() { _fxForm = { charId: c.id, fieldId: f.id, name: '', tone: '', dur: '', lines: null }; nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); });
+    nb.addEventListener('click', function() { _fxForm = { charId: c.id, fieldId: f.id, name: '', tone: '', dur: '', lines: null, view: fxV }; nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); });
     bar.appendChild(nb);
     wrap.appendChild(bar);
-    if (_fxForm && _fxForm.charId === c.id && _fxForm.fieldId === f.id) { nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); }   // reopened with what was typed
+    if (_fxForm && _fxForm.charId === c.id && _fxForm.fieldId === f.id) { if ((_fxForm.view || 'sheet') === fxV) { nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); } }   // reopened with what was typed (in the view it was opened in)
 }
 // Stage 6 look fold (L6): one effect as a card — the switch, icon, name, then its tone and duration (with the hourglass); the notes as text; a
 // pill per change ("+2 ST", "−5 HP max", or the name of what it switches on); the × in the corner for whoever may end it
@@ -1867,7 +1912,7 @@ function charGone(id) { if (sheetOpen === id) { closeSheet(); toast('That charac
 function editResult(rid, ok, reason, msg) { if (!ok) toast(reason === 'stays' ? (msg || 'You can\u2019t get rid of it.') : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderSheet(); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
-var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {};
+var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
 var KIND_LABEL = { number: 'Number', formula: 'Formula', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
 var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-colour track.', formula: 'Computed from other fields; never stored, never edited.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 function open(which) {
@@ -1876,7 +1921,7 @@ function open(which) {
     draft = clone(systemOf(camp) || emptySystem());
     if (!Array.isArray(draft.fields)) draft.fields = []; if (!Array.isArray(draft.rolls)) draft.rolls = []; if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] };
     if (!Array.isArray(draft.items)) draft.items = []; if (!draft.combat || typeof draft.combat !== 'object') draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' };
-    dirty = false; tab = which || 'fields';
+    dirty = false; tab = which || 'fields'; layoutView = 'sheet';
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';

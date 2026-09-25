@@ -388,57 +388,68 @@ function pinTargets(sections) {
     (Array.isArray(sections) ? sections : []).forEach(function(s) { if (!isObj(s)) return; if (typeof s.pin === 'string') t[s.pin] = 1; (Array.isArray(s.fields) ? s.fields : []).forEach(function(pl) { if (isObj(pl) && pl.kind === 'pin' && typeof pl.g === 'string') t[pl.g] = 1; }); });
     return t;
 }
-function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null (format only) or a prototype-free set of the page ids players may see (Stage 5f); gmView false: the players' view
-    var out = { tabs: [], sections: [] }, placed = map(), total = 0, tabIds = map();
-    if (!isObj(sheet)) return out;
-    var groups = cleanBandGroups(sheet.bandGroups);   // Stage 6 look fold: before the band and the sections that name them
-    // Optional named tabs (Stage 1): ordered, labels only for v1. Absent ⇒ sections stack (as before).
-    if (Array.isArray(sheet.tabs)) {
-        for (var t = 0; t < sheet.tabs.length && out.tabs.length < LIMITS.tabs; t++) {
-            var tb = sheet.tabs[t];
-            if (!isObj(tb) || typeof tb.id !== 'string' || !TAB_ID.test(tb.id) || tabIds[tb.id]) continue;
-            tabIds[tb.id] = 1;
-            var tabOut = { id: tb.id, label: str(tb.label, LIMITS.label).replace(CTRL_RE, ' ').trim() }, tabIcon = cleanIcon(tb.icon);
-            if (tabIcon) tabOut.icon = tabIcon;   // Stage 5g: an icon before the label
-            out.tabs.push(tabOut);
-        }
+// Stage 6 HUD frame (HF1): a Pin in either view pins the group on both bands
+function pinTargetsAll(sheet) { return pinTargets((isObj(sheet) && Array.isArray(sheet.sections) ? sheet.sections : []).concat(isObj(sheet) && isObj(sheet.hud) && Array.isArray(sheet.hud.sections) ? sheet.hud.sections : [])); }
+// HF1: does the (cleaned) system's HUD hold anything to draw — a band or ledger figure, or a placement in a section?
+function hudHasContent(sys) { var h = sys && isObj(sys.sheet) && isObj(sys.sheet.hud) ? sys.sheet.hud : null; return !!(h && ((Array.isArray(h.band) && h.band.length) || (Array.isArray(h.ledger) && h.ledger.length) || (Array.isArray(h.sections) && h.sections.some(function(s) { return isObj(s) && Array.isArray(s.fields) && s.fields.length > 0; })))); }
+// HF1: the system as the HUD draws it — the same fields, rolls, effects and sheetStyle (by reference), the HUD's own layout in the sheet's
+// place, the shared groups, and the look without the sheet-only traits (the header portrait + name: the HUD's head has its own; sticky
+// titles: the Foundry HUD has none). null when there is no HUD. The input is never mutated.
+function hudView(sys) {
+    var sh = sys && isObj(sys.sheet) ? sys.sheet : null, h = sh && isObj(sh.hud) ? sh.hud : null; if (!h) return null;
+    var v = Object.assign({}, sys), s2 = { tabs: Array.isArray(h.tabs) ? h.tabs : [], sections: Array.isArray(h.sections) ? h.sections : [] };
+    if (Array.isArray(h.band)) s2.band = h.band; if (Array.isArray(h.ledger)) s2.ledger = h.ledger; if (Array.isArray(sh.bandGroups)) s2.bandGroups = sh.bandGroups;
+    if (isObj(sh.look)) { var lk = Object.assign({}, sh.look); delete lk.portrait; delete lk.sticky; if (Object.keys(lk).length) s2.look = lk; }
+    v.sheet = s2; return v;
+}
+// Stage 6 HUD frame (HF1): one set of cleaners for every layout of the sheet (the sheet, its HUD); each call keeps its OWN once-per-field
+// lists and caps, so a field may be on the sheet AND in the HUD, and once within each
+function cleanTabs(list) {   // Optional named tabs (Stage 1): ordered, labels only for v1. Absent ⇒ sections stack (as before).
+    var out = [], ids = map();
+    if (Array.isArray(list)) for (var t = 0; t < list.length && out.length < LIMITS.tabs; t++) {
+        var tb = list[t];
+        if (!isObj(tb) || typeof tb.id !== 'string' || !TAB_ID.test(tb.id) || ids[tb.id]) continue;
+        ids[tb.id] = 1;
+        var tabOut = { id: tb.id, label: str(tb.label, LIMITS.label).replace(CTRL_RE, ' ').trim() }, tabIcon = cleanIcon(tb.icon);
+        if (tabIcon) tabOut.icon = tabIcon;   // Stage 5g: an icon before the label
+        out.push(tabOut);
     }
-    // Stage 5c: the pinned band — a few placements shown under the name on every tab (and on a stacked sheet). Its own cap and
-    // its own once-per-item map: a field may be on the band AND in a section. Only what reads in one row (BAND_KINDS + rolls);
-    // fieldIds carries each field's kind, and in the players' view it lacks GM-only fields, so those pins drop with no extra code.
-    if (Array.isArray(sheet.band)) {
-        var band = [], onBand = map();
-        for (var b = 0; b < sheet.band.length && band.length < LIMITS.band; b++) {
-            var q = sheet.band[b]; if (!isObj(q)) continue;
-            var be = null;
-            if (typeof q.id === 'string' && BAND_KINDS[fieldIds[q.id]] === 1 && !onBand[q.id]) { onBand[q.id] = 1; be = { id: q.id }; }
-            else if (typeof q.roll === 'string' && rollIds[q.roll] && !onBand[q.roll]) { onBand[q.roll] = 1; be = { roll: q.roll }; }
-            if (!be) continue;
-            if (typeof q.g === 'string' && groups.ids[q.g] === 1) be.g = q.g;   // Stage 6: in a band group (only one that exists)
-            band.push(be);
-        }
-        if (band.length) out.band = band;   // absent when empty: a system without a band is byte-for-byte what it was
+    return { list: out, ids: ids };
+}
+// Stage 5c: the pinned band — a few placements shown under the name on every tab (and on a stacked sheet). Its own cap and its own
+// once-per-item map: a field may be on the band AND in a section. Only what reads in one row (BAND_KINDS + rolls); fieldIds carries each
+// field's kind, and in the players' view it lacks GM-only fields, so those pins drop with no extra code. null when absent or empty.
+function cleanBand(list, fieldIds, rollIds, groupIds) {
+    if (!Array.isArray(list)) return null;
+    var band = [], onBand = map();
+    for (var b = 0; b < list.length && band.length < LIMITS.band; b++) {
+        var q = list[b]; if (!isObj(q)) continue;
+        var be = null;
+        if (typeof q.id === 'string' && BAND_KINDS[fieldIds[q.id]] === 1 && !onBand[q.id]) { onBand[q.id] = 1; be = { id: q.id }; }
+        else if (typeof q.roll === 'string' && rollIds[q.roll] && !onBand[q.roll]) { onBand[q.roll] = 1; be = { roll: q.roll }; }
+        if (!be) continue;
+        if (typeof q.g === 'string' && groupIds[q.g] === 1) be.g = q.g;   // Stage 6: in a band group (only one that exists)
+        band.push(be);
     }
-    if (gmView === false) groups = pruneGroups(groups, [out.band]);   // Stage 6: the players' view keeps only groups with a visible entry (the GM keeps an empty one: nothing set is lost on Save)
-    if (groups.list.length) out.bandGroups = groups.list;
-    // Stage 5d: the header block — identity rows and ledger figures are read-only lists of field ids (no rolls), each with its own
-    // cap and once-per-id map, kind-gated like the band (so the players' view loses GM-only fields for free); absent when empty.
-    function idList(list, kinds, cap) {
-        if (!Array.isArray(list)) return null;
-        var outL = [], seenL = map();
-        for (var n = 0; n < list.length && outL.length < cap; n++) { var it = list[n]; if (!isObj(it) || typeof it.id !== 'string' || kinds[fieldIds[it.id]] !== 1 || seenL[it.id]) continue; seenL[it.id] = 1; outL.push({ id: it.id }); }
-        return outL.length ? outL : null;
-    }
-    var identity = idList(sheet.identity, IDENTITY_KINDS, LIMITS.identity); if (identity) out.identity = identity;
-    var ledger = idList(sheet.ledger, LEDGER_KINDS, LIMITS.ledger); if (ledger) out.ledger = ledger;
-    var look = cleanLook(sheet.look); if (look) out.look = look;   // Stage 5g: the sheet's shape (headline titles, filled tabs, an accent, the portrait + name)
-    if (!Array.isArray(sheet.sections)) return out;
-    for (var i = 0; i < sheet.sections.length && out.sections.length < LIMITS.sections; i++) {
-        var s = sheet.sections[i];
+    return band.length ? band : null;   // absent when empty: a system without a band is byte-for-byte what it was
+}
+// Stage 5d: the header block — identity rows and ledger figures are read-only lists of field ids (no rolls), each with its own cap and
+// once-per-id map, kind-gated like the band (so the players' view loses GM-only fields for free); null when empty.
+function idList(list, kinds, cap, fieldIds) {
+    if (!Array.isArray(list)) return null;
+    var outL = [], seenL = map();
+    for (var n = 0; n < list.length && outL.length < cap; n++) { var it = list[n]; if (!isObj(it) || typeof it.id !== 'string' || kinds[fieldIds[it.id]] !== 1 || seenL[it.id]) continue; seenL[it.id] = 1; outL.push({ id: it.id }); }
+    return outL.length ? outL : null;
+}
+// A layout's sections. ctx: { fieldIds, rollIds, pages (null: format only), tabIds, groupIds } — the tabs and groups of THIS layout
+function cleanSections(list, ctx) {
+    var out = [], placed = map(), total = 0, fieldIds = ctx.fieldIds, rollIds = ctx.rollIds, pages = ctx.pages, tabIds = ctx.tabIds, groupIds = ctx.groupIds;
+    for (var i = 0; i < list.length && out.length < LIMITS.sections; i++) {
+        var s = list[i];
         if (!isObj(s) || typeof s.id !== 'string' || !SECTION_ID.test(s.id)) continue;
         var cols = Math.max(1, Math.min(LIMITS.cols, cleanNum(s.cols, 1) | 0));
         var sec = { id: s.id, title: str(s.title, LIMITS.label).replace(CTRL_RE, ' ').trim(), cols: cols, fields: [] };
-        if (typeof s.tab === 'string' && tabIds[s.tab]) sec.tab = s.tab;   // keep only a tab ref that exists
+        if (typeof s.tab === 'string' && tabIds[s.tab]) sec.tab = s.tab;   // keep only a tab ref that exists (in this layout)
         if (s.collapsible) sec.collapsible = true;                          // Stage 2: a collapsible <details> section
         if (validPageId(s.chip) && (!pages || pages[s.chip] === 1)) sec.chip = s.chip;   // Stage 5f: a handbook chip in the header (a page the players' view can open)
         if (s.pinned) sec.pinned = true;                                    // Stage 5d: a dashboard section — stays above the tab strip on every tab
@@ -447,7 +458,7 @@ function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null 
         if (typeof s.parent === 'string' && SECTION_ID.test(s.parent) && s.parent !== s.id) sec.parent = s.parent;   // nest under another section (the render enforces one level)
         var secStyle = cleanSecStyle(s.style); if (secStyle) sec.style = secStyle;   // Stage 3: per-section colors (accent/bg/border)
         var secIcon = cleanIcon(s.icon); if (secIcon) sec.icon = secIcon;   // Stage 5g: an icon before the title
-        if (typeof s.pin === 'string' && groups.ids[s.pin] === 1) sec.pin = s.pin;   // Stage 6 look fold: a band group's Pin in the header
+        if (typeof s.pin === 'string' && groupIds[s.pin] === 1) sec.pin = s.pin;   // Stage 6 look fold: a band group's Pin in the header
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;
@@ -461,14 +472,44 @@ function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null 
                     if (pages && pages[item.page] !== 1) item = null;
                 }
                 if (p.kind === 'pin') {   // Stage 6 look fold: a band group's Pin button — only for a group that exists (in this view); its own label is optional
-                    if (typeof p.g === 'string' && groups.ids[p.g] === 1) { item.g = p.g; var ptx = cutText(p.text, LIMITS.label); if (ptx) item.text = ptx; }
+                    if (typeof p.g === 'string' && groupIds[p.g] === 1) { item.g = p.g; var ptx = cutText(p.text, LIMITS.label); if (ptx) item.text = ptx; }
                     else item = null;
                 }
             }
             if (item) { sec.fields.push(item); total++; }
         });
-        out.sections.push(sec);
+        out.push(sec);
     }
+    return out;
+}
+// Stage 6 HUD frame (HF1): the HUD — a second layout of the same sheet ({ title?, tabs, sections, band?, ledger? }; no identity rows: its
+// head carries the portrait and the name). The GM view keeps a HUD with anything set (nothing is lost on Save); the players' view keeps it
+// only while something in it is theirs to see (the GM's title never travels alone). { hud } or null.
+function cleanHud(h, hb, fieldIds, rollIds, pages, groupIds, gmView) {
+    var tabs = cleanTabs(h.tabs), out = {}, title = cutText(h.title, LIMITS.label);
+    if (title) out.title = title;
+    out.tabs = tabs.list;
+    out.sections = Array.isArray(h.sections) ? cleanSections(h.sections, { fieldIds: fieldIds, rollIds: rollIds, pages: pages, tabIds: tabs.ids, groupIds: groupIds }) : [];
+    if (hb) out.band = hb;
+    var ledger = idList(h.ledger, LEDGER_KINDS, LIMITS.ledger, fieldIds); if (ledger) out.ledger = ledger;
+    var shown = !!(hb || ledger || out.sections.some(function(x) { return x.fields.length > 0; }));
+    var kept = gmView === false ? shown : !!(shown || title || out.tabs.length || out.sections.length);
+    return kept ? { hud: out } : null;
+}
+function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null (format only) or a prototype-free set of the page ids players may see (Stage 5f); gmView false: the players' view
+    var out = { tabs: [], sections: [] };
+    if (!isObj(sheet)) return out;
+    var groups = cleanBandGroups(sheet.bandGroups);   // Stage 6 look fold: before the band and the sections that name them
+    var tabs = cleanTabs(sheet.tabs); out.tabs = tabs.list;
+    var band = cleanBand(sheet.band, fieldIds, rollIds, groups.ids); if (band) out.band = band;
+    var hs = isObj(sheet.hud) ? sheet.hud : null, hb = hs ? cleanBand(hs.band, fieldIds, rollIds, groups.ids) : null;   // HUD frame HF1: the HUD's own band
+    if (gmView === false) groups = pruneGroups(groups, [out.band, hb]);   // Stage 6: the players' view keeps only groups with a visible entry, on either band (the GM keeps an empty one: nothing set is lost on Save)
+    if (groups.list.length) out.bandGroups = groups.list;
+    var identity = idList(sheet.identity, IDENTITY_KINDS, LIMITS.identity, fieldIds); if (identity) out.identity = identity;
+    var ledger = idList(sheet.ledger, LEDGER_KINDS, LIMITS.ledger, fieldIds); if (ledger) out.ledger = ledger;
+    var look = cleanLook(sheet.look); if (look) out.look = look;   // Stage 5g: the sheet's shape (shared by the sheet and its HUD)
+    if (Array.isArray(sheet.sections)) out.sections = cleanSections(sheet.sections, { fieldIds: fieldIds, rollIds: rollIds, pages: pages, tabIds: tabs.ids, groupIds: groups.ids });
+    var hc = hs ? cleanHud(hs, hb, fieldIds, rollIds, pages, groups.ids, gmView) : null; if (hc) out.hud = hc.hud;   // HF1: the last key, absent when dropped
     return out;
 }
 // The system as stored, or as a player receives it (gmView false: GM-only fields and rolls gone, formulas that named them nulled)
@@ -1262,11 +1303,14 @@ function validateSystem(sys, F) {
         if (it.throwSkill && !ix[lower(it.throwSkill)]) warnings.push({ id: it.id, prop: 'throwSkill', message: 'Throw skill "' + it.throwSkill + '" is not a field.' });
     });
     // Stage 6 look fold (L4): a band group with no Pin button anywhere is always shown — say so (it may be meant)
-    var pinT = pinTargets(sys.sheet && sys.sheet.sections);
+    var pinT = pinTargetsAll(sys.sheet);   // HUD frame HF1: a Pin in the HUD counts too
     (sys.sheet && Array.isArray(sys.sheet.bandGroups) ? sys.sheet.bandGroups : []).forEach(function(g) { if (isObj(g) && typeof g.id === 'string' && pinT[g.id] !== 1) warnings.push({ id: g.id, prop: 'layout', message: 'The band group "' + (g.label || 'Group') + '" has no Pin button yet, so it is always shown.' }); });
     // Stage 6 look fold: one field, once — a field the header edits in place and placed again in a section is flagged
-    var hdrEd = headerEdits(sys);
-    (sys.sheet && Array.isArray(sys.sheet.sections) ? sys.sheet.sections : []).forEach(function(s) { (isObj(s) && Array.isArray(s.fields) ? s.fields : []).forEach(function(pl) { if (isObj(pl) && typeof pl.id === 'string' && hdrEd[pl.id] === 1) { var hf = fieldById(sys, pl.id); warnings.push({ id: pl.id, prop: 'layout', message: (hf && (hf.label || hf.key) || 'This field') + ' is edited in the header and placed again in ' + (s.title || 'a section') + '.' }); } }); });
+    [[sys.sheet, ''], [sys.sheet && sys.sheet.hud, 'the HUD\u2019s ']].forEach(function(lv) {   // HUD frame HF1: per layout (the sheet's message unchanged)
+        var lay = lv[0]; if (!isObj(lay)) return;
+        var hdrEd = headerEdits(sys, lay);
+        (Array.isArray(lay.sections) ? lay.sections : []).forEach(function(s) { (isObj(s) && Array.isArray(s.fields) ? s.fields : []).forEach(function(pl) { if (isObj(pl) && typeof pl.id === 'string' && hdrEd[pl.id] === 1) { var hf = fieldById(sys, pl.id); warnings.push({ id: pl.id, prop: 'layout', message: (hf && (hf.label || hf.key) || 'This field') + ' is edited in the header and placed again in ' + lv[1] + (s.title || 'a section') + '.' }); } }); });
+    });
     // loops: DFS over the definition graph
     var state = map(), stack = [];
     function visit(k) {
@@ -1408,11 +1452,12 @@ function itemDef(sys, defId) { var a = Array.isArray(sys && sys.items) ? sys.ite
 // Stage 6 look fold (L3): the fields the header block edits in place — identity rows that are text, a select, a number or a toggle, and
 // ledger numbers without value names (editable there since Stage 5d). Such a field needs no second copy in a section. A prototype-free set.
 var IDN_EDIT_KINDS = Object.freeze({ text: 1, select: 1, number: 1, toggle: 1 });
-function headerEdits(sys) {
-    var out = map(); if (!sys || !isObj(sys.sheet) || !Array.isArray(sys.fields)) return out;
+function headerEdits(sys, lay) {   // lay: a layout (the HUD passes sys.sheet.hud); absent → the sheet's
+    var out = map(); if (!sys || !Array.isArray(sys.fields)) return out;
+    var Ly = lay === undefined ? sys.sheet : lay; if (!isObj(Ly)) return out;
     var byId = map(); sys.fields.forEach(function(f) { if (isObj(f) && typeof f.id === 'string') byId[f.id] = f; });
-    (Array.isArray(sys.sheet.identity) ? sys.sheet.identity : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && IDN_EDIT_KINDS[f.kind] === 1) out[f.id] = 1; });
-    (Array.isArray(sys.sheet.ledger) ? sys.sheet.ledger : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && f.kind === 'number' && !(Array.isArray(f.labels) && f.labels.length)) out[f.id] = 1; });
+    (Array.isArray(Ly.identity) ? Ly.identity : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && IDN_EDIT_KINDS[f.kind] === 1) out[f.id] = 1; });
+    (Array.isArray(Ly.ledger) ? Ly.ledger : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && f.kind === 'number' && !(Array.isArray(f.labels) && f.labels.length)) out[f.id] = 1; });
     return out;
 }
 function autoLayout(sys) {
@@ -1496,6 +1541,6 @@ function gmEffectNames(vars, names) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

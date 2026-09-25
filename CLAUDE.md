@@ -68,11 +68,12 @@ for anything multiplayer, before a commit that touches it.
 
 ## Editing rules
 
-- **Line endings are per file.** `.gitattributes` normalises the index to LF, but the working tree varies: `net.js`,
-  `io.js`, `models.js`, `state.js`, `inspector.js`, `handouts.js`, `devconsole.js`, `system/resources/app/main.js`,
-  `tools/dev-server.js` and `tools/cleanupcheck.js` are CRLF; `popout.js` and `docpanel.js` contain bare CRs and are
-  binary to git (edit byte-exact or not at all). Check `git ls-files --eol <file>` before editing and keep what you find —
-  EOL churn never shows in `git diff`, so it is easy to break silently.
+- **Line endings are per file and per checkout.** `.gitattributes` normalises the index to LF; the working tree follows
+  `core.autocrlf`, so on a Windows checkout with `autocrlf=true` a file comes out CRLF whenever git writes it (a checkout, a
+  merge), while one git has not rewritten keeps what it had. Never trust a list: check `git ls-files --eol <file>` before
+  editing and keep what you find (a patch script detects the EOL per file; a test normalises CRLF before a regex that expects a
+  newline). `popout.js` and `docpanel.js` contain bare CRs and are binary to git (edit byte-exact or not at all). EOL
+  churn never shows in `git diff`, so it is easy to break silently.
 - Prefer a small Node patch script that does **exact-match, all-or-nothing, EOL-preserving** replacements over ad-hoc shell
   edits when a file needs several changes. Never build string literals through shell escaping (backslashes get lost);
   never append a `//` comment to a one-line handler (it comments out the tail). `node --check` on a `.mjs` copy pinpoints a

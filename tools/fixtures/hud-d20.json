@@ -1,0 +1,926 @@
+{
+  "v": 1,
+  "name": "Generic d20 (HUD)",
+  "fields": [
+    {
+      "id": "f_str",
+      "key": "STR",
+      "label": "STR",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_strmod",
+      "key": "STRmod",
+      "label": "STR modifier",
+      "kind": "formula",
+      "formula": "floor((STR - 10) / 2)",
+      "vis": "all",
+      "hover": false,
+      "sign": true,
+      "roll": "d20 + STRmod"
+    },
+    {
+      "id": "f_dex",
+      "key": "DEX",
+      "label": "DEX",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_dexmod",
+      "key": "DEXmod",
+      "label": "DEX modifier",
+      "kind": "formula",
+      "formula": "floor((DEX - 10) / 2)",
+      "vis": "all",
+      "hover": false,
+      "sign": true,
+      "roll": "d20 + DEXmod"
+    },
+    {
+      "id": "f_con",
+      "key": "CON",
+      "label": "CON",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_conmod",
+      "key": "CONmod",
+      "label": "CON modifier",
+      "kind": "formula",
+      "formula": "floor((CON - 10) / 2)",
+      "vis": "all",
+      "hover": false,
+      "sign": true
+    },
+    {
+      "id": "f_int",
+      "key": "INT",
+      "label": "INT",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_intmod",
+      "key": "INTmod",
+      "label": "INT modifier",
+      "kind": "formula",
+      "formula": "floor((INT - 10) / 2)",
+      "vis": "all",
+      "hover": false,
+      "sign": true
+    },
+    {
+      "id": "f_wis",
+      "key": "WIS",
+      "label": "WIS",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_wismod",
+      "key": "WISmod",
+      "label": "WIS modifier",
+      "kind": "formula",
+      "formula": "floor((WIS - 10) / 2)",
+      "vis": "all",
+      "hover": false,
+      "sign": true,
+      "roll": "d20 + WISmod"
+    },
+    {
+      "id": "f_cha",
+      "key": "CHA",
+      "label": "CHA",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_chamod",
+      "key": "CHAmod",
+      "label": "CHA modifier",
+      "kind": "formula",
+      "formula": "floor((CHA - 10) / 2)",
+      "vis": "all",
+      "hover": false,
+      "sign": true
+    },
+    {
+      "id": "f_level",
+      "key": "Level",
+      "label": "Level",
+      "kind": "number",
+      "def": 1,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 20,
+      "step": 1
+    },
+    {
+      "id": "f_class",
+      "key": "Class",
+      "label": "Class",
+      "kind": "text",
+      "def": "",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_ancestry",
+      "key": "Ancestry",
+      "label": "Ancestry",
+      "kind": "text",
+      "def": "",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_bg",
+      "key": "Background",
+      "label": "Background",
+      "kind": "select",
+      "options": [
+        "Soldier",
+        "Scholar",
+        "Wanderer"
+      ],
+      "def": "Soldier",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_insp",
+      "key": "Inspiration",
+      "label": "Inspiration",
+      "kind": "toggle",
+      "def": false,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_prof",
+      "key": "Prof",
+      "label": "Proficiency",
+      "kind": "formula",
+      "formula": "2 + floor((Level - 1) / 4)",
+      "vis": "all",
+      "hover": false,
+      "sign": true
+    },
+    {
+      "id": "f_ac",
+      "key": "AC",
+      "label": "Armour class",
+      "kind": "formula",
+      "formula": "10 + DEXmod",
+      "vis": "all",
+      "hover": false,
+      "tile": true,
+      "labelIcon": "icon:shield"
+    },
+    {
+      "id": "f_hp",
+      "key": "HP",
+      "label": "Hit points",
+      "kind": "resource",
+      "maxFormula": "10 + CONmod * Level",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": true,
+      "icon": "icon:heart",
+      "color": "#d9534f",
+      "reset": true
+    },
+    {
+      "id": "f_hd",
+      "key": "HitDice",
+      "label": "Hit dice",
+      "kind": "resource",
+      "maxFormula": "Level",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "icon": "icon:dice",
+      "color": "#e0a54f",
+      "bar": false
+    },
+    {
+      "id": "f_sl1",
+      "key": "Slot.L1",
+      "label": "Level 1 slots",
+      "kind": "resource",
+      "maxFormula": "if(Level >= 1, 2, 0)",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "icon": "icon:wand-magic-sparkles",
+      "color": "#b98cff",
+      "bar": false,
+      "reset": true
+    },
+    {
+      "id": "f_sl2",
+      "key": "Slot.L2",
+      "label": "Level 2 slots",
+      "kind": "resource",
+      "maxFormula": "if(Level >= 3, 2, 0)",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "icon": "icon:wand-magic-sparkles",
+      "color": "#b98cff",
+      "bar": false,
+      "reset": true
+    },
+    {
+      "id": "f_sl3",
+      "key": "Slot.L3",
+      "label": "Level 3 slots",
+      "kind": "resource",
+      "maxFormula": "if(Level >= 5, 2, 0)",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "icon": "icon:wand-magic-sparkles",
+      "color": "#b98cff",
+      "bar": false,
+      "reset": true
+    },
+    {
+      "id": "f_dc",
+      "key": "SpellDC",
+      "label": "Spell save DC",
+      "kind": "formula",
+      "formula": "8 + Prof + INTmod",
+      "vis": "all",
+      "hover": false,
+      "badge": true
+    },
+    {
+      "id": "f_carried",
+      "key": "Carried",
+      "label": "Carried",
+      "kind": "number",
+      "def": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "step": 1,
+      "unit": "lb"
+    },
+    {
+      "id": "f_load",
+      "key": "Load",
+      "label": "Load",
+      "kind": "formula",
+      "formula": "if(Carried > STR * 10, 2, if(Carried > STR * 5, 1, 0))",
+      "vis": "all",
+      "hover": false,
+      "labels": [
+        "Unburdened",
+        "Encumbered",
+        "Heavily encumbered"
+      ],
+      "tones": [
+        "good",
+        "warn",
+        "danger"
+      ],
+      "badge": true
+    },
+    {
+      "id": "f_gold",
+      "key": "Gold",
+      "label": "Gold",
+      "kind": "number",
+      "def": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "step": 1,
+      "unit": "gp"
+    },
+    {
+      "id": "f_fx",
+      "key": "Effects",
+      "label": "Effects",
+      "kind": "effects",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_inv",
+      "key": "Inventory",
+      "label": "Inventory",
+      "kind": "item-list",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_gmfig",
+      "key": "GMFig",
+      "label": "GM figure",
+      "kind": "number",
+      "def": 0,
+      "edit": "gm",
+      "vis": "gm",
+      "hover": false
+    }
+  ],
+  "rolls": [
+    {
+      "id": "r_atk",
+      "label": "Attack",
+      "formula": "d20 + STRmod + Prof",
+      "vis": "all",
+      "tone": "primary",
+      "icon": "icon:dice"
+    },
+    {
+      "id": "r_dmg",
+      "label": "Damage",
+      "formula": "1d8 + STRmod",
+      "vis": "all",
+      "tone": "danger",
+      "icon": "icon:burst"
+    },
+    {
+      "id": "r_grap",
+      "label": "Grapple",
+      "formula": "d20 + STRmod + Prof",
+      "vis": "all",
+      "tone": "neutral"
+    },
+    {
+      "id": "r_dsave",
+      "label": "DEX save",
+      "formula": "d20 + DEXmod",
+      "vis": "all",
+      "tone": "outline"
+    },
+    {
+      "id": "r_init",
+      "label": "Initiative",
+      "formula": "d20 + DEXmod",
+      "vis": "all",
+      "init": true
+    }
+  ],
+  "items": [
+    {
+      "id": "i_rope",
+      "name": "Rope",
+      "category": "Gear"
+    },
+    {
+      "id": "i_potion",
+      "name": "Potion",
+      "category": "Consumable",
+      "icon": "icon:flask"
+    }
+  ],
+  "effects": [
+    {
+      "id": "e_ward",
+      "name": "Warded",
+      "icon": "icon:shield-halved",
+      "tone": "buff",
+      "dur": "10 minutes",
+      "vis": "all",
+      "mods": [
+        {
+          "f": "f_ac",
+          "op": "add",
+          "v": 2
+        }
+      ]
+    },
+    {
+      "id": "e_weak",
+      "name": "Weakened",
+      "tone": "debuff",
+      "vis": "all",
+      "mods": [
+        {
+          "f": "f_str",
+          "op": "add",
+          "v": -2
+        }
+      ]
+    }
+  ],
+  "sheet": {
+    "tabs": [
+      {
+        "id": "t_main",
+        "label": "Main",
+        "icon": "icon:user"
+      },
+      {
+        "id": "t_spells",
+        "label": "Spells",
+        "icon": "icon:wand-sparkles"
+      },
+      {
+        "id": "t_gear",
+        "label": "Gear",
+        "icon": "icon:box-open"
+      }
+    ],
+    "identity": [
+      {
+        "id": "f_class"
+      },
+      {
+        "id": "f_ancestry"
+      },
+      {
+        "id": "f_bg"
+      },
+      {
+        "id": "f_level"
+      },
+      {
+        "id": "f_insp"
+      }
+    ],
+    "ledger": [
+      {
+        "id": "f_prof"
+      },
+      {
+        "id": "f_dc"
+      }
+    ],
+    "bandGroups": [
+      {
+        "id": "g_slots",
+        "label": "Spell slots"
+      },
+      {
+        "id": "g_rest",
+        "label": "Rest"
+      },
+      {
+        "id": "g_gm",
+        "label": "GM figures"
+      },
+      {
+        "id": "g_hud",
+        "label": "Quick figures"
+      }
+    ],
+    "band": [
+      {
+        "id": "f_hp"
+      },
+      {
+        "id": "f_ac"
+      },
+      {
+        "id": "f_sl1",
+        "g": "g_slots"
+      },
+      {
+        "id": "f_sl2",
+        "g": "g_slots"
+      },
+      {
+        "id": "f_sl3",
+        "g": "g_slots"
+      },
+      {
+        "id": "f_hd",
+        "g": "g_rest"
+      },
+      {
+        "id": "f_gmfig",
+        "g": "g_gm"
+      },
+      {
+        "roll": "r_init"
+      }
+    ],
+    "sections": [
+      {
+        "id": "s_abil",
+        "title": "Abilities",
+        "tab": "t_main",
+        "cols": 3,
+        "fields": [
+          {
+            "id": "f_str",
+            "w": 1
+          },
+          {
+            "id": "f_dex",
+            "w": 1
+          },
+          {
+            "id": "f_con",
+            "w": 1
+          },
+          {
+            "id": "f_int",
+            "w": 1
+          },
+          {
+            "id": "f_wis",
+            "w": 1
+          },
+          {
+            "id": "f_cha",
+            "w": 1
+          },
+          {
+            "id": "f_strmod",
+            "w": 1
+          },
+          {
+            "id": "f_dexmod",
+            "w": 1
+          },
+          {
+            "id": "f_conmod",
+            "w": 1
+          },
+          {
+            "id": "f_intmod",
+            "w": 1
+          },
+          {
+            "id": "f_wismod",
+            "w": 1
+          },
+          {
+            "id": "f_chamod",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_combat",
+        "title": "Combat",
+        "tab": "t_main",
+        "cols": 3,
+        "fields": [
+          {
+            "id": "f_ac",
+            "w": 1
+          },
+          {
+            "id": "f_hp",
+            "w": "row"
+          },
+          {
+            "id": "f_hd",
+            "w": 1
+          },
+          {
+            "roll": "r_atk",
+            "w": 1
+          },
+          {
+            "roll": "r_dmg",
+            "w": 1
+          },
+          {
+            "roll": "r_grap",
+            "w": 1
+          },
+          {
+            "roll": "r_dsave",
+            "w": 1
+          },
+          {
+            "roll": "r_init",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_fx",
+        "title": "Conditions",
+        "tab": "t_main",
+        "cols": 1,
+        "fields": [
+          {
+            "id": "f_fx",
+            "w": "row"
+          }
+        ]
+      },
+      {
+        "id": "s_spell",
+        "title": "Spellcasting",
+        "tab": "t_spells",
+        "cols": 3,
+        "collapsible": true,
+        "pin": "g_slots",
+        "fields": [
+          {
+            "id": "f_sl1",
+            "w": 1
+          },
+          {
+            "id": "f_sl2",
+            "w": 1
+          },
+          {
+            "id": "f_sl3",
+            "w": 1
+          },
+          {
+            "id": "f_dc",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_gear",
+        "title": "Gear",
+        "tab": "t_gear",
+        "cols": 2,
+        "fields": [
+          {
+            "id": "f_inv",
+            "w": "row"
+          },
+          {
+            "id": "f_carried",
+            "w": 1
+          },
+          {
+            "id": "f_load",
+            "w": 1
+          },
+          {
+            "id": "f_gold",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_gm",
+        "title": "GM notes",
+        "tab": "t_gear",
+        "cols": 2,
+        "fields": [
+          {
+            "id": "f_gmfig",
+            "w": 1
+          },
+          {
+            "kind": "pin",
+            "g": "g_gm",
+            "w": 1
+          }
+        ]
+      }
+    ],
+    "look": {
+      "titles": "accordion",
+      "sticky": true,
+      "tabs": "angular",
+      "numbers": "mono",
+      "band": "chips",
+      "steppers": "inside",
+      "values": "boxed",
+      "effects": "cards",
+      "rows": "cards",
+      "portrait": true,
+      "accent": "#7a2e1f",
+      "palette": {
+        "text": "#2b2118",
+        "muted": "#6b5a48",
+        "panel": "#f3ead6",
+        "card": "#e8dcc0",
+        "field": "#fbf6ea",
+        "edge": "#c4b393",
+        "primary": "#7a2e1f",
+        "danger": "#a3261b",
+        "good": "#2f7a3b",
+        "warn": "#9a6410"
+      }
+    },
+    "hud": {
+      "title": "Combat HUD",
+      "tabs": [
+        {
+          "id": "t_hact",
+          "label": "Actions",
+          "icon": "icon:dice"
+        },
+        {
+          "id": "t_hspl",
+          "label": "Spells",
+          "icon": "icon:wand-sparkles"
+        },
+        {
+          "id": "t_hstat",
+          "label": "Status",
+          "icon": "icon:heart-pulse"
+        }
+      ],
+      "band": [
+        {
+          "id": "f_hp"
+        },
+        {
+          "id": "f_ac"
+        },
+        {
+          "id": "f_dc",
+          "g": "g_hud"
+        },
+        {
+          "id": "f_sl1",
+          "g": "g_slots"
+        },
+        {
+          "id": "f_gmfig",
+          "g": "g_gm"
+        },
+        {
+          "roll": "r_init"
+        }
+      ],
+      "ledger": [
+        {
+          "id": "f_prof"
+        },
+        {
+          "id": "f_dc"
+        }
+      ],
+      "sections": [
+        {
+          "id": "s_hchk",
+          "title": "Checks",
+          "tab": "t_hact",
+          "cols": 2,
+          "fields": [
+            {
+              "id": "f_strmod",
+              "w": 1
+            },
+            {
+              "id": "f_dexmod",
+              "w": 1
+            },
+            {
+              "id": "f_wismod",
+              "w": 1
+            },
+            {
+              "id": "f_ac",
+              "w": 1
+            }
+          ]
+        },
+        {
+          "id": "s_hatk",
+          "title": "Attacks",
+          "tab": "t_hact",
+          "cols": 3,
+          "fields": [
+            {
+              "roll": "r_atk",
+              "w": 1
+            },
+            {
+              "roll": "r_dmg",
+              "w": 1
+            },
+            {
+              "roll": "r_grap",
+              "w": 1
+            }
+          ]
+        },
+        {
+          "id": "s_hslots",
+          "title": "Spell slots",
+          "tab": "t_hspl",
+          "cols": 3,
+          "pin": "g_slots",
+          "fields": [
+            {
+              "id": "f_sl1",
+              "w": 1
+            },
+            {
+              "id": "f_sl2",
+              "w": 1
+            },
+            {
+              "id": "f_sl3",
+              "w": 1
+            }
+          ]
+        },
+        {
+          "id": "s_hstat",
+          "title": "Status",
+          "tab": "t_hstat",
+          "cols": 2,
+          "fields": [
+            {
+              "id": "f_hp",
+              "w": "row"
+            },
+            {
+              "id": "f_fx",
+              "w": "row"
+            },
+            {
+              "kind": "pin",
+              "g": "g_hud",
+              "w": 1
+            },
+            {
+              "id": "f_sl1",
+              "w": 1
+            }
+          ]
+        },
+        {
+          "id": "s_hgm",
+          "title": "GM",
+          "tab": "t_hstat",
+          "cols": 1,
+          "fields": [
+            {
+              "id": "f_gmfig",
+              "w": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

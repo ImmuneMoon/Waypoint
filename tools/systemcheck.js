@@ -1017,6 +1017,92 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             !/c\.indexOf\('sys-sec-/.test(inp0) && !/c\.indexOf\('sys-sec-/.test(chg0) && /if \(t\.classList\.contains\('sys-sec-pinned'\)\) \{ if \(t\.value\) sec\.pinned = true;/.test(chg0) && /if \(t\.classList\.contains\('sys-sec-pin'\)\) \{ if \(t\.value && PIN_GID\.test\(t\.value\)\) sec\.pin = t\.value;/.test(chg0));
     }
 
+    /* ---- Stage 6 HUD frame (HF1): the HUD as a second layout of the sheet — cleaners, views, the editor's Sheet | HUD switch ---- */
+    {
+        const crypto = require('crypto'), Hh = o => crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex');
+        const fxr = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
+        const PRE = {   // pinned at c2f49a7, before the cleaner was factored: [GM view, players' view, players' view re-cleaned, autoLayout of the GM view]
+            'look-d20': ['e46258b85f4df4533bd53ee7064205bd18d293839f2cf6df405b5344e6df2efb', '78dcf72d18152dfad687a5a1a3d87a38fbaa393c3418fce820b4a04389339274', '78dcf72d18152dfad687a5a1a3d87a38fbaa393c3418fce820b4a04389339274', 'd3e733be3aaf6440c1730d2a7493f341ae36fc60ce538982ef3c0e8c76301a1f'],
+            'look-3d6': ['26286986661a2a2ca236db06a3327b4196e750f6a4923fc50f97fd06932eb408', '26286986661a2a2ca236db06a3327b4196e750f6a4923fc50f97fd06932eb408', '26286986661a2a2ca236db06a3327b4196e750f6a4923fc50f97fd06932eb408', '800aebd280bb7aacdb6a84b6c8b6888c2c14edd1bb0ff8accd49ff889e483cb7']
+        };
+        const now = Object.keys(PRE).map(n => { const raw = fxr(n), gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [Hh(gm), Hh(pv), Hh(cleanSystem(pv, { F, gmView: false })), Hh(autoLayout(gm))]; });
+        check('HUD frame HF1: factoring the sheet cleaner is behaviour-preserving — both look fixtures clean byte-for-byte as before (GM view, players\' view, a re-clean, the automatic layout)', j(now) === j(Object.keys(PRE).map(n => PRE[n])), j(now));
+
+        const hD = fxr('hud-d20'), h3 = fxr('hud-3d6'), hB = fxr('hud-bare');
+        const gD = cleanSystem(hD, { F, gmView: true }), pD = cleanSystem(hD, { F, gmView: false }), g3 = cleanSystem(h3, { F, gmView: true }), p3 = cleanSystem(h3, { F, gmView: false }), gB = cleanSystem(hB, { F, gmView: true });
+        const base = cleanSystem(fxr('look-d20'), { F, gmView: true });
+        const withHud = h => { const s = JSON.parse(JSON.stringify(fxr('look-d20'))); s.sheet.hud = h; return s; };
+        const cl = (h, gv) => cleanSystem(withHud(h), { F, gmView: gv !== false }).sheet;
+        check('HUD frame HF1: absent — no hud key, the sheet\'s keys in their order; {} and a HUD of junk leave no key either',
+            !('hud' in base.sheet) && j(Object.keys(base.sheet)) === j(['tabs', 'sections', 'band', 'bandGroups', 'identity', 'ledger', 'look'])
+            && !('hud' in cl({})) && !('hud' in cl({ band: [{ id: 'f_nope' }], ledger: 'x', sections: 'y', tabs: [{ id: 'bad id' }], title: '   ' })) && !('hud' in cl([1, 2])) && !('hud' in cl('hud')));
+        check('HUD frame HF1: the GM view keeps a HUD with only a title, only tabs or an empty section (nothing set is lost on Save); the players\' view drops each',
+            j(cl({ title: 'Combat HUD' }).hud) === j({ title: 'Combat HUD', tabs: [], sections: [] }) && cl({ tabs: [{ id: 't_x', label: 'X' }] }).hud.tabs.length === 1 && cl({ sections: [{ id: 's_e', title: 'Empty', fields: [] }] }).hud.sections.length === 1
+            && !('hud' in cl({ title: 'Combat HUD' }, false)) && !('hud' in cl({ tabs: [{ id: 't_x', label: 'X' }] }, false)) && !('hud' in cl({ sections: [{ id: 's_e', title: 'Empty', fields: [] }] }, false)));
+        const secOf = (sh, id) => sh.sections.find(s => s.id === id), ids = s => s.fields.map(p => p.id || p.roll || p.kind);
+        const tabX = cl({ tabs: [{ id: 't_hx', label: 'X' }], sections: [{ id: 's_a', title: 'A', tab: 't_main', fields: [{ id: 'f_str' }] }, { id: 's_b', title: 'B', tab: 't_hx', fields: [{ id: 'f_dex' }] }] });
+        const many = []; for (let i = 0; i < 40; i++) many.push({ id: 's_m' + i, title: 'M', fields: Array.from({ length: 10 }, () => ({ id: 'f_str' })).concat([{ kind: 'heading', text: 'h' }, { kind: 'divider' }, { kind: 'heading', text: 'h' }, { kind: 'divider' }, { kind: 'heading', text: 'h' }, { kind: 'divider' }, { kind: 'heading', text: 'h' }, { kind: 'divider' }]) });
+        const capH = cl({ sections: many }), capCount = capH.hud.sections.reduce((n, s) => n + s.fields.length, 0);
+        check('HUD frame HF1: once per layout — f_st and f_hp sit on the sheet AND in the HUD; within the HUD a second f_sl1 is dropped; a HUD section\'s tab resolves against the HUD\'s own tabs only; the placement cap is counted per layout',
+            ids(secOf(g3.sheet, 's_attr')).includes('f_st') && ids(secOf(g3.sheet.hud, 's_hattr')).includes('f_st')
+            && ids(secOf(gD.sheet, 's_combat')).includes('f_hp') && ids(secOf(gD.sheet.hud, 's_hstat')).includes('f_hp')
+            && j(ids(secOf(gD.sheet.hud, 's_hstat'))) === j(['f_hp', 'f_fx', 'pin']) && j(ids(secOf(gD.sheet.hud, 's_hslots'))) === j(['f_sl1', 'f_sl2', 'f_sl3'])
+            && !('tab' in secOf(tabX.hud, 's_a')) && secOf(tabX.hud, 's_b').tab === 't_hx'
+            && capCount === LIMITS.placements && gD.sheet.sections.reduce((n, s) => n + s.fields.length, 0) > 0, j({ capCount, a: secOf(tabX.hud, 's_a') }));
+        const pinPl = s => s.fields.filter(p => p.kind === 'pin').map(p => p.g);
+        const gmOnly = cl({ band: [{ id: 'f_gmfig' }], sections: [{ id: 's_g', title: 'G', fields: [{ id: 'f_gmfig' }] }] }, false);
+        const pagesSys = o => { const s = withHud({ sections: [{ id: 's_l', title: 'L', fields: [{ kind: 'link', page: 'p_open', text: 'Open' }, { kind: 'link', page: 'p_secret', text: 'Secret' }, { id: 'f_str' }] }] }); return cleanSystem(s, Object.assign({ F, gmView: false }, o)); };
+        const pg = pagesSys({ pages: ['p_open'] });
+        const re1 = cleanSystem(pg, { F, gmView: false, pages: ['p_open'] }), re2 = cleanSystem(pg, { F, gmView: false });
+        const pDb = pD.sheet.hud.band.map(q => q.id || q.roll), pDg = pD.sheet.bandGroups.map(g => g.id);
+        check('HUD frame HF1: the players\' view — the GM-only figure leaves the HUD band and its GM section; g_gm is pruned; g_hud (on the HUD band only, pinned only in the HUD) survives with its Pin; g_slots and its section Pin survive; a HUD of GM-only content is dropped; a link to a page they cannot read is dropped; idempotent under both client re-cleans',
+            !pDb.includes('f_gmfig') && j(ids(secOf(pD.sheet.hud, 's_hgm'))) === j([]) && !pDg.includes('g_gm') && pDg.includes('g_hud') && j(pinPl(secOf(pD.sheet.hud, 's_hstat'))) === j(['g_hud'])
+            && pDg.includes('g_slots') && secOf(pD.sheet.hud, 's_hslots').pin === 'g_slots' && !('hud' in gmOnly)
+            && j(secOf(pg.sheet.hud, 's_l').fields.map(p => p.page || p.id)) === j(['p_open', 'f_str']) && j(re1) === j(pg) && j(re2) === j(pg)
+            && j(cleanSystem(pD, { F, gmView: false })) === j(pD) && j(cleanSystem(p3, { F, gmView: false })) === j(p3), j({ pDb, pDg }));
+        const before = j(gD), hv = S.hudView(gD), after = j(gD);
+        check('HUD frame HF1: hudView — the HUD\'s layout in the sheet\'s place; fields and rolls shared by reference; the input untouched; the look without portrait and sticky but with its palette; the groups shared',
+            before === after && hv.fields === gD.fields && hv.rolls === gD.rolls && hv.sheet.sections === gD.sheet.hud.sections && hv.sheet.band === gD.sheet.hud.band && hv.sheet.ledger === gD.sheet.hud.ledger && hv.sheet.bandGroups === gD.sheet.bandGroups
+            && !('portrait' in hv.sheet.look) && !('sticky' in hv.sheet.look) && j(hv.sheet.look.palette) === j(gD.sheet.look.palette) && hv.sheet.look.accent === gD.sheet.look.accent && gD.sheet.look.portrait === true && !('identity' in hv.sheet));
+        const pT = S.pinTargets(gD.sheet.sections), pA = S.pinTargetsAll(gD.sheet), bandG = sh => (sh.band || []).filter(q => q.id === 'f_hp').map(q => q.g || '');
+        check('HUD frame HF1: hudHasContent / pinTargetsAll — no HUD is null and false; the bare system (fields only) has one; the sheet\'s Pins alone lack g_hud and both layouts\' have it; in the 3d6 HUD f_hp is ungrouped where the sheet\'s band groups it',
+            S.hudView(base) === null && S.hudHasContent(base) === false && S.hudHasContent(null) === false && S.hudHasContent(gB) === true && S.hudHasContent(gD) === true
+            && pT.g_hud !== 1 && pA.g_hud === 1 && pA.g_slots === 1 && pA.g_gm === 1 && Object.getPrototypeOf(pA) === null
+            && j(bandG(g3.sheet)) === j(['g_pools']) && j(bandG(g3.sheet.hud)) === j(['']));
+        const heSys = withHud({ ledger: [{ id: 'f_gold' }, { id: 'f_prof' }], sections: [{ id: 's_x', title: 'Wallet', fields: [{ id: 'f_gold' }] }] });
+        const heG = cleanSystem(heSys, { F, gmView: true }), heH = S.headerEdits(heG, heG.sheet.hud), heV = validateSystem(heG, F);
+        const errsN = [gD, g3, gB].map(s => validateSystem(s, F).errors.length);
+        check('HUD frame HF1: headerEdits(sys, layout) — the HUD\'s plain ledger number is edited in its header (a formula is not); no argument still means the sheet; the duplicate warning names the HUD; no "no Pin" warning for g_hud; the three HUD fixtures validate with no errors',
+            j(Object.keys(heH)) === j(['f_gold']) && Object.keys(S.headerEdits(heG)).indexOf('f_gold') < 0 && Object.keys(S.headerEdits(null)).length === 0 && Object.keys(S.headerEdits({ fields: heG.fields }, null)).length === 0
+            && heV.warnings.some(w => w.id === 'f_gold' && /placed again in the HUD\u2019s Wallet\./.test(w.message))
+            && !validateSystem(gD, F).warnings.some(w => w.id === 'g_hud') && j(errsN) === j([0, 0, 0]), j({ heH: Object.keys(heH), errsN, w: heV.warnings }));
+
+        // the editor and the drawing (source checks; the live preview is verified in the browser)
+        const shH1 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const bodyH = h => { const i = shH1.indexOf(h); return i < 0 ? '' : shH1.slice(i, shH1.indexOf('\n}\n', i)); };
+        const clickH = bodyH('function onLayoutClick(b) {'), inputH = bodyH('function onLayoutInput(t) {'), layH = bodyH('function renderLayout() {'), prevH = bodyH('function renderPreview() {');
+        const iHa = clickH.indexOf("if (b.id === 'sysLayoutAuto' && layoutView === 'hud')"), iHc = clickH.indexOf("if (b.id === 'sysLayoutClear' && layoutView === 'hud')"), iSa = clickH.indexOf("if (b.id === 'sysLayoutAuto') {"), iSc = clickH.indexOf("if (b.id === 'sysLayoutClear') {");
+        check('HUD frame HF1: buildSections draws the HUD without an automatic-layout fallback; a Pin in either view drives the band (vctx.targets, else both layouts); the sheet\'s regexes and counts still hold',
+            /var sheet = \(hudV \|\| \(sys\.sheet && sys\.sheet\.sections && sys\.sheet\.sections\.length\)\) \? sys\.sheet : autoLayout\(sys\);/.test(shH1) && /targets: \(vctx && vctx\.targets\) \|\| pinTargetsAll\(sys\.sheet\), vctx: vctx,/.test(shH1)
+            && (shH1.match(/_fxLive = false; try \{ buildSections\(/g) || []).length === 2 && (shH1.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2
+            && /var secKey = \(hudV \? 'h:' : ''\) \+ sec\.id;/.test(shH1) && /if \(\(_fxForm\.view \|\| 'sheet'\) === fxV\)/.test(shH1)
+            && /import \{[^}]*pinTargetsAll, hudView, hudHasContent \} from '\.\/systemcore\.js';/.test(shH1));
+        check('HUD frame HF1: the Layout tab — layoutRoot routes the sections, the tabs and the band / ledger boxes; the switch never dirties the draft; the HUD\'s Copy / Remove come before the sheet\'s Auto / Clear, which keep the HUD; deleteGroup cleans both layouts; the HUD title is handled before the section lookup; the Identity box is the sheet\'s alone; the preview draws hudView',
+            /function layoutSections\(\) \{ var r = layoutRoot\(\);/.test(shH1) && /function layoutTabs\(\) \{ var r = layoutRoot\(\);/.test(shH1) && /var lroot = layoutRoot\(\), list = Array\.isArray\(lroot\[cfg\.key\]\)/.test(layH) && !/draft\.sheet\[cfg\.key\]/.test(layH)
+            && /var draft = null, dirty = false, tab = 'fields', errorsById = \{\}, warningsById = \{\}, layoutView = 'sheet';/.test(shH1) && /tab = which \|\| 'fields'; layoutView = 'sheet';/.test(shH1)
+            && /if \(b\.closest && b\.closest\('#sysLayoutView'\)[^\n]*renderLayout\(\); \} return true; \}/.test(clickH) && !/if \(b\.closest && b\.closest\('#sysLayoutView'\)[^\n]*markDirty/.test(clickH)
+            && iHa > 0 && iHc > iHa && iSa > iHc && iSc > iSa && /if \(keepHud\) draft\.sheet\.hud = keepHud;/.test(clickH) && /if \(keepHud\) \{ draft\.sheet\.hud = keepHud;/.test(clickH) && /the Sheet look box and the HUD are kept/.test(clickH)
+            && /var hd = draft\.sheet\.hud; if \(hd && typeof hd === 'object'\)/.test(layH) && /var targetsG = pinTargetsAll\(draft\.sheet\);/.test(layH)
+            && inputH.indexOf("contains('sys-hud-title')") > 0 && inputH.indexOf("contains('sys-hud-title')") < inputH.indexOf('if (!lsec)') && /if \(!hudOn\) pinBox\(\{ key: 'identity'/.test(layH)
+            && /var pv = layoutView === 'hud' \? hudView\(clean\) : clean;/.test(prevH) && /view: layoutView, preview: true, targets: pinTargetsAll\(clean\.sheet\)/.test(prevH) && /box\.classList\.toggle\('sys-layout-preview-hud', layoutView === 'hud'\)/.test(prevH), j({ iHa, iHc, iSa, iSc }));
+        const htmlH1 = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), cssH1 = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), tutH1 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const iBlk = cssH1.indexOf('/* ---- Stage 6 HUD frame:'), iPort = cssH1.indexOf('#sheetPanel.sheet-has-headportrait #sheetTitle');
+        check('HUD frame HF1: the Sheet | HUD switch leads the Layout toolbar; the note is addressable; the CSS lives in one block after the look fold\'s; the tour and Help name the switch',
+            /<div class="sys-toolbar"><span id="sysLayoutView" class="sys-seg"[^>]*><button class="tool ghost sys-btn on" data-view="sheet" aria-pressed="true">Sheet<\/button><button class="tool ghost sys-btn" data-view="hud" aria-pressed="false">HUD<\/button><\/span><button class="tool" id="sysAddSection"/.test(htmlH1) && /<span class="sys-note" id="sysLayoutNote">/.test(htmlH1)
+            && iPort > 0 && iBlk > iPort && !/\/\* Stage 6 look fold \(L/.test(cssH1.slice(iBlk)) && /\.sys-seg \{/.test(cssH1.slice(iBlk)) && /\.sys-layout-preview-hud \{ max-width: 470px; \}/.test(cssH1.slice(iBlk))
+            && /The <b>Sheet \| HUD<\/b> switch at the top lays out the character&rsquo;s HUD window the same way\./.test(tutH1) && /The <b>Sheet \| HUD<\/b> switch at the top of the tab lays out a second view, the <b>HUD<\/b>/.test(htmlH1));
+    }
+
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */
     {
         const sys8 = look => cleanSystem({ v: 1, name: 'L8', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true }).sheet.look;

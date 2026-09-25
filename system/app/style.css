@@ -2388,3 +2388,10 @@
   #imgCatMenu .party-menu-item.danger:hover { background: rgba(217,83,79,0.14); color: var(--red); }
   #imgCatMenu .party-menu-head { padding: 6px 10px 2px; }
   #imgCatMenu .party-menu-head + .party-menu-head { margin-top: 4px; border-top: 1px solid var(--edge); padding-top: 8px; }
+
+  /* ---- Stage 6 HUD frame: every rule of the HUD fold (HF1-HF5) lives in this one block, after the look fold's ---- */
+  .sys-seg { display: inline-flex; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel); }
+  .sys-seg .sys-btn { border: 0; border-radius: 5px; margin: 0; color: var(--dim); }
+  .sys-seg .sys-btn:hover { color: var(--ink); }
+  .sys-seg .sys-btn.on { background: var(--panel2); color: var(--gold); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .sys-layout-preview-hud { max-width: 470px; }

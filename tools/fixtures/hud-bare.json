@@ -1,0 +1,109 @@
+{
+  "v": 1,
+  "name": "Bare (HUD)",
+  "fields": [
+    {
+      "id": "f_might",
+      "key": "Might",
+      "label": "Might",
+      "kind": "number",
+      "def": 2,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "max": 10,
+      "step": 1
+    },
+    {
+      "id": "f_wits",
+      "key": "Wits",
+      "label": "Wits",
+      "kind": "number",
+      "def": 2,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "max": 10,
+      "step": 1
+    },
+    {
+      "id": "f_luck",
+      "key": "Luck",
+      "label": "Luck",
+      "kind": "resource",
+      "maxFormula": "3",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_notes",
+      "key": "Notes",
+      "label": "Notes",
+      "kind": "text",
+      "def": "",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    }
+  ],
+  "rolls": [],
+  "sheet": {
+    "sections": [
+      {
+        "id": "s_main",
+        "title": "Character",
+        "cols": 2,
+        "fields": [
+          {
+            "id": "f_might",
+            "w": 1
+          },
+          {
+            "id": "f_wits",
+            "w": 1
+          },
+          {
+            "id": "f_luck",
+            "w": 1
+          },
+          {
+            "id": "f_notes",
+            "w": "row"
+          }
+        ]
+      }
+    ],
+    "hud": {
+      "band": [
+        {
+          "id": "f_luck"
+        },
+        {
+          "id": "f_might"
+        }
+      ],
+      "sections": [
+        {
+          "id": "s_hmain",
+          "title": "At a glance",
+          "cols": 2,
+          "fields": [
+            {
+              "id": "f_might",
+              "w": 1
+            },
+            {
+              "id": "f_wits",
+              "w": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

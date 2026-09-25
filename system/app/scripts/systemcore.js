@@ -315,11 +315,12 @@ function cleanEffectDef(d, fieldKinds, gmView) {
 function cleanLook(v) {
     if (!isObj(v)) return null;
     var out = {};
-    if (v.titles === 'headline') out.titles = 'headline';
-    if (v.tabs === 'filled') out.tabs = 'filled';
+    if (v.titles === 'headline' || v.titles === 'accordion') out.titles = v.titles;   // Stage 6 look fold (L5): accordion titles
+    if (v.tabs === 'filled' || v.tabs === 'angular') out.tabs = v.tabs;   // L5: angular tabs ('angled' stays invalid)
     if (typeof v.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.accent)) out.accent = v.accent.toLowerCase();
     if (v.portrait === true) out.portrait = true;
     if (v.labels === 'caps') out.labels = 'caps';   // Fold B: field labels in small bold capitals
+    if (v.sticky === true) out.sticky = true;   // L5: a section's title stays at the top while that section scrolls
     var pal = cleanPalette(v.palette); if (pal) out.palette = pal;   // Stage 6 look fold: every part of the sheet in ten colours
     return Object.keys(out).length ? out : null;
 }

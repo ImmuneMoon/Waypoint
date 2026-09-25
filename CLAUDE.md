@@ -8,7 +8,9 @@ anyone (or any tool) changing the code. The README covers installing and using t
 
 - `system/app/` — the application. `index.html`, `style.css`, and `scripts/*.js` as ES modules. Modules talk through
   `window.wp*` globals (`wpNet`, `wpSheets`, `wpSystemCore`, `wpDocRender`, `wpVtt`, …) and the shared `state.appState`.
-  `assets/` holds the bundled presets, sounds and the tutorial campaign's art. `version.json` is written at build time.
+  `assets/` holds the bundled presets, sounds and the tutorial campaign's art; `assets/fonts/` and `assets/icons/` hold a fixed, licensed list
+  (Inter, Font Awesome Free — licence texts beside them): a new glyph needs its file, a `GLYPHS` entry in systemcore.js, its attribution
+  comment and the bundled-files test. `version.json` is written at build time.
 - `system/resources/app/` — the Electron shell: `main.js` (a small local HTTP server that serves `system/app` and a handful of
   JSON endpoints over the saves folder, loopback only, own-origin only), `updater.js`, `package.json` (the app version).
 - `tools/` — `dev-server.js` (run from source in a browser), `release.js` (build), and the offline test suites `*check.js`.

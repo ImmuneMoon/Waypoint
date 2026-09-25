@@ -1,0 +1,9 @@
+Font Awesome Free SVGs bundled for sheet looks (only the icons the reference sheet uses). Each file keeps its own attribution comment.
+Saved under the class name the reference sheet uses; four differ from the 6.5.2 Free file of that name:
+- solid/dizzy.svg                  = 6.5.2 solid/face-dizzy.svg (the 6.x name of the 5.x alias)
+- solid/minus-circle.svg           = 6.5.2 solid/circle-minus.svg (likewise)
+- solid/thumbtack-slash.svg        = 6.7.2 solid/thumbtack-slash.svg (added to Free after 6.5.2; same licence)
+- solid/file-magnifying-glass.svg  = 6.5.2 solid/magnifying-glass.svg (file-magnifying-glass is a Pro icon; the Free magnifying glass stands in)
+
+Twenty general tabletop icons were added the same way (all Font Awesome Free 6.5.2, each under its own name): book-skull, bed, campground, crown,
+dice-d20, dice-d6, dragon, dungeon, feather-pointed, flask, gem, hand-sparkles, hat-wizard, leaf, paw, ring, scroll, shoe-prints, skull, skull-crossbones.

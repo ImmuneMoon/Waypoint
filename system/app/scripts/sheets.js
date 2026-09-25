@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -466,6 +466,7 @@ function applySheetLookTo(node, style) {
     else { node.style.removeProperty('--sheet-ink'); node.style.removeProperty('--sheet-bg'); node.style.removeProperty('--sheet-dim'); }
     applySheetBg(node, style);
 }
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function() { var b = ui('sheetBody'); if (b && sheetOpen) syncFramePad(b); var pv = ui('sysLayoutPreview'); if (pv) syncFramePad(pv); });   // Stage 6: a look font arriving late changes the frame's height
 document.addEventListener('wp-asset', function(e) {
     var p = e.detail && e.detail.path, DR = window.wpDocRender; if (!p || !DR || !DR.docBgImage) return;
     document.querySelectorAll('[data-bgpath]:not(.wrap)').forEach(function(node) {   // sheet bodies (the live panel + a pop-out); page wraps are handbook.js's
@@ -588,10 +589,89 @@ function applyPaletteTo(node, look) {
 function applyLook(body, look, vctx) { var L = look || {}; applyPaletteTo(body, L); }
 // Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colours into the look)
 var LOOK_PRESETS = {
-    graphite: { name: 'Graphite', accent: '#ab94b3', palette: { text: '#add8e6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#1a1a1a', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' } },
+    graphite: { name: 'Graphite', accent: '#ab94b3', font: 'inter', palette: { text: '#add8e6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#1a1a1a', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' } },
     parchment: { name: 'Parchment', accent: '#7a2e1f', palette: { text: '#2b2118', muted: '#6b5a48', panel: '#f3ead6', card: '#e8dcc0', field: '#fbf6ea', edge: '#c4b393', primary: '#7a2e1f', danger: '#a3261b', good: '#2f7a3b', warn: '#9a6410' } }
 };
 var PAL_CAPS = { text: 'Text', muted: 'Muted', panel: 'Panel', card: 'Card', field: 'Field', edge: 'Edge', primary: 'Primary', danger: 'Danger', good: 'Good', warn: 'Warning' };
+// Stage 6 look fold (L2): an icon on the sheet — a bundled glyph drawn as a mask in the text's colour (so a palette or a theme colours it),
+// or text (an emoji or a symbol, as always). The URL is built ONLY from glyphPath's answer, a value from the fixed table, never from the
+// stored string. Path-absolute, so the panel, the preview and a pop-out resolve it alike.
+var GLYPH_BASE = '/assets/icons/fa/';
+function iconNode(v, cls) {
+    var p = glyphPath(v); if (!p) return el('span', cls, v);
+    var s = el('span', cls + ' wp-glyph'); s.setAttribute('aria-hidden', 'true');
+    var u = 'url("' + GLYPH_BASE + p + '.svg")'; s.style.webkitMaskImage = u; s.style.maskImage = u;
+    return s;
+}
+function iconText(v) { return glyphPath(v) ? '' : (v || ''); }   // text-only sinks (an <option>): a glyph shows nothing there
+// The System editor's icon picker: two tabs, the bundled icons and common emoji (an emoji is stored as typed, as always)
+var PICKER_HIDE = { 'minus-circle': 1, 'file-magnifying-glass': 1 };   // duplicates of circle-minus and magnifying-glass (still accepted)
+var GLYPH_WORDS = { sword: ['khanda'], blade: ['khanda'], weapon: ['khanda', 'hand-fist', 'crosshairs', 'bomb'], attack: ['hand-fist', 'crosshairs', 'burst'], spell: ['wand-magic-sparkles', 'wand-sparkles', 'scroll', 'hat-wizard', 'hand-sparkles'], magic: ['wand-magic-sparkles', 'wand-sparkles', 'hat-wizard', 'hand-sparkles'], hp: ['heart', 'heart-pulse'], health: ['heart', 'heart-pulse', 'shield-heart', 'stethoscope'], damage: ['burst', 'bomb', 'skull'], armour: ['shield', 'shield-halved'], armor: ['shield', 'shield-halved'], defence: ['shield', 'shield-halved'], defense: ['shield', 'shield-halved'], money: ['coins', 'wallet', 'gem'], gold: ['coins', 'crown'], coin: ['coins'], rest: ['moon', 'bed', 'campground'], sleep: ['bed', 'moon'], speed: ['person-running', 'shoe-prints'], move: ['person-running', 'person-walking', 'shoe-prints'], time: ['hourglass-half', 'clock', 'stopwatch'], duration: ['hourglass-half', 'clock'], dice: ['dice', 'dice-d20', 'dice-d6'], roll: ['dice', 'dice-d20', 'dice-d6'], death: ['skull', 'skull-crossbones'], poison: ['skull-crossbones', 'flask'], potion: ['flask'], alchemy: ['flask'], lore: ['book', 'book-open', 'scroll', 'book-skull'], dungeon: ['dungeon'], beast: ['paw', 'dragon'], animal: ['paw'], nature: ['leaf'], camp: ['campground'], treasure: ['gem', 'coins', 'crown', 'ring'], jewel: ['gem', 'ring'], king: ['crown'], noble: ['crown'], track: ['shoe-prints'], write: ['feather-pointed', 'pen', 'pencil'], quill: ['feather-pointed'], droid: ['robot', 'microchip'], tech: ['microchip', 'gear'], vehicle: ['car', 'truck', 'rocket', 'ship'], energy: ['bolt'], fatigue: ['bolt'], mind: ['brain'], perception: ['eye'], sight: ['eye', 'glasses'], skill: ['graduation-cap'], weight: ['weight-hanging', 'scale-balanced'], load: ['weight-hanging'], fist: ['hand-fist'], unarmed: ['hand-fist'], target: ['crosshairs', 'bullseye'], aim: ['crosshairs', 'bullseye'], fire: ['fire'], cold: ['temperature-half'], luck: ['star', 'dice'] };
+var EMOJI_SET = [
+    ['\u2694\uFE0F', 'swords weapon fight attack melee'], ['\uD83D\uDDE1\uFE0F', 'dagger knife blade weapon'], ['\uD83C\uDFF9', 'bow arrow ranged weapon'], ['\uD83E\uDE93', 'axe weapon'], ['\uD83D\uDD28', 'hammer weapon tool'], ['\uD83D\uDD2B', 'pistol blaster gun ranged weapon'],
+    ['\uD83D\uDCA3', 'bomb explosive grenade damage'], ['\uD83D\uDEE1\uFE0F', 'shield armour armor defence defense'], ['\uD83E\uDE96', 'helmet armour armor'], ['\u2764\uFE0F', 'heart hp health life'], ['\uD83D\uDC94', 'broken heart wound injury'], ['\uD83E\uDE78', 'blood bleeding wound'],
+    ['\uD83E\uDE79', 'bandage heal first aid'], ['\uD83D\uDC8A', 'pill medicine drug'], ['\u2695\uFE0F', 'medicine heal medic'], ['\u26A1', 'bolt energy lightning fatigue'], ['\u2728', 'sparkles magic spell'], ['\uD83D\uDD2E', 'crystal ball magic scry divination'],
+    ['\uD83E\uDE84', 'wand magic spell'], ['\uD83D\uDCDC', 'scroll spell document lore'], ['\uD83D\uDCD6', 'book lore knowledge'], ['\uD83C\uDFB2', 'dice roll luck'], ['\uD83C\uDFAF', 'target aim bullseye'], ['\uD83E\uDDEA', 'potion flask alchemy'],
+    ['\u2620\uFE0F', 'skull crossbones poison death'], ['\uD83D\uDC80', 'skull death undead'], ['\uD83D\uDD25', 'fire burn flame'], ['\u2744\uFE0F', 'ice cold frost'], ['\uD83D\uDCA7', 'water drop'], ['\uD83C\uDF2A\uFE0F', 'wind storm tornado'],
+    ['\uD83C\uDF19', 'moon night rest'], ['\u2600\uFE0F', 'sun day light'], ['\u2B50', 'star favour inspiration'], ['\uD83C\uDF40', 'clover luck'], ['\uD83C\uDF92', 'backpack bag gear inventory'], ['\uD83D\uDCB0', 'money bag gold coins treasure'],
+    ['\uD83E\uDE99', 'coin money'], ['\uD83D\uDC8E', 'gem jewel treasure'], ['\uD83D\uDC51', 'crown king noble'], ['\uD83D\uDC8D', 'ring jewellery jewelry'], ['\uD83D\uDDDD\uFE0F', 'key lock'], ['\uD83D\uDD12', 'lock locked'],
+    ['\uD83C\uDFF0', 'castle keep'], ['\u26FA', 'tent camp rest'], ['\uD83D\uDDFA\uFE0F', 'map travel'], ['\uD83E\uDDED', 'compass navigation'], ['\uD83D\uDC09', 'dragon beast'], ['\uD83D\uDC3A', 'wolf beast animal'],
+    ['\uD83D\uDC0E', 'horse mount'], ['\uD83E\uDDE0', 'brain mind intelligence'], ['\uD83D\uDC41\uFE0F', 'eye perception sight'], ['\uD83D\uDC42', 'ear hearing'], ['\uD83C\uDFC3', 'runner speed move'], ['\uD83E\uDDB6', 'foot move'],
+    ['\u270A', 'fist punch unarmed'], ['\uD83E\uDD3A', 'fencer fencing'], ['\uD83E\uDDD8', 'meditation focus will'], ['\uD83C\uDFAD', 'masks theatre charisma'], ['\uD83C\uDFB5', 'music song bard'], ['\u2696\uFE0F', 'scales balance law'],
+    ['\u262F\uFE0F', 'balance alignment'], ['\uD83D\uDD6F\uFE0F', 'candle light'], ['\uD83C\uDF56', 'food ration meat'], ['\uD83C\uDF7A', 'drink ale'], ['\u23F3', 'hourglass time duration'], ['\u2699\uFE0F', 'gear settings tech'],
+    ['\uD83D\uDD27', 'wrench repair tool'], ['\uD83E\uDD16', 'robot droid'], ['\uD83D\uDE80', 'rocket ship space'], ['\uD83E\uDDEC', 'dna species biology'], ['\uD83D\uDCCD', 'pin location']
+];
+var _glyphPop = null;
+function closeGlyphPicker() { if (_glyphPop) { _glyphPop.remove(); _glyphPop = null; document.removeEventListener('mousedown', glyphOutside, true); } }
+function glyphOutside(e) { if (_glyphPop && !_glyphPop.contains(e.target) && !(e.target.closest && e.target.closest('.sys-glyph-btn'))) closeGlyphPicker(); }
+// The picker's button, right after an icon box: it shows the box's current icon, so it doubles as the preview
+function glyphButton(inp) {
+    var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = 'Pick an icon (or type an emoji)';
+    var paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); };
+    paint();
+    b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); glyphPicker(inp, b, paint); });
+    inp.addEventListener('input', paint);
+    return b;
+}
+function glyphPicker(inp, anchor, repaint) {
+    closeGlyphPicker();
+    var host = ui('systemModal') || document.body, pop = el('div', 'sys-glyph-pop'); _glyphPop = pop;
+    var tabsRow = el('div', 'sys-glyph-tabs'), tIcons = el('button', 'tool ghost sys-btn sys-glyph-tab', 'Icons'), tEmoji = el('button', 'tool ghost sys-btn sys-glyph-tab', 'Emoji');
+    tIcons.type = 'button'; tEmoji.type = 'button'; tabsRow.appendChild(tIcons); tabsRow.appendChild(tEmoji); pop.appendChild(tabsRow);
+    var q = el('input', 'field sys-glyph-q'); q.type = 'text'; q.spellcheck = false; q.autocomplete = 'off'; pop.appendChild(q);
+    var grid = el('div', 'sys-glyph-grid'); pop.appendChild(grid);
+    var none = el('button', 'tool ghost sys-btn sys-glyph-none', 'No icon'); none.type = 'button'; pop.appendChild(none);
+    var mode = 'icons';
+    var pick = function(val) { inp.value = val; inp.dispatchEvent(new Event('input', { bubbles: true })); if (repaint) repaint(); closeGlyphPicker(); try { inp.focus(); } catch (er) {} };   // the editor's own input handlers store it
+    var matches = function() {
+        var s = q.value.trim().toLowerCase();
+        if (mode === 'emoji') return EMOJI_SET.filter(function(x) { return !s || x[1].indexOf(s) >= 0 || x[0] === s; }).map(function(x) { return { v: x[0], t: x[1].split(' ')[0] }; });
+        var all = Object.keys(GLYPHS).filter(function(n) { return !PICKER_HIDE[n]; }).sort(); if (!s) return all.map(function(n) { return { v: 'icon:' + n, t: n }; });
+        var hit = {}; all.forEach(function(n) { if (n.indexOf(s) >= 0) hit[n] = 1; });
+        Object.keys(GLYPH_WORDS).forEach(function(w) { if (w.indexOf(s) === 0) GLYPH_WORDS[w].forEach(function(n) { if (typeof GLYPHS[n] === 'string') hit[n] = 1; }); });
+        return all.filter(function(n) { return hit[n] === 1; }).map(function(n) { return { v: 'icon:' + n, t: n }; });
+    };
+    var draw = function() {
+        grid.textContent = ''; var list = matches();
+        list.forEach(function(m) { var o = el('button', 'tool ghost sys-glyph-opt'); o.type = 'button'; o.title = m.t; o.appendChild(mode === 'emoji' ? el('span', 'sys-glyph-emoji', m.v) : iconNode(m.v, 'sys-glyph-ico')); o.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); pick(m.v); }); grid.appendChild(o); });
+        if (!list.length) grid.appendChild(el('div', 'sys-hint', 'Nothing matches.'));
+    };
+    var setMode = function(mo) { mode = mo; tIcons.classList.toggle('on', mo === 'icons'); tEmoji.classList.toggle('on', mo === 'emoji'); q.placeholder = mo === 'emoji' ? 'Search emoji' : 'Search icons'; draw(); };
+    tIcons.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); setMode('icons'); try { q.focus(); } catch (er) {} });
+    tEmoji.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); setMode('emoji'); try { q.focus(); } catch (er) {} });
+    none.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); pick(''); });
+    q.addEventListener('input', function(e) { e.stopPropagation(); draw(); }); q.addEventListener('change', function(e) { e.stopPropagation(); });   // never read as an edit by the editor's delegated handlers
+    pop.addEventListener('keydown', function(e) {   // the editor closes on Escape: the picker keeps its keys to itself
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeGlyphPicker(); try { anchor.focus(); } catch (er) {} }
+        else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); var first = matches()[0]; if (first) pick(first.v); }
+    });
+    pop.addEventListener('click', function(e) { e.stopPropagation(); }); pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    var cur = inp.value.trim(); setMode(!cur || /^icon:/i.test(cur) ? 'icons' : 'emoji');
+    host.appendChild(pop);
+    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 340, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - 340, r.bottom + 4)) + 'px';
+    document.addEventListener('mousedown', glyphOutside, true);
+    try { q.focus(); } catch (er) {}
+}
 function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
     var layout = sheet.sections || [];
@@ -634,7 +714,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         var strip = el('div', 'sheet-tabs' + (look.tabs === 'filled' ? ' sheet-tabs-filled' : ''));   // Stage 5g: angled tabs, the open one filled in the accent
         tabs.forEach(function(t) {
             var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : '')); if (look.tabs === 'filled') tb.title = t.label || 'Tab';   // a filled tab can ellipsise a long label
-            if (t.icon) tb.appendChild(el('span', 'sheet-tab-icon', t.icon));   // Stage 5g
+            if (t.icon) tb.appendChild(iconNode(t.icon, 'sheet-tab-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             tb.appendChild(el('span', 'sheet-tab-label', t.label || 'Tab'));
             tb.addEventListener('click', function() {
                 if (body.dataset.wpTab === t.id) return;
@@ -674,7 +754,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         var chipNode = sec.chip ? pageChip(sec.chip) : null;   // Stage 5f: a handbook chip
         if (sec.title || sec.icon || metaText || collap || chipNode) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
-            if (sec.icon) head.appendChild(el('span', 'sheet-sec-icon', sec.icon));   // Stage 5g
+            if (sec.icon) head.appendChild(iconNode(sec.icon, 'sheet-sec-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
             head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
@@ -736,7 +816,7 @@ function renderLayout() {
     tabs.forEach(function(tb) {
         var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
         var tmain = el('div', 'sys-row-main');
-        tmain.appendChild(input('sys-tab-icon field', tb.icon, 'An icon before the label on the sheet \u2014 an emoji or a symbol (optional)', 'Icon'));   // Stage 5g
+        var tIcoIn = input('sys-tab-icon field', tb.icon, 'An icon before the label on the sheet \u2014 an emoji or a bundled icon (optional)', 'Icon'); tmain.appendChild(tIcoIn); tmain.appendChild(glyphButton(tIcoIn));   // Stage 5g (Stage 6: the picker)
         tmain.appendChild(input('sys-tab-label field', tb.label, 'This tab\'s label on the sheet', 'Tab label'));
         tmain.appendChild(btnRow([['tabup', 'Move this tab left', '&#9650;'], ['tabdown', 'Move this tab right', '&#9660;'], ['tabdel', 'Remove this tab (its sections move to the first tab)', '&times;']]));
         tr.appendChild(tmain);
@@ -795,7 +875,7 @@ function renderLayout() {
     lookBox.appendChild(palRow);
     lookBox.appendChild(el('div', 'sys-hint', 'A palette colours every part of the sheet at once, in place of the Text and Panel colours above and the campaign\u2019s page colours (the font and picture still apply). Players see the same colours, under either theme.'));
     var setPalette = function(k, v) { if (!/^#[0-9a-fA-F]{6}$/.test(v)) return; var lk = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {}; var np = Object.assign({}, lk.palette || {}); np[k] = v.toLowerCase(); setShape('palette', np); };
-    presetSel.addEventListener('change', function() { var pv = presetSel.value; if (pv === 'custom') return; if (!pv) setShape('palette', null); else { var pr = LOOK_PRESETS[pv]; if (!pr) return; setShape('palette', Object.assign({}, pr.palette)); setShape('accent', pr.accent); } renderLayout(); });
+    presetSel.addEventListener('change', function() { var pv = presetSel.value; if (pv === 'custom') return; if (!pv) setShape('palette', null); else { var pr = LOOK_PRESETS[pv]; if (!pr) return; setShape('palette', Object.assign({}, pr.palette)); setShape('accent', pr.accent); if (pr.font) setLook('font', pr.font); } renderLayout(); });
     root.appendChild(lookBox);
     var setShape = function(key, val) { if (!draft.sheet) draft.sheet = {}; var lk = (draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {}; if (val === null || val === '' || val === false || val === undefined) delete lk[key]; else lk[key] = val; if (Object.keys(lk).length) draft.sheet.look = lk; else delete draft.sheet.look; markDirty(); renderPreview(); };
     titlesSel.addEventListener('change', function() { setShape('titles', titlesSel.value); });
@@ -881,7 +961,7 @@ function renderLayout() {
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
         var top = el('div', 'sys-row-main');
-        top.appendChild(input('sys-sec-icon field', sec.icon, 'An icon before the title \u2014 an emoji or a symbol (optional)', 'Icon'));   // Stage 5g
+        var sIcoIn = input('sys-sec-icon field', sec.icon, 'An icon before the title \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(sIcoIn); top.appendChild(glyphButton(sIcoIn));   // Stage 5g (Stage 6: the picker)
         top.appendChild(input('sys-sec-title field', sec.title, 'The section\'s title on the sheet (empty = none)', 'Section title'));
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
@@ -1110,7 +1190,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
         var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : ''));
-        if (def.icon) line.appendChild(el('span', 'sheet-item-icon', def.icon));
+        if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
         lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm);
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
@@ -1138,7 +1218,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
         var rid = rowIdOf(entry);
         shown++; totalQty += entry.qty;
         var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name');
-        if (def.icon) nameTd.appendChild(el('span', 'sheet-item-icon', def.icon));
+        if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         nameTd.appendChild(document.createTextNode(def.name));
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
@@ -1210,7 +1290,7 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
         sw.title = r.on === false ? 'Suspended \u2014 tick to apply it again' : 'Applied \u2014 untick to suspend it';
         sw.addEventListener('change', function() { commitEffect(c, f, { op: 'on', rowId: r.id, on: sw.checked }); });
         line.appendChild(sw);
-        if (d.icon) line.appendChild(el('span', 'sheet-fx-icon', d.icon));
+        if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
         var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
         if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
         if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
@@ -1223,7 +1303,7 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
     var bar = el('div', 'sheet-fx-add-row'), defs = (sys && sys.effects) || [];
     if (defs.length) {
         var add = el('select', 'field sheet-fx-add'); add.appendChild(opt('', '+ Add effect\u2026', true));
-        defs.forEach(function(d2) { add.appendChild(opt(d2.id, (d2.icon ? d2.icon + ' ' : '') + d2.name + (d2.tone ? ' (' + d2.tone + ')' : ''))); });
+        defs.forEach(function(d2) { add.appendChild(opt(d2.id, (iconText(d2.icon) ? iconText(d2.icon) + ' ' : '') + d2.name + (d2.tone ? ' (' + d2.tone + ')' : ''))); });
         add.addEventListener('change', function() { if (add.value) commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: add.value }); });
         bar.appendChild(add);
     }
@@ -1335,7 +1415,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     if (k === 'resource') {
         var cur = e && typeof e.value === 'number' ? e.value : 0, max = e && typeof e.max === 'number' ? e.max : null;
         var r = el('div', 'sheet-ctl');
-        if (f.icon) r.appendChild(el('span', 'sheet-pool-icon', f.icon));   // Fold B
+        if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !editable;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !editable; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
@@ -1374,7 +1454,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
         else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm);            // the plain carried list (as before)
         if (editable && _fxLive && sysI && sysI.items && sysI.items.length) {
             var add = el('select', 'field sheet-item-add'); add.appendChild(opt('', '+ Add item…', true));
-            sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (it.icon ? it.icon + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
+            sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
             add.addEventListener('change', function() { if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
             wrap.appendChild(add);
         }
@@ -1388,8 +1468,10 @@ function sheetRoll(e, charId, expr, label, opts) {
     if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget);
     else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
 }
+var ROLL_TONE_CLS = { primary: ' sheet-roll-primary', danger: ' sheet-roll-danger', neutral: ' sheet-roll-neutral', outline: ' sheet-roll-outline' };   // Stage 6 look fold: literal classes, looked up by own key
 function rollNode(r, c) {
-    var b = el('button', 'tool sheet-roll', r.label); var can = canRoll(c); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
+    var b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), r.label); var can = canRoll(c);
+    if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, r.label); });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
@@ -1640,7 +1722,7 @@ function fieldRow(f) {
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(input('sys-vnames field', (f.labels || []).join(', '), 'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'Value names (optional)'));   // Stage 6
     flags.appendChild(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'Caption (optional)'));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
-        flags.appendChild(input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a symbol', 'Icon'));
+        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'Icon'); flags.appendChild(rIcoIn); flags.appendChild(glyphButton(rIcoIn));
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
         var bcl = el('label', 'sys-hover'); var bcc = el('input'); bcc.type = 'checkbox'; bcc.checked = f.bar !== false; bcc.className = 'sys-bar-chk'; bcl.appendChild(bcc); bcl.appendChild(document.createTextNode(' Bar')); bcl.title = 'The bar under the value (untick for just the numbers)'; flags.appendChild(bcl);
     }
@@ -1708,6 +1790,8 @@ function rollRow(r) {
     top.appendChild(input('sys-label field', r.label, 'The button\'s label', 'Label'));
     top.appendChild(input('sys-formula field', r.formula, 'The roll: d20 + STRmod, 3d6 <= Skill.Stealth', 'Roll formula'));
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
+    top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red (damage)'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
+    var roIcoIn = input('sys-roll-icon field', r.icon, 'An icon on the button \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(roIcoIn); top.appendChild(glyphButton(roIcoIn));
     var il = el('label', 'sys-hover'); var ic = el('input'); ic.type = 'checkbox'; ic.className = 'sys-init-chk'; ic.checked = !!r.init; il.appendChild(ic); il.appendChild(document.createTextNode(' Initiative')); il.title = 'The combat roster rolls this for initiative'; top.appendChild(il);
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
     row.appendChild(top);
@@ -1733,7 +1817,7 @@ function charRow(c, camp) {
 function effectRow(d) {
     var row = el('div', 'sys-row sys-fx-row'); row.dataset.eid = d.id;
     var top = el('div', 'sys-row-main');
-    top.appendChild(input('sys-fx-icon field', d.icon, 'An icon (an emoji or a symbol)', 'Icon'));
+    var xIcoIn = input('sys-fx-icon field', d.icon, 'An icon (an emoji or a bundled icon)', 'Icon'); top.appendChild(xIcoIn); top.appendChild(glyphButton(xIcoIn));
     top.appendChild(input('sys-fx-name field', d.name, 'The effect\u2019s name on the sheet (Rage, Prone, Blessed\u2026)', 'Name'));
     top.appendChild(select('sys-fx-tone', [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']], d.tone || '', 'Buff or Debuff (a colour on the sheet)'));
     top.appendChild(input('sys-fx-dur field', d.dur, 'A duration note (3 rounds, until dawn) \u2014 you end the effect by hand', 'Duration'));
@@ -1769,7 +1853,7 @@ function itemRow(it) {
     var flags = el('div', 'sys-flags');
     flags.appendChild(input('sys-item-cost field', it.cost, 'Point/credit cost (a formula, no dice) — used by budgets in a later slice', 'Cost (optional)'));
     flags.appendChild(input('sys-item-throw field', it.throwSkill, 'Optional: a field whose roll is posted as the to-hit', 'Throw skill (optional)'));
-    flags.appendChild(input('sys-item-icon field', it.icon, 'A single emoji shown on the row', 'Icon'));
+    var iIcoIn = input('sys-item-icon field', it.icon, 'An emoji or a bundled icon shown on the row', 'Icon'); flags.appendChild(iIcoIn); flags.appendChild(glyphButton(iIcoIn));
     flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: kept out of the players\u2019 list. One you give a character reaches its owner (name, icon, category and notes); its formulas never leave your machine'));
     flags.appendChild(select('sys-item-rmmode', [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], it.rm || '', 'When a player removes it from their character. Bound: it stays on their sheet and they see your message. Curse on contact: it leaves their sheet but stays on the character, out of their sight, until you remove it. Players never see this setting.'));   // Stage 6
     var rmIn = input('sys-item-rmtext field', it.rmMsg || '', 'Shown to the player when they try to remove it (optional)', 'Message on removal'); rmIn.maxLength = LIMITS.rmMsg; if (!it.rm) rmIn.style.opacity = '0.5'; flags.appendChild(rmIn);
@@ -1791,6 +1875,7 @@ function renderCombat() {
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for D&D-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
 }
 function renderAll() {
+    closeGlyphPicker();   // Stage 6: the rows it was opened from are being redrawn
     if (!draft) return;
     refreshErrors();
     document.querySelectorAll('#systemModal .sys-tabs button').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
@@ -1837,7 +1922,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-damage') >= 0) it.damage = t.value;
         else if (ic.indexOf('sys-item-cost') >= 0) it.cost = t.value;
         else if (ic.indexOf('sys-item-throw') >= 0) it.throwSkill = t.value.trim();
-        else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 8);
+        else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 32);   // Save keeps an emoji's first 8 code points, or a bundled icon's name
         else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.text);
         else if (ic.indexOf('sys-item-rmtext') >= 0) it.rmMsg = t.value.slice(0, LIMITS.rmMsg);   // Stage 6
         else return;
@@ -1869,6 +1954,7 @@ function onInput(e) {
     } else if (r) {
         if (c.indexOf('sys-label') >= 0) r.label = t.value.slice(0, LIMITS.label);
         else if (c.indexOf('sys-formula') >= 0) r.formula = t.value;
+        else if (c.indexOf('sys-roll-icon') >= 0) { if (t.value.trim()) r.icon = t.value.slice(0, 32); else delete r.icon; }   // Stage 6 look fold
         else return;
     } else return;
     markDirty(); patchErrors();
@@ -1931,6 +2017,7 @@ function onChange(e) {
         else return;
     } else if (r) {
         if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
+        else if (c.indexOf('sys-roll-tone') >= 0) { if (t.value) r.tone = t.value; else delete r.tone; }   // Stage 6 look fold
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;
     } else return;

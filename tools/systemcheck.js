@@ -855,7 +855,8 @@ const j = v => JSON.stringify(v);
         const PRE = {
             d20: ['96c44fc592448813542d72f24129e788304634fcdab1649e3942daa6ae42b894', 'c8733a11848517e9b02ffaf86072506ef224cccbbb4eca17d6403b6d3c1de269', '32be92883bbdfd0fb9975e29bf00f9632b296a13d1fdab3c0e801458f9f97cc8'],
             '3d6': ['0292986b3be8f1c8b5d38c000e66b7a15cc9569b1a318a96d9a1bb395dd2e756', 'a7733f1f3820bbcfc1fdacb52e767e78df634d323e2cca503254d8977c7e29f8', '37fe78c2036ca85291471ddac6f04a816257e02bc78763df705390136a92c992'],
-            tutorial: ['fc23d44c307799bd26a0300680a1f8292c464f6cc33205c0f3d1a20ecd8b041f', '3b15bedb3bdda9ec82a54f1a1309007fa153fda72285008e6a085f92aab2c04a', 'cd9c017de98546ae4998169122c200153c4c0dc451925a6a2602d8a977e380df']
+            // re-taken after the L3 seed change (the tour's identity is Class alone, edited in the header; the abilities stay tiles) — a deliberate change, not drift
+            tutorial: ['1414bb05d14493d5d6640167f65b8c897e232130d9bf5dfe4fd26c97e20109f3', '82a86b0edd99106481b447f3e4a6caa2808ca74966cc06de1c720df457b4a148', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
         };
         const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
         check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));
@@ -891,6 +892,33 @@ const j = v => JSON.stringify(v);
             /applyLook\(body, look, vctx\);[^\n]*\n\s*syncFramePad\(body\);\s*\n\s*if \(tabs \? !tabN : !secN\)/.test(shL) && /applySheetLookTo\(body, sheetLook\(camp, sys\)\);\s*\n\s*syncFramePad\(body\);/.test(shL) && /applySheetLookTo\(container, sheetLook\(camp, sys\)\);\s*\n\s*syncFramePad\(container\);/.test(shL)
             && /applyPaletteTo\(p, sys\.sheet && sys\.sheet\.look\);/.test(shL) && /if \(st && paletteOf\(sys && sys\.sheet && sys\.sheet\.look\)\) \{ st = Object\.assign\(\{\}, st\); delete st\.textColor; delete st\.bgColor; \}/.test(shL)
             && /Array\.prototype\.forEach\.call\(box\.children, function\(ch\) \{ ch\.inert = true; \}\);/.test(shL) && palRules.length >= 18 && palRules.every(l => /\.sheet-paletted/.test(l)), j(palRules.filter(l => !/\.sheet-paletted/.test(l))));
+    }
+
+    /* ---- Stage 6 look fold (L3): identity rows edited in the header — one field, once; the name shown once ---- */
+    {
+        const hf = [
+            { id: 'f_t', key: 'Cls', kind: 'text', def: '', vis: 'all', edit: 'owner' }, { id: 'f_s', key: 'Bg', kind: 'select', options: ['A', 'B'], def: 'A', vis: 'all', edit: 'owner' },
+            { id: 'f_n', key: 'Lvl', kind: 'number', def: 1, vis: 'all', edit: 'owner' }, { id: 'f_g', key: 'Insp', kind: 'toggle', def: false, vis: 'all', edit: 'owner' },
+            { id: 'f_f', key: 'Prof', kind: 'formula', formula: 'Lvl + 1', vis: 'all' }, { id: 'f_r', key: 'HP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all', edit: 'owner' },
+            { id: 'f_k', key: 'Skill.X', kind: 'skill', base: '', def: 0, vis: 'all', edit: 'owner' }, { id: 'f_p', key: 'Pts', kind: 'number', def: 5, vis: 'all', edit: 'owner' },
+            { id: 'f_v', key: 'Stun', kind: 'number', def: 0, labels: ['No', 'Yes'], vis: 'all', edit: 'owner' }, { id: 'f_x', key: 'Other', kind: 'number', def: 0, vis: 'all', edit: 'owner' }
+        ];
+        const hs = cleanSystem({ v: 1, name: 'H', fields: hf, rolls: [], sheet: { sections: [{ id: 's_a', title: 'Details', cols: 1, fields: [{ id: 'f_t', w: 1 }, { id: 'f_x', w: 1 }] }], identity: ['f_t', 'f_s', 'f_n', 'f_g', 'f_f', 'f_r', 'f_k'].map(id => ({ id })), ledger: ['f_p', 'f_v', 'f_f'].map(id => ({ id })) } }, { F, gmView: true });
+        const he = S.headerEdits(hs), heIds = Object.keys(he).sort();
+        check('look L3: headerEdits — identity rows that are text, a select, a number or a toggle, and ledger numbers without value names; never a formula, a skill, a resource or a named ledger number; a prototype-free set', j(heIds) === j(['f_g', 'f_n', 'f_p', 'f_s', 'f_t']) && Object.getPrototypeOf(he) === null && Object.keys(S.headerEdits({ fields: hf })).length === 0 && Object.keys(S.headerEdits(null)).length === 0, j(heIds));
+        const al = S.autoLayout(hs), alIds = al.sections.flatMap(s => s.fields.map(p => p.id));
+        check('look L3: the automatic layout leaves out exactly the fields the header edits (formulas, skills and resources in the header still get their section)', ['f_t', 'f_s', 'f_n', 'f_g', 'f_p'].every(id => alIds.indexOf(id) < 0) && ['f_f', 'f_r', 'f_k', 'f_v', 'f_x'].every(id => alIds.indexOf(id) >= 0), j(alIds));
+        const vw = S.validateSystem(hs, F).warnings.filter(w => w.prop === 'layout');
+        check('look L3: validateSystem warns when a field the header edits is also placed in a section (and only then)', vw.length === 1 && vw[0].id === 'f_t' && /edited in the header and placed again in Details/.test(vw[0].message), j(vw));
+        const sh3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), hb3 = sh3.slice(sh3.indexOf('function headerBlocks('), sh3.indexOf('function buildSections(')), idn = sh3.slice(sh3.indexOf('function idnControl('), sh3.indexOf('function accentInk('));
+        check('look L3: the header edits a row in place only for whoever may edit the field (the section\'s rule, never on a teammate\'s copy) and never on an error, after the ledger branch; every control is data-part "idn" and goes through commit; nothing in the header uses innerHTML',
+            idn.length > 0 && hb3.indexOf('function idnControl(') > 0 && !/innerHTML/.test(hb3) && /var idnOk = function\(f\) \{ return !c\.partial && \(gm \|\| \(own && f\.edit === 'owner' && f\.vis === 'all'\)\); \};/.test(hb3)
+            && /it\.appendChild\(ed\); box\.appendChild\(it\); return;\s*\n\s*\}\s*\n\s*if \(!ledger && IDN_EDIT\[f\.kind\] === 1 && !en\.error && idnOk\(f\)\) \{ it\.appendChild\(idnControl\(f, c, all\[f\.id\], tone\)\);/.test(hb3)
+            && /ctl\.dataset\.fid = f\.id; ctl\.dataset\.part = 'idn';/.test(idn) && (idn.match(/commit\(c, f, /g) || []).length === 5);
+        const css3 = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), tut3 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('look L3: with the portrait and name in the header, the title bar\'s name (and the pop-out\'s) is hidden visually but kept for screen readers; the tour seeds Class alone and moves an old seed (abilities stay tiles)',
+            /#sheetPanel\.sheet-has-headportrait #sheetTitle, body:has\(#popoutBody \.sheet-head-name\) #popoutTitle \{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset\(50%\);/.test(css3)
+            && (tut3.match(/identity = \[\{ id: 'f_tut_class' \}\]|identity: \[\{ id: 'f_tut_class' \}\]/g) || []).length === 3 && !/identity: \[\{ id: 'f_tut_class' \}, \{ id: 'f_tut_str' \}/.test(tut3));
     }
 
     /* ---- Stage 6 look fold (L2): bundled glyphs, roll tone and icon ---- */

@@ -581,4 +581,56 @@ function sweepRecents(appState) {
 
 function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize: ledgerSize() }; }
 
-export { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, onLoad, askOwnership, sweepRecents, cleanupInfo };
+/* ---- imports: a file someone else made ---- */
+// An import's items are content from another table: a planner's raw HTML is rebuilt by the wire's rich-text sanitiser, diagrams lose
+// their click directives, handbook pages go through cleanDoc, a play map's text items are rebuilt, and no id is ever a prototype key.
+// Fails closed: with no sanitiser on hand a raw block, a diagram and a text item come in empty and a page does not come in.
+// deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText }. Merge runs it on each campaign.
+function cleanImportItems(ic, deps) {
+    if (!isObj(ic.items)) { ic.items = {}; return; }
+    var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null;
+    Object.keys(ic.items).forEach(function(id) {
+        if (id in Object.prototype) { delete ic.items[id]; return; }
+        var it = ic.items[id]; if (!isObj(it)) { delete ic.items[id]; return; }
+        if (it.type === 'doc') { var cd = DR && DR.cleanDoc ? DR.cleanDoc(it, { keepHidden: true }) : null; if (cd) ic.items[id] = cd; else delete ic.items[id]; return; }
+        if (it.type === 'planner') {   // a planner from before blocks keeps its text in one string, which opens as a raw HTML block (planner.js): it becomes that block here, so the rule below cleans it
+            if (typeof it.content === 'string' && it.content && (!Array.isArray(it.blocks) || !it.blocks.length)) it.blocks = [{ id: 'b_' + Math.random().toString(36).slice(2, 10), type: 'raw', content: it.content }];
+            delete it.content;
+        }
+        if (it.type === 'planner' && Array.isArray(it.blocks)) it.blocks.forEach(function(b) {
+            if (!isObj(b)) return;
+            if (b.type === 'raw') b.content = san ? san(String(b.content || '')) : '';
+            if (b.type === 'diagram') b.content = DR && DR.stripMermaidLinks ? DR.stripMermaidLinks(String(b.content || '')) : '';
+        });
+        if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (isObj(w) && w.type === 'text') w.text = san ? san(String(w.text || '')) : ''; });
+    });
+}
+// A whole file brought in by Replace (or a legacy single-campaign file, wrapped): shaped by the load's own normaliser first (deps.migrate =
+// io.js migrateAppState: item shapes, systems cleaned, characters cleaned against them and their owners stamped on their tokens, fog), then
+// its items cleaned as Merge cleans them, and every id an own key — a campaign or an item under a prototype key never comes in, a parent
+// that did not come in is let go, an active id that is not an own key is repaired. The table can be hosted the moment this returns.
+// Returns the cleaned state, or null when no campaign is left (or no normaliser was given: nothing comes in raw).
+function cleanImport(data, deps) {
+    if (!isObj(data) || !isObj(data.campaigns)) return null;
+    var own = function(o, k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && !(k in Object.prototype); };
+    Object.keys(data.campaigns).forEach(function(id) {
+        var c = data.campaigns[id];
+        if (id in Object.prototype || !isObj(c)) { delete data.campaigns[id]; return; }
+        if (isObj(c.items)) Object.keys(c.items).forEach(function(iid) { if (iid in Object.prototype) delete c.items[iid]; });   // before the normaliser reads a parent or an active id through one
+    });
+    var out = deps && typeof deps.migrate === 'function' ? deps.migrate(data) : null;
+    if (!isObj(out) || !isObj(out.campaigns)) return null;
+    Object.keys(out.campaigns).forEach(function(id) {
+        var c = out.campaigns[id];
+        if (id in Object.prototype || !isObj(c)) { delete out.campaigns[id]; return; }
+        cleanImportItems(c, deps);
+        Object.keys(c.items).forEach(function(iid) { var m = c.items[iid]; if (isObj(m.meta) && m.meta.parentId && !own(c.items, m.meta.parentId)) delete m.meta.parentId; });   // a page cleanDoc refused leaves no child hidden
+        if (!own(c.items, c.activeItemId)) c.activeItemId = Object.keys(c.items)[0] || null;
+    });
+    var ids = Object.keys(out.campaigns);
+    if (!ids.length) return null;
+    if (!own(out.campaigns, out.activeCampaignId)) out.activeCampaignId = ids[0];
+    return out;
+}
+
+export { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, onLoad, askOwnership, sweepRecents, cleanupInfo, cleanImport, cleanImportItems };

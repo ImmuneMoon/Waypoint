@@ -80,7 +80,7 @@ function wireStanceMenu(cMenu, items, onChange) {
 // A player's own token: the one edit menu they get (same permission line as moving it)
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
-    var rows = stanceMenuHtml(tok) || '';
+    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
     if (!rows && !sheetRow) return;
     cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + rows.replace('<div class="menu-divider"></div>', '');
@@ -731,7 +731,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               // The arrow itself turns the token (click / drag) when you may move it:
               // the GM's selected token, or a player's own token.
               var clientV = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-              fw.classList.toggle('turnable', clientV ? (item.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused)) : (state.selWbId === item.id));
+              fw.classList.toggle('turnable', clientV ? (item.ownerId === window.wpNet.myId && !item.locked && !(window.wpNet.paused || window.wpNet.selfPaused)) : (state.selWbId === item.id));
           } else if (fw) fw.remove();
           // Target marks: everyone targeting this token, shown as small copies of their own
           // tokens, centred in a row that wraps into rows and never leaves the token's edges.
@@ -1428,7 +1428,7 @@ window.wpFitToGrid = fitToGrid;
       var tok = map.whiteboard.find(function(x) { return x && x.id === tokId; });
       if (!tok || !tok.isChar || (feature !== null && window.wpVtt && !window.wpVtt.on(feature || 'turning'))) return null;
       var n = window.wpNet;
-      if (n && n.active && n.role === 'client' && (n.paused || n.selfPaused || tok.ownerId !== n.myId)) return null;
+      if (n && n.active && n.role === 'client' && (n.paused || n.selfPaused || tok.ownerId !== n.myId || tok.locked)) return null;   // a locked token is frozen for its player (the host refuses it too)
       return { camp: camp, map: map, mapId: mapId, tok: tok, onScreen: camp.activeItemId === mapId };
   }
   function endDialTurn(t) {
@@ -1494,7 +1494,7 @@ window.wpFitToGrid = fitToGrid;
           var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
           var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
           if (!item || !item.isChar) return;
-          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && (window.wpNet.paused || window.wpNet.selfPaused || item.ownerId !== window.wpNet.myId)) return;
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && (window.wpNet.paused || window.wpNet.selfPaused || item.ownerId !== window.wpNet.myId || item.locked)) return;
           e.preventDefault(); e.stopPropagation();
           turning = { item: item, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };
       }, true);
@@ -1530,7 +1530,7 @@ window.wpFitToGrid = fitToGrid;
 
           if (!state.selWbId || state.viewMode !== 'visual') return;
 
-          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { var ownTok = getActiveMap().whiteboard.find(x => x.id === state.selWbId); if (window.wpNet.paused || window.wpNet.selfPaused || !ownTok || !ownTok.isChar || ownTok.ownerId !== window.wpNet.myId) return; }   // players may turn their own token
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { var ownTok = getActiveMap().whiteboard.find(x => x.id === state.selWbId); if (window.wpNet.paused || window.wpNet.selfPaused || !ownTok || !ownTok.isChar || ownTok.ownerId !== window.wpNet.myId || ownTok.locked) return; }   // players may turn their own token (not one the GM locked)
 
           item = getActiveMap().whiteboard.find(x => x.id === state.selWbId);
 

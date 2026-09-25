@@ -241,7 +241,9 @@ function hbTick() {
     if (!net.active) { setIndicator(null); return; }
     var now = Date.now();
     if (net.role === 'host') {
-        broadcast({ type: 'hb' }, null);
+        // every open connection, a peer still waiting for the GM's Allow too: a heartbeat carries nothing of the table, and without it a
+        // waiting player takes the silence for a lost GM and reconnects every 20 s (the host keeps a waiting peer for a while: UNADMITTED_TTL)
+        net.conns.forEach(function(c) { if (c.open) { try { c.send({ type: 'hb' }); } catch (e) { sendFailed(e); } } });
         var stale = 0;
         net.conns.slice().forEach(function(c) {
             if (!lastSeen[c.peer]) lastSeen[c.peer] = now;
@@ -289,12 +291,15 @@ function awayMap() {
     return out;
 }
 // [netcheck:away-end]
+// Players the GM forgot while they were at the table (Players panel ▸ Forget): no record comes back for them this session — only their
+// next Allow (admitPlayer) makes one, so the forget is whole and that join is asked about like a stranger's
+net.forgotten = Object.create(null);
 function syncLastMaps() {
     if (net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;
     camp.players = camp.players || {};
     Object.values(net.roster).forEach(function(p) {
-        if (!p || !p.id || !p.location) return;
+        if (!p || !p.id || !p.location || net.forgotten[p.id]) return;
         camp.players[p.id] = camp.players[p.id] || { name: p.name || p.id };
         camp.players[p.id].lastMap = p.location;
     });
@@ -698,12 +703,12 @@ function applyItem(msg) {
 // [netcheck:patch-start]
 function applyClientItemFiltered(msg, profile) {
     if (!profile) return false;
-    var camp = state.appState.campaigns[msg.campId];
-    if (!camp) return false;
+    var camp = campOf(msg.campId);   // own keys only: a campId or itemId such as "constructor" names nothing (it used to reach a prototype's function and throw)
+    if (!camp || !validKey(msg.itemId) || !own(camp.items, msg.itemId)) return false;
     var liveItem = camp.items[msg.itemId];
     if (!liveItem || liveItem.type !== 'map' || !msg.item || !Array.isArray(msg.item.whiteboard)) return false;
     var changed = false;
-    var liveById = {};
+    var liveById = Object.create(null);
     (liveItem.whiteboard || []).forEach(function(w) { liveById[w.id] = w; });
     var sentIds = {};
     var ownStrokes = (liveItem.whiteboard || []).filter(function(w) { return w && w.type === 'path' && w.byPlayer && w.ownerId === profile.id; }).length;   // this player's drawings already on the map: the cap is per map, not per patch
@@ -719,6 +724,7 @@ function applyClientItemFiltered(msg, profile) {
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
         if (lw.hidden) return;   // a hidden token reaches the player as a stub (no front, stance or marks): their copy never overwrites the host's
+        if (lw.locked) return;   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
         if (lw.type === 'path' && lw.byPlayer) {
             var re = playerStroke(w, profile.id);
             if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; }
@@ -748,7 +754,7 @@ function applyClientItemFiltered(msg, profile) {
     });
     // A player's own drawing missing from their copy was erased by them
     var before = liveItem.whiteboard.length;
-    liveItem.whiteboard = liveItem.whiteboard.filter(function(w) { return !(w.type === 'path' && w.byPlayer && w.ownerId === profile.id && !sentIds[w.id]); });
+    liveItem.whiteboard = liveItem.whiteboard.filter(function(w) { return !(w.type === 'path' && w.byPlayer && w.ownerId === profile.id && !w.locked && !sentIds[w.id]); });   // a locked one stays
     if (liveItem.whiteboard.length !== before) changed = true;
     return changed;
 }
@@ -1022,15 +1028,7 @@ function scheduleStageFollow() {
         if (!k2 || k2 === net.lastStage) return;
         net.lastStage = k2;
         net.syncStance();   // a campaign switch that has not saved yet: the ceiling travels before the stage
-        var moved = 0;
-        // only players still following the GM are moved; detached wanderers stay put
-        net.conns.forEach(function(c) {
-            var p = net.roster[c.peer];
-            if (p && p.detached) return;
-            if (p) { p.location = s2.itemId; ensurePlayerToken(p.id, s2.itemId); moved++; }
-            if (c.open) { try { c.send({ type: 'stage', stage: s2 }); } catch (e) { sendFailed(e); } }
-            if (c.open && net.sendFxArrival) net.sendFxArrival(c, s2.itemId);
-        });
+        var moved = followConns(s2);   // only admitted players still following the GM are moved; detached wanderers stay put
         renderRoster();
         broadcastRoster();
         if (moved && !net.stageOverride && !_stageHintShown) {
@@ -1193,8 +1191,8 @@ net.sendFx = function(fx) {
         try { c.send(msg); } catch (e) { sendFailed(e); }
     });
 };
-net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets its running weather / held wash
-    if (!net.active || net.role !== 'host' || !conn || !conn.open || !mapId || !window.wpFx) return;
+net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets its running weather / held wash — an admitted peer only
+    if (!net.active || net.role !== 'host' || !conn || !conn.open || !mapId || !window.wpFx || !own(net.roster, conn.peer)) return;
     window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } });
 };
 // A blast thrown from a character sheet, shown to the players ON THAT MAP (item library, 1.5.0). Host only; no GM-only data.
@@ -1538,8 +1536,9 @@ function hostTravel(conn, traveler, portal, fromMap) {
     if ((portal.hidden && !portal.trap) || !(portal.nodeId || portal.targetMapId)) return false;   // a hidden decorative portal stays inert; a hidden TRAP still fires (playerLock below still applies)
     // The item's own portal target, else its linked room's
     var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (fromMap.rooms || []).find(function(r) { return r.id === portal.nodeId; });
-    if (!pRoom || !pRoom.targetMapId || !tCamp.items[pRoom.targetMapId]) return false;
+    if (!pRoom || !validKey(pRoom.targetMapId) || !own(tCamp.items, pRoom.targetMapId)) return false;
     var destLockM = tCamp.items[pRoom.targetMapId];
+    if (destLockM.type !== 'map' || destLockM === fromMap) return false;   // a play map, and another one (as offlinePlayerTravel and npcTravel have it): a portal to a page, or to the map it stands on, moves nobody
     if (destLockM.meta && destLockM.meta.playerLock) {   // closed to players until the GM opens it (summon and bring still work)
         var kL = (traveler.id || 'x') + '|' + pRoom.targetMapId, nowL = Date.now();
         if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) { sendFailed(e); } }
@@ -1753,6 +1752,7 @@ function handlePos(msg, conn) {
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
         if (w.hidden || !w.isChar || (typeof pr.location === 'string' && msg.itemId !== pr.location)) return;   // the same Hide rule as patches (a final pos used to fire travel and room handouts), a character token only, on the map they are on
         msg.final = msg.final === true;   // one reading of final everywhere below (handouts and seating used to take any truthy value)
+        if (w.locked) return;   // and the same lock rule: a token the GM locked is frozen for its player
         if (!allow('pos', { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;   // ~60 moves a second is a drag; more is a flood
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
@@ -2272,6 +2272,8 @@ function admitPlayer(conn, prof, provenKey) {
     if (camp) {
         camp.players = camp.players || {};
         // merge: keep the charName binding and anything else the GM has set
+        delete net.forgotten[prof.id];   // the GM let them in again: their record is back
+        delete approvedIds[prof.id];     // and a one-time "go straight in" (a yes to a connection that had dropped) is used up, whichever way they came in
         var rec = camp.players[prof.id] = Object.assign({}, own(camp.players, prof.id) ? camp.players[prof.id] : null, { name: prof.name || prof.id });
         rec.key = (provenKey && rec.key === provenKey) ? rec.key : newKey();   // the table key: kept when the player proved it, fresh when the GM let them in (revokes whoever held the old one). camp.players never ships (sanitizeAppState).
         issuedKey = rec.key;
@@ -2466,8 +2468,8 @@ function handleMessage(msg, conn) {
         }
     } else if (msg.type === 'threats' && net.role === 'host') {
         // [netcheck:threats-start]
-        // 5h Fold 3: a player's threat marks from their sheet's facing dial — on the hosted campaign, on the map they are on, on a shown
-        // character token they own, with Token facing on and nobody paused; cleaned (at most six whole-degree bearings), stored, sent out
+        // 5h Fold 3: a player's threat marks from their sheet's facing dial — on the hosted campaign, on the map they are on, on a shown,
+        // unlocked character token they own, with Token facing on and nobody paused; cleaned (at most six whole-degree bearings), stored, sent out
         var campT = getActiveCampaign(), prT = net.roster[conn.peer], SCt = SC();
         if (!campT || !prT || !SCt || msg.campId !== campT.id || typeof msg.itemId !== 'string' || typeof msg.wbId !== 'string') return;
         if (net.paused || peerPaused(conn.peer)) return;
@@ -2476,7 +2478,7 @@ function handleMessage(msg, conn) {
         if (msg.itemId !== prT.location || !own(campT.items, msg.itemId)) return;
         var mapT = campT.items[msg.itemId]; if (!mapT || mapT.type !== 'map' || !Array.isArray(mapT.whiteboard)) return;
         var tokT = mapT.whiteboard.find(function(x) { return x && x.id === msg.wbId; });
-        if (!tokT || !tokT.isChar || tokT.hidden || tokT.ownerId !== prT.id) return;
+        if (!tokT || !tokT.isChar || tokT.hidden || tokT.locked || tokT.ownerId !== prT.id) return;
         var thT = SCt.cleanThreats(msg.threats);
         if (JSON.stringify(tokT.threats === undefined ? [] : tokT.threats) === JSON.stringify(thT)) return;
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's change lands
@@ -3698,6 +3700,25 @@ function renderPlayersPanel() {
     list.innerHTML = html;
 }
 
+// [netcheck:forget-start]
+// Players panel ▸ Forget: asked first. The record goes for good — a player at the table right now plays on, but nothing brings the record
+// back this session (net.forgotten, read by syncLastMaps), so their next join waits for the GM's Allow like a stranger's.
+function forgetPlayer(camp, fid) {
+    if (!camp || !camp.players || !own(camp.players, fid)) return;
+    var nm = camp.players[fid].name || 'Player', here = Object.values(net.roster).some(function(p) { return p && p.id === fid; });
+    showConfirm('Forget ' + nm + '? Their history in this campaign goes, and they\'ll need your approval to join again.' + (here ? ' They stay at the table for now.' : ''), function(yes) {
+        if (!yes || getActiveCampaign() !== camp || !camp.players || !own(camp.players, fid)) { renderPlayersPanel(); return; }
+        delete camp.players[fid];
+        net.forgotten[fid] = true;
+        delete approvedIds[fid];   // a one-time "go straight in" still waiting goes too: their next join is asked about
+        save();
+        var keptC = SC() && SC().playableChars ? SC().playableChars(camp, fid).length : 0;   // Onboarding F0: their characters stay theirs until the GM unassigns them
+        toast(nm + ' forgotten — they\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));
+        renderPlayersPanel();
+    });
+}
+// [netcheck:forget-end]
+
 var _playersBtn = ui('netPlayersBtn');
 if (_playersBtn) _playersBtn.addEventListener('click', function() {
     renderPlayersPanel();
@@ -3731,12 +3752,8 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
         save();
         toast(nm3 + ' unbanned.');
     } else if (btn.dataset.forget) {
-        var fid = btn.dataset.forget;
-        var nm4 = (camp.players[fid] || {}).name || 'Player';
-        delete camp.players[fid];
-        save();
-        var keptC = SC() && SC().playableChars ? SC().playableChars(camp, fid).length : 0;
-        toast(nm4 + ' forgotten — they\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));
+        forgetPlayer(camp, btn.dataset.forget);
+        return;   // the panel redraws once the GM answers
     }
     renderPlayersPanel();
 });
@@ -3832,14 +3849,27 @@ if (_endBtn) _endBtn.addEventListener('click', function() {
     });
 });
 syncSessionButtons();
-// Bring one connection's player to the GM's current map (the table's stage).
-function summonConn(c, stage) {
-    var p = net.roster[c.peer];
-    if (p) { p.detached = false; p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId); }
-    if (c.open) { try { c.send({ type: 'stage', stage: stage, personal: true }); } catch (e) { sendFailed(e); } }
+// [netcheck:stage-start]
+// Host: one connection's player is put on a stage — the table's follow, or a summon (personal: it also ends a detour). Admitted peers
+// only: a connection still waiting for the GM's Allow has no roster entry and hears nothing of the table, not even where it is.
+function stageConn(c, stage, personal) {
+    var p = own(net.roster, c.peer) ? net.roster[c.peer] : null;
+    if (!p) return null;
+    if (personal) p.detached = false;
+    p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId);
+    if (c.open) { try { c.send(personal ? { type: 'stage', stage: stage, personal: true } : { type: 'stage', stage: stage }); } catch (e) { sendFailed(e); } }
     if (c.open && net.sendFxArrival) net.sendFxArrival(c, stage.itemId);
     return p;
 }
+// Bring one connection's player to a map (the table's stage, or the one the GM is viewing)
+function summonConn(c, stage) { return stageConn(c, stage, true); }
+// The table follows the GM: every admitted player still following moves, a detached wanderer stays put. Returns how many moved.
+function followConns(stage) {
+    var moved = 0;
+    net.conns.forEach(function(c) { var p = own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!p || p.detached) return; stageConn(c, stage, false); moved++; });
+    return moved;
+}
+// [netcheck:stage-end]
 net.summonPlayer = function(peerKey) {
     if (!net.active || net.role !== 'host') return;
     var stage = currentStage();

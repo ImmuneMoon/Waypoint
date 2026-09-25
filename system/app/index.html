@@ -361,7 +361,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <div class="help-tip"><b>Who can see this?</b> Every item is either <b>&#128065; Visible to players</b> or <b>&#128683; Hidden from players</b>. The big box at the top of the Properties panel shows which, and the toolbar's eye turns red when hidden. Hidden items show to you dimmed; players at your table see nothing at all. Use it for secret doors, unrevealed enemies, and GM-only notes.</div>
                       <h4>The right-click menu</h4>
                       <ul>
-                          <li><b>Lock / Unlock</b> &mdash; locked items can't be moved or resized (they dim slightly).</li>
+                          <li><b>Lock / Unlock</b> &mdash; locked items can't be moved or resized (they dim slightly). A locked token is frozen for its player too: they can't move or turn it, change its posture or elevation, or mark threats on it until you unlock it.</li>
                           <li><b>Hide from Players / Show to Players</b> &mdash; in multiplayer, hidden items appear to players as a grey cloud; you see a ghost with an eye.</li>
                           <li><b>Show Above Grid</b> &mdash; lifts an item above the grid lines (text does this automatically).</li>
                           <li><b>Bring to Front / Forward / Backward / Send to Back</b> &mdash; five stacking layers for building scenes.</li>
@@ -1888,7 +1888,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:520px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Player History &amp; Bans <button id="playersCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <div id="playersList" style="overflow-y:auto; flex:1;"></div>
-        <div style="color:var(--dim); font-size:10.5px; margin-top:10px; line-height:1.5;">History and bans belong to this campaign and are saved with it. Banned players are refused before any approval prompt; Forget makes a player go through first-time approval again.</div>
+        <div style="color:var(--dim); font-size:10.5px; margin-top:10px; line-height:1.5;">History and bans belong to this campaign and are saved with it. Banned players are refused before any approval prompt; Forget (it asks first) makes a player go through first-time approval again &mdash; someone at the table right now plays on.</div>
     </div>
 </div>
 

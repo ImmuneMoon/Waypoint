@@ -1007,6 +1007,39 @@ const j = v => JSON.stringify(v);
             && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
     }
 
+    /* ---- Stage 6 look fold (L5): accordion titles, sticky titles, angular tabs ---- */
+    {
+        const pal10 = { text: '#111111', muted: '#222222', panel: '#333333', card: '#444444', field: '#555555', edge: '#666666', primary: '#777777', danger: '#888888', good: '#999999', warn: '#aaaaaa' };
+        const withLook = look => cleanSystem({ v: 1, name: 'L5', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true });
+        const lookOf = look => { const s = withLook(look); return s && s.sheet ? s.sheet.look : undefined; };
+        const full = lookOf({ palette: pal10, sticky: true, labels: 'caps', portrait: true, accent: '#AABBCC', tabs: 'angular', titles: 'accordion' });
+        check('look L5: cleanLook keeps accordion titles, angular tabs and sticky (true only), in the order titles, tabs, accent, portrait, labels, sticky, palette',
+            full && j(Object.keys(full)) === j(['titles', 'tabs', 'accent', 'portrait', 'labels', 'sticky', 'palette']) && full.titles === 'accordion' && full.tabs === 'angular' && full.sticky === true, j(full));
+        const bad = [{ titles: 'angled' }, { tabs: 'angled' }, { titles: 'constructor' }, { tabs: '__proto__' }, { titles: 'toString' }, { sticky: 'yes' }, { sticky: 1 }, { sticky: {} }].map(lookOf);
+        check('look L5: other title and tab values, a prototype name and a sticky that is not true are dropped (a look with nothing valid leaves no look key)', bad.every(x => x === undefined), j(bad));
+        const pv = cleanSystem(withLook({ titles: 'accordion', tabs: 'angular', sticky: true }), { F, gmView: false });
+        check('look L5: the players\' view keeps the three (nothing in a look is secret)', pv && pv.sheet && pv.sheet.look && pv.sheet.look.titles === 'accordion' && pv.sheet.look.tabs === 'angular' && pv.sheet.look.sticky === true, j(pv && pv.sheet));
+        const sh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), css = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+        check('look L5: applyLook sets the two classes by comparison (never a class built from a stored string); the angular class is added on its own line after the asserted strip line; a filled or angular tab carries its label as a title',
+            /body\.classList\.toggle\('sheet-titles-accordion', L\.titles === 'accordion'\); body\.classList\.toggle\('sheet-sticky-titles', L\.sticky === true\);/.test(sh)
+            && /var strip = el\('div', 'sheet-tabs' \+ \(look\.tabs === 'filled' \? ' sheet-tabs-filled' : ''\)\);[^\n]*\n\s*if \(look\.tabs === 'angular'\) strip\.classList\.add\('sheet-tabs-angular'\);/.test(sh)
+            && /if \(look\.tabs === 'filled' \|\| look\.tabs === 'angular'\) tb\.title = t\.label \|\| 'Tab';/.test(sh));
+        check('look L5: syncFramePad keeps its asserted line and sets --sheet-frame-h only with sticky titles; applySheetLookTo gives a stuck title the sheet\'s own panel colour (--sheet-canvas) and removes it otherwise',
+            /body\.style\.scrollPaddingTop = fr\.offsetHeight \+ 'px'; else if \(body\.style\.scrollPaddingTop\) body\.style\.scrollPaddingTop = '';\n\s*if \(fr && body\.classList\.contains\('sheet-sticky-titles'\)\) body\.style\.setProperty\('--sheet-frame-h', fr\.offsetHeight \+ 'px'\); else body\.style\.removeProperty\('--sheet-frame-h'\);/.test(sh)
+            && /if \(style && style\.bgColor\) node\.style\.setProperty\('--sheet-canvas', style\.bgColor\); else node\.style\.removeProperty\('--sheet-canvas'\);/.test(sh));
+        check('look L5: the Sheet look box offers Accordion titles, Angular tabs and a Sticky titles checkbox, each through setShape',
+            /\['accordion', 'Accordion titles'\]/.test(sh) && /\['angular', 'Angular tabs'\]/.test(sh) && /stickyChk\.addEventListener\('change', function\(\) \{ setShape\('sticky', stickyChk\.checked\); \}\);/.test(sh));
+        const l5css = css.slice(css.indexOf('/* Stage 6 look fold (L5)'), css.indexOf('#sheetPanel.sheet-has-headportrait #sheetTitle'));
+        const l5rules = l5css.split('\n').filter(x => /\{/.test(x) && !/^\s*\/\*/.test(x));
+        check('look L5: every new rule is gated by its class (.sheet-titles-accordion, .sheet-sticky-titles, .sheet-tabs-angular); the chevron is a literal URL to a bundled file that exists; a hovered angular tab has dark text on the accent (the owner\'s Q9)',
+            l5rules.length >= 18 && l5rules.every(x => /\.sheet-titles-accordion|\.sheet-sticky-titles|\.sheet-tabs-angular/.test(x.split('{')[0]))
+            && /url\("assets\/icons\/fa\/solid\/chevron-down\.svg"\)/.test(l5css) && fs.existsSync(path.join(app, 'assets', 'icons', 'fa', 'solid', 'chevron-down.svg'))
+            && /\.sheet-tabs-angular > \.sheet-tab:not\(\.active\):hover \{ background: color-mix\(in srgb, var\(--sheet-accent, var\(--gold\)\) 75%, transparent\); color: var\(--sheet-accent-ink, #111318\); \}/.test(l5css)
+            && /\.sheet-sticky-titles > \.sheet-section:not\(\.sheet-subsection\):not\(\.sheet-dash\) > \.sheet-sec-title \{ position: sticky; top: var\(--sheet-frame-h, 0px\);/.test(l5css), j(l5rules.filter(x => !/\.sheet-titles-accordion|\.sheet-sticky-titles|\.sheet-tabs-angular/.test(x.split('{')[0]))));
+        const tut5 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), help5 = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('look L5: the tour and Help both describe accordion titles, sticky titles and angular tabs', /<b>accordion<\/b> titles that <b>stay at the top<\/b>[^']*<b>angular<\/b>/.test(tut5) && /<b>accordion<\/b> titles[^<]*<b>Sticky titles<\/b>[^<]*<b>angular<\/b> tabs/.test(help5.replace(/&rsquo;/g, "'")));
+    }
+
     /* ---- Stage 6 look fold (L4): pin groups — band groups, the Pin button, a viewer's pins per character ---- */
     {
         const gf4 = [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all' }, { id: 'f_b', key: 'B', kind: 'number', def: 1, vis: 'all' }, { id: 'f_s', key: 'S', kind: 'number', def: 1, vis: 'gm' }];

@@ -2060,6 +2060,31 @@
   .sys-band-grp { display: inline-flex; align-items: center; gap: 4px; }
   .sys-band-grp .sys-bgrp-label { width: 130px; }
   .sys-bgrp-note { margin: 0; }
+  /* Stage 6 look fold (L5): accordion titles (a rule under each section, a bundled chevron on the ones that fold) */
+  .sheet-titles-accordion .sheet-section:not(.sheet-subsection) { border-bottom: 1px solid var(--edge); padding-bottom: 10px; }
+  .sheet-titles-accordion .sheet-sec-title { border-bottom: 0; font-size: 16px; font-weight: 600; letter-spacing: 0; text-transform: none; padding: 10px 0 6px; align-items: center; }
+  .sheet-titles-accordion .sheet-section.sheet-subsection { margin: 6px 0 0; padding-left: 0; border-left: 0; }
+  .sheet-titles-accordion .sheet-subsection > .sheet-sec-title { font-size: 13.5px; color: var(--sheet-primary, var(--ink)); padding: 6px 0 4px; }
+  .sheet-titles-accordion .sheet-sec-title .sheet-sec-meta { font-weight: 400; }
+  .sheet-titles-accordion summary.sheet-sec-title:hover .sheet-sec-name { text-decoration: underline; text-underline-offset: 3px; }
+  .sheet-titles-accordion .sheet-section.sheet-collap > summary.sheet-sec-title::after { content: ''; width: 11px; height: 11px; background: currentColor; -webkit-mask: url("assets/icons/fa/solid/chevron-down.svg") center/contain no-repeat; mask: url("assets/icons/fa/solid/chevron-down.svg") center/contain no-repeat; transition: transform .2s; }
+  .sheet-titles-accordion .sheet-section.sheet-collap[open] > summary.sheet-sec-title::after { transform: rotate(180deg); }
+  /* L5: sticky titles — a top-level title stops under the frame (band + tabs) while its section scrolls; dashboard sections sit above the frame and never stick */
+  .sheet-sticky-titles > .sheet-section:not(.sheet-subsection):not(.sheet-dash) > .sheet-sec-title { position: sticky; top: var(--sheet-frame-h, 0px); z-index: 1; background: var(--sheet-canvas, var(--panel2)); }
+  #popoutBody.sheet-view.sheet-sticky-titles > .sheet-section > .sheet-sec-title { background: var(--sheet-canvas, var(--bg)); }
+  .sheet-sticky-titles .sheet-section :is(input, select, textarea, button, [tabindex]) { scroll-margin-top: 44px; }   /* a control reached by keyboard clears a stuck title (about 37px) */
+  #sheetBody.sheet-sticky-titles, .sys-layout-preview.sheet-sticky-titles, #popoutBody.sheet-view.sheet-sticky-titles { padding-top: 0; }   /* a sticky top counts from the content edge: no strip of content above a stuck title */
+  #sheetBody.sheet-sticky-titles > .sheet-section:first-child, .sys-layout-preview.sheet-sticky-titles > .sheet-section:first-child { margin-top: 8px; }
+  #popoutBody.sheet-view.sheet-sticky-titles > .sheet-section:first-child { margin-top: 18px; }
+  /* L5: angular tabs — cut-corner tabs sharing the strip; the open one filled in the primary colour, a hovered one in the accent with dark text (as the reference's stylesheet means it) */
+  .sheet-frame .sheet-tabs.sheet-tabs-angular { flex-wrap: nowrap; gap: 0; padding: 4px 4px 0 14px; border-bottom: 1px solid var(--edge); background: color-mix(in srgb, var(--dim) 10%, transparent); }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab { flex: 1 1 0; min-width: 0; margin: 0 0 0 -12px; padding: 9px 16px; border: 0; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); background: color-mix(in srgb, var(--sheet-card, var(--panel2)) 45%, transparent); color: var(--sheet-ink, var(--ink)); font-weight: 500; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:first-child { margin-left: 0; }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:not(.active):hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 75%, transparent); color: var(--sheet-accent-ink, #111318); }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab.active { background: color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 75%, transparent); color: var(--sheet-primary-ink, var(--sheet-accent-ink, #111318)); font-weight: 600; box-shadow: inset 0 2px 4px rgba(0,0,0,.05); }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular .sheet-tab-icon { color: var(--sheet-primary, currentColor); }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular .active .sheet-tab-icon, .sheet-frame .sheet-tabs.sheet-tabs-angular .sheet-tab:hover .sheet-tab-icon { color: inherit; }
+  .sheet-frame .sheet-tabs.sheet-tabs-angular > .sheet-tab:focus-visible { outline: none; text-decoration: underline; text-underline-offset: 3px; box-shadow: inset 0 -3px 0 var(--sheet-accent, var(--gold)); }   /* clip-path hides an outside focus ring */
   #sheetPanel.sheet-has-headportrait #sheetTitle, body:has(#popoutBody .sheet-head-name) #popoutTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .sys-look-palsw { display: inline-flex; align-items: center; gap: 3px; }
   .sheet-stance.sheet-row { grid-column: 1 / -1; }

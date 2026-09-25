@@ -519,6 +519,7 @@ function applySheetLookTo(node, style) {
     var HEXC = /^#[0-9a-fA-F]{6}$/, pair = !!(style && HEXC.test(style.textColor || '') && HEXC.test(style.bgColor || ''));
     if (pair) { node.style.setProperty('--sheet-ink', style.textColor); node.style.setProperty('--sheet-bg', style.bgColor); node.style.setProperty('--sheet-dim', 'color-mix(in srgb, ' + style.textColor + ' 62%, ' + style.bgColor + ')'); }
     else { node.style.removeProperty('--sheet-ink'); node.style.removeProperty('--sheet-bg'); node.style.removeProperty('--sheet-dim'); }
+    if (style && style.bgColor) node.style.setProperty('--sheet-canvas', style.bgColor); else node.style.removeProperty('--sheet-canvas');   // Stage 6 look fold (L5): what a sticky title is painted with
     applySheetBg(node, style);
 }
 if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function() { var b = ui('sheetBody'); if (b && sheetOpen) syncFramePad(b); var pv = ui('sysLayoutPreview'); if (pv) syncFramePad(pv); });   // Stage 6: a look font arriving late changes the frame's height
@@ -556,6 +557,7 @@ var _secOpen = {};   // remembered collapse state of collapsible sections, keyed
 function syncFramePad(body) {
     var fr = body.querySelector(':scope > .sheet-frame');
     if (fr) body.style.scrollPaddingTop = fr.offsetHeight + 'px'; else if (body.style.scrollPaddingTop) body.style.scrollPaddingTop = '';
+    if (fr && body.classList.contains('sheet-sticky-titles')) body.style.setProperty('--sheet-frame-h', fr.offsetHeight + 'px'); else body.style.removeProperty('--sheet-frame-h');   // Stage 6 look fold (L5): a sticky title stops under the frame
 }
 function frameFlowTop(body) {
     var fr = body.querySelector(':scope > .sheet-frame'); if (!fr) return Infinity;
@@ -669,7 +671,11 @@ function applyPaletteTo(node, look) {
 // [systemcheck:palette-end]
 // The sheet's look on a container (the live body, the Layout preview, a pop-out): the palette now; later look options add their
 // classes here. vctx = { campId, view, preview } — the options object a second view of the sheet extends.
-function applyLook(body, look, vctx) { var L = look || {}; applyPaletteTo(body, L); }
+function applyLook(body, look, vctx) {
+    var L = look || {};
+    body.classList.toggle('sheet-titles-accordion', L.titles === 'accordion'); body.classList.toggle('sheet-sticky-titles', L.sticky === true);   // Stage 6 look fold (L5)
+    applyPaletteTo(body, L);
+}
 // Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colours into the look)
 var LOOK_PRESETS = {
     graphite: { name: 'Graphite', accent: '#ab94b3', font: 'inter', palette: { text: '#add8e6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#1a1a1a', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' } },
@@ -871,8 +877,9 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         active = body.dataset.wpTab || '';
         if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
         var strip = el('div', 'sheet-tabs' + (look.tabs === 'filled' ? ' sheet-tabs-filled' : ''));   // Stage 5g: angled tabs, the open one filled in the accent
+        if (look.tabs === 'angular') strip.classList.add('sheet-tabs-angular');   // Stage 6 look fold (L5): cut-corner tabs across the strip
         tabs.forEach(function(t) {
-            var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : '')); if (look.tabs === 'filled') tb.title = t.label || 'Tab';   // a filled tab can ellipsise a long label
+            var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : '')); if (look.tabs === 'filled' || look.tabs === 'angular') tb.title = t.label || 'Tab';   // a filled or angular tab can ellipsise a long label
             if (t.icon) tb.appendChild(iconNode(t.icon, 'sheet-tab-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             tb.appendChild(el('span', 'sheet-tab-label', t.label || 'Tab'));
             tb.addEventListener('click', function() {
@@ -1008,8 +1015,8 @@ function renderLayout() {
     var themeGold = function() { try { var x = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim(); return /^#[0-9a-fA-F]{6}$/.test(x) ? x.toLowerCase() : '#e0a54f'; } catch (er) { return '#e0a54f'; } };
     var shape = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {};
     var shapeRow = el('div', 'sys-sec-style sys-lookshape');
-    var titlesSel = select('sys-look-titles', [['', 'Small titles'], ['headline', 'Headline titles']], shape.titles || '', 'Section titles: small capitals (as now), or bigger headline titles');
-    var tabsSel = select('sys-look-tabs', [['', 'Underlined tabs'], ['filled', 'Filled tabs']], shape.tabs || '', 'The tab strip: an underline under the open tab (as now), or angled tabs with the open one filled in the accent');
+    var titlesSel = select('sys-look-titles', [['', 'Small titles'], ['headline', 'Headline titles'], ['accordion', 'Accordion titles']], shape.titles || '', 'Section titles: small capitals (as now), bigger headline titles, or accordion titles (a line under each section, a chevron on the ones that fold)');
+    var tabsSel = select('sys-look-tabs', [['', 'Underlined tabs'], ['filled', 'Filled tabs'], ['angular', 'Angular tabs']], shape.tabs || '', 'The tab strip: an underline under the open tab (as now), angled tabs with the open one filled in the accent, or angular tabs across the whole strip');
     var labelsSel = select('sys-look-labels', [['', 'Plain labels'], ['caps', 'Capital labels']], shape.labels || '', 'Field labels: as they are, or small bold capitals like a printed sheet');
     shapeRow.appendChild(titlesSel); shapeRow.appendChild(tabsSel); shapeRow.appendChild(labelsSel);
     shapeRow.appendChild(el('span', 'sys-sec-style-lbl', 'Accent'));
@@ -1017,6 +1024,10 @@ function renderLayout() {
     var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);
     if (shape.accent) { var aclr = el('button', 'tool ghost sys-btn', 'Theme accent'); aclr.title = 'Back to the theme\u2019s gold'; aclr.addEventListener('click', function() { setShape('accent', null); renderLayout(); }); shapeRow.appendChild(aclr); }
     lookBox.appendChild(shapeRow);
+    // Stage 6 look fold (L5): the details row — Sticky titles (the later look options join this row)
+    var detRow = el('div', 'sys-sec-style sys-lookdetails');
+    var stickyLbl = el('label', 'sys-hover'), stickyChk = el('input', 'sys-look-sticky'); stickyChk.type = 'checkbox'; stickyChk.checked = shape.sticky === true; stickyLbl.appendChild(stickyChk); stickyLbl.appendChild(document.createTextNode(' Sticky titles')); stickyLbl.title = 'A section\u2019s title stays at the top, under the band and the tabs, while you scroll through that section';
+    detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
     // Stage 6 look fold (L1): a palette — ten colours for every part of the sheet, from a preset or the GM's own swatches
     var pal = paletteOf(shape);
     var presetOf = function(p0) { if (!p0) return ''; var hit = 'custom'; Object.keys(LOOK_PRESETS).forEach(function(pn) { if (hit === 'custom' && PALETTE_KEYS.every(function(k) { return LOOK_PRESETS[pn].palette[k] === p0[k]; })) hit = pn; }); return hit; };
@@ -1046,6 +1057,7 @@ function renderLayout() {
     accentIn.addEventListener('input', function() { setShape('accent', accentIn.value); });
     accentIn.addEventListener('change', function() { renderLayout(); });   // the "Theme accent" button appears once one is picked
     portChk.addEventListener('change', function() { setShape('portrait', portChk.checked); });
+    stickyChk.addEventListener('change', function() { setShape('sticky', stickyChk.checked); });   // L5
     var setLook = function(key, val) { draft.sheetStyle = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : {}; if (val === null || val === '' || val === undefined) delete draft.sheetStyle[key]; else draft.sheetStyle[key] = val; if (!Object.keys(draft.sheetStyle).length) delete draft.sheetStyle; markDirty(); renderPreview(); };
     fontSel.addEventListener('change', function() { setLook('font', fontSel.value); });
     Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.addEventListener('input', function() { setLook(ci.dataset.key, ci.value); }); });

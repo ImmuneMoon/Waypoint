@@ -676,6 +676,7 @@ function applyPaletteTo(node, look) {
 function applyLook(body, look, vctx) {
     var L = look || {};
     body.classList.toggle('sheet-titles-accordion', L.titles === 'accordion'); body.classList.toggle('sheet-sticky-titles', L.sticky === true);   // Stage 6 look fold (L5)
+    body.classList.toggle('sheet-fx-cards', L.effects === 'cards');   // L6
     applyPaletteTo(body, L);
 }
 // Stage 6 look fold: the palette presets in the System editor (never data: picking one writes its colours into the look)
@@ -1029,7 +1030,8 @@ function renderLayout() {
     // Stage 6 look fold (L5): the details row — Sticky titles (the later look options join this row)
     var detRow = el('div', 'sys-sec-style sys-lookdetails');
     var stickyLbl = el('label', 'sys-hover'), stickyChk = el('input', 'sys-look-sticky'); stickyChk.type = 'checkbox'; stickyChk.checked = shape.sticky === true; stickyLbl.appendChild(stickyChk); stickyLbl.appendChild(document.createTextNode(' Sticky titles')); stickyLbl.title = 'A section\u2019s title stays at the top, under the band and the tabs, while you scroll through that section';
-    detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
+    var fxSel = select('sys-look-effects', [['', 'Effect lines'], ['cards', 'Effect cards']], shape.effects || '', 'Status effects: a line each (as now), or a card each with a pill per change');   // L6
+    detRow.appendChild(fxSel); detRow.appendChild(stickyLbl); lookBox.appendChild(detRow);
     // Stage 6 look fold (L1): a palette — ten colours for every part of the sheet, from a preset or the GM's own swatches
     var pal = paletteOf(shape);
     var presetOf = function(p0) { if (!p0) return ''; var hit = 'custom'; Object.keys(LOOK_PRESETS).forEach(function(pn) { if (hit === 'custom' && PALETTE_KEYS.every(function(k) { return LOOK_PRESETS[pn].palette[k] === p0[k]; })) hit = pn; }); return hit; };
@@ -1060,6 +1062,7 @@ function renderLayout() {
     accentIn.addEventListener('change', function() { renderLayout(); });   // the "Theme accent" button appears once one is picked
     portChk.addEventListener('change', function() { setShape('portrait', portChk.checked); });
     stickyChk.addEventListener('change', function() { setShape('sticky', stickyChk.checked); });   // L5
+    fxSel.addEventListener('change', function() { setShape('effects', fxSel.value); });   // L6
     var setLook = function(key, val) { draft.sheetStyle = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : {}; if (val === null || val === '' || val === undefined) delete draft.sheetStyle[key]; else draft.sheetStyle[key] = val; if (!Object.keys(draft.sheetStyle).length) delete draft.sheetStyle; markDirty(); renderPreview(); };
     fontSel.addEventListener('change', function() { setLook('font', fontSel.value); });
     Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.addEventListener('input', function() { setLook(ci.dataset.key, ci.value); }); });
@@ -1501,12 +1504,14 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
     var lib = {}, labels = {};
     ((sys && sys.effects) || []).forEach(function(d) { lib[d.id] = d; });
     ((sys && sys.fields) || []).forEach(function(x) { labels[x.id] = x.label || x.key; });
+    var cards = !!(sys && sys.sheet && sys.sheet.look && sys.sheet.look.effects === 'cards');   // Stage 6 look fold (L6): a card per effect
     rows.forEach(function(r) {
         var d = typeof r.ref === 'string' ? lib[r.ref] : r; if (!d) return;
         var line = el('div', 'sheet-fx' + (r.on === false ? ' sheet-fx-off' : '') + (d.tone === 'buff' || d.tone === 'debuff' ? ' sheet-fx-' + d.tone : ''));
         var sw = el('input'); sw.type = 'checkbox'; sw.checked = r.on !== false; sw.disabled = !editable; sw.dataset.fid = f.id; sw.dataset.part = 'fx-' + r.id;
         sw.title = r.on === false ? 'Suspended \u2014 tick to apply it again' : 'Applied \u2014 untick to suspend it';
         sw.addEventListener('change', function() { commitEffect(c, f, { op: 'on', rowId: r.id, on: sw.checked }); });
+        if (cards) { wrap.appendChild(fxCard(line, sw, r, d, f, c, labels, editable)); return; }
         line.appendChild(sw);
         if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
         var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
@@ -1531,6 +1536,26 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
     wrap.appendChild(bar);
     if (_fxForm && _fxForm.charId === c.id && _fxForm.fieldId === f.id) { nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); }   // reopened with what was typed
 }
+// Stage 6 look fold (L6): one effect as a card — the switch, icon, name, then its tone and duration (with the hourglass); the notes as text; a
+// pill per change ("+2 ST", "−5 HP max", or the name of what it switches on); the × in the corner for whoever may end it
+function fxCard(line, sw, r, d, f, c, labels, editable) {
+    line.classList.add('sheet-fx-card');
+    var head = el('div', 'sheet-fx-head'); head.appendChild(sw);
+    if (d.icon) head.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
+    head.appendChild(el('span', 'sheet-fx-name', d.name || 'Effect'));
+    var meta = el('span', 'sheet-fx-meta');
+    if (d.tone === 'buff' || d.tone === 'debuff') meta.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
+    if (d.dur) { var du = el('span', 'sheet-fx-dur'); du.appendChild(iconNode('icon:hourglass-half', 'sheet-fx-durico')); du.appendChild(document.createTextNode(' ' + d.dur)); meta.appendChild(du); }
+    if (meta.childNodes.length) head.appendChild(meta);
+    line.appendChild(head);
+    if (d.notes) line.appendChild(el('div', 'sheet-fx-notes', d.notes));
+    var mods = d.mods || [];
+    if (mods.length) { var pills = el('div', 'sheet-fx-pills'); mods.forEach(function(m) { pills.appendChild(el('span', 'sheet-fx-mod ' + (m.op === 'on' ? 'sheet-fx-mod-on' : m.v >= 0 ? 'sheet-fx-mod-pos' : 'sheet-fx-mod-neg'), fxPillText(m, labels))); }); line.appendChild(pills); }
+    if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm sheet-fx-x', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
+    return line;
+}
+// L6: a pill's text, the amount first (the owner's Q10): "+2 ST", "−5 HP max"; a switch reads as the name of what it turns on
+function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm; return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)) + ' ' + nm + (m.part === 'max' ? ' max' : ''); }
 // 5h: the New… form: a name, a tone, a duration note and up to LIMITS.effectMods changes (a field and an amount, or a toggle switched on)
 function effectForm(f, c, sys, onClose) {
     var form = el('div', 'sheet-fx-form');

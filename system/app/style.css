@@ -2060,6 +2060,23 @@
   .sys-band-grp { display: inline-flex; align-items: center; gap: 4px; }
   .sys-band-grp .sys-bgrp-label { width: 130px; }
   .sys-bgrp-note { margin: 0; }
+  /* Stage 6 look fold (L6): status effects as cards, a pill per change */
+  .sheet-fx-cards .sheet-fx { position: relative; display: block; padding: 7px 28px 7px 8px; border: 1px solid color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 30%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--dim) 8%, transparent); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .sheet-fx-cards .sheet-fx-debuff { border-color: color-mix(in srgb, var(--red) 30%, transparent); }
+  .sheet-fx-cards .sheet-fx-buff, .sheet-fx-cards .sheet-fx-debuff { border-left-width: 1px; }
+  .sheet-fx-cards .sheet-fx-head { display: flex; align-items: baseline; gap: 6px; }
+  .sheet-fx-cards .sheet-fx-name { flex: 1; min-width: 0; font-weight: 700; font-size: 12.8px; }
+  .sheet-fx-cards .sheet-fx-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .sheet-fx-cards .sheet-fx-tone { border: 1px solid var(--edge); border-radius: 9999px; padding: 0 6px; opacity: .7; text-transform: none; }
+  .sheet-fx-cards .sheet-fx-dur { font-size: 9px; font-weight: 700; font-style: normal; text-transform: uppercase; color: var(--sheet-accent, var(--gold)); }
+  .sheet-fx-cards .sheet-fx-notes { font-size: 10.5px; font-style: italic; color: var(--dim); margin: 2px 0 6px; }
+  .sheet-fx-cards .sheet-fx-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sheet-fx-cards .sheet-fx-x { position: absolute; top: 4px; right: 4px; margin: 0; color: var(--red); opacity: .3; }
+  .sheet-fx-cards .sheet-fx-x:hover, .sheet-fx-cards .sheet-fx-x:focus-visible { opacity: 1; background: color-mix(in srgb, var(--red) 20%, transparent); }
+  .sheet-fx-mod { font: 600 10px/1.6 ui-monospace, Consolas, monospace; padding: 0 7px; border-radius: 9999px; border: 1px solid color-mix(in srgb, currentColor 40%, transparent); background: color-mix(in srgb, currentColor 8%, transparent); }
+  .sheet-fx-mod-pos { color: var(--green); }
+  .sheet-fx-mod-neg { color: var(--red); }
+  .sheet-fx-mod-on { color: var(--sheet-primary, var(--ink)); }
   /* Stage 6 look fold (L5): accordion titles (a rule under each section, a bundled chevron on the ones that fold) */
   .sheet-titles-accordion .sheet-section:not(.sheet-subsection) { border-bottom: 1px solid var(--edge); padding-bottom: 10px; }
   .sheet-titles-accordion .sheet-sec-title { border-bottom: 0; font-size: 16px; font-weight: 600; letter-spacing: 0; text-transform: none; padding: 10px 0 6px; align-items: center; }

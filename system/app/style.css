@@ -1811,14 +1811,14 @@
   .sheet-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid var(--edge); }
   .sheet-tab { font: inherit; font-size: 12.5px; padding: 7px 14px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--dim); cursor: pointer; margin-bottom: -1px; }
   .sheet-tab:hover { color: var(--ink); }
-  .sheet-tab.active { color: var(--gold); border-bottom-color: var(--gold); font-weight: 600; }
+  .sheet-tab.active { color: var(--sheet-accent, var(--gold)); border-bottom-color: var(--sheet-accent, var(--gold)); font-weight: 600; }
   .sys-tabmgr { border: 1px dashed var(--edge); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
   .sys-tabmgr-head { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
   .sys-tabmgr .sys-hint { font-size: 11px; color: var(--dim); line-height: 1.4; }
   .sys-tabmgr .sys-tab { margin-top: 6px; border-left-color: rgba(122,167,255,0.55); }
   .sys-tab-label { width: 200px; }
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
-  .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
+  .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--sheet-accent, var(--gold)); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
   .sheet-sec-name { flex: 1; min-width: 0; }
   /* Stage 5f: a handbook chip in a section header (the owner's Foundry chip: a small pill, icon + page title) and a handbook link button */
   .sheet-sec-chip { flex: 0 1 auto; min-width: 0; max-width: 55%; align-self: center; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 9999px; border: 1px solid var(--edge); background: rgba(0,0,0,0.12); color: var(--dim); font-size: 10px; font-weight: 700; line-height: 17px; letter-spacing: .02em; text-transform: none; cursor: pointer; white-space: nowrap; }
@@ -1857,7 +1857,7 @@
   .sheet-bar-fill { height: 100%; background: var(--green); transition: width .2s; }
   .sheet-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
   .sheet-notes { min-height: 60px; resize: vertical; font-size: 12px; }
-  .sheet-heading { grid-column: 1 / -1; color: var(--gold); font-weight: 700; font-size: 12.5px; }
+  .sheet-heading { grid-column: 1 / -1; color: var(--sheet-accent, var(--gold)); font-weight: 700; font-size: 12.5px; }
   .sheet-divider { grid-column: 1 / -1; border-top: 1px solid var(--edge); }
   .sheet-portrait-slot img { max-width: 100%; max-height: 160px; border-radius: 6px; border: 1px solid var(--edge); }
   .sheet-roll { width: 100%; }
@@ -1880,7 +1880,7 @@
      sheet look paints the body behind them. A sticky box is clamped inside its parent's content box and its top counts from that
      edge, so a body that holds a frame gives up its top padding (the first block carries its own); side margins reach the panel's
      edges; blocks inside sit flush with a rule between them. */
-  .sheet-head, .sheet-frame { margin: 0 -10px; background: var(--panel2); color: var(--ink); border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; }
+  .sheet-head, .sheet-frame { margin: 0 -10px; background: var(--sheet-bg, var(--panel2)); color: var(--sheet-ink, var(--ink)); border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; }
   .sheet-frame { position: sticky; top: 0; z-index: 2; }
   .sheet-head > * + *, .sheet-frame > * + * { border-top: 1px solid var(--edge); }
   .sheet-frame > .sheet-tabs { margin: 0; padding: 0 10px; border-bottom: 0; }
@@ -1915,6 +1915,53 @@
   .sheet-ledger-fig .sheet-hdr-val { border-style: solid; background: rgba(0,0,0,0.28); font-weight: 700; font-size: 14px; padding: 5px 12px; font-variant-numeric: tabular-nums; }
   .sheet-hdr-neg { color: var(--red); }
   .sheet-hdr-chip { border-style: solid; color: var(--green); font-weight: 700; }
+  /* Stage 5g — look parity. All opt-in: a class or a variable the sheet sets only when the Layout asks, so a sheet without them is
+     exactly what it was. --sheet-accent (look.accent) falls back to the theme gold; --sheet-ink/--sheet-bg come from the sheet look. */
+  .sheet-sec-icon { flex: 0 0 auto; text-transform: none; letter-spacing: 0; }
+  .sheet-tab-icon { margin-right: 6px; }
+  .sheet-titles-headline .sheet-sec-title { font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; padding-bottom: 5px; align-items: center; }
+  .sheet-titles-headline .sheet-section.sheet-subsection > .sheet-sec-title { font-size: 13px; }
+  .sheet-titles-headline .sheet-sec-title .sheet-sec-meta { font-weight: 400; }
+  .sheet-tabs.sheet-tabs-filled { gap: 2px; padding-top: 6px; padding-bottom: 6px; }
+  .sheet-tabs-filled .sheet-tab { flex: 1 1 auto; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); background: transparent; border-bottom: 0; margin-bottom: 0; padding: 7px 10px; font-size: 12px; font-weight: 600; }
+  .sheet-tabs-filled .sheet-tab:hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 16%, transparent); }
+  .sheet-tabs-filled .sheet-tab.active { background: var(--sheet-accent, var(--gold)); color: var(--sheet-accent-ink, #111318); }
+  .sheet-tabs-filled .sheet-tab:focus-visible { outline: none; text-decoration: underline; text-underline-offset: 3px; box-shadow: inset 0 -3px 0 var(--sheet-accent, var(--gold)); }   /* clip-path hides an outside focus ring */
+  .sheet-head.sheet-head-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .sheet-head-grid > * + * { border-top: 0; }
+  .sheet-head-portrait { width: 88px; aspect-ratio: 4 / 5; margin: 8px 0 8px 10px; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: rgba(0,0,0,0.2); }
+  .sheet-head-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sheet-head-portrait-none { border-style: dashed; }
+  .sheet-head-main { display: flex; flex-direction: column; min-width: 0; }
+  .sheet-head-main > * + * { border-top: 1px solid var(--edge); }
+  .sheet-head-main > .sheet-head-name + * { border-top: 0; }
+  .sheet-head-name { padding: 8px 10px 2px; font-size: 18px; font-weight: 700; line-height: 1.2; color: var(--sheet-accent, var(--sheet-ink, var(--gold))); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-has-headportrait #sheetPortrait { display: none !important; }
+  .sheet-hdr-val.sheet-hdr-edit { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 0; }
+  .sheet-hdr-edit input.sheet-hdr-input { width: 6em; min-width: 0; border: 0; background: transparent; font: inherit; font-weight: 700; font-size: 14px; text-align: center; padding: 4px; color: inherit; }
+  #sheetPanel .sheet-hdr-edit input.field, #sysLayoutPreview .sheet-hdr-edit input.field, #popoutBody.sheet-view .sheet-hdr-edit input.field { font-size: 14px; padding: 4px; }   /* beats the containers' own input.field size */
+  .sheet-field .sheet-total.sheet-pos, .sheet-field.sheet-tile.sheet-kind-skill .sheet-total.sheet-pos { color: var(--green); }   /* a skill tile's total outranks the plain tones */
+  .sheet-field .sheet-total.sheet-neg, .sheet-field.sheet-tile.sheet-kind-skill .sheet-total.sheet-neg { color: var(--red); }
+  /* inside the head and the frame, theme-coloured text follows the look's pair when one is set (the fallbacks are the old theme values) */
+  .sheet-head .sheet-label, .sheet-frame .sheet-label, .sheet-frame .sheet-total:not(.sheet-pos):not(.sheet-neg):not(.sheet-err), .sheet-head .sheet-hdr-empty, .sheet-head .sheet-unit, .sheet-frame .sheet-unit, .sheet-frame .sheet-tab:not(.active) { color: var(--sheet-dim, var(--dim)); }
+  .sheet-frame .sheet-value:not(.sheet-pos):not(.sheet-neg):not(.sheet-err), .sheet-frame .sheet-tab:not(.active):hover { color: var(--sheet-ink, var(--ink)); }
+  .sheet-head .tool.ghost, .sheet-frame .tool.ghost, .sheet-head .tool.ghost:hover, .sheet-frame .tool.ghost:hover { color: var(--sheet-ink, var(--ink)); }   /* transparent buttons (the band's − / +, a field's roll die) read on the look's panel */
+  .sheet-frame .sheet-slider-ends { color: var(--sheet-dim, var(--dim)); }
+  /* with a look pair and no accent of its own, the accent-coloured bits fall back to the look's ink, not the theme gold (a light look panel) */
+  .sheet-head .sheet-gm .sheet-label::after, .sheet-frame .sheet-gm .sheet-label::after { color: var(--sheet-accent, var(--sheet-ink, var(--gold))); }
+  .sheet-frame .sheet-tabs:not(.sheet-tabs-filled) > .sheet-tab.active { color: var(--sheet-accent, var(--sheet-ink, var(--gold))); border-bottom-color: var(--sheet-accent, var(--sheet-ink, var(--gold))); }
+  .sheet-hdr-val.sheet-hdr-edit:focus-within { border-color: var(--sheet-accent, var(--gold)); }   /* the ledger box's focus ring (the input itself is borderless) */
+  .sheet-pos, .sheet-hdr-pos, .sheet-field input.sheet-pos, .sheet-hdr-edit input.sheet-hdr-pos { color: var(--green); }
+  .sheet-neg, .sheet-field input.sheet-neg, .sheet-hdr-edit input.sheet-hdr-neg { color: var(--red); }
+  .sheet-hdr-empty { color: var(--dim); }
+  .sheet-unit { flex: 0 0 auto; color: var(--dim); font-size: 11px; font-weight: 400; }
+  #popoutBody.sheet-view .sheet-head-grid > * { padding-left: 0; padding-right: 0; }
+  #popoutBody.sheet-view > .sheet-head-grid:first-child > .sheet-head-portrait:first-child { padding: 0; margin: 14px 0 8px 22px; }
+  #popoutBody.sheet-view .sheet-head-main > * { padding-left: 12px; padding-right: 22px; }
+  #popoutBody.sheet-view .sheet-head-grid .sheet-head-name { padding-top: 14px; }   /* level with the portrait's 14px top inset */
+  .sys-tab-icon, .sys-sec-icon { flex: 0 0 52px; width: 52px; text-align: center; }
+  .sys-row-main > input.sys-tab-icon + input.sys-tab-label, .sys-row-main > input.sys-sec-icon + input.sys-sec-title { width: calc(100% - 58px); }   /* the icon and the label share a line (the label takes the rest, as it took the whole line before) */
+  .sys-flags .sys-unit { flex: 0 0 64px; width: 64px; }
   /* a dashboard section (above the tabs on every tab): a rule under it before the frame */
   .sheet-section.sheet-dash { padding-bottom: 6px; border-bottom: 1px solid var(--edge); }
   /* Stage 5e: a gradient slider — a number with a min and a max shown as a range on a two-colour track (the field's own colours, else
@@ -1937,7 +1984,7 @@
   .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
   .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
   /* the Layout tab's Sheet look box (doc theming): the whole sheet's font / colors / picture over the campaign default */
-  .sys-lookbox .sys-look-font { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }
+  .sys-lookbox .sys-look-font, .sys-lookbox .sys-look-titles, .sys-lookbox .sys-look-tabs { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }
   .sys-lookbox input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; }
   .sys-lookbox .sys-look-dim { width: 90px; accent-color: var(--gold); cursor: pointer; }
   /* Stage 5c: the Layout tab's Pinned band box — chips with left/right/remove, a select to pin more */

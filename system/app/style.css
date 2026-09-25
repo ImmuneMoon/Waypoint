@@ -2060,6 +2060,18 @@
   .sys-band-grp { display: inline-flex; align-items: center; gap: 4px; }
   .sys-band-grp .sys-bgrp-label { width: 130px; }
   .sys-bgrp-note { margin: 0; }
+  /* Stage 6 look fold (L7): a formula as a badge, coloured by its value name; a pool's own colour */
+  .sheet-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 9999px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 10%, transparent); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.4; color: var(--dim); }
+  .sheet-badge.sheet-tone-good { color: var(--green); }
+  .sheet-badge.sheet-tone-warn { color: var(--sheet-warn, var(--gold)); }
+  .sheet-badge.sheet-tone-danger { color: var(--red); }
+  .sheet-badge.sheet-tone-accent { color: var(--sheet-accent, var(--gold)); }
+  .sheet-badge.sheet-tone-primary { color: var(--sheet-primary, var(--sheet-accent, var(--gold))); }
+  .sheet-pool-colored .sheet-pool-icon { color: var(--sheet-pool); }
+  .sheet-pool-colored .sheet-bar-fill { background: var(--sheet-pool); }
+  .sheet-band .sheet-pool-colored .sheet-cur { color: var(--sheet-pool); font-weight: 700; }
+  .sys-tones-row { flex-wrap: wrap; }
+  .sys-tone-lbl { display: inline-flex; align-items: center; gap: 4px; }
   /* Stage 6 look fold (L6): status effects as cards, a pill per change */
   .sheet-fx-cards .sheet-fx { position: relative; display: block; padding: 7px 28px 7px 8px; border: 1px solid color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 30%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--dim) 8%, transparent); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
   .sheet-fx-cards .sheet-fx-debuff { border-color: color-mix(in srgb, var(--red) 30%, transparent); }

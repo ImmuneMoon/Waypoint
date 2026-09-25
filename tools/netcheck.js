@@ -450,6 +450,14 @@ const j = JSON.stringify;
         && /charPendingDone\(msg\.rid, msg\.type === 'char-ack', SC2\.cleanDenyReason\(msg\.reason\), SC2\.cleanItemMsg\(msg\.msg\)\)/.test(src) && /Sh\.stampRows\(campH\.system, campH\.chars \|\| \{\}\);[^\n]*\n\s*net\.applyingRemote = true; save\(true\);/.test(src));
 }
 
+// Stage 6 look fold: the players' view of a system carrying every look-fold key packs for the wire (no prototype-free object —
+// the lesson of the roster bug), for both look test systems
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const errs = ['look-d20', 'look-3d6'].map(n => { try { const sys = Sx.cleanSystem(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8')), { F: Fx, gmView: false }); packCheck(sys); return sys && sys.sheet && sys.sheet.look && sys.sheet.look.palette ? null : n + ': no palette'; } catch (e) { return n + ': ' + e.message; } }).filter(Boolean);
+    check('look: the players\' view of both look test systems (a palette, and every later look key) packs for the wire', errs.length === 0, errs.join('; '));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

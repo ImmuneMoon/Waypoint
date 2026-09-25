@@ -1,0 +1,440 @@
+{
+  "v": 1,
+  "name": "3d6 points (look)",
+  "fields": [
+    {
+      "id": "f_st",
+      "key": "ST",
+      "label": "Strength",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_dx",
+      "key": "DX",
+      "label": "Dexterity",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_iq",
+      "key": "IQ",
+      "label": "Intelligence",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_ht",
+      "key": "HT",
+      "label": "Health",
+      "kind": "number",
+      "def": 10,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "tile": true
+    },
+    {
+      "id": "f_hp",
+      "key": "HP",
+      "label": "HP",
+      "kind": "resource",
+      "maxFormula": "ST",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": true,
+      "icon": "icon:heart",
+      "color": "#f87171",
+      "reset": true,
+      "bar": false
+    },
+    {
+      "id": "f_ep",
+      "key": "EP",
+      "label": "EP",
+      "kind": "resource",
+      "maxFormula": "HT",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "icon": "icon:bolt",
+      "color": "#fbbf24",
+      "reset": true,
+      "bar": false
+    },
+    {
+      "id": "f_fp",
+      "key": "FP",
+      "label": "FP",
+      "kind": "resource",
+      "maxFormula": "IQ",
+      "def": "max",
+      "min": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "icon": "icon:wand-sparkles",
+      "color": "#ab94b3",
+      "reset": true,
+      "bar": false
+    },
+    {
+      "id": "f_cpt",
+      "key": "CP.Total",
+      "label": "Point total",
+      "kind": "number",
+      "def": 150,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "step": 1,
+      "unit": "pts"
+    },
+    {
+      "id": "f_cps",
+      "key": "CP.Spent",
+      "label": "Total spent",
+      "kind": "formula",
+      "formula": "(ST - 10) * 10 + (DX - 10) * 20 + (IQ - 10) * 20 + (HT - 10) * 10",
+      "vis": "all",
+      "hover": false,
+      "unit": "pts"
+    },
+    {
+      "id": "f_cpr",
+      "key": "CP.Remaining",
+      "label": "Remaining",
+      "kind": "formula",
+      "formula": "CP.Total - CP.Spent",
+      "vis": "all",
+      "hover": false,
+      "unit": "pts",
+      "sign": true
+    },
+    {
+      "id": "f_species",
+      "key": "Species",
+      "label": "Species",
+      "kind": "text",
+      "def": "",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_home",
+      "key": "Homeworld",
+      "label": "Homeworld",
+      "kind": "text",
+      "def": "",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_brawl",
+      "key": "Skill.Brawling",
+      "label": "Brawling",
+      "kind": "skill",
+      "base": "DX - 4",
+      "def": 0,
+      "min": 0,
+      "max": 30,
+      "step": 1,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    },
+    {
+      "id": "f_bstate",
+      "key": "Brawling.State",
+      "label": "Brawling",
+      "kind": "formula",
+      "formula": "if(Skill.Brawling.ranks > 0, 1, 0)",
+      "vis": "all",
+      "hover": false,
+      "labels": [
+        "Default",
+        "Trained"
+      ],
+      "tones": [
+        "warn",
+        "good"
+      ],
+      "badge": true
+    },
+    {
+      "id": "f_dodge",
+      "key": "Dodge",
+      "label": "Dodge",
+      "kind": "formula",
+      "formula": "floor((HT + DX) / 4) + 3",
+      "vis": "all",
+      "hover": false,
+      "tile": true
+    },
+    {
+      "id": "f_fx",
+      "key": "Effects",
+      "label": "Active effects",
+      "kind": "effects",
+      "edit": "owner",
+      "vis": "all",
+      "hover": false
+    }
+  ],
+  "rolls": [
+    {
+      "id": "r_punch",
+      "label": "Punch",
+      "formula": "3d6 <= Skill.Brawling",
+      "vis": "all",
+      "tone": "outline",
+      "icon": "icon:hand-fist"
+    },
+    {
+      "id": "r_pdmg",
+      "label": "Punch damage",
+      "formula": "1d6 - 2",
+      "vis": "all",
+      "tone": "danger",
+      "icon": "icon:burst"
+    },
+    {
+      "id": "r_dodge",
+      "label": "Dodge",
+      "formula": "3d6 <= Dodge",
+      "vis": "all",
+      "tone": "neutral",
+      "icon": "icon:shield-halved"
+    }
+  ],
+  "sheet": {
+    "tabs": [
+      {
+        "id": "t_info",
+        "label": "Info",
+        "icon": "icon:user"
+      },
+      {
+        "id": "t_combat",
+        "label": "Combat",
+        "icon": "icon:crosshairs"
+      },
+      {
+        "id": "t_skills",
+        "label": "Skills",
+        "icon": "icon:graduation-cap"
+      }
+    ],
+    "identity": [
+      {
+        "id": "f_species"
+      },
+      {
+        "id": "f_home"
+      },
+      {
+        "id": "f_cpt"
+      }
+    ],
+    "bandGroups": [
+      {
+        "id": "g_points",
+        "label": "Points"
+      },
+      {
+        "id": "g_pools",
+        "label": "Pools"
+      }
+    ],
+    "band": [
+      {
+        "id": "f_cps",
+        "g": "g_points"
+      },
+      {
+        "id": "f_cpr",
+        "g": "g_points"
+      },
+      {
+        "id": "f_hp",
+        "g": "g_pools"
+      },
+      {
+        "id": "f_ep",
+        "g": "g_pools"
+      },
+      {
+        "id": "f_fp",
+        "g": "g_pools"
+      }
+    ],
+    "sections": [
+      {
+        "id": "s_attr",
+        "title": "Attributes",
+        "tab": "t_info",
+        "cols": 4,
+        "fields": [
+          {
+            "id": "f_st",
+            "w": 1
+          },
+          {
+            "id": "f_dx",
+            "w": 1
+          },
+          {
+            "id": "f_iq",
+            "w": 1
+          },
+          {
+            "id": "f_ht",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_points",
+        "title": "Point Totals",
+        "tab": "t_info",
+        "cols": 3,
+        "fields": [
+          {
+            "id": "f_cps",
+            "w": 1
+          },
+          {
+            "id": "f_cpr",
+            "w": 1
+          },
+          {
+            "kind": "pin",
+            "g": "g_points",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_pools",
+        "title": "Resource Pools",
+        "tab": "t_info",
+        "cols": 3,
+        "pin": "g_pools",
+        "fields": [
+          {
+            "id": "f_hp",
+            "w": 1
+          },
+          {
+            "id": "f_ep",
+            "w": 1
+          },
+          {
+            "id": "f_fp",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_combat",
+        "title": "Combat",
+        "tab": "t_combat",
+        "cols": 3,
+        "fields": [
+          {
+            "id": "f_dodge",
+            "w": 1
+          },
+          {
+            "roll": "r_punch",
+            "w": 1
+          },
+          {
+            "roll": "r_pdmg",
+            "w": 1
+          },
+          {
+            "roll": "r_dodge",
+            "w": 1
+          },
+          {
+            "id": "f_fx",
+            "w": "row"
+          }
+        ]
+      },
+      {
+        "id": "s_skills",
+        "title": "Skills",
+        "tab": "t_skills",
+        "cols": 2,
+        "fields": [
+          {
+            "id": "f_brawl",
+            "w": 1
+          },
+          {
+            "id": "f_bstate",
+            "w": 1
+          }
+        ]
+      }
+    ],
+    "look": {
+      "titles": "accordion",
+      "sticky": true,
+      "tabs": "angular",
+      "numbers": "mono",
+      "band": "chips",
+      "steppers": "inside",
+      "values": "boxed",
+      "effects": "cards",
+      "rows": "cards",
+      "portrait": true,
+      "accent": "#ab94b3",
+      "palette": {
+        "text": "#add8e6",
+        "muted": "#8c8c8c",
+        "panel": "#1a1a1a",
+        "card": "#212121",
+        "field": "#1a1a1a",
+        "edge": "#333333",
+        "primary": "#add8e6",
+        "danger": "#cc3333",
+        "good": "#4ade80",
+        "warn": "#f59e0b"
+      }
+    }
+  }
+}

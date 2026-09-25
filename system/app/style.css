@@ -2002,6 +2002,29 @@
   .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; }
   .sheet-item-hid { opacity: 0.6; }
   .sheet-item-undo { font-size: 11px; padding: 1px 6px; }
+  /* Stage 6 look fold (L1): a sheet palette. The palette remaps the theme's variables on the sheet (sheets.js applyPaletteTo); these rules
+     add what the variables alone can't say. Every rule is gated by .sheet-paletted, so a sheet without a palette is exactly as before. */
+  .sheet-paletted { background-color: var(--panel2); color: var(--ink); --sheet-canvas: var(--panel2); --edge-weak: color-mix(in srgb, var(--edge) 60%, transparent); }
+  .sheet-paletted :is(button, .tool) { font-family: inherit; }
+  #sheetPanel.sheet-paletted { border-color: var(--edge); }
+  #sheetPanel.sheet-paletted #sheetHead { background: var(--sheet-card); }
+  #sheetPanel.sheet-paletted #sheetTitle { color: var(--sheet-primary); }
+  .sheet-paletted .sheet-head, .sheet-paletted .sheet-frame { background: var(--sheet-card); color: var(--ink); }
+  .sheet-paletted .sheet-head-name { color: var(--sheet-primary); }
+  .sheet-paletted .sheet-tabs-filled .sheet-tab.active { background: var(--sheet-primary); color: var(--sheet-primary-ink); }
+  .sheet-paletted .sheet-tab-icon { color: var(--sheet-primary); }
+  .sheet-paletted .sheet-tab.active .sheet-tab-icon { color: inherit; }
+  .sheet-paletted .sheet-section.sheet-subsection > .sheet-sec-title { color: var(--sheet-primary); }
+  .sheet-paletted .sheet-field.sheet-tile { background: var(--panel); }
+  .sheet-paletted .sheet-field.sheet-tile .sheet-value:not(.sheet-pos):not(.sheet-neg):not(.sheet-err), .sheet-paletted .sheet-field.sheet-tile .sheet-num:not(.sheet-pos):not(.sheet-neg), .sheet-paletted .sheet-field.sheet-tile.sheet-kind-skill .sheet-total:not(.sheet-pos):not(.sheet-neg):not(.sheet-err) { color: var(--sheet-primary); }
+  .sheet-paletted .sheet-sec-chip { border-color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 25%, transparent); background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 5%, transparent); color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 80%, transparent); }
+  .sheet-paletted .sheet-sec-chip:hover { border-color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 50%, transparent); background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 15%, transparent); color: var(--sheet-accent, var(--gold)); }
+  .sheet-paletted .sheet-chip:not(.sheet-item-lost):not(.sheet-item-bound):not(.sheet-item-curse):not(.sheet-item-kept) { border: 1px solid var(--edge); border-radius: 9999px; }
+  .sheet-paletted .sheet-itemtable th { background: color-mix(in srgb, var(--dim) 10%, transparent); }
+  .sheet-paletted .sheet-itemtable tbody tr:hover { background: color-mix(in srgb, var(--dim) 12%, transparent); }
+  .sheet-paletted input[type=checkbox] { accent-color: var(--sheet-primary); }
+  .sys-lookpalette { flex-wrap: wrap; }
+  .sys-look-palsw { display: inline-flex; align-items: center; gap: 3px; }
   .sheet-stance.sheet-row { grid-column: 1 / -1; }
   .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sheet-stance-row > .sheet-label { min-width: 64px; }

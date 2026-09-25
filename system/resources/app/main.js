@@ -366,6 +366,7 @@ const server = http.createServer((req, res) => {
         if (ext === '.gif') mime = 'image/gif';
         if (ext === '.svg') mime = 'image/svg+xml';
         if (ext === '.ico') mime = 'image/x-icon';
+        if (ext === '.woff2') mime = 'font/woff2';
         
         res.writeHead(200, { 
             'Content-Type': mime,

@@ -1,4 +1,7 @@
 
+  /* Stage 6 look fold (L2): the bundled Inter typeface (SIL OFL 1.1; assets/fonts/inter/LICENSE), used only where a look picks it */
+  @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter/inter-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter/inter-latin-wght-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
   :root{
     --bg:#15151c; --bg2:#1c1c26; --panel:#20202c; --panel2:#262633;
     --edge:#3a3a4a; --ink:#e9e9f0; --dim:#9a9aad; --faint:#6a6a7d;
@@ -2024,6 +2027,24 @@
   .sheet-paletted .sheet-itemtable tbody tr:hover { background: color-mix(in srgb, var(--dim) 12%, transparent); }
   .sheet-paletted input[type=checkbox] { accent-color: var(--sheet-primary); }
   .sys-lookpalette { flex-wrap: wrap; }
+  /* Stage 6 look fold (L2): a bundled glyph is a mask in the text's colour; roll tones; the editor's icon picker */
+  .wp-glyph { display: inline-block; width: 1.15em; height: 1em; flex: none; vertical-align: -0.125em; background-color: currentColor; mask-position: center; mask-size: contain; mask-repeat: no-repeat; -webkit-mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; }
+  .sheet-roll.sheet-roll-danger { background: var(--red); border-color: var(--red); color: var(--sheet-danger-ink, #fff); font-weight: 600; }
+  .sheet-roll.sheet-roll-danger:not(:disabled):hover { background: color-mix(in srgb, var(--red) 88%, #000); border-color: var(--red); color: var(--sheet-danger-ink, #fff); }
+  .sheet-roll.sheet-roll-primary { background: var(--sheet-primary, var(--sheet-accent, var(--gold))); border-color: transparent; color: var(--sheet-primary-ink, var(--sheet-accent-ink, #111318)); font-weight: 600; }
+  .sheet-roll.sheet-roll-primary:not(:disabled):hover { background: color-mix(in srgb, var(--sheet-primary, var(--sheet-accent, var(--gold))) 90%, #000); color: var(--sheet-primary-ink, var(--sheet-accent-ink, #111318)); }
+  .sheet-roll.sheet-roll-neutral { background: var(--edge); border-color: var(--edge); color: var(--ink); font-weight: 600; }
+  .sheet-roll.sheet-roll-neutral:not(:disabled):hover { background: color-mix(in srgb, var(--edge) 80%, transparent); color: var(--ink); }
+  .sheet-roll.sheet-roll-outline:not(:disabled) { background: transparent; border-color: var(--edge); }
+  .sheet-roll.sheet-roll-outline:not(:disabled):hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 75%, transparent); color: var(--sheet-accent-ink, #111318); }
+  .sheet-roll-icon { margin-right: 6px; }
+  .sys-glyph-btn { flex: 0 0 28px; width: 28px; min-width: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+  .sys-row-main > input.sys-tab-icon + .sys-glyph-btn + input.sys-tab-label, .sys-row-main > input.sys-sec-icon + .sys-glyph-btn + input.sys-sec-title { width: calc(100% - 92px); }
+  .sys-glyph-pop { position: fixed; z-index: 30; width: 320px; max-height: 330px; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .sys-glyph-tabs { display: flex; gap: 4px; }
+  .sys-glyph-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; overflow: auto; min-height: 60px; max-height: 210px; }
+  .sys-glyph-opt { height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .sys-glyph-emoji { font-size: 18px; line-height: 1; }
   .sys-look-palsw { display: inline-flex; align-items: center; gap: 3px; }
   .sheet-stance.sheet-row { grid-column: 1 / -1; }
   .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

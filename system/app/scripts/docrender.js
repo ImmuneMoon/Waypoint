@@ -301,7 +301,8 @@ var DOC_FONTS = {
     mono:    "Consolas, 'SF Mono', 'Roboto Mono', monospace",
     slab:    "Rockwell, 'Roboto Slab', Georgia, serif",
     display: "'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif",
-    hand:    "'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive"
+    hand:    "'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive",
+    inter:   "Inter, system-ui, 'Segoe UI', sans-serif"   // Stage 6: bundled (assets/fonts/inter, SIL OFL 1.1)
 };
 function safeHex(v) { return (typeof v === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)) ? v : ''; }
 // A stored background-image reference: a picture path exactly as the library stores it (uploads keep their

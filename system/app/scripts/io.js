@@ -66,8 +66,10 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       if (xd > yd && xd > zd) rx = -ry - rz; else if (yd > zd) ry = -rx - rz;
       return { x: 1.5 * s * rx + s / 2, y: h * (ry + rx / 2) };
   }
+  var _bindNotes = [];   // Onboarding F0: what the normaliser bound, for load()'s one-time notice (never from migrateAppState itself: it also runs in the stream window, pop-outs and cleanup copies)
   function migrateAppState(data) {
     var changed = false;
+    _bindNotes = [];
     function fix(reason) { changed = true; }
 
     // v0 (earliest builds): { maps: {...}, activeMapId } with no campaign layer
@@ -168,7 +170,12 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             if (!c.system) delete c.chars;
             else {
                 var outCh = {}; Object.keys(c.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(c.chars[id], c.system); if (cc && cc.id === id) outCh[id] = cc; }); c.chars = outCh;
-                Object.values(c.items || {}).forEach(function(m) { if (!m || m.type !== 'map') return; (m.whiteboard || []).forEach(function(w) { if (!w || !w.charId) return; var ch = outCh[w.charId]; if (!ch) return; if (ch.ownerId) w.ownerId = ch.ownerId; else delete w.ownerId; }); });
+                // Onboarding F0: players follow their characters by id — the one in play written down once, tokens they hold bound only by name
+                // linked (systemcore migrateBindings) — then ONE chooser (ownedTokenPlan, shared with syncOwners and every arrival path) says which
+                // token each player holds: one per character per map, and a kept character's are the GM's. Persists with the next ordinary save.
+                var SCm = window.wpSystemCore, sheetsOnM = !window.wpVtt || window.wpVtt.campaignOn('sheets', c) !== false;
+                if (SCm.migrateBindings && !c._foreign) { var migB = SCm.migrateBindings(c); if (migB.bound || migB.linked) _bindNotes.push({ camp: c, r: migB }); }   // never a copy the cleanup marked as another GM's
+                if (SCm.ownedTokenPlan) SCm.applyOwnerOps(c, SCm.ownedTokenPlan(c, { all: !sheetsOnM }));
             }
         }
         if (c.fog !== undefined && window.wpFogCore) c.fog = window.wpFogCore.cleanCampFog(c.fog);   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
@@ -195,6 +202,24 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       refresh: function() { updateCampaignSelect(); updateSidebarNav(); render(); },
       migrate: function(d) { return migrateAppState(d).data; }
   };
+
+  // Onboarding F0: players now follow their characters by id. Once per campaign (the binding is written, so the next load finds nothing): a
+  // toast, and in each campaign's Session Log a line for each guess and each player who owns several characters (one in play, the others kept)
+  function noteBindings(list) {
+      var bound = 0, linked = 0;
+      list.forEach(function(n) {
+          var c = n.camp, r = n.r, ps = c.players || {}, cs = c.chars || {};
+          bound += r.bound; linked += r.linked;
+          var nm = function(pid) { return (Object.prototype.hasOwnProperty.call(ps, pid) && ps[pid] && ps[pid].name) || 'A player'; };
+          var cn = function(id) { return (Object.prototype.hasOwnProperty.call(cs, id) && cs[id] && cs[id].name) || 'a character'; };
+          c.sessionLog = Array.isArray(c.sessionLog) ? c.sessionLog : [];
+          r.several.forEach(function(s) { c.sessionLog.push({ at: Date.now(), kind: 'char', text: (nm(s.pid) + ' plays ' + cn(s.id) + (r.guesses.some(function(g) { return g.pid === s.pid; }) ? ' (a guess)' : '') + '; ' + s.kept.map(cn).join(', ') + (s.kept.length === 1 ? ' is' : ' are') + ' kept \u2014 change it in System \u25B8 Characters').slice(0, 400) }); });
+          if (c.sessionLog.length > 3000) c.sessionLog.splice(0, c.sessionLog.length - 3000);
+      });
+      setTimeout(function() { toast('Players now follow their characters by id: ' + bound + ' bound' + (linked ? ', ' + linked + ' token' + (linked === 1 ? '' : 's') + ' linked by name' : '') + '. The Session Log lists anyone with more than one character.'); }, 1200);
+  }
+
+  window.wpNoteBindings = noteBindings;   // main.js: an import's bindings get the same notice
 
   function load() {
 
@@ -228,6 +253,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
             window.wpNet.sounds = null; window.wpNet.soundNow = null;   // the table's sound list is transport memory too
         }
         if (window.wpDocForeign) window.wpDocForeign(!!(window.wpNet && window.wpNet.foreign));   // the handbook reader closes and mermaid goes back to the app's own mode
+        if (_bindNotes.length && canPersistLocal()) { noteBindings(_bindNotes); setTimeout(function() { if (canPersistLocal()) save(true); }, 0); }   // Onboarding F0: the one-time notice, only on the GM's own save — and the binding saved now, so it is once
+        _bindNotes = [];
         if (window.wpSound) window.wpSound.foreign(!!(window.wpNet && window.wpNet.foreign));
         if (window.wpFx) window.wpFx.foreign(!!(window.wpNet && window.wpNet.foreign));   // a table's loop stops when the player's own campaign comes back; a GM's own reload keeps his
         if (canPersistLocal()) sweepRecents(state.appState);   // recent-map keys for campaigns not in this save go (a joined table's ids never stay)
@@ -712,7 +739,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       var liveById = {}, snapById = {}, liveOwned = {}, out = [];
 
-      liveList.forEach(function(w) { if (w && w.id) { liveById[w.id] = w; if (w.isChar && w.ownerId) liveOwned[w.ownerId] = 1; } });
+      var grp = function(w) { return w.charId ? 'c:' + w.charId : 'n:' + w.ownerId + '|' + String(w.charName || ''); };   // Onboarding F0: the chooser's groups (a character, or a pet by name)
+      liveList.forEach(function(w) { if (w && w.id) { liveById[w.id] = w; if (w.isChar && w.ownerId) liveOwned[grp(w)] = 1; } });
 
       snapList.forEach(function(w) { if (w && w.id) snapById[w.id] = w; });
 
@@ -726,7 +754,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
               // A GM-deleted token whose player has since been given another one on this map comes back
               // under GM control (sheet intact): a player never ends up with two tokens they both own
-              if (s && s.isChar && s.ownerId && liveOwned[s.ownerId]) delete s.ownerId;
+              if (s && s.isChar && s.ownerId && liveOwned[grp(s)]) delete s.ownerId;
 
               out.push(s);   // anything else absent live was a GM delete: it comes back (a token with its sheet)
 
@@ -848,6 +876,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       var spot = (item.type === 'planner' || item.type === 'doc') ? rememberPlannerSpot() : null;
 
       applyContent(item, parsed);
+
+      if (item.type === 'map' && window.wpSheets && window.wpSheets.syncOwners) window.wpSheets.syncOwners(camp);   // Onboarding F0 'tidy': one owned token per character, never an adopt, copy or spawn
 
       if (hosting && item.type === 'map' && window.wpAutoRoom) (item.whiteboard || []).forEach(function(w) { if (w.isChar && w.ownerId) window.wpAutoRoom(w, item); });   // room membership follows the token
 

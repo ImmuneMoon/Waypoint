@@ -843,6 +843,7 @@ function applySnapshot(msg) {
         net._snapshotting = false;   // a stage that throws must not leave every later stage looking like part of the join
     }
     if (window.wpSettingsSync) window.wpSettingsSync();
+    try { if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(null); } catch (e) {}   // Onboarding F0: a sheet whose character was reassigned while we were away closes now
     if (net.fromWelcome) { net.fromWelcome = false; if (window.wpHideWelcome) window.wpHideWelcome(); }   // a join started from the welcome screen: its campaign is here, so leave the welcome for the table
 }
 
@@ -1266,6 +1267,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     var lib = fxLib(camp.system), items = itemLib(camp.system);
     return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items }), camp.chars[charId], view, lib, items);
 }
+net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
 function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; _charHost = {}; _rowGrace = {}; if (charLimit) charLimit.reset(); }
 // Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
 function itemNotice(ch, name, what) {
@@ -1550,13 +1552,14 @@ function hostTravel(conn, traveler, portal, fromMap) {
     traveler.location = pRoom.targetMapId;
     traveler.detached = true;
     renderRoster();
-    var left = (fromMap.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === traveler.id; });
+    var mineF = (fromMap.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === traveler.id; });
+    var left = mineF.find(function(w) { return portalUnder(w, fromMap) === portal; }) || mineF.find(function(w) { return w.charId; }) || mineF[0];   // the token on the portal steps off (not a pet beside it)
     if (left) { stepOffPortal(left, portal, fromMap); net.broadcastItemFiltered(tCamp.id, fromMap.id); }
     if (left) { net.applyingRemote = true; save(true); net.applyingRemote = false; }   // the step-off reaches disk now, not on the GM's next save
     ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
     // a token already on the destination stays where the GM left it, unless it is still on the landing node
     var landPtD = landRoom && landingPoint(destMap, landRoom), nodeEl = landPtD && landPtD.wbItemId ? (destMap.whiteboard || []).find(function(o) { return o.id === landPtD.wbItemId; }) : null;
-    var mineD = nodeEl && (destMap.whiteboard || []).find(function(w) { return w.isChar && w.ownerId === traveler.id; });
+    var mineDA = nodeEl ? (destMap.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === traveler.id; }) : [], mineD = mineDA.find(function(w) { return w.charId; }) || mineDA[0];
     if (mineD && mineD.x < nodeEl.x + (nodeEl.w || 0) && mineD.x + (mineD.w || 60) > nodeEl.x && mineD.y < nodeEl.y + (nodeEl.h || 0) && mineD.y + (mineD.h || 52) > nodeEl.y) {
         var spotD = freeSpotNear(destMap, landPtD.wbX, landPtD.wbY, mineD.w || 60, mineD.h || 52, mineD.id, nodeEl);
         mineD.x = spotD.x; mineD.y = spotD.y;
@@ -1665,12 +1668,16 @@ function offlinePlayerTravel(item, map) {
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
     if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
-    var mineAll = dest.whiteboard.filter(function(w) { return w.isChar && w.ownerId === item.ownerId; });
-    if (mineAll.length > 1) mineAll.slice(1).forEach(function(w) { delete w.ownerId; });   // one owned token per map, like ensurePlayerToken / bringPlayerHere
-    var mine = mineAll[0] || null, placed = false;
+    // the one resolver (their token there, else an unowned one of their character, else a copy of the dragged token), then the chooser
+    var S = SC(), act = S && S.activeCharOf ? S.activeCharOf(camp, item.ownerId).id : null, other = !!act && item.charId !== act;   // a pet, a mount or (sheets off) another of their characters: THAT token travels
+    var src = other ? { op: 'none' } : S && S.tokenSourceFor ? S.tokenSourceFor(camp, item.ownerId, dest.id, { prefer: item, noSpawn: !sheetsOnFor(camp) }) : { op: 'none' }, mine = null, placed = false;
+    if (other) mine = dest.whiteboard.find(function(w) { return w && w.isChar && w.ownerId === item.ownerId && (item.charId ? w.charId === item.charId : (!w.charId && w.charName === item.charName)); }) || null;
+    else if (src.op === 'keep') mine = src.tok;
+    else if (src.op === 'adopt' || (src.op === 'link' && src.here)) { mine = src.tok; mine.ownerId = item.ownerId; if (src.charId) mine.charId = src.charId; }
     if (!mine) {
-        mine = JSON.parse(JSON.stringify(item));
+        mine = src.op === 'spawn' && camp.chars && own(camp.chars, src.charId) ? tokenFromChar(camp.chars[src.charId], item.ownerId) : JSON.parse(JSON.stringify(src.op === 'clone' || src.op === 'link' ? src.tok : item));
         mine.id = 'wb' + Math.random().toString(36).slice(2, 10);
+        mine.ownerId = item.ownerId; if ((src.op === 'clone' || src.op === 'link') && src.charId) mine.charId = src.charId;   // never stamps the character onto a copy of a pet
         delete mine.threats;   // 5h: threat marks belong to the map they were set on
         delete mine.hidden;
         var spot = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, null, nodeEl);
@@ -1680,6 +1687,7 @@ function offlinePlayerTravel(item, map) {
         var spot2 = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, mine.id, nodeEl);
         mine.x = spot2.x; mine.y = spot2.y;
     }
+    if (S && S.ownedTokenPlan) S.applyOwnerOps(camp, S.ownedTokenPlan(camp, { keep: mine.id, mapId: dest.id, all: !sheetsOnFor(camp) }));   // one owned token of the character there
     stepOffPortal(item, portal, map);
     if (window.wpHistBarrier) window.wpHistBarrier([map.id, dest.id]);   // a move between two maps: neither side can be undone past it
     net.applyingRemote = true; save(true); net.applyingRemote = false;
@@ -1731,6 +1739,7 @@ function npcTravel(item, map) {
     toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — a token is placed there' : ' — the token there is shown') + '; the one here is hidden from players.');
     return true;
 }
+// [netcheck:pos-start]
 function handlePos(msg, conn) {
     if (typeof msg.wbId !== 'string') return;
     var camp = campOf(msg.campId);
@@ -1742,6 +1751,8 @@ function handlePos(msg, conn) {
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client motion is dropped
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
+        if (w.hidden || !w.isChar || (typeof pr.location === 'string' && msg.itemId !== pr.location)) return;   // the same Hide rule as patches (a final pos used to fire travel and room handouts), a character token only, on the map they are on
+        msg.final = msg.final === true;   // one reading of final everywhere below (handouts and seating used to take any truthy value)
         if (!allow('pos', { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;   // ~60 moves a second is a drag; more is a flood
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
@@ -1768,6 +1779,7 @@ function handlePos(msg, conn) {
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final === true);   // 5h Fold 3: the facing dial (the values are re-checked by facingCtx)
     }
 }
+// [netcheck:pos-end]
 
 // Client: a player's threat marks from their sheet's facing dial (5h Fold 3), as their own message — a map patch never carries them
 net.sendThreats = function(campId, itemId, wbId, list) {
@@ -2164,58 +2176,61 @@ net.isPresent = function(ownerId, mapId) {
     return awayMap()[ownerId] === mapId;                            // left the table: their character stays where they were, nowhere else
 };
 
-/* Host: guarantee player P has exactly one controlled token on map M.
-   Adopt an unowned token matching their character, else spawn a clone of their
-   token from another map at the map's home point. Extra owned tokens on the
-   same map are demoted to GM control. */
-function ensurePlayerToken(pid, mapId, landRoomId) {
+// A host-side heal: a player whose record names no character they still own has the one they play written down (their only one, or a
+// guess that goes in the Session Log) — the same rule syncOwners heals with (systemcore migrateBindings, binding only)
+function healBindings(camp) {
+    var S = SC(); if (!S || !S.migrateBindings || !camp) return;
+    var r = S.migrateBindings(camp, { link: false });
+    r.guesses.forEach(function(g) { var ch = camp.chars && camp.chars[g.id], rec = own(camp.players, g.pid) ? camp.players[g.pid] : null; if (ch) logEvent('char', ((rec && rec.name) || 'A player') + ' plays ' + ch.name + ' (their other characters are kept) \u2014 change it in System \u25B8 Characters'); });
+}
+// The campaign's sheets feature: off, characters do not drive tokens (every owned one counts as in play; none is made on arrival)
+function sheetsOnFor(camp) { return !window.wpVtt || !window.wpVtt.campaignOn || window.wpVtt.campaignOn('sheets', camp) !== false; }
+// A new token for a character that has none anywhere: its portrait, else a circle in the player's colour (the initials show on it)
+function tokenFromChar(ch, pid) {
+    var pr = Object.values(net.roster).find(function(p) { return p && p.id === pid; }), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3';
+    var t = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: ch.portrait ? 'image' : 'circle', w: 60, h: 52, color: ch.portrait ? 'transparent' : col, layer: 'middle', isChar: true, charName: ch.name, name: ch.name, charId: ch.id, charStats: '', ownerId: pid };
+    if (ch.portrait) t.src = ch.portrait;
+    return t;
+}
+/* Host: player P's token on map M, through ONE resolver (systemcore tokenSourceFor) shared with Bring and the GM's walk through a portal:
+   their own token of the character they play; else an unowned one of it, adopted; else a copy of theirs from another map (never another
+   player's); else a token bound only by name, linked; else a new token from the character. Then ONE chooser (ownedTokenPlan) leaves one
+   owned token per character on this map: extra copies pass to GM control, still linked. A player without a character keeps the old name
+   binding, which never takes another player's token or one the GM took back. opts: { keep, near: {x, y} (a give: beside their old token) } */
+function ensurePlayerToken(pid, mapId, landRoomId, opts) {
     if (net.role !== 'host') return false;
-    var camp = getActiveCampaign();
-    if (!camp) return false;
+    var camp = getActiveCampaign(), S = SC();
+    if (!camp || !S || !S.tokenSourceFor) return false;
     var map = camp.items[mapId];
     if (!map || map.type !== 'map') return false;
+    opts = opts || {};
     if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before a token is spawned or adopted for the player
-    var pl = (camp.players || {})[pid] || {};
-    var changed = false;
-    var mine = (map.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === pid; });
-    if (mine.length > 1) {
-        mine.slice(1).forEach(function(w) { delete w.ownerId; });
-        changed = true;
-        toast('Duplicate tokens for ' + (pl.name || pid) + ' demoted to GM control.');
+    healBindings(camp);
+    var pl = own(camp.players, pid) ? camp.players[pid] : {};
+    var changed = false, keepId = typeof opts.keep === 'string' ? opts.keep : '', nw = null;
+    map.whiteboard = map.whiteboard || [];
+    var sheetsOn = sheetsOnFor(camp), src = S.tokenSourceFor(camp, pid, mapId, { noSpawn: !sheetsOn });
+    if (src.op === 'adopt' || (src.op === 'link' && src.here)) { src.tok.ownerId = pid; if (src.charId) src.tok.charId = src.charId; keepId = src.tok.id; changed = true; }
+    else if (src.op === 'clone' || src.op === 'link') { nw = JSON.parse(JSON.stringify(src.tok)); delete nw.threats; delete nw.hidden; nw.id = 'wb' + Math.random().toString(36).slice(2, 10); nw.ownerId = pid; if (src.charId) nw.charId = src.charId; }   // 5h: threat marks belong to the map they were set on
+    else if (src.op === 'spawn' && camp.chars && camp.chars[src.charId]) nw = tokenFromChar(camp.chars[src.charId], pid);
+    if (nw) {
+        // beside the token they had (a give), else on the landing room's whiteboard item when there is one, else at home
+        var near = opts.near && isFinite(opts.near.x) && isFinite(opts.near.y) ? opts.near : null;
+        var landR = !near && landRoomId && (map.rooms || []).find(function(r) { return r.id === landRoomId; });
+        var landPt = landR && landingPoint(map, landR);
+        var sx = near ? near.x : (landPt && landPt.wbX != null) ? landPt.wbX : (map.meta.homeX || 15000);
+        var sy = near ? near.y : (landPt && landPt.wbY != null) ? landPt.wbY : (map.meta.homeY || 15000);
+        var spot = freeSpotNear(map, sx, sy, nw.w || 60, nw.h || 52, null, landPt && landPt.wbItemId ? (map.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
+        nw.x = spot.x; nw.y = spot.y;
+        if (window.wpSeatHex) window.wpSeatHex(nw, map);
+        map.whiteboard.push(nw);
+        keepId = nw.id; changed = true;
+        toast((pl.name || 'Player') + "'s token " + (src.op === 'spawn' ? 'made' : 'placed') + ' on ' + ((map.meta || {}).title || mapId) + '.');
     }
-    if (mine.length === 0 && pl.charName) {
-        var cand = (map.whiteboard || []).find(function(w) { return w.isChar && !w.ownerId && w.charName === pl.charName; });
-        if (cand) {
-            cand.ownerId = pid;
-            changed = true;
-        } else {
-            var src = null;
-            Object.values(camp.items).some(function(it) {
-                if (it.type !== 'map') return false;
-                var w = (it.whiteboard || []).find(function(x) { return x.isChar && x.charName === pl.charName; });
-                if (w) { src = w; return true; }
-                return false;
-            });
-            if (src) {
-                var nw = JSON.parse(JSON.stringify(src));
-                nw.id = 'wb' + Math.random().toString(36).slice(2, 10);
-                delete nw.threats;   // 5h: threat marks belong to the map they were set on
-                nw.ownerId = pid;
-                delete nw.hidden;
-                // Spawn on the landing room's whiteboard item when there is one, else at home
-                var landR = landRoomId && (map.rooms || []).find(function(r) { return r.id === landRoomId; });
-                var landPt = landR && landingPoint(map, landR);
-                var sx = (landPt && landPt.wbX != null) ? landPt.wbX : (map.meta.homeX || 15000);
-                var sy = (landPt && landPt.wbY != null) ? landPt.wbY : (map.meta.homeY || 15000);
-                var spot = freeSpotNear(map, sx, sy, nw.w || 60, nw.h || 52, null, landPt && landPt.wbItemId ? (map.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
-                nw.x = spot.x; nw.y = spot.y;
-                if (window.wpSeatHex) window.wpSeatHex(nw, map);
-                map.whiteboard = map.whiteboard || [];
-                map.whiteboard.push(nw);
-                changed = true;
-                toast((pl.name || 'Player') + "'s token spawned on " + ((map.meta || {}).title || mapId) + '.');
-            }
-        }
+    var ops = S.ownedTokenPlan(camp, { keep: keepId, mapId: mapId, all: !sheetsOn });
+    if (ops.length) {
+        S.applyOwnerOps(camp, ops); changed = true;
+        if (ops.some(function(o) { return !o.ownerId; })) toast('A second copy of ' + (pl.name || 'a player') + '\u2019s token on this map passes to GM control (still linked to the character).');
     }
     if (changed) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
@@ -2570,6 +2585,7 @@ function handleMessage(msg, conn) {
         // characters from the synced host only (character sheets, 1.5.0): copies are replaced, never merged; every value re-cleaned against the system on hand
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
         var SC2 = window.wpSystemCore;
+        var dropP = function(id) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === id) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // Onboarding F0: a copy that is no longer ours drops its queued edits
         if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !_charPending[msg.rid]) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason), SC2.cleanItemMsg(msg.msg)); return; }   // Stage 6: a bound or cursed item's message, as text
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campC = campOf(msg.campId); if (!campC || !campC.system) return;   // the system always comes first
@@ -2578,6 +2594,7 @@ function handleMessage(msg, conn) {
             var outC = {};
             if (msg.chars && typeof msg.chars === 'object') Object.keys(msg.chars).forEach(function(id) { var cc = SC2.cleanChar(msg.chars[id], sysC); if (cc && cc.id === id) { cc.partial = msg.chars[id].partial === true; outC[id] = cc; } });
             _charHost = {}; Object.keys(outC).forEach(function(id) { noteHostCopy(id, outC[id].values); });
+            Object.keys(outC).forEach(function(id) { if (outC[id].partial || outC[id].ownerId !== net.myId) dropP(id); });   // no longer ours: queued edits go, never laid over a teammate copy
             campC.chars = outC; Object.keys(outC).forEach(reapplyPending);
             if (window.wpSheets) window.wpSheets.charChanged(null);
             return;
@@ -2590,7 +2607,7 @@ function handleMessage(msg, conn) {
             if (window.wpSheets) window.wpSheets.charGone(msg.id);
             return;
         }
-        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
+        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;
         var tgt = campC.chars[msg.id], hb = _charHost[msg.id] || null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
         Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });
@@ -2687,7 +2704,7 @@ function handleMessage(msg, conn) {
         var amT = getActiveMap(); if (!amT || amT.id !== msg.mapId) return;   // throws land on the GM's current map (where the player is)
         var chT = campT.chars && campT.chars[msg.charId], profT = net.roster[conn.peer];
         if (!chT || chT.npc || !chT.ownerId || !profT || chT.ownerId !== profT.id) return;
-        if (!(amT.whiteboard || []).some(function(w) { return w && w.isChar && !w.hidden && w.ownerId === profT.id; })) return;   // the thrower must be on this map
+        if (!(amT.whiteboard || []).some(function(w) { return w && w.isChar && !w.hidden && w.ownerId === profT.id && w.charId === msg.charId; })) return;   // the thrower must be on this map: a token of THAT character (a kept one has none of its own)
         var fT = St.fieldById(campT.system, msg.fieldId); if (!fT || fT.kind !== 'item-list' || fT.vis !== 'all') return;   // Stage 6: a visible list only (a GM-only list's items are never thrown by a player)
         var vT = chT.values && chT.values[fT.id], rowT = Array.isArray(vT) ? vT.find(function(r) { return r && r.hid !== 1 && St.rowIdOf(r) === msg.rowId; }) : null; if (!rowT) return;   // the carried row, on the host's copy
         var rdT = St.rowDef(campT.system, rowT), defT = rdT ? rdT.def : null; if (!defT || defT.vis === 'gm' || !defT.area) return;
@@ -3218,7 +3235,7 @@ function leaveSession(silent) {
     if (!silent && wasClient) net.leaving = true;
     if (!silent) cancelReconnect();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
-    net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries net.role = null; net.code = null; net.lastStage = null;
+    net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
@@ -3625,6 +3642,13 @@ function fmtDay(ts) {
     return d.toLocaleDateString() + ' ' + (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
 }
 
+// "plays Brakka · also Wolf": the character in play and the kept ones (else the old name binding, as before)
+function playsLabel(camp, pid, p) {
+    var S = SC(), a = S && S.activeCharOf ? S.activeCharOf(camp, pid) : { id: null }, nm = a.id && camp.chars && camp.chars[a.id] ? camp.chars[a.id].name : (p.charName || '');
+    if (!nm) return '';
+    var also = a.id && S.playableChars ? S.playableChars(camp, pid).filter(function(c) { return c.id !== a.id; }).map(function(c) { return c.name; }) : [];
+    return ' <span class="player-char">' + (a.id ? 'plays ' : 'as ') + escTextRoster(nm) + (also.length ? ' \u00B7 also ' + escTextRoster(also.join(', ')) : '') + '</span>';
+}
 function renderPlayersPanel() {
     var list = ui('playersList');
     if (!list) return;
@@ -3649,7 +3673,7 @@ function renderPlayersPanel() {
                 '<div><b>' + escTextRoster(p.name || pid) + '</b>' +
                 (online[pid] ? ' <span class="player-online">● online</span>' : '') +
                 (isBanned ? ' <span class="player-bantag">BANNED</span>' : '') +
-                (p.charName ? ' <span class="player-char">as ' + escTextRoster(p.charName) + '</span>' : '') + '</div>' +
+                playsLabel(camp, pid, p) + '</div>' +
                 '<div class="player-meta">first ' + fmtDay(p.firstSeen) + ' · last ' + fmtDay(p.lastSeen) + ' · ' + countOf(p.joinCount) + ' join' + (countOf(p.joinCount) === 1 ? '' : 's') + '</div>' +
             '</div>' +
             (isBanned
@@ -3711,7 +3735,8 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
         var nm4 = (camp.players[fid] || {}).name || 'Player';
         delete camp.players[fid];
         save();
-        toast(nm4 + ' forgotten — they\'ll need approval to join again.');
+        var keptC = SC() && SC().playableChars ? SC().playableChars(camp, fid).length : 0;
+        toast(nm4 + ' forgotten — they\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));
     }
     renderPlayersPanel();
 });
@@ -3888,7 +3913,7 @@ net.syncSessionButtons = syncSessionButtons;
     });
 })();
 // Session Log window
-var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table', items: 'Items' };
+var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table', items: 'Items', char: 'Characters' };
 function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 net.openSessionLog = function() {
     var m = ui('sessionLogModal'), list = ui('sessionLogList'), sel = ui('sessionLogKind'); if (!m || !list) return;
@@ -3957,47 +3982,35 @@ net.bringPlayerHere = function(pid, wbX, wbY) {
     if (net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === pid; })) return net.summonPlayerById(pid);
     var camp = getActiveCampaign(); var map = camp && getActiveMap();
     if (!camp || !map || map.type !== 'map') { toast('Open a play map first.'); return false; }
-    var pl = (camp.players || {})[pid] || {}, name = pl.name || 'that player';
+    var pl = own(camp.players, pid) ? camp.players[pid] : {}, name = pl.name || 'that player', S = SC();
+    if (!S || !S.tokenSourceFor) return false;
     map.whiteboard = map.whiteboard || [];
-    var here = map.whiteboard.filter(function(w) { return w.isChar && w.ownerId === pid; });
-    var tok = here[0] || null, copied = false;
-    if (here.length > 1) here.slice(1).forEach(function(w) { delete w.ownerId; });   // one owned token per map
-    if (!tok) {
-        var src = null;
-        Object.values(camp.items).some(function(it) {
-            if (it.type !== 'map' || it === map) return false;
-            var w = (it.whiteboard || []).find(function(x) { return x.isChar && x.ownerId === pid; });
-            if (w) { src = w; return true; }
-            return false;
-        });
-        if (!src && pl.charName) {
-            var loose = map.whiteboard.find(function(x) { return x.isChar && !x.ownerId && x.charName === pl.charName; });
-            if (loose) { loose.ownerId = pid; tok = loose; }
-            else Object.values(camp.items).some(function(it) {
-                if (it.type !== 'map') return false;
-                var w = (it.whiteboard || []).find(function(x) { return x.isChar && !x.ownerId && x.charName === pl.charName; });
-                if (w) { src = w; return true; }
-                return false;
-            });
-        }
-        if (!tok && src) {
-            tok = JSON.parse(JSON.stringify(src));
-            tok.id = 'wb' + Math.random().toString(36).slice(2, 10);
-            delete tok.threats;   // 5h: threat marks belong to the map they were set on
-            tok.ownerId = pid;
-            map.whiteboard.push(tok); copied = true;
-        }
-    }
-    if (!tok) { toast('No token for ' + name + ' yet — one appears when they first join with a character.'); return false; }
+    healBindings(camp);
+    var src = S.tokenSourceFor(camp, pid, map.id, { noSpawn: !sheetsOnFor(camp) }), tok = null, copied = false;   // the one resolver (ensurePlayerToken's)
+    if (src.op === 'keep') tok = src.tok;
+    else if (src.op === 'adopt' || (src.op === 'link' && src.here)) { tok = src.tok; tok.ownerId = pid; if (src.charId) tok.charId = src.charId; }
+    else if (src.op === 'clone' || src.op === 'link') { tok = JSON.parse(JSON.stringify(src.tok)); tok.id = 'wb' + Math.random().toString(36).slice(2, 10); delete tok.threats; tok.ownerId = pid; if (src.charId) tok.charId = src.charId; map.whiteboard.push(tok); copied = true; }   // 5h: threat marks belong to the map they were set on
+    else if (src.op === 'spawn' && camp.chars && camp.chars[src.charId]) { tok = tokenFromChar(camp.chars[src.charId], pid); map.whiteboard.push(tok); copied = true; }
+    if (!tok) { toast('No token for ' + name + ' yet \u2014 give them a character (System \u25B8 Characters) or a token (its Properties \u25B8 Player Owner).'); return false; }
     tok.x = wbX - (tok.w || 60) / 2; tok.y = wbY - (tok.h || 52) / 2;
     delete tok.hidden;
     if (window.wpSeatHex) window.wpSeatHex(tok, map);
+    S.applyOwnerOps(camp, S.ownedTokenPlan(camp, { keep: tok.id, mapId: map.id, all: !sheetsOnFor(camp) }));   // one owned token of the character on this map
     save(true);
     if (window.appRender) window.appRender();
     if (net.active && net.role === 'host') net.broadcastItemFiltered(camp.id, map.id);
     toast(name + (copied ? ' placed on ' : ' moved here on ') + ((map.meta || {}).title || 'this map') + '.');
     return true;
-};net.isConnected = function(playerId) { return Object.values(net.roster).some(function(p) { return p && p.id === playerId; }); };
+};// Host: after a give, a switch of the character in play, or a character taken away, the token of the player's CURRENT map follows (the
+// one resolver + the chooser: adopted, copied or made beside the token they had). Nothing for a player who is not connected — their next
+// arrival resolves it. o: { keep, near }
+net.reconcilePresence = function(pid, o) {
+    if (!net.active || net.role !== 'host') return false;
+    var p = Object.values(net.roster).find(function(x) { return x && x.id === pid; });
+    if (!p || typeof p.location !== 'string') return false;
+    return ensurePlayerToken(pid, p.location, null, { keep: o && o.keep, near: o && o.near });
+};
+net.isConnected = function(playerId) { return Object.values(net.roster).some(function(p) { return p && p.id === playerId; }); };
 var _summonBtn = ui('netSummonBtn');
 if (_summonBtn) _summonBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') return;

@@ -1057,7 +1057,7 @@
   /* Party menu: the strip's right-click actions. Lives outside the toolbar, so it gets the
      toolbar menu's look here explicitly. */
   #partyMenu {
-    display: none; flex-direction: column; gap: 2px; min-width: 240px; max-width: 340px; padding: 6px;
+    display: none; flex-direction: column; gap: 2px; min-width: 240px; max-width: 340px; padding: 6px; max-height: calc(100vh - 12px); overflow-y: auto;
     background: var(--deep); border: 1px solid #3a3a4a; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.6);
   }
   #partyMenu.show { display: flex; }

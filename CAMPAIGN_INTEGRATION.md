@@ -53,8 +53,8 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
       "name": "Campaign Name",
       "activeItemId": "map_..., plan_... or doc_...",   // which item opens on launch
       "players": {                              // OPTIONAL, app-managed multiplayer registry:
-        "u_abc123": { "name": "Johann", "charName": "Johann Vekk" }
-      },                                        // — carry it through untouched; never author or edit it
+        "u_abc123": { "name": "Johann", "charName": "Johann Vekk", "charId": "c_x" }
+      },                                        // — carry it through untouched; never author or edit it. Since 1.5.0 a player follows the character IN PLAY by "charId" (optional; one of the campaign's "chars" whose "ownerId" is that player — the app derives and writes it on load); "charName" is still honoured, kept in step with that character's name, and is what binds a player at a table without characters
       "vtt": { "v": 1, "master": true,          // OPTIONAL, app-managed (1.4.9): the campaign's VTT feature switches
         "features": { "elevation": true, "posture": true, "minimap": true } },   // — carry it through untouched; never author it (a campaign without it is filled from the app's default on load)
       "pictures": ["/saves/images/<folder>/<file>"],   // OPTIONAL, app-managed (1.5.0): pictures brought in from another campaign by reference — carry through untouched

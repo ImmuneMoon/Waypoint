@@ -96,6 +96,8 @@ function badge(n) { var b = ui('journalBadge'); if (!b) return; unseen = Math.ma
 
 // A handout arrived from the GM (validated here, never trusted as-is)
 // One journal per campaign per GM: a campaign id can be copied between installs, a GM's id cannot
+// Onboarding F0: what a player plays, by id (the character in play), else their old name binding
+function playsOf(camp, pid, p) { var S = window.wpSystemCore; return (S && S.playsAs ? S.playsAs(camp, pid) : '') || (p && typeof p.charName === 'string' ? p.charName : ''); }
 function journalKey(msg) { var c = safeId(msg.campId), g = safeId(msg.gmId); return c && g ? c + '__' + g : c; }
 // FNV-1a over the picture bytes: enough to tell "the same picture again" from "a new picture"
 function hashBytes(bytes) {
@@ -775,7 +777,7 @@ function renderHandouts() {
     // labelled by the character they play. Connected players get a handout at once; others when they join.
     var givePlayers = Object.keys(camp.players || {})
         .filter(function(pid) { return !(camp.bannedPlayers && camp.bannedPlayers[pid]); })
-        .map(function(pid) { var p = camp.players[pid] || {}; return { id: pid, label: p.charName ? (p.charName + ' — ' + (p.name || pid)) : (p.name || pid) }; })
+        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p); return { id: pid, label: pa ? (pa + ' — ' + (p.name || pid)) : (p.name || pid) }; })
         .sort(function(a, b) { return a.label.localeCompare(b.label); });
     var giveOpts = '<option value="">Give to…</option><option value="*">Anyone (the whole table)</option>'
         + givePlayers.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.label) + '</option>'; }).join('');
@@ -785,7 +787,7 @@ function renderHandouts() {
         var attached = rooms.filter(function(r) { return r.hid === h.id; }).map(function(r) { return r.label; });
         var queued = Object.keys(h.giveTo || {})   // assigned to a specific player but not delivered yet
             .filter(function(pid) { return !(camp.handoutReveals[pid] && camp.handoutReveals[pid][h.id]); })
-            .map(function(pid) { var p = (camp.players || {})[pid] || {}; return p.charName || p.name || pid; });
+            .map(function(pid) { var p = (camp.players || {})[pid] || {}; return playsOf(camp, pid, p) || p.name || pid; });
         var thumb = h.kind === 'text'
             ? '<div class="handout-thumb handout-thumb-text" title="Preview">' + esc(String(h.text || '').slice(0, 140)) + '</div>'
             : '<img class="handout-thumb" src="' + encodeURI(h.src || '') + '" alt="" title="Preview">';
@@ -927,7 +929,7 @@ if (_hList) {
                 } else {                              // offline: queue it for their next join
                     h.giveTo = h.giveTo || {}; h.giveTo[val] = Date.now(); save(true);
                     var pg = (camp.players || {})[val] || {};
-                    toast('Queued “' + (h.title || 'handout') + '” for ' + (pg.charName || pg.name || 'that player') + ' — they get it the next time they connect.');
+                    toast('Queued “' + (h.title || 'handout') + '” for ' + (playsOf(camp, val, pg) || pg.name || 'that player') + ' — they get it the next time they connect.');
                 }
             }
             renderHandouts();

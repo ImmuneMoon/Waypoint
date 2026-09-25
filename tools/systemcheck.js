@@ -1008,6 +1008,15 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
     }
 
+    /* ---- Stage 6 HUD frame (HF0): the section options dispatch by exact class token ---- */
+    {
+        const shH0 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const body = h => { const i = shH0.indexOf(h); return shH0.slice(i, shH0.indexOf('\n}\n', i)); };
+        const inp0 = body('function onLayoutInput(t) {'), chg0 = body('function onLayoutChange(t) {');
+        check('HUD frame HF0: no section option is matched by substring any more ("sys-sec-pinned" contains "sys-sec-pin": the Above-the-tabs select set a Pin and never pinned); both use the exact class token',
+            !/c\.indexOf\('sys-sec-/.test(inp0) && !/c\.indexOf\('sys-sec-/.test(chg0) && /if \(t\.classList\.contains\('sys-sec-pinned'\)\) \{ if \(t\.value\) sec\.pinned = true;/.test(chg0) && /if \(t\.classList\.contains\('sys-sec-pin'\)\) \{ if \(t\.value && PIN_GID\.test\(t\.value\)\) sec\.pin = t\.value;/.test(chg0));
+    }
+
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */
     {
         const sys8 = look => cleanSystem({ v: 1, name: 'L8', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true }).sheet.look;

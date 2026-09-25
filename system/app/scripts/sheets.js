@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, emptySystem, uid, validKey, cleanSystem, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyItemOp, fmtNum, initRoll, aliasFromShadowBase } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -242,6 +242,7 @@ function renderSheet() {
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; if (gm) { charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
+    p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sys, c, F());
     _sheetRefSig = refSig(sys);
     buildSections(body, sys, c, all, gm, own, renderSheet);
@@ -265,6 +266,12 @@ function sheetLook(camp, sys) { var DR = window.wpDocRender; if (!DR || !DR.clea
 function applySheetLookTo(node, style) {
     node.style.fontFamily = ''; node.style.color = ''; node.style.backgroundColor = '';   // reset first so turning a look off restores the app style
     if (style) { var DF = (window.wpDocRender && window.wpDocRender.DOC_FONTS) || {}; if (style.font && DF[style.font]) node.style.fontFamily = DF[style.font]; if (style.textColor) node.style.color = style.textColor; if (style.bgColor) node.style.backgroundColor = style.bgColor; }
+    // Stage 5g: the header block and the frame are opaque panels over the body. They wear the look's colours only as a PAIR (a text
+    // colour AND a panel colour, plus a muted ink mixed from the two for labels); a look with just one of them leaves both panels in the
+    // app theme's own colours, as before — a text colour alone over the app panel (or theme text over a look panel) could be unreadable
+    var HEXC = /^#[0-9a-fA-F]{6}$/, pair = !!(style && HEXC.test(style.textColor || '') && HEXC.test(style.bgColor || ''));
+    if (pair) { node.style.setProperty('--sheet-ink', style.textColor); node.style.setProperty('--sheet-bg', style.bgColor); node.style.setProperty('--sheet-dim', 'color-mix(in srgb, ' + style.textColor + ' 62%, ' + style.bgColor + ')'); }
+    else { node.style.removeProperty('--sheet-ink'); node.style.removeProperty('--sheet-bg'); node.style.removeProperty('--sheet-dim'); }
     applySheetBg(node, style);
 }
 document.addEventListener('wp-asset', function(e) {
@@ -277,8 +284,12 @@ document.addEventListener('wp-asset', function(e) {
 // the save — window.wpPopout no-ops it — so nothing here can write data.json). GM view (full sheet), fields disabled.
 function renderSheetInto(container, charId, camp) {
     camp = camp || getActiveCampaign();
-    var sys = systemOf(camp), c = charById(charId, camp);
-    if (!container || !c || !sys || !F()) return null;
+    var raw = systemOf(camp), c0 = charById(charId, camp);
+    if (!container || !c0 || !raw || !F()) return null;
+    // the pop-out renders the RAW save (popout.js reads /api/data unsanitised): clean the system and the character here, as a load does,
+    // so every sink below (the look's accent, section colours, icons, the portrait) sees validated values
+    var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
+    if (!sys || !c) return null;
     buildSections(container, sys, c, resolveAll(sys, c, F()), true, false, function() { renderSheetInto(container, charId, camp); });
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
@@ -304,12 +315,21 @@ function frameFlowTop(body) {
 }
 // Stage 5d: the header block — identity rows (a small label over a read-only value, in columns) and ledger figures (a small label
 // over a bold value), read from sys.sheet like the band and formatted by systemcore.headerEntry so a value reads exactly as the
-// sheet prints it below. Read-only: editing stays in the sections. On a partial character (another player's copy) only hover
-// fields show, since every other value would be a default.
-function headerBlocks(body, sys, c, all) {
+// sheet prints it below. On a partial character (another player's copy) only hover fields show, since every other value would be
+// a default. Stage 5g: with look.portrait the portrait and the name lead the block (the rows sit beside the picture); a ledger
+// NUMBER is a live box for whoever may edit it (the section's own rule and commit), everything else stays read-only.
+function headerBlocks(head, sys, c, all, gm, own) {
     var sh = sys.sheet; if (!sh) return;
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; });
-    function block(list, cls, itemCls) {
+    var main = head;
+    if (sh.look && sh.look.portrait) {
+        var pw = el('div', 'sheet-head-portrait' + (c.portrait ? '' : ' sheet-head-portrait-none'));
+        if (c.portrait) { var im = el('img'); im.alt = ''; im.src = imgSrc(c.portrait); pw.appendChild(im); }
+        head.appendChild(pw); head.classList.add('sheet-head-grid');
+        main = el('div', 'sheet-head-main'); head.appendChild(main);
+        var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; main.appendChild(nm);
+    }
+    function block(list, cls, itemCls, ledger) {
         if (!Array.isArray(list) || !list.length) return;
         var box = el('div', cls);
         list.forEach(function(q) {
@@ -318,14 +338,30 @@ function headerBlocks(body, sys, c, all) {
             var en = headerEntry(f, all[f.id]); if (!en) return;
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
             var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
-            var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + (en.neg ? ' sheet-hdr-neg' : ''), en.chip ? 'on' : en.text);
-            v.title = en.error ? en.error : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
+            var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
+            if (ledger && f.kind === 'number' && !en.error && !c.partial && (gm || (own && f.edit === 'owner' && f.vis === 'all'))) {
+                var raw = c.values ? c.values[f.id] : undefined;
+                var inp = el('input', 'field sheet-num sheet-hdr-input' + tone); inp.type = 'number'; inp.dataset.fid = f.id; inp.dataset.part = 'hdr';
+                inp.value = raw === undefined ? String(f.def) : String(raw); inp.step = String(f.step || 1); inp.title = f.label + (f.unit ? ' (' + f.unit + ')' : '');
+                if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max);
+                inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
+                var ed = el('span', 'sheet-hdr-val sheet-hdr-edit'); ed.appendChild(inp); if (f.unit) ed.appendChild(el('span', 'sheet-unit', f.unit));
+                it.appendChild(ed); box.appendChild(it); return;
+            }
+            var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
+            v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
             it.appendChild(v); box.appendChild(it);
         });
-        if (box.childNodes.length) body.appendChild(box);
+        if (box.childNodes.length) main.appendChild(box);
     }
-    block(sh.identity, 'sheet-identity', 'sheet-identity-item');
-    block(sh.ledger, 'sheet-ledger', 'sheet-ledger-fig');
+    block(sh.identity, 'sheet-identity', 'sheet-identity-item', false);
+    block(sh.ledger, 'sheet-ledger', 'sheet-ledger-fig', true);
+}
+// Stage 5g: the text colour for a label on a filled accent (the open filled tab) — near-black or white, whichever reads better
+function accentInk(hex) {
+    var lin = function(i) { var v = parseInt(hex.substr(i, 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    var L = 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
+    return (L + 0.05) / 0.0567 >= 1.05 / (L + 0.05) ? '#111318' : '#ffffff';
 }
 function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var sheet = (sys.sheet && sys.sheet.sections && sys.sheet.sections.length) ? sys.sheet : autoLayout(sys);
@@ -333,12 +369,16 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     body.textContent = '';
+    var look = (sys.sheet && sys.sheet.look) || {};   // Stage 5g: the sheet's shape — absent = today's look (no class, no variable)
+    body.classList.toggle('sheet-titles-headline', look.titles === 'headline');
+    if (typeof look.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(look.accent)) { body.style.setProperty('--sheet-accent', look.accent); body.style.setProperty('--sheet-accent-ink', accentInk(look.accent)); }   // re-checked here: a hex or nothing reaches the variable
+    else { body.style.removeProperty('--sheet-accent'); body.style.removeProperty('--sheet-accent-ink'); }
     // The top of the sheet (Stages 5c/5d, reworked after the owner's Foundry note): the header block (identity rows, ledger figures)
     // scrolls away like any content; the pinned band and the tab strip are the sticky FRAME, so the tabs stay reachable and most of the
     // panel is the tab's own content. Order: header block, dashboard sections, frame (band + strip), the tab's sections. Absent config
     // makes no element, and the body is exactly what it was.
     var head = el('div', 'sheet-head');
-    headerBlocks(head, sys, c, all);   // Stage 5d: identity rows + ledger figures, read-only, first under the name
+    headerBlocks(head, sys, c, all, gm, own);   // Stage 5d: identity rows + ledger figures, first under the name (Stage 5g: led by the portrait + name when the look asks)
     if (head.childNodes.length) body.appendChild(head);
     var frame = el('div', 'sheet-frame');
     // Stage 5c: the pinned band — on every tab (and on a stacked sheet). Read from sys.sheet itself (the automatic layout carries no
@@ -348,7 +388,7 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     if (bandDef && bandDef.length) {
         var bandEl = el('div', 'sheet-band');
         bandDef.forEach(function(q) {
-            var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c) : null;
+            var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own, sys) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c) : null;
             if (!node) return;
             node.classList.add('sheet-band-item'); node.classList.remove('sheet-tile');   // the band has its own compact look; a stat tile's column layout (and hidden bar) would out-specify it
             node.querySelectorAll('[data-fid]').forEach(function(x) { x.dataset.band = '1'; });
@@ -361,9 +401,11 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
     if (tabs) {
         active = body.dataset.wpTab || '';
         if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
-        var strip = el('div', 'sheet-tabs');
+        var strip = el('div', 'sheet-tabs' + (look.tabs === 'filled' ? ' sheet-tabs-filled' : ''));   // Stage 5g: angled tabs, the open one filled in the accent
         tabs.forEach(function(t) {
-            var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : ''), t.label || 'Tab');
+            var tb = el('button', 'sheet-tab' + (t.id === active ? ' active' : '')); if (look.tabs === 'filled') tb.title = t.label || 'Tab';   // a filled tab can ellipsise a long label
+            if (t.icon) tb.appendChild(el('span', 'sheet-tab-icon', t.icon));   // Stage 5g
+            tb.appendChild(el('span', 'sheet-tab-label', t.label || 'Tab'));
             tb.addEventListener('click', function() {
                 if (body.dataset.wpTab === t.id) return;
                 var wasStuck = body.scrollTop > frameFlowTop(body);   // the frame was stuck at the top: the new tab should start at its own top, under the strip
@@ -387,11 +429,12 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         var collap = !!sec.collapsible;
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
         if (collap) { s.open = (sec.id in _secOpen) ? _secOpen[sec.id] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[sec.id] = s.open; }); }
-        if (sec.style) {   // Stage 3: per-section colors (padding/radius so the panel reads as a box)
+        var stripe = !!(sec.style && sec.style.accent && sec.style.stripe !== false);   // Stage 5g: an accent can colour the title alone
+        if (sec.style && (sec.style.bg || sec.style.border || stripe)) {   // Stage 3: per-section colors (padding/radius so the panel reads as a box)
             s.style.padding = '8px 10px'; s.style.borderRadius = '8px';
             if (sec.style.bg) s.style.background = sec.style.bg;
             if (sec.style.border) s.style.border = '1px solid ' + sec.style.border;
-            if (sec.style.accent) s.style.borderLeft = '3px solid ' + sec.style.accent;
+            if (stripe) s.style.borderLeft = '3px solid ' + sec.style.accent;
         }
         var mvv = sec.meta ? all[sec.meta] : null, metaText = '';   // a field's resolved value, shown right-aligned in the header
         if (mvv != null) {
@@ -399,8 +442,9 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
             else metaText = String(mvv);
         }
         var chipNode = sec.chip ? pageChip(sec.chip) : null;   // Stage 5f: a handbook chip
-        if (sec.title || metaText || collap || chipNode) {   // a collapsible section always needs a summary to toggle from
+        if (sec.title || sec.icon || metaText || collap || chipNode) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
+            if (sec.icon) head.appendChild(el('span', 'sheet-sec-icon', sec.icon));   // Stage 5g
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
             head.appendChild(nameSpan);
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
@@ -410,7 +454,7 @@ function buildSections(body, sys, c, all, gm, own, rerender) {   // rerender: th
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
         (sec.fields || []).forEach(function(pl) {
             var node = null;
-            if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own);
+            if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own, sys);
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
@@ -459,6 +503,7 @@ function renderLayout() {
     tabs.forEach(function(tb) {
         var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
         var tmain = el('div', 'sys-row-main');
+        tmain.appendChild(input('sys-tab-icon field', tb.icon, 'An icon before the label on the sheet \u2014 an emoji or a symbol (optional)', 'Icon'));   // Stage 5g
         tmain.appendChild(input('sys-tab-label field', tb.label, 'This tab\'s label on the sheet', 'Tab label'));
         tmain.appendChild(btnRow([['tabup', 'Move this tab left', '&#9650;'], ['tabdown', 'Move this tab right', '&#9660;'], ['tabdel', 'Remove this tab (its sections move to the first tab)', '&times;']]));
         tr.appendChild(tmain);
@@ -484,7 +529,25 @@ function renderLayout() {
     if (look) { var lclr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); lclr.dataset.look = 'clear'; lclr.title = 'Back to the campaign default'; lookRow.appendChild(lclr); }
     lookBox.appendChild(lookRow);
     lookBox.appendChild(el('div', 'sys-hint', 'Absent = the campaign default (the \uD83C\uDFA8 button on a page or planner). Players see the same look on their sheets.'));
+    // Stage 5g: the sheet's shape — kept on the layout (draft.sheet.look), not in the doc-theming style: titles, tabs, one accent, the portrait + name
+    var themeGold = function() { try { var x = getComputedStyle(document.documentElement).getPropertyValue('--gold').trim(); return /^#[0-9a-fA-F]{6}$/.test(x) ? x.toLowerCase() : '#e0a54f'; } catch (er) { return '#e0a54f'; } };
+    var shape = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {};
+    var shapeRow = el('div', 'sys-sec-style sys-lookshape');
+    var titlesSel = select('sys-look-titles', [['', 'Small titles'], ['headline', 'Headline titles']], shape.titles || '', 'Section titles: small capitals (as now), or bigger headline titles');
+    var tabsSel = select('sys-look-tabs', [['', 'Underlined tabs'], ['filled', 'Filled tabs']], shape.tabs || '', 'The tab strip: an underline under the open tab (as now), or angled tabs with the open one filled in the accent');
+    shapeRow.appendChild(titlesSel); shapeRow.appendChild(tabsSel);
+    shapeRow.appendChild(el('span', 'sys-sec-style-lbl', 'Accent'));
+    var accentIn = el('input', 'sys-look-accent'); accentIn.type = 'color'; accentIn.value = shape.accent || themeGold(); accentIn.title = 'The sheet\u2019s accent: section titles, the open tab, the name in the header'; shapeRow.appendChild(accentIn);
+    var portLbl = el('label', 'sys-hover'); var portChk = el('input', 'sys-look-portrait'); portChk.type = 'checkbox'; portChk.checked = !!shape.portrait; portLbl.appendChild(portChk); portLbl.appendChild(document.createTextNode(' Portrait & name in the header')); portLbl.title = 'The character\u2019s portrait and name lead the header block, with the identity rows and ledger figures beside the picture'; shapeRow.appendChild(portLbl);
+    if (shape.accent) { var aclr = el('button', 'tool ghost sys-btn', 'Theme accent'); aclr.title = 'Back to the theme\u2019s gold'; aclr.addEventListener('click', function() { setShape('accent', null); renderLayout(); }); shapeRow.appendChild(aclr); }
+    lookBox.appendChild(shapeRow);
     root.appendChild(lookBox);
+    var setShape = function(key, val) { if (!draft.sheet) draft.sheet = {}; var lk = (draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : {}; if (val === null || val === '' || val === false || val === undefined) delete lk[key]; else lk[key] = val; if (Object.keys(lk).length) draft.sheet.look = lk; else delete draft.sheet.look; markDirty(); renderPreview(); };
+    titlesSel.addEventListener('change', function() { setShape('titles', titlesSel.value); });
+    tabsSel.addEventListener('change', function() { setShape('tabs', tabsSel.value); });
+    accentIn.addEventListener('input', function() { setShape('accent', accentIn.value); });
+    accentIn.addEventListener('change', function() { renderLayout(); });   // the "Theme accent" button appears once one is picked
+    portChk.addEventListener('change', function() { setShape('portrait', portChk.checked); });
     var setLook = function(key, val) { draft.sheetStyle = (draft.sheetStyle && typeof draft.sheetStyle === 'object') ? draft.sheetStyle : {}; if (val === null || val === '' || val === undefined) delete draft.sheetStyle[key]; else draft.sheetStyle[key] = val; if (!Object.keys(draft.sheetStyle).length) delete draft.sheetStyle; markDirty(); renderPreview(); };
     fontSel.addEventListener('change', function() { setLook('font', fontSel.value); });
     Array.prototype.forEach.call(lookRow.querySelectorAll('.sys-look-color'), function(ci) { ci.addEventListener('input', function() { setLook(ci.dataset.key, ci.value); }); });
@@ -551,9 +614,9 @@ function renderLayout() {
         hintEmpty: 'No identity rows \u2014 pick the fields that say who this is (ancestry, class, level, homeworld\u2026) and they read as labelled values under the name, in columns.',
         addLabel: 'Add an identity row\u2026', addTitle: 'A text, select, number, formula, skill, resource or toggle to show read-only under the name', delTitle: 'Take off the identity rows (the field stays wherever else it is)', clearTitle: 'Take every identity row off', capMsg: 'At most ' + LIMITS.identity + ' identity rows.' });
     pinBox({ key: 'ledger', boxId: 'sysLedgerBox', title: 'Ledger figures (optional)', kinds: LEDGER_KINDS, rolls: false, limit: LIMITS.ledger,
-        hintFull: 'Read-only figures under the identity rows: a small label over a bold value (a negative reads red). Editing stays in the sections.',
+        hintFull: 'Figures under the identity rows: a small label over a bold value (a negative reads red). A number is a box whoever may edit it can change right there; formulas, skills and resources are edited in the sections.',
         hintEmpty: 'No ledger \u2014 pick a few numbers (points spent, remaining, a total) and they read as bold figures under the name.',
-        addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a read-only figure', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
+        addLabel: 'Add a figure\u2026', addTitle: 'A number, formula, skill or resource to show as a figure (a number stays editable there)', delTitle: 'Take off the ledger (the field stays wherever else it is)', clearTitle: 'Take every figure off', capMsg: 'At most ' + LIMITS.ledger + ' ledger figures.' });
     pinBox({ key: 'band', boxId: 'sysBandBox', title: 'Pinned band (optional)', kinds: BAND_KINDS, rolls: true, limit: LIMITS.band,
         hintFull: 'Shown on every tab, just above the tab strip, and it stays at the top with the strip while the sheet scrolls. A field can be here and in a section too.',
         hintEmpty: 'No band \u2014 pin a few numbers, resources, toggles or rolls and they stay under the name on every tab, above the tab strip.',
@@ -562,6 +625,7 @@ function renderLayout() {
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
         var top = el('div', 'sys-row-main');
+        top.appendChild(input('sys-sec-icon field', sec.icon, 'An icon before the title \u2014 an emoji or a symbol (optional)', 'Icon'));   // Stage 5g
         top.appendChild(input('sys-sec-title field', sec.title, 'The section\'s title on the sheet (empty = none)', 'Section title'));
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
@@ -578,6 +642,7 @@ function renderLayout() {
             var ci = el('input', 'sys-sec-' + sp[0]); ci.type = 'color'; ci.value = (sec.style && sec.style[sp[0]]) || sp[2]; ci.title = sp[1] + ' color for this section (drag the section’s Clear to remove)';
             wrap.appendChild(ci); styleRow.appendChild(wrap);
         });
+        if (sec.style && sec.style.accent) { var stl = el('label', 'sys-sec-color'); var stc = el('input', 'sys-sec-stripe'); stc.type = 'checkbox'; stc.checked = sec.style.stripe !== false; stl.appendChild(stc); stl.appendChild(document.createTextNode(' Stripe')); stl.title = 'The accent also draws a stripe down the section\u2019s left edge (off: it colours the title only)'; styleRow.appendChild(stl); }   // Stage 5g
         if (sec.style) { var clr = el('button', 'tool ghost sys-btn sys-sec-styleclr', 'Clear'); clr.dataset.act = 'secstyleclr'; clr.title = 'Remove this section’s colors'; styleRow.appendChild(clr); }
         row.appendChild(styleRow);
         var chipOpts = pageOptions(sec.chip || '', 'No chip');
@@ -625,12 +690,14 @@ function renderPreview() {
 }
 function onLayoutInput(t) {
     var c = t.className || '';
+    if (c.indexOf('sys-tab-icon') >= 0) { var itr = t.closest && t.closest('.sys-row.sys-tab'); if (itr) { var tbi = layoutTabs().find(function(x) { return x.id === itr.dataset.tid; }); if (tbi) { if (t.value.trim()) tbi.icon = t.value.slice(0, 32); else delete tbi.icon; markDirty(); renderPreview(); } } return true; }   // Stage 5g (Save trims it to a few code points)
     if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); renderPreview(); } } return true; }
     var lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
     else if (c.indexOf('sys-sec-title') >= 0) sec.title = t.value.slice(0, LIMITS.label);
+    else if (c.indexOf('sys-sec-icon') >= 0) { if (t.value.trim()) sec.icon = t.value.slice(0, 32); else delete sec.icon; }   // Stage 5g
     else return false;
     markDirty(); renderPreview(); return true;
 }
@@ -645,6 +712,7 @@ function onLayoutChange(t) {
     if (c.indexOf('sys-sec-meta') >= 0) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-parent') >= 0) { if (t.value) sec.parent = t.value; else delete sec.parent; markDirty(); renderPreview(); return true; }
     if (c.indexOf('sys-sec-cols') >= 0) { sec.cols = Math.max(1, Math.min(4, Number(t.value) || 1)); markDirty(); renderPreview(); return true; }
+    if (c.indexOf('sys-sec-stripe') >= 0) { if (sec.style) { if (t.checked) delete sec.style.stripe; else sec.style.stripe = false; markDirty(); renderPreview(); } return true; }   // Stage 5g
     if (c.indexOf('sys-sec-accent') >= 0 || c.indexOf('sys-sec-bg') >= 0 || c.indexOf('sys-sec-border') >= 0) {   // Stage 3: per-section colors
         var skey = c.indexOf('sys-sec-accent') >= 0 ? 'accent' : c.indexOf('sys-sec-bg') >= 0 ? 'bg' : 'border';
         sec.style = sec.style || {}; sec.style[skey] = t.value; markDirty(); renderLayout(); return true;   // renderLayout so the Clear button appears
@@ -667,12 +735,13 @@ function onLayoutClick(b) {
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
     if (b.id === 'sysLayoutAuto') {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
         var cl = cleanSystem(draft, { F: F(), gmView: true }), keepId = sheetList('identity'), keepLed = sheetList('ledger'), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
-        draft.sheet = { sections: autoLayout(cl || draft).sections }; if (keepTabs.length) draft.sheet.tabs = keepTabs; if (keepBand.length) draft.sheet.band = keepBand;
+        var keepLook = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : null;   // Stage 5g: the shape lives in the Sheet look box — kept
+        draft.sheet = { sections: autoLayout(cl || draft).sections }; if (keepLook) draft.sheet.look = keepLook; if (keepTabs.length) draft.sheet.tabs = keepTabs; if (keepBand.length) draft.sheet.band = keepBand;
         if (keepId.length) draft.sheet.identity = keepId; if (keepLed.length) draft.sheet.ledger = keepLed;   // Stage 5d: the header block is kept as well
         var keptAny = keepTabs.length || keepBand.length || keepId.length || keepLed.length;
         markDirty(); renderLayout(); toast(keptAny ? 'The automatic layout is now yours to change; your tabs, header block and band are kept.' : 'The automatic layout is now yours to change.'); return true;
     }
-    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length) && !sheetList('identity').length && !sheetList('ledger').length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs, no header block and no pinned band.', function(yes) { if (yes) { draft.sheet = { sections: [] }; markDirty(); renderLayout(); } }); return true; }
+    if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length) && !sheetList('identity').length && !sheetList('ledger').length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs, no identity rows or ledger figures and no pinned band (the Sheet look box is kept).', function(yes) { if (yes) { var keepShape = draft.sheet && draft.sheet.look; draft.sheet = { sections: [] }; if (keepShape) draft.sheet.look = keepShape; markDirty(); renderLayout(); } }); return true; }
     if (b.id === 'sysAddTab') { var tbs0 = layoutTabs(); if (tbs0.length >= LIMITS.tabs) { toast('At most ' + LIMITS.tabs + ' tabs.'); return true; } tbs0.push({ id: uid('t_'), label: 'Tab ' + (tbs0.length + 1) }); markDirty(); renderLayout(); return true; }
     var act = b.dataset.act; if (!act) return false;
     var ltab = b.closest('.sys-row.sys-tab');   // the Tabs manager's rows — every editor pane is a .sys-tab too, and matching the pane swallowed every other data-act button (fields, rolls, items, characters, sections)
@@ -809,7 +878,9 @@ function itemTableInto(wrap, f, c, carried, byId, canThrow, editable) {
     }
     wrap.appendChild(table);
 }
-function fieldNode(f, c, e, gm, own) {
+// Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
+function signTone(f, e) { if (!f.sign || !e || e.error || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
+function fieldNode(f, c, e, gm, own, sysArg) {   // sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
@@ -818,7 +889,7 @@ function fieldNode(f, c, e, gm, own) {
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : ''), e && e.error ? '—' : e ? e.text : ''); v.title = e && e.error ? e.error : f.formula || ''; box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; box.appendChild(v); return box; }
     if (k === 'number' || k === 'skill') {
         var row = el('div', 'sheet-ctl');
         var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined ? String(f.def) : String(raw);
@@ -837,8 +908,10 @@ function fieldNode(f, c, e, gm, own) {
             rg.addEventListener('change', function() { clearTimeout(rgTimer); rgTimer = setTimeout(function() { if (rg.value === rgSent) return; rgSent = rg.value; commit(c, f, Number(rg.value)); }, 200); });
             sw.appendChild(rg); row.appendChild(sw);
         }
+        if (k === 'number') inp.className += signTone(f, e);   // Stage 5g (a skill colours its total instead)
         row.appendChild(inp);
-        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); }
+        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); }
+        if (f.unit) row.appendChild(el('span', 'sheet-unit', f.unit));   // Stage 5g
         box.appendChild(row); return box;
     }
     if (k === 'resource') {
@@ -847,7 +920,7 @@ function fieldNode(f, c, e, gm, own) {
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !editable;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !editable; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !editable;
-        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max))); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max');
+        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + f.unit : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max');
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
         ci.addEventListener('change', function() { commit(c, f, { cur: Number(ci.value) }); });
@@ -860,7 +933,7 @@ function fieldNode(f, c, e, gm, own) {
     if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !editable; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
     if (k === 'select') { var se = el('select', 'field sheet-select'); se.dataset.fid = f.id; (f.options || []).forEach(function(o) { se.appendChild(opt(o, o, (raw === undefined ? f.def : raw) === o)); }); se.disabled = !editable; se.addEventListener('change', function() { commit(c, f, se.value); }); box.appendChild(se); return box; }
     if (k === 'item-list') {
-        var sysI = systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
+        var sysI = sysArg || systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
         var byId = {}; ((sysI && sysI.items) || []).forEach(function(it) { byId[it.id] = it; });
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
         var canThrow = (gm || (own && !gmThrows)) && !c.partial;   // who-rolls='gm' means only the GM throws
@@ -1074,6 +1147,8 @@ function fieldRow(f) {
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
     if (f.kind === 'number') { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e
+    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft)', 'Unit'));   // Stage 5g
+    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this field', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
@@ -1230,6 +1305,7 @@ function onInput(e) {
         else if (c.indexOf('sys-label') >= 0) f.label = t.value.slice(0, LIMITS.label);
         else if (c.indexOf('sys-formula') >= 0) { var p = DEF_PROP[f.kind]; if (p) f[p] = t.value; }
         else if (c.indexOf('sys-roll') >= 0) f.roll = t.value.trim() || undefined;
+        else if (c.indexOf('sys-unit') >= 0) { if (t.value.trim()) f.unit = t.value.slice(0, 32); else delete f.unit; }   // Stage 5g (Save cuts it to 8 code points, never half an emoji)
         else if (c.indexOf('sys-slider-lowColor') >= 0) { f.slider = f.slider || {}; f.slider.lowColor = t.value; }   // Stage 5e (the colour classes before the label ones: 'sys-slider-low' is a prefix of both)
         else if (c.indexOf('sys-slider-highColor') >= 0) { f.slider = f.slider || {}; f.slider.highColor = t.value; }
         else if (c.indexOf('sys-slider-low') >= 0) { f.slider = f.slider || {}; f.slider.low = t.value; }
@@ -1280,6 +1356,7 @@ function onChange(e) {
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
+        else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: colour by sign
         else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) f.slider = f.slider || {}; else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
         else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears
         else if (c.indexOf('sys-itbl-on') >= 0) { if (t.checked) f.table = f.table || { columns: ['category'] }; else delete f.table; markDirty(); renderAll(); return; }   // Stage 4: rich item table on/off (seed one column so it renders)

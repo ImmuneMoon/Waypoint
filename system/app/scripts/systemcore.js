@@ -15,7 +15,8 @@ var LIMITS = Object.freeze({
     items: 200, carried: 100, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000,
     band: 12,                                // Stage 5c: placements on the pinned band (one row under the name)
-    identity: 12, ledger: 8                  // Stage 5d: the header block — identity rows and ledger figures (read-only)
+    identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
+    icon: 8, unit: 8                         // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
 });
 // item-list is a STORED, non-numeric list kind (a character's carried items); never in NUMERIC/DEF_PROP.
 var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1 });
@@ -43,6 +44,9 @@ var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missin
 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
+// Stage 5g: a short label cut by code points — control characters become rep, a lone surrogate is dropped (never half an emoji)
+function cutPoints(v, cap, rep) { if (typeof v !== 'string') return ''; return Array.from(v.slice(0, 256).replace(CTRL_RE_G, rep).trim()).filter(function(ch) { return !/^[\uD800-\uDFFF]$/.test(ch); }).slice(0, cap).join('').trim(); }
+function cleanIcon(v) { return cutPoints(v, LIMITS.icon, ''); }   // a tab's or a section's icon; '' when none
 function fin(v) { return typeof v === 'number' && isFinite(v); }
 function map() { return Object.create(null); }
 function lower(s) { return String(s).toLowerCase(); }
@@ -123,6 +127,8 @@ function cleanField(f, F, gmView) {
     else if (k === 'item-list') { var tbl = cleanItemTable(f.table); if (tbl) out.table = tbl; }   // Stage 4: optional rich table (columns/chips/footer)
     if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) out.roll = r; }
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
+    if ((k === 'number' || k === 'formula' || k === 'skill' || k === 'resource') && typeof f.unit === 'string') { var un = cutPoints(f.unit, LIMITS.unit, ' '); if (un) out.unit = un; }   // Stage 5g: a unit after the value ("pts", "kg")
+    if ((k === 'number' || k === 'formula' || k === 'skill') && f.sign === true) out.sign = true;   // Stage 5g: colour the value by its sign (green above zero, red below)
     if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colours) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
     return out;
 }
@@ -201,6 +207,18 @@ function cleanSecStyle(v) {
     if (!isObj(v)) return null;
     var HEX = /^#[0-9a-fA-F]{6}$/, out = {};
     ['accent', 'bg', 'border'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
+    if (out.accent && v.stripe === false) out.stripe = false;   // Stage 5g: the accent colours the title only, without the left stripe (kept only beside an accent)
+    return Object.keys(out).length ? out : null;
+}
+// Stage 5g: the sheet's own shape — headline section titles, filled (angled) tabs, one accent colour, the portrait and the name leading
+// the header block. Whitelisted values only; absent (or nothing valid) = today's look, and the key is left out.
+function cleanLook(v) {
+    if (!isObj(v)) return null;
+    var out = {};
+    if (v.titles === 'headline') out.titles = 'headline';
+    if (v.tabs === 'filled') out.tabs = 'filled';
+    if (typeof v.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.accent)) out.accent = v.accent.toLowerCase();
+    if (v.portrait === true) out.portrait = true;
     return Object.keys(out).length ? out : null;
 }
 // Stage 4: an item-list field's optional rich-table config. Whitelisted strings + booleans only — no field refs,
@@ -225,7 +243,9 @@ function cleanSheet(sheet, fieldIds, rollIds, pages) {   // pages: null (format 
             var tb = sheet.tabs[t];
             if (!isObj(tb) || typeof tb.id !== 'string' || !TAB_ID.test(tb.id) || tabIds[tb.id]) continue;
             tabIds[tb.id] = 1;
-            out.tabs.push({ id: tb.id, label: str(tb.label, LIMITS.label).replace(CTRL_RE, ' ').trim() });
+            var tabOut = { id: tb.id, label: str(tb.label, LIMITS.label).replace(CTRL_RE, ' ').trim() }, tabIcon = cleanIcon(tb.icon);
+            if (tabIcon) tabOut.icon = tabIcon;   // Stage 5g: an icon before the label
+            out.tabs.push(tabOut);
         }
     }
     // Stage 5c: the pinned band — a few placements shown under the name on every tab (and on a stacked sheet). Its own cap and
@@ -250,6 +270,7 @@ function cleanSheet(sheet, fieldIds, rollIds, pages) {   // pages: null (format 
     }
     var identity = idList(sheet.identity, IDENTITY_KINDS, LIMITS.identity); if (identity) out.identity = identity;
     var ledger = idList(sheet.ledger, LEDGER_KINDS, LIMITS.ledger); if (ledger) out.ledger = ledger;
+    var look = cleanLook(sheet.look); if (look) out.look = look;   // Stage 5g: the sheet's shape (headline titles, filled tabs, an accent, the portrait + name)
     if (!Array.isArray(sheet.sections)) return out;
     for (var i = 0; i < sheet.sections.length && out.sections.length < LIMITS.sections; i++) {
         var s = sheet.sections[i];
@@ -264,6 +285,7 @@ function cleanSheet(sheet, fieldIds, rollIds, pages) {   // pages: null (format 
         if (typeof s.meta === 'string' && fieldIds[s.meta]) sec.meta = s.meta;   // a field whose value shows in the section header (e.g. a points total)
         if (typeof s.parent === 'string' && SECTION_ID.test(s.parent) && s.parent !== s.id) sec.parent = s.parent;   // nest under another section (the render enforces one level)
         var secStyle = cleanSecStyle(s.style); if (secStyle) sec.style = secStyle;   // Stage 3: per-section colors (accent/bg/border)
+        var secIcon = cleanIcon(s.icon); if (secIcon) sec.icon = secIcon;   // Stage 5g: an icon before the title
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;
@@ -464,15 +486,18 @@ function resolveAll(sys, char, F) {
 }
 function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (typeof v !== 'number' || !isFinite(v)) return v === null || v === undefined ? '' : String(v); if (Math.floor(v) === v) return String(v); return String(Number(v.toFixed(2))); }
 // Stage 5d: one read-only header-block entry (an identity row or a ledger figure) for a field: what the sheet prints for it, or null
-// to leave it out. A toggle shows as a chip only while on; an empty text/select is left out; an error prints '—' with the message as
-// a title (as the field itself does below); a negative number marks itself so the figure can read red.
+// to leave it out. A toggle shows as a chip only while on; an error prints '—' with the message as a title (as the field itself does
+// below); a negative number marks itself so the figure can read red. Stage 5g: an empty text/select keeps its place as a dash (a row
+// that vanished read as a missing field), the field's unit follows the value, and a field coloured by sign marks a positive too.
 function headerEntry(f, e) {
     if (!f || !e) return null;
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
     if (e.error) return { text: '\u2014', error: String(e.error) };
-    if (e.text === undefined || e.text === null || e.text === '') return null;
-    var neg = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number' && e.value < 0;
-    return neg ? { text: e.text, neg: true } : { text: e.text };
+    if (e.text === undefined || e.text === null || e.text === '') return { text: '\u2014', empty: true };
+    var numeric = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number';
+    var out = { text: f.unit ? e.text + ' ' + f.unit : e.text };
+    if (numeric && e.value < 0) out.neg = true; else if (numeric && f.sign && e.value > 0) out.pos = true;
+    return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error
 function hoverLines(sys, char, F) {

@@ -255,7 +255,7 @@
         table: function (a) { doTable(a); },
         state: function () { doState(); },
         fit: function (a) { if (window.wpFitView) window.wpFitView(/^s/i.test(a)); else addLine('wpFitView is not available.', 'dc-err'); },
-        reload: function () { if (window.wpReloadFromDisk) { window.wpReloadFromDisk(); addLine('Reloaded from disk.', 'dc-note'); } else addLine('wpReloadFromDisk is not available.', 'dc-err'); },
+        reload: function () { if (window.wpReloadFromDisk) { if (window.wpReloadFromDisk() !== false) addLine('Reloaded from disk.', 'dc-note'); else addLine('Not reloaded (see the message).', 'dc-err'); } else addLine('wpReloadFromDisk is not available.', 'dc-err'); },
         save: function () { if (window.wpSave) { window.wpSave(true); addLine('Saved.', 'dc-note'); } else addLine('wpSave is not available.', 'dc-err'); },
         find: function (a) { doFind(a); }
     };

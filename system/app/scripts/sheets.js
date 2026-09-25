@@ -286,7 +286,7 @@ function ruleOn(which) { var v = window.wpVtt; return !v || (v.rulesOn ? v.rules
 function tokenFlags() { return { turning: ruleOn('turning'), posture: ruleOn('posture'), elevation: ruleOn('elevation') }; }   // Stage 6: the features the token names read through — the same gate as the host's rolls
 function stanceSigOf(c, camp) {   // what the stance control shows: its rows, the token, its values, who may use it
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
-    return [vttOn('posture'), vttOn('elevation'), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
+    return [vttOn('posture'), vttOn('elevation'), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
 }
 function mapOk(m) { return !!(m && m.type === 'map' && Array.isArray(m.whiteboard)); }
 // Which token the dial (and every facing name on the sheet and in rolls) reads:
@@ -308,7 +308,7 @@ function facingTarget(c, camp) {
 function tokenCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? tokenCtx(t.map, t.tok, tokenFlags()) : null; }   // Stage 6: { facing, stance } of the token the sheet reads
 function dialSigOf(c, camp) {
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, fc = t ? facingCtx(t.map, t.tok, fl.turning) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
-    return [JSON.stringify(fl), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') : '', fc ? fc.deg + '|' + fc.sides + '|' + fc.threats.join(',') : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
+    return [JSON.stringify(fl), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', fc ? fc.deg + '|' + fc.sides + '|' + fc.threats.join(',') : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
 }
 function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in a caption) name a built-in facing name, so a finished turn redraws its numbers?
     var Fm = F(); if (!sys || !Array.isArray(sys.fields) || !Fm || !Fm.names) return false;
@@ -342,7 +342,7 @@ function facingNode(c, gm) {
     if (!on) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token facing is off (Settings \u25b8 VTT features).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), fc = t ? facingCtx(t.map, t.tok, true) : null;
     if (!fc) { wrap.appendChild(el('div', 'sheet-dial-note', t ? 'This token\u2019s facing cannot be read.' : 'No token on this map.')); return wrap; }
-    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !(n && (n.paused || n.selfPaused))));
+    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused))));   // a token the GM locked is frozen for its player
     if (live) wrap.classList.add('sheet-dial-live');
     var N = fc.sides, step = 360 / N, half = step / 2, C0 = 66, ARC = ['front', 'side', 'rear'];
     var xy = function(deg, r) { var a = deg * Math.PI / 180; return [(C0 + r * Math.sin(a)).toFixed(2), (C0 - r * Math.cos(a)).toFixed(2)]; }, pt = function(deg, r) { return xy(deg, r).join(' '); };
@@ -381,6 +381,7 @@ function facingNode(c, gm) {
     var info = el('div', 'sheet-dial-info'), a0 = th.length ? threatArc(fc, th[0]) : -1;
     info.appendChild(el('span', 'sheet-dial-state', 'Facing ' + (faceSide + 1) + (th.length ? ' \u00b7 threat from the ' + ARC[a0] + (th.length > 1 ? ' (+' + (th.length - 1) + ' queued)' : '') : ' \u00b7 no threat marked')));
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) info.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
+    if (!gm && t.tok.locked) info.appendChild(el('span', 'sheet-dial-map', '\uD83D\uDD12 Locked by the GM'));
     if (live) {
         var btns = el('div', 'sheet-dial-btns');
         var tf = el('button', 'tool ghost sys-btn', 'Turn to face'); tf.title = 'Turn toward the active threat'; tf.dataset.dk = 'face'; tf.disabled = !th.length || Math.abs(((th[0] - fc.deg) % 360 + 540) % 360 - 180) < 0.5;   // already facing it exactly (a free-angle token between sides may still turn to it)
@@ -399,7 +400,7 @@ function stanceNode(c, gm) {
     if (!pOn && !eOn) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token posture and elevation are off (Settings \u25b8 VTT features).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), st = t ? stanceCtx(t.tok, tokenFlags()) : null;   // the values are the table's (a hidden row is only a display choice)
     if (!st) { wrap.appendChild(el('div', 'sheet-dial-note', 'No token on this map.')); return wrap; }
-    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !(n && (n.paused || n.selfPaused))));
+    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused))));   // a token the GM locked is frozen for its player
     var setSt = function(v) { if (window.wpSetTokenStance) window.wpSetTokenStance(t.mapId, t.tok.id, v); };
     if (pOn) {
         var pr = el('label', 'sheet-stance-row'); pr.appendChild(el('span', 'sheet-label', 'Posture'));
@@ -421,6 +422,7 @@ function stanceNode(c, gm) {
         er.appendChild(em); er.appendChild(ei); er.appendChild(ep); er.appendChild(el('span', 'sheet-unit', 'yd')); wrap.appendChild(er);
     }
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) wrap.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
+    if (!gm && t.tok.locked) wrap.appendChild(el('span', 'sheet-dial-map', '\uD83D\uDD12 Locked by the GM'));
     return wrap;
 }
 // whiteboard.js / net.js / main.js: a token turned or its threat marks changed. The dial follows in place (focus kept); a sheet whose

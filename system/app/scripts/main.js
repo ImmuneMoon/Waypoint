@@ -2,9 +2,9 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors, isDocLike } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth, resetHistory } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth, resetHistory, migrateAppState } from './io.js';
 
-import { classifyState, askOwnership, cleanupInfo } from './cleanup.js';
+import { classifyState, askOwnership, cleanupInfo, cleanImport, cleanImportItems } from './cleanup.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -506,23 +506,23 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
   }
 
-  // Items from a file someone else made are content from another table: a planner's raw HTML is rebuilt by the
-  // wire's rich-text sanitiser, diagrams lose their click directives, handbook pages go through cleanDoc, and a
-  // play map's text items are rebuilt — and no id is ever a prototype key.
-  function cleanImportedItems(ic) {
-      if (!ic.items || typeof ic.items !== 'object') { ic.items = {}; return; }
-      var DR = window.wpDocRender, NT = window.wpNet;
-      Object.keys(ic.items).forEach(function(id) {
-          if (id in Object.prototype) { delete ic.items[id]; return; }
-          var it = ic.items[id]; if (!it || typeof it !== 'object') { delete ic.items[id]; return; }
-          if (it.type === 'doc' && DR && DR.cleanDoc) { var cd = DR.cleanDoc(it, { keepHidden: true }); if (cd) ic.items[id] = cd; else delete ic.items[id]; return; }
-          if (it.type === 'planner' && Array.isArray(it.blocks)) it.blocks.forEach(function(b) {
-              if (!b || typeof b !== 'object') return;
-              if (b.type === 'raw' && NT && NT.sanitizeRichText) b.content = NT.sanitizeRichText(String(b.content || ''));
-              if (b.type === 'diagram' && DR && DR.stripMermaidLinks) b.content = DR.stripMermaidLinks(String(b.content || ''));
-          });
-          if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (w && w.type === 'text' && NT && NT.sanitizeRichText) w.text = NT.sanitizeRichText(String(w.text || '')); });
-      });
+  // Items from a file someone else made are content from another table (cleanup.js cleanImportItems: raw HTML rebuilt, diagram clicks
+  // stripped, pages through cleanDoc, map text rebuilt, no prototype-key id). A whole file (Replace, a legacy one) also goes through the
+  // load's own normaliser first (cleanImport). importDeps() hands both the app's real cleaners.
+  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText }; }
+
+  function cleanImportedItems(ic) { cleanImportItems(ic, importDeps()); }
+
+  function importNothing() {
+
+      pendingImport = null;
+
+      pendingImportImages = null;
+
+      document.getElementById('importChoiceModal').style.display = 'none';
+
+      toast('Nothing in that file could be brought in.');
+
   }
 
   // Merge by id: new campaigns are added; within an existing campaign,
@@ -638,13 +638,17 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       if (!pendingImport) return;
 
+      var cleanR = cleanImport(pendingImport, importDeps());   // the file becomes the live table and can be hosted at once: shaped and cleaned as a load and a Merge are, before anything renders
+
+      if (!cleanR) { importNothing(); return; }
+
       var guard = window.wpConfirmCampaignSwitch || function(fn) { fn(); };   // replacing everything while hosting ends the session first
 
       guard(function() {
 
           if (!pendingImport) return;
 
-          state.appState = pendingImport;
+          state.appState = cleanR;
 
           finishImport('Imported (replaced all data).');
 
@@ -775,17 +779,25 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
                   // Legacy single-campaign format: import as a fresh campaign alongside existing ones
 
+                  var defaultCamp = createNewCampaign('Imported Campaign');
+
+                  defaultCamp.items = data.maps;
+
+                  defaultCamp.activeItemId = data.activeMapId;
+
+                  var wrapL = { activeCampaignId: defaultCamp.id, campaigns: {} };
+
+                  wrapL.campaigns[defaultCamp.id] = defaultCamp;
+
+                  var cleanL = cleanImport(wrapL, importDeps());   // a file from elsewhere too: shaped and cleaned before it joins your campaigns
+
+                  if (!cleanL || !Object.prototype.hasOwnProperty.call(cleanL.campaigns, defaultCamp.id)) { importNothing(); return; }
+
                   var guardL = window.wpConfirmCampaignSwitch || function(fn) { fn(); };   // it becomes the active campaign: a switch while hosting
 
                   guardL(function() {
 
-                      var defaultCamp = createNewCampaign('Imported Campaign');
-
-                      defaultCamp.items = data.maps;
-
-                      defaultCamp.activeItemId = data.activeMapId;
-
-                      state.appState.campaigns[defaultCamp.id] = defaultCamp;
+                      state.appState.campaigns[defaultCamp.id] = cleanL.campaigns[defaultCamp.id];
 
                       state.appState.activeCampaignId = defaultCamp.id;
 

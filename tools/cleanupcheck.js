@@ -108,7 +108,7 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
 
 (async () => {
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
-    const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep } = await import(url);
+    const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, cleanImport, cleanImportItems } = await import(url);
     DOC = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js')).replace(/\\/g, '/'));
     const KNOWN = { images: [] };          // list-images answered: nothing on disk
     const UNKNOWN = { images: null };      // list-images failed
@@ -441,6 +441,87 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
         check('asset gate serves ' + raw + ' as ' + want, sameSpelling(got) === sameSpelling(want), got);
         if (disk) check('  ...and the server resolves that to the stored file ' + disk, serverSees(got) === disk, serverSees(got));
     });
+
+    /* ---- imports: a Replace (or a legacy file) is shaped by the load's own normaliser and cleaned like a Merge (cleanup.js cleanImport) ---- */
+    {
+        const scripts = path.join(__dirname, '..', 'system', 'app', 'scripts'), surl = f => 'file:///' + path.resolve(path.join(scripts, f)).replace(/\\/g, '/');
+        const readSrc = f => fs.readFileSync(path.join(scripts, f), 'utf8').replace(/\r\n/g, '\n');
+        const ioSrc = readSrc('io.js'), mainSrc = readSrc('main.js'), netSrc = readSrc('net.js');
+        const S = await import(surl('systemcore.js')), F = await import(surl('formula.js'));
+        // the REAL load normaliser (io.js migrateAppState) and the REAL rich-text sanitiser (net.js; under node it keeps text only), sliced, never copied
+        const mi = ioSrc.indexOf('  function hexCenterFlat('), mk = ioSrc.indexOf('  // What the cleanup (scripts/cleanup.js) may do');
+        const migrate = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')(
+            { wpSystemCore: S, wpFormula: F }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+        const si = netSrc.indexOf('function escAttr('), sk = netSrc.indexOf('net.sanitizeRichText = sanitizeRichText;');
+        const sanitize = new Function(netSrc.slice(si, sk) + '\nreturn sanitizeRichText;')();
+        const deps = { migrate, DR: DOC, sanitize };
+        check('import: the load normaliser and the rich-text sanitiser slice out of io.js and net.js', mi > 0 && mk > mi && si > 0 && sk > si && typeof migrate === 'function' && typeof sanitize === 'function');
+        // a file from elsewhere, as JSON.parse reads it: "__proto__" is an own key there, as it would be in a real file
+        const hostileText = JSON.stringify({ activeCampaignId: 'constructor', campaigns: {
+            cA: { id: 'cA', name: 'Theirs', activeItemId: 'toString',
+                system: { v: 1, name: 'SB', fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10, vis: 'all', min: 1, max: 20 }], rolls: [] },
+                chars: { c_1: { id: 'c_1', name: 'Hero', ownerId: 'u_x', values: { f_st: 12, f_zz: 5 } }, c_bad: { id: 'c_other', name: 'Liar' } },
+                items: {
+                    p1: { id: 'p1', type: 'planner', meta: { title: 'Notes' }, blocks: [{ type: 'raw', content: '<img src=x onerror=alert(1)><b>hi</b>' }, { type: 'diagram', content: 'graph TD\nA-->B\nclick A "javascript:alert(1)"' }] },
+                    m1: { id: 'm1', type: 'map', meta: { title: 'Map' }, rooms: [], links: [], whiteboard: [{ id: 'w1', type: 'text', text: '<script>alert(1)</script>hey', x: 1, y: 1, w: 50, h: 20 }, { id: 't1', isChar: true, charId: 'c_1', x: 100, y: 100, w: 60, h: 52 }] },
+                    bare: { type: 'map' },
+                    constructor: { id: 'constructor', type: 'planner', meta: { title: 'Sneak' }, blocks: [] }
+                } },
+            cB: { id: 'cB', name: 'No system', chars: { c_9: { id: 'c_9', name: 'Orphan' } }, items: { q1: { id: 'q1', type: 'planner', meta: { title: 'Q' }, blocks: [] } } },
+            constructor: { id: 'constructor', name: 'Proto', items: {} },
+            ZZPROTO: { id: '__proto__', name: 'Proto2', items: {} }
+        } }).replace('"ZZPROTO":', '"__proto__":');
+        const out = cleanImport(JSON.parse(hostileText), deps);
+        const cA = out && out.campaigns.cA, cB = out && out.campaigns.cB;
+        check('import: no campaign under a prototype key comes in ("constructor", "__proto__"), and a prototype-key active campaign is repaired to one that did',
+            !!out && JSON.stringify(Object.keys(out.campaigns)) === '["cA","cB"]' && out.activeCampaignId === 'cA', out && JSON.stringify([Object.keys(out.campaigns), out.activeCampaignId]));
+        check('import: no item under a prototype key comes in, and an active item that is not an own key is repaired',
+            !!cA && !Object.prototype.hasOwnProperty.call(cA.items, 'constructor') && Object.prototype.hasOwnProperty.call(cA.items, cA.activeItemId), cA && JSON.stringify([Object.keys(cA.items), cA.activeItemId]));
+        const p1 = cA && cA.items.p1, m1 = cA && cA.items.m1;
+        check('import: a planner\'s raw HTML goes through the rich-text sanitiser, a diagram loses its click directive, a play map\'s text item is rebuilt',
+            !!p1 && !/[<>]/.test(p1.blocks[0].content) && /hi/.test(p1.blocks[0].content) && !/click|javascript/.test(p1.blocks[1].content) && /A-->B/.test(p1.blocks[1].content) && !/<script/i.test(m1.whiteboard[0].text), p1 && JSON.stringify([p1.blocks, m1.whiteboard[0].text]));
+        check('import: shaped by the load\'s normaliser — an item with no meta gets its title and a map its rooms, links, play map and categories; the schema is stamped',
+            !!cA && cA.items.bare.meta.title === 'Map' && Array.isArray(cA.items.bare.rooms) && Array.isArray(cA.items.bare.links) && Array.isArray(cA.items.bare.whiteboard) && !!cA.items.bare.cats && out._schema === 2, cA && JSON.stringify(cA.items.bare));
+        check('import: the system is cleaned and each character cleaned against it (an unknown value goes, a character whose id disagrees goes), and its owner is stamped on its token; characters with no system go',
+            !!cA && !!cA.system && Object.keys(cA.chars).join() === 'c_1' && !('f_zz' in cA.chars.c_1.values) && m1.whiteboard[1].ownerId === 'u_x' && !!cB && !('chars' in cB), cA && JSON.stringify([cA.chars, m1.whiteboard[1], cB && cB.chars]));
+        // a page cleanDoc refuses takes nobody with it: its child comes in at the top of the tree
+        const pages = { campaigns: { cP: { id: 'cP', name: 'P', items: { d1: { id: 'd1', type: 'doc', meta: { title: 'refuse me' }, blocks: [] }, d2: { id: 'd2', type: 'doc', meta: { title: 'Child', parentId: 'd1' }, blocks: [] } } } } };
+        const outP = cleanImport(pages, { migrate, sanitize, DR: { cleanDoc: (d, o) => d.meta && d.meta.title === 'refuse me' ? null : DOC.cleanDoc(d, o), stripMermaidLinks: DOC.stripMermaidLinks } });
+        check('import: a page that does not come in leaves no child hidden under it', !!outP && !outP.campaigns.cP.items.d1 && !!outP.campaigns.cP.items.d2 && !outP.campaigns.cP.items.d2.meta.parentId, outP && JSON.stringify(outP.campaigns.cP.items));
+        // fail closed
+        const noMig = cleanImport(JSON.parse(hostileText), { DR: DOC, sanitize });
+        const ic = JSON.parse(JSON.stringify({ items: { p: { type: 'planner', blocks: [{ type: 'raw', content: '<b onclick=x>t</b>' }, { type: 'diagram', content: 'click A x' }] }, m: { type: 'map', whiteboard: [{ id: 'w', type: 'text', text: '<i>x</i>' }] }, d: { type: 'doc', meta: {}, blocks: [] } } }));
+        cleanImportItems(ic, {});
+        check('import: fails closed — no normaliser, nothing comes in; no sanitiser, a raw block, a diagram and a text item come in empty and a page does not come in',
+            noMig === null && ic.items.p.blocks[0].content === '' && ic.items.p.blocks[1].content === '' && ic.items.m.whiteboard[0].text === '' && !ic.items.d, JSON.stringify([noMig, ic.items]));
+        // a planner from before blocks: its one text string opens as a raw HTML block, so it is cleaned as one — on Merge (no normaliser) and on Replace (after it)
+        const oldPlan = () => ({ id: 'op', type: 'planner', meta: { title: 'Old' }, content: '<img src=x onerror="window.__pwned=9"><b>old notes</b>' });
+        const icM = { items: { op: oldPlan() } }; cleanImportItems(icM, deps);
+        const outR = cleanImport({ campaigns: { cO: { id: 'cO', name: 'O', items: { op: oldPlan() } } } }, deps);
+        const icN = { items: { op: oldPlan() } }; cleanImportItems(icN, {});
+        const rawOf = it => it && Array.isArray(it.blocks) && it.blocks.length === 1 && it.blocks[0].type === 'raw' ? it.blocks[0].content : null;
+        check('import: a planner from before blocks (its text one string) comes in as a raw block that has been through the sanitiser — on Merge and on Replace — and fails closed with no sanitiser; the old string never stays',
+            /old notes/.test(rawOf(icM.items.op) || '') && !/[<>]/.test(rawOf(icM.items.op) || '<') && /old notes/.test(rawOf(outR && outR.campaigns.cO.items.op) || '') && !/[<>]/.test(rawOf(outR && outR.campaigns.cO.items.op) || '<')
+            && rawOf(icN.items.op) === '' && !('content' in icM.items.op) && !('content' in outR.campaigns.cO.items.op), JSON.stringify([icM.items.op, outR && outR.campaigns.cO.items.op, icN.items.op]));
+        check('import: a file with nothing but prototype-key campaigns brings nothing in', cleanImport(JSON.parse('{"campaigns":{"__proto__":{"id":"x","items":{}},"constructor":{"items":{}}}}'), deps) === null && cleanImport(null, deps) === null && cleanImport({ campaigns: 5 }, deps) === null);
+        // the app routes every whole-file import through it, before the state is replaced or the modal is even closed
+        const repl = mainSrc.slice(mainSrc.indexOf("_el_importReplaceBtn.addEventListener('click'"), mainSrc.indexOf('var _el_importCancelBtn'));
+        const legacy = mainSrc.slice(mainSrc.indexOf('// Legacy single-campaign format'), mainSrc.indexOf('} else if (data.campaigns) {'));
+        check('import (main.js): Replace cleans first (cleanImport with the app\'s real normaliser, docrender and the wire\'s sanitiser) and only then may replace the state; the raw file never becomes the state',
+            /var cleanR = cleanImport\(pendingImport, importDeps\(\)\);[\s\S]*if \(!cleanR\) \{ importNothing\(\); return; \}[\s\S]*var guard = [\s\S]*state\.appState = cleanR;/.test(repl) && !/state\.appState = pendingImport/.test(mainSrc)
+            && /function importDeps\(\) \{ return \{ migrate: function\(d\) \{ return migrateAppState\(d\)\.data; \}, DR: window\.wpDocRender, sanitize: window\.wpNet && window\.wpNet\.sanitizeRichText \}; \}/.test(mainSrc) && /\n    migrateAppState   \/\/ main\.js/.test(ioSrc));
+        check('import (main.js): a legacy single-campaign file is wrapped and cleaned the same way before it joins the campaigns; Merge cleans its items with the same cleaner',
+            /var cleanL = cleanImport\(wrapL, importDeps\(\)\);[\s\S]*var guardL = [\s\S]*state\.appState\.campaigns\[defaultCamp\.id\] = cleanL\.campaigns\[defaultCamp\.id\];/.test(legacy) && !/state\.appState\.campaigns\[defaultCamp\.id\] = defaultCamp;/.test(legacy)
+            && /function cleanImportedItems\(ic\) \{ cleanImportItems\(ic, importDeps\(\)\); \}/.test(mainSrc) && /cleanImportedItems\(ic\);/.test(mainSrc));
+        // the dev console's reload: never under a table, the GM's or someone else's
+        const ri = ioSrc.indexOf('window.wpReloadFromDisk = function() {'), rk = ioSrc.indexOf('\n};', ri);
+        const reload = (n) => { const calls = { load: 0, cleared: 0, toasts: [] }; const w = { wpNet: n };
+            new Function('window', 'toast', 'load', 'clearTimeout', 'saveTimeout', ioSrc.slice(ri, rk + 3))(w, m => calls.toasts.push(m), () => { calls.load++; }, () => { calls.cleared++; }, 1);
+            calls.ret = w.wpReloadFromDisk(); return calls; };
+        const rHost = reload({ active: true, role: 'host' }), rClient = reload({ active: true, role: 'client' }), rOff = reload({ active: false, role: null }), rNone = reload(undefined);
+        check('reload from disk: refused while hosting (the load\'s normaliser and cleanup never run under the live table) and while joined; allowed otherwise',
+            ri > 0 && rHost.load === 0 && rHost.ret === false && /hosting/.test(rHost.toasts[0] || '') && rClient.load === 0 && rClient.ret === false && rOff.load === 1 && rOff.cleared === 1 && rOff.ret === true && rNone.load === 1, JSON.stringify([rHost, rClient, rOff]));
+    }
 
     // the owner's real save, read-only, counts only
     const real = path.join(__dirname, '..', 'saves', 'data.json');

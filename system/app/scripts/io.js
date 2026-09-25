@@ -1611,7 +1611,9 @@ export {
 
     fieldUndoChord,
 
-    takeSafetyCopy
+    takeSafetyCopy,
+
+    migrateAppState   // main.js: an import is shaped by the load's own normaliser (cleanup.js cleanImport)
 
 };
 
@@ -1650,8 +1652,10 @@ window.appToast = toast;
 // debounce first is what makes disk win — otherwise the pending in-memory POST re-clobbers the file
 // you just read. Any unsaved in-memory edit is intentionally discarded. (Works in the packaged shell too.)
 window.wpReloadFromDisk = function() {
-    if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { toast('Not while you\'re at someone else\'s table.'); return; }   // still joined: your own save would replace the table
-    clearTimeout(saveTimeout); load();
+    var n = window.wpNet;
+    if (n && n.active && n.role === 'client') { toast('Not while you\'re at someone else\'s table.'); return false; }   // still joined: your own save would replace the table
+    if (n && n.active && n.role === 'host') { toast('Not while you\'re hosting \u2014 end the session first.'); return false; }   // the load's normaliser and cleanup would run under the live table
+    clearTimeout(saveTimeout); load(); return true;
 };
 
 // Dev/console: force an immediate save now, skipping the ~500ms debounce (io.js save(true)).

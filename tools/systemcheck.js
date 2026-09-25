@@ -11,6 +11,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).replace
 let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } }
 const j = v => JSON.stringify(v);
+const ownLines = src => ['function own(', 'function validKey(', 'function campOf('].map(k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';   // net.js's own-key lookups (the real one-liners) for a sliced gate that uses them
 
 (async () => {
     let S = null, F = null, err = null;
@@ -672,7 +673,7 @@ const j = v => JSON.stringify(v);
         const netSrcP = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
         const iP = netSrcP.indexOf('// [netcheck:patch-start]'), kP = netSrcP.indexOf('// [netcheck:patch-end]');
         const mkCamp = () => ({ id: 'camp1', items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_1', ownerId: 'u_p', x: 10, y: 10, rot: 0, front: 0 }, { id: 't2', isChar: true, charId: 'c_2', ownerId: 'u_q', x: 50, y: 50, rot: 0, front: 0, threats: [60] }] } } });
-        const runP = (camp, wb, on) => new Function('state', 'window', 'playerStroke', 'cleanElevation', 'cleanPosture', 'msg', 'prof', netSrcP.slice(iP, kP) + '\nreturn applyClientItemFiltered(msg, prof);')(
+        const runP = (camp, wb, on) => new Function('state', 'window', 'playerStroke', 'cleanElevation', 'cleanPosture', 'msg', 'prof', ownLines(netSrcP) + netSrcP.slice(iP, kP) + '\nreturn applyClientItemFiltered(msg, prof);')(
             { appState: { campaigns: { camp1: camp } } }, { wpVtt: { campaignOn: k => k !== 'turning' || on }, wpSystemCore: S }, () => null, v => Number(v) || 0, v => typeof v === 'string' ? v : 'standing', { campId: 'camp1', itemId: 'm1', item: { whiteboard: wb } }, { id: 'u_p' });
         const c1 = mkCamp(), ch1 = runP(c1, [{ id: 't1', x: 10, y: 10, rot: 0, front: 0, threats: [120, 180] }, { id: 't2', x: 50, y: 50, rot: 0, front: 0 }], true);
         const c3 = mkCamp(); c3.items.m1.whiteboard[0].threats = [120]; const ch3 = runP(c3, [{ id: 't1', x: 10, y: 10, rot: 0, front: 0 }], true);
@@ -681,15 +682,15 @@ const j = v => JSON.stringify(v);
             iP > 0 && kP > iP && ch1 === false && !('threats' in c1.items.m1.whiteboard[0]) && j(c1.items.m1.whiteboard[1].threats) === '[60]' && ch3 === false && j(c3.items.m1.whiteboard[0].threats) === '[120]'
             && ch4 === false && c4.items.m1.whiteboard[0].front === 90 && c4.items.m1.whiteboard[0].elevation === 3 && j(c4.items.m1.whiteboard[0].threats) === '[120]', j([c1.items.m1.whiteboard, c3.items.m1.whiteboard[0], c4.items.m1.whiteboard[0]]));
         const shF3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), dialSrc = shF3.slice(shF3.indexOf('function facingNode('), shF3.indexOf('function tokenTurned('));
-        check('5h F3 UI: the dial draws with createElementNS and textContent only (no markup), is live only on the real sheet for the GM or the token\'s own unpaused player, and acts only through the whiteboard setters; the sheet and both roll sites pass the facing context',
-            dialSrc.length > 1500 && !/innerHTML/.test(dialSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);/.test(dialSrc) && /wpSetTokenFacing/.test(dialSrc) && /wpSetTokenThreats/.test(dialSrc)
+        check('5h F3 UI: the dial draws with createElementNS and textContent only (no markup), is live only on the real sheet for the GM or the token\'s own unpaused player (never on a token the GM locked), and acts only through the whiteboard setters; the sheet and both roll sites pass the facing context',
+            dialSrc.length > 1500 && !/innerHTML/.test(dialSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !t\.tok\.locked && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);[^\n]*\n\s*if \(live\) wrap\.classList\.add\('sheet-dial-live'\);/.test(dialSrc) && /wpSetTokenFacing/.test(dialSrc) && /wpSetTokenThreats/.test(dialSrc)
             && /var all = resolveAll\(sys, c, F\(\), tokenCtxFor\(c\.id, camp\)\);/.test(shF3) && /resolveAll\(sys, c, F\(\), tokenCtxFor\(c\.id, camp\)\), true, false, function\(\) \{ renderSheetInto/.test(shF3)
             && /if \(inSession\) return \(loc && /.test(shF3) && /charTokenOn\(am, c\.id, myId\(\), \{ strict: true \}\)/.test(shF3) && /if \(body && ae && body\.contains\(ae\) && \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(ae\.tagName\) && !committed\)/.test(shF3)
             && /tcQ = SQ\.tokenCtx\(mapQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\), \{ turning: ruleQ\('turning'\), posture: ruleQ\('posture'\), elevation: ruleQ\('elevation'\) \}\);/.test(netSrcP) && /varsQ = SQ\.makeResolver\(viewQ, chvQ, Fq, tcQ\);/.test(netSrcP)
             && (netSrcP.match(/delete (mine|there|nw|tok)\.threats;/g) || []).length === 4 && /SR\.makeResolver\(campR\.system, chR, F, window\.wpSheets && window\.wpSheets\.tokenCtxFor \? window\.wpSheets\.tokenCtxFor\(chR\.id, campR\) : null\)/.test(netSrcP));
         const wbF3 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
-        check('5h F3: the dial\'s setters turn on the token\'s own map under the arrow\'s rule (a player: their own token, not paused; facing on) and end with a final pos, or a whole-map send for a map off screen',
-            /if \(n && n\.active && n\.role === 'client' && \(n\.paused \|\| n\.selfPaused \|\| tok\.ownerId !== n\.myId\)\) return null;/.test(wbF3) && /if \(!tok \|\| !tok\.isChar \|\| \(feature !== null && window\.wpVtt && !window\.wpVtt\.on\(feature \|\| 'turning'\)\)\) return null;/.test(wbF3)
+        check('5h F3: the dial\'s setters turn on the token\'s own map under the arrow\'s rule (a player: their own token, not paused, not locked by the GM; facing on) and end with a final pos, or a whole-map send for a map off screen',
+            /if \(n && n\.active && n\.role === 'client' && \(n\.paused \|\| n\.selfPaused \|\| tok\.ownerId !== n\.myId \|\| tok\.locked\)\) return null;/.test(wbF3) && /if \(!tok \|\| !tok\.isChar \|\| \(feature !== null && window\.wpVtt && !window\.wpVtt\.on\(feature \|\| 'turning'\)\)\) return null;/.test(wbF3)
             && /window\.wpNet\.streamPos\(t\.tok, true\)/.test(wbF3) && /n\.broadcastItemFiltered\(t\.camp\.id, t\.mapId\)/.test(wbF3) && /var step = facingStepFor\(\(t\.map\.meta && t\.map\.meta\.gridType\) \|\| 'off', t\.tok\);/.test(wbF3));
     }
 
@@ -1176,7 +1177,7 @@ const j = v => JSON.stringify(v);
         const cln = new Function(cleanersSrc + '\nreturn { cleanElevation: cleanElevation, cleanPosture: cleanPosture };')();
         const iPS = netSrc2.indexOf('// [netcheck:patch-start]'), kPS = netSrc2.indexOf('// [netcheck:patch-end]');
         const runPS = (feat, wb) => { const camp = { id: 'camp1', items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_1', ownerId: 'u_p', x: 10, y: 10, rot: 0, front: 0 }, { id: 't2', isChar: true, charId: 'c_2', ownerId: 'u_q', x: 50, y: 50, rot: 0, front: 0 }] } } };
-            const ch = new Function('state', 'window', 'playerStroke', 'cleanElevation', 'cleanPosture', 'msg', 'prof', netSrc2.slice(iPS, kPS) + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: { camp1: camp } } }, { wpVtt: { campaignOn: k => !!feat[k] }, wpSystemCore: S }, () => null, cln.cleanElevation, cln.cleanPosture, { campId: 'camp1', itemId: 'm1', item: { whiteboard: wb } }, { id: 'u_p' });
+            const ch = new Function('state', 'window', 'playerStroke', 'cleanElevation', 'cleanPosture', 'msg', 'prof', ownLines(netSrc2) + netSrc2.slice(iPS, kPS) + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: { camp1: camp } } }, { wpVtt: { campaignOn: k => !!feat[k] }, wpSystemCore: S }, () => null, cln.cleanElevation, cln.cleanPosture, { campId: 'camp1', itemId: 'm1', item: { whiteboard: wb } }, { id: 'u_p' });
             return { ch, t1: camp.items.m1.whiteboard[0], t2: camp.items.m1.whiteboard[1] }; };
         const wbStance = [{ id: 't1', x: 10, y: 10, rot: 0, front: 0, posture: 'lying-prone', elevation: 3 }, { id: 't2', x: 50, y: 50, rot: 0, front: 0, posture: 'sitting', elevation: 9 }];
         const psOn = runPS({ posture: true, elevation: true }, wbStance), psOff = runPS({ posture: false, elevation: false }, wbStance);
@@ -1190,8 +1191,8 @@ const j = v => JSON.stringify(v);
         check('6 F2: a Stance placement is kept (the players\' view too)', lay.sheet.sections[0].fields.length === 1 && lay.sheet.sections[0].fields[0].kind === 'stance', j(lay.sheet));
         const sh2 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), stSrc = sh2.slice(sh2.indexOf('function stanceNode('), sh2.indexOf('// whiteboard.js / net.js / main.js: a token turned'));
         const wb2 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
-        check('6 F2 UI: the stance control draws text only, is live only on the real sheet for the GM or the token\'s own unpaused player, sets the token through the whiteboard setter (each part only while its feature is on), and redraws in place like the dial',
-            stSrc.length > 800 && !/innerHTML/.test(stSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);/.test(stSrc) && /wpSetTokenStance/.test(stSrc)
+        check('6 F2 UI: the stance control draws text only, is live only on the real sheet for the GM or the token\'s own unpaused player (never on a token the GM locked), sets the token through the whiteboard setter (each part only while its feature is on), and redraws in place like the dial',
+            stSrc.length > 800 && !/innerHTML/.test(stSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !t\.tok\.locked && !\(n && \(n\.paused \|\| n\.selfPaused\)\)\)\);/.test(stSrc) && /wpSetTokenStance/.test(stSrc)
             && /if \(typeof st\.posture === 'string' && stanceOn\('posture'\)\)/.test(wb2) && /if \(st\.elevation !== undefined && stanceOn\('elevation'\) && isFinite\(Number\(st\.elevation\)\)\)/.test(wb2) && /var t = tokenOnMap\(mapId, tokId, null\);/.test(wb2)
             && /querySelectorAll\('\.sheet-dial, \.sheet-stance'\)/.test(sh2));
     }

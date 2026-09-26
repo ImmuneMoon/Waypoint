@@ -3703,7 +3703,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('R1 the editor and sheet (source): a roll row has its + Then… editor (When, target, Subtract | Add | Set to, amount); the change buttons keep their order (a removal that empties the list drops it, every other press saves and redraws); a roll with consequences names itself to the dice path; tour and Help say so',
             /row\.appendChild\(applyEditor\(r, isApply \? 'apply' : 'then'\)\);/.test(shT) && /select\('sys-apply-when', \[\['', 'Always'\], \['hit', 'On success'\], \['miss', 'On failure'\], \['malf', 'On malfunction'\]\]/.test(shT) && /\['sub', 'Subtract'\], \['add', 'Add'\], \['set', 'Set to'\]\], ch\.set \? 'set'/.test(shT)
             && /else if \(act === 'applydel' && aI >= 0 && aI < aArr\.length\) aArr\.splice\(aI, 1\);\n\s*else return;\n\s*if \(aK === 'then' && !aArr\.length\) delete ctx\.r\.then;/.test(shT)
-            && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR\);/.test(shT)
+            && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf \|\| r\.cost\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR\);/.test(shT)
             && /A <b>roll<\/b> can make changes too: its <b>\+ Then&hellip;<\/b> changes/.test(hT) && /the host rolls the button&rsquo;s own formula \(a modifier or advantage from shift-click included\), so a hit cannot be made up\./.test(hT) && /a roll can make changes after it lands \(<b>On success<\/b>: Hits \+ 1\)/.test(tT));
     }
     /* ---- Stage 6 HUD R2a: a list's counters — a whole number each row keeps (Charges, Hits), read as Row.<key> ---- */
@@ -3808,7 +3808,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             j(tcM(false, true)) === j(['malf']) && j(tcM(true, false)) === j(['hit']) && j(tcM(false, false)) === '[]');
         const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hM = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tM = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('R3 the editor and sheet (source): a Malf box on a system roll and on a list roll, On malfunction among the Whens; a roll with a Malf names its entry (the host works the Malf out); tour and Help say so',
-            /input\('sys-roll-malf field'/.test(shM) && /input\('sys-list-malf field'/.test(shM) && /\['malf', 'On malfunction'\]\]/.test(shM) && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shM) && /\|\| !!r\.needs \|\| !!r\.malf;/.test(shM)
+            /input\('sys-roll-malf field'/.test(shM) && /input\('sys-list-malf field'/.test(shM) && /\['malf', 'On malfunction'\]\]/.test(shM) && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf \|\| r\.cost\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shM) && /\|\| !!r\.needs \|\| !!r\.malf \|\| !!r\.cost;/.test(shM)
             && /A roll&rsquo;s <b>Malf<\/b> \(a formula, like <code>17<\/code> or <code>Row\.Malf<\/code>\) makes a natural total/.test(hM) && /and malfunction at its <b>Malf<\/b>\./.test(tM));
     }
     /* ---- Stage 6 HUD G10: Each round — apply actions the host runs on every character in a combat when its round changes ---- */
@@ -4017,8 +4017,21 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             mc('square', 0, 0, 250, 150, 'one') === 5 && mc('square', 0, 0, 250, 150, 'alt') === 6 && Math.abs(mc('off', 0, 0, 300, 400) - 10) < 1e-9 && mc('hex', 0, 0, 90, 0) === 2 && mc('hex', 0, 0, 0, 0) === 0);
         const stT = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, NL), hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuT = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('T3b the settings and the docs (source): Move limit and Out of turn are GM-only selects in the Turn-based combat row (Refuse, Warn, Off) writing camp.turnRules.move / .order; Help and the tour say so',
-            /Move limit <select id="setMoveMode"/.test(hmT) && /Out of turn <select id="setOrderMode"/.test(hmT) && /\[\['setMoveMode', 'move'\], \['setOrderMode', 'order'\]\]\.forEach/.test(stT) && /o\[p\[1\]\] = val;/.test(stT)
-            && /On its turn a player&rsquo;s token moves no further than its <b>Move per turn<\/b>/.test(hmT) && /<b>Move limit<\/b> and <b>Out of turn<\/b> are each <b>Refuse<\/b>/.test(hmT) && /moves no further than their move, and waits for their turn to move at all\./.test(tuT));
+            /Move limit <select id="setMoveMode"/.test(hmT) && /Out of turn <select id="setOrderMode"/.test(hmT) && /\[\['setMoveMode', 'move'\], \['setOrderMode', 'order'\], \['setActsMode', 'acts'\]\]\.forEach/.test(stT) && /o\[p\[1\]\] = val;/.test(stT)
+            && /On its turn a player&rsquo;s token moves no further than its <b>Move per turn<\/b>/.test(hmT) && /<b>Move limit<\/b> and <b>Out of turn<\/b> are each <b>Refuse<\/b>/.test(hmT) && /moves no further than their move, (and )?waits for their turn to move at all[,.]/.test(tuT));
+    }
+    /* ---- Turn-based combat T4: a spent button greys (costBlock), and each press names what it costs ---- */
+    {
+        const shC = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hmC = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuC = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), stC = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, NL);
+        const cbSrc = shC.slice(shC.indexOf('function costBlock(c, cost) {'), shC.indexOf('function canRoll(c) {'));
+        const cb = (al, cost) => new Function('net', cbSrc + NL + 'return costBlock;')(() => ({ actsLeft: al }))({ id: 'c_p' }, cost);
+        check('T4 costBlock (sheets.js, run for real): a button costing an action greys when the host last told this player none of it is left under Refuse; not under Warn, not with some left, not for another action, not with no word from the host or no cost',
+            cb({ c_p: { left: { Action: 0, Bonus: 1 }, mode: 'refuse' } }, 'Action') === 'No Action left this turn' && cb({ c_p: { left: { Action: 0 }, mode: 'warn' } }, 'Action') === '' && cb({ c_p: { left: { Action: 1 }, mode: 'refuse' } }, 'Action') === ''
+            && cb({ c_p: { left: { Action: 0 }, mode: 'refuse' } }, 'Bonus') === '' && cb(undefined, 'Action') === '' && cb({ c_p: { left: { Action: 0 }, mode: 'refuse' } }, '') === '');
+        check('T4 the sheet (source): a system roll with a cost names its entry and greys when spent; a list roll with a cost names its row index and greys; a list\'s apply greys; Actions per turn is a GM-only select writing camp.turnRules.acts; Help and the tour say so',
+            /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf \|\| r\.cost\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shC) && /var cbR = can && typeof costBlock === 'function' \? costBlock\(c, r\.cost\) : ''; if \(cbR\) \{ b\.disabled = true;/.test(shC)
+            && /withE = !!\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| !!r\.needs \|\| !!r\.malf \|\| !!r\.cost;/.test(shC) && /var cbL = typeof costBlock === 'function' \? costBlock\(c, r\.cost\) : ''; if \(cbL\) \{ b\.disabled = true;/.test(shC) && /var cbA = typeof costBlock === 'function' \? costBlock\(c, r\.cost\) : ''; if \(cbA\) \{ ab\.disabled = true;/.test(shC)
+            && /Actions per turn <select id="setActsMode"/.test(hmC) && /\['setActsMode', 'acts'\]/.test(stC) && /A roll or apply action that <b>costs<\/b> an action \(the Combat card&rsquo;s Turns\) spends one when a player presses it/.test(hmC) && /and spends the actions a turn allows\./.test(tuC));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

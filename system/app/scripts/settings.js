@@ -378,7 +378,7 @@ function syncVttPanel() {
             if (role) role.style.display = 'none';
         }
     });
-    [['setMoveMode', 'move'], ['setOrderMode', 'order']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
+    [['setMoveMode', 'move'], ['setOrderMode', 'order'], ['setActsMode', 'acts']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
     var wm = ui('setWallsMode'); if (wm) { var tr = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.walls : ''; wm.value = tr === 'warn' || tr === 'off' ? tr : 'refuse'; wm.disabled = !editable; }   // turn-based combat T3a (D11): the walls' mode
     var defaults = ui('setVttDefaults'); if (defaults) defaults.style.display = editable ? '' : 'none';
     var g = v.globalVtt();
@@ -413,7 +413,7 @@ vttFeatures().forEach(function(f) {
         toast('New campaigns start with ' + shortLabel(f) + (on ? ' off' : ' on') + '. Existing campaigns keep their own.');
     });
 });
-[['setMoveMode', 'move', ['A player token moves no further than its move on its turn.', 'A player token may go past its move, with a note to them and you.', 'Moves are not counted.']], ['setOrderMode', 'order', ['A player token in the combat moves only on its turn.', 'A player token may move out of turn, with a note to them and you.', 'Tokens move freely out of turn.']]].forEach(function(p) {   // turn-based combat T3b
+[['setMoveMode', 'move', ['A player token moves no further than its move on its turn.', 'A player token may go past its move, with a note to them and you.', 'Moves are not counted.']], ['setOrderMode', 'order', ['A player token in the combat moves only on its turn.', 'A player token may move out of turn, with a note to them and you.', 'Tokens move freely out of turn.']], ['setActsMode', 'acts', ['A press past what a turn allows is refused.', 'A press past what a turn allows goes through, with a note to them and you.', 'Actions are not counted.']]].forEach(function(p) {   // turn-based combat T3b
     var sel = ui(p[0]); if (!sel) return;
     sel.addEventListener('change', function() {
         var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }

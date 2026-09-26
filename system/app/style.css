@@ -2060,6 +2060,7 @@
   .sys-apply { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
   .sheet-item-ct { display: inline-flex; align-items: center; gap: 2px; } .sheet-item-ct .sheet-item-ctb { padding: 0 5px; height: 18px; min-width: 18px; font-size: 11px; line-height: 1; } .sheet-item-ct .sheet-item-ctv { min-width: 1.5em; text-align: center; }   /* R2: a row's counters */
   .sys-list-card .sys-flags.sys-list-ct input.sys-list-ctmax { flex: 2 1 160px; font-family: ui-monospace, Consolas, monospace; } .sys-list-card .sys-flags.sys-list-ct input.sys-list-ctdef { width: 90px; }
+  .sys-list-card .sys-flags.sys-list-needsrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-needs { flex: 2 1 180px; font-family: ui-monospace, Consolas, monospace; }   /* R2b */
   .sys-apply.sys-then { margin-left: 18px; } .sys-apply.sys-then .sys-apply-add { align-self: flex-start; }   /* R1: a roll's consequences */
   .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }
   .sys-list-card .sys-flags.sys-list-applyrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-applyrow input.sys-list-applyformula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }   /* H7b: a list action's changes */

@@ -1854,7 +1854,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var noteLn = null;
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
-        rowRollBtns(line, spec, entry, def, c, f);   // F5b: the list's rolls on this row
+        rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
         var rr = editable ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
         if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
@@ -1868,7 +1868,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
 }
 // Stage 6 F5b: a list's rolls on a row — a button each, rolled with the row's own names (Row.lvl, Row.<stat>, a column) through the dice path (the
 // host resolves them; a roll on a GM-only item stays private); inert in the Layout preview and a pop-out, and for a viewer who cannot roll for it
-function rowRollBtns(host, spec, entry, def, c, f) {
+function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the field's resolved entry (each row's needs)
     if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !_fxLive || entry.hid === 1) return;
     var rid = rowIdOf(entry), nm = (def && def.name) || 'Item', rollOk = canRoll(c), applyOk = null;
     spec.rolls.forEach(function(r, ri) {
@@ -1881,7 +1881,9 @@ function rowRollBtns(host, spec, entry, def, c, f) {
         }
         if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
         var lb = r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';
-        b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, { row: { f: f.id, r: rid } }); });
+        var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
+        if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }
+        b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, { row: withE ? { f: f.id, r: rid, i: ri } : { f: f.id, r: rid } }); });
         host.appendChild(b);
     });
 }
@@ -1974,7 +1976,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
                 actTd.appendChild(nt);
             }
             ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters
-            rowRollBtns(actTd, spec, entry, def, c, f);   // F5b: the list's rolls
+            rowRollBtns(actTd, spec, entry, def, c, f, res);   // F5b: the list's rolls
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
             if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); actTd.appendChild(itemRmBtn(entry, def, c, f)); }
             tr.appendChild(actTd);
@@ -2534,7 +2536,7 @@ function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)
 function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return canWrite(); }
-function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
+function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
 function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || 'Apply') : 'Roll: ' + (r.label || r.formula); }   // Stage 6 HUD H7: the Layout tab's name for a roll entry
 // Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
 // Layout preview and a pop-out, and for a viewer who may not change this character
@@ -2562,7 +2564,7 @@ function applyAction(r, c, label, row) {   // row (H7b): { f, r, i } — a list'
     if (!act) return;   // the saved action, never a draft's
     var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, c, F(), tc).vars;
     if (row) { vv = vv && typeof vv.row === 'function' ? vv.row(row.f, row.r) : null; if (!vv) { toast('That row cannot be used now.'); return; } }   // H7b: the row's own names (Row.*)
-    var res = applyAct(sys, c, act, vv, F(), tc);
+    var res = applyAct(sys, c, act, vv, F(), tc, row ? { f: row.f, r: row.r } : null);   // R2b: a list's action may move its row's counters
     if (!res.ok) { toast(res.reason === 'none' ? 'Nothing to apply.' : res.reason === 'error' ? (res.message || 'That amount could not be worked out.') : 'That action cannot change those values now.'); return; }
     var ids = Object.keys(res.values), prevs = {}, extra = null;
     ids.forEach(function(fid) { prevs[fid] = c.values && Object.prototype.hasOwnProperty.call(c.values, fid) ? clone(c.values[fid]) : undefined; });
@@ -2978,24 +2980,6 @@ function buildDefCell(def, f) {
     }
     else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
 }
-// Stage 6 HUD H7b: a list roll of the Apply kind — its move/remove buttons, then its changes (as the Rolls tab's, the amount reading Row.*); the
-// selects are built with el only (the Lists card's test slice injects no select helper)
-function listApplyEditor(box, rr, ri) {
-    var rw0 = box.lastChild;
-    [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this action']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw0.appendChild(bb); });
-    var targets = draft.fields.filter(function(f) { return f && APPLY_KINDS[f.kind] === 1; }), list = Array.isArray(rr.apply) ? rr.apply : [];
-    var sel = function(cls, opts, val, title) { var s = el('select', cls); s.title = title; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; s.appendChild(op); }); s.value = val; return s; };
-    list.forEach(function(ch0, ai) {
-        var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-list-applyrow'); rw.dataset.ri = String(ri); rw.dataset.ai = String(ai);
-        var opts = [['', 'Pick a pool or number\u2026']].concat(targets.map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; })); if (ch.f && !targets.some(function(f) { return f.id === ch.f; })) opts.push([ch.f, 'A field that is gone']);
-        rw.appendChild(sel('sys-list-applytarget', opts, ch.f || '', 'What this change moves: a pool\u2019s current value, or a number'));
-        rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
-        var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
-        [['lapplyup', '\u25b2', 'Move up'], ['lapplydown', '\u25bc', 'Move down'], ['lapplydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
-        box.appendChild(rw);
-    });
-    var addB = el('button', 'tool ghost sys-btn sys-list-applyadd', '+ Change'); addB.dataset.act = 'lapplyadd'; addB.dataset.ri = String(ri); addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes an action' : 'Another pool or number this button moves'; box.appendChild(addB);
-}
 // Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); four at most
 function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's changes; 'then' — a roll's consequences (each with its When)
     key = key === 'then' ? 'then' : 'apply';
@@ -3153,9 +3137,10 @@ function renderLists() {
     if (!lists.length) { box.appendChild(el('div', 'sys-empty', 'No item lists yet. Add an Item list field in Fields (Skills, Weapons, Gear\u2026), then shape it here.')); return; }
     var cats = [], seen = Object.create(null);
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
-    lists.forEach(function(f) { box.appendChild(listCard(f, cats)); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
+    var tgL = draft.fields.filter(function(x) { return x && (x.kind === 'resource' || x.kind === 'number'); });   // R2b: what a list's actions may move (APPLY_KINDS)
+    lists.forEach(function(f) { box.appendChild(listCard(f, cats, tgL)); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
 }
-function listCard(f, allCats) {
+function listCard(f, allCats, targets) {   // targets (R2b): the pools and numbers an action or a consequence may move
     var sp = f.list && typeof f.list === 'object' ? f.list : {}, card = el('div', 'sys-list-card'); card.dataset.lid = f.id;
     card.appendChild(el('div', 'sys-list-title', (f.label || f.key || 'Item list') + (f.key ? ' (' + f.key + ')' : '')));
     var cl = el('div', 'sys-list-cats'); cl.appendChild(el('span', 'sys-num-cap', 'Categories'));
@@ -3249,10 +3234,15 @@ function listCard(f, allCats) {
         var rl = input('sys-list-rolllabel field', typeof rr.label === 'string' ? rr.label : '', 'The button\u2019s name on each row (Attack, Check)', 'Label'); rl.maxLength = LIMITS.label; rw.appendChild(rl);
         var rApply = Array.isArray(rr.apply), rk = el('select', 'sys-list-rollkind'); rk.title = 'Roll: dice for the row. Apply: moves pools or numbers by an amount the row works out (Apply costs: FP \u2212 Row.FPCost)';   // Stage 6 HUD H7b
         [['roll', 'Roll'], ['apply', 'Apply']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rk.appendChild(op); }); rk.value = rApply ? 'apply' : 'roll'; rw.appendChild(rk);
-        if (rApply) { cb2.appendChild(rw); listApplyEditor(cb2, rr, ri); return; }
+        if (rApply) { cb2.appendChild(rw); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         cb2.appendChild(rw);
+        var ndRow = el('div', 'sys-flags sys-list-needsrow'); ndRow.dataset.ri = String(ri);   // Stage 6 HUD R2b: what it needs, then its consequences
+        var ndIn = input('sys-list-needs field', typeof rr.needs === 'string' ? rr.needs : '', 'Rolled only while this is true for the row (no dice): Row.Charges >= 1, Row.Hits > 0; empty: always', 'Needs (e.g. Row.Charges >= 1)'); ndIn.maxLength = LIMITS.formula; ndRow.appendChild(ndIn);
+        var ndTx = input('sys-list-needstext field', typeof rr.needsText === 'string' ? rr.needsText : '', 'What the greyed button says when it cannot roll', 'Out of charges'); ndTx.maxLength = LIMITS.label; ndRow.appendChild(ndTx);
+        cb2.appendChild(ndRow);
+        listApplyEditor(cb2, rr, ri, 'then', sp, targets);
     });
     var radd = el('button', 'tool ghost sys-btn sys-list-rolladd', '+ Roll'); radd.dataset.act = 'rolladd'; radd.disabled = rls.length >= LIMITS.rowRolls; radd.title = radd.disabled ? 'At most ' + LIMITS.rowRolls + ' rolls a list' : 'A button on each row that rolls this formula with the row\u2019s names (a weapon\u2019s Attack, a skill\u2019s Check)'; cb2.appendChild(radd);
     cb2.appendChild(el('div', 'sys-note sys-list-names', listNamesText(f.key, sp)));
@@ -3282,6 +3272,26 @@ function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then
     sel.textContent = '';
     var pl = typeof sp.price === 'string' ? sp.price.toLowerCase() : '', none = el('option', null, 'No price'); none.value = ''; sel.appendChild(none);
     (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (!s || typeof s !== 'object' || typeof s.key !== 'string' || !s.key || s.kind === 'pick') return; var o = el('option', null, s.label && s.label !== s.key ? s.label + ' (' + s.key + ')' : s.key); o.value = s.key; if (pl && s.key.toLowerCase() === pl) o.selected = true; sel.appendChild(o); });
+}
+// Stage 6 HUD H7b: a list roll of the Apply kind — its move/remove buttons, then its changes (as the Rolls tab's, the amount reading Row.*); the
+// selects are built with el only (the Lists card's test slice injects no select helper)
+function listApplyEditor(box, rr, ri, key, sp, targets) {   // key (R2b): 'apply' (an apply action's changes) or 'then' (a roll's consequences, each with its When); sp: the list's options (its counters join the targets); targets: the pools and numbers of the draft (renderLists)
+    key = key === 'then' ? 'then' : 'apply';
+    var rw0 = box.lastChild;
+    if (key === 'apply') [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this action']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw0.appendChild(bb); });
+    targets = Array.isArray(targets) ? targets : []; var list = Array.isArray(rr[key]) ? rr[key] : [], ctrs = sp && Array.isArray(sp.counters) ? sp.counters.filter(function(t) { return t && typeof t.key === 'string' && t.key; }) : [];
+    var sel = function(cls, opts, val, title) { var s = el('select', cls); s.title = title; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; s.appendChild(op); }); s.value = val; return s; };
+    list.forEach(function(ch0, ai) {
+        var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-list-applyrow'); rw.dataset.ri = String(ri); rw.dataset.ai = String(ai); rw.dataset.k = key;
+        if (key === 'then') rw.appendChild(sel('sys-list-applywhen', [['', 'Always'], ['hit', 'On success'], ['miss', 'On failure']], ch.when || '', 'When the roll makes this change: always, or only when its test succeeds or fails'));
+        var opts = [['', 'Pick a pool, number or counter\u2026']].concat(targets.map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; }), ctrs.map(function(t) { return ['c:' + t.key, 'Counter: ' + (t.label || t.key)]; })); if (ch.f && !targets.some(function(f) { return f.id === ch.f; })) opts.push([ch.f, 'A field that is gone']); if (ch.c && !ctrs.some(function(t) { return t.key === ch.c; })) opts.push(['c:' + ch.c, 'A counter that is gone']);
+        rw.appendChild(sel('sys-list-applytarget', opts, ch.c ? 'c:' + ch.c : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or one of the row\u2019s counters'));
+        rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']], ch.set ? 'set' : ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
+        var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
+        [['lapplyup', '\u25b2', 'Move up'], ['lapplydown', '\u25bc', 'Move down'], ['lapplydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        box.appendChild(rw);
+    });
+    var addB = el('button', 'tool ghost sys-btn sys-list-applyadd', key === 'then' ? '+ Then\u2026' : '+ Change'); addB.dataset.act = 'lapplyadd'; addB.dataset.ri = String(ri); addB.dataset.k = key; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes an action' : 'Another pool or number this button moves'; box.appendChild(addB);
 }
 function renderCombat() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
@@ -3363,6 +3373,11 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-needs') >= 0) {   // Stage 6 HUD R2b: a list roll's needs (Save cleans them)
+            var nrw = t.closest('.sys-list-needsrow'), nL = Array.isArray(lsp.rolls) ? lsp.rolls : null, nR = nrw && nL ? nL[+nrw.dataset.ri] : null; if (!nR || typeof nR !== 'object') return;
+            if (lcc.indexOf('sys-list-needstext') >= 0) { if (t.value.trim()) nR.needsText = t.value.slice(0, LIMITS.label); else delete nR.needsText; }
+            else { if (t.value.trim()) nR.needs = t.value.slice(0, LIMITS.formula); else delete nR.needs; }
+        }
         else if (lcc.indexOf('sys-list-ct') >= 0) {   // Stage 6 HUD R2: a counter's boxes (Save cleans them)
             var ctrw = t.closest('.sys-list-ct'), ctix = ctrw ? +ctrw.dataset.ti : -1, ctL = Array.isArray(lsp.counters) ? lsp.counters : null; if (!ctL || !(ctix >= 0 && ctix < ctL.length)) return;
             var ctD = ctL[ctix] && typeof ctL[ctix] === 'object' && !Array.isArray(ctL[ctix]) ? ctL[ctix] : (ctL[ctix] = {});
@@ -3373,7 +3388,7 @@ function onInput(e) {
             else return;
         }
         else if (lcc.indexOf('sys-list-applyformula') >= 0) {   // Stage 6 HUD H7b: a list action's amount (Save cleans it)
-            var arw = t.closest('.sys-list-applyrow'), aL = Array.isArray(lsp.rolls) ? lsp.rolls : null, aR = arw && aL ? aL[+arw.dataset.ri] : null, aC = aR && Array.isArray(aR.apply) ? aR.apply[+arw.dataset.ai] : null;
+            var arw = t.closest('.sys-list-applyrow'), aL = Array.isArray(lsp.rolls) ? lsp.rolls : null, aR = arw && aL ? aL[+arw.dataset.ri] : null, aKy = arw && arw.dataset.k === 'then' ? 'then' : 'apply', aC = aR && Array.isArray(aR[aKy]) ? aR[aKy][+arw.dataset.ai] : null;   // R2b: or a roll's consequence
             if (!aC || typeof aC !== 'object') return; aC.formula = t.value.slice(0, LIMITS.formula);
         }
         else if (lcc.indexOf('sys-list-roll') >= 0) {   // Stage 6 F5b: a roll's boxes (Save cleans them)
@@ -3486,7 +3501,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
         else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
         else if (c.indexOf('sys-list-rollkind') >= 0) { var rkr = t.closest('.sys-list-roll'), rkD = rkr && Array.isArray(lsc.rolls) ? lsc.rolls[+rkr.dataset.ri] : null; if (!rkD || typeof rkD !== 'object') return; if (t.value === 'apply') { if (!Array.isArray(rkD.apply)) rkD.apply = [{ f: '', formula: '' }]; } else delete rkD.apply; }   // Stage 6 HUD H7b: Roll | Apply (a formula typed before stays in the draft)
-        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atC = atR && Array.isArray(atR.apply) ? atR.apply[+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) atC.f = t.value; else { delete atC.add; delete atC.set; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; } }
+        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0 || c.indexOf('sys-list-applywhen') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atK = atr && atr.dataset.k === 'then' ? 'then' : 'apply', atC = atR && Array.isArray(atR[atK]) ? atR[atK][+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) { if (t.value.indexOf('c:') === 0) { atC.c = t.value.slice(2); delete atC.f; } else { atC.f = t.value; delete atC.c; } } else if (c.indexOf('sys-list-applywhen') >= 0) { if (t.value === 'hit' || t.value === 'miss') atC.when = t.value; else delete atC.when; } else { delete atC.add; delete atC.set; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; } }   // R2b: a counter, a consequence's When
         else if (c.indexOf('sys-list-price') >= 0) { _priceAt.delete(lsc); if (t.value) lsc.price = t.value; else delete lsc.price; }
         else return;
         markDirty(); renderAll(); return;
@@ -3591,13 +3606,15 @@ function onClick(e) {
     }
     var lcb = listOfCard(b);
     if (lcb && /^lapply(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 HUD H7b: a list action's change buttons (add, move, remove)
-        var lsa = lcb.list || {}, aHost = b.closest('.sys-list-applyrow'), aRi = aHost ? +aHost.dataset.ri : +b.dataset.ri, aRoll = Array.isArray(lsa.rolls) ? lsa.rolls[aRi] : null; if (!aRoll || !Array.isArray(aRoll.apply)) return;
-        var aArr2 = aRoll.apply, aAct = b.dataset.act, aJ = aHost ? +aHost.dataset.ai : -1;
+        var lsa = lcb.list || {}, aHost = b.closest('.sys-list-applyrow'), aRi = aHost ? +aHost.dataset.ri : +b.dataset.ri, aRoll = Array.isArray(lsa.rolls) ? lsa.rolls[aRi] : null, aK2 = ((aHost && aHost.dataset.k) || b.dataset.k) === 'then' ? 'then' : 'apply'; if (!aRoll || typeof aRoll !== 'object') return;   // R2b: or a roll's consequences
+        if (!Array.isArray(aRoll[aK2])) { if (aK2 !== 'then') return; aRoll.then = []; }
+        var aArr2 = aRoll[aK2], aAct = b.dataset.act, aJ = aHost ? +aHost.dataset.ai : -1;
         if (aAct === 'lapplyadd') { if (aArr2.length >= LIMITS.applyChanges) { toast('At most ' + LIMITS.applyChanges + ' changes an action.'); return; } aArr2.push({ f: '', formula: '' }); }
         else if (aAct === 'lapplyup' && aJ > 0 && aJ < aArr2.length) { var auT = aArr2[aJ]; aArr2[aJ] = aArr2[aJ - 1]; aArr2[aJ - 1] = auT; }
         else if (aAct === 'lapplydown' && aJ >= 0 && aJ < aArr2.length - 1) { var adT = aArr2[aJ]; aArr2[aJ] = aArr2[aJ + 1]; aArr2[aJ + 1] = adT; }
         else if (aAct === 'lapplydel' && aJ >= 0 && aJ < aArr2.length) aArr2.splice(aJ, 1);
         else return;
+        if (aK2 === 'then' && !aArr2.length) delete aRoll.then;   // R2b: no consequences left
         markDirty(); renderAll(); return;
     }
     if (lcb && /^roll(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5b: a Lists card's roll buttons (add, move, remove)

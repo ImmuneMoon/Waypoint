@@ -1362,6 +1362,75 @@ pendingChecks.push((async () => {
         j(runTN({ type: 'turn-note', text: 'A wall\u202e\u0007 is <b>here</b>' + 'x'.repeat(300) })) === j(['A wall   is <b>here</b>' + 'x'.repeat(177)]) && !runTN({ type: 'turn-note', text: 'x' }, { peer: 'o' }).length && !runTN({ type: 'turn-note', text: 5 }).length);
 }
 
+// Turn-based combat T3b (D2, D3, D5): the move limit and the out-of-turn lock on the host — the real pos gate and the real patch path together (a
+// client saves its map right after a drop; that copy closes the drag, judged and counted from where it began, when the drag's final pos was
+// lost), and the turn's start (turnMoveStart: the allowance through the player's view, their note)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const posT = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patT = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), tmT = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove');
+    const clT = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const lineT = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
+    const helpT = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(lineT).join('\n') + '\n';
+    const sysT = Sx.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', def: 30 }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }], rolls: [], combat: { turn: { move: 'Speed', unit: 'ft', diag: 'one' } } }, { F: Fx, gmView: true });
+    const mkT = o => {
+        o = o || {};
+        const pat = { id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, orc = { id: 't_o', isChar: true, charId: 'c_o', x: 500, y: 0, w: 50, h: 50 }, free = { id: 't_f', isChar: true, charId: 'c_f', ownerId: 'u_a', x: 0, y: 500, w: 50, h: 50 };
+        const map = { type: 'map', meta: { gridType: 'square' }, whiteboard: [pat, orc, free] };
+        const camp = { id: 'c1', items: { m1: map }, system: o.system || sysT, turnRules: o.rules || {}, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: {} }, c_o: { id: 'c_o', name: 'Orc', npc: true, values: {} } } };
+        const out = { bcast: [], notes: [], toasts: [], sent: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, conn2 = { peer: 'pA2', open: true, send: m => out.sent.push(Object.assign({ to: 'pA2' }, m)) };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' } }, conns: [conn, conn2], tokenDropped() {}, combats: { m1: { round: 1, turn: o.turn === undefined ? 1 : o.turn, rows: [{ id: 'r_o', tokId: 't_o' }, { id: 'r_p', tokId: 't_p' }] } } };
+        const win = { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true, campaignOn: () => true }, wpFog: { moveBlocked: (mp, w, fx, fy, tx, ty) => tx >= 1000, moveCells: (mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50 }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpFormula: Fx };
+        const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign',
+            clT + ownKeySrc + helpT + posT + '\n' + patT + '\n' + tmT + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m) { return applyClientItemFiltered(m, { id: "u_a" }); }, start: turnMoveStart };')(
+            { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, (m, ex) => out.bcast.push([m.wbId, m.x, m.y, ex === null ? 'all' : 'others']), t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp);
+        if (o.allow !== undefined) net.turnMove = { m1: { rowId: 'r_p', tokId: 't_p', moved: o.moved || 0, allow: o.allow } };
+        const P = (wb, x, y, fin) => api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: wb, x, y, final: !!fin }, conn);
+        const C = (wb, x, y) => { const copy = JSON.parse(JSON.stringify(map.whiteboard)); copy.find(w => w.id === wb).x = x; copy.find(w => w.id === wb).y = y; api.patch({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: copy } }); };
+        out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => (m.to ? m.to + ':' : '') + m.text);
+        return { out, net, map, camp, pat, free, P, C, api };
+    };
+    // the pos path: within the move, past it (refuse), the copy that follows a refused drop, a lost final (the copy closes it), warn, off
+    const a = mkT({ allow: 4 }); a.P('t_p', 50, 0); a.P('t_p', 100, 0, true); a.C('t_p', 100, 0);
+    const aMoved = a.net.turnMove.m1.moved, aNotes = a.out.notes();
+    a.P('t_p', 150, 0); a.P('t_p', 250, 0, true); a.C('t_p', 250, 0);
+    check('T3b the move limit (host, run for real): a drop within the move goes through and counts from where its drag began, with a note of what is left; one past it is not applied mid-drag, goes back for everyone with a note, and the map copy that repeats it moves nothing and says nothing more',
+        aMoved === 2 && j(aNotes) === j(['Moved 2 squares (10 ft); 2 squares (10 ft) left.']) && a.net.turnMove.m1.moved === 2 && a.pat.x === 100
+        && j(a.out.notes().slice(1)) === j(['That is 3 squares (15 ft); you have 2 squares (10 ft) left.']) && a.out.bcast.filter(b => b[3] === 'all').length === 2 && a.out.bcast.filter(b => b[3] === 'all').every(b => b[1] === 100), j([aMoved, a.out.notes(), a.out.bcast]));
+    const b = mkT({ allow: 4 }); b.P('t_p', 50, 0); b.C('t_p', 250, 0);
+    const b2 = mkT({ allow: 4 }); b2.P('t_p', 50, 0); b2.C('t_p', 150, 0);
+    check('T3b a drag whose final pos was lost: the map copy after it closes it — past the move, the token goes back to where the drag began for everyone, with a note to each of the player\'s connections; within it, the whole drag counts (from its start, not the last mid-drag place), with its note',
+        b.pat.x === 0 && b.out.bcast.some(x => x[1] === 0 && x[3] === 'all') && j(b.out.notes()) === j(['That is 5 squares (25 ft); you have 4 squares (20 ft) left.', 'pA2:That is 5 squares (25 ft); you have 4 squares (20 ft) left.'])
+        && b2.pat.x === 150 && b2.net.turnMove.m1.moved === 3 && j(b2.out.notes()) === j(['Moved 3 squares (15 ft); 1 square (5 ft) left.', 'pA2:Moved 3 squares (15 ft); 1 square (5 ft) left.']), j([b.out.notes(), b2.out.notes(), b2.net.turnMove]));
+    const w = mkT({ allow: 4, rules: { move: 'warn' } }); w.P('t_p', 300, 0, true);
+    const f = mkT({ allow: 4, rules: { move: 'off' } }); f.P('t_p', 300, 0, true);
+    const g = mkT({ allow: 4 }); g.P('t_f', 400, 500, true);
+    const nt = mkT({ allow: 4, turns: false }); nt.P('t_p', 300, 0, true);
+    check('T3b the move limit\'s modes: warn lets it past with a note to the player and the GM; off neither stops nor counts nor notes; a token outside the combat and a table without turn-based combat are free',
+        w.pat.x === 300 && j(w.out.notes()) === j(['That went 2 squares (10 ft) past your move.']) && w.out.toasts.length === 1 && f.pat.x === 300 && !f.out.notes().length && f.net.turnMove.m1.moved === 0
+        && g.free.x === 400 && !g.out.notes().length && nt.pat.x === 300 && !nt.out.notes().length, j([w.out.notes(), w.out.toasts, f.out.notes()]));
+    // out of turn
+    const o1 = mkT({ turn: 0 }); o1.P('t_p', 50, 0); o1.P('t_p', 100, 0, true); o1.C('t_p', 100, 0);
+    const o2 = mkT({ turn: 0, rules: { order: 'warn' } }); o2.P('t_p', 100, 0, true);
+    const o3 = mkT({ turn: 0, rules: { order: 'off' } }); o3.P('t_p', 100, 0, true);
+    const o4 = mkT({ turn: 0 }); o4.C('t_p', 100, 0);
+    const o5 = mkT({ turn: 0 }); o5.P('t_p', 50, 0); const o5mid = o5.pat.x;
+    const wl = mkT(); wl.C('t_p', 1000, 0);
+    const b3 = mkT({ allow: 4 }); b3.P('t_p', 50, 0); b3.C('t_p', 150, 0); b3.P('t_p', 200, 0, true);
+    check('T3b out of turn: a token in the combat moves only on its turn — refused, not applied mid-drag and put back with one note (its map copy after moves nothing); a copy alone is refused too; warn lets it with notes to them and the GM; off lets it be. A map copy alone crossing a wall is put back with its note; a copy closes its drag, so the next drag begins where it landed',
+        o1.pat.x === 0 && j(o1.out.notes()) === j(['It is not your turn: your token goes back.']) && o4.pat.x === 0 && o4.out.notes().length === 2 && o5mid === 0
+        && wl.pat.x === 0 && /A wall is in the way/.test(wl.out.notes()[0] || '') && b3.pat.x === 200 && b3.net.turnMove.m1.moved === 4
+        && o2.pat.x === 100 && j(o2.out.notes()) === j(['You moved out of turn.']) && o2.out.toasts.length === 1 && o3.pat.x === 100 && !o3.out.notes().length, j([o1.out.notes(), o4.out.notes(), o2.out.notes()]));
+    // the turn's start: the allowance through the player's view
+    const s1 = mkT(); s1.api.start('m1', s1.net.combats.m1);
+    const s2 = mkT(); s2.api.start('m1', Object.assign({}, s2.net.combats.m1, { turn: 0 }));
+    const s3 = mkT({ system: Sx.cleanSystem(Object.assign({}, sysT, { combat: { turn: { move: 'GMFig * 30', unit: 'ft' } } }), { F: Fx, gmView: true }) }); s3.api.start('m1', s3.net.combats.m1);
+    const s4 = mkT({ turns: false }); s4.api.start('m1', s4.net.combats.m1);
+    check('T3b the turn\'s start (turnMoveStart, run for real): the player\'s token gets its system\'s Move per turn as the map\'s cells (Speed 30 ft on 5 ft squares: 6) and each of its player\'s connections hears it; an NPC\'s token has no state; a move reading a GM-only value, or turn-based combat off, sets no limit',
+        j(s1.net.turnMove.m1) === j({ rowId: 'r_p', tokId: 't_p', moved: 0, allow: 6 }) && j(s1.out.notes()) === j(['Your turn: 6 squares (30 ft) to move.', 'pA2:Your turn: 6 squares (30 ft) to move.'])
+        && !('m1' in s2.net.turnMove) && s3.net.turnMove.m1.allow === null && !s3.out.notes().length && !('m1' in s4.net.turnMove), j([s1.net.turnMove, s1.out.notes(), s2.net.turnMove, s3.net.turnMove]));
+})());
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

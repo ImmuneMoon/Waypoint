@@ -160,26 +160,22 @@ function tableWhere(n, camp) {
     var c = whereName(camp.name, 'Unnamed Campaign'), m = whereName(map.meta && typeof map.meta === 'object' ? map.meta.title : '', 'Untitled');
     return { camp: c, map: m, title: c + ' \u203a ' + m };
 }
-function paintWhere(box, w, doc) {
-    box.textContent = '';
-    box.title = w ? w.title : '';
-    box.classList.toggle('on', !!w);
-    if (!w) return;
-    [['tw-camp', w.camp], ['tw-sep', '\u203a'], ['tw-map', w.map]].forEach(function(p) {
-        var s = doc.createElement('span'); s.className = p[0]; s.textContent = p[1];
-        if (p[0] === 'tw-sep') s.setAttribute('aria-hidden', 'true');
-        box.appendChild(s);
+function paintWhere(box, mapBox, w, doc) {   // the campaign in its own section of the top bar, the map in the next one (owner, 2026-09-26), each its whole name in the title
+    [[box, 'tw-camp', w && w.camp], [mapBox, 'tw-map', w && w.map]].forEach(function(p) {
+        var b = p[0]; b.textContent = ''; b.title = w ? p[2] : ''; b.classList.toggle('on', !!w);
+        if (!w) return;
+        var s = doc.createElement('span'); s.className = p[1]; s.textContent = p[2]; b.appendChild(s);
     });
 }
 // [netcheck:where-end]
 var _whereKey = null;   // what the top bar shows now ('' = nothing): render() runs often, the box is touched only when this changes
 function renderWhere() {
-    var box = ui('tableWhere'); if (!box) return;
+    var box = ui('tableWhere'), mapBox = ui('tableWhereMap'); if (!box || !mapBox) return;
     var w = tableWhere(net, campOf(state.appState && state.appState.activeCampaignId));
     var key = w ? w.camp + '\n' + w.map : '';
     if (key === _whereKey) return;
     _whereKey = key;
-    paintWhere(box, w, document);
+    paintWhere(box, mapBox, w, document);
 }
 net.renderWhere = renderWhere;   // main.js render() calls it, so a join, a stage, travel, a summon, a lost map and a renamed map all reach the top bar
 function safeColor(v) { return (typeof v === 'string' && v.length <= 40 && /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/.test(v)) ? v : ''; }

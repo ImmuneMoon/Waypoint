@@ -3810,6 +3810,49 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /input\('sys-roll-malf field'/.test(shM) && /input\('sys-list-malf field'/.test(shM) && /\['malf', 'On malfunction'\]\]/.test(shM) && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shM) && /\|\| !!r\.needs \|\| !!r\.malf;/.test(shM)
             && /A roll&rsquo;s <b>Malf<\/b> \(a formula, like <code>17<\/code> or <code>Row\.Malf<\/code>\) makes a natural total/.test(hM) && /and malfunction at its <b>Malf<\/b>\./.test(tM));
     }
+    /* ---- Stage 6 HUD G10: Each round — apply actions the host runs on every character in a combat when its round changes ---- */
+    {
+        const rawG = { v: 1, name: 'G', fields: [{ id: 'f_t', key: 'Turn', kind: 'number', def: 0 }, { id: 'f_p', key: 'Parries', kind: 'number', def: 0 }, { id: 'f_y', key: 'Tally', kind: 'number', def: 0 }],
+            rolls: [{ id: 'r_sw', label: 'Sweep now', apply: [{ f: 'f_t', formula: 'CombatRound', set: true }, { f: 'f_p', formula: '0', set: true }], round: true },
+                { id: 'r_bad', label: 'Bad', apply: [{ f: 'f_p', formula: 'Nope + 1', add: true }], round: true },
+                { id: 'r_ty', label: 'Tally', apply: [{ f: 'f_y', formula: 'Turn', add: true }], round: true },
+                { id: 'r_pl', label: 'Plain', apply: [{ f: 'f_p', formula: '5', add: true }] },
+                { id: 'r_ro', label: 'Roll', formula: 'd20', round: true }, { id: 'r_od', label: 'Odd', apply: [{ f: 'f_p', formula: '1' }], round: 'yes' }], sheet: { sections: [] } };
+        const gmG = cleanSystem(rawG, { F, gmView: true }), plG = cleanSystem(rawG, { F, gmView: false }), rG = (s, id) => s.rolls.find(r => r.id === id);
+        check('G10 the cleaner keeps Each round (round: true) on an apply action only — never on a roll, never another value — in both views; fixed points; roundActs lists the Each round actions in the System\'s order',
+            rG(gmG, 'r_sw').round === true && rG(plG, 'r_sw').round === true && !('round' in rG(gmG, 'r_ro')) && !('round' in rG(gmG, 'r_od')) && !('round' in rG(gmG, 'r_pl'))
+            && j(cleanSystem(gmG, { F, gmView: true })) === j(gmG) && j(cleanSystem(plG, { F, gmView: false })) === j(plG) && j(S.roundActs(gmG).map(r => r.id)) === j(['r_sw', 'r_bad', 'r_ty']) && j(S.roundActs(null)) === '[]' && j(S.roundActs(rawG).map(r => r.id)) === j(['r_sw', 'r_bad', 'r_ty']) && j(S.roundActs({ rolls: [{ id: 'r_e', apply: [], round: true }] })) === '[]',
+            j([rG(gmG, 'r_sw'), rG(gmG, 'r_ro'), rG(gmG, 'r_od')]));
+        const mpG = { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_a' }, { id: 't2', isChar: true, charId: 'c_a' }, { id: 't3', isChar: true, charId: 'c_gone' }, { id: 't4', isChar: false, charId: 'c_b' }, { id: 't5', isChar: true, charId: 'c_b', hidden: true }, { id: 't6', isChar: true, charId: 'toString' }, { id: 't7', isChar: true }] };
+        const cbG = { round: 3, turn: 0, rows: [{ tokId: 't2' }, { tokId: 't1' }, { tokId: null }, { tokId: 't3' }, { tokId: 't4' }, { tokId: 't5' }, { tokId: 't6' }, { tokId: 't7' }, { tokId: 't9' }, null] };
+        const chG = { c_a: { id: 'c_a', values: { f_t: 9, f_p: 4, f_y: 1 } }, c_b: { id: 'c_b', values: {} }, c_c: { id: 'c_c', values: { f_p: 2 } } };
+        const ccG = S.combatChars(mpG, cbG, chG);
+        check('G10 combatChars: each combat row\'s token on the map (a hidden one too), a character once by its first row — none for a row with no token, a token that is not a character, a character that is gone or an inherited name',
+            j(ccG.map(e => e.charId + ':' + e.tok.id)) === j(['c_a:t2', 'c_b:t5']) && j(S.combatChars(null, cbG, chG)) === '[]' && j(S.combatChars(mpG, {}, chG)) === '[]', j(ccG.map(e => e.charId + ':' + e.tok.id)));
+        const tcG = S.withRound(S.tokenCtx(mpG, mpG.whiteboard[0], {}), cbG), vfG = w => S.resolveAll(gmG, w, F, tcG).vars;
+        const arA = S.applyRound(gmG, chG.c_a, vfG, F, tcG), arB = S.applyRound(gmG, chG.c_b, vfG, F, tcG);
+        check('G10 applyRound: every Each round action in order, each on the values the one before left (Tally + Turn reads the Turn just Set to the round, 3), with the round just begun; one that cannot run (an amount that fails) is passed over and the rest still run; the character itself is untouched (the caller stores the values)',
+            j(arA) === j({ values: { f_t: 3, f_p: 0, f_y: 4 }, ran: 2 }) && j(arB) === j({ values: { f_t: 3, f_p: 0, f_y: 3 }, ran: 2 }) && chG.c_a.values.f_t === 9 && j(S.applyRound(gmG, chG.c_a, () => null, F, tcG)) === j({ values: {}, ran: 0 }), j([arA, arB]));
+        // the sheet's round hook, run for real (sliced from sheets.js): the host stores each character's values, one delta each, one save
+        const shG = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        const hkSrc = shG.slice(shG.indexOf('// Stage 6 HUD G10: the host\'s round hook'), shG.indexOf('// The combat roster (whiteboard.js): initiative from the system\'s init roll'));
+        const runHook = o => {
+            o = o || {}; const out = { deltas: [], saves: 0, views: [], renders: 0 }, chars = JSON.parse(JSON.stringify(chG)), camp = { items: { m1: mpG }, chars: chars, system: gmG };
+            const n = { role: o.role || 'host', active: o.active !== false, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+            out.ret = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'resolveAll', 'renderViews', 'save', hkSrc + NL + 'return roundHook;')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: k => k !== 'sheets' || o.sheets !== false }, appRender: () => out.renders++ }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({}), S.applyRound, S.resolveAll, id => out.views.push(id), () => out.saves++)(o.mapId || 'm1', cbG);
+            out.chars = chars; return out;
+        };
+        const hA = runHook(), hC = runHook({ role: 'client' }), hOff = runHook({ sheets: false }), hNo = runHook({ mapId: 'm9' });
+        check('G10 the round hook (sheets.js, run for real): on the host it stores every combatant\'s values, sends one delta per character and saves once (a character outside the combat untouched); a client, sheets turned off or a map that is not there does nothing',
+            hA.ret === 2 && j(hA.deltas) === j([['c_a', { f_t: 3, f_p: 0, f_y: 4 }], ['c_b', { f_t: 3, f_p: 0, f_y: 3 }]]) && hA.saves === 1 && j(hA.views) === j(['c_a', 'c_b']) && hA.renders === 1 && hA.chars.c_a.values.f_t === 3 && j(hA.chars.c_c.values) === j({ f_p: 2 })
+            && [hC, hOff, hNo].every(h => h.ret === 0 && !h.deltas.length && !h.saves && j(h.chars.c_a.values) === j(chG.c_a.values)), j([hA.ret, hA.deltas, hA.saves, hC.ret, hOff.ret, hNo.ret]));
+        const hmG = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuG = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('G10 the editor (source): an Each round tick on an apply action only, saved as round: true (unticked: none); back to a Roll drops it; the button says it runs by itself; tour and Help say so',
+            /if \(isApply\) \{ var rl = el\('label', 'sys-hover'\); var rc = el\('input'\); rc\.type = 'checkbox'; rc\.className = 'sys-round-chk'; rc\.checked = !!r\.round;/.test(shG)
+            && /else if \(c\.indexOf\('sys-round-chk'\) >= 0\) \{ if \(t\.checked\) r\.round = true; else delete r\.round; \}/.test(shG) && /else \{ delete r\.apply; delete r\.round; \} markDirty\(\); renderAll\(\); return; \}/.test(shG)
+            && /\(r\.round \? ' \\u2014 also by itself on every new round of a combat' : ''\)/.test(shG) && /Tick <b>Each round<\/b> on an apply action and it also runs by itself/.test(hmG) && /or by themselves each round of a combat \(<b>Each round<\/b>\)/.test(tuG));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

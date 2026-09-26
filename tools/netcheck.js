@@ -1233,6 +1233,34 @@ pendingChecks.push((async () => {
         gA.ret.ok && j(gA.pushed) === j([['global', '', 3]]) && j(gA.vals) === j({ f_j: 1 }) && gG.ret.ok && gG.pushed[0][1] === 'gm' && gG.pushed[0][2] === 3 && gG.toasts.some(t => /GMFig/.test(t)), j([gA.pushed, gA.vals, gG.pushed, gG.toasts]));
 })());
 
+// Stage 6 HUD G10: the round hook fires when a combat's round changes — its start, a step past either end (net.js combatSet / combatStep, run
+// for real) — never within a round, on a roster edit that keeps the round, or at its end; a hook that throws never stops the turn
+{
+    const setSrcG = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepSrcG = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep');
+    const ccSrcG = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats');
+    const calls = [], errs = [], hook = { throws: false };
+    const netG = { role: 'host', active: true, combats: {} }, campG = { items: { m1: { type: 'map', meta: { title: 'Keep' } } } };
+    const win = { wpSheets: { roundHook: (mapId, c) => { calls.push(mapId + ':' + c.round); if (hook.throws) throw new Error('boom'); } } };
+    new Function('net', 'window', 'getActiveCampaign', 'broadcastCombats', 'logEvent', 'toast', 'render', 'console', 'showConfirm', ccSrcG + '\n' + setSrcG + '\n' + stepSrcG)(
+        netG, win, () => campG, () => {}, () => {}, () => {}, () => {}, { error: e => errs.push(String(e && e.message)) }, () => {});
+    const rw = n => Array.from({ length: n }, (_, i) => ({ id: 'r' + i, name: 'N' + i, tokId: 't' + i, init: 0, src: null }));
+    const st = () => netG.combats.m1 ? 'r' + netG.combats.m1.round + 't' + netG.combats.m1.turn : 'none';
+    const seen = [];
+    netG.combatSet('m1', { round: 1, turn: 0, rows: rw(2) }); seen.push(st() + '=' + calls.join());
+    netG.combatSet('m1', { round: 1, turn: 1, rows: rw(3) }); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', 1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', 1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', -1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', -1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', -1); seen.push(st() + '=' + calls.join());
+    hook.throws = true; netG.combatStep('m1', 1); netG.combatStep('m1', 1); netG.combatStep('m1', 1); seen.push(st() + '=' + calls.join()); hook.throws = false;
+    netG.combatSet('m1', { round: 5, turn: 0, rows: rw(3) }); seen.push(st() + '=' + calls.join());
+    netG.combatSet('m1', null); seen.push(st() + '=' + calls.join());
+    check('G10 the round hook (net.js, run for real): at the combat\'s start (round 1), a step past the last (round 2) and back past the first (round 1), a roster edit that sets another round — never within a round, on a roster edit that keeps it, at round 1\'s first turn stepping back, or at the end; a hook that throws is logged and the turn still moves',
+        j(seen) === j(['r1t0=m1:1', 'r1t1=m1:1', 'r1t2=m1:1', 'r2t0=m1:1,m1:2', 'r1t2=m1:1,m1:2,m1:1', 'r1t1=m1:1,m1:2,m1:1', 'r1t0=m1:1,m1:2,m1:1',
+            'r2t0=m1:1,m1:2,m1:1,m1:2', 'r5t0=m1:1,m1:2,m1:1,m1:2,m1:5', 'none=m1:1,m1:2,m1:1,m1:2,m1:5']) && j(errs) === j(['boom']), j([seen, errs]));
+}
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, combatChars, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -2543,7 +2543,7 @@ function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || '
 function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = _fxLive && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild);
-    b.title = applyTitle(r, sys) + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
+    b.title = applyTitle(r, sys) + (r.round ? ' \u2014 also by itself on every new round of a combat' : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
@@ -2579,6 +2579,25 @@ function applyAction(r, c, label, row) {   // row (H7b): { f, r, i } — a list'
     if (gmRow && pub) toast('Kept private: that is on a GM-only item.');
     else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
     if (n && n.postApplyCard) n.postApplyCard(c, label, res.lines, scope);
+}
+// Stage 6 HUD G10: the host's round hook — on every new round of a combat (net.js combatStep / combatSet), each Each round action on every
+// character with a token in it, worked out with the GM's full view and the round just begun (Turn := CombatRound), as his sweep runs on the
+// GM's client alone. No card (his sweep posts one only when something expired); one save, one delta per character
+function roundHook(mapId, combat) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), n = net(); if (!camp || !sys || !F() || !n || n.role !== 'host') return 0;
+    if (window.wpVtt && !window.wpVtt.on('sheets')) return 0;
+    var mp = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null, done = 0;
+    combatChars(mp, combat, charsOf(camp)).forEach(function(e) {
+        var c = charById(e.charId, camp); if (!c) return;
+        var tc = withRound(tokenCtx(mp, e.tok, tokenFlags()), combat);
+        var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc), ids = Object.keys(res.values);
+        if (!ids.length) return;
+        c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; }); c.updated = Date.now();
+        if (n.active) n.syncCharDelta(c.id, res.values);
+        renderViews(c.id); done++;
+    });
+    if (done) { save(true); if (window.appRender) window.appRender(); }
+    return done;
 }
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
 function hasInitRoll() { var sys = systemOf(getActiveCampaign()); return !!(sys && initRoll(sys)); }
@@ -3011,6 +3030,7 @@ function rollRow(r) {
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red (damage)'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
     var roIcoIn = input('sys-roll-icon field', r.icon, 'An icon on the button \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(roIcoIn); top.appendChild(glyphButton(roIcoIn));
+    if (isApply) { var rl = el('label', 'sys-hover'); var rc = el('input'); rc.type = 'checkbox'; rc.className = 'sys-round-chk'; rc.checked = !!r.round; rl.appendChild(rc); rl.appendChild(document.createTextNode(' Each round')); rl.title = 'Runs by itself on every character in a combat each time its round changes (Turn = CombatRound, Parries = 0); pressed, it runs now'; top.appendChild(rl); }   // Stage 6 HUD G10
     if (!isApply) { var il = el('label', 'sys-hover'); var ic = el('input'); ic.type = 'checkbox'; ic.className = 'sys-init-chk'; ic.checked = !!r.init; il.appendChild(ic); il.appendChild(document.createTextNode(' Initiative')); il.title = 'The combat roster rolls this for initiative'; top.appendChild(il); }
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
     row.appendChild(top);
@@ -3550,12 +3570,13 @@ function onChange(e) {
         else if (c.indexOf('sys-def-lbl') >= 0) f.def = Number(t.value);
         else return;
     } else if (r) {
-        if (c.indexOf('sys-roll-kind') >= 0) { if (t.value === 'apply') { if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else delete r.apply; markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)
+        if (c.indexOf('sys-roll-kind') >= 0) { if (t.value === 'apply') { if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else { delete r.apply; delete r.round; } markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)
         else if (c.indexOf('sys-apply-target') >= 0) { var chT = applyChangeOf(t, r); if (!chT) return; chT.f = t.value; }
         else if (c.indexOf('sys-apply-op') >= 0) { var chO = applyChangeOf(t, r); if (!chO) return; delete chO.add; delete chO.set; if (t.value === 'add') chO.add = true; else if (t.value === 'set') chO.set = true; }
         else if (c.indexOf('sys-apply-when') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf') chW.when = t.value; else delete chW.when; }   // R1
         else if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
         else if (c.indexOf('sys-roll-tone') >= 0) { if (t.value) r.tone = t.value; else delete r.tone; }   // Stage 6 look fold
+        else if (c.indexOf('sys-round-chk') >= 0) { if (t.checked) r.round = true; else delete r.round; }   // Stage 6 HUD G10
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;
     } else return;
@@ -3779,7 +3800,7 @@ var _lastCamp = null;
 setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; }, 1000);
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
-window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
+window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

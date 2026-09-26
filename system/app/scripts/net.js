@@ -2091,6 +2091,9 @@ function broadcastTargets() {
     net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) { sendFailed(e); } });
 }
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
+// Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
+// a fault in it never stops the turn
+function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } }
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
 net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
 // host: put a combat on a map (or take it off with null)
@@ -2100,6 +2103,7 @@ net.combatSet = function(mapId, combat) {
     if (combat) {
         combat.mapId = mapId;
         net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
+        if (!had || had.round !== net.combats[mapId].round) roundChanged(mapId, net.combats[mapId]);   // G10: the first round (a roster edit keeps its round)
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
     } else {
@@ -2111,10 +2115,11 @@ net.combatSet = function(mapId, combat) {
 net.combatStep = function(mapId, dir) {
     if (net.role !== 'host') return;
     var c = net.combats[mapId]; if (!c || !c.rows.length) return;
-    var t = c.turn + (dir < 0 ? -1 : 1);
+    var t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round;
     if (t >= c.rows.length) { t = 0; c.round += 1; }
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
+    if (c.round !== r0) roundChanged(mapId, c);   // G10
     toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
     broadcastCombats(); combatRefresh();
 };

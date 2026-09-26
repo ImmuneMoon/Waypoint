@@ -143,6 +143,45 @@ function cleanHostAway(raw) {
 }
 // [netcheck:rosterclean-end]
 function campOf(id) { var cs = state.appState && state.appState.campaigns; return (cs && validKey(id) && own(cs, id)) ? cs[id] : null; }
+// [netcheck:where-start]
+// (client) The top bar's "where am I" for a joined player (1.5.0): the hosted campaign's name › the map this player is on — that map
+// alone, never the maps it sits inside (the GM's breadcrumb is the GM's own navigation). Both names are the host's strings:
+// control, bidi-override and zero-width characters out, at most 200 each, and they reach the page as text and the title property only.
+// Nothing while this machine waits for admission, reconnects, has left, or is the stream window (no synced host there).
+function whereName(v, blank) {
+    var s = typeof v === 'string' ? v.slice(0, 2000).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/[\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+    return s || blank;
+}
+function tableWhere(n, camp) {
+    if (!n || n.role !== 'client' || !n.syncedPeer || !n.foreign || n.stream) return null;
+    if (!camp || typeof camp !== 'object' || !camp.items || typeof camp.items !== 'object') return null;
+    var map = own(camp.items, camp.activeItemId) ? camp.items[camp.activeItemId] : null;
+    if (!map || typeof map !== 'object' || map.type !== 'map') return null;
+    var c = whereName(camp.name, 'Unnamed Campaign'), m = whereName(map.meta && typeof map.meta === 'object' ? map.meta.title : '', 'Untitled');
+    return { camp: c, map: m, title: c + ' \u203a ' + m };
+}
+function paintWhere(box, w, doc) {
+    box.textContent = '';
+    box.title = w ? w.title : '';
+    box.classList.toggle('on', !!w);
+    if (!w) return;
+    [['tw-camp', w.camp], ['tw-sep', '\u203a'], ['tw-map', w.map]].forEach(function(p) {
+        var s = doc.createElement('span'); s.className = p[0]; s.textContent = p[1];
+        if (p[0] === 'tw-sep') s.setAttribute('aria-hidden', 'true');
+        box.appendChild(s);
+    });
+}
+// [netcheck:where-end]
+var _whereKey = null;   // what the top bar shows now ('' = nothing): render() runs often, the box is touched only when this changes
+function renderWhere() {
+    var box = ui('tableWhere'); if (!box) return;
+    var w = tableWhere(net, campOf(state.appState && state.appState.activeCampaignId));
+    var key = w ? w.camp + '\n' + w.map : '';
+    if (key === _whereKey) return;
+    _whereKey = key;
+    paintWhere(box, w, document);
+}
+net.renderWhere = renderWhere;   // main.js render() calls it, so a join, a stage, travel, a summon, a lost map and a renamed map all reach the top bar
 function safeColor(v) { return (typeof v === 'string' && v.length <= 40 && /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/.test(v)) ? v : ''; }
 function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 // Rich text a client accepts from a host (a play-map text item) or the GM takes from a file someone else made (an
@@ -359,6 +398,7 @@ function renderRoster() {
     if (badge) badge.classList.toggle('net-live', net.active);
     // Spectator chrome stays while a host's campaign is on screen, connected or not (net.foreign)
     document.body.classList.toggle('net-client', (net.active && net.role === 'client') || !!net.foreign);
+    renderWhere();   // the top bar's campaign › map follows the session: a leave or a reconnect clears it at once
 }
 function countOf(v) { var n = Math.floor(Number(v)); return isFinite(n) && n > 0 ? n : 0; }   // a count from a player record (a save or an import): a number, never markup
 function escTextRoster(s) {

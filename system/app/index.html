@@ -132,6 +132,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="header-sep"></div>
     <div class="header-group">
       <select id="campaignSelect" class="map-select" aria-label="Select Campaign"></select>
+      <div id="tableWhere" class="table-where"></div>
       <div class="hdr-group" data-label="Campaign">
         <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5"/></svg></button>
         <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -584,6 +585,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>What you'll see</h4>
                       <ul>
+                          <li><b>Where you are:</b> the top bar shows the campaign&rsquo;s name and the map you are on &mdash; just that map, not the larger ones it sits inside (hover it for the whole name when it is cut short). It follows you through doors and stairs and when the GM moves or summons you, and it clears when you leave the table.</li>
                           <li>Grey cloud boxes are things the GM hasn't revealed yet.</li>
                           <li>When the GM runs <b>fog of war</b>, your screen is covered except for what your own token can see &mdash; creatures out of sight are not shown. Fog is the GM's to control; there is no switch to turn it off for yourself.</li>
                           <li>If a banner says the GM <b>paused the table</b>, tokens and doors are frozen until they resume &mdash; chat stays open.</li>

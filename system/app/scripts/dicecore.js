@@ -180,6 +180,21 @@ function cleanApply(rec) {
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;
 }
+// Turn-based combat T2b: a reminder card — { type: 'due', id, from, charId, act, label?, as?, why: 'round' | 'turn', round, ts, theirs? }: ids and
+// text only (its Run finds the action on this machine and presses it as the sheet's button does); null when anything is malformed
+function cleanDue(rec) {
+    if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
+    var from = cleanFrom(rec.from); if (!from) return null;
+    if (typeof rec.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(rec.charId) || typeof rec.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(rec.act)) return null;
+    if (rec.why !== 'round' && rec.why !== 'turn') return null;
+    if (!isInt(rec.round) || rec.round < 1 || rec.round > 9999) return null;
+    var out = { id: rec.id, from: from, charId: rec.charId, act: rec.act, why: rec.why, round: rec.round, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 };
+    var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    if (rec.theirs !== undefined) { if (rec.theirs !== 1) return null; out.theirs = 1; }
+    return out;
+}
+function dueText(rec) { return !rec ? '' : (rec.label || 'An action') + (rec.as ? ' for ' + rec.as : '') + ' is due (' + (rec.why === 'turn' ? 'the start of its turn' : 'round ' + rec.round) + ')'; }
 // Stage 6 HUD H7: an apply card as one line (a toast, the session log): who, as whom, the action, each change as "FP \u22123 \u2192 0"
 function applyText(rec) {
     if (!rec || !rec.from || !Array.isArray(rec.lines)) return '';
@@ -297,6 +312,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf };
+export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf };

@@ -49,6 +49,24 @@ function renderCard(m) {
 }
 // Stage 6 HUD H7: an apply action's card (a chat entry with m.apply = the cleaned record) — who, the tags, the action, then each change
 // "Fatigue \u22123 \u2192 0"; text only
+// Turn-based combat T2b: a reminder card — what is due, for whom and when, and Run (the sheet's own press: the GM's, or the player's through
+// the host); once pressed here it says so. The GM's copy of a player's reminder has no button (theirs to press); nor has a pop-out window
+function renderDue(m) {
+    var rec = m.due, wrap = el('div', 'chat-roll chat-due whisper');
+    var who = el('b', null, 'Due'); who.style.color = 'var(--gold)'; wrap.appendChild(who);
+    if (rec.as) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'for ' + rec.as)); }
+    wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
+    wrap.appendChild(el('br'));
+    wrap.appendChild(el('div', 'roll-expr', (rec.label || 'An action') + ' \u2014 ' + (rec.why === 'turn' ? 'the start of its turn' : 'round ' + rec.round)));
+    if (rec.theirs) wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.'));
+    else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
+    else if (!window.wpPopout) {
+        var b = el('button', 'tool chat-due-run', 'Run'); b.type = 'button'; b.title = 'Apply it now, as its button on the sheet does';
+        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = 'Run'; } });   // done first: the press's own card redraws the chat
+        wrap.appendChild(b);
+    }
+    return wrap;
+}
 function renderApply(m) {
     var rec = m.apply, n = net(), priv = rec.priv === 'gm';
     var wrap = el('div', 'chat-roll chat-apply' + (priv ? ' whisper' : ''));
@@ -242,4 +260,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

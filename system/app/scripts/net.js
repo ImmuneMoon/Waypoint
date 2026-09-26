@@ -2106,6 +2106,7 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } }
+function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
 net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
 // host: put a combat on a map (or take it off with null)
@@ -2116,6 +2117,7 @@ net.combatSet = function(mapId, combat) {
         combat.mapId = mapId;
         net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
         if (!had || had.round !== net.combats[mapId].round) roundChanged(mapId, net.combats[mapId]);   // G10: the first round (a roster edit keeps its round)
+        if (!had) turnStarted(mapId, net.combats[mapId]);   // T2b: the first turn
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
     } else {
@@ -2127,11 +2129,12 @@ net.combatSet = function(mapId, combat) {
 net.combatStep = function(mapId, dir) {
     if (net.role !== 'host') return;
     var c = net.combats[mapId]; if (!c || !c.rows.length) return;
-    var t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round;
+    var t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn;
     if (t >= c.rows.length) { t = 0; c.round += 1; }
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
     if (c.round !== r0) roundChanged(mapId, c);   // G10
+    if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing)
     toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
     broadcastCombats(); combatRefresh();
 };
@@ -3083,6 +3086,15 @@ function handleMessage(msg, conn) {
         var ap = Dp.cleanApply(msg); if (!ap) return;
         pushChat({ from: ap.from, text: '', scope: ap.priv ? 'whisper' : 'global', ts: ap.ts, apply: ap });
         // [netcheck:applyin-end]
+    } else if (msg.type === 'due' && net.role === 'client') {
+        // [netcheck:duein-start]
+        // Turn-based combat T2b: a reminder for a timed action of the player's own character, from the synced host only — cleaned (ids and text);
+        // its Run presses the action as the sheet's button does (the host judges it), so nothing here is trusted beyond drawing the card
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        var Dd = DC(); if (!Dd || !Dd.cleanDue) return;
+        var du = Dd.cleanDue(msg); if (!du || du.theirs) return;
+        pushChat({ from: du.from, text: '', scope: 'whisper', ts: du.ts, due: du });
+        // [netcheck:duein-end]
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
@@ -3712,6 +3724,22 @@ function postApply(rec, scope, ch, conn) {
 function applyLines(lines) { return (Array.isArray(lines) ? lines : []).slice(0, 4).map(function(l) { var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; return { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; }); }   // what the card carries: a label, two numbers (clients refuse past 1e15)
 // [netcheck:postapply-end]
 function applyLine(rec) { var D = DC(); return D && D.applyText ? D.applyText(rec) : 'An action was applied.'; }
+function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : 'An action is due.'; }
+// Turn-based combat T2b: a timed action that waits for a press — its reminder card (sheets.js timedHook): the character's player's when asked
+// (each connection of theirs; the GM's copy then says whose it is to press), else the GM's alone. A whisper: never in the join's history
+net.postDue = function(ch, act, kind, round, toOwner) {
+    if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
+    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
+    if (ch.name) rec.as = String(ch.name).slice(0, 60);
+    postDue(rec, ch, !!toOwner);
+};
+// [netcheck:postdue-start]
+function postDue(rec, ch, toOwner) {
+    var sent = false;
+    if (toOwner && net.active && net.role === 'host' && ch && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== ch.ownerId) return; try { c.send(rec); sent = true; } catch (e) { sendFailed(e); } });
+    pushChat({ from: rec.from, text: '', scope: 'whisper', ts: rec.ts, due: sent ? Object.assign({}, rec, { theirs: 1 }) : rec });
+}
+// [netcheck:postdue-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's
 net.postApplyCard = function(ch, label, lines, scope) {
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
@@ -3883,7 +3911,7 @@ function renderChat() {
     var frag = document.createDocumentFragment();
     chatLog.forEach(function(m) {
         var node = null;
-        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
+        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);
@@ -3930,7 +3958,7 @@ function pushChat(m) {
     if (chatLog.length > 200) chatLog.shift();
     var panel = ui('chatPanel');
     var closed = !panel || panel.style.display === 'none';
-    if (m.roll && panel && closed) {   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
+    if ((m.roll || (m.due && !m.due.theirs)) && panel && closed) {   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
         panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
         _chatRollOpened = true;
     }
@@ -3938,7 +3966,7 @@ function pushChat(m) {
     if (closed) {
         if (m.from.id !== net.myId) {
             chatUnread++;
-            var line = m.roll ? (window.wpDice ? window.wpDice.line(m) : 'a roll') : m.apply ? applyLine(m.apply) : (m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60);
+            var line = m.roll ? (window.wpDice ? window.wpDice.line(m) : 'a roll') : m.apply ? applyLine(m.apply) : m.due ? dueLine(m.due) : (m.from.gm ? 'GM' : (m.from.name || 'Player')) + (m.scope === 'whisper' ? ' (private): ' : ': ') + m.text.slice(0, 60);
             toast(String(line).slice(0, 120));
         }
     }

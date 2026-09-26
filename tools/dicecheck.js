@@ -142,6 +142,16 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
             && D.malfOf(cr, resM) === true && D.malfOf(Object.assign({}, cr, { malf: 18 }), resM) === false && D.malfOf(rec0, resM) === false && / \u2014 malfunction \(Malf 17\)$/.test(cardText(cr, resM, F)), J(cr));
     }
 
+    /* ---- Turn-based combat T2b: a reminder card ---- */
+    {
+        const J = JSON.stringify, due0 = { type: 'due', id: 'r_d1', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_a', act: 'r_re', label: 'Reaction back', as: 'Ana', why: 'turn', round: 2, ts: 5, extra: 'x' };
+        const cd = D.cleanDue(due0);
+        check('T2b cleanDue keeps ids and text only (a char and a roll id, turn or round, a whole round 1..9999, a label and a name, theirs as 1) and refuses anything malformed; dueText says what is due, for whom and when',
+            J(cd) === J({ id: 'r_d1', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_a', act: 'r_re', why: 'turn', round: 2, ts: 5, label: 'Reaction back', as: 'Ana' })
+            && [{ charId: 'x' }, { act: 'f_hp' }, { why: 'now' }, { round: 0 }, { round: 1.5 }, { round: 10000 }, { label: 'a' + String.fromCharCode(7) }, { theirs: true }, { id: 'bad id' }, { from: null }].every(p => D.cleanDue(Object.assign({}, due0, p)) === null)
+            && D.cleanDue(Object.assign({}, due0, { theirs: 1 })).theirs === 1 && D.dueText(cd) === 'Reaction back for Ana is due (the start of its turn)' && D.dueText(Object.assign({}, cd, { why: 'round', round: 3 })) === 'Reaction back for Ana is due (round 3)', J(cd));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');

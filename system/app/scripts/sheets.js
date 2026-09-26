@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, combatChars, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, combatChars, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -2872,6 +2872,25 @@ function refreshErrors() {
     var v = validateSystem(clean, F());
     v.errors.forEach(function(e) { var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
     v.warnings.forEach(function(w) { var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
+    var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat card
+    if (tnE) {
+        var KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
+        if (tnE.secs !== undefined && !(typeof tnE.secs === 'number' && tnE.secs > 0 && tnE.secs <= 86400)) tErr.push({ message: 'A round is more than 0 and at most 86400 seconds: Save drops it.' });
+        [['acts', 'Action'], ['units', 'Time unit']].forEach(function(g) {
+            var seen = Object.create(null), cap = g[0] === 'acts' ? LIMITS.turnActs : LIMITS.turnUnits;
+            (Array.isArray(tnE[g[0]]) ? tnE[g[0]] : []).forEach(function(x, i) {
+                var k = x && typeof x.key === 'string' ? x.key : '', nm = g[1] + ' ' + (i + 1);
+                if (i >= cap) tErr.push({ message: nm + ': at most ' + cap + ', so Save drops it.' });
+                else if (!KEY.test(k)) tErr.push({ message: nm + ' needs a key (a letter, then letters, digits and _): Save drops it.' });
+                else if (seen[k.toLowerCase()]) tErr.push({ message: nm + ': another has the key \u201c' + k + '\u201d, so Save drops it.' });
+                else if (g[0] === 'units' && TIME_WORDS[k.toLowerCase()] === 1) tErr.push({ message: nm + ': \u201c' + k + '\u201d is already a time word, so Save drops it.' });
+                else if (g[0] === 'units' && !(typeof x.secs === 'number' && x.secs > 0 && x.secs <= 1e9)) tErr.push({ message: nm + ' needs its length in seconds: Save drops it.' });
+                else if (g[0] === 'acts' && !(typeof x.n === 'number' && Math.floor(x.n) === x.n && x.n >= 1 && x.n <= 9)) tErr.push({ message: nm + ': a turn allows 1 to 9, so Save keeps 1.' });
+                if (KEY.test(k)) seen[k.toLowerCase()] = 1;
+            });
+        });
+    }
+    if (tErr.length) errorsById.combat = (errorsById.combat || []).concat(tErr);
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -2883,8 +2902,9 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'cost') return 'Costs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
+    if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     var f = draft.fields.find(function(x) { return x.id === id; });
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
@@ -3029,6 +3049,7 @@ function rollRow(r) {
     if (!isApply) { var mfIn = input('sys-roll-malf field', r.malf || '', 'Malf: a natural total (the dice alone) at or past this malfunctions \u2014 a failure, and its On malfunction changes (no dice; empty: never)', 'Malf'); mfIn.maxLength = LIMITS.formula; top.appendChild(mfIn); }   // Stage 6 HUD R3
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red (damage)'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
+    var actsR = turnActs(); if (actsR.length || r.cost) top.appendChild(select('sys-roll-cost', costOptions(r.cost, actsR), r.cost || '', 'What one press costs in turn-based combat: one of the actions a turn allows (the Combat card, System \u25b8 Items)'));   // turn-based combat T1
     var roIcoIn = input('sys-roll-icon field', r.icon, 'An icon on the button \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(roIcoIn); top.appendChild(glyphButton(roIcoIn));
     if (isApply) { var rl = el('label', 'sys-hover'); var rc = el('input'); rc.type = 'checkbox'; rc.className = 'sys-round-chk'; rc.checked = !!r.round; rl.appendChild(rc); rl.appendChild(document.createTextNode(' Each round')); rl.title = 'Runs by itself on every character in a combat each time its round changes (Turn = CombatRound, Parries = 0); pressed, it runs now'; top.appendChild(rl); }   // Stage 6 HUD G10
     if (!isApply) { var il = el('label', 'sys-hover'); var ic = el('input'); ic.type = 'checkbox'; ic.className = 'sys-init-chk'; ic.checked = !!r.init; il.appendChild(ic); il.appendChild(document.createTextNode(' Initiative')); il.title = 'The combat roster rolls this for initiative'; top.appendChild(il); }
@@ -3160,9 +3181,9 @@ function renderLists() {
     var cats = [], seen = Object.create(null);
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
     var tgL = draft.fields.filter(function(x) { return x && (x.kind === 'resource' || x.kind === 'number'); });   // R2b: what a list's actions may move (APPLY_KINDS)
-    lists.forEach(function(f) { box.appendChild(listCard(f, cats, tgL)); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
+    lists.forEach(function(f) { box.appendChild(listCard(f, cats, tgL, draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.acts) ? draft.combat.turn.acts.filter(function(a) { return a && typeof a.key === 'string' && a.key; }) : [])); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
 }
-function listCard(f, allCats, targets) {   // targets (R2b): the pools and numbers an action or a consequence may move
+function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1): the actions a list roll may cost   // targets (R2b): the pools and numbers an action or a consequence may move
     var sp = f.list && typeof f.list === 'object' ? f.list : {}, card = el('div', 'sys-list-card'); card.dataset.lid = f.id;
     card.appendChild(el('div', 'sys-list-title', (f.label || f.key || 'Item list') + (f.key ? ' (' + f.key + ')' : '')));
     var cl = el('div', 'sys-list-cats'); cl.appendChild(el('span', 'sys-num-cap', 'Categories'));
@@ -3256,6 +3277,8 @@ function listCard(f, allCats, targets) {   // targets (R2b): the pools and numbe
         var rl = input('sys-list-rolllabel field', typeof rr.label === 'string' ? rr.label : '', 'The button\u2019s name on each row (Attack, Check)', 'Label'); rl.maxLength = LIMITS.label; rw.appendChild(rl);
         var rApply = Array.isArray(rr.apply), rk = el('select', 'sys-list-rollkind'); rk.title = 'Roll: dice for the row. Apply: moves pools or numbers by an amount the row works out (Apply costs: FP \u2212 Row.FPCost)';   // Stage 6 HUD H7b
         [['roll', 'Roll'], ['apply', 'Apply']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rk.appendChild(op); }); rk.value = rApply ? 'apply' : 'roll'; rw.appendChild(rk);
+        var actsL = Array.isArray(acts) ? acts : [];   // turn-based combat T1: what one press costs
+        if (actsL.length || rr.cost) { var rco = el('select', 'sys-list-rollcost'); rco.title = 'What one press costs in turn-based combat: one of the actions a turn allows'; var rcOpts = [['', 'Costs nothing']].concat(actsL.map(function(a) { return [a.key, 'Costs: ' + (a.label || a.key)]; })); if (rr.cost && !actsL.some(function(a) { return a.key.toLowerCase() === String(rr.cost).toLowerCase(); })) rcOpts.push([rr.cost, 'Costs: ' + rr.cost + ' (no such action)']); rcOpts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rco.appendChild(op); }); rco.value = rr.cost || ''; rw.appendChild(rco); }
         if (rApply) { cb2.appendChild(rw); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
@@ -3326,6 +3349,79 @@ function renderCombat() {
     box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? '— none —' : '— add a resource field —']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
     box.appendChild(labeledSelect('sys-combat-cover-on', 'Cover from blockers', [['off', 'Off'], ['on', 'On — show cover on the ruler']], cm.cover.on ? 'on' : 'off', 'When on, dragging the ruler between two character tokens shows the cover between them, read from the map\'s sight-blockers (walls, pillars, closed doors, filled cells). Advisory only — you apply the effect by hand.'));
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for D&D-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
+    turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
+}
+// Turn-based combat T1: the system's turn rules on the Combat card — how far a character moves in one turn (a formula and its unit), how a
+// square grid counts a diagonal (the ruler follows it), how long a round is, the system's own time units and what one turn allows. Save
+// cleans them; refreshErrors says what it would drop
+function turnActs() { var tn = draft && draft.combat && draft.combat.turn; return tn && typeof tn === 'object' && Array.isArray(tn.acts) ? tn.acts.filter(function(a) { return a && typeof a === 'object' && typeof a.key === 'string' && a.key; }) : []; }
+function turnDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : (cm.turn = {}); }
+function costOptions(cost, acts) {   // a roll's Costs menu: nothing, each action, and a cost naming none (kept until picked away)
+    var o = [['', 'Costs nothing']].concat(acts.map(function(a) { return [a.key, 'Costs: ' + (a.label || a.key)]; }));
+    if (cost && !acts.some(function(a) { return a.key.toLowerCase() === String(cost).toLowerCase(); })) o.push([cost, 'Costs: ' + cost + ' (no such action)']);
+    return o;
+}
+function turnBox(box, cm) {
+    var tn = cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : {}, wrap = el('div', 'sys-turn');
+    wrap.appendChild(el('div', 'sys-turn-head', 'Turns'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s turn, for turn-based combat: how far a character moves, how diagonals count (the ruler follows it), how long a round is, and the actions a turn allows (a roll can cost one).'));
+    var r1 = el('div', 'sys-flags sys-turn-row');
+    var mv = input('sys-turn-mvf field', typeof tn.move === 'string' ? tn.move : '', 'How far a character moves in one turn, worked out for each character (no dice): BasicMove, Speed, floor(DX / 2); empty: no limit', 'Move per turn (e.g. Speed)'); mv.maxLength = LIMITS.formula; r1.appendChild(mv);
+    r1.appendChild(select('sys-turn-mvu', [['cells', 'grid cells'], ['ft', 'feet'], ['yd', 'yards'], ['m', 'metres']], typeof tn.unit === 'string' && TURN_UNITS[tn.unit] === 1 ? tn.unit : 'cells', 'The unit the move counts in: each map\u2019s scale converts it (30 ft on 5 ft squares is 6 squares; 5 yd on 1 yd hexes is 5 hexes)'));
+    wrap.appendChild(r1);
+    wrap.appendChild(labeledSelect('sys-turn-diag', 'Diagonals on squares', [['line', 'Straight line'], ['one', 'Every diagonal 1 square'], ['alt', 'Alternating 1\u20132 (5-10-5)']], tn.diag === 'one' || tn.diag === 'alt' ? tn.diag : 'line', 'How a diagonal step counts on a square grid, for the move and for the ruler; hexes are not affected'));
+    var sl = el('label', 'sys-combat-item'); sl.appendChild(el('span', 'sys-num-cap', 'A round is (seconds)'));
+    var sc = el('input', 'field sys-turn-secs'); sc.type = 'number'; sc.min = '0'; sc.step = 'any'; sc.value = typeof tn.secs === 'number' ? String(tn.secs) : ''; sc.placeholder = 'e.g. 6'; sc.title = 'How long one round lasts in the game (1 second GURPS-like, 6 seconds D&D-like): an effect that lasts seconds or minutes counts down by it'; sl.appendChild(sc); wrap.appendChild(sl);
+    [['act', 'acts', 'Actions per turn', LIMITS.turnActs], ['tu', 'units', 'Time units', LIMITS.turnUnits]].forEach(function(g) {
+        var arr = Array.isArray(tn[g[1]]) ? tn[g[1]] : [];
+        wrap.appendChild(el('span', 'sys-num-cap', g[2]));
+        arr.forEach(function(x0, i) {
+            var x = x0 && typeof x0 === 'object' ? x0 : {}, rw = el('div', 'sys-flags sys-turn-' + g[0]); rw.dataset.ti = String(i);
+            var k = input('sys-turn-' + g[0] + 'key field', typeof x.key === 'string' ? x.key : '', g[0] === 'act' ? 'Its name, which a roll costs: Action, Bonus, Reaction, Maneuver' : 'Its name in an effect\u2019s length: segment, watch (not a word the list already has: second, minute, hour, day, turn, round)', 'Key'); k.maxLength = 24; rw.appendChild(k);
+            var l = input('sys-turn-' + g[0] + 'label field', typeof x.label === 'string' ? x.label : '', 'What the sheet shows (blank: the key)', 'Label'); l.maxLength = LIMITS.label; rw.appendChild(l);
+            var n = el('input', 'field sys-turn-' + g[0] + 'n'); n.type = 'number';
+            if (g[0] === 'act') { n.min = '1'; n.max = '9'; n.step = '1'; n.value = String(typeof x.n === 'number' ? x.n : 1); n.title = 'How many a turn allows (1 to 9)'; }
+            else { n.min = '0'; n.step = 'any'; n.value = typeof x.secs === 'number' ? String(x.secs) : ''; n.placeholder = 'Seconds'; n.title = 'How long one lasts, in seconds (a watch: 14400)'; }
+            rw.appendChild(n);
+            [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 't' + g[0] + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+            wrap.appendChild(rw);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-turn-add', g[0] === 'act' ? '+ Action' : '+ Time unit'); ad.dataset.act = 't' + g[0] + 'add'; ad.disabled = arr.length >= g[3]; ad.title = ad.disabled ? 'At most ' + g[3] : g[0] === 'act' ? 'Something one turn allows (an Action, a Bonus action, a Maneuver)' : 'A time unit of your game, by its length in seconds'; wrap.appendChild(ad);
+    });
+    var err = errorCell('combat'); err.dataset.errFor = 'combat'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onTurnInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-turn-') < 0 || c.indexOf('sys-turn-mvu') >= 0 || c.indexOf('sys-turn-diag') >= 0) return false;
+    var tn = turnDraft(), rw = t.closest('.sys-turn-act, .sys-turn-tu'), i = rw ? +rw.dataset.ti : -1;
+    if (c.indexOf('sys-turn-mvf') >= 0) { if (t.value.trim()) tn.move = t.value.slice(0, LIMITS.formula); else delete tn.move; }
+    else if (c.indexOf('sys-turn-secs') >= 0) { var sv = Number(t.value); if (t.value.trim() && isFinite(sv)) tn.secs = sv; else delete tn.secs; }
+    else if (rw) {
+        var g = rw.classList.contains('sys-turn-act') ? 'act' : 'tu', arr = tn[g === 'act' ? 'acts' : 'units'], x = Array.isArray(arr) && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!x) return true;
+        if (c.indexOf('sys-turn-' + g + 'key') >= 0) x.key = t.value.slice(0, 24);
+        else if (c.indexOf('sys-turn-' + g + 'label') >= 0) { if (t.value.trim()) x.label = t.value.slice(0, LIMITS.label); else delete x.label; }
+        else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') x.n = nv; else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }
+        else return true;
+    } else return false;
+    markDirty(); patchErrors(); return true;
+}
+function onTurnChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string') return false;
+    if (c.indexOf('sys-turn-mvu') >= 0) turnDraft().unit = t.value;
+    else if (c.indexOf('sys-turn-diag') >= 0) { var tn = turnDraft(); if (t.value === 'one' || t.value === 'alt') tn.diag = t.value; else delete tn.diag; }
+    else return c.indexOf('sys-turn-') >= 0;   // the boxes' change events (their input events did the work)
+    markDirty(); patchErrors(); return true;
+}
+function turnClick(b) {
+    var m = /^t(act|tu)(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var tn = turnDraft(), key = m[1] === 'act' ? 'acts' : 'units', cap = m[1] === 'act' ? LIMITS.turnActs : LIMITS.turnUnits, arr = Array.isArray(tn[key]) ? tn[key] : (tn[key] = []);
+    var rw = b.closest('.sys-turn-' + m[1]), i = rw ? +rw.dataset.ti : -1;
+    if (m[2] === 'add') { if (arr.length >= cap) { toast('At most ' + cap + '.'); return true; } arr.push(m[1] === 'act' ? { key: '', n: 1 } : { key: '', secs: 60 }); }
+    else if (!(i >= 0 && i < arr.length)) return true;
+    else if (m[2] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[2] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else arr.splice(i, 1);
+    markDirty(); renderAll(); return true;
 }
 function renderAll() {
     closeGlyphPicker();   // Stage 6: the rows it was opened from are being redrawn
@@ -3356,6 +3452,7 @@ function itemOfRow(target) { var row = target.closest && target.closest('.sys-it
 function onInput(e) {
     if (!draft) return;
     var t = e.target; if (onLayoutInput(t)) return;
+    if (onTurnInput(t)) return;   // turn-based combat T1
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -3488,6 +3585,7 @@ function onChange(e) {
     if (!draft) return;
     var t = e.target, c = t.className || '';
     if (onLayoutChange(t)) return;
+    if (onTurnChange(t)) return;   // turn-based combat T1
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
@@ -3528,6 +3626,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-statkind') >= 0) { var skr = t.closest('.sys-list-stat'), skD = skr && Array.isArray(lsc.stats) ? lsc.stats[+skr.dataset.si] : null; if (!skD || typeof skD !== 'object') return; delete skD.def; delete skD.labels; if (t.value === 'pick') { skD.kind = 'pick'; skD.opts = Array.isArray(skD.opts) ? skD.opts : []; if (typeof lsc.price === 'string' && skD.key && lsc.price.toLowerCase() === String(skD.key).toLowerCase()) delete lsc.price; } else { delete skD.kind; delete skD.opts; } markDirty(); renderAll(); return; }   // Stage 6 F5a2: a number or a choice (a choice is never the price)
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
         else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
+        else if (c.indexOf('sys-list-rollcost') >= 0) { var rcr = t.closest('.sys-list-roll'), rcD = rcr && Array.isArray(lsc.rolls) ? lsc.rolls[+rcr.dataset.ri] : null; if (!rcD || typeof rcD !== 'object') return; if (t.value) rcD.cost = t.value; else delete rcD.cost; }   // turn-based combat T1
         else if (c.indexOf('sys-list-rollkind') >= 0) { var rkr = t.closest('.sys-list-roll'), rkD = rkr && Array.isArray(lsc.rolls) ? lsc.rolls[+rkr.dataset.ri] : null; if (!rkD || typeof rkD !== 'object') return; if (t.value === 'apply') { if (!Array.isArray(rkD.apply)) rkD.apply = [{ f: '', formula: '' }]; } else delete rkD.apply; }   // Stage 6 HUD H7b: Roll | Apply (a formula typed before stays in the draft)
         else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0 || c.indexOf('sys-list-applywhen') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atK = atr && atr.dataset.k === 'then' ? 'then' : 'apply', atC = atR && Array.isArray(atR[atK]) ? atR[atK][+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) { if (t.value.indexOf('c:') === 0) { atC.c = t.value.slice(2); delete atC.f; } else { atC.f = t.value; delete atC.c; } } else if (c.indexOf('sys-list-applywhen') >= 0) { if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf') atC.when = t.value; else delete atC.when; } else { delete atC.add; delete atC.set; if (t.value === 'add') atC.add = true; else if (t.value === 'set') atC.set = true; } }   // R2b: a counter, a consequence's When
         else if (c.indexOf('sys-list-price') >= 0) { _priceAt.delete(lsc); if (t.value) lsc.price = t.value; else delete lsc.price; }
@@ -3576,6 +3675,7 @@ function onChange(e) {
         else if (c.indexOf('sys-apply-when') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; if (t.value === 'hit' || t.value === 'miss' || t.value === 'malf') chW.when = t.value; else delete chW.when; }   // R1
         else if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
         else if (c.indexOf('sys-roll-tone') >= 0) { if (t.value) r.tone = t.value; else delete r.tone; }   // Stage 6 look fold
+        else if (c.indexOf('sys-roll-cost') >= 0) { if (t.value) r.cost = t.value; else delete r.cost; }   // turn-based combat T1
         else if (c.indexOf('sys-round-chk') >= 0) { if (t.checked) r.round = true; else delete r.round; }   // Stage 6 HUD G10
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;
@@ -3593,6 +3693,7 @@ function onClick(e) {
     if (b.dataset.tab) { tab = b.dataset.tab; renderAll(); return; }
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
+    if (turnClick(b)) return;   // turn-based combat T1: the Combat card's actions and time units
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

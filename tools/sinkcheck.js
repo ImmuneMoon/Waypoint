@@ -210,6 +210,7 @@ const U = 'https://evil.example/beacon.png';        // a picture that calls out
     /* ---- the ruler's unit (whiteboard.js mapMeasureConfig + measureLabel): it lands in the ruler's SVG markup ---- */
     const measure = (meta, grid) => new Function('getActiveMap', 'state', '_r1', slice('whiteboard.js', 'measure') + '\nreturn { mapMeasureConfig: mapMeasureConfig, measureLabel: measureLabel };')(() => ({ meta: meta }), { gridType: grid || 'square' }, n => Math.round(n * 10) / 10);
     check('ruler: a unit the Measure menu does not offer becomes the grid\'s default', measure({ cellUnit: T }).measureLabel(100) === '2 sq \u00b7 10 ft' && measure({ cellUnit: 'constructor' }, 'hex').mapMeasureConfig().unit === 'yd');
+    check('ruler (turn-based combat T1): the cells the system\'s diagonal rule gives replace the straight count; none keeps it', measure({}, 'square').measureLabel(291.5, 6) === '6 sq \u00b7 30 ft' && measure({}, 'square').measureLabel(100, null) === '2 sq \u00b7 10 ft');
     check('ruler: the offered units read as before', measure({ cellUnit: 'mi', cellValue: 5 }).measureLabel(50) === '1 sq \u00b7 5 mi' && measure({ cellUnit: 'm' }).mapMeasureConfig().unit === 'm');
 
     /* ---- music: the GM's machine fetches only the campaign's own uploads (music.js bytesFor) ---- */

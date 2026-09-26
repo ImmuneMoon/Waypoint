@@ -3853,6 +3853,68 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /else if \(c\.indexOf\('sys-round-chk'\) >= 0\) \{ if \(t\.checked\) r\.round = true; else delete r\.round; \}/.test(shG) && /else \{ delete r\.apply; delete r\.round; \} markDirty\(\); renderAll\(\); return; \}/.test(shG)
             && /\(r\.round \? ' \\u2014 also by itself on every new round of a combat' : ''\)/.test(shG) && /Tick <b>Each round<\/b> on an apply action and it also runs by itself/.test(hmG) && /or by themselves each round of a combat \(<b>Each round<\/b>\)/.test(tuG));
     }
+    /* ---- Turn-based combat T1: the system's turn rules (move + unit, diagonals, a round's seconds, time units, actions) and what a roll costs ---- */
+    {
+        const ct = S.cleanTurn;
+        const tAll = ct({ move: ' Speed ', unit: 'yd', diag: 'alt', secs: 6.00004, extra: 1,
+            units: [{ key: 'segment', label: ' Segment ', secs: 1 }, { key: 'Segment', secs: 2 }, { key: 'minute', secs: 60 }, { key: '1bad', secs: 5 }, { key: 'watch', secs: 0 }, { key: 'watch', secs: 14400 }, { key: 'Beat', secs: 0.0001 }],
+            acts: [{ key: 'Action', n: 1 }, { key: 'action', n: 2 }, { key: 'Bonus', label: 'Bonus action', n: 2 }, { key: 'Reaction', n: 0 }, { key: 'Free', n: 1.5 }, { key: 'x y', n: 1 }, { key: 'A5', n: 9 }, { key: 'A6' }, { key: 'A7' }] });
+        check('T1 cleanTurn: a move (formula text) with its unit, a diagonal rule, a round in seconds (to the thousandth), time units (key rule, once ignoring case, never a built-in time word, seconds above 0) and actions (key rule, once, 1 to 9 a turn else 1, six at most)',
+            j(tAll) === j({ move: 'Speed', unit: 'yd', diag: 'alt', secs: 6, units: [{ key: 'segment', secs: 1, label: 'Segment' }, { key: 'watch', secs: 14400 }], acts: [{ key: 'Action', n: 1 }, { key: 'Bonus', n: 2, label: 'Bonus action' }, { key: 'Reaction', n: 1 }, { key: 'Free', n: 1 }, { key: 'A5', n: 9 }, { key: 'A6', n: 1 }] })
+            && j(ct({ move: 'Speed', unit: 'league' })) === j({ move: 'Speed', unit: 'cells' }) && j(ct({ unit: 'ft', diag: 'line', secs: 90000 })) === 'null' && ct(null) === null && ct({ diag: 'one' }).diag === 'one' && ct({ acts: [{ key: 'Big', n: 12 }] }).acts[0].n === 1 && j(ct(tAll)) === j(tAll), j(tAll));
+        const rawT = { v: 1, name: 'T', fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', def: 30 }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 2, vis: 'gm' },
+            { id: 'f_w', key: 'Weapons', kind: 'item-list', list: { rolls: [{ label: 'Stab', formula: 'd20', cost: 'bonus' }, { label: 'Cost', apply: [{ f: 'f_sp', formula: '1' }], cost: 'Nope' }, { label: 'Bad', formula: 'd20', cost: '1x' }] } }],
+            rolls: [{ id: 'r_a', label: 'Attack', formula: 'd20', cost: 'ACTION' }, { id: 'r_p', label: 'Pay', apply: [{ f: 'f_sp', formula: '1' }], cost: 'Bonus' }, { id: 'r_n', label: 'None', formula: 'd20', cost: 'Gone' }, { id: 'r_x', label: 'Odd', formula: 'd20', cost: 5 }],
+            combat: { turn: { move: 'Speed + GMFig', unit: 'ft', diag: 'one', acts: [{ key: 'Action' }, { key: 'Bonus', label: 'Bonus action' }] } }, sheet: { sections: [] } };
+        const gmT = cleanSystem(rawT, { F, gmView: true }), plT = cleanSystem(rawT, { F, gmView: false }), rT = (s, id) => s.rolls.find(r => r.id === id), lT = s => s.fields.find(f => f.id === 'f_w').list.rolls;
+        check('T1 the cleaner: a roll\'s, an apply action\'s and a list roll\'s cost in the action\'s spelling (ACTION is Action); one naming no action stays for the GM (the validator names it) and goes from the players\' view, a malformed one from both; the players\' view drops a move naming a GM-only value (and its unit); an absent turn leaves combat as it was; fixed points',
+            rT(gmT, 'r_a').cost === 'Action' && rT(gmT, 'r_p').cost === 'Bonus' && rT(gmT, 'r_n').cost === 'Gone' && !('cost' in rT(gmT, 'r_x')) && j(lT(gmT).map(r => r.cost || '')) === j(['Bonus', 'Nope', ''])
+            && !('cost' in rT(plT, 'r_n')) && rT(plT, 'r_a').cost === 'Action' && j(lT(plT).map(r => r.cost || '')) === j(['Bonus', '', '']) && j(plT.combat.turn) === j({ diag: 'one', acts: [{ key: 'Action', n: 1 }, { key: 'Bonus', n: 1, label: 'Bonus action' }] }) && gmT.combat.turn.move === 'Speed + GMFig'
+            && !('turn' in cleanSystem({ v: 1, name: 'x', fields: [], rolls: [], combat: { blastAuto: 'roll' } }, { F, gmView: true }).combat) && !('turn' in cleanSystem({ v: 1, name: 'x', fields: [{ id: 'f_g', key: 'GMFig', kind: 'number', vis: 'gm' }], rolls: [], combat: { turn: { move: 'GMFig' } } }, { F, gmView: false }).combat)
+            && j(cleanSystem(gmT, { F, gmView: true })) === j(gmT) && j(cleanSystem(plT, { F, gmView: false })) === j(plT), j([gmT.rolls.map(r => r.cost), lT(gmT), plT.combat.turn]));
+        const vT = validateSystem(gmT, F), vM = id => vT.errors.filter(e => e.id === id).map(e => (e.prop || '') + ' ' + e.message), wM = id => vT.warnings.filter(e => e.id === id).map(e => (e.prop || '') + ' ' + e.message);
+        const vD = validateSystem(cleanSystem({ v: 1, name: 'x', fields: [{ id: 'f_a', key: 'A', kind: 'number' }], rolls: [], combat: { turn: { move: 'A + 2d6 + Zed' } } }, { F, gmView: true }), F);
+        check('T1 the validator: the move is a formula with no dice and known names, under the Combat card ("combat", turn.move), and one naming a GM-only value warns that players\u2019 moves are not limited by it; a cost naming no action on the Combat card is an error on the roll (cost) or under the list\u2019s card ("Roll \u201cCost\u201d, costs: \u2026")',
+            vM('r_n').some(m => /^cost No action \u201cGone\u201d on the Combat card \(System \u25b8 Items\): add it there, or pick another\.$/.test(m)) && !vM('r_a').length && vM('f_w').some(m => /^list Roll \u201cCost\u201d, costs: No action \u201cNope\u201d/.test(m))
+            && wM('combat').some(m => /^turn\.move "GMFig" is GM only: players\u2019 moves are not limited by it\.$/.test(m)) && vD.errors.some(e => e.id === 'combat' && e.prop === 'turn.move' && /Dice are not allowed/.test(e.message)) && vD.errors.some(e => e.id === 'combat' && /Unknown name "Zed"/.test(e.message)),
+            j([vM('r_n'), vM('f_w'), wM('combat'), vD.errors]));
+        const gc = S.gridCells;
+        check('T1 gridCells (D8): 5 across and 3 down is 5.83 in a straight line, 5 with every diagonal 1 square, 6 alternating 1-2; either way round, negative too; not a number is 0',
+            Math.abs(gc(5, 3) - Math.hypot(5, 3)) < 1e-9 && gc(5, 3, 'one') === 5 && gc(5, 3, 'alt') === 6 && gc(-3, 5, 'alt') === 6 && gc(3, 3, 'alt') === 4 && gc(1, 1, 'alt') === 1 && gc(2, 2, 'alt') === 3 && gc('x', 1, 'one') === 0 && gc(4, 0, 'line') === 4);
+        // the editor, run for real (sliced from sheets.js): the turn rules' boxes, buttons and menus on a draft
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        const tSrc = shT.slice(shT.indexOf('function turnActs() {'), shT.indexOf('function renderAll() {'));
+        const edT = drft => { const out = { dirty: 0, renders: 0, patches: 0, toasts: [] }; out.api = new Function('draft', 'LIMITS', 'markDirty', 'renderAll', 'patchErrors', 'toast', 'TURN_UNITS', 'el', 'input', 'select', 'labeledSelect', 'errorCell', tSrc + NL + 'return { turnActs: turnActs, costOptions: costOptions, onTurnInput: onTurnInput, onTurnChange: onTurnChange, turnClick: turnClick };')(
+            drft, S.LIMITS, () => out.dirty++, () => out.renders++, () => out.patches++, t => out.toasts.push(t), S.TURN_UNITS, null, null, null, null, null); return out; };
+        const tgt = (cls, value, row) => ({ className: cls, value: value, closest: () => row || null });
+        const rowOf = (kind, i) => ({ dataset: { ti: String(i) }, classList: { contains: c => c === 'sys-turn-' + kind } });
+        const btn = (act, row) => ({ dataset: { act: act }, closest: () => row || null });
+        const dT = { combat: { blastAuto: 'full' } }, eT = edT(dT), A = eT.api;
+        A.onTurnInput(tgt('sys-turn-mvf field', ' Speed ')); A.onTurnChange(tgt('sys-turn-mvu', 'ft')); A.onTurnChange(tgt('sys-turn-diag', 'alt')); A.onTurnInput(tgt('field sys-turn-secs', '6'));
+        A.turnClick(btn('tactadd')); A.turnClick(btn('tactadd')); A.onTurnInput(tgt('sys-turn-actkey field', 'Action', rowOf('act', 0))); A.onTurnInput(tgt('sys-turn-actkey field', 'Bonus', rowOf('act', 1))); A.onTurnInput(tgt('sys-turn-actlabel field', 'Bonus action', rowOf('act', 1))); A.onTurnInput(tgt('field sys-turn-actn', '2', rowOf('act', 1)));
+        A.turnClick(btn('tactup', rowOf('act', 1))); A.turnClick(btn('ttuadd')); A.onTurnInput(tgt('sys-turn-tukey field', 'watch', rowOf('tu', 0))); A.onTurnInput(tgt('field sys-turn-tun', '14400', rowOf('tu', 0)));
+        const midT = JSON.parse(JSON.stringify(dT.combat.turn));
+        A.turnClick(btn('tactdel', rowOf('act', 0))); A.onTurnChange(tgt('sys-turn-diag', 'line')); A.onTurnInput(tgt('field sys-turn-secs', '')); A.onTurnInput(tgt('sys-turn-mvf field', '  ')); A.onTurnInput(tgt('sys-turn-actlabel field', '  ', rowOf('act', 0)));
+        for (let k = 0; k < 6; k++) A.turnClick(btn('ttuadd'));
+        const costO = A.costOptions('Gone', A.turnActs());
+        check('T1 the Combat card\'s Turns box (sheets.js, run for real): the move, its unit, the diagonals, a round\'s seconds, actions and time units (add, type, move, remove; six at most, then a word) land in the draft; emptied boxes leave nothing; the Costs menu offers nothing, each action and a cost naming none',
+            j(midT) === j({ move: ' Speed ', unit: 'ft', diag: 'alt', secs: 6, acts: [{ key: 'Bonus', n: 2, label: 'Bonus action' }, { key: 'Action', n: 1 }], units: [{ key: 'watch', secs: 14400 }] })
+            && j(dT.combat.turn) === j({ unit: 'ft', acts: [{ key: 'Action', n: 1 }], units: [{ key: 'watch', secs: 14400 }, { key: '', secs: 60 }, { key: '', secs: 60 }, { key: '', secs: 60 }, { key: '', secs: 60 }, { key: '', secs: 60 }] }) && j(eT.toasts) === j(['At most 6.'])
+            && j(costO) === j([['', 'Costs nothing'], ['Action', 'Costs: Action'], ['Gone', 'Costs: Gone (no such action)']]) && A.onTurnInput(tgt('sys-other field', 'x')) === false && A.turnClick(btn('del')) === false, j([midT, dT.combat.turn, eT.toasts, costO]));
+        const epT = new Function(shT.slice(shT.indexOf('function errPrefix('), shT.indexOf('\n', shT.indexOf('function errPrefix('))) + NL + 'return errPrefix;')();
+        const hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuT = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('T1 the editor\'s words: the move\'s and a cost\'s prefixes ("Move per turn: ", "Costs: "), a list\'s message with none (its own text leads, as a warning\'s); a roll row and a list roll show a Costs menu once there is an action; Save\'s drops are named under the Combat card; tour and Help say so',
+            epT('turn.move') === 'Move per turn: ' && epT('cost') === 'Costs: ' && epT('list') === '' && epT('key') === 'key: '
+            && /var actsR = turnActs\(\); if \(actsR\.length \|\| r\.cost\) top\.appendChild\(select\('sys-roll-cost'/.test(shT) && /if \(actsL\.length \|\| rr\.cost\) \{ var rco = el\('select', 'sys-list-rollcost'\)/.test(shT)
+            && /is already a time word, so Save drops it\./.test(shT) && /needs a key \(a letter, then letters, digits and _\): Save drops it\./.test(shT) && /box\.appendChild\(listCard\(f, cats, tgL, draft\.combat && draft\.combat\.turn/.test(shT)
+            && /<li><b>Turns<\/b> \(the Combat card, under the blast settings\) describe your game&rsquo;s turn/.test(hmT) && /and its <b>Turns<\/b> box your game&rsquo;s turn/.test(tuT));
+        // the ruler (whiteboard.js): the square grid counts a diagonal as the system says
+        const wbT = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL).replace(/\r/g, '');
+        const dcSrc = wbT.slice(wbT.indexOf('  function diagCells(m) {'), wbT.indexOf('  function renderMeasures() {'));
+        const dc = (grid, diag) => new Function('window', 'state', 'mapMeasureConfig', dcSrc + NL + 'return diagCells;')({ wpSystemCore: S, wpSheets: { systemOf: () => ({ combat: diag ? { turn: { diag: diag } } : {} }) } }, { gridType: grid }, () => ({ cellPx: 50 }))({ x1: 400, y1: 350, x2: 650, y2: 500 });
+        check('T1 the ruler\'s diagonals (whiteboard.js diagCells, run for real): on a square grid 250 by 150 px is 6 cells alternating and 5 one-per-diagonal; a straight rule, no rule, a hex grid or no grid keep the straight line (null)',
+            dc('square', 'alt') === 6 && dc('square', 'one') === 5 && dc('square', 'line') === null && dc('square', null) === null && dc('hex', 'alt') === null && dc('off', 'one') === null && /measureLabel\(dist, diagCells\(m\)\)/.test(wbT));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

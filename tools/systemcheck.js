@@ -1190,6 +1190,84 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /<li><b>The HUD\.<\/b> When the saved system has a HUD/.test(html2));
     }
 
+    /* ---- Stage 6 HUD frame (HF2b): the HUD's entry points and the HUD button placement ---- */
+    {
+        const fx2 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
+        const GV = { F, gmView: true }, PV = { F, gmView: false };
+        const hubtn = (sh, sid) => { const s = (sh.sections || []).find(x => x.id === sid); return s ? s.fields.filter(q => q.kind === 'hud') : null; };
+        const gD2 = cleanSystem(fx2('hud-d20'), GV), pD2 = cleanSystem(fx2('hud-d20'), PV), g32 = cleanSystem(fx2('hud-3d6'), GV), p32 = cleanSystem(fx2('hud-3d6'), PV);
+        const mk = (btn, hud, gmView) => { const s = fx2('look-d20'); s.sheet.sections.find(x => x.id === 's_combat').fields.push(btn); if (hud !== undefined) s.sheet.hud = hud; return cleanSystem(s, gmView === false ? PV : GV); };
+        const aHud = { tabs: [{ id: 't_ha', label: 'A' }, { id: 't_hb', label: 'B' }], sections: [{ id: 's_h1', title: 'H', tab: 't_ha', fields: [{ id: 'f_str' }, { kind: 'hud', tab: 't_ha', text: 'Nested' }] }] };
+        const tabOf = t => hubtn(mk({ kind: 'hud', tab: t, text: 'Go' }, aHud).sheet, 's_combat');
+        const ctl = hubtn(mk({ kind: 'hud', text: 'Open\u0007the\u001bHUD' + 'x'.repeat(200) }, aHud).sheet, 's_combat')[0];
+        const pvIdem = [pD2, p32].every(v => j(cleanSystem(v, PV)) === j(v) && j(cleanSystem(v, Object.assign({ pages: [] }, PV))) === j(v));
+        check('HUD frame HF2b: the HUD button placement — kept on the sheet with its tab and words in both views of both HUD systems; a tab that is not one of the HUD\'s is dropped (the button stays); its words lose control characters and are capped; dropped inside the HUD\'s own layout, with no HUD, and from a players\' view whose HUD did not survive (kept for the GM with a title-only HUD); a players\' view re-cleans to itself',
+            j(hubtn(gD2.sheet, 's_combat')) === j([{ kind: 'hud', w: 1, text: 'Conditions', tab: 't_hstat' }]) && j(hubtn(pD2.sheet, 's_combat')) === j(hubtn(gD2.sheet, 's_combat'))
+            && j(hubtn(g32.sheet, 's_combat')) === j([{ kind: 'hud', w: 1, text: 'Active Effects', tab: 't_hst' }]) && j(hubtn(p32.sheet, 's_combat')) === j(hubtn(g32.sheet, 's_combat'))
+            && j(tabOf('t_hb')) === j([{ kind: 'hud', w: 1, text: 'Go', tab: 't_hb' }]) && ['t_main', '__proto__', 'constructor', 'toString', 5, null].every(t => j(tabOf(t)) === j([{ kind: 'hud', w: 1, text: 'Go' }]))
+            && !!ctl && !/[\u0000-\u001f]/.test(ctl.text) && ctl.text.length <= LIMITS.label
+            && j(hubtn(mk({ kind: 'hud' }, aHud).sheet.hud, 's_h1')) === j([]) && j(hubtn(mk({ kind: 'hud' }).sheet, 's_combat')) === j([])
+            && j(hubtn(mk({ kind: 'hud', text: 'T' }, { title: 'Only a title' }).sheet, 's_combat')) === j([{ kind: 'hud', w: 1, text: 'T' }]) && j(hubtn(mk({ kind: 'hud', text: 'T' }, { title: 'Only a title' }, false).sheet, 's_combat')) === j([])
+            && j(hubtn(mk({ kind: 'hud' }, { sections: [{ id: 's_g', title: 'G', fields: [{ id: 'f_gmfig' }] }] }, false).sheet, 's_combat')) === j([]) && !('hud' in mk({ kind: 'hud' }, { sections: [{ id: 's_g', title: 'G', fields: [{ id: 'f_gmfig' }] }] }, false).sheet)
+            && pvIdem && validateSystem(gD2, F).errors.length === 0 && validateSystem(g32, F).errors.length === 0, j({ ctl, t: tabOf('t_main') }));
+        // hudButton, run for real against a minimal element stub
+        const sh3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const hbSrc = sh3.slice(sh3.indexOf('function hudButton(pl, c, sys, vctx) {'), sh3.indexOf('// [systemcheck:hud-end]'));
+        const mkEl = (tag, cls, text) => { const e = { tag, className: cls || '', textContent: text === undefined ? '' : text, kids: [], ls: {}, disabled: false, title: '', appendChild(k) { this.kids.push(k); return k; }, addEventListener(ev, fn) { this.ls[ev] = fn; }, closest() { return null; } }; return e; };
+        const opened = [], sysH = { sheet: { hud: { title: 'Combat HUD', tabs: [{ id: 't_x', label: 'Status' }] } } };
+        const HB = (fxLive, win, hudOk) => new Function('el', 'iconNode', 'hudFor', 'openHud', '_fxLive', 'window', hbSrc + '\nreturn hudButton;')(mkEl, v => mkEl('span', 'icon ' + v), id => hudOk && id === 'c_a', (id, o) => opened.push([id, o]), fxLive, win);
+        const live = HB(true, {}, true)({ kind: 'hud', tab: 't_x', text: '' }, { id: 'c_a' }, sysH, { view: 'sheet', preview: false }), lb = live.kids[0];
+        lb.ls.click && lb.ls.click({ preventDefault() {} });
+        const prev = HB(false, {}, true)({ kind: 'hud' }, { id: 'c_a' }, sysH, { preview: true }).kids[0], pop = HB(true, { wpPopout: true }, true)({ kind: 'hud' }, { id: 'c_a' }, sysH, {}).kids[0], none = HB(true, {}, false)({ kind: 'hud', text: 'Mine' }, { id: 'c_a' }, sysH, {}).kids[0];
+        check('HUD frame HF2b: the HUD button — live only on the real sheet for a HUD they can open (decided when drawn); a click opens this character\'s HUD at its tab; inert (disabled, no handler) in the Layout preview, a pop-out, or with no HUD to open; its words are its own or "Open" and the HUD\'s title',
+            live.className === 'sheet-field sheet-kind-hud' && lb.disabled === false && j(opened) === j([['c_a', { tab: 't_x' }]]) && lb.kids[1].textContent === 'Open Combat HUD' && /at its Status tab/.test(lb.title)
+            && [prev, pop, none].every(b => b.disabled === true && !b.ls.click) && none.kids[1].textContent === 'Mine'
+            && /var live = _fxLive && !\(vctx && vctx\.preview\) && !window\.wpPopout,/.test(hbSrc) && /, ok = live && hudFor\(c\.id\);/.test(hbSrc) && !/innerHTML/.test(hbSrc) && /if \(b\.closest\('#systemModal'\)\) return; openHud\(c\.id, pl\.tab \? \{ tab: pl\.tab \} : null\);/.test(hbSrc), j({ opened, t: lb.title }));
+        const wb3 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        const incs = [...wb3.matchAll(/action\.includes\('([^']+)'\)/g)].map(m => m[1]).filter(x => x !== 'cm-hud'), iHud = wb3.indexOf("} else if (action.includes('cm-hud')) {"), iLayers = wb3.indexOf("var layers = ['back', 'back-mid', 'middle', 'front-mid', 'front'];");
+        check('HUD frame HF2b: every entry point asks hudFor — the GM\'s token menu (a static row, its own branch before the layer fallback, the menu closed after), the player\'s own-token menu (its own listener that stops the click), the party strip, token Properties and the Characters row; no other menu action is matched by "cm-hud"',
+            /if \(isWb && firstItem && firstItem\.charId && window\.wpSheets && window\.wpSheets\.hudFor && window\.wpSheets\.hudFor\(firstItem\.charId\)\) html \+= '<div class="menu-item cm-hud">&#12336; HUD&hellip;<\/div>';/.test(wb3)
+            && iHud > wb3.indexOf("} else if (action.includes('cm-sheet')) {") && iHud < iLayers && /action\.includes\('cm-hud'\)\) \{[^\n]*\n[^\n]*\n\s*cMenu\.style\.display = 'none';\n[^\n]*openHud\(itH\.charId\);\n\s*return;/.test(wb3)
+            && incs.length > 10 && incs.every(x => 'menu-item cm-hud'.indexOf(x) < 0 && 'menu-item cm-hud-own'.indexOf(x) < 0)
+            && /var hudRow = tok\.charId && window\.wpSheets && window\.wpSheets\.hudFor && window\.wpSheets\.hudFor\(tok\.charId\) \? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;<\/div>' : '';/.test(wb3) && /if \(!rows && !sheetRow && !hudRow\) return;/.test(wb3)
+            && /if \(ownHud\) ownHud\.addEventListener\('click', function\(ce\) \{ ce\.stopPropagation\(\); cMenu\.style\.display = 'none'; window\.wpSheets\.openHud\(tok\.charId\); \}\);/.test(wb3)
+            && /if \(loc && loc\.tok && loc\.tok\.charId && window\.wpSheets && window\.wpSheets\.hudFor && window\.wpSheets\.hudFor\(loc\.tok\.charId\)\) items\.push\(\{ act: 'hud', label: '\\u3030 HUD\\u2026' \}\);/.test(wb3) && /else if \(act === 'hud'\) \{[^\n]*window\.wpSheets\.openHud\(locH\.tok\.charId\); \}/.test(wb3)
+            && /\(cur && hudFor\(cur\) \? '<button class="tool ghost" id="wbHudOpen"/.test(sh3) && /var hob = ui\('wbHudOpen'\); if \(hob\) hob\.addEventListener\('click', function\(\) \{ openHud\(w\.charId\); \}\);/.test(sh3)
+            && /if \(hudFor\(c\.id\)\) \{ var hudB = el\('button', 'tool ghost sys-btn', 'HUD'\); hudB\.dataset\.act = 'hud';/.test(sh3) && /if \(b\.dataset\.act === 'hud'\) \{ openHud\(ch\.id\); return; \}/.test(sh3), j({ iHud, iLayers, bad: incs.filter(x => 'menu-item cm-hud-own'.indexOf(x) >= 0) }));
+        const css3b = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), blk3 = css3b.slice(css3b.indexOf('/* ---- Stage 6 HUD frame:'));
+        check('HUD frame HF2b: the editor offers a HUD button on the sheet only once the system has a HUD, as one column with its own words and a HUD tab (checked before it is stored); its CSS lives in the HUD block; the tour and Help name every way in',
+            /if \(!hudOn && draftHasHud\(\)\) opts\.push\(\['k:hud', 'HUD button'\]\);/.test(sh3) && /id === 'stance' \|\| id === 'hud' \? 1 : 'row' \}; if \(id === 'heading' \|\| id === 'hud'\) pl\.text = '';/.test(sh3)
+            && /if \(t\.classList\.contains\('sys-pl-hudtab'\)\) \{[^\n]*if \(plx && plx\.kind === 'hud'\) \{ if \(\/\^t_\[A-Za-z0-9_\]\{1,24\}\$\/\.test\(t\.value\)\) plx\.tab = t\.value; else delete plx\.tab;/.test(sh3) && /if \(pl\.kind === 'hud'\) return 'HUD button';/.test(sh3)
+            && /\.sheet-hud-link \{ width: 100%;/.test(blk3) && /a <b>HUD button<\/b> placed on the sheet \(which can open it at one of its tabs\)/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /or a <b>HUD button<\/b> you place on the sheet/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+    }
+
+    /* ---- Stage 6 HUD frame (HF2b review): hudFor run for real, the placement's dispatch and editor, a tab asked of an open HUD, window stacking ---- */
+    {
+        const sh4 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), fx4 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
+        const hfSrc = sh4.slice(sh4.indexOf('function hudFor(charId) {'), sh4.indexOf('function openHud('));
+        const cidRe = new Function('return ' + ((sh4.match(/HUD_CID = (\/[^\n]*?\/),/) || [])[1] || 'null'))();
+        const HF = (can, sys) => new Function('HUD_CID', 'canOpen', 'hudHasContent', 'systemOf', 'getActiveCampaign', hfSrc + '\nreturn hudFor;')(cidRe, () => can, S.hudHasContent, () => sys, () => ({}));
+        const gD4 = cleanSystem(fx4('hud-d20'), { F, gmView: true }), lk = fx4('look-d20'); lk.sheet.hud = { title: 'Only a title' };
+        const titleOnly = cleanSystem(lk, { F, gmView: true }), noHud = cleanSystem(fx4('look-d20'), { F, gmView: true });
+        check('HUD frame HF2b review: hudFor — the one gate every way in asks — is true only for a character id they may open, in a system whose saved HUD holds something (a title alone is not enough)',
+            cidRe instanceof RegExp && HF(true, gD4)('c_a') === true && HF(true, titleOnly)('c_a') === false && HF(true, noHud)('c_a') === false && HF(false, gD4)('c_a') === false && HF(true, null)('c_a') === false
+            && ['x', '__proto__', '', null, undefined, 'c_' + 'a'.repeat(25), 'c_a b'].every(id => HF(true, gD4)(id) === false));
+        const dhSrc = (sh4.match(/function draftHasHud\(\) \{[^\n]*\}/) || [''])[0];
+        const DH = draft => new Function('draft', dhSrc + '\nreturn draftHasHud();')(draft);
+        check('HUD frame HF2b review: draftHasHud — the editor offers a HUD button (and Remove the HUD acts) only when the draft\'s HUD holds something: a title, a tab, a section, a band or a ledger figure; never for the empty one the HUD view makes by looking',
+            dhSrc.length > 50 && DH({ sheet: { hud: { tabs: [], sections: [] } } }) === false && DH({ sheet: {} }) === false && DH(null) === false && DH({ sheet: { hud: [] } }) === false
+            && [{ title: 'T' }, { tabs: [{ id: 't_a' }] }, { sections: [{ id: 's_a' }] }, { band: [{ id: 'f_a' }] }, { ledger: [{ id: 'f_a' }] }].every(h => DH({ sheet: { hud: h } }) === true)
+            && /if \(!draftHasHud\(\)\) return true;   \/\/ nothing set/.test(sh4));
+        const oh = sh4.slice(sh4.indexOf('function openHud(charId, opts) {'), sh4.indexOf('function makeHud('));
+        check('HUD frame HF2b review: the placement is drawn by the section renderer; the editor\'s tab picker lists the HUD\'s tabs (a lost one marked) and says what no tab means; another tab asked of an open, scrolled HUD starts at its own top, measured before the change and only while the window is still the same',
+            /else if \(pl\.kind === 'hud'\) node = hudButton\(pl, c, sys, vctx\);/.test(sh4) && /hOpts = \[\['', 'Its current tab \(first when closed\)'\]\];/.test(sh4) && /hOpts\.push\(\[x\.id, 'Tab: ' \+ \(x\.label \|\| 'Tab'\)\]\)/.test(sh4) && /hOpts\.push\(\[pl\.tab, '\(tab not found\)'\]\)/.test(sh4)
+            && /var existed = !!huds\[charId\];\n    var v = huds\[charId\];/.test(oh) && oh.indexOf('var was = v.body.dataset.wpTab') < oh.indexOf('v.body.dataset.wpTab = opts.tab') && /if \(stuck && huds\[charId\] === v && v\.body\.dataset\.wpTab !== was\) v\.body\.scrollTop = frameFlowTop\(v\.body\);/.test(oh));
+        const css4 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), zOf = re => { const m = css4.match(re); return m ? +m[1] : NaN; };
+        const zSel = zOf(/#selToolbar \{\n\s*position: absolute; z-index: (\d+);/), zBar = zOf(/\.floating-toolbar \{[^}]*?z-index: (\d+);/), zSheet = zOf(/#sheetPanel \{[^}]*?z-index: (\d+);/), zHud = zOf(/\.hud-panel \{[^}]*?z-index: (\d+);/), zDoc = zOf(/#docPanel \{[^}]*?z-index: (\d+);/), zStrip = zOf(/#combatStrip \{[^}]*?z-index: (\d+);/);
+        check('HUD frame HF2b: the floating windows (the sheet, a HUD, the doc panel) sit over the map\'s own toolbars — the token\'s selection toolbar and the tool bars under every window, still over the party and combat strips',
+            [zSel, zBar, zSheet, zHud, zDoc, zStrip].every(isFinite) && zSel < Math.min(zSheet, zHud, zDoc) && zBar < Math.min(zSheet, zHud, zDoc) && zSel > zStrip && zBar > zStrip && zBar < zSel, j({ zSel, zBar, zSheet, zHud, zDoc, zStrip }));
+    }
+
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */
     {
         const sys8 = look => cleanSystem({ v: 1, name: 'L8', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true }).sheet.look;

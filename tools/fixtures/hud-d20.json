@@ -659,6 +659,12 @@
           {
             "roll": "r_init",
             "w": 1
+          },
+          {
+            "kind": "hud",
+            "tab": "t_hstat",
+            "text": "Conditions",
+            "w": 1
           }
         ]
       },

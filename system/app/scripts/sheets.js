@@ -253,7 +253,7 @@ function charSelectHtml(w) {
     var opts = '<option value=""' + (cur ? '' : ' selected') + '>' + (w.charId && !cur ? '(missing character)' : '&mdash; none &mdash;') + '</option>';
     charList(camp).forEach(function(c) { opts += '<option value="' + esc(c.id) + '"' + (c.id === cur ? ' selected' : '') + '>' + esc(c.name) + (c.npc ? ' (NPC)' : c.ownerId ? ' (' + esc(ownerName(c, camp)) + ')' : '') + '</option>'; });
     opts += '<option value="__new">New character from this token&hellip;</option>';
-    return '<div class="field"><label for="wbCharSel">Character (sheet)</label><select id="wbCharSel">' + opts + '</select>' + (cur ? '<button class="tool ghost" id="wbCharOpen" style="width:100%; margin-top:4px;" title="Open this character\'s sheet over the play map">Open sheet</button>' : '') + '</div>';
+    return '<div class="field"><label for="wbCharSel">Character (sheet)</label><select id="wbCharSel">' + opts + '</select>' + (cur ? '<button class="tool ghost" id="wbCharOpen" style="width:100%; margin-top:4px;" title="Open this character\'s sheet over the play map">Open sheet</button>' : '') + (cur && hudFor(cur) ? '<button class="tool ghost" id="wbHudOpen" style="width:100%; margin-top:4px;" title="Open this character\'s HUD over the play map">Open HUD</button>' : '') + '</div>';
 }
 function wireCharSelect(w, rerender) {
     var sel = ui('wbCharSel'); if (!sel) return;
@@ -264,6 +264,7 @@ function wireCharSelect(w, rerender) {
         if (rerender) rerender();
     });
     var ob = ui('wbCharOpen'); if (ob) ob.addEventListener('click', function() { openSheet(w.charId); });
+    var hob = ui('wbHudOpen'); if (hob) hob.addEventListener('click', function() { openHud(w.charId); });   // HUD frame (HF2b)
 }
 
 /* ---------- hover lines ---------- */
@@ -573,10 +574,13 @@ function openHud(charId, opts) {
     if (!HUD_CID.test(String(charId))) return;
     if (!canOpen(charId)) { toast(featureOn() ? 'That HUD is not yours to open.' : 'Character sheets are off here.'); return; }
     if (!hudHasContent(systemOf(getActiveCampaign()))) { toast('This system has no HUD yet (System editor \u25b8 Layout \u25b8 HUD, then Save).'); return; }
+    var existed = !!huds[charId];
     var v = huds[charId];
     if (!v) { var ids = Object.keys(huds); if (ids.length >= HUD_CAP) closeHud(ids[0]); v = makeHud(charId); if (!v) return; huds[charId] = v; placeHud(v); }   // opening it again brings it forward (the reference's open())
+    var was = v.body.dataset.wpTab || '', stuck = existed && v.body.scrollTop > frameFlowTop(v.body);   // HF2b: measured before the tab changes
     if (opts && typeof opts.tab === 'string' && HUD_TAB.test(opts.tab)) v.body.dataset.wpTab = opts.tab;   // buildSections falls back to the first tab if it is not one
     raisePanel(v.panel); renderHud(charId);
+    if (stuck && huds[charId] === v && v.body.dataset.wpTab !== was) v.body.scrollTop = frameFlowTop(v.body);   // another tab asked of an open, scrolled HUD starts at its own top, as the HUD's own strip does
 }
 function makeHud(charId) {
     var tpl = ui('hudTpl'), layer = ui('hudLayer'); if (!tpl || !tpl.content || !tpl.content.firstElementChild || !layer || !HUD_CID.test(String(charId))) return null;
@@ -667,6 +671,18 @@ function frontView() {
     Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); });
     l.sort(function(a, b) { return (+b.style.zIndex || 9000) - (+a.style.zIndex || 9000); });
     return l[0] || null;
+}
+// The 'hud' placement (HF2b): a button on the sheet that opens this character's HUD, at one of its tabs when it names one — the reference's
+// in-sheet HUD buttons (Active Effects, Damage Processor) made generic. Live only on the real sheet (never in the Layout preview or a pop-out)
+// and only while a HUD can be opened for this character; decided when drawn, as the dial is.
+function hudButton(pl, c, sys, vctx) {
+    var live = _fxLive && !(vctx && vctx.preview) && !window.wpPopout, h = sys && sys.sheet && sys.sheet.hud, name = (h && h.title) || 'the HUD';
+    var tb = pl.tab && h && Array.isArray(h.tabs) ? h.tabs.find(function(x) { return x && x.id === pl.tab; }) : null, ok = live && hudFor(c.id);
+    var b = el('button', 'tool sheet-roll sheet-hud-link'); b.type = 'button'; b.disabled = !ok;
+    b.appendChild(iconNode('icon:wave-square', 'sheet-hud-icon')); b.appendChild(el('span', 'sheet-hud-text', pl.text || ('Open ' + name)));
+    b.title = ok ? 'Open ' + name + (tb ? ' at its ' + (tb.label || 'chosen') + ' tab' : '') : (live ? 'No HUD to open here' : 'Opens ' + name + ' (on the sheet itself)');
+    if (ok) b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openHud(c.id, pl.tab ? { tab: pl.tab } : null); });
+    var box = el('div', 'sheet-field sheet-kind-hud'); box.appendChild(b); return box;
 }
 // [systemcheck:hud-end]
 var _secOpen = {};   // remembered collapse state of collapsible sections, keyed by section id (survives re-renders within a session; native <details> handles the visual toggle)
@@ -1064,6 +1080,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
             else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
+            else if (pl.kind === 'hud') node = hudButton(pl, c, sys, vctx);   // HUD frame (HF2b): opens this character's HUD
             else if (pl.kind === 'facing') node = facingNode(c, gm);   // 5h Fold 3
             else if (pl.kind === 'stance') node = stanceNode(c, gm);   // Stage 6
             else if (pl.kind === 'pin') node = pl.g && Object.prototype.hasOwnProperty.call(grpById, pl.g) ? pinNode(pl, grpById[pl.g], pctx) : null;   // Stage 6: a band group's Pin button
@@ -1092,13 +1109,14 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
 // Stage 6 HUD frame (HF1): the Layout tab edits the sheet's layout or the HUD's (the Sheet | HUD switch). A HUD made by merely looking at
 // it is dropped by the cleaner on Save (nothing set).
 function layoutRoot() { if (!draft.sheet) draft.sheet = {}; if (layoutView !== 'hud') return draft.sheet; if (!draft.sheet.hud || typeof draft.sheet.hud !== 'object' || Array.isArray(draft.sheet.hud)) draft.sheet.hud = { tabs: [], sections: [] }; return draft.sheet.hud; }
+function draftHasHud() { var h = draft && draft.sheet && draft.sheet.hud, ln = function(k) { return !!(h && Array.isArray(h[k]) && h[k].length); }; return !!(h && typeof h === 'object' && (h.title || ln('tabs') || ln('sections') || ln('band') || ln('ledger'))); }   // HF2b: the draft has a HUD with something set
 function layoutSections() { var r = layoutRoot(); if (!Array.isArray(r.sections)) r.sections = []; return r.sections; }
 function layoutTabs() { var r = layoutRoot(); if (!Array.isArray(r.tabs)) r.tabs = []; return r.tabs; }
 function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sheet[key])) ? draft.sheet[key].slice() : []; }   // a copy of one of the sheet's id lists (identity / ledger / band), [] when absent
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
-    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button';
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
     return null;
 }
 function renderLayout() {
@@ -1364,6 +1382,13 @@ function renderLayout() {
                 pr.appendChild(select('sys-pl-page', pageOptions(pl.page, pl.page ? null : 'Choose a page\u2026'), pl.page || '', 'The handbook page this button opens'));
                 pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = the page\'s title)', 'Label (optional)'));
             }
+            if (pl.kind === 'hud') {   // HUD frame (HF2b): the HUD tab it opens (none: the tab it shows if it is open, else its first) and its own words
+                var hTabs = (draft.sheet && draft.sheet.hud && Array.isArray(draft.sheet.hud.tabs)) ? draft.sheet.hud.tabs : [], hOpts = [['', 'Its current tab (first when closed)']];
+                hTabs.forEach(function(x) { if (x && typeof x.id === 'string') hOpts.push([x.id, 'Tab: ' + (x.label || 'Tab')]); });
+                if (pl.tab && !hTabs.some(function(x) { return x && x.id === pl.tab; })) hOpts.push([pl.tab, '(tab not found)']);
+                pr.appendChild(select('sys-pl-hudtab', hOpts, pl.tab || '', 'The HUD tab this button opens'));
+                pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = Open and the HUD\'s title)', 'Open the HUD'));
+            }
             var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
             pr.appendChild(btnRow([['plup', 'Move up', '&#9650;'], ['pldown', 'Move down', '&#9660;'], ['pldel', 'Take off the sheet (the field stays defined)', '&times;']]));
             list.appendChild(pr);
@@ -1375,6 +1400,7 @@ function renderLayout() {
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
         grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages
+        if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
         addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);
         root.appendChild(row);
@@ -1418,6 +1444,7 @@ function onLayoutChange(t) {
     if (t.classList.contains('sys-sec-chip')) { if (t.value) sec.chip = t.value; else delete sec.chip; markDirty(); renderPreview(); return true; }   // Stage 5f
     if (t.classList.contains('sys-sec-pin')) { if (t.value && PIN_GID.test(t.value)) sec.pin = t.value; else delete sec.pin; markDirty(); renderLayout(); return true; }   // Stage 6 (HUD frame HF0: exact class tokens — "sys-sec-pinned" contains "sys-sec-pin", so the Above-the-tabs select used to land here)
     if (c.indexOf('sys-pl-group') >= 0) { var plg = t.closest('.sys-pl'), plq = plg ? (sec.fields || [])[+plg.dataset.pi] : null; if (plq && plq.kind === 'pin' && PIN_GID.test(t.value)) { plq.g = t.value; markDirty(); renderLayout(); } return true; }   // Stage 6: a Pin button's group
+    if (t.classList.contains('sys-pl-hudtab')) { var plh = t.closest('.sys-pl'), plx = plh ? (sec.fields || [])[+plh.dataset.pi] : null; if (plx && plx.kind === 'hud') { if (/^t_[A-Za-z0-9_]{1,24}$/.test(t.value)) plx.tab = t.value; else delete plx.tab; markDirty(); renderPreview(); } return true; }   // HF2b: a HUD button's tab
     if (c.indexOf('sys-pl-page') >= 0) { var plp = t.closest('.sys-pl'), plk = plp ? (sec.fields || [])[+plp.dataset.pi] : null; if (plk && plk.kind === 'link') { plk.page = t.value; markDirty(); renderLayout(); } return true; }   // Stage 5f: a link's page
     if (t.classList.contains('sys-sec-pinned')) { if (t.value) sec.pinned = true; else delete sec.pinned; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-meta')) { if (t.value) sec.meta = t.value; else delete sec.meta; markDirty(); renderPreview(); return true; }
@@ -1437,7 +1464,7 @@ function onLayoutChange(t) {
         if (kind === 'f') { if (draft.fields.some(function(f) { return f.id === id; })) pl = { id: id, w: 1 }; }
         else if (kind === 'r') { if (draft.rolls.some(function(r) { return r.id === id; })) pl = { roll: id, w: 1 }; }
         else if (kind === 'p') { if (PIN_GID.test(id) && (draft.sheet && Array.isArray(draft.sheet.bandGroups) ? draft.sheet.bandGroups : []).some(function(g) { return g && g.id === id; })) pl = { kind: 'pin', g: id, w: 1 }; }   // Stage 6
-        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' || id === 'link' || id === 'facing' || id === 'stance' ? 1 : 'row' }; if (id === 'heading') pl.text = ''; if (id === 'link') { var firstPage = pageOptions('', null)[0]; pl.text = ''; pl.page = firstPage ? firstPage[0] : ''; } }
+        else if (kind === 'k') { pl = { kind: id, w: id === 'portrait' || id === 'link' || id === 'facing' || id === 'stance' || id === 'hud' ? 1 : 'row' }; if (id === 'heading' || id === 'hud') pl.text = ''; if (id === 'link') { var firstPage = pageOptions('', null)[0]; pl.text = ''; pl.page = firstPage ? firstPage[0] : ''; } }
         if (pl) { sec.fields.push(pl); markDirty(); renderLayout(); }
         return true;
     }
@@ -1457,8 +1484,7 @@ function onLayoutClick(b) {
         return true;
     }
     if (b.id === 'sysLayoutClear' && layoutView === 'hud') {   // HF1: take the HUD away (the sheet is untouched)
-        var hd0 = draft.sheet && draft.sheet.hud, ln = function(k) { return !!(hd0 && Array.isArray(hd0[k]) && hd0[k].length); };
-        if (!hd0 || !(hd0.title || ln('tabs') || ln('sections') || ln('band') || ln('ledger'))) return true;   // nothing set (the view itself made an empty one)
+        if (!draftHasHud()) return true;   // nothing set (the view itself made an empty one)
         showConfirm('Remove the HUD? Its button goes from every sheet and menu; the sheet itself is untouched.', function(yes) { if (yes) { delete draft.sheet.hud; markDirty(); renderLayout(); } });
         return true;
     }
@@ -2265,6 +2291,7 @@ function charRow(c, camp) {
     var npcL = el('label', 'sys-hover'); var npc = el('input'); npc.type = 'checkbox'; npc.className = 'sys-char-npc'; npc.checked = !!c.npc; npcL.appendChild(npc); npcL.appendChild(document.createTextNode(' NPC')); npcL.title = 'An NPC has no player and never reaches players'; top.appendChild(npcL);
     var por = el('button', 'tool ghost sys-btn sys-char-portrait', c.portrait ? 'Portrait ✓' : 'Portrait…'); por.title = c.portrait ? c.portrait + ' (click to change, right-click to clear)' : 'Pick a picture from the Image Library'; por.dataset.act = 'portrait'; top.appendChild(por);
     var openB = el('button', 'tool ghost sys-btn', 'Open sheet'); openB.dataset.act = 'open'; openB.title = 'Open this character\'s sheet over the play map'; top.appendChild(openB);
+    if (hudFor(c.id)) { var hudB = el('button', 'tool ghost sys-btn', 'HUD'); hudB.dataset.act = 'hud'; hudB.title = 'Open this character\'s HUD over the play map (the saved system\'s)'; top.appendChild(hudB); }   // HUD frame (HF2b)
     top.appendChild(btnRow([['delchar', 'Delete this character (tokens keep their name, lose the link)', '&times;']]));
     row.appendChild(top);
     var tokens = 0; Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === c.id) tokens++; }); });
@@ -2503,6 +2530,7 @@ function onClick(e) {
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;
         if (b.dataset.act === 'open') { openSheet(ch.id); return; }
+        if (b.dataset.act === 'hud') { openHud(ch.id); return; }
         if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return; }
         if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { ch.portrait = src; afterCharChange(ch, true); renderAll(); } }); return; }
         return;

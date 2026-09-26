@@ -28,7 +28,7 @@ var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle
 var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });   // effects (5h): a character's status effects — rows, never a number
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
-var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1 });   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
+var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1, hud: 1 });   // hud (HUD frame HF2b): a button that opens the character's HUD   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
 var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // Stage 5c: what the pinned band can hold — kinds that read in one row (text, notes, selects and item lists stay in sections)
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
 var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
@@ -441,7 +441,9 @@ function idList(list, kinds, cap, fieldIds) {
     for (var n = 0; n < list.length && outL.length < cap; n++) { var it = list[n]; if (!isObj(it) || typeof it.id !== 'string' || kinds[fieldIds[it.id]] !== 1 || seenL[it.id]) continue; seenL[it.id] = 1; outL.push({ id: it.id }); }
     return outL.length ? outL : null;
 }
-// A layout's sections. ctx: { fieldIds, rollIds, pages (null: format only), tabIds, groupIds } — the tabs and groups of THIS layout
+// A layout's sections. ctx: { fieldIds, rollIds, pages (null: format only), tabIds, groupIds, hudTabs } — the tabs and groups of THIS layout;
+// hudTabs (HF2b): the HUD's tab ids when a HUD button may point at it (the sheet's own layout, with a HUD that survived), else null (the HUD's
+// own layout, or no HUD in this view: the button is dropped)
 function cleanSections(list, ctx) {
     var out = [], placed = map(), total = 0, fieldIds = ctx.fieldIds, rollIds = ctx.rollIds, pages = ctx.pages, tabIds = ctx.tabIds, groupIds = ctx.groupIds;
     for (var i = 0; i < list.length && out.length < LIMITS.sections; i++) {
@@ -475,6 +477,10 @@ function cleanSections(list, ctx) {
                     if (typeof p.g === 'string' && groupIds[p.g] === 1) { item.g = p.g; var ptx = cutText(p.text, LIMITS.label); if (ptx) item.text = ptx; }
                     else item = null;
                 }
+                if (p.kind === 'hud') {   // HUD frame (HF2b): a button that opens this character's HUD, at one of its tabs (the reference's in-sheet HUD buttons)
+                    if (!ctx.hudTabs) item = null;
+                    else { var htx = cutText(p.text, LIMITS.label); if (htx) item.text = htx; if (typeof p.tab === 'string' && ctx.hudTabs[p.tab] === 1) item.tab = p.tab; }
+                }
             }
             if (item) { sec.fields.push(item); total++; }
         });
@@ -494,7 +500,7 @@ function cleanHud(h, hb, fieldIds, rollIds, pages, groupIds, gmView) {
     var ledger = idList(h.ledger, LEDGER_KINDS, LIMITS.ledger, fieldIds); if (ledger) out.ledger = ledger;
     var shown = !!(hb || ledger || out.sections.some(function(x) { return x.fields.length > 0; }));
     var kept = gmView === false ? shown : !!(shown || title || out.tabs.length || out.sections.length);
-    return kept ? { hud: out } : null;
+    return kept ? { hud: out, tabIds: tabs.ids } : null;   // tabIds (HF2b): what the sheet's HUD buttons may point at
 }
 function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null (format only) or a prototype-free set of the page ids players may see (Stage 5f); gmView false: the players' view
     var out = { tabs: [], sections: [] };
@@ -508,8 +514,9 @@ function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null 
     var identity = idList(sheet.identity, IDENTITY_KINDS, LIMITS.identity, fieldIds); if (identity) out.identity = identity;
     var ledger = idList(sheet.ledger, LEDGER_KINDS, LIMITS.ledger, fieldIds); if (ledger) out.ledger = ledger;
     var look = cleanLook(sheet.look); if (look) out.look = look;   // Stage 5g: the sheet's shape (shared by the sheet and its HUD)
-    if (Array.isArray(sheet.sections)) out.sections = cleanSections(sheet.sections, { fieldIds: fieldIds, rollIds: rollIds, pages: pages, tabIds: tabs.ids, groupIds: groups.ids });
-    var hc = hs ? cleanHud(hs, hb, fieldIds, rollIds, pages, groups.ids, gmView) : null; if (hc) out.hud = hc.hud;   // HF1: the last key, absent when dropped
+    var hc = hs ? cleanHud(hs, hb, fieldIds, rollIds, pages, groups.ids, gmView) : null;   // HF2b: before the sheet's sections, whose HUD buttons need to know the HUD survived (and its tabs)
+    if (Array.isArray(sheet.sections)) out.sections = cleanSections(sheet.sections, { fieldIds: fieldIds, rollIds: rollIds, pages: pages, tabIds: tabs.ids, groupIds: groups.ids, hudTabs: hc ? hc.tabIds : null });
+    if (hc) out.hud = hc.hud;   // HF1: the last key, absent when dropped
     return out;
 }
 // The system as stored, or as a player receives it (gmView false: GM-only fields and rolls gone, formulas that named them nulled)

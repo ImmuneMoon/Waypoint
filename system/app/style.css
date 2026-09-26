@@ -2459,3 +2459,28 @@
   .hud-hist-list .chat-roll:has(.roll-ok) { border-color: color-mix(in srgb, var(--green) 45%, transparent); }
   .hud-hist-list .chat-roll:has(.roll-fail) { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
   .hud-hist-empty { font-size: 12px; padding: 2px 2px 4px; }
+  /* HF4a (H2): inline rows — in an "Inline rows" section each field is one line: label and value on the left, its Roll on the right (an
+     outline "Roll", as the reference's rows), a caption on its own line below; the row is a soft tile, as the reference's attribute grid */
+  .sheet-field.sheet-inline-row { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 5px 8px; border-radius: 6px; background: color-mix(in srgb, var(--dim) 10%, transparent); }
+  .sheet-field.sheet-inline-row > .sheet-label { flex: 0 1 auto; min-width: 0; font-size: 12px; font-weight: 500; color: var(--ink); }
+  .sheet-field.sheet-inline-row > .sheet-ctl, .sheet-field.sheet-inline-row > .sheet-value, .sheet-field.sheet-inline-row > .sheet-toggle { flex: 0 1 auto; min-width: 0; }
+  .sheet-field.sheet-inline-row > .sheet-value { font-size: 13px; }
+  .sheet-field.sheet-inline-row > input.sheet-text, .sheet-field.sheet-inline-row > select.sheet-select { flex: 1 1 7em; width: auto; min-width: 0; }
+  /* a number box (plain or with the look's arrows) and a named number's dropdown stay compact in a line, so the Roll keeps its place beside
+     them in a narrow cell (input.field's width: 100% would give the box its intrinsic ~160px and push the Roll to a second line) */
+  .sheet-field.sheet-inline-row > .sheet-ctl > input.sheet-num, .sheet-field.sheet-inline-row > .sheet-ctl > .sheet-numwrap > input.sheet-num { width: 4.5em; flex: none; }
+  .sheet-field.sheet-inline-row > .sheet-ctl > select.sheet-select { width: auto; min-width: 0; }
+  .sheet-field.sheet-inline-row > .sheet-inline-roll { margin-left: auto; flex: none; }
+  .sheet-field.sheet-inline-row > .sheet-caption { flex-basis: 100%; }
+  .sheet-inline-roll { padding: 2px 10px; font-size: 11px; line-height: 1.3; border: 1px solid var(--edge); border-radius: 4px; }
+  /* HF4a (H8): a counter — minus and plus either side of its box, square buttons as the reference's turn counter. It gives way in a narrow
+     cell (the box shrinks, a skill's total wraps below) and never spills into the next column; in a stat tile the box sits on top with the
+     minus and plus under it, inside the tile */
+  .sheet-counter { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
+  .sheet-counter > input.sheet-num { width: 3.6em; min-width: 2.4em; flex: 0 1 auto; text-align: center; }
+  .sheet-count { flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; border: 1px solid var(--edge); border-radius: 4px; box-sizing: border-box; }
+  .sheet-field .sheet-ctl:has(> .sheet-counter) { flex-wrap: wrap; min-width: 0; }
+  .sheet-band .sheet-counter > input.sheet-num { width: 3em; }
+  .sheet-field.sheet-tile .sheet-counter { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 100%; max-width: 74px; }
+  .sheet-field.sheet-tile .sheet-counter > input.sheet-num { grid-column: 1 / -1; grid-row: 1; width: 100%; min-width: 0; }
+  .sheet-field.sheet-tile .sheet-counter > .sheet-count { width: auto; height: 22px; }

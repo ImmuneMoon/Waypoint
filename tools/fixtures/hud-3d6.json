@@ -215,6 +215,19 @@
       "edit": "owner",
       "vis": "all",
       "hover": false
+    },
+    {
+      "id": "f_turn",
+      "key": "Turn",
+      "label": "Turn",
+      "kind": "number",
+      "def": 1,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "step": 1,
+      "counter": true
     }
   ],
   "rolls": [
@@ -473,6 +486,9 @@
         },
         {
           "id": "f_dodge"
+        },
+        {
+          "id": "f_turn"
         }
       ],
       "sections": [
@@ -486,7 +502,8 @@
               "id": "f_dodge",
               "w": 1
             }
-          ]
+          ],
+          "inline": true
         },
         {
           "id": "s_hattr",
@@ -510,7 +527,8 @@
               "id": "f_ht",
               "w": 1
             }
-          ]
+          ],
+          "inline": true
         },
         {
           "id": "s_hun",

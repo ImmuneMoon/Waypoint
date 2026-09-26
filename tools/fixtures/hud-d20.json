@@ -389,6 +389,20 @@
       "edit": "gm",
       "vis": "gm",
       "hover": false
+    },
+    {
+      "id": "f_dsv",
+      "key": "DeathSaves",
+      "label": "Death saves",
+      "kind": "number",
+      "def": 0,
+      "edit": "owner",
+      "vis": "all",
+      "hover": false,
+      "min": 0,
+      "max": 3,
+      "step": 1,
+      "counter": true
     }
   ],
   "rolls": [
@@ -800,6 +814,9 @@
           "id": "f_ac"
         },
         {
+          "id": "f_dsv"
+        },
+        {
           "id": "f_dc",
           "g": "g_hud"
         },
@@ -846,7 +863,8 @@
               "id": "f_ac",
               "w": 1
             }
-          ]
+          ],
+          "inline": true
         },
         {
           "id": "s_hatk",

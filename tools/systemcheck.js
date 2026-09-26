@@ -3937,7 +3937,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /mine = !host && n\.myTurnTok \? n\.myTurnTok\(\) : null;/.test(wbE) && /\(mine \? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn"/.test(wbE) && /if \(b\.dataset\.act === 'endturn'\) \{ var rt = n && n\.turnEnd \? n\.turnEnd\(\) : null; if \(rt && rt\.error\) toast\(rt\.error\); return; \}[^\n]*\n        if \(!\(n && n\.role === 'host' && am\)\) return;/.test(wbE)
             && (shE.match(/try \{ syncEndTurn\(\); \} catch \(e\) \{\}/g) || []).length === 3 && /q\('hud-endturn'\)\.addEventListener\('click', endTurn\);/.test(shE) && /etB\.addEventListener\('click', endTurn\);/.test(shE)
             && /\{ id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false \}/.test(vtE) && /id="sheetEndTurn"/.test(hmE) && /hud-endturn/.test(hmE) && /id="setTurnsBtn"/.test(hmE) && /id="setVttGlobalTurnsBtn"/.test(hmE)
-            && /With <b>Turn-based combat<\/b> on \(&#9881; Settings &#9656; VTT features, off by default\) the player whose token has the turn gets <b>End turn<\/b>/.test(hmE) && /with <b>Turn-based combat<\/b> on \(VTT features\) the player on turn ends it themselves\./.test(tuE));
+            && /With <b>Turn-based combat<\/b> on \(&#9881; Settings &#9656; VTT features, off by default\) the player whose token has the turn gets <b>End turn<\/b>/.test(hmE) && /with <b>Turn-based combat<\/b> on \(VTT features\) the player on turn ends it themselves[,.]/.test(tuE));
     }
     /* ---- Turn-based combat T2b: apply actions at a character's turn's start; run automatically, or as a reminder the GM or its player presses ---- */
     {
@@ -4003,6 +4003,22 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /<label class="gm-only set-move-mode"[^>]*>Walls stop player tokens <select id="setWallsMode"[^>]*><option value="refuse">Refuse<\/option><option value="warn">Warn<\/option><option value="off">Off<\/option><\/select><\/label>/.test(hmW)
             && /camp\.turnRules = Object\.assign\(\{\}, camp\.turnRules && typeof camp\.turnRules === 'object' \? camp\.turnRules : \{\}, \{ walls: val \}\);/.test(stW) && /wm\.value = tr === 'warn' \|\| tr === 'off' \? tr : 'refuse'; wm\.disabled = !editable;/.test(stW)
             && /<b>Walls stop player tokens<\/b>: a player&rsquo;s token cannot land in or cross a cell a wall or a closed door occupies/.test(hmW) && /Walls and closed doors also stop players&rsquo; tokens\./.test(tuW));
+    }
+    /* ---- Turn-based combat T3b: a map's scale, a move in cells, the fog's distance, the settings ---- */
+    {
+        const sc = S.mapCellScale, ma = S.moveAllowCells;
+        check('T3b mapCellScale reads a map\'s cell (5 ft a square, 1 yd a hex, or its own value and unit); moveAllowCells turns a move in ft, yd or m into those cells (30 ft on 5 ft squares: 6; 5 yd on 1 yd hexes: 5; 10 m on 5 ft: 6.56), cells as they are, nothing for 0, a negative or not a number',
+            j(sc({ meta: { gridType: 'square' } })) === j({ per: 5, unit: 'ft', hex: false }) && j(sc({ meta: { gridType: 'hex' } })) === j({ per: 1, unit: 'yd', hex: true }) && j(sc({ meta: { gridType: 'square', cellValue: 2, cellUnit: 'm' } })) === j({ per: 2, unit: 'm', hex: false }) && sc({ meta: { cellUnit: 'constructor' } }).unit === 'ft' && sc(null).per === 5
+            && Math.abs(ma(30, 'ft', sc({ meta: { gridType: 'square' } })) - 6) < 1e-9 && Math.abs(ma(5, 'yd', sc({ meta: { gridType: 'hex' } })) - 5) < 1e-9 && Math.abs(ma(10, 'm', sc({ meta: {} })) - 6.5616798) < 1e-6 && ma(4, 'cells', null) === 4 && ma(0, 'ft') === 0 && ma(-3, 'ft') === 0 && ma('x', 'ft') === 0);
+        const fgT = fs.readFileSync(path.join(app, 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, NL), mcSrc = fgT.slice(fgT.indexOf('function moveCells('), fgT.indexOf('// GM clicks a door while in fog mode'));
+        const FCT = await import('file:///' + path.resolve(path.join(app, 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+        const mc = (gt, fx, fy, tx, ty, dg) => new Function('core', 'window', mcSrc + NL + 'return moveCells;')(() => FCT, { wpSystemCore: S })({ meta: { gridType: gt } }, { w: 50, h: 50 }, fx, fy, tx, ty, dg);
+        check('T3b moveCells (fog.js, run for real): a square grid by the system\'s diagonals (250 by 150 px: 5 one-per-diagonal, 6 alternating), a hex grid in hex steps between the token\'s centre cells, no grid the straight line in 50px cells',
+            mc('square', 0, 0, 250, 150, 'one') === 5 && mc('square', 0, 0, 250, 150, 'alt') === 6 && Math.abs(mc('off', 0, 0, 300, 400) - 10) < 1e-9 && mc('hex', 0, 0, 90, 0) === 2 && mc('hex', 0, 0, 0, 0) === 0);
+        const stT = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, NL), hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuT = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('T3b the settings and the docs (source): Move limit and Out of turn are GM-only selects in the Turn-based combat row (Refuse, Warn, Off) writing camp.turnRules.move / .order; Help and the tour say so',
+            /Move limit <select id="setMoveMode"/.test(hmT) && /Out of turn <select id="setOrderMode"/.test(hmT) && /\[\['setMoveMode', 'move'\], \['setOrderMode', 'order'\]\]\.forEach/.test(stT) && /o\[p\[1\]\] = val;/.test(stT)
+            && /On its turn a player&rsquo;s token moves no further than its <b>Move per turn<\/b>/.test(hmT) && /<b>Move limit<\/b> and <b>Out of turn<\/b> are each <b>Refuse<\/b>/.test(hmT) && /moves no further than their move, and waits for their turn to move at all\./.test(tuT));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

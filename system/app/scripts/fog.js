@@ -193,6 +193,15 @@ function moveBlocked(map, w, fx, fy, tx, ty) {
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
     return !C.moveClear(fx + hw, fy + hh, tx + hw, ty + hh, grid, bl);
 }
+// Turn-based combat T3b: how far a token's straight move goes, in this map's cells — a hex grid counts hex steps between the token's centre
+// cells, a square grid by the system's diagonal rule (systemcore gridCells), no grid the straight distance in 50px cells (as the ruler)
+function moveCells(map, w, fx, fy, tx, ty, diag) {
+    var C = core(), S = window.wpSystemCore; if (!C || !map) return 0;
+    var gt = map.meta && map.meta.gridType, hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
+    if (gt === 'hex') { var g = C.gridFor('hex'); return g ? C.hexDist(C.cellOf(fx + hw, fy + hh, g), C.cellOf(tx + hw, ty + hh, g)) : 0; }
+    var dx = (tx - fx) / 50, dy = (ty - fy) / 50;
+    return gt === 'square' && S && S.gridCells ? S.gridCells(dx, dy, diag) : Math.hypot(dx, dy);
+}
 // GM clicks a door while in fog mode → flip open/closed on the topmost door under the point. Host-authoritative:
 // save() runs onLocalSave (invalidateVision + resend the map to players); the invalidate+redraw refresh the GM overlay.
 function toggleDoorAt(boardX, boardY) {
@@ -514,7 +523,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, canSeePoint: canSeePoint, moveBlocked: moveBlocked, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, canSeePoint: canSeePoint, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

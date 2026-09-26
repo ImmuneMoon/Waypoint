@@ -769,6 +769,16 @@ function applyClientItemFiltered(msg, profile) {
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
         if (!isFinite(wx) || !isFinite(wy) || !isFinite(wr) || !isFinite(wf)) return;
         w.x = Math.max(-30000, Math.min(60000, wx)); w.y = Math.max(-30000, Math.min(60000, wy)); w.rot = Math.max(-1e6, Math.min(1e6, wr)); w.front = Math.max(-1e6, Math.min(1e6, wf));   // bounded: a finite 1e300 is an "integer" the packer refuses
+        if (lw.isChar && typeof moveRefused === 'function') {   // turn-based combat T3: a map copy closes any drag of this token — a move a Refuse rule stops never lands this way (the token goes back where the drag began, for everyone), and one that lands counts against the turn
+            var dkP = msg.itemId + '|' + lw.id, frP = _dragFrom[dkP] || { x: Number(lw.x) || 0, y: Number(lw.y) || 0 }; delete _dragFrom[dkP];
+            if (frP.x === w.x && frP.y === w.y) delete _refusedAt[dkP];
+            else {
+                var whyP = moveRefused(camp, liveItem, msg.itemId, lw, frP.x, frP.y, w.x, w.y), ntP = '', seenP = _refusedAt[dkP] === w.x + ',' + w.y; delete _refusedAt[dkP];
+                if (whyP) { w.x = frP.x; w.y = frP.y; snapBack(camp, liveItem, lw, { campId: msg.campId, itemId: msg.itemId, wbId: lw.id }, frP); ntP = whyP; }
+                else if (lw.x !== w.x || lw.y !== w.y) ntP = moveCounted(camp, liveItem, msg.itemId, lw, frP.x, frP.y, w.x, w.y);
+                if (ntP && !seenP && typeof noteOwner === 'function') noteOwner(profile.id, ntP);   // their note, as the pos path gives it (once: not again for the drop it just refused)
+            }
+        }
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
@@ -1879,9 +1889,10 @@ function handlePos(msg, conn) {
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
         msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = Math.max(-1e6, Math.min(1e6, prot)); msg.front = Math.max(-1e6, Math.min(1e6, pfr));   // bounded (see the item gate)
-        var dkW = msg.itemId + '|' + msg.wbId; if (!_dragFrom[dkW]) { if (Object.keys(_dragFrom).length > 400) _dragFrom = Object.create(null); _dragFrom[dkW] = { x: Number(w.x) || 0, y: Number(w.y) || 0 }; }
+        var dkW = msg.itemId + '|' + msg.wbId; if (!_dragFrom[dkW]) { if (Object.keys(_dragFrom).length > 400) _dragFrom = Object.create(null); _dragFrom[dkW] = { x: Number(w.x) || 0, y: Number(w.y) || 0 }; }   // a drag ends at its final pos, or at the map copy its client saves after it (the final can be lost to a redraw mid-drag)
         var frW = _dragFrom[dkW], wlM = moveMode(camp, 'walls');
         if (msg.final) delete _dragFrom[dkW];
+        if (turnOrderCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: out of turn, first
         if (wlM !== 'off' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, frW.x, frW.y, msg.x, msg.y)) {   // T3a: a wall in the way, from where the drag began
             if (wlM === 'refuse') {
                 if (!msg.final) return;   // mid-drag: not applied (nothing past the wall reaches them meanwhile)
@@ -1890,6 +1901,7 @@ function handlePos(msg, conn) {
             }
             if (msg.final) { turnNote(conn, 'That move went through a wall.'); toast((w.charName || 'A token') + ' moved through a wall.'); }
         }
+        if (turnLimitCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: the move limit, while it is their turn
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
@@ -1916,8 +1928,59 @@ function handlePos(msg, conn) {
 // landing in or crossing a cell a sight-blocker occupies, always (in or out of combat), as a wall stops a token; the GM is never stopped
 function moveMode(camp, k) { var t = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[k] : ''; return t === 'warn' || t === 'off' ? t : 'refuse'; }
 var _dragFrom = Object.create(null);   // itemId|wbId -> where a player's drag began (its token's position before the drag's first move)
+var _refusedAt = Object.create(null);   // itemId|wbId -> "x,y" of the drop the pos path just refused (the map copy that follows repeats it: no second note)
 function turnNote(conn, text) { if (conn && typeof conn.send === 'function') { try { conn.send({ type: 'turn-note', text: String(text).slice(0, 200) }); } catch (e) { sendFailed(e); } } }
+// Turn-based combat T3b (D2, D3): while turn-based combat runs a combat on the map, a token in its order moves only on its own turn (order),
+// and on its turn no further than its move (move), each by the campaign's mode; a token outside the combat is free
+function turnCombatOf(camp, mapId, w) {
+    if (!window.wpVtt || !window.wpVtt.on('turns')) return null;
+    var cb = own(net.combats, mapId) ? net.combats[mapId] : null;
+    return cb && Array.isArray(cb.rows) && cb.rows.some(function(r) { return r && r.tokId === w.id; }) ? cb : null;
+}
+function turnOrderCheck(camp, map, w, frW, msg, conn) {
+    var cb = turnCombatOf(camp, msg.itemId, w); if (!cb) return '';
+    var cur = cb.rows[cb.turn]; if (cur && cur.tokId === w.id) return '';
+    var om = moveMode(camp, 'order'); if (om === 'off') return '';
+    if (om === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'It is not your turn: your token goes back.'); return 'stop'; }
+    if (msg.final) { turnNote(conn, 'You moved out of turn.'); toast((w.charName || 'A token') + ' moved out of turn.'); }
+    return '';
+}
+function turnLimitCheck(camp, map, w, frW, msg, conn) {
+    var cb = turnCombatOf(camp, msg.itemId, w); if (!cb) return '';
+    var cur = cb.rows[cb.turn], st = own(net.turnMove, msg.itemId) ? net.turnMove[msg.itemId] : null;
+    if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';   // no limit this turn
+    var mm = moveMode(camp, 'move'); if (mm === 'off') return '';
+    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
+    var d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg) : 0, over = st.moved + d > st.allow + 0.05;
+    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.'); return 'stop'; }
+    if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.'); if (over) toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); }
+    return '';
+}
+// T3: the note of the Refuse rule that stops a player's move of this token from (fx, fy) to (tx, ty) — a wall in the way, out of its turn, past
+// its move — or ''. The patch path asks it: a map copy a client saves after a drop (whose final pos may have been lost) must never land the move
+function moveRefused(camp, map, mapId, w, fx, fy, tx, ty) {
+    if (moveMode(camp, 'walls') === 'refuse' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, fx, fy, tx, ty)) return 'A wall is in the way: your token goes back.';
+    var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
+    var cur = cb.rows[cb.turn]; if (!cur || cur.tokId !== w.id) return moveMode(camp, 'order') === 'refuse' ? 'It is not your turn: your token goes back.' : '';
+    var st = own(net.turnMove, mapId) ? net.turnMove[mapId] : null; if (!st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number' || moveMode(camp, 'move') !== 'refuse') return '';
+    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg) : 0;
+    return st.moved + d > st.allow + 0.05 ? 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.' : '';
+}
+// T3b: a move that lands through a map copy (its drag's final pos was lost) still counts against the turn's move; its note, or ''
+function moveCounted(camp, map, mapId, w, fx, fy, tx, ty) {
+    var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
+    var cur = cb.rows[cb.turn], st = own(net.turnMove, mapId) ? net.turnMove[mapId] : null; if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';
+    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg) : 0;
+    st.moved += d;
+    return moveMode(camp, 'move') === 'off' ? '' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.';
+}
+function cellsText(n, map) {   // "6 squares (30 ft)": the map's cells and its own unit
+    var S = SC(), sc = S && S.mapCellScale ? S.mapCellScale(map) : { per: 5, unit: 'ft', hex: false }, r = Math.round(n * 10) / 10, gt = map && map.meta && map.meta.gridType;
+    var nm = gt === 'hex' ? (r === 1 ? 'hex' : 'hexes') : gt === 'square' ? (r === 1 ? 'square' : 'squares') : (r === 1 ? 'cell' : 'cells');
+    return r + ' ' + nm + ' (' + (Math.round(r * sc.per * 10) / 10) + ' ' + sc.unit + ')';
+}
 function snapBack(camp, map, w, msg, to) {   // the token goes back where its drag began, for everyone (the mover too)
+    if (typeof msg.x === 'number') _refusedAt[msg.itemId + '|' + msg.wbId] = msg.x + ',' + msg.y;
     w.x = to.x; w.y = to.y;
     var back = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: to.x, y: to.y, rot: w.rot || 0, front: w.front || 0, final: true };
     applyPosToDom(back); broadcastPos(back, null, camp, map, w);
@@ -2127,7 +2190,30 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } }
-function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began
+function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began; T3b: its move
+// [netcheck:turnmove-start]
+// Turn-based combat T3b (D1, D2): the move of the character whose turn begins — how far its token may go this turn, in the map's cells (its
+// system's Move per turn, worked out through its player's view with its token; none, a GM-only one, one that fails: no limit) and how far
+// it has gone; its player hears how far. Turn-based combat on, a player's token only (the GM is never limited)
+net.turnMove = {};
+function turnMoveStart(mapId, c) {
+    delete net.turnMove[mapId];
+    var row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!row || typeof row.tokId !== 'string' || !window.wpVtt || !window.wpVtt.on('turns')) return;
+    var camp = getActiveCampaign(), map = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null;
+    var w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null; if (!w || !w.isChar || !w.ownerId) return;
+    var st = { rowId: row.id, tokId: w.id, moved: 0, allow: null }; net.turnMove[mapId] = st;
+    var S = SC(), F = window.wpFormula, ch = camp.chars && typeof w.charId === 'string' && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    if (!S || !F || !camp.system || !ch || ch.npc || ch.ownerId !== w.ownerId || !window.wpSheets) return;
+    var view = window.wpSheets.playerSystem(camp), t = view && view.combat && view.combat.turn; if (!t || !t.move) return;
+    var chv = S.charFor(ch, view, w.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system) }); if (!chv) return;
+    var vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); };
+    var tc = S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation') }), c);
+    var r = F.evaluate(t.move, { vars: S.makeResolver(view, chv, F, tc) }); if (!r.ok || typeof r.value !== 'number' || !isFinite(r.value)) return;
+    st.allow = S.moveAllowCells(Math.max(0, r.value), t.unit, S.mapCellScale(map));
+    noteOwner(w.ownerId, 'Your turn: ' + cellsText(st.allow, map) + ' to move.');
+}
+function noteOwner(pid, text) { net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) turnNote(c, text); }); }
+// [netcheck:turnmove-end]
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
 net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
 // host: put a combat on a map (or take it off with null)
@@ -2138,7 +2224,6 @@ net.combatSet = function(mapId, combat) {
         combat.mapId = mapId;
         net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
         if (!had || had.round !== net.combats[mapId].round) roundChanged(mapId, net.combats[mapId]);   // G10: the first round (a roster edit keeps its round)
-        if (!had) turnStarted(mapId, net.combats[mapId]);   // T2b: the first turn
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
     } else {
@@ -2146,6 +2231,7 @@ net.combatSet = function(mapId, combat) {
         delete net.combats[mapId];
     }
     broadcastCombats(); combatRefresh();
+    if (combat && !had) turnStarted(mapId, net.combats[mapId]);   // T2b: the first turn (after the broadcast: its player's note comes last)
 };
 net.combatStep = function(mapId, dir) {
     if (net.role !== 'host') return;
@@ -2155,9 +2241,9 @@ net.combatStep = function(mapId, dir) {
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
     if (c.round !== r0) roundChanged(mapId, c);   // G10
-    if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing)
     toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
     broadcastCombats(); combatRefresh();
+    if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
 };
 net.combatEnd = function(mapId) {
     if (net.role !== 'host' || !net.combats[mapId]) return;

@@ -2074,19 +2074,19 @@ function rollLabel(r, sys, c, vars) {
 // A public roll never carries a GM-only value: on the host, in a session, a roll whose label shows one (a GM-only field named anywhere in it,
 // as the players' view scrubs it, a value worked out from one, or a value a GM-only effect changed) goes to the GM alone, as its formula would.
 // The last two read the names the drawn values actually read (vars: the resolver the label is worked out with), as a roll's breakdown does.
-// c: the character the label is worked out for (a full pool reads its max). The names, each once, joined for the toast, or ''
-function labelSecret(sys, vars, text, c) {
+// The names, each once, joined for the toast, or ''
+function labelSecret(sys, vars, text) {
     var n = net(), Fm = F(); if (isClient() || !(n && n.active && n.role === 'host') || !Fm || typeof text !== 'string' || text.indexOf('{') < 0) return '';
-    var ns = labelNames(Fm, text, vars), hit = labelGmNames(sys, Fm, text).concat(gmDerivedNames(sys, Fm, ns, c), gmEffectNames(vars, ns)), low = hit.map(function(x) { return String(x).toLowerCase(); });
+    var ns = labelNames(Fm, text, vars), hit = labelGmNames(sys, Fm, text).concat(gmDerivedNames(sys, Fm, ns), gmEffectNames(vars, ns)), low = hit.map(function(x) { return String(x).toLowerCase(); });
     hit = hit.filter(function(x, i) { return low.indexOf(low[i]) === i; }); return hit.length ? hit.join(', ') : '';
 }
 function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the render's resolver, for the label (HF5a)
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     b.addEventListener('click', function(e) {
-        var lb = label, vv = vars, cv = c;
-        if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); cv = cN; } catch (err) { lb = label; vv = vars; cv = c; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label, cv); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, lb, why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined);   // a GM-only roll stays the GM's
+        var lb = label, vv = vars;
+        if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, lb, why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined);   // a GM-only roll stays the GM's
     });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
@@ -2099,7 +2099,7 @@ function rollInit(charId) {
     if (!c || !r) return { error: 'No initiative roll in this system (tick Initiative on a roll in the System editor).' };
     if (!window.wpDice || !window.wpDice.rollFor) return { error: 'Dice are not available.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
-    var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label, c) : '';   // HF5a: the label's value, and the GM's privacy rule
+    var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
     if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
     return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI, gmOnly: r.vis === 'gm' });
 }

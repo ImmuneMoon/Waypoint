@@ -530,14 +530,18 @@ function cleanSystem(sys, opts) {
     out.name = str(sys.name, LIMITS.name).replace(CTRL_RE, ' ').trim();
     out.preset = /^[a-z0-9_-]{1,20}$/.test(String(sys.preset || '')) ? String(sys.preset) : '';
     out.updated = fin(Number(sys.updated)) && Number(sys.updated) >= 0 ? Number(sys.updated) : 0;
-    var seenId = map(), seenKey = map(), dropped = [];
+    var seenId = map(), seenKey = map(), dropped = [], gmFields = [];   // gmFields: the GM-only fields as the GM has them (the players' view only), for gmPools
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (out.fields.length >= LIMITS.fields) return;
         var c = cleanField(f, F, gmView);
-        if (!c) { if (isObj(f) && typeof f.key === 'string' && f.vis === 'gm' && !gmView) dropped.push(lower(f.key)); return; }
+        if (!c) { if (isObj(f) && typeof f.key === 'string' && f.vis === 'gm' && !gmView) { dropped.push(lower(f.key)); var g = cleanField(f, F, true); if (g) gmFields.push(g); } return; }
         if (seenId[c.id] || seenKey[lower(c.key)]) return;
         seenId[c.id] = 1; seenKey[lower(c.key)] = 1; out.fields.push(c);
     });
+    if (!gmView && gmFields.length && out.fields.some(function(f) { return f.kind === 'resource' && !!f.maxFormula; })) {   // a pool whose max is GM-only is GM-only as a whole: gone, as a GM-only field is (the GM-only fields last: one wins a key both use)
+        var gmP = gmPools({ fields: out.fields.concat(gmFields) }, F);
+        out.fields = out.fields.filter(function(f) { if (gmP[f.id] !== 1) return true; dropped.push(lower(f.key)); return false; });
+    }
     var seenR = map();
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
     if (!gmView && dropped.length) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
@@ -1350,7 +1354,7 @@ function validateSystem(sys, F) {
     var keys = sys.fields.map(function(f) { return f.key; }), lowerKeys = keys.map(lower), ix = keyIndex(sys);
     var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } if (f.kind === 'number') known[lower(f.key) + '.base'] = f; });   // 5h: "ST.base" is the stored number, before effects (a points cost reads it)
     TOKEN_NAMES.forEach(function(n) { var l = lower(n), fam = l.split('.')[0]; if (!ix[fam] && !known[l]) known[l] = { id: '', key: n, kind: fam === 'arc' && l !== 'arc' ? 'toggle' : 'number', vis: 'all' }; });   // 5h Fold 3: the facing names (a field named Facing, Arc or Threats keeps the family)
-    var edges = map();
+    var edges = map(), gmP = gmPools(sys, F);   // a pool whose max is GM-only: players see none of it
     function checkFormula(owner, prop, text, allowDice, vis) {
         if (text === null) return;
         if (!text) { errors.push({ id: owner.id, prop: prop, message: 'Missing formula', pos: 0, len: 0 }); return; }
@@ -1361,12 +1365,13 @@ function validateSystem(sys, F) {
             var l = lower(n), target = known[l];
             if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
-            if (vis === 'all' && target.vis === 'gm') warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.' });
+            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.' });
             if (prop !== 'roll' && prop !== 'rollFormula') { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
         });
     }
     sys.fields.forEach(function(f) {
         var p = DEF_PROP[f.kind];
+        if (gmP[f.id] === 1) warnings.push({ id: f.id, prop: 'maxFormula', message: 'The max reads a GM-only value, so this pool is GM only: players will not see it.' });
         if (p && !(p === 'base' && f.base === '')) checkFormula(f, p, f[p], false, f.vis);   // a skill with no base is ranks alone
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
         if (f.caption) {   // Fold B: each {formula} in the caption, as warnings
@@ -1379,7 +1384,7 @@ function validateSystem(sys, F) {
                     var tg = known[lower(nm)];
                     if (!tg) { if (drawn) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: unknown name "' + nm + '".' }); }
                     else if (!NUMERIC[tg.kind]) { if (drawn) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: "' + nm + '" is not a number.' }); }
-                    else if (f.vis === 'all' && tg.vis === 'gm') warnings.push({ id: f.id, prop: 'caption', message: 'Caption: "' + nm + '" is GM only, so players will not see this caption.' });
+                    else if (f.vis === 'all' && (tg.vis === 'gm' || gmP[tg.id] === 1) && gmP[f.id] !== 1) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: "' + nm + '" is GM only, so players will not see this caption.' });
                 });
             }
             if (cn > LIMITS.captionExprs) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: only the first ' + LIMITS.captionExprs + ' {\u2026} values are worked out; the rest show as written.' });   // Stage 6
@@ -1397,7 +1402,7 @@ function validateSystem(sys, F) {
                 var tg = known[lower(nm)];
                 if (!tg) { if (ldrawn) warnings.push({ id: r.id, prop: 'label', message: 'Label: unknown name "' + nm + '".' }); }
                 else if (!NUMERIC[tg.kind]) { if (ldrawn) warnings.push({ id: r.id, prop: 'label', message: 'Label: "' + nm + '" is not a number.' }); }
-                else if (r.vis === 'all' && tg.vis === 'gm' && !lgm[lower(nm)]) { lgm[lower(nm)] = 1; warnings.push({ id: r.id, prop: 'label', message: 'Label: "' + nm + '" is GM only, so players see only "' + labelHead(r.label) + '".' }); }
+                else if (r.vis === 'all' && (tg.vis === 'gm' || gmP[tg.id] === 1) && !lgm[lower(nm)]) { lgm[lower(nm)] = 1; warnings.push({ id: r.id, prop: 'label', message: 'Label: "' + nm + '" is GM only, so players see only "' + labelHead(r.label) + '".' }); }
             });
         }
         if (ln > LIMITS.captionExprs) warnings.push({ id: r.id, prop: 'label', message: 'Label: only the first ' + LIMITS.captionExprs + ' {\u2026} values are worked out; the rest show as written.' });
@@ -1480,6 +1485,7 @@ function applyEdit(sys, char, fieldId, value, F, opts) {
     var f = fieldById(sys, fieldId); if (!f || !STORED[f.kind] || f.kind === 'effects') return { ok: false, reason: 'field' };   // 5h: an effects list changes only through applyEffectOp
     if (opts.player && f.edit !== 'owner') return { ok: false, reason: 'field' };
     if (opts.player && f.vis !== 'all') return { ok: false, reason: 'field' };
+    if (opts.player && f.kind === 'resource' && gmPools(sys, F)[f.id] === 1) return { ok: false, reason: 'field' };   // a pool whose max is GM-only is GM-only: the answer to 999 would be the max
     var max = null;
     if (f.kind === 'resource') { var r = makeResolver(sys, char, F)(f.key + '.max'); max = typeof r === 'number' && isFinite(r) ? r : null; }
     var v = cleanValue(f, value, { max: max });
@@ -1657,24 +1663,23 @@ function gmEffectNames(vars, names) {
 }
 // The names a roll or a label read whose value is GM-only: a GM-only field, by key or a reserved suffix (as gmOnlyNames), or a visible one
 // worked out from one, however deep — through its formula, a skill's base (the skill and .base; .ranks is stored) or a pool's max (.max, and
-// the pool or .cur while it is full, when they read the max). The players' view blanks such a value ("GM only"), so the GM's public roll must
-// not show it. char: the character whose pools are asked about (none: every pool counts as full). Worked back from the GM-only fields over
-// each definition once (a visited set, linear in the fields, so a loop ends). The names as spelled, each once; never throws (fail closed: an
-// error lists every name)
-function gmDerivedNames(sys, F, names, char) {
+// the pool and .cur, full or not: such a pool is GM-only as a whole, gmPools). The players' view blanks such a value ("GM only") or drops it,
+// so the GM's public roll must not show it. Worked back from the GM-only fields over each definition once (a visited set, linear in the fields,
+// so a loop ends). The names as spelled, each once; never throws (fail closed: an error lists every name)
+function gmDerivedNames(sys, F, names) {
     if (!sys || !Array.isArray(sys.fields) || !F || typeof F.names !== 'function' || !Array.isArray(names)) return [];
     var out = [], seen = map(), nameOf = function(n) { return typeof n === 'string' ? n : (n && typeof n.name === 'string' ? n.name : ''); };
     var keep = function(n) { if (n && !seen[lower(n)]) { seen[lower(n)] = 1; out.push(n); } };
     try {
         var ix = keyIndex(sys), hot = map(), readBy = map(), queue = [];
         var reads = function(name) {   // the field a name reads (the resolver's lookup) and whether its value is that field's definition worked out
-            var l = lower(name), f = ix[l], sfx = '', st;
+            var l = lower(name), f = ix[l], sfx = '';
             if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)]) { f = ix[l.slice(0, dot)]; sfx = l.slice(dot + 1); } }
             if (!f) return null;
             var def = false;
             if (f.kind === 'formula') def = !sfx;   // a suffix on a formula is an unknown name
             else if (f.kind === 'skill') def = !sfx || sfx === 'base';
-            else if (f.kind === 'resource') def = sfx === 'max' || ((!sfx || sfx === 'cur') && (!char || !isObj(st = storedOf(f, char)) || st.cur === null));   // a full pool reads its max
+            else if (f.kind === 'resource') def = !sfx || sfx === 'max' || sfx === 'cur';   // the pool's value goes with its max, full or stored (the players' view drops the pool)
             return { f: f, def: def };
         };
         sys.fields.forEach(function(f) {
@@ -1690,8 +1695,19 @@ function gmDerivedNames(sys, F, names, char) {
     } catch (e) { out = []; seen = map(); names.forEach(function(n) { keep(nameOf(n)); }); }
     return out;
 }
+// The visible pools that are GM-only because their max is (it reads a GM-only field, directly or through visible values): a set of field ids.
+// The players' view drops them as it drops a GM-only field and a player's edit of one is refused, so nothing worked out from the hidden max
+// (the host's clamp of an edit, a fill, damage from full, an effect's clamp) reaches a player. Fails closed: no engine, or an error, hides every pool
+function gmPools(sys, F) {
+    var out = map(); if (!sys || !Array.isArray(sys.fields)) return out;
+    var asks = [], idOf = map();
+    sys.fields.forEach(function(f) { if (isObj(f) && f.kind === 'resource' && f.vis !== 'gm' && typeof f.key === 'string') { asks.push({ name: f.key + '.max' }); idOf[lower(f.key) + '.max'] = f.id; } });
+    if (!asks.length) return out;
+    (F && typeof F.names === 'function' ? gmDerivedNames(sys, F, asks) : asks.map(function(a) { return a.name; })).forEach(function(n) { var id = idOf[lower(n)]; if (id) out[id] = 1; });
+    return out;
+}
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

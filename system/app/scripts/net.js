@@ -2645,6 +2645,7 @@ function handleMessage(msg, conn) {
         if (window.wpSheets) window.wpSheets.charChanged(msg.id);
         // [netcheck:charin-end]
     } else if (msg.type === 'char-edit' && net.role === 'host') {
+        // [netcheck:charedit-start]
         // a player's value for their own character: shape, rate, feature, ownership, then the field's own rules; every refusal answered
         var Se = SC(), Fe = window.wpFormula; if (!Se || !Fe) return;
         var q = Se.cleanCharEdit(msg); if (!q) return;
@@ -2664,6 +2665,7 @@ function handleMessage(msg, conn) {
         try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) { sendFailed(e); }
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
+        // [netcheck:charedit-end]
     } else if (msg.type === 'char-edits' && net.role === 'host') {
         // [netcheck:charedits-start]
         // HUD frame (HF4b): a player's several values at once (a section's Reset all) — the same gates as one char-edit and ONE rate token, then
@@ -3569,7 +3571,7 @@ net.diceRoll = function(expr, o) {
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
-    if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names, chR) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
+    if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
     if (o.priv) rec.priv = 'gm';
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
     else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value

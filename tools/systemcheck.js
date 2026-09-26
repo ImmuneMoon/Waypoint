@@ -1889,7 +1889,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('derived GM-only values: gmDerivedNames lists a visible name exactly when the players\' view cannot give its value as the GM\'s resolver has it (an error, or another number) — on this system with its pools full and stored, both presets and both HUD fixtures',
             parD.every(x => x.length === 0) && countD === 3, j(parD));
         // labelSecret, rollNode and rollInit, run for real
-        const rnSrcD = shD.slice(shD.indexOf('var LABEL_CTRL_G = '), shD.indexOf('// A roll from this character\'s sheet: the dice feature on'));
+        const rnSrcD = shD.slice(shD.indexOf('var LABEL_CTRL_G = '), shD.indexOf('// A roll from this character\'s sheet: the dice feature on')), lsD0 = shD.slice(shD.indexOf('function labelSecret('), shD.indexOf('function rollNode('));
         const feD = (tag, cls, text) => ({ tag, className: cls || '', textContent: text || '', children: [], title: '', disabled: false, firstChild: null, on: {}, appendChild(x) { this.children.push(x); if (!this.firstChild) this.firstChild = x; return x; }, insertBefore(x) { this.children.unshift(x); this.firstChild = x; return x; }, addEventListener(k, f) { this.on[k] = f; } });
         const mkD = o => { o = o || {}; const sent = [], toasts = [];
             const api = new Function('F', 'net', 'isClient', 'captionParts', 'labelNames', 'labelGmNames', 'gmDerivedNames', 'gmEffectNames', 'el', 'iconNode', 'canRoll', 'sheetRoll', 'toast', 'ROLL_TONE_CLS', 'getActiveCampaign', 'charById', 'resolveAll', 'tokenCtxFor', rnSrcD + '\nreturn { rollLabel: rollLabel, labelSecret: labelSecret, rollNode: rollNode };')(
@@ -1898,7 +1898,8 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             api.sent = sent; api.toasts = toasts; return api; };
         const E8D = Array.from({ length: 8 }, () => '{A}').join('');
         const lCasesD = [['Attack ({Bonus})', 'Bonus'], ['Hit ({' + PMD + 'Atk})', 'Atk'], ['Skill {Sk}', 'Sk'], ['Base {Sk.base}', 'Sk.base'], ['Ranks {Sk.ranks}', ''], ['Plain {A} {SR}', ''], ['Pool {HP}', 'HP'], ['Max {HQ.max}', 'HQ.max'], ['Stored {HQ}', ''],
-            ['Nine ' + E8D + '{Bonus}', ''], ['Open {Bonus', ''], ['Both {GMFig} {Bonus}', 'GMFig, Bonus'], ['Case {bonus} {BONUS}', 'bonus'], ['Loop {GB}', 'GB'], ['None', ''], ['Odd {GMFIG y {gmfig}', 'GMFIG']];
+            ['Nine ' + E8D + '{Bonus}', ''], ['Open {Bonus', ''], ['Both {GMFig} {Bonus}', 'GMFig, Bonus'], ['Case {bonus} {BONUS}', 'bonus'], ['Loop {GB}', 'GB'], ['None', ''], ['Odd {GMFIG y {gmfig}', 'GMFIG'],
+            ['Swing {if(Flag, Atk, 0)}', ''], ['Hid {if(Flag, GMFig, 0)}', 'GMFig'], ['Fails {Bad} {HP.base}', '']];
         const hostD = mkD(), varsE = S.resolveAll(gD, chE, F, null).vars, varsS = S.resolveAll(gD, chS, F, null).vars;
         const secD = lCasesD.map(([t]) => hostD.labelSecret(gD, varsE, t, chE)), secSD = hostD.labelSecret(gD, varsS, 'Pool {HP}', chS), secND = hostD.labelSecret(gD, varsE, 'Stored {HQ}');
         const offD = lCasesD.map(([t]) => mkD({ net: null }).labelSecret(gD, varsE, t, chE)), clD = lCasesD.map(([t]) => mkD({ client: true, net: { active: true, role: 'client' } }).labelSecret(gD, varsE, t, chE));
@@ -1906,6 +1907,10 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('derived GM-only values: a label that shows a value worked out from a GM-only field (in one of the 8 {...} it draws) makes the host\'s public roll private — with the sign, a suffix, a full pool (a stored one not; with no character every pool counts as full), a loop; each name once whatever its case, a direct GM-only name too; never offline or on a client; labelGmNames and the players\' view stay direct (players keep the label and see the error)',
             j(secD) === j(lCasesD.map(c => c[1])) && secSD === '' && secND === 'HQ' && offD.every(x => x === '') && clD.every(x => x === '')
             && j(S.labelGmNames(gD, F, 'Attack ({Bonus})')) === '[]' && scrubD[0] === 'Attack ({Bonus})' && scrubD[11] === 'Both', j([secD, secSD, secND, scrubD[0], scrubD[11]]));
+        const chF = { id: 'c_d', values: { f_fl: 1 } }, varsF = S.resolveAll(gD, chF, F, null).vars, swF = hostD.labelSecret(gD, varsF, 'Swing {if(Flag, Atk, 0)}', chF);
+        const lnW = S.labelNames(F, 'a {if(Flag, Atk, 0)} {A} {' + PMD + 'Bad}'), lnE = S.labelNames(F, 'a {if(Flag, Atk, 0)} {A} {' + PMD + 'Bad}', varsE), lnF = S.labelNames(F, 'a {if(Flag, Atk, 0)} {A}', varsF), lnT = S.labelNames({ names: F.names, evaluate() { throw new Error('x'); } }, 'a {if(Flag, Atk, 0)}', varsE);
+        check('derived GM-only values: with the label\'s resolver, labelNames lists only the names the drawn values actually read (a branch if() does not take, and a value that fails, read nothing), so a derived value in a branch not taken leaves the roll public — as net.diceRoll reads its breakdown — and goes private once the branch is taken; a GM-only name written anywhere still counts (the players\' view scrubs it); without a resolver every name written; an engine that throws reads as every name written',
+            swF === 'Atk' && j(lnW) === j(ND(['Flag', 'Atk', 'A', 'Bad'])) && j(lnE) === j(ND(['Flag', 'A'])) && j(lnF) === j(ND(['Flag', 'Atk', 'A'])) && j(lnT) === j(ND(['Flag', 'Atk'])) && /var ns = labelNames\(Fm, text, vars\)/.test(lsD0), j([swF, lnW, lnE, lnF, lnT]));
         const rollDD = { id: 'r_d', label: 'Attack ({Bonus})', formula: 'd6 + Bonus' }, rollPD = { id: 'r_p', label: 'Pool ({HP})', formula: 'd6' };
         const apiA = mkD({ camp: { chars: { c_d: chE } } }); apiA.rollNode(rollDD, chE, gD, varsE).children[0].on.click({});
         const apiB = mkD({ camp: { chars: { c_d: chE } } }), btnB = apiB.rollNode(rollPD, chS, gD, varsS).children[0]; btnB.on.click({});   // drawn from a copy whose pool was stored; full by the click

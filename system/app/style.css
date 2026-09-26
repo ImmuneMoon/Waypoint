@@ -1999,10 +1999,10 @@
   .sheet-stance { display: flex; flex-direction: column; gap: 6px; }
   .sheet-stance[hidden] { display: none; }
   /* Stage 6 F4a: a copy of an item deleted from the library */
-  .sheet-chip.sheet-item-lost { color: var(--red, #e5534b); box-shadow: inset 0 0 0 1px currentColor; }
+  .sheet-chip.sheet-item-lost { color: var(--red, #e5534b); box-shadow: inset 0 0 0 1px currentColor; white-space: nowrap; }
   .sheet-item-keep { font-size: 11px; padding: 1px 6px; }
   /* Stage 6: the GM's marks on a row (a bound or cursed item; a curse the player dropped, kept out of their sight) and a pickup's Undo */
-  .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; }
+  .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; white-space: nowrap; }
   .sheet-item-hid { opacity: 0.6; }
   .sheet-item-undo { font-size: 11px; padding: 1px 6px; }
   /* Stage 6 F4b: a row's facts (level, switch, note) and the Lists tab. Two classes beat the base input.field { width: 100% } */
@@ -2241,9 +2241,9 @@
   .sys-sec-color input[type=color] { width: 30px; height: 22px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; color-scheme: dark; }
   /* item-list inventory on the sheet (Stage 5) */
   .sheet-items { display: flex; flex-direction: column; gap: 4px; }
-  .sheet-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .sheet-item { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; font-size: 12px; }   /* a narrow sheet: the row's controls wrap under the name (right-aligned), never squeezing it to nothing */
   .sheet-item-icon { flex: 0 0 auto; }
-  .sheet-item-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-item-name { flex: 1 1 7em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sheet-item-area-tag { color: var(--dim); font-size: 11px; }
   .sheet-item-qty { display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
   .sheet-item-qtyn { min-width: 26px; text-align: center; color: var(--dim); }

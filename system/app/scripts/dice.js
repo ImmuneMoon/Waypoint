@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf } from './dicecore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -41,8 +41,8 @@ function renderCard(m) {
     var parts = typeof Fm.parts === 'function' ? Fm.parts(res, 40) : [Fm.describe(res, { maxChars: LIMITS.cardChars })];
     parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
     wrap.appendChild(brk);
-    var v = verdictOf(res), crit = critOf(res);
-    var total = el('div', 'roll-total' + (v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : ''), v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
+    var v = verdictOf(res), crit = critOf(res), mf = malfOf(rec, res);   // R3: a malfunction is a failure, whatever the test said
+    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, crit === 'crit' ? 'natural 20' : 'natural 1'));
     wrap.appendChild(total);
     return wrap;

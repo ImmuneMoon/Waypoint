@@ -858,8 +858,9 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             '3d6': ['0292986b3be8f1c8b5d38c000e66b7a15cc9569b1a318a96d9a1bb395dd2e756', 'a7733f1f3820bbcfc1fdacb52e767e78df634d323e2cca503254d8977c7e29f8', '37fe78c2036ca85291471ddac6f04a816257e02bc78763df705390136a92c992'],
             // re-taken after the L3 seed change (the tour's identity is Class alone, edited in the header; the abilities stay tiles) — a deliberate change, not drift;
             // re-taken again at HUD frame HF2a: a deliberate change, the tour's HUD seed (the automatic layout's hash is unchanged);
-            // and at HF4a: a deliberate change, the tour's HUD Checks section draws as inline rows (the automatic layout's hash is unchanged)
-            tutorial: ['8f65669d29bd8ab1cee99134cf6f1b514085656b750466938594c997e4fdcd5c', '39e695186992b302804d78319580e68a616e31bfd39ab4aaf851a482be08975a', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
+            // and at HF4a: a deliberate change, the tour's HUD Checks section draws as inline rows (the automatic layout's hash is unchanged);
+            // and at HF4b: a deliberate change, the tour's HUD Condition section carries Reset all (the automatic layout's hash is unchanged)
+            tutorial: ['7937c05606b629a8cc30a0ee0e9a4d653b1fb6ea9b039fcaf3e9089f86ecf3e1', 'c4ebf55e31db11a0942a9f4ecae0f6f5b7408eaf28fa474f4911c51cf48a134b', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
         };
         const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
         check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));
@@ -1048,7 +1049,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('HUD frame HF1: once per layout — f_st and f_hp sit on the sheet AND in the HUD; within the HUD a second f_sl1 is dropped; a HUD section\'s tab resolves against the HUD\'s own tabs only; the placement cap is counted per layout',
             ids(secOf(g3.sheet, 's_attr')).includes('f_st') && ids(secOf(g3.sheet.hud, 's_hattr')).includes('f_st')
             && ids(secOf(gD.sheet, 's_combat')).includes('f_hp') && ids(secOf(gD.sheet.hud, 's_hstat')).includes('f_hp')
-            && j(ids(secOf(gD.sheet.hud, 's_hstat'))) === j(['f_hp', 'f_fx', 'pin']) && j(ids(secOf(gD.sheet.hud, 's_hslots'))) === j(['f_sl1', 'f_sl2', 'f_sl3'])
+            && j(ids(secOf(gD.sheet.hud, 's_hstat'))) === j(['f_hp', 'f_fx', 'f_dsv', 'pin']) && j(ids(secOf(gD.sheet.hud, 's_hslots'))) === j(['f_sl1', 'f_sl2', 'f_sl3'])
             && !('tab' in secOf(tabX.hud, 's_a')) && secOf(tabX.hud, 's_b').tab === 't_hx'
             && capCount === LIMITS.placements && gD.sheet.sections.reduce((n, s) => n + s.fields.length, 0) > 0, j({ capCount, a: secOf(tabX.hud, 's_a') }));
         const pinPl = s => s.fields.filter(p => p.kind === 'pin').map(p => p.g);
@@ -1088,7 +1089,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /var sheet = \(hudV \|\| \(sys\.sheet && sys\.sheet\.sections && sys\.sheet\.sections\.length\)\) \? sys\.sheet : autoLayout\(sys\);/.test(shH1) && /targets: \(vctx && vctx\.targets\) \|\| pinTargetsAll\(sys\.sheet\), vctx: vctx,/.test(shH1)
             && (shH1.match(/_fxLive = false; try \{ buildSections\(/g) || []).length === 2 && (shH1.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2
             && /var secKey = \(hudV \? 'h:' : ''\) \+ sec\.id;/.test(shH1) && /if \(\(_fxForm\.view \|\| 'sheet'\) === fxV\)/.test(shH1)
-            && /import \{[^}]*pinTargetsAll, hudView, hudHasContent \} from '\.\/systemcore\.js';/.test(shH1));
+            && /import \{[^}]*pinTargetsAll, hudView, hudHasContent[, A-Za-z]* \} from '\.\/systemcore\.js';/.test(shH1));
         check('HUD frame HF1: the Layout tab — layoutRoot routes the sections, the tabs and the band / ledger boxes; the switch never dirties the draft; the HUD\'s Copy / Remove come before the sheet\'s Auto / Clear, which keep the HUD; deleteGroup cleans both layouts; the HUD title is handled before the section lookup; the Identity box is the sheet\'s alone; the preview draws hudView',
             /function layoutSections\(\) \{ var r = layoutRoot\(\);/.test(shH1) && /function layoutTabs\(\) \{ var r = layoutRoot\(\);/.test(shH1) && /var lroot = layoutRoot\(\), list = Array\.isArray\(lroot\[cfg\.key\]\)/.test(layH) && !/draft\.sheet\[cfg\.key\]/.test(layH)
             && /var draft = null, dirty = false, tab = 'fields', errorsById = \{\}, warningsById = \{\}, layoutView = 'sheet';/.test(shH1) && /tab = which \|\| 'fields'; layoutView = 'sheet';/.test(shH1)
@@ -1181,7 +1182,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const built = { system: T.sys(), chars: {}, items: {} }; delete built.system.sheet.hud; built.system.sheet.sections = [{ id: 's_mine', title: 'Mine', fields: [] }]; T.ensure(built);
         const again = T.ensure(older);
         check('HUD frame HF2a: the tour\'s HUD seed — an older Tutorial (band present, no HUD, no sections) gains exactly the HUD and nothing else, once; a layout someone built there is left alone; the seed validates',
-            ch1 === true && j(older.system.sheet.hud) === j(T.hud()) && j(post) === j(pre) && older.tutorialSeed === 1 && again === false && !('hud' in built.system.sheet)
+            ch1 === true && j(older.system.sheet.hud) === j(T.hud()) && j(post) === j(pre) && older.tutorialSeed === 2 && again === false && !('hud' in built.system.sheet)
             && validateSystem(cleanSystem(T.sys(), { F, gmView: true }), F).errors.length === 0 && S.hudHasContent(cleanSystem(T.sys(), { F, gmView: false })), j({ ch1, again }));
         check('HUD frame HF2a: the tour step opens its own target (show() does not skip it for a missing target before its setup runs); every other step starts with no HUD floating, and ending the tour closes them',
             /STEPS\[i\]\.target && !STEPS\[i\]\.opens && !document\.querySelector\(STEPS\[i\]\.target\)/.test(tut2) && /if \(!step\.opens && window\.wpSheets && window\.wpSheets\.closeHuds\) window\.wpSheets\.closeHuds\(\);[^\n]*\n    try \{ if \(step\.before\) step\.before\(\); \}/.test(tut2)
@@ -1469,15 +1470,164 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const freshC = { system: T6.sys(), chars: { c_tut_bren: T6.ch('/x/') }, items: {}, tutorialSeed: 1 }; delete freshC.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline; T6.ensure(freshC); const fresh = 'inline' in freshC.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk');
         check('HUD frame HF4a: the tour\'s HUD Checks section draws as inline rows; an older tutorial gains it once (a one-shot marker a fresh build carries) and only on the untouched HF2a seed (as seeded or as a Save cleaned it); a Checks section someone changed (its title, columns, fields, tab, collapsing) or later set back to Stacked fields is left alone',
             T6.hud().sections.find(x => x.id === 's_tut_hchk').inline === true && r1 === true && r2 === false && mig.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline === true
-            && rC === true && migC.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline === true && edited.every(Boolean) && mig.tutorialSeed === 1
-            && rB === false && !('inline' in back.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk')) && fresh === false && /camp\.tutorialSeed = 1;[^\n]*\n    camp\.vtt = tutorialVtt\(\);/.test(tut6)
+            && rC === true && migC.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline === true && edited.every(Boolean) && mig.tutorialSeed === 2
+            && rB === false && !('inline' in back.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk')) && fresh === false && /camp\.tutorialSeed = [1-9];[^\n]*\n    camp\.vtt = tutorialVtt\(\);/.test(tut6)
             && j(cleanSystem(mig.system, GV).sheet.hud) === j(cleanSystem(T6.sys(), GV).sheet.hud), j({ r1, r2, rC, edited }));
-        const css6 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b6 = css6.slice(css6.indexOf('/* ---- Stage 6 HUD frame:')), i6 = b6.indexOf('/* HF4a (H2)'), r6 = i6 >= 0 ? b6.slice(i6).split('\n').filter(l => /^  [.@]/.test(l)) : [];
+        const css6 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b6 = css6.slice(css6.indexOf('/* ---- Stage 6 HUD frame:')), i6 = b6.indexOf('/* HF4a (H2)'), r6 = i6 >= 0 ? b6.slice(i6, b6.indexOf('/* HF4b (H13)')).split('\n').filter(l => /^  [.@]/.test(l)) : [];
         check('HUD frame HF4a: the CSS lives in the HUD block, every rule gated by an HF4a class (the inline row, its Roll, the counter and its buttons), none touching the L8 arrows; the tour and Help describe inline rows and counters',
             r6.length >= 10 && r6.every(l => l.split('{')[0].split(',').every(m => /\.sheet-(inline-row|inline-roll|counter|count)\b/.test(m))) && !r6.some(l => /sheet-step\b|sheet-steps/.test(l)) && r6.filter(l => /sheet-numwrap/.test(l)).every(l => /^  \.sheet-field\.sheet-inline-row > \.sheet-ctl > input\.sheet-num, \.sheet-field\.sheet-inline-row > \.sheet-ctl > \.sheet-numwrap > input\.sheet-num \{ width: 4\.5em; flex: none; \}/.test(l))
             && /\.sheet-field\.sheet-tile \.sheet-counter \{ display: grid;/.test(b6) && /\.sheet-count \{ flex: none;/.test(b6)
             && /A section can show its fields as <b>inline rows<\/b> &mdash; label and value on the left, Roll on the right &mdash; and a number can be a <b>counter<\/b> with &minus; and \+ either side\./.test(tut6)
             && /<li><b>Inline rows and counters\.<\/b> A section set to <b>Inline rows<\/b> draws each field on one line[^<]*(<[^l][^<]*)*a number, formula or skill shown as a stat tile draws as a row there \(a pool and a number drawn as a slider keep their own look\)/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), j(r6.filter(l => !l.split('{')[0].split(',').every(m => /\.sheet-(inline-row|inline-roll|counter|count)\b/.test(m)))));
+    }
+
+    /* ---- Stage 6 HUD frame (HF4b): Reset all (H13) — the cleaner, its targets and commitMany run for real, a batch's rollback, the editor, the tour's seed ---- */
+    {
+        const sh7 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), nt7 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fx7 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8')), GV7 = { F, gmView: true }, PV7 = { F, gmView: false };
+        const gD7 = cleanSystem(fx7('hud-d20'), GV7), pD7 = cleanSystem(fx7('hud-d20'), PV7), g37 = cleanSystem(fx7('hud-3d6'), GV7), p37 = cleanSystem(fx7('hud-3d6'), PV7);
+        const sec7 = (lay, id) => lay.sections.find(s => s.id === id), BEL = String.fromCharCode(7), noCtrl = t => ![...t].some(ch => ch.charCodeAt(0) < 32);
+        const mkR = o => cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_p', key: 'P', kind: 'resource', maxFormula: '5', def: 'max', min: 0, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [Object.assign({ id: 's_r', title: 'R', fields: [{ id: 'f_p' }] }, o)] } }, GV7).sheet.sections[0];
+        const rA = mkR({ inline: true, resetAll: true, resetText: '  Long rest  ' }), rB = mkR({ resetAll: 'yes', resetText: 'x' }), rC = mkR({ resetText: 'orphan' }), rD = mkR({ resetAll: true, resetText: 'a'.repeat(80) + BEL }), rE = mkR({ resetAll: true, resetText: 'Long' + BEL + 'rest' }), rF = mkR({ resetAll: true, resetText: '   ' });
+        check('HUD frame HF4b: a section\'s Reset all is kept only as true, after Inline rows; its own words only with it — trimmed, control characters out, cut to the label cap; the players\' view keeps both (d20: the sheet\'s Spellcasting, the HUD\'s Long rest slots and Status; 3d6: Resource Pools)',
+            rA.resetAll === true && rA.resetText === 'Long rest' && Object.keys(rA).indexOf('resetAll') === Object.keys(rA).indexOf('inline') + 1 && !('resetAll' in rB) && !('resetText' in rB) && !('resetText' in rC)
+            && rD.resetText.length === 60 && noCtrl(rD.resetText) && rE.resetText === 'Long rest' && !('resetText' in rF) && rF.resetAll === true
+            && sec7(gD7.sheet, 's_spell').resetAll === true && sec7(pD7.sheet, 's_spell').resetAll === true && sec7(gD7.sheet.hud, 's_hslots').resetText === 'Long rest' && sec7(pD7.sheet.hud, 's_hslots').resetText === 'Long rest'
+            && sec7(pD7.sheet.hud, 's_hstat').resetAll === true && sec7(p37.sheet.hud, 's_hpools').resetAll === true && sec7(g37.sheet.hud, 's_hpools').resetAll === true, j([rA, rB, rC, rD, rE, rF]));
+        // the targets, worked out for real (systemcore's resetTargets, as the chip calls it)
+        const chD = { id: 'c_d', ownerId: 'u_p', values: { f_level: 5, f_sl1: { cur: 0 }, f_sl2: { cur: 1 }, f_sl3: { cur: 2 }, f_hp: { cur: 3 }, f_dsv: 2 } };
+        const RT = (sys, sc, ch, who) => S.resetTargets(sys, ch, sc, F, who), tv = r => j(r.targets.map(t => [t.fieldId, t.value]));
+        const tSl = RT(gD7, sec7(gD7.sheet.hud, 's_hslots'), chD, { gm: true }), tSp = RT(gD7, sec7(gD7.sheet, 's_spell'), chD, { gm: true }), tSt = RT(pD7, sec7(pD7.sheet.hud, 's_hstat'), chD, { own: true });
+        const t3 = RT(p37, sec7(p37.sheet.hud, 's_hpools'), { id: 'c_3', values: { f_st: 12, f_hp: { cur: 4 }, f_ep: { cur: 10 } } }, { own: true });
+        const full = RT(gD7, sec7(gD7.sheet.hud, 's_hslots'), { id: 'c_f', values: { f_level: 5 } }, { gm: true }), noPools = RT(gD7, sec7(gD7.sheet.hud, 's_hchk'), chD, { gm: true });
+        const gmEd = JSON.parse(JSON.stringify(fx7('hud-d20'))); gmEd.fields.find(f => f.id === 'f_sl1').edit = 'gm'; const gGm = cleanSystem(gmEd, GV7);
+        const asOwner = RT(gGm, sec7(gGm.sheet.hud, 's_hslots'), chD, { own: true }), asGm = RT(gGm, sec7(gGm.sheet.hud, 's_hslots'), chD, { gm: true }), part = RT(gD7, sec7(gD7.sheet.hud, 's_hslots'), Object.assign({ partial: true }, chD), { own: true }), nobody = RT(gD7, sec7(gD7.sheet.hud, 's_hslots'), chD, {});
+        const f12 = Array.from({ length: 12 }, (_, i) => ({ id: 'f_c' + i, key: 'C' + i, kind: 'number', def: 0, min: 0, max: 9, vis: 'all', edit: 'owner', counter: true }));
+        const s12 = cleanSystem({ v: 1, name: 'C', fields: f12, rolls: [], sheet: { sections: [{ id: 's_many', title: 'Tallies', resetAll: true, fields: f12.map(f => ({ id: f.id })) }], hud: { sections: [{ id: 's_hm', title: 'Many', resetAll: true, fields: f12.map(f => ({ id: f.id })) }] } } }, GV7);
+        const v12 = {}; f12.forEach(f => { v12[f.id] = 3; }); const t12 = RT(s12, sec7(s12.sheet, 's_many'), { id: 'c_m', values: v12 }, { gm: true }), w12 = S.validateSystem(s12, F).warnings.filter(w => w.prop === 'resetAll').map(w => w.message);
+        check('HUD frame HF4b: Reset all\'s targets (run for real) — a pool not full goes back to its max, a counter away from its start back to its default; full pools and counters at their start are left; the viewer\'s rights (a GM-edit pool is the GM\'s, a teammate\'s copy and a stranger reset nothing); a section with no pool or counter has no button; at most 10, and validateSystem says so in either layout',
+            tv(tSl) === j([['f_sl1', { cur: 2 }], ['f_sl2', { cur: 2 }]]) && tv(tSp) === tv(tSl) && tv(tSt) === j([['f_dsv', 0], ['f_hp', { cur: 10 }]]) && tSt.targets[1].label === 'Hit points' && tSt.targets[0].label === 'Death saves' && tSt.allowed === 2 && asOwner.allowed === 2 && part.allowed === 0 && nobody.allowed === 0 && tv(t3) === j([['f_hp', { cur: 12 }]])
+            && full.any === true && full.targets.length === 0 && noPools.any === false && tSl.any === true
+            && tv(asOwner) === j([['f_sl2', { cur: 2 }]]) && tv(asGm) === tv(tSl) && part.targets.length === 0 && nobody.targets.length === 0
+            && t12.targets.length === 10 && t12.targets[9].fieldId === 'f_c9' && j(w12) === j(['Reset all resets the first 10 in Tallies.', 'Reset all resets the first 10 in the HUD' + String.fromCharCode(8217) + 's Many.'])
+            && S.validateSystem(gD7, F).warnings.every(w => w.prop !== 'resetAll'), j([tSl, tSt, t3, asOwner, w12]));
+        // one press leaves nothing to reset: a default off the step grid and a fractional max are sent as the field stores them; a counter that feeds
+        // a pool's max is reset first, and the pool fills to the max it will have (raised or lowered)
+        const mk2 = (fields, secFields) => cleanSystem({ v: 1, name: 'M', fields, rolls: [], sheet: { sections: [{ id: 's_x', title: 'X', resetAll: true, fields: secFields.map(id => ({ id })) }] } }, GV7);
+        const press = (sys, ch) => { const r1 = RT(sys, sys.sheet.sections[0], ch, { gm: true }), after = { id: ch.id, values: Object.assign({}, ch.values) }; r1.targets.forEach(t => { const e = S.applyEdit(sys, after, t.fieldId, t.value, F, {}); if (e.ok) after.values[t.fieldId] = e.value; }); return { r1, again: RT(sys, sys.sheet.sections[0], after, { gm: true }), after }; };
+        const grid = mk2([{ id: 'f_am', key: 'Ammo', kind: 'number', def: 2, min: 1, step: 2, max: 9, vis: 'all', counter: true }], ['f_am']), pG = press(grid, { id: 'c', values: { f_am: 5 } });
+        const frac = mk2([{ id: 'f_st', key: 'ST', kind: 'number', def: 10, vis: 'all' }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: 'ST / 3', def: 'max', min: 0, vis: 'all' }], ['f_hp']), pF = press(frac, { id: 'c', values: { f_hp: { cur: 1 } } });
+        const up = mk2([{ id: 'f_aid', key: 'Aid', kind: 'number', def: 0, min: 0, max: 9, vis: 'all', counter: true }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '20 + Aid', def: 'max', min: 0, vis: 'all' }], ['f_hp', 'f_aid']), pU = press(up, { id: 'c', values: { f_hp: { cur: 10 }, f_aid: 5 } });
+        const down = mk2([{ id: 'f_ex', key: 'Exh', kind: 'number', def: 0, min: 0, max: 6, vis: 'all', counter: true }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '20 - 2 * Exh', def: 'max', min: 0, vis: 'all' }], ['f_hp', 'f_ex']), pDn = press(down, { id: 'c', values: { f_hp: { cur: 5 }, f_ex: 3 } });
+        const skill = mk2([{ id: 'f_sk', key: 'Tally', kind: 'skill', def: 0, min: 0, max: 5, vis: 'all', counter: true }], ['f_sk']), pS = press(skill, { id: 'c', values: { f_sk: 4 } });
+        const atStart = RT(skill, skill.sheet.sections[0], { id: 'c', values: { f_sk: 0 } }, { gm: true }), unsetC = RT(skill, skill.sheet.sections[0], { id: 'c', values: {} }, { gm: true });
+        const warnN = n => { const fl = Array.from({ length: n }, (_, i) => ({ id: 'f_n' + i, key: 'N' + i, kind: 'number', def: 0, min: 0, max: 9, vis: 'all', counter: true })); return S.validateSystem(cleanSystem({ v: 1, name: 'N', fields: fl, rolls: [], sheet: { sections: [{ id: 's_n', title: 'N', resetAll: true, fields: fl.map(f => ({ id: f.id })) }] } }, GV7), F).warnings.filter(w => w.prop === 'resetAll').length; };
+        check('HUD frame HF4b: one press leaves nothing to reset — a default off the step grid (Ammo def 2, step 2 from 1: 3) and a fractional max (ST / 3: 3) are sent as the field stores them; a counter feeding a pool\'s max is reset first and the pool fills to the max it will have (20 + Aid at Aid 5: 20, not 25; 20 - 2 x Exh at Exh 3: 20, not 14); a skill counter resets; a counter at its start, or never set, is not a target; the warning starts at 11',
+            tv(pG.r1) === j([['f_am', 3]]) && pG.again.targets.length === 0 && tv(pF.r1) === j([['f_hp', { cur: 3 }]]) && pF.again.targets.length === 0
+            && tv(pU.r1) === j([['f_aid', 0], ['f_hp', { cur: 20 }]]) && pU.again.targets.length === 0 && j(pU.after.values.f_hp) === j({ cur: 20 })
+            && tv(pDn.r1) === j([['f_ex', 0], ['f_hp', { cur: 20 }]]) && pDn.again.targets.length === 0 && tv(pS.r1) === j([['f_sk', 0]]) && pS.again.targets.length === 0 && atStart.targets.length === 0 && unsetC.targets.length === 0
+            && warnN(10) === 0 && warnN(11) === 1, j([pG.r1, pF.r1, pU.r1, pU.again, pDn.r1, pDn.again, pS.r1, warnN(10), warnN(11)]));
+        // commitMany and revertLast, run for real on a fake GM (and a fake player)
+        const cmSrc = sh7.slice(sh7.indexOf('function commitMany('), sh7.indexOf('// One inventory change on the open sheet'));
+        const rvSrc = (sh7.match(/function revertLast\(\) \{[\s\S]*?\n\}/) || [''])[0];
+        const mkCM = (client, sys, ch, cw) => {
+            const log = { deltas: [], toasts: [], sent: [] }, camp = { system: sys, chars: { [ch.id]: ch } };
+            const api = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'applyEdit', 'F', 'clone', 'afterCharChange', 'toast', 'renderViews', 'net', 'LIMITS', 'charById', 'var lastChange = null;\n' + cmSrc + '\n' + rvSrc + '\nreturn { commitMany: commitMany, revertLast: revertLast, last: function() { return lastChange; } };')(
+                () => camp, () => sys, () => client, () => cw !== false, S.applyEdit, () => F, x => JSON.parse(JSON.stringify(x)), (c, whole, d) => log.deltas.push(JSON.parse(JSON.stringify(d))), m => log.toasts.push(m), () => {},
+                () => ({ charEdits: (id, list) => { log.sent.push([id, JSON.parse(JSON.stringify(list))]); return { ok: true }; } }), LIMITS, id => camp.chars[id]);
+            return { api, ch, log };
+        };
+        const g1 = mkCM(false, gD7, JSON.parse(JSON.stringify(chD))); g1.api.commitMany(g1.ch, tSt.targets.map(t => ({ fieldId: t.fieldId, value: t.value })));
+        const after1 = j([g1.ch.values.f_hp, g1.ch.values.f_dsv]), last1 = g1.api.last(); g1.api.revertLast(); const back1 = j([g1.ch.values.f_hp, g1.ch.values.f_dsv]);
+        const g2 = mkCM(false, s12, { id: 'c_m', values: Object.assign({}, v12) }); g2.api.commitMany(g2.ch, f12.map(f => ({ fieldId: f.id, value: 0 })));
+        const g3b = mkCM(false, gD7, JSON.parse(JSON.stringify(chD))); g3b.api.commitMany(g3b.ch, [{ fieldId: 'f_hp', value: { cur: 10 } }, { fieldId: 'f_nope', value: 1 }]);
+        const pl = mkCM(true, gD7, JSON.parse(JSON.stringify(chD))); pl.api.commitMany(pl.ch, f12.map(f => ({ fieldId: f.id, value: 0 })));
+        const gG = mkCM(false, gGm, JSON.parse(JSON.stringify(chD))); gG.api.commitMany(gG.ch, asGm.targets.map(t => ({ fieldId: t.fieldId, value: t.value })));   // a pool set to GM edits: the GM's own rules
+        const nw = mkCM(false, gD7, JSON.parse(JSON.stringify(chD)), false); nw.api.commitMany(nw.ch, tSt.targets.map(t => ({ fieldId: t.fieldId, value: t.value })));   // a view that cannot write
+        check('HUD frame HF4b: commitMany (run for real) — the GM\'s Reset all is ONE change (one delta with every value) and ONE Revert brings every value back; at most 10 values; one value that is not allowed changes nothing; the GM resets a pool set to GM edits by the GM\'s rules; a view that cannot write changes nothing; a player\'s goes as one batched edit of at most 10',
+            g1.log.deltas.length === 2 && j(Object.keys(g1.log.deltas[0])) === j(['f_dsv', 'f_hp']) && after1 === j([{ cur: 10 }, 0]) && last1.fieldId === 'f_dsv' && last1.prev === 2 && j(last1.extra) === j({ f_hp: { cur: 3 } }) && back1 === j([{ cur: 3 }, 2]) && g1.log.toasts.includes('Reverted.')
+            && g2.log.deltas.length === 1 && Object.keys(g2.log.deltas[0]).length === 10 && g2.ch.values.f_c10 === 3 && g2.ch.values.f_c0 === 0
+            && g3b.log.deltas.length === 0 && j(g3b.ch.values.f_hp) === j({ cur: 3 }) && g3b.log.toasts.length === 1
+            && pl.log.sent.length === 1 && pl.log.sent[0][0] === 'c_d' && pl.log.sent[0][1].length === 10 && pl.log.deltas.length === 0
+            && gG.log.deltas.length === 1 && j(Object.keys(gG.log.deltas[0]).sort()) === j(['f_sl1', 'f_sl2']) && gG.log.toasts.length === 0 && nw.log.deltas.length === 0 && j(nw.ch.values.f_hp) === j({ cur: 3 }) && nw.api.last() === null, j([g1.log, last1, g2.log.deltas, g3b.log, pl.log.sent.length]));
+        // the client's batch (the pending slice from net.js): applied at once; a refusal takes every value of it back to the host's copy, the changes still waiting laid over again
+        const pend7 = nt7.slice(nt7.indexOf('// [netcheck:pending-start]'), nt7.indexOf('// [netcheck:pending-end]'));
+        const mkPend7 = new Function('getActiveCampaign', 'SC', 'window', 'toast', '_charPending', '_charHost', pend7 + '\nreturn { charPendingDone: charPendingDone, reapplyPending: reapplyPending, noteHostCopy: noteHostCopy };');
+        const campB = { id: 'camp1', system: pD7, chars: { c_d: { id: 'c_d', ownerId: 'u_p', values: { f_hp: { cur: 3 }, f_dsv: 2, f_sl1: { cur: 0 } } } } }, pendB = {}, hostB = {}, seenB = [];
+        const PB = mkPend7(() => campB, () => S, { wpFormula: F, wpSheets: { charChanged: id => seenB.push(['ok', id]), editResult: (rid, ok, reason) => seenB.push([rid, ok, reason]) } }, () => {}, pendB, hostB), cb = campB.chars.c_d;
+        PB.noteHostCopy('c_d', cb.values);
+        cb.values.f_hp = { cur: 10 }; cb.values.f_dsv = 0; pendB.b1 = { charId: 'c_d', fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 3 }, batch: [{ fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 3 } }, { fieldId: 'f_dsv', value: 0, prev: 2 }], timer: null };
+        cb.values.f_sl1 = { cur: 1 }; pendB.v2 = { charId: 'c_d', fieldId: 'f_sl1', value: { cur: 1 }, prev: { cur: 0 }, timer: null };
+        cb.values = { f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 0 } }; PB.noteHostCopy('c_d', cb.values); PB.reapplyPending('c_d');   // a newer copy: everything still waiting is laid over it
+        const midB = j(cb.values); PB.charPendingDone('b1', false, 'slow'); const afterB = j(cb.values);
+        pendB.b2 = { charId: 'c_d', fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 5 }, batch: [{ fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 5 } }], timer: null }; PB.charPendingDone('b2', true);
+        check('HUD frame HF4b: a player\'s batch (the real pending code) — a newer host copy gets every waiting value laid over it again; a refused batch takes ALL its values back to the host\'s last copy (never the one it was made on), the other changes still waiting kept; one answer for the batch',
+            midB === j({ f_hp: { cur: 10 }, f_dsv: 0, f_sl1: { cur: 1 } }) && afterB === j({ f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 1 } }) && !pendB.b1 && !!pendB.v2 && !pendB.b2 && j(seenB) === j([['b1', false, 'slow'], ['ok', 'c_d']]), j([midB, afterB, seenB]));
+        check('HUD frame HF4b: the chip — drawn only behind sec.resetAll === true, in the header after the Pin; live decided when drawn (the real sheet or HUD, never the Layout preview or a pop-out), inert with nothing to reset; the client sends ONE char-edits message and keeps ONE pending entry for the batch',
+            /var rsCh = sec\.resetAll === true \? resetChip\(sec, pctx\) : null;/.test(sh7) && /if \(pinCh\) head\.appendChild\(pinCh\);\n            if \(rsCh\) head\.appendChild\(rsCh\);/.test(sh7) && /\|\| chipNode \|\| pinCh \|\| rsCh\) \{/.test(sh7)
+            && /var live = _fxLive && !\(ctx\.vctx && ctx\.vctx\.preview\) && !window\.wpPopout, targets = rt\.targets, on = live && targets\.length > 0;/.test(sh7)
+            && /ch\.setAttribute\('aria-disabled', on \? 'false' : 'true'\);/.test(sh7)
+            && /import \{[^}]*resetTargets[^}]*\} from '\.\/systemcore\.js';/.test(sh7) && (sh7.match(/resetChip\(/g) || []).length === 2
+            && /try \{ net\.conns\[0\]\.send\(\{ type: 'char-edits', rid: rid, charId: charId, values: batch\.map\(/.test(nt7) && /_charPending\[rid\] = \{ charId: charId, fieldId: batch\[0\]\.fieldId, value: batch\[0\]\.value, prev: batch\[0\]\.prev, batch: batch, timer:/.test(nt7));
+        // the chip, run for real on a small fake DOM
+        const rcSrc = sh7.slice(sh7.indexOf('function resetChip('), sh7.indexOf('// Stage 5c / Stage 6 (L4): the pinned band'));
+        const fe = (tag, cls, text) => { const e = { tag, className: cls || '', textContent: text || '', children: [], attrs: {}, dataset: {}, title: '', tabIndex: -1, on: {}, inModal: false, appendChild(x) { this.children.push(x); return x; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(k, f) { this.on[k] = f; }, closest(q) { return q === '#systemModal' && e.inModal ? {} : null; } }; return e; };
+        const chipRun = (sys, sc, ch, o) => { o = o || {}; const calls = [], redraws = [], pend = o.pend || {};
+            const make = new Function('resetTargets', 'F', '_fxLive', 'window', 'el', 'iconNode', 'commitMany', 'renderViews', '_stepPend', rcSrc + '\nreturn resetChip;')(S.resetTargets, () => F, o.fxLive !== false, { wpPopout: o.popout || null }, fe, (v, c) => fe('span', c + ' wp-glyph'), (c, list) => calls.push(JSON.parse(JSON.stringify(list))), id => redraws.push(id), pend);
+            const chip = make(sc, { sys, c: ch, gm: !!o.gm, own: !!o.own, vctx: { preview: !!o.preview } }), ev = k => ({ key: k, preventDefault() {}, stopPropagation() {} });
+            return { chip, calls, redraws, pend, click() { chip.on.click(ev()); }, key(k) { chip.on.keydown(ev(k)); }, text: chip && chip.children[1] ? chip.children[1].textContent : null }; };
+        const hst = sec7(gD7.sheet.hud, 's_hstat'), cln = () => JSON.parse(JSON.stringify(chD));
+        const cGm = chipRun(gD7, hst, cln(), { gm: true, pend: { 'c_d|f_dsv': { timer: null, value: '1' }, 'c_x|f_dsv': { timer: null, value: '1' } } }), a0 = j([cGm.chip.attrs, cGm.chip.tabIndex, cGm.chip.dataset.reset, cGm.text, cGm.chip.title]);
+        cGm.key('a'); const k0 = cGm.calls.length; cGm.key('Enter');
+        const chT = cln(), cT = chipRun(gD7, hst, chT, { gm: true }); chT.values.f_hp = { cur: 10 }; cT.click();   // the values moved after the chip was drawn
+        const chN = cln(), cN = chipRun(gD7, hst, chN, { gm: true }); chN.values.f_hp = { cur: 10 }; chN.values.f_dsv = 0; cN.click();
+        const cM = chipRun(gD7, hst, cln(), { gm: true }); cM.chip.inModal = true; cM.click();
+        const cP = chipRun(gD7, hst, cln(), { gm: true, preview: true }); cP.click(); const cO = chipRun(gD7, hst, cln(), { gm: true, popout: {} }), cF = chipRun(gD7, hst, cln(), { gm: true, fxLive: false });
+        const allGm = JSON.parse(JSON.stringify(fx7('hud-d20'))); ['f_sl1', 'f_sl2', 'f_sl3'].forEach(id => { allGm.fields.find(f => f.id === id).edit = 'gm'; }); const sAll = cleanSystem(allGm, GV7);
+        const cOnlyGm = chipRun(sAll, sec7(sAll.sheet.hud, 's_hslots'), cln(), { own: true }), cFull = chipRun(gD7, sec7(gD7.sheet.hud, 's_hslots'), { id: 'c_d', values: { f_level: 5 } }, { gm: true }), cNone = chipRun(gD7, sec7(gD7.sheet.hud, 's_hchk'), cln(), { gm: true }), cLong = chipRun(pD7, sec7(pD7.sheet.hud, 's_hslots'), cln(), { own: true });
+        check('HUD frame HF4b: the chip (run for real) — a button chip with its words, focusable, marked with its section; Enter or a click resets the targets as they are AT THE CLICK (a minus/plus burst of this character\'s counters dropped first, another character\'s kept) and a click with nothing left only redraws; nothing in the System editor; inert and saying why in the Layout preview, a pop-out, a view whose pools are the GM\'s alone, and when everything is full; no chip without a pool or a counter; a player\'s Long rest is live',
+            a0 === j([{ role: 'button', 'aria-disabled': 'false' }, 0, 's_hstat', 'Reset all', 'Resets Death saves, Hit points']) && k0 === 0 && j(cGm.calls) === j([[{ fieldId: 'f_dsv', value: 0 }, { fieldId: 'f_hp', value: { cur: 10 } }]]) && !('c_d|f_dsv' in cGm.pend) && ('c_x|f_dsv' in cGm.pend)
+            && j(cT.calls) === j([[{ fieldId: 'f_dsv', value: 0 }]]) && cN.calls.length === 0 && j(cN.redraws) === j(['c_d']) && cM.calls.length === 0
+            && cP.chip.attrs['aria-disabled'] === 'true' && /on the sheet itself/.test(cP.chip.title) && cP.calls.length === 0 && cO.chip.attrs['aria-disabled'] === 'true' && cF.chip.attrs['aria-disabled'] === 'true'
+            && cOnlyGm.chip.attrs['aria-disabled'] === 'true' && cOnlyGm.chip.title === 'Only the GM resets these' && cOnlyGm.chip.tabIndex === 0 && cFull.chip.tabIndex === 0 && cFull.chip.attrs['aria-disabled'] === 'true' && /^Nothing to reset/.test(cFull.chip.title) && cNone.chip === null
+            && cLong.text === 'Long rest' && cLong.chip.attrs['aria-disabled'] === 'false' && cLong.chip.tabIndex === 0, j([a0, cGm.calls, cT.calls, cN.redraws, cOnlyGm.chip && cOnlyGm.chip.title, cFull.chip && cFull.chip.title]));
+        // the focus: a Reset all pressed from the keyboard keeps it (focusKeyOf / restoreFocus, run for real)
+        const fkSrc = (sh7.match(/function focusKeyOf\(root\) \{[^\n]*/) || [''])[0], rfSrc = (sh7.match(/function restoreFocus\(root, k\) \{[^\n]*/) || [''])[0], doc7 = { activeElement: null }, focused = [];
+        const FK = new Function('document', 'PIN_GID', fkSrc + '\n' + rfSrc + '\nreturn { focusKeyOf: focusKeyOf, restoreFocus: restoreFocus };')(doc7, /^g_[A-Za-z0-9_]{1,24}$/);
+        doc7.activeElement = { dataset: { reset: 's_hstat' }, closest: () => null }; const fk7 = FK.focusKeyOf({ contains: () => true });
+        FK.restoreFocus({ querySelector: q => (q === '.sheet-sec-title [data-reset="s_hstat"]' ? { focus: () => focused.push('chip') } : null) }, fk7);
+        doc7.activeElement = { dataset: { reset: 's_x"] body' }, closest: () => null }; const fkBad = FK.focusKeyOf({ contains: () => true });
+        check('HUD frame HF4b: the focus stays on Reset all after the redraw it causes (its section is the key); a key that is not a section id is never used in a selector',
+            j(fk7) === j({ reset: 's_hstat' }) && j(focused) === j(['chip']) && fkBad === null, j([fk7, focused, fkBad]));
+        check('HUD frame HF4b: the editor — a Reset row under a section that places a pool or a counter (or already has Reset all): its checkbox, and while it is ticked its own words; each set or cleared by its exact class; more than 10 of them says so in the row itself',
+            /if \(canReset \|\| sec\.resetAll\) \{/.test(sh7) && /var rsc = el\('input', 'sys-sec-resetall'\); rsc\.type = 'checkbox'; rsc\.checked = !!sec\.resetAll;/.test(sh7) && /if \(sec\.resetAll\) rsRow\.appendChild\(input\('sys-sec-resettext field', sec\.resetText,/.test(sh7)
+            && /if \(t\.classList\.contains\('sys-sec-resetall'\)\) \{ if \(t\.checked\) sec\.resetAll = true; else delete sec\.resetAll; markDirty\(\); renderLayout\(\); return true; \}/.test(sh7)
+            && /else if \(t\.classList\.contains\('sys-sec-resettext'\)\) \{ if \(t\.value\.trim\(\)\) sec\.resetText = t\.value\.slice\(0, LIMITS\.label\); else delete sec\.resetText; \}/.test(sh7)
+            && /if \(sec\.resetAll && nRs > LIMITS\.editBatch\) rsRow\.appendChild\(el\('span', 'sys-warn-line sys-reset-note', 'Reset all resets the first ' \+ LIMITS\.editBatch \+ ' of these ' \+ nRs \+ '\.'\)\);/.test(sh7)
+            && (() => { const disp = (sh7.match(/c\.indexOf\('sys-[a-z0-9-]+'\)/g) || []).map(m => m.slice(11, -2)), cls = new Set(sh7.match(/sys-[a-z0-9-]+/g) || []); return ['sys-sec-resetall', 'sys-sec-resettext'].every(n => disp.every(t => n.indexOf(t) < 0) && [...cls].every(o => o === n || o.indexOf(n) < 0)); })());
+        // the tour's seed and its one-shot migration (seed 2), run for real
+        const tut7 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fnT7 = name => { const i = tut7.indexOf('function ' + name + '('); let d = 0; const k = tut7.indexOf('{', i); for (let p = k; p < tut7.length; p++) { if (tut7[p] === '{') d++; else if (tut7[p] === '}') { d--; if (d === 0) return tut7.slice(i, p + 1); } } return ''; };
+        const T7 = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT7).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
+        const hfx = sys => sys.sheet.hud.sections.find(x => x.id === 's_tut_hfx');
+        const old7 = () => { const s = T7.sys(); delete s.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline; delete hfx(s).resetAll; return { system: s, chars: { c_tut_bren: T7.ch('/x/') }, items: {} }; };
+        const m1 = old7(), r71 = T7.ensure(m1), m2 = old7(); hfx(m2.system).title = 'My condition'; T7.ensure(m2); const m3 = old7(); m3.tutorialSeed = 1; T7.ensure(m3); const m4 = old7(); m4.tutorialSeed = 2; T7.ensure(m4);
+        const edits7 = [s => { s.collapsible = true; }, s => { s.tab = 't_tut_hact'; }, s => { s.cols = 2; }, s => { s.fields.pop(); }].map(fn => { const m = old7(); fn(hfx(m.system)); T7.ensure(m); return !('resetAll' in hfx(m.system)); });
+        check('HUD frame HF4b: the tour\'s HUD Condition section carries Reset all (HP back to full); an older tutorial gains it once (seed 2, which a fresh build carries) and only on the untouched seed; a section someone changed, or a tutorial already past it, is left alone',
+            T7.hud().sections.find(x => x.id === 's_tut_hfx').resetAll === true && r71 === true && hfx(m1.system).resetAll === true && m1.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline === true && m1.tutorialSeed === 2
+            && !('resetAll' in hfx(m2.system)) && edits7.every(Boolean) && m2.tutorialSeed === 2 && hfx(m3.system).resetAll === true && m3.tutorialSeed === 2 && !('resetAll' in hfx(m4.system))
+            && /camp\.tutorialSeed = 2;[^\n]*\n    camp\.vtt = tutorialVtt\(\);/.test(tut7), j([r71, m1.tutorialSeed, hfx(m2.system), hfx(m4.system)]));
+        // window.wpSystemCore (what net.js and the other plain scripts call) carries every name the module exports, and nothing else — a new
+        // export missing there fails only on a live table (the host's char-edits handler did, before this check)
+        const core7 = fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8').replace(/\r\n/g, '\n');
+        const apiKeys = ((core7.match(/\nvar API = \{([^\n]*)\};/) || [])[1] || '').split(',').map(x => x.split(':')[0].trim()).filter(Boolean).sort(), expKeys = ((core7.match(/\nexport \{([^}]*)\};/) || [])[1] || '').split(',').map(x => x.trim()).filter(Boolean).sort();
+        check('HUD frame HF4b: window.wpSystemCore carries exactly the names systemcore exports (cleanCharEdits and resetTargets among them), so the host\'s handlers find every helper they call',
+            apiKeys.length >= 90 && j(apiKeys) === j(expKeys) && apiKeys.includes('cleanCharEdits') && apiKeys.includes('resetTargets'), j([apiKeys.filter(k => !expKeys.includes(k)), expKeys.filter(k => !apiKeys.includes(k))]));
+        const css7 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b7 = css7.slice(css7.indexOf('/* HF4b (H13)')), r7 = b7.split('\n').filter(l => /^  [.@]/.test(l));
+        check('HUD frame HF4b: the chip\'s CSS lives in the HUD block, gated by the reset chip (greyed and unlit when inert); the tour and Help describe Reset all',
+            r7.length >= 1 && r7.every(l => l.split('{')[0].split(',').every(m => /\.sheet-sec-reset\b/.test(m))) && /\[aria-disabled="true"\]/.test(r7[0])
+            && /A section can carry <b>Reset all<\/b> \(or your own words, like <i>Long rest<\/i>\) in its header: its pools back to full, its counters back to their start\./.test(tut7)
+            && /<b>Reset all<\/b>: a section holding pools or counters can show a button in its header \(its text is yours, e\.g\. <i>Long rest<\/i>\) that fills its pools back to full and sets its counters back to their start \(players reset their own\)\./.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), j(r7));
     }
 
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */

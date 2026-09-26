@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -481,8 +481,8 @@ function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos 
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
 function panelPref() { try { var o = JSON.parse(pref('wp_sheetPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
-function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; if (ae.dataset && typeof ae.dataset.pin === 'string' && PIN_GID.test(ae.dataset.pin)) return { pin: ae.dataset.pin, where: ae.closest('.sheet-band') ? 'band' : ae.closest('.sheet-sec-title') ? 'head' : 'sec' }; var dk = ae.closest && ae.closest('.sheet-dial, .sheet-stance') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
-function restoreFocus(root, k) { if (!k) return; if (k.pin) { if (!PIN_GID.test(k.pin)) return; var ps = '[data-pin="' + k.pin + '"]', pp = k.where === 'band' ? '.sheet-band ' : k.where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ', qp = root.querySelector(pp + ps) || root.querySelector(ps); if (qp) { try { qp.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"], .sheet-stance [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
+function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; if (ae.dataset && typeof ae.dataset.pin === 'string' && PIN_GID.test(ae.dataset.pin)) return { pin: ae.dataset.pin, where: ae.closest('.sheet-band') ? 'band' : ae.closest('.sheet-sec-title') ? 'head' : 'sec' }; if (ae.dataset && typeof ae.dataset.reset === 'string' && /^s_[A-Za-z0-9_]{1,24}$/.test(ae.dataset.reset)) return { reset: ae.dataset.reset }; var dk = ae.closest && ae.closest('.sheet-dial, .sheet-stance') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
+function restoreFocus(root, k) { if (!k) return; if (k.reset) { if (!/^s_[A-Za-z0-9_]{1,24}$/.test(k.reset)) return; var qx = root.querySelector('.sheet-sec-title [data-reset="' + k.reset + '"]'); if (qx) { try { qx.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.pin) { if (!PIN_GID.test(k.pin)) return; var ps = '[data-pin="' + k.pin + '"]', pp = k.where === 'band' ? '.sheet-band ' : k.where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ', qp = root.querySelector(pp + ps) || root.querySelector(ps); if (qp) { try { qp.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"], .sheet-stance [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -970,6 +970,24 @@ function pinChip(g, ctx) {   // a Pin in a section's header (like a handbook chi
     ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
     return ch;
 }
+// HUD frame (HF4b, H13): a section's Reset all — a chip in its header (its own words, e.g. Long rest) that fills the section's pools back to full
+// and sets its counters back to their start, as ONE change (commitMany). Live only on the real sheet or HUD (decided when drawn, as the dial is),
+// inert when there is nothing to reset; null when the section places no pool and no counter
+function resetChip(sec, ctx) {
+    var who = { gm: ctx.gm, own: ctx.own }, rt = resetTargets(ctx.sys, ctx.c, sec, F(), who); if (!rt.any) return null;
+    var live = _fxLive && !(ctx.vctx && ctx.vctx.preview) && !window.wpPopout, targets = rt.targets, on = live && targets.length > 0;
+    var ch = el('span', 'sheet-sec-chip sheet-sec-reset'); ch.setAttribute('role', 'button'); ch.tabIndex = 0; ch.dataset.reset = sec.id; ch.setAttribute('aria-disabled', on ? 'false' : 'true');   // focusable even when inert (it says why); data-reset keeps the focus across a redraw
+    ch.appendChild(iconNode('icon:rotate-left', 'sheet-chip-ico')); ch.appendChild(el('span', 'sheet-chip-txt', sec.resetText || 'Reset all'));
+    ch.title = !live ? 'Resets this section\u2019s pools and counters (on the sheet itself)' : !rt.allowed ? 'Only the GM resets these' : targets.length ? 'Resets ' + targets.map(function(t) { return t.label; }).join(', ') : 'Nothing to reset: every pool is full and every counter at its start';
+    var go = function(e) {
+        e.preventDefault(); e.stopPropagation(); if (!on || ch.closest('#systemModal')) return;
+        sec.fields.forEach(function(pl) { var pk = pl && typeof pl.id === 'string' ? ctx.c.id + '|' + pl.id : ''; if (pk && _stepPend[pk]) { clearTimeout(_stepPend[pk].timer); delete _stepPend[pk]; } });   // the reset is the later action: a minus/plus burst still waiting on this section's counters is dropped
+        var now = resetTargets(ctx.sys, ctx.c, sec, F(), who).targets;   // worked out again at the click
+        if (now.length) commitMany(ctx.c, now.map(function(t) { return { fieldId: t.fieldId, value: t.value }; })); else renderViews(ctx.c.id);
+    };
+    ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
+    return ch;
+}
 // Stage 5c / Stage 6 (L4): the pinned band — built by the same node factories as a section (a field's rights, its −/+ and its roll behave as
 // they do below; data-band tells the copies apart for focus). An entry of a group shows while its viewer has the group pinned (or the group
 // has no Pin anywhere); a band with no groups is exactly what it was.
@@ -1123,7 +1141,8 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         }
         var chipNode = sec.chip ? pageChip(sec.chip) : null;   // Stage 5f: a handbook chip
         var pinCh = sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
-        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh) {   // a collapsible section always needs a summary to toggle from
+        var rsCh = sec.resetAll === true ? resetChip(sec, pctx) : null;   // HUD frame (HF4b): its Reset all
+        if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
             if (sec.icon) head.appendChild(iconNode(sec.icon, 'sheet-sec-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
             var nameSpan = el('span', 'sheet-sec-name', sec.title || ''); if (sec.style && sec.style.accent) nameSpan.style.color = sec.style.accent;
@@ -1131,6 +1150,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             if (metaText) head.appendChild(el('span', 'sheet-sec-meta', metaText));
             if (chipNode) head.appendChild(chipNode);
             if (pinCh) head.appendChild(pinCh);
+            if (rsCh) head.appendChild(rsCh);
             s.appendChild(head);
         }
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
@@ -1430,6 +1450,16 @@ function renderLayout() {
             pinRow.appendChild(select('sys-sec-pin', [['', 'No pin in the header']].concat(grpList.map(function(g) { return [g.id, 'Pin ' + (g.label || 'Group')]; })), sec.pin || '', 'A Pin button in this section\u2019s header for a band group'));
             row.appendChild(pinRow);
         }
+        var canReset = (sec.fields || []).some(function(pl) { var f = pl && pl.id ? draft.fields.find(function(x) { return x.id === pl.id; }) : null; return !!f && (f.kind === 'resource' || (f.counter === true && (f.kind === 'number' || f.kind === 'skill'))); });
+        if (canReset || sec.resetAll) {   // HUD frame (HF4b): a Reset all button in this section's header (its own words, e.g. Long rest)
+            var rsRow = el('div', 'sys-sec-style'); rsRow.appendChild(el('span', 'sys-sec-style-lbl', 'Reset'));
+            var rsl = el('label', 'sys-sec-color'); var rsc = el('input', 'sys-sec-resetall'); rsc.type = 'checkbox'; rsc.checked = !!sec.resetAll; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' Reset all'));
+            rsl.title = 'A button in this section\u2019s header that fills its pools back to full and sets its counters back to their start'; rsRow.appendChild(rsl);
+            if (sec.resetAll) rsRow.appendChild(input('sys-sec-resettext field', sec.resetText, 'The button\u2019s text, e.g. Long rest', 'Reset all'));
+            var nRs = (sec.fields || []).filter(function(pl) { var f = pl && pl.id ? draft.fields.find(function(x) { return x.id === pl.id; }) : null; return !!f && (f.kind === 'resource' || (f.counter === true && (f.kind === 'number' || f.kind === 'skill'))); }).length;
+            if (sec.resetAll && nRs > LIMITS.editBatch) rsRow.appendChild(el('span', 'sys-warn-line sys-reset-note', 'Reset all resets the first ' + LIMITS.editBatch + ' of these ' + nRs + '.'));   // counted on every draw (validateSystem also warns)
+            row.appendChild(rsRow);
+        }
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
         (sec.fields || []).forEach(function(pl, pi) {
             var text = placementLabel(pl, byId, rollById); if (text === null) return;
@@ -1496,6 +1526,7 @@ function onLayoutInput(t) {
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
     else if (t.classList.contains('sys-sec-title')) sec.title = t.value.slice(0, LIMITS.label);
     else if (t.classList.contains('sys-sec-icon')) { if (t.value.trim()) sec.icon = t.value.slice(0, 32); else delete sec.icon; }   // Stage 5g
+    else if (t.classList.contains('sys-sec-resettext')) { if (t.value.trim()) sec.resetText = t.value.slice(0, LIMITS.label); else delete sec.resetText; }   // HUD frame (HF4b): the Reset all button's own words
     else return false;
     markDirty(); renderPreview(); return true;
 }
@@ -1505,6 +1536,7 @@ function onLayoutChange(t) {
     if (t.classList.contains('sys-sec-tab')) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-collap')) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-inline')) { if (t.value) sec.inline = true; else delete sec.inline; markDirty(); renderPreview(); return true; }   // HUD frame (HF4a)
+    if (t.classList.contains('sys-sec-resetall')) { if (t.checked) sec.resetAll = true; else delete sec.resetAll; markDirty(); renderLayout(); return true; }   // HUD frame (HF4b): its text box comes and goes
     if (t.classList.contains('sys-sec-chip')) { if (t.value) sec.chip = t.value; else delete sec.chip; markDirty(); renderPreview(); return true; }   // Stage 5f
     if (t.classList.contains('sys-sec-pin')) { if (t.value && PIN_GID.test(t.value)) sec.pin = t.value; else delete sec.pin; markDirty(); renderLayout(); return true; }   // Stage 6 (HUD frame HF0: exact class tokens — "sys-sec-pinned" contains "sys-sec-pin", so the Above-the-tabs select used to land here)
     if (c.indexOf('sys-pl-group') >= 0) { var plg = t.closest('.sys-pl'), plq = plg ? (sec.fields || [])[+plg.dataset.pi] : null; if (plq && plq.kind === 'pin' && PIN_GID.test(t.value)) { plq.g = t.value; markDirty(); renderLayout(); } return true; }   // Stage 6: a Pin button's group
@@ -2056,6 +2088,27 @@ function commit(c, f, value) {
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
     c.values = c.values || {}; c.values[f.id] = res.value;
     var d = {}; d[f.id] = res.value;
+    afterCharChange(c, false, d);
+}
+// HUD frame (HF4b): several values of one character as ONE change (a section's Reset all). The GM's is one delta, and one Revert undoes it all
+// (lastChange.extra); a player's is one char-edits message the host judges all-or-nothing. At most LIMITS.editBatch values
+function commitMany(c, list) {
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !Array.isArray(list) || !list.length) return;
+    list = list.slice(0, LIMITS.editBatch);
+    if (isClient()) { var n = net(); if (!n || !n.charEdits) return; var r = n.charEdits(c.id, list); if (r && r.error) toast(r.error); renderViews(c.id); return; }
+    if (!canWrite()) return;
+    var work = Object.assign({}, c, { values: clone(c.values || {}) }), d = {}, prevs = {}, ids = [];   // judged in order on a working copy, all or none
+    for (var i = 0; i < list.length; i++) {
+        var q = list[i]; if (!q || typeof q.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(d, q.fieldId)) continue;
+        var res = applyEdit(sys, work, q.fieldId, q.value, F(), {});
+        if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
+        prevs[q.fieldId] = c.values && Object.prototype.hasOwnProperty.call(c.values, q.fieldId) ? clone(c.values[q.fieldId]) : undefined;
+        work.values[q.fieldId] = res.value; d[q.fieldId] = res.value; ids.push(q.fieldId);
+    }
+    if (!ids.length) return;
+    var extra = null; ids.slice(1).forEach(function(fid) { (extra = extra || {})[fid] = prevs[fid]; });
+    lastChange = { charId: c.id, fieldId: ids[0], prev: prevs[ids[0]], extra: extra };   // one Revert brings every value back
+    c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = d[fid]; });
     afterCharChange(c, false, d);
 }
 // One inventory change on the open sheet (add / remove / setQty). Like commit, but for the item-list kind, which

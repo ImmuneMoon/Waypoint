@@ -2484,3 +2484,6 @@
   .sheet-field.sheet-tile .sheet-counter { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; width: 100%; max-width: 74px; }
   .sheet-field.sheet-tile .sheet-counter > input.sheet-num { grid-column: 1 / -1; grid-row: 1; width: 100%; min-width: 0; }
   .sheet-field.sheet-tile .sheet-counter > .sheet-count { width: auto; height: 22px; }
+  /* HF4b (H13): a section's Reset all — the header chip's look; inert (nothing to reset, the Layout preview, a pop-out) it greys out, unlit by hover */
+  .sheet-sec-chip.sheet-sec-reset[aria-disabled="true"], .sheet-sec-chip.sheet-sec-reset[aria-disabled="true"]:hover { opacity: .5; cursor: default; border-color: var(--edge); color: var(--dim); }
+  .sheet-paletted .sheet-sec-chip.sheet-sec-reset[aria-disabled="true"]:hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 5%, transparent); }   /* the palette's hover tint never lights an inert one */

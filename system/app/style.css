@@ -2013,6 +2013,21 @@
   .sheet-item-onl { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11px; color: var(--dim); cursor: pointer; }
   .sheet-item-noteline { padding: 2px 8px 6px 28px; font-size: 12px; color: var(--dim); }
   .sheet-item-noteline input.sheet-item-note { width: 100%; margin-top: 4px; padding: 3px 6px; font-size: 12px; }
+  /* Stage 6 F4c1: a list's stats on a row (chips On the row, the notes line), what one cost (the GM's box, the owner's chip), the Lists card's stats, the Items tab's boxes */
+  .sheet-chip.sheet-item-stat { white-space: nowrap; font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .sheet-item-stat small { color: var(--dim); font-size: 10px; }
+  .sheet-item-statline { margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+  .sheet-item-paidl { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11px; color: var(--dim); }
+  .sheet-item-paidl input.sheet-item-paid, .sheet-itcol-paid input.sheet-item-paid { width: 72px; flex: none; padding: 2px 4px; text-align: right; }
+  .sheet-chip.sheet-item-paid { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .sheet-itemtable .sheet-itcol-stat, .sheet-itemtable .sheet-itcol-paid { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  .sys-list-stats { display: flex; flex-direction: column; gap: 4px; }
+  .sys-list-card .sys-flags.sys-list-stat { flex-wrap: wrap; }
+  .sys-list-card .sys-flags.sys-list-stat input.sys-list-statkey { flex: 0 0 120px; width: 120px; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
+  .sys-list-card select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+  .sys-list-statadd { align-self: flex-start; }
+  .sys-item-stats { align-items: flex-end; }
+  .sys-stat-off .sys-num-cap { color: var(--gold); }
   .sys-list-card { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   .sys-list-title { font-weight: 600; color: var(--gold); }
   .sys-list-cats { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; }
@@ -2076,7 +2091,7 @@
   .sys-band-grp .sys-bgrp-label { width: 130px; }
   .sys-bgrp-note { margin: 0; }
   /* Stage 6 look fold (L8): monospaced numbers (stat tiles and pool inputs stay proportional) */
-  .sheet-num-mono :is(.sheet-sec-meta, .sheet-ledger-fig .sheet-hdr-val, .sheet-hdr-input, .sheet-band .sheet-value, .sheet-band .sheet-num, .sheet-band .sheet-cur, .sheet-fx-mods, .sheet-item-qtyn, .sheet-itemtable td:not(.sheet-itcol-name), .sheet-caption-val, .sheet-eff) { font-family: ui-monospace, Consolas, monospace; }
+  .sheet-num-mono :is(.sheet-sec-meta, .sheet-ledger-fig .sheet-hdr-val, .sheet-hdr-input, .sheet-band .sheet-value, .sheet-band .sheet-num, .sheet-band .sheet-cur, .sheet-fx-mods, .sheet-item-qtyn, .sheet-itemtable td:not(.sheet-itcol-name), .sheet-caption-val, .sheet-eff, .sheet-item-stat, .sheet-item-paid, .sheet-item-statline) { font-family: ui-monospace, Consolas, monospace; }
   .sheet-num-mono .sheet-sec-meta { font-size: 10px; }
   /* L8: the band as one inline row, or as chips */
   .sheet-band.sheet-band-inline, .sheet-band.sheet-band-chips { align-items: center; gap: 4px 12px; }

@@ -116,6 +116,13 @@ const j = v => JSON.stringify(v);
         return !!a && a.src === 'lib' && a.def.area.ft === 12 && a.def.damage === '3d6' && !!b && b.src === 'lost' && b.def.area.ft === 8 && rowDef(gm, byRid('w_nope')) === null;
     })());
 
+    /* ---- Stage 6 F4c1: an item's stats without the lists (the key rule alone); a set op's paid ---- */
+    check('F4c1: cleanItemDef called without the lists keeps stats by the key rule alone (numbers within 1e9, no row word or prototype name); a set op carries paid (a number 0..1e9, or null) and refuses anything else', (() => {
+        const st = cleanItemDef({ id: 'i_s', name: 'S', stats: JSON.parse('{"Acc":2,"Wt":0.0001,"constructor":1,"max":3,"Big":2e9,"Str":"4"}') }, F, true).stats;
+        const ci = f => cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'set', rowId: 'w_f1', facts: f });
+        return j(st) === j({ Acc: 2, Wt: 0.0001 }) && ci({ paid: 12.5 }).facts.paid === 12.5 && ci({ paid: null }).facts.paid === null && ci({ paid: '5' }) === null && ci({ paid: -1 }) === null && ci({ paid: 2e9 }) === null && !('stats' in cleanItemDef({ id: 'i_s', name: 'S' }, F, true));
+    })());
+
     /* ---- charFor: an item-list never travels to another player, even with hover set ---- */
     check('charFor: item-list excluded for a non-owner (hover ignored), included for the owner', (() => {
         const c = cleanChar({ id: 'c_b', name: 'B', ownerId: 'p1', values: { f_str: 12, f_kit: [{ defId: 'i_frag', qty: 1 }] } }, gm);

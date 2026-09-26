@@ -15,6 +15,7 @@ var LIMITS = Object.freeze({
     items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
     rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
     listCats: 20, rowNote: 200, lvlAbs: 1e6,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level
+    listStats: 10, entryStats: 16, statAbs: 1e9,   // Stage 6 F4c1: a list's stats, the stats an item carries, the size of a stat (a price, a weight: 99,999,999 fits)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 10,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
     band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
@@ -48,6 +49,13 @@ var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1,
 var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1 });   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
 var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1 });
+// Stage 6 F4c1: a list's stat key (F5a reads Row.<key>) — never an Object.prototype name in either case (the wire's packer refuses one, and the
+// engine takes Row.toString as a name) or BYTES_PER_ELEMENT (the packer sends an object holding it as an empty typed array: every stat of that
+// item gone for players), a row word, a reserved suffix (base is refused: his Advantages use cpBase) or a function name; with the
+// engine, one a formula can address. A stat's value: a number (never a numeric string), within 1e9 either way (0.0001 lb, -0.5, 99,999,999)
+var STAT_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
+function statKey(k, F) { if (typeof k !== 'string' || !STAT_KEY.test(k)) return ''; var l = lower(k); if ((k in Object.prototype) || (l in Object.prototype) || ROW_WORDS[l] || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || l === 'bytes_per_element') return ''; return F && F.parse && !validKey('Row.' + k, F) ? '' : k; }
+function statNum(x) { return typeof x === 'number' && fin(x) && Math.abs(x) <= LIMITS.statAbs ? x : undefined; }
 // Stage 6: what a player's removal of an item does. bound: it stays (only the GM removes it); curse (on contact): it leaves their sheet and
 // the GM keeps it on the character, out of their sight, until the GM removes it. Absent: an ordinary removal. The GM's secret: never in the
 // players' view, so every item looks and behaves the same on a player's sheet until they try.
@@ -182,7 +190,7 @@ function cleanField(f, F, gmView) {
         out.options = opts;
         out.def = typeof f.def === 'string' && opts.indexOf(f.def) >= 0 ? f.def : (opts[0] || '');
     }
-    else if (k === 'item-list') { var tbl = cleanItemTable(f.table); if (tbl) out.table = tbl; var lsp = cleanListSpec(f.list, gmView); if (lsp) out.list = lsp; }   // Stage 4: optional rich table (columns/chips/footer); Stage 6 F4b: the list's options
+    else if (k === 'item-list') { var tbl = cleanItemTable(f.table); if (tbl) out.table = tbl; var lsp = cleanListSpec(f.list, gmView, F); if (lsp) out.list = lsp; }   // Stage 4: optional rich table (columns/chips/footer); Stage 6 F4b: the list's options (F4c1: its stats, checked with the engine)
     if (typeof f.caption === 'string') { var cap = cutPoints(f.caption, LIMITS.caption, ' '); if (cap) out.caption = cap; }   // Stage 5g Fold B: a line under the field ({formula} values worked out when drawn)
     if (k === 'resource') {   // Stage 5g Fold B: a pool's icon, a fill-to-max button, and the bar (shown unless turned off)
         var poolIcon = cleanIcon(f.icon); if (poolIcon) out.icon = poolIcon;
@@ -247,7 +255,7 @@ function cleanRollDef(r, gmView) {
 // An item definition (camp.system.items). gmView false: a vis:'gm' item is dropped, and a visible item's
 // formula/skill text (damage/cost/throwSkill) is stripped — the host resolves every roll, so players never
 // need the formula, which also removes the GM-only-field-leak surface (cleanSystem's blanking is fields/rolls only).
-function cleanItemDef(it, F, gmView) {
+function cleanItemDef(it, F, gmView, keys) {   // keys (F4c1): the stat keys of the view's item lists (statKeys); none: the key rule alone
     if (!isObj(it) || typeof it.id !== 'string' || !ITEM_ID.test(it.id)) return null;
     var vis = it.vis === 'gm' ? 'gm' : 'all';
     if (!gmView && vis === 'gm') return null;
@@ -263,9 +271,10 @@ function cleanItemDef(it, F, gmView) {
     if (gmView && RM_MODES[it.eq] === 1) { out.eq = it.eq; var eqm = cutText(it.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // Stage 6 F4b: a player's switching it off (bound: it stays on; curse on contact: you keep it on) and its message — as secret
     var ik = cleanItemKey(it.key, F); if (ik) out.key = ik;   // F4b: its key in formulas, unique inside each list it can be on (the validator)
     var il = lvlNum(it.lvl); if (il !== undefined) out.lvl = il;   // F4b: the level a new row of it starts at (else the list's)
+    var ist = cleanEntryStats(it.stats, keys); if (ist) out.stats = ist;   // F4c1: its stats — under a key some item list of this view defines (any list, never scoped by category: a category changed later loses nothing, and the GM's sheet and the owner's read the same)
     if (isObj(it.area)) {
         var ft = cleanNum(it.area.ft, 0) | 0;
-        if (ft > 0) out.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[it.area.shape] ? it.area.shape : 'circle', name: str(it.area.name, LIMITS.label).replace(CTRL_RE, ' ').trim() };
+        if (ft > 0) out.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[it.area.shape] ? it.area.shape : 'circle', name: cutText(it.area.name, LIMITS.label) };   // F4c1: every control character (as a copy's)
     }
     if (gmView) {   // formula/skill text is GM-only on the wire
         var dmg = cleanFormulaText(it.damage); out.damage = dmg === null ? '' : dmg;
@@ -380,7 +389,7 @@ function cleanItemTable(v) {
 // names count from the level's minimum: Powers 1–4) and a switch per row (Readied, Equipped…). Plain values; null when nothing is set. An
 // empty categories list survives only in the players' view (none of the list's categories has an item they can see: nothing to pick); the
 // GM's empty list means every category.
-function cleanListSpec(v, gmView) {
+function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key (validKey('Row.' + key))
     if (!isObj(v)) return null;
     var out = {};
     if (Array.isArray(v.cats)) {
@@ -392,8 +401,49 @@ function cleanListSpec(v, gmView) {
     if (v.noQty === true) out.noQty = true;
     var lv = cleanLvlSpec(v.lvl); if (lv) out.lvl = lv;
     if (isObj(v.on)) { var sw = { label: cutText(v.on.label, LIMITS.label) || 'On' }; if (v.on.def === true) sw.def = true; out.on = sw; }
+    if (Array.isArray(v.stats)) {   // F4c1: its stats — a number every item of it carries (Acc, Wt, Cost), ten at most, each key once ignoring case (the first wins; a key is never trimmed or fixed)
+        var sts = [], seenS = map();
+        for (var si = 0; si < v.stats.length && sts.length < LIMITS.listStats; si++) {
+            var s = v.stats[si]; if (!isObj(s) || (s.kind !== undefined && s.kind !== 'num')) continue;   // F5a brings other kinds (a pick of named values): a newer file's is dropped
+            var sk = statKey(s.key, F); if (!sk || seenS[lower(sk)]) continue;
+            seenS[lower(sk)] = 1;
+            var so = { key: sk, label: cutText(s.label, LIMITS.label) || sk }, sd = statNum(s.def); if (sd !== undefined && sd !== 0) so.def = sd;
+            var slb = cleanLabels(s.labels); if (slb) so.labels = slb;   // names for the values 0, 1, 2... (a value past them shows as the number: no clamp, so lists sharing a key never fight)
+            if (s.show === true) so.show = true;   // On the row: a chip beside the name, a column in a rich table
+            sts.push(so);
+        }
+        if (sts.length) out.stats = sts;
+    }
+    if (out.stats && typeof v.price === 'string') { var pl = lower(v.price); for (var pi = 0; pi < out.stats.length; pi++) if (lower(out.stats[pi].key) === pl) { out.price = out.stats[pi].key; break; } }   // F4c1: the price is one of its stats (stored as its key): a row records it as paid when it is added
     return Object.keys(out).length ? out : null;
 }
+// F4c1: the stat keys of a view's item lists — lower-case key -> the key as the first list (field order) spells it. Local, never sent
+function statKeys(fields) {
+    var m = map();
+    (Array.isArray(fields) ? fields : []).forEach(function(f) { if (isObj(f) && f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { var k = isObj(s) ? statKey(s.key) : ''; if (k && !m[lower(k)]) m[lower(k)] = k; }); });
+    return m;
+}
+// F4c1 (critic 2): one spelling per stat key per system — a later list's cost where an earlier one says Cost becomes Cost (its price with it), so
+// every list, entry and row reads one key. The GM's view only: the players' view is drawn from it (a GM-only list first keeps its spelling)
+function oneSpelling(fields) {
+    var first = statKeys(fields);
+    fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.stats)) return; f.list.stats.forEach(function(s) { var k = first[lower(s.key)]; if (k && k !== s.key) { if (f.list.price === s.key) f.list.price = k; s.key = k; } }); });
+}
+// F4c1: stats (an item's, a carried copy's) — numbers within 1e9 under keys a list defines (keys: lower-case -> its spelling; none: the key rule
+// alone, a copy's own), at most LIMITS.entryStats, a plain object (the wire's packer refuses a prototype-free one); null when none. One spelling
+// a key (F4c1 review): a copy's cost and Cost keep the first, as a list's keys do, so the GM's sheet and its owner's read one value
+function cleanEntryStats(v, keys) {
+    if (!isObj(v)) return null;
+    var out = {}, seen = map(), n = 0, ks = Object.keys(v);
+    for (var i = 0; i < ks.length && n < LIMITS.entryStats; i++) {
+        var kk = keys ? keys[lower(ks[i])] : statKey(ks[i]), x = statNum(v[ks[i]]);
+        if (!kk || x === undefined || seen[lower(kk)]) continue;
+        out[kk] = x; seen[lower(kk)] = 1; n++;
+    }
+    return n ? out : null;
+}
+function keysOf(spec) { var m = null; (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { var k = isObj(s) ? statKey(s.key) : ''; if (k) { m = m || map(); if (!m[lower(k)]) m[lower(k)] = k; } }); return m; }
+function rowStats(v, spec) { var k = keysOf(spec); return k ? cleanEntryStats(v, k) : null; }   // F4c1: a custom or inline copy's stats as its list holds them (a list with no stats: none)
 function lvlNum(x) { if (typeof x !== 'number' && typeof x !== 'string') return undefined; if (typeof x === 'string' && !x.trim()) return undefined; var n = Number(x); return fin(n) && Math.abs(n) <= LIMITS.lvlAbs ? n : undefined; }
 function cleanLvlSpec(v) {
     if (!isObj(v)) return null;
@@ -596,6 +646,7 @@ function cleanSystem(sys, opts) {
         var gmP = gmPools({ fields: out.fields.concat(gmFields) }, F);
         out.fields = out.fields.filter(function(f) { if (gmP[f.id] !== 1) return true; dropped.push(lower(f.key)); return false; });
     }
+    if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order
     var seenR = map();
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
     if (!gmView && dropped.length) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
@@ -613,10 +664,10 @@ function cleanSystem(sys, opts) {
     }
     var fieldIds = map(), rollIds = map(), resIds = map();
     out.fields.forEach(function(f) { fieldIds[f.id] = f.kind; if (f.kind === 'resource') resIds[f.id] = 1; }); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });   // fieldIds: id -> kind (always truthy; the band gates on the kind)
-    var seenIt = map();
+    var seenIt = map(), stKeys = statKeys(out.fields);   // F4c1: the stats this view's item lists define (the players' view: visible lists only, so a GM-only list's stat never travels)
     (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
         if (out.items.length >= LIMITS.items) return;
-        var c = cleanItemDef(it, F, gmView);
+        var c = cleanItemDef(it, F, gmView, stKeys);
         if (!c || seenIt[c.id]) return;
         seenIt[c.id] = 1; out.items.push(c);
     });
@@ -774,13 +825,15 @@ function cleanCharItem(msg) {
     if (msg.op === 'set') { var fx = cleanFacts(msg.facts); if (!fx) return null; out.facts = fx; }   // F4b
     return out;
 }
-// Stage 6 F4b: a set op's facts — a level (a number, or null: back to the default), a switch, a note ('' clears it); at least one
+// Stage 6 F4b: a set op's facts — a level (a number, or null: back to the default), a switch, a note ('' clears it); F4c1: what one cost (a number
+// 0..1e9, or null: the list price); at least one
 function cleanFacts(v) {
     if (!isObj(v)) return null;
     var out = {};
     if (v.lvl === null) out.lvl = null; else if (v.lvl !== undefined) { if (typeof v.lvl !== 'number') return null; var n = lvlNum(v.lvl); if (n === undefined) return null; out.lvl = n; }
     if (v.on !== undefined) { if (typeof v.on !== 'boolean') return null; out.on = v.on; }
     if (v.note !== undefined) { if (typeof v.note !== 'string' || v.note.length > LIMITS.rowNote * 4) return null; out.note = cutText(v.note, LIMITS.rowNote); }
+    if (v.paid === null) out.paid = null; else if (v.paid !== undefined) { if (typeof v.paid !== 'number' || !fin(v.paid) || v.paid < 0 || v.paid > LIMITS.statAbs) return null; out.paid = v.paid; }
     return Object.keys(out).length ? out : null;
 }
 function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'value'; }
@@ -803,6 +856,7 @@ function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by
     if (gmView && RM_MODES[d.eq] === 1) { out.eq = d.eq; var eqm = cutText(d.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // F4b: the equip lock, as secret
     if (gmView || vis === 'all') { var rk = cleanItemKey(d.key); if (rk) out.key = rk; }   // F4b: a GM-only copy's key stays the GM's (critic 2)
     var rl = lvlNum(d.lvl); if (rl !== undefined) out.lvl = rl;
+    var ds = cleanEntryStats(d.stats, null); if (ds) out.stats = ds;   // F4c1: its stats by the key rule (a snapshot keeps every one; a custom or inline copy's are narrowed to its list's: rowStats)
     if (gmView) {   // formula text stays on the GM's machine, as an item's does
         var dmg = cleanFormulaText(d.damage); if (dmg) out.damage = dmg;
         var cst = cleanFormulaText(d.cost); if (cst) out.cost = cst;
@@ -820,6 +874,7 @@ function cleanRow(e, items, spec) {   // spec (F4b): the list's options (f.list)
     }
     if (!id || !isObj(e.def)) return null;
     var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null;
+    var cs = rowStats(e.def.stats, spec); if (cs) d.stats = cs; else delete d.stats;   // F4c1: a custom or inline copy carries its list's stats only
     var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) c.lnk = 1; else { if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return c;
 }
 // Stage 6 F4b: a row's facts, after its quantity — the level on the list's terms (as stored while the list has none), the switch, the note.
@@ -828,11 +883,26 @@ function rowFacts(o, e, spec) {
     var lv = lvlNum(e.lvl); if (lv !== undefined && typeof e.lvl === 'number') o.lvl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, lv) : lv;
     if (typeof e.on === 'boolean') o.on = e.on;
     var nt = cutText(e.note, LIMITS.rowNote); if (nt) o.note = nt;
+    if (typeof e.paid === 'number' && fin(e.paid) && e.paid >= 0 && e.paid <= LIMITS.statAbs) o.paid = e.paid;   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
 }
 // F4b: a row's level and switch as read (the sheet; F5a's formulas): a stored level, else the item's default level, else the list's; the
 // switch as stored, else the list's "starts on" (an id-less legacy row follows it: critic 13). A kept-on curse is on.
 function rowLvl(spec, row, def) { var l = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null; if (isObj(row) && typeof row.lvl === 'number') return row.lvl; if (l && isObj(def) && typeof def.lvl === 'number') return lvlClamp(l, def.lvl); return l ? l.def : 0; }
 function rowOn(spec, row) { if (isObj(row) && typeof row.on === 'boolean') return row.on; return !!(isObj(spec) && isObj(spec.on) && spec.on.def === true); }
+// F4c1: a row's stat as read (the sheet; F5a's formulas) — the definition the row draws from (rowDef: the library entry, a deleted one's copy, its
+// own), else the stat's default, else 0; the key as the list spells it. What one cost: as recorded when added (the GM may correct it), else the
+// list price (never below 0), else 0
+function rowStat(spec, def, key) {
+    var k = typeof key === 'string' ? key : '', st = null; if (!k) return 0;
+    (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!st && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(k)) st = s; });
+    if (st) k = st.key;
+    var v, ds = isObj(def) && isObj(def.stats) ? def.stats : null;
+    if (ds && Object.prototype.hasOwnProperty.call(ds, k)) v = ds[k];
+    else if (ds) { var lk = lower(k), dk = Object.keys(ds); for (var i = 0; i < dk.length; i++) if (lower(dk[i]) === lk) { v = ds[dk[i]]; break; } }   // another spelling of the key (one per system since critic 2; a file from before reads the same)
+    if (typeof v === 'number' && fin(v)) return v;
+    return st && typeof st.def === 'number' && fin(st.def) ? st.def : 0;
+}
+function rowPaid(spec, row, def) { if (isObj(row) && typeof row.paid === 'number' && fin(row.paid)) return row.paid; return isObj(spec) && typeof spec.price === 'string' && spec.price ? Math.max(0, rowStat(spec, def, spec.price)) : 0; }
 function catIn(cats, c) { var l = lower(cutText(c, LIMITS.category)); return !!l && cats.some(function(x) { return lower(x) === l; }); }
 // The definition a row draws and throws from: the library entry, else the deleted entry's copy, else the row's own. { def, src } or null.
 function rowDef(sys, row) {
@@ -845,8 +915,11 @@ function rowDef(sys, row) {
 // players' fields only (the 5h rule: the owner's sheet, their rolls and the host agree); a custom row without its GM texts; a kept curse
 // (hid) not at all. lib: the host's full items by id — without it a GM-only row is left out (fail closed). F4b: the facts go as stored, a
 // curse the GM keeps on (keptOn) as switched off.
-function projFacts(o, r) { if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; }
-function projectRows(rows, view, lib) {
+function projFacts(o, r) { if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; if (typeof r.paid === 'number') o.paid = r.paid; }   // F4c1: paid
+// F4c1: an inline or custom copy's stats as its owner holds them — its list's (spec: the view's list options; none: no stats); spec true is compare
+// only (sheets.js ownerSeesSame): every stat as the GM's machine holds it, so a change to one is never taken for "the same"
+function ownStats(pd, src, spec) { if (spec === true) return; var st = isObj(src) ? rowStats(src.stats, spec) : null; if (st) pd.stats = st; else delete pd.stats; }
+function projectRows(rows, view, lib, spec) {
     if (!Array.isArray(rows)) return undefined;
     var vis = map(); (view && Array.isArray(view.items) ? view.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string') vis[it.id] = 1; });
     var out = [];
@@ -856,9 +929,10 @@ function projectRows(rows, view, lib) {
         if (typeof r.defId === 'string') {
             if (vis[r.defId] === 1 && !r.snap) { var o = {}; if (r.id) o.id = r.id; o.defId = r.defId; o.qty = r.qty; projFacts(o, r); out.push(o); return; }
             var d = (lib && Object.prototype.hasOwnProperty.call(lib, r.defId)) ? lib[r.defId] : r.snap, pd = cleanRowDef(d, false); if (!pd) return;
+            ownStats(pd, d, spec);
             var io = { id: rid, qty: r.qty }; projFacts(io, r); io.def = pd; io.lnk = 1; out.push(io); return;
         }
-        if (r.id && isObj(r.def)) { var cd = cleanRowDef(r.def, false); if (cd) { var co = { id: r.id, qty: r.qty }; projFacts(co, r); co.def = cd; out.push(co); } }
+        if (r.id && isObj(r.def)) { var cd = cleanRowDef(r.def, false); if (cd) { ownStats(cd, r.def, spec); var co = { id: r.id, qty: r.qty }; projFacts(co, r); co.def = cd; out.push(co); } }
     });
     return out;
 }
@@ -896,6 +970,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             }
             if (spec && isObj(spec.lvl)) row.lvl = lvlClamp(spec.lvl, typeof ent.lvl === 'number' ? ent.lvl : spec.lvl.def);   // F4b: the facts are written as it is added (a later default moves no row)
             if (spec && isObj(spec.on)) row.on = spec.on.def === true;
+            if (spec && spec.price) row.paid = clampNum(rowStat(spec, ent, spec.price), 0, LIMITS.statAbs);   // F4c1: what one cost, from the host's own entry (its price stat, else the stat's default, else 0) — a recorded fact: a merged add keeps the first
             list.push(row); extra.base = 0; extra.row = rowIdOf(row); extra.qty = n; extra.added = n;
             if (row.on === true && RM_MODES[ent.eq] === 1 && opts.player) { extra.onRow = extra.row; extra.eqNote = ent.eq; }   // F4b: picked up already on — the equip lock's grace opens
         }
@@ -908,12 +983,17 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (q.op === 'keep') {   // "Make custom" — a deleted entry's copy becomes the character's own item
             if (opts.player || !isObj(list[idx].snap)) return { ok: false, reason: 'field' };
             var wasHid = list[idx].hid === 1;
-            var kr = { id: q.rowId, qty: list[idx].qty }; ['lvl', 'on', 'note', 'keptOn'].forEach(function(k) { if (list[idx][k] !== undefined) kr[k] = list[idx][k]; }); kr.def = list[idx].snap;   // F4b: its facts go with it
+            var kr = { id: q.rowId, qty: list[idx].qty }; ['lvl', 'on', 'note', 'paid', 'keptOn'].forEach(function(k) { if (list[idx][k] !== undefined) kr[k] = list[idx][k]; }); kr.def = list[idx].snap;   // F4b: its facts go with it (F4c1: what it cost)
             list[idx] = kr; if (wasHid) list[idx].hid = 1;
             extra.qty = list[idx].qty;
         } else if (q.op === 'set') {   // F4b: a row's facts, all or none. A player switching off an item with an equip lock: bound — it stays on
             // (their message; within the grace after it went on, it comes off); curse on contact — it looks off to them and stays on here
-            var fx = isObj(q.facts) ? q.facts : null, rw = list[idx]; if (!fx || (fx.lvl === undefined && fx.on === undefined && fx.note === undefined)) return { ok: false, reason: 'value' };   // no fact: nothing to do
+            var fx = isObj(q.facts) ? q.facts : null, rw = list[idx]; if (!fx || (fx.lvl === undefined && fx.on === undefined && fx.note === undefined && fx.paid === undefined)) return { ok: false, reason: 'value' };   // no fact: nothing to do
+            if (fx.paid !== undefined) {   // F4c1: what one cost is the GM's to correct (a player's: field, before any fact applies); null: back to the list price
+                if (opts.player) return { ok: false, reason: 'field' };
+                if (!spec || !spec.price) return { ok: false, reason: 'value' };
+                if (fx.paid === null) delete rw.paid; else { if (typeof fx.paid !== 'number' || !fin(fx.paid) || fx.paid < 0 || fx.paid > LIMITS.statAbs) return { ok: false, reason: 'value' }; rw.paid = fx.paid; }
+            }
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
             if (fx.note !== undefined) { if (typeof fx.note !== 'string') return { ok: false, reason: 'value' }; var nn = cutText(fx.note, LIMITS.rowNote); if (nn) rw.note = nn; else delete rw.note; }
             if (fx.on !== undefined) {
@@ -1543,6 +1623,10 @@ function validateSystem(sys, F) {
             errors.push({ id: it.id, prop: 'key', message: 'Key "' + it.key + '" is also used by "' + (o.name || 'Item') + '" in ' + (f.label || f.key) + '.' });
         });
     });
+    // Stage 6 F4c1: a stat key a GM-only item list shares with a visible one — an item's value under it is in the players' view (the visible list's)
+    var visSt = map();
+    sys.fields.forEach(function(f) { if (f.kind === 'item-list' && f.vis === 'all' && isObj(f.list) && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { if (isObj(s) && typeof s.key === 'string' && !visSt[lower(s.key)]) visSt[lower(s.key)] = f; }); });
+    sys.fields.forEach(function(f) { if (f.kind !== 'item-list' || f.vis !== 'gm' || !isObj(f.list) || !Array.isArray(f.list.stats)) return; f.list.stats.forEach(function(s) { var vf = isObj(s) && typeof s.key === 'string' ? visSt[lower(s.key)] : null; if (vf) warnings.push({ id: f.id, prop: 'list', message: 'Stat “' + s.key + '” is also on ' + (vf.label || vf.key) + ': an item’s ' + s.key + ' reaches players.' }); }); });
     [sys.sheet, sys.sheet && sys.sheet.hud].forEach(function(lay) {
         (isObj(lay) && Array.isArray(lay.sections) ? lay.sections : []).forEach(function(s) { (isObj(s) && Array.isArray(s.fields) ? s.fields : []).forEach(function(pl) {
             if (!isObj(pl) || pl.on !== true) return; var lf = fieldById(sys, pl.id);
@@ -1611,7 +1695,7 @@ function charFor(c, sys, recipientId, opts) {
     if (!c || c.npc || !c.ownerId) return null;
     var own = c.ownerId === recipientId, values = {}, libFull = opts && opts.lib ? opts.lib : null, probe = !!(opts && opts.probe);   // probe: which fields a recipient may see (syncCharDelta), values as given
     var itemsFull = opts && opts.items ? opts.items : null;   // Stage 6 F4a: the host's items by id — a GM-only row reaches its owner inline
-    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; if (!probe && !fitsKind(f.kind, cv)) return; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv) && !probe) ? projectRows(cv, sys, itemsFull) : (f.kind === 'effects' && Array.isArray(cv) && !probe) ? projectEffects(cv, sys, own, libFull) : cv; } });   // 5h: effects rows projected per recipient   // a carried list never travels to another player, hover flag or not
+    sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; if (!probe && !fitsKind(f.kind, cv)) return; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv) && !probe) ? projectRows(cv, sys, itemsFull, f.list || null) : (f.kind === 'effects' && Array.isArray(cv) && !probe) ? projectEffects(cv, sys, own, libFull) : cv; } });   // 5h: effects rows projected per recipient   // a carried list never travels to another player, hover flag or not
     return { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
 }
 // The host's answer to one edit (its own or a player's): { ok, value } or { ok: false, reason }
@@ -1843,6 +1927,6 @@ function gmPools(sys, F) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

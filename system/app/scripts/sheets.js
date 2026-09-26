@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -1721,7 +1721,8 @@ function onCtl(entry, c, f, spec, editable, labelled) {
 }
 // F4b: 📝 — the item's notes and the row's own note (a box for whoever may change the row); null when there is nothing to show
 function noteBits(entry, def, c, f, editable) {
-    var box = el('div', 'sheet-item-noteline');
+    var box = el('div', 'sheet-item-noteline'), spec = f.list || null;
+    if (spec && Array.isArray(spec.stats) && spec.stats.length) box.appendChild(el('div', 'sheet-item-statline', statLine(entry, def, spec)));   // F4c1: every stat, and what one cost
     if (def.notes) box.appendChild(el('div', 'sheet-item-notes', def.notes));
     if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
     else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
@@ -1776,6 +1777,32 @@ function lostBits(host, rd, entry, c, f, gm, editable) {
     var chip = el('span', 'sheet-chip sheet-item-lost', 'not in library'); chip.title = 'Deleted from the library; the character keeps their copy'; host.appendChild(chip);
     if (gm && editable) { var mk = el('button', 'tool ghost sheet-item-keep', 'Make custom'); mk.title = 'Make this copy the character\u2019s own item'; mk.addEventListener('click', function() { commitItem(c, f, { op: 'keep', rowId: rowIdOf(entry) }); }); host.appendChild(mk); }
 }
+// Stage 6 F4c1: a list's stats on a row. A number as it is: whole, two decimals from 1 up, three significant digits below (fmtNum would show
+// 0.0001 lb as 0); a value name for a whole value inside a stat's names
+function statFmt(v) { if (typeof v !== 'number' || !isFinite(v)) return ''; if (Math.floor(v) === v) return String(v); return Math.abs(v) >= 1 ? String(Number(v.toFixed(2))) : String(Number(v.toPrecision(3))); }
+function statText(st, v) { var L = st && Array.isArray(st.labels) ? st.labels : null; return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
+function statChips(host, def, spec) {   // the stats shown On the row: a chip each beside the name, its label small ("Acc 2")
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var ch = el('span', 'sheet-chip sheet-item-stat'); ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statText(s, rowStat(spec, def, s.key)))); host.appendChild(ch); });
+}
+function statLine(entry, def, spec) {   // every stat, then what one cost: "Acc 2 · Wt 0.0001 · Paid 500" (the 📝 line: a player reads every stat there)
+    var parts = (Array.isArray(spec.stats) ? spec.stats : []).map(function(s) { return s.label + ' ' + statText(s, rowStat(spec, def, s.key)); });
+    if (spec.price) parts.push('Paid ' + statFmt(rowPaid(spec, entry, def)));
+    return parts.join(' · ');
+}
+// F4c1: what one of a row cost — the GM's box (blank: the list price, shown faintly; one set op per change, the host judges it again); text for
+// the owner, and for the GM where nothing can be changed (the Layout preview, a pop-out). labelled: "Paid" before it (a table's header says it)
+function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
+    if (!spec.price) return null;
+    var lp = Math.max(0, rowStat(spec, def, spec.price)), has = typeof entry.paid === 'number', rid = rowIdOf(entry);
+    if (gm && editable) {
+        var pi = el('input', 'field sheet-item-paid'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; pi.dataset.fid = f.id; pi.dataset.part = 'paid-' + rid; pi.value = has ? String(entry.paid) : ''; pi.placeholder = statFmt(lp); pi.title = 'Paid for one (blank: the list price, ' + statFmt(lp) + ')';
+        pi.addEventListener('change', function() { if (pi.validity && pi.validity.badInput) { pi.value = has ? String(entry.paid) : ''; return; } var s = String(pi.value).trim(), n = Number(s); if (s === '') { commitItem(c, f, { op: 'set', rowId: rid, facts: { paid: null } }); return; } if (!isFinite(n) || n < 0 || n > LIMITS.statAbs) { pi.value = has ? String(entry.paid) : ''; return; } commitItem(c, f, { op: 'set', rowId: rid, facts: { paid: n } }); });
+        if (!labelled) return pi;
+        var pl = el('label', 'sheet-item-paidl'); pl.appendChild(el('span', 'sheet-item-paidn', 'Paid')); pl.appendChild(pi); return pl;
+    }
+    var pc = el('span', 'sheet-chip sheet-item-paid', (labelled ? 'Paid ' : '') + statFmt(has ? entry.paid : lp)); pc.title = has ? 'Price paid for one (list price ' + statFmt(lp) + ')' : 'Not recorded: the list price';
+    return pc;
+}
 function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {   // empty (F4b): the note when nothing shows
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var spec = f.list || null, seenCat = Object.create(null), nCat = 0;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one
@@ -1790,7 +1817,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) 
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on));
         var noteLn = null;
-        if (spec) { var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); noteLn = noteBits(entry, def, c, f, editable); }
+        if (spec) { statChips(line, def, spec); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
         if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
@@ -1803,15 +1830,18 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) 
 function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl), hasO = !!(spec && spec.on), hasQ = !(spec && spec.noQty);   // F4b: a level and a switch column; no quantity
+    var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && s.show === true; }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price);   // F4c1: a column per stat shown On the row, and Paid
     if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
     var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
-    var hasAct = editable || canThrow || wantNotes || !!spec, span = 1 + cols.length + (hasL ? 1 : 0) + (hasO ? 1 : 0) + (hasQ ? 1 : 0) + (hasAct ? 1 : 0);
+    var hasAct = editable || canThrow || wantNotes || !!spec, span = 1 + cols.length + nStat + (hasL ? 1 : 0) + (hasO ? 1 : 0) + (hasQ ? 1 : 0) + (hasP ? 1 : 0) + (hasAct ? 1 : 0);
     var table = el('table', 'sheet-itemtable'), thead = el('thead'), htr = el('tr');
     htr.appendChild(el('th', 'sheet-itcol-name', 'Item'));
     cols.forEach(function(col) { htr.appendChild(el('th', 'sheet-itcol-' + col, ITEM_COL_LABEL[col] || col)); });
+    shownSt.forEach(function(s) { htr.appendChild(el('th', 'sheet-itcol-stat', s.label)); });
     if (hasL) htr.appendChild(el('th', 'sheet-itcol-lvl', spec.lvl.label));
     if (hasO) htr.appendChild(el('th', 'sheet-itcol-on', spec.on.label));
     if (hasQ) htr.appendChild(el('th', 'sheet-itcol-qty', 'Qty'));
+    if (hasP) htr.appendChild(el('th', 'sheet-itcol-paid', 'Paid'));
     if (hasAct) htr.appendChild(el('th', 'sheet-itcol-act', ''));
     thead.appendChild(htr); table.appendChild(thead);
     var tbody = el('tbody'), shown = 0, totalQty = 0;
@@ -1827,6 +1857,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
         lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
+        shownSt.forEach(function(s) { tr.appendChild(el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key)))); });
         if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, editable); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
         if (hasO) { var oTd = el('td', 'sheet-itcol-on'), ocT = onCtl(entry, c, f, spec, editable, false); if (ocT) oTd.appendChild(ocT); tr.appendChild(oTd); }
         if (hasQ) {
@@ -1834,6 +1865,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
             qtyTd.appendChild(editable ? itemQtyCell(entry, c, f) : el('span', 'sheet-item-qtyn', '×' + entry.qty));
             tr.appendChild(qtyTd);
         }
+        if (hasP) { var pTd = el('td', 'sheet-itcol-paid'), pcT = paidCtl(entry, def, c, f, spec, editable, gm, false); if (pcT) pTd.appendChild(pcT); tr.appendChild(pTd); }
         var notesRow = null;
         if (hasAct) {
             var actTd = el('td', 'sheet-itcol-act');
@@ -1856,8 +1888,9 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
     if (!shown) { var er = el('tr'), ec = el('td', 'sheet-empty-note', empty || 'No items.'); ec.colSpan = span; er.appendChild(ec); tbody.appendChild(er); }
     table.appendChild(tbody);
     if (tbl.footer && shown) {
-        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')); fc.colSpan = 1 + cols.length + (hasL ? 1 : 0) + (hasO ? 1 : 0); ftr.appendChild(fc);
+        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')); fc.colSpan = 1 + cols.length + nStat + (hasL ? 1 : 0) + (hasO ? 1 : 0); ftr.appendChild(fc);
         if (hasQ) ftr.appendChild(el('td', 'sheet-itft-qty', '×' + totalQty));
+        if (hasP) ftr.appendChild(el('td', null, ''));   // F4c1: under Paid (F5a totals it)
         if (hasAct) ftr.appendChild(el('td', null, ''));
         tfoot.appendChild(ftr); table.appendChild(tfoot);
     }
@@ -2275,7 +2308,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
 function ownerSeesSame(camp, sys, a, b) {
     var pv = playerSystem(camp); if (!pv) return false;
     var lib = {}; (sys.items || []).forEach(function(it) { if (it && typeof it.id === 'string') lib[it.id] = it; });
-    return JSON.stringify(projectRows(Array.isArray(a) ? a : [], pv, lib)) === JSON.stringify(projectRows(Array.isArray(b) ? b : [], pv, lib));
+    return JSON.stringify(projectRows(Array.isArray(a) ? a : [], pv, lib, true)) === JSON.stringify(projectRows(Array.isArray(b) ? b : [], pv, lib, true));   // F4c1 (critic 1): compare only — every stat kept (a list's own narrowing is a function of these), damage, cost and locks never
 }
 function revertLast() {
     if (!lastChange || isClient()) return;
@@ -2361,7 +2394,8 @@ function reCleanChars(camp, sys) {
 // [systemcheck:gmfacing-start]
 function gmFacing(sys) {
     if (!sys) return '';
-    var its = (Array.isArray(sys.items) ? sys.items : []).filter(function(it) { return it && it.vis === 'gm'; }).map(function(it) { return [it.id, cleanRowDef(it, false)]; });
+    var visK = Object.create(null); (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.vis === 'all' && f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { if (s && typeof s.key === 'string') visK[s.key.toLowerCase()] = 1; }); });   // F4c1: the stats of visible lists (ignoring case) — a GM-only list's never reach an owner
+    var its = (Array.isArray(sys.items) ? sys.items : []).filter(function(it) { return it && it.vis === 'gm'; }).map(function(it) { var d = cleanRowDef(it, false); if (d && d.stats) { var st = {}; Object.keys(d.stats).forEach(function(k) { if (visK[k.toLowerCase()] === 1) st[k] = d.stats[k]; }); if (Object.keys(st).length) d.stats = st; else delete d.stats; } return [it.id, d]; });
     var fx = (Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.vis === 'gm'; });
     return JSON.stringify([its, fx]);
 }
@@ -2398,11 +2432,59 @@ function refreshErrors() {
         if (errs.length) errorsById[f.id] = errs;
     });
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
+    // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past ten, a price naming none, another list's spelling),
+    // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
+    var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null);
+    draft.fields.forEach(function(f) {
+        if (!f || f.kind !== 'item-list') return;
+        var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
+        st.forEach(function(s, i) {
+            var k = s && typeof s === 'object' && typeof s.key === 'string' ? s.key : '';
+            if (!k.trim()) { errs.push({ message: 'Stat ' + (i + 1) + ' needs a key: Save drops it.' }); return; }
+            if (!statKey(k, F())) { errs.push({ message: 'Stat key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor, toString). Save drops it.' }); return; }
+            var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: 'Stat key "' + k + '" repeats "' + mine[l] + '" (keys ignore case): Save keeps the first.' }); return; }
+            mine[l] = k; if (++n > capS) return;
+            if (typeof s.def === 'number' && isFinite(s.def) && Math.abs(s.def) > LIMITS.statAbs) errs.push({ message: 'Stat "' + k + '" has a default past ±1,000,000,000: Save drops it.' });
+            keptAll[l] = 1;
+            if (!firstSp[l]) firstSp[l] = { key: k, list: nm }; else if (firstSp[l].key !== k) errs.push({ message: 'Stat "' + k + '" is spelled "' + firstSp[l].key + '" on ' + firstSp[l].list + ': Save uses that spelling here too (one key, one spelling).' });
+        });
+        if (n > capS) errs.push({ message: 'At most ' + capS + ' stats a list: Save keeps the first ' + capS + '.' });
+        if (typeof sp.price === 'string' && sp.price && !mine[sp.price.toLowerCase()]) errs.push({ message: 'The price names no stat of this list: Save drops it.' });
+        keptBy[f.id] = mine;
+        if (errs.length) errorsById['list:' + f.id] = errs;
+    });
+    var camp0 = getActiveCampaign(), saved = systemOf(camp0), toldI = Object.create(null), hasKey = function(m, l) { return !!m && typeof m === 'object' && !Array.isArray(m) && Object.keys(m).some(function(k) { return k.toLowerCase() === l; }); };
+    (saved && Array.isArray(saved.fields) ? saved.fields : []).forEach(function(sf) {
+        if (!sf || sf.kind !== 'item-list' || !sf.list || !Array.isArray(sf.list.stats)) return;
+        var card = keptBy[sf.id];   // a list gone from the draft (or no longer a list) has no card: its items are told on their own rows (F4c1 review)
+        sf.list.stats.forEach(function(s) {
+            var l = s && typeof s.key === 'string' ? s.key.toLowerCase() : ''; if (!l || (card && card[l])) return;   // still on this list (another spelling keeps the values)
+            if (!card) { if (!keptAll[l] && !toldI[l]) { toldI[l] = 1; (draft.items || []).forEach(function(it) { if (it && hasKey(it.stats, l)) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'Save drops its “' + s.key + '” value: no list has that stat now (a stat’s key is its identity).' }); }); } return; }
+            var nI = 0, nC = 0;
+            if (!keptAll[l] && !toldI[l]) { toldI[l] = 1; (draft.items || []).forEach(function(it) { if (it && hasKey(it.stats, l)) nI++; }); }   // an item keeps a stat while any list has it
+            Object.keys((camp0 && camp0.chars) || {}).forEach(function(cid) { var ch = camp0.chars[cid], rows = ch && ch.values && Array.isArray(ch.values[sf.id]) ? ch.values[sf.id] : []; if (rows.some(function(r) { return r && typeof r.defId !== 'string' && r.lnk !== 1 && r.def && hasKey(r.def.stats, l); })) nC++; });   // a custom copy keeps its own list's stats only (critic 8)
+            if (!nI && !nC) return;
+            var what = [];
+            if (nI) what.push('the “' + s.key + '” values of ' + nI + ' item' + (nI === 1 ? '' : 's'));
+            if (nC) what.push((nI ? 'the own values of ' : 'the “' + s.key + '” values of ') + nC + ' character' + (nC === 1 ? '’s copy' : 's’ copies'));
+            (errorsById['list:' + sf.id] = errorsById['list:' + sf.id] || []).push({ message: 'Save drops ' + what.join(' and ') + ' (a stat’s key is its identity).' });
+        });
+    });
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
+    // F4c1 review: what Save drops of an item's stats with no word otherwise — a value past ±1e9, and past 16 an item (the first come are kept)
+    var cleanById = Object.create(null); (clean.items || []).forEach(function(ci) { if (ci && ci.id) cleanById[ci.id] = ci; });
+    (draft.items || []).forEach(function(it) {
+        var ci = it && cleanById[it.id]; if (!ci || !it.stats || typeof it.stats !== 'object' || Array.isArray(it.stats)) return;
+        var keptL = Object.create(null), big = [], over = [];
+        Object.keys(ci.stats || {}).forEach(function(k) { keptL[k.toLowerCase()] = 1; });
+        Object.keys(it.stats).forEach(function(k) { var sv = it.stats[k], l = k.toLowerCase(); if (!keptAll[l] || keptL[l] || typeof sv !== 'number' || !isFinite(sv)) return; if (Math.abs(sv) > LIMITS.statAbs) big.push(k); else over.push(k); });
+        big.forEach(function(k) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: '“' + k + '” is past ±1,000,000,000: Save drops it.' }); });
+        if (over.length) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'At most ' + LIMITS.entryStats + ' stats an item: Save drops ' + over.map(function(k) { return '“' + k + '”'; }).join(', ') + ' (the first ' + LIMITS.entryStats + ' are kept; clear the ones it does not need).' });
+    });
     var v = validateSystem(clean, F());
-    v.errors.forEach(function(e) { (errorsById[e.id] = errorsById[e.id] || []).push(e); });
-    v.warnings.forEach(function(w) { (warningsById[w.id] = warningsById[w.id] || []).push(w); });
+    v.errors.forEach(function(e) { var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
+    v.warnings.forEach(function(w) { var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -2429,8 +2511,8 @@ function patchErrors() {
     var foot = ui('sysFoot'); if (foot) foot.textContent = draft.fields.length + ' field' + (draft.fields.length === 1 ? '' : 's') + ' · ' + draft.rolls.length + ' roll' + (draft.rolls.length === 1 ? '' : 's') + (total ? ' · ' + total + ' error' + (total === 1 ? '' : 's') : ' · no errors') + (warns ? ' · ' + warns + ' warning' + (warns === 1 ? '' : 's') : '') + (dirty ? ' · unsaved changes' : '');
 }
 function input(cls, value, title, placeholder) { var i = el('input', cls); i.type = 'text'; i.value = value === undefined || value === null ? '' : String(value); if (title) i.title = title; if (placeholder) i.placeholder = placeholder; i.spellcheck = false; i.autocomplete = 'off'; return i; }
-function numInput(cls, value, title) { var i = el('input', cls); i.type = 'number'; i.value = value === undefined || value === null ? '' : String(value); i.title = title || ''; return i; }
-function numField(cls, value, title, cap) { var l = el('label', 'sys-num'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput(cls, value, title)); return l; }   // a captioned number (Default / Min / Max / Step) so the def row reads without hovering
+function numInput(cls, value, title, step) { var i = el('input', cls); i.type = 'number'; i.value = value === undefined || value === null ? '' : String(value); i.title = title || ''; if (step) i.step = step; return i; }   // step (F4c1): 'any' for a stat (0.0001, -0.5)
+function numField(cls, value, title, cap, step) { var l = el('label', 'sys-num'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput(cls, value, title, step)); return l; }   // a captioned number (Default / Min / Max / Step) so the def row reads without hovering
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
@@ -2594,7 +2676,7 @@ function itemRow(it) {
     var row = el('div', 'sys-row sys-item-row'); row.dataset.iid = it.id;
     var top = el('div', 'sys-row-main');
     top.appendChild(input('sys-item-name field', it.name, 'The item name shown on the sheet', 'Name'));
-    top.appendChild(input('sys-item-cat field', it.category, 'A group, e.g. Explosives, Sidearms', 'Category'));
+    var catIn = input('sys-item-cat field', it.category, 'A group, e.g. Explosives, Sidearms', 'Category'), sDefs = itemStatDefs(it); catIn.dataset.scope = sDefs.map(function(s) { return s.key.toLowerCase(); }).join(','); top.appendChild(catIn);   // F4c1: the lists it can be on decide its stat boxes (a category that changes them redraws the row)
     var area = el('div', 'sys-item-area');
     area.appendChild(select('sys-item-shape', [['', 'No blast'], ['circle', 'Blast (circle)']], it.area ? (it.area.shape || 'circle') : '', 'A thrown blast: a circular area, thrown from the sheet'));
     var ftw = numField('sys-item-ft', it.area ? it.area.ft : '', 'Blast radius in feet', 'ft'); if (!it.area) ftw.style.opacity = '0.5'; area.appendChild(ftw);
@@ -2616,9 +2698,41 @@ function itemRow(it) {
     if (anyL) flags.appendChild(numField('sys-item-lvl', it.lvl, 'The level a new row of it starts at (blank: the list\u2019s default)', 'Level'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
+    var stBox = itemStatsBox(it, sDefs); if (stBox) row.appendChild(stBox);   // F4c1
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
     return row;
+}
+// Stage 6 F4c1: an item's stat boxes — the stats of every list it can be on (its category among the list's, or a list with none), once per key
+// ignoring case (the first list's, as Save spells it). A value stored under a key none of those lists has is drawn after, so it can be cleared
+function itemStatDefs(it) {
+    var out = [], seen = Object.create(null), cat = String((it && it.category) || '').trim().toLowerCase();
+    (draft && Array.isArray(draft.fields) ? draft.fields : []).forEach(function(f) {
+        if (!f || f.kind !== 'item-list') return;
+        var sp = cleanListSpec(f.list, true, F()); if (!sp || !Array.isArray(sp.stats)) return;
+        if (Array.isArray(sp.cats) && sp.cats.length && !sp.cats.some(function(x) { return String(x).toLowerCase() === cat; })) return;
+        sp.stats.forEach(function(s) { var l = s.key.toLowerCase(); if (seen[l]) return; seen[l] = 1; out.push(s); });
+    });
+    return out;
+}
+function itemStatsBox(it, defs) {
+    var have = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, box = el('div', 'sys-flags sys-item-stats'), inScope = Object.create(null);
+    var valOf = function(k) { var l = k.toLowerCase(), hk = Object.keys(have).filter(function(x) { return x.toLowerCase() === l; })[0]; return hk === undefined ? undefined : have[hk]; };
+    defs.forEach(function(s) {
+        inScope[s.key.toLowerCase()] = 1;
+        var v = valOf(s.key), lb = el('label', 'sys-num'), ctl; lb.appendChild(el('span', 'sys-num-cap', s.label));
+        if (Array.isArray(s.labels) && s.labels.length) {   // a stat with value names: a dropdown (a value past them stays, greyed)
+            ctl = select('sys-item-stat', [['', '—']].concat(s.labels.map(function(n, i) { return [String(i), n || String(i)]; })), typeof v === 'number' ? String(v) : '', s.label + ' (' + s.key + ')');
+            if (typeof v === 'number' && !(v >= 0 && v < s.labels.length && Math.floor(v) === v)) { var xo = el('option', null, String(v)); xo.value = String(v); xo.selected = true; xo.disabled = true; ctl.appendChild(xo); }
+        } else ctl = numInput('sys-item-stat', typeof v === 'number' ? v : '', s.label + ' (' + s.key + '; blank: ' + (typeof s.def === 'number' ? s.def : 0) + ')', 'any');
+        ctl.dataset.sk = s.key; lb.appendChild(ctl); box.appendChild(lb);
+    });
+    Object.keys(have).forEach(function(k) {
+        if (inScope[k.toLowerCase()] || !STAT_KEY.test(k) || (k in Object.prototype) || (k.toLowerCase() in Object.prototype)) return;
+        var lb = el('label', 'sys-num sys-stat-off'); lb.appendChild(el('span', 'sys-num-cap', k + ' (not on its lists)'));
+        var ni = numInput('sys-item-stat', typeof have[k] === 'number' ? have[k] : '', 'A value under a key no list it can be on has: clear it, or give it a category whose list has this stat (Save keeps it only while some list has it)', 'any'); ni.dataset.sk = k; lb.appendChild(ni); box.appendChild(lb);
+    });
+    return box.childNodes.length ? box : null;
 }
 // Stage 6 F4b: the Lists tab — one card per item-list field: the categories its picker offers, the same item more than once, no quantity, a
 // level per row (names count from its minimum) and a switch per row. Changes go to the draft; Save cleans them
@@ -2628,7 +2742,7 @@ function renderLists() {
     if (!lists.length) { box.appendChild(el('div', 'sys-empty', 'No item lists yet. Add an Item list field in Fields (Skills, Weapons, Gear\u2026), then shape it here.')); return; }
     var cats = [], seen = Object.create(null);
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
-    lists.forEach(function(f) { box.appendChild(listCard(f, cats)); });
+    lists.forEach(function(f) { box.appendChild(listCard(f, cats)); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
 }
 function listCard(f, allCats) {
     var sp = f.list && typeof f.list === 'object' ? f.list : {}, card = el('div', 'sys-list-card'); card.dataset.lid = f.id;
@@ -2662,10 +2776,42 @@ function listCard(f, allCats) {
         orow.appendChild(checkLabel('sys-list-ondef', sw.def === true, 'Starts on', 'A new row starts switched on; a row from before the list had its switch reads it until it is switched'));
     }
     card.appendChild(orow);
+    // Stage 6 F4c1: the list's stats — a number every item of it carries (Acc, Wt, Cost), ten at most — and the one that is its price
+    var sts = Array.isArray(sp.stats) ? sp.stats : [], sb = el('div', 'sys-list-stats');
+    sb.appendChild(el('span', 'sys-num-cap', 'Stats'));
+    sts.forEach(function(s0, si) {
+        var s = s0 && typeof s0 === 'object' ? s0 : {}, sr = el('div', 'sys-flags sys-list-stat'); sr.dataset.si = String(si);
+        var ki = input('sys-list-statkey field', typeof s.key === 'string' ? s.key : '', 'The stat’s key: a letter, then letters, digits and _ (up to 24); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true). The key is the stat’s identity: renaming or removing it drops its values at Save. Formulas will read it in a later update', 'Key'); ki.maxLength = 24; sr.appendChild(ki);
+        sr.appendChild(input('sys-list-statlabel field', typeof s.label === 'string' ? s.label : '', 'The stat’s name on the sheet (blank: its key)', 'Label'));
+        sr.appendChild(numField('sys-list-statdef', typeof s.def === 'number' ? s.def : '', 'What an item without its own value reads (blank: 0)', 'default', 'any'));
+        sr.appendChild(input('sys-list-statnames field', Array.isArray(s.labels) ? s.labels.join(', ') : '', 'Names for the values 0, 1, 2… separated by commas (E, A, H, VH): a row shows the name, Items a dropdown; the value stays a number', 'Value names (optional)'));
+        sr.appendChild(checkLabel('sys-list-statshow', s.show === true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat reads in the row’s 📝 line'));
+        [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
+        sb.appendChild(sr);
+    });
+    var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
+    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); }
+    card.appendChild(sb);
     return card;
 }
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
 function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
+// F4c1 review: a stat's key as it is typed. The price follows its OWN stat only (the first stat holding its key, as Save reads it), never another
+// stat typed through its spelling (cr on the way to crit); the price stat's key cleared to retype it leaves the price blank and remembers which
+// stat it was, until a price is chosen or a stat added, moved or removed
+var _priceAt = new WeakMap();
+function statKeyInput(lsp, stL, sti, raw) {
+    var stD = stL[sti], pl = typeof lsp.price === 'string' ? lsp.price.toLowerCase() : '', own = -1;
+    if (pl) { for (var q = 0; q < stL.length; q++) if (stL[q] && typeof stL[q].key === 'string' && stL[q].key.toLowerCase() === pl) { own = q; break; } }
+    else if (lsp.price === '' && _priceAt.get(lsp) === sti) own = sti;
+    stD.key = String(raw).trim().slice(0, 24);
+    if (own === sti) { lsp.price = stD.key; _priceAt.set(lsp, sti); }
+}
+function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then each stat by its key (kept up to date as a key is typed)
+    sel.textContent = '';
+    var pl = typeof sp.price === 'string' ? sp.price.toLowerCase() : '', none = el('option', null, 'No price'); none.value = ''; sel.appendChild(none);
+    (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (!s || typeof s !== 'object' || typeof s.key !== 'string' || !s.key) return; var o = el('option', null, s.label && s.label !== s.key ? s.label + ' (' + s.key + ')' : s.key); o.value = s.key; if (pl && s.key.toLowerCase() === pl) o.selected = true; sel.appendChild(o); });
+}
 function renderCombat() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
@@ -2732,12 +2878,13 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
         else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
+        else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
         else return;
         markDirty(); patchErrors(); return;
     }
     var lcd = listOfCard(t);
     if (lcd) {   // Stage 6 F4b: the Lists tab's boxes (Save cleans them)
-        var lcc = t.className || '', lsp = lcd.list || (lcd.list = {}), lvD = lsp.lvl && typeof lsp.lvl === 'object' ? lsp.lvl : null, numOr = function(o, k) { if (String(t.value).trim() === '') delete o[k]; else o[k] = Number(t.value); };
+        var lcc = t.className || '', lsp = lcd.list || (lcd.list = {}), lvD = lsp.lvl && typeof lsp.lvl === 'object' ? lsp.lvl : null, numOr = function(o, k) { if (t.validity && t.validity.badInput) return; if (String(t.value).trim() === '') delete o[k]; else o[k] = Number(t.value); };
         if (lcc.indexOf('sys-list-lvllabel') >= 0 && lvD) lvD.label = t.value.slice(0, LIMITS.label);
         else if (lcc.indexOf('sys-list-lvlmin') >= 0 && lvD) numOr(lvD, 'min');
         else if (lcc.indexOf('sys-list-lvlmax') >= 0 && lvD) numOr(lvD, 'max');
@@ -2745,6 +2892,16 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-stat') >= 0) {   // Stage 6 F4c1: a stat's boxes
+            var srw = t.closest('.sys-list-stat'), sti = srw ? +srw.dataset.si : -1, stL = Array.isArray(lsp.stats) ? lsp.stats : null; if (!stL || !(sti >= 0 && sti < stL.length)) return;
+            var stD = stL[sti] && typeof stL[sti] === 'object' && !Array.isArray(stL[sti]) ? stL[sti] : (stL[sti] = {});
+            if (lcc.indexOf('sys-list-statkey') >= 0) statKeyInput(lsp, stL, sti, t.value);   // the price follows its own stat's key
+            else if (lcc.indexOf('sys-list-statlabel') >= 0) stD.label = t.value.slice(0, LIMITS.label);
+            else if (lcc.indexOf('sys-list-statdef') >= 0) numOr(stD, 'def');
+            else if (lcc.indexOf('sys-list-statnames') >= 0) { var stn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (stn.length && !stn[stn.length - 1]) stn.pop(); if (stn.some(Boolean)) stD.labels = stn; else delete stD.labels; }
+            else return;
+            var pCard = t.closest('.sys-list-card'), pSel = pCard ? pCard.querySelector('.sys-list-price') : null; if (pSel) priceOptions(pSel, lsp);   // the Price choices follow a key or a label as it is typed
+        }
         else return;
         markDirty(); patchErrors(); return;
     }
@@ -2806,6 +2963,7 @@ function onChange(e) {
         if (c.indexOf('sys-item-rmmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.rm = t.value; else delete iit.rm; markDirty(); renderAll(); return; }   // Stage 6
         if (c.indexOf('sys-item-eqmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.eq = t.value; else delete iit.eq; markDirty(); renderAll(); return; }   // F4b
         if (c.indexOf('sys-item-shape') >= 0) { if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' }; markDirty(); renderAll(); return; }
+        if (c.indexOf('sys-item-cat') >= 0) { var nsc = itemStatDefs(iit).map(function(s) { return s.key.toLowerCase(); }).join(','); if (nsc !== (t.dataset.scope || '')) { markDirty(); renderAll(); } return; }   // F4c1: a category that changes which lists it can be on redraws its stat boxes
         return;
     }
     var lch = listOfCard(t);
@@ -2817,6 +2975,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
+        else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
+        else if (c.indexOf('sys-list-price') >= 0) { _priceAt.delete(lsc); if (t.value) lsc.price = t.value; else delete lsc.price; }
         else return;
         markDirty(); renderAll(); return;
     }
@@ -2912,6 +3072,18 @@ function onClick(e) {
         else if (iact === 'dup') { var di = clone(iitem); di.id = uid('i_'); if (di.name) di.name = di.name + ' copy'; draft.items.splice(ii + 1, 0, di); }
         else if (iact === 'del') { draft.items.splice(ii, 1); }
         else return;
+        markDirty(); renderAll(); return;
+    }
+    var lcb = listOfCard(b);
+    if (lcb) {   // Stage 6 F4c1: a Lists card's stat buttons (add, move, remove — a removed price goes with its stat)
+        var lsb = lcb.list || (lcb.list = {}), sArr = Array.isArray(lsb.stats) ? lsb.stats : [], sact = b.dataset.act, sRow = b.closest('.sys-list-stat'), sI = sRow ? +sRow.dataset.si : -1;
+        if (sact === 'statadd') { if (sArr.length >= LIMITS.listStats) { toast('At most ' + LIMITS.listStats + ' stats a list.'); return; } sArr.push({ key: '', label: '' }); lsb.stats = sArr; }
+        else if (sact === 'statup' && sI > 0 && sI < sArr.length) { var su = sArr[sI]; sArr[sI] = sArr[sI - 1]; sArr[sI - 1] = su; }
+        else if (sact === 'statdown' && sI >= 0 && sI < sArr.length - 1) { var sdn = sArr[sI]; sArr[sI] = sArr[sI + 1]; sArr[sI + 1] = sdn; }
+        else if (sact === 'statdel' && sI >= 0 && sI < sArr.length) { var gone = sArr.splice(sI, 1)[0]; if (gone && typeof gone.key === 'string' && typeof lsb.price === 'string' && lsb.price.toLowerCase() === gone.key.toLowerCase()) delete lsb.price; }
+        else return;
+        _priceAt.delete(lsb);
+        if (!sArr.length) { delete lsb.stats; delete lsb.price; }
         markDirty(); renderAll(); return;
     }
     var ctx = fieldOfRow(b); if (!ctx) return;

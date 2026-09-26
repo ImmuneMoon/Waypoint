@@ -1,0 +1,464 @@
+{
+  "v": 1,
+  "name": "Generic 3d6 (rows)",
+  "preset": "",
+  "updated": 0,
+  "fields": [
+    {
+      "id": "f_st",
+      "key": "ST",
+      "label": "ST",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "def": 10
+    },
+    {
+      "id": "f_dx",
+      "key": "DX",
+      "label": "DX",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "def": 10
+    },
+    {
+      "id": "f_iq",
+      "key": "IQ",
+      "label": "IQ",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "def": 10
+    },
+    {
+      "id": "f_skills",
+      "key": "Skills",
+      "label": "Skills",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "list": {
+        "cats": [
+          "Skill"
+        ],
+        "multi": true,
+        "noQty": true,
+        "lvl": {
+          "label": "Level",
+          "min": 0,
+          "max": 30,
+          "step": 1,
+          "def": 10
+        },
+        "stats": [
+          {
+            "key": "diff",
+            "label": "Diff",
+            "labels": [
+              "E",
+              "A",
+              "H",
+              "VH"
+            ],
+            "show": true
+          },
+          {
+            "key": "fix",
+            "label": "Fixed"
+          },
+          {
+            "key": "granted",
+            "label": "Granted",
+            "labels": [
+              "No",
+              "Yes"
+            ]
+          },
+          {
+            "key": "bear",
+            "label": "Bearing"
+          },
+          {
+            "key": "lang",
+            "label": "Language",
+            "labels": [
+              "No",
+              "Yes"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "f_powers",
+      "key": "Powers",
+      "label": "Powers",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "list": {
+        "cats": [
+          "Power"
+        ],
+        "noQty": true,
+        "lvl": {
+          "label": "Rank",
+          "min": 1,
+          "max": 4,
+          "step": 1,
+          "def": 1,
+          "labels": [
+            "I",
+            "II",
+            "III",
+            "IV"
+          ]
+        },
+        "stats": [
+          {
+            "key": "cpA",
+            "label": "CP (ability)",
+            "show": true
+          },
+          {
+            "key": "cpC",
+            "label": "CP (control)"
+          },
+          {
+            "key": "cpK",
+            "label": "CP (knack)"
+          },
+          {
+            "key": "fpP",
+            "label": "FP"
+          },
+          {
+            "key": "al",
+            "label": "Alignment",
+            "labels": [
+              "DS",
+              "Grey",
+              "LS"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "f_gear",
+      "key": "Gear",
+      "label": "Gear",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "table": {
+        "footer": true
+      },
+      "list": {
+        "cats": [
+          "Gear"
+        ],
+        "on": {
+          "label": "Stowed"
+        },
+        "stats": [
+          {
+            "key": "wt",
+            "label": "Wt",
+            "show": true
+          },
+          {
+            "key": "cr",
+            "label": "Credits"
+          },
+          {
+            "key": "wl",
+            "label": "Legality"
+          }
+        ],
+        "price": "cr"
+      }
+    },
+    {
+      "id": "f_adv",
+      "key": "Advantages",
+      "label": "Advantages",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "list": {
+        "cats": [
+          "Advantage"
+        ],
+        "noQty": true,
+        "stats": [
+          {
+            "key": "cpBase",
+            "label": "CP",
+            "show": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "f_secret",
+      "key": "Secret",
+      "label": "Secret",
+      "kind": "item-list",
+      "vis": "gm",
+      "hover": false,
+      "edit": "gm",
+      "list": {
+        "cats": [
+          "Secret"
+        ],
+        "stats": [
+          {
+            "key": "Heat",
+            "label": "Heat"
+          }
+        ]
+      }
+    }
+  ],
+  "rolls": [
+    {
+      "id": "r_st",
+      "label": "ST check",
+      "formula": "3d6 <= ST",
+      "vis": "all"
+    }
+  ],
+  "items": [
+    {
+      "id": "i_karate",
+      "name": "Karate",
+      "category": "Skill",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Karate",
+      "stats": {
+        "diff": 2
+      }
+    },
+    {
+      "id": "i_stealth",
+      "name": "Stealth",
+      "category": "Skill",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Stealth",
+      "stats": {
+        "diff": 1
+      }
+    },
+    {
+      "id": "i_lore",
+      "name": "Forbidden Lore",
+      "category": "Skill",
+      "icon": "",
+      "notes": "",
+      "vis": "gm",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Hidden",
+      "stats": {
+        "diff": 3
+      }
+    },
+    {
+      "id": "i_push",
+      "name": "Force Push",
+      "category": "Power",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "ForcePush",
+      "stats": {
+        "cpA": 10,
+        "cpC": 5,
+        "fpP": 2,
+        "al": 1
+      }
+    },
+    {
+      "id": "i_field",
+      "name": "Death Field",
+      "category": "Power",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "DeathField",
+      "stats": {
+        "cpA": 40,
+        "fpP": 99999999,
+        "al": 0
+      }
+    },
+    {
+      "id": "i_comlink",
+      "name": "Comlink",
+      "category": "Gear",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Comlink",
+      "stats": {
+        "wt": 0.0001,
+        "cr": 50,
+        "wl": 0
+      }
+    },
+    {
+      "id": "i_blaster",
+      "name": "Blaster",
+      "category": "Gear",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "3d6",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Blaster",
+      "stats": {
+        "wt": 2,
+        "cr": 500,
+        "wl": 3,
+        "Heat": 4
+      }
+    },
+    {
+      "id": "i_rich",
+      "name": "Wealthy",
+      "category": "Advantage",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Wealthy",
+      "stats": {
+        "cpBase": 20
+      }
+    },
+    {
+      "id": "i_rune",
+      "name": "Ember Rune",
+      "category": "Secret",
+      "icon": "",
+      "notes": "",
+      "vis": "gm",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "stats": {
+        "Heat": 7
+      }
+    }
+  ],
+  "combat": {
+    "blastAuto": "full",
+    "blastRoller": "owner",
+    "hpResource": "",
+    "cover": {
+      "on": false,
+      "style": "graded"
+    }
+  },
+  "sheet": {
+    "tabs": [],
+    "sections": [
+      {
+        "id": "s_attr",
+        "title": "Attributes",
+        "cols": 3,
+        "fields": [
+          {
+            "id": "f_st",
+            "w": 1
+          },
+          {
+            "id": "f_dx",
+            "w": 1
+          },
+          {
+            "id": "f_iq",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_lists",
+        "title": "Lists",
+        "cols": 1,
+        "fields": [
+          {
+            "id": "f_skills",
+            "w": "row"
+          },
+          {
+            "id": "f_powers",
+            "w": "row"
+          },
+          {
+            "id": "f_gear",
+            "w": "row"
+          },
+          {
+            "id": "f_adv",
+            "w": "row"
+          },
+          {
+            "id": "f_secret",
+            "w": "row"
+          }
+        ]
+      }
+    ]
+  }
+}

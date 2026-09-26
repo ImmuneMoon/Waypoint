@@ -2052,6 +2052,10 @@
   .sys-list-names { margin-top: 4px; }
   /* Stage 6 F5b: a row's roll buttons; the Lists card's Rolls */
   .sheet-item-roll { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; }
+  /* Stage 6 HUD C8: a part whose show-if is false, as the Layout preview draws it; the placement's if button and box */
+  .sheet-showif-off { opacity: 0.4; outline: 1px dashed var(--edge); outline-offset: 2px; }
+  .sys-pl .sys-pl-if.on { color: var(--gold); } .sys-pl input.sys-pl-showif { flex: 1 1 140px; min-width: 100px; font-family: ui-monospace, Consolas, monospace; }
+  .sys-sec-showifrow input.sys-sec-showif { flex: 1 1 220px; font-family: ui-monospace, Consolas, monospace; }
   /* Stage 6 HUD H7: an apply action's changes in the Rolls tab; its card in Table Chat */
   .sys-apply { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
   .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }

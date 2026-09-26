@@ -2993,7 +2993,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const lsD = shD.slice(shD.indexOf('function labelSecret('), shD.indexOf('function rollNode('));
         check('derived GM-only values (source): labelSecret asks gmDerivedNames of the drawn names beside the direct and the effect checks (no character: a pool whose max is GM-only counts whole); net.diceRoll asks gmOnlyNames of every name the formula writes and gmDerivedNames of the names it read, once each, before the whisper; the export and the window API carry it; Help says so',
             (lsD.match(/gmDerivedNames\(/g) || []).length === 1 && /gmDerivedNames\(sys, Fm, ns\)/.test(lsD) && /var why = labelSecret\(sys, vv, r\.label\);/.test(shD) && /whyI = allI \? labelSecret\(sys, allI\.vars, r\.label\) : ''/.test(shD)
-            && (ntD.match(/gmDerivedNames\(/g) || []).length === 2 && /SR\.gmDerivedNames\(campR\.system, F, rowP\.names\)/.test(ntD) && /SR\.gmOnlyNames\(campR\.system, F\.names\(expr\)\.map\(/.test(ntD) && /SR\.gmDerivedNames\(campR\.system, F, rec\.names\)/.test(ntD)
+            && (ntD.match(/gmDerivedNames\(/g) || []).length === 3 && /SR\.gmDerivedNames\(campR\.system, F, mfN\)/.test(ntD) && /SR\.gmDerivedNames\(campR\.system, F, rowP\.names\)/.test(ntD) && /SR\.gmOnlyNames\(campR\.system, F\.names\(expr\)\.map\(/.test(ntD) && /SR\.gmDerivedNames\(campR\.system, F, rec\.names\)/.test(ntD)
             && ntD.indexOf('else if (gmR.length)') > 0 && ntD.indexOf('else if (gmR.length)') < ntD.indexOf("var toKey = ui('chatTo')") && typeof S.gmDerivedNames === 'function'
             && /A GM&rsquo;s roll that names a GM-only field, or uses a value worked out from one \(a formula or a skill&rsquo;s base built on it, or a pool whose maximum is, full or not\), is kept private\./.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
         // A skill whose base names a GM-only field: the players' view nulls the base, and the resolver reads that as "GM only" for the skill and its
@@ -3700,9 +3700,9 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             j(tc(true)) === j(['f_hits:hit', 'f_fp', 'f_stun']) && j(tc(false)) === j(['f_hits:miss', 'f_fp', 'f_stun']) && j(tc(null)) === j(['f_fp', 'f_stun']) && j(S.thenChanges({ id: 'r_x' }, true)) === '[]');
         const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tT = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('R1 the editor and sheet (source): a roll row has its + Then… editor (When, target, Subtract | Add | Set to, amount); the change buttons keep their order (a removal that empties the list drops it, every other press saves and redraws); a roll with consequences names itself to the dice path; tour and Help say so',
-            /row\.appendChild\(applyEditor\(r, isApply \? 'apply' : 'then'\)\);/.test(shT) && /select\('sys-apply-when', \[\['', 'Always'\], \['hit', 'On success'\], \['miss', 'On failure'\]\]/.test(shT) && /\['sub', 'Subtract'\], \['add', 'Add'\], \['set', 'Set to'\]\], ch\.set \? 'set'/.test(shT)
+            /row\.appendChild\(applyEditor\(r, isApply \? 'apply' : 'then'\)\);/.test(shT) && /select\('sys-apply-when', \[\['', 'Always'\], \['hit', 'On success'\], \['miss', 'On failure'\], \['malf', 'On malfunction'\]\]/.test(shT) && /\['sub', 'Subtract'\], \['add', 'Add'\], \['set', 'Set to'\]\], ch\.set \? 'set'/.test(shT)
             && /else if \(act === 'applydel' && aI >= 0 && aI < aArr\.length\) aArr\.splice\(aI, 1\);\n\s*else return;\n\s*if \(aK === 'then' && !aArr\.length\) delete ctx\.r\.then;/.test(shT)
-            && /if \(Array\.isArray\(r\.then\) && r\.then\.length\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR\);/.test(shT)
+            && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR\);/.test(shT)
             && /A <b>roll<\/b> can make changes too: its <b>\+ Then&hellip;<\/b> changes/.test(hT) && /the host rolls the button&rsquo;s own formula \(a modifier or advantage from shift-click included\), so a hit cannot be made up\./.test(hT) && /a roll can make changes after it lands \(<b>On success<\/b>: Hits \+ 1\)/.test(tT));
     }
     /* ---- Stage 6 HUD R2a: a list's counters — a whole number each row keeps (Charges, Hits), read as Row.<key> ---- */
@@ -3786,6 +3786,29 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /var nOk = !r\.needs \|\| !\(res && res\.rn && res\.rn\[rid\]\) \|\| res\.rn\[rid\]\[ri\] !== false, withE = /.test(shV) && /if \(!nOk\) \{ b\.disabled = true; b\.title = \(r\.needsText \|\| 'Not now'\)/.test(shV) && /row: withE \? \{ f: f\.id, r: rid, i: ri \} : \{ f: f\.id, r: rid \}/.test(shV)
             && /input\('sys-list-needs field'/.test(shV) && /listApplyEditor\(cb2, rr, ri, 'then', sp, targets\);/.test(shV) && /ctrs\.map\(function\(t\) \{ return \['c:' \+ t\.key, 'Counter: ' \+ \(t\.label \|\| t\.key\)\]; \}\)/.test(shV)
             && /if \(t\.value\.indexOf\('c:'\) === 0\) \{ atC\.c = t\.value\.slice\(2\); delete atC\.f; \}/.test(shV));
+    }
+    /* ---- Stage 6 HUD R3: a roll's Malf — a natural total at or past it malfunctions (a failure, with its own changes) ---- */
+    {
+        const rawM = { v: 1, name: 'M', fields: [{ id: 'f_g', key: 'GMFig', kind: 'number', def: 2, vis: 'gm' }, { id: 'f_j', key: 'Jam', kind: 'number', def: 0 },
+            { id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Malf' }], counters: [{ key: 'Charges', def: 3 }], rolls: [{ label: 'Fire', formula: '3d6 <= 12', malf: 'Row.Malf', then: [{ c: 'Charges', formula: '1', when: 'malf' }] }, { label: 'Sec', formula: '3d6 <= 12', malf: 'GMFig + 15' }, { label: 'Odd', formula: '3d6 <= 12', malf: 'd6', then: [{ c: 'Charges', formula: '1', when: 'malf' }] }] } }],
+            rolls: [{ id: 'r_a', label: 'A', formula: '3d6 <= 12', malf: '17', then: [{ f: 'f_j', formula: '1', add: true, when: 'malf' }, { f: 'f_j', formula: '0', set: true, when: 'hit' }] }, { id: 'r_s', label: 'S', formula: 'd20', malf: 'GMFig' }, { id: 'r_n', label: 'N', formula: 'd20', then: [{ f: 'f_j', formula: '1', when: 'malf' }] }],
+            items: [{ id: 'i_bl', name: 'Blaster', stats: { Malf: 17 } }], sheet: { sections: [] } };
+        const gmM = cleanSystem(rawM, { F, gmView: true }), plM = cleanSystem(rawM, { F, gmView: false }), rM = (s, id) => s.rolls.find(r => r.id === id), lM = s => s.fields.find(f => f.id === 'f_wp').list.rolls;
+        check('R3 the cleaner keeps a roll\'s Malf (a system roll\'s and a list roll\'s) and On malfunction among its consequences; the players\' view drops a Malf naming a GM-only value (their rolls then never malfunction by it); fixed points',
+            rM(gmM, 'r_a').malf === '17' && rM(gmM, 'r_a').then[0].when === 'malf' && lM(gmM)[0].malf === 'Row.Malf' && !('malf' in rM(plM, 'r_s')) && !('malf' in lM(plM)[1]) && lM(plM)[0].malf === 'Row.Malf'
+            && j(cleanSystem(gmM, { F, gmView: true })) === j(gmM) && j(cleanSystem(plM, { F, gmView: false })) === j(plM), j([rM(gmM, 'r_a'), rM(plM, 'r_s'), lM(plM)]));
+        const vM = validateSystem(gmM, F), eM = id => vM.errors.filter(e => e.id === id).map(e => (e.prop === 'list' ? '' : e.prop + ' ') + e.message), wM = id => vM.warnings.filter(e => e.id === id).map(e => (e.prop === 'list' ? '' : e.prop + ' ') + e.message);
+        check('R3 the validator: a Malf is a formula with no dice (a system roll\'s under the roll, a list roll\'s under its card "Roll “X”, Malf: …"); a GM-only one warns that players\' rolls never malfunction by it; On malfunction on a roll with no Malf warns that it never happens',
+            eM('f_wp').some(m => /^Roll “Odd”, Malf: Dice are not allowed/.test(m)) && wM('f_wp').some(m => /^Roll “Sec”, Malf: "GMFig" is GM only: players’ rolls never malfunction by it\./.test(m))
+            && wM('r_s').some(m => /^malf "GMFig" is GM only: players’ rolls never malfunction by it\./.test(m)) && wM('r_n').some(m => /^then\.0 This roll has no Malf, so On malfunction never happens\./.test(m)) && !eM('r_a').length && !wM('r_a').length,
+            j([eM('f_wp'), wM('f_wp'), wM('r_s'), wM('r_n')]));
+        const tcM = (pass, malf) => S.thenChanges(rM(gmM, 'r_a'), pass, malf).map(c => c.when || 'always');
+        check('R3 thenChanges: a malfunction takes the On malfunction changes (and, being a failure, never the On success ones); without one they do not happen',
+            j(tcM(false, true)) === j(['malf']) && j(tcM(true, false)) === j(['hit']) && j(tcM(false, false)) === '[]');
+        const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hM = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tM = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('R3 the editor and sheet (source): a Malf box on a system roll and on a list roll, On malfunction among the Whens; a roll with a Malf names its entry (the host works the Malf out); tour and Help say so',
+            /input\('sys-roll-malf field'/.test(shM) && /input\('sys-list-malf field'/.test(shM) && /\['malf', 'On malfunction'\]\]/.test(shM) && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shM) && /\|\| !!r\.needs \|\| !!r\.malf;/.test(shM)
+            && /A roll&rsquo;s <b>Malf<\/b> \(a formula, like <code>17<\/code> or <code>Row\.Malf<\/code>\) makes a natural total/.test(hM) && /and malfunction at its <b>Malf<\/b>\./.test(tM));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

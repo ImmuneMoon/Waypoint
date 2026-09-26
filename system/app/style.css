@@ -1711,6 +1711,8 @@
   .roll-die { color: var(--ink); background: rgba(212,175,55,0.12); border-radius: 3px; padding: 0 3px; }
   .roll-total { font-size: 16px; font-weight: 700; color: var(--gold); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
   .roll-total.roll-ok { color: var(--green); } .roll-total.roll-fail { color: var(--red); }
+  .roll-total.roll-malf { font-style: italic; }   /* Stage 6 HUD R3: a malfunction */
+  .sys-row-main input.sys-roll-malf { flex: 0 1 110px; font-family: ui-monospace, Consolas, monospace; } .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-malf { flex: 0 1 120px; font-family: ui-monospace, Consolas, monospace; }
   .roll-crit, .roll-fumble { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 10px; color: #fff; }
   .roll-crit { background: var(--green); } .roll-fumble { background: var(--red); }
   .roll-bad { color: var(--dim); font-style: italic; font-size: 12px; }

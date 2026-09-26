@@ -133,6 +133,15 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
             && [{ row: { f: 'f_w', r: 'w_1', i: 4 } }, { row: { f: 'f_w', r: 'w_1', i: -1 } }, { row: { f: 'f_w', r: 'w_1', i: 1.5 } }, { row: { f: 'f_w', r: 'w_1' }, mod: 2 }, { row: { f: 'f_w', r: 'w_1' }, adv: 'adv' }].every(o => q(o) === null));
     }
 
+    /* ---- Stage 6 HUD R3: a record's malfunction threshold; the natural total; the card's words ---- */
+    {
+        const J = JSON.stringify, rec0 = { id: 'r_m1', from: { id: 'u', name: 'Pat', gm: false }, expr: '3d6 <= 30', draws: [6, 6, 5], v: V, ts: 1 };
+        const cr = cleanRoll(Object.assign({}, rec0, { malf: 17 })), resM = roll('3d6 <= 30', [6, 6, 5]), resOk = roll('d20 + 5', [3]);
+        check('R3 cleanRoll keeps a whole Malf from 1 to 1e6 and refuses another; naturalOf is the dice alone (3d6: 17; d20 + 5: 3); malfOf holds at or past the Malf; the card text says "malfunction (Malf 17)"',
+            cr.malf === 17 && [0, 1.5, '17', 2e6].every(m => cleanRoll(Object.assign({}, rec0, { malf: m })) === null) && D.naturalOf(resM) === 17 && D.naturalOf(resOk) === 3
+            && D.malfOf(cr, resM) === true && D.malfOf(Object.assign({}, cr, { malf: 18 }), resM) === false && D.malfOf(rec0, resM) === false && / \u2014 malfunction \(Malf 17\)$/.test(cardText(cr, resM, F)), J(cr));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');

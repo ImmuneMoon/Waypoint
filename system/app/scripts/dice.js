@@ -96,7 +96,7 @@ function syncChars() {
 function rollFor(charId, expr, label, opts) {
     opts = opts || {};
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
-    var r = roll(expr, { priv: !!opts.priv, charId: charId, label: label, source: opts.source || 'sheet' });
+    var r = roll(expr, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: charId, label: label, source: opts.source || 'sheet' });   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)
     if (r.error) toast(r.error);
     return r;
 }
@@ -161,7 +161,7 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr + ' characters).' };
-    var r = n.diceRoll(clean, { priv: !!opts.priv, charId: opts.charId || undefined, label: opts.label || undefined });
+    var r = n.diceRoll(clean, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: opts.charId || undefined, label: opts.label || undefined });
     if (!r.error) remember(clean);
     return r;
 }

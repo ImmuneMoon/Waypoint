@@ -2753,7 +2753,7 @@ window.wpFitToGrid = fitToGrid;
   try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: '' }; } catch (e) {}
   var _blastHitIds = [];
   var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
-  var _armedThrow = null;   // { charId, itemId, ft, name, by } while a sheet Throw is armed (one-shot)
+  var _armedThrow = null;   // { charId, fieldId, rowId, ft, name, by, damage, gmOnly } while a sheet Throw is armed (one-shot)
   function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1.09361, km: 1093.61, mi: 1760 }[u] || 1; }
   function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
   function hexCellOf(x, y) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows)
@@ -2827,7 +2827,7 @@ window.wpFitToGrid = fitToGrid;
       if (_armedThrow) {   // a throw from a character sheet: one-shot, host-authoritative, shared to the map
           var ctx = _armedThrow; _armedThrow = null; document.body.classList.remove('placing');
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { if (window.wpNet.throwReq) window.wpNet.throwReq(ctx.charId, ctx.fieldId, ctx.rowId, x, y, map.id); }
-          else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by, charId: ctx.charId, damage: ctx.damage });
+          else placeThrownBlast({ x: x, y: y, ft: ctx.ft, name: ctx.name, by: ctx.by, charId: ctx.charId, damage: ctx.damage, gmOnly: ctx.gmOnly });
           var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click();
           return;
       }
@@ -2845,7 +2845,7 @@ window.wpFitToGrid = fitToGrid;
       var ft = Math.max(1, Math.min(3000, Math.round(opts.ft || 0))) || 12;
       var b = { x: opts.x, y: opts.y, ft: ft, name: opts.name || '', elev: (opts.elev !== undefined ? opts.elev : 0), autoElev: opts.elev === undefined, thrown: true, by: opts.by || '' };
       seatBlast(b); pushBlast(b); renderMeasures(); syncBlastMenu();
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: b.by }, map.id);
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id);   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
       toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.');
       resolveThrow(b, opts, n);
@@ -2860,7 +2860,7 @@ window.wpFitToGrid = fitToGrid;
       if (auto === 'measure') return;
       if (window.wpVtt && !window.wpVtt.on('dice')) return;
       if (!window.wpDice || !window.wpDice.rollFor) return;
-      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage');
+      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly });   // a GM-only item's damage stays the GM's
       var total = dr && dr.ok && typeof dr.value === 'number' ? dr.value : null;
       if (auto !== 'full' || total === null) return;
       applyBlastDamage(b, total, combat.hpResource);
@@ -2905,7 +2905,7 @@ window.wpFitToGrid = fitToGrid;
   // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
   window.wpArmBlast = function(ft, name, ctx) {
       ft = Math.max(1, Math.min(3000, Math.round(ft || 0))); if (!(ft > 0)) return;
-      _armedThrow = { charId: ctx && ctx.charId, fieldId: ctx && ctx.fieldId, rowId: ctx && ctx.rowId, ft: ft, name: name || '', by: (ctx && ctx.by) || '', damage: (ctx && ctx.damage) || '' };
+      _armedThrow = { charId: ctx && ctx.charId, fieldId: ctx && ctx.fieldId, rowId: ctx && ctx.rowId, ft: ft, name: name || '', by: (ctx && ctx.by) || '', damage: (ctx && ctx.damage) || '', gmOnly: !!(ctx && ctx.gmOnly) };
       window.isDrawingMode = false; window.isEraserMode = false; window.isFogMode = false;
       window.isMeasureMode = true; window.wpMeasureKind = 'blast';
       if (wbWrap) wbWrap.style.cursor = 'crosshair'; document.body.classList.add('placing');

@@ -1569,7 +1569,7 @@
   .combat-face-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--gold); background: var(--panel); }
   .combat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .combat-tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--edge); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
-  .combat-init { width: 58px; text-align: center; }
+  .combat-row .combat-init { width: 58px; flex: none; text-align: center; }   /* beats the base input.field { width: 100% }, or the box took the row and squeezed the name to nothing */
   .combat-row .tool { padding: 1px 7px; font-size: 11px; }
 
   /* Table notepad */
@@ -1735,7 +1735,7 @@
   /* Character sheets (1.5.0): the System editor */
   .sys-box { width: 1080px; max-width: 96vw; max-height: 90vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; }
   .sys-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .sys-name { width: 220px; padding: 4px 8px; font-size: 12.5px; }
+  .sys-head .sys-name { width: 220px; padding: 4px 8px; font-size: 12.5px; }   /* beats the base input.field, or the box took a whole line of the head */
   .sys-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--edge); }
   .sys-tabs button { background: transparent; color: var(--dim); border: none; border-bottom: 2px solid transparent; padding: 4px 10px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
   .sys-tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }

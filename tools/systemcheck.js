@@ -1283,24 +1283,37 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
                 contains(x) { return x === this || this.all().includes(x); }, focus() { doc.activeElement = this; }, click() { if (this.on.click) this.on.click({ preventDefault() {} }); } }; return e; };
             doc.E = E; return doc;
         };
+        // o: { sys, rolls, diceOff, open, prefs, label } — read at call time, so a test can switch dice or the system between repaints
         const run = o => {
             const doc = mkDoc(), prefs = Object.assign({}, o.prefs), calls = [];
             const el = (t, c, x) => { const e = doc.E(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; };
             const iconNode = (v, c) => el('span', c + ' wp-glyph');
             const chars = { c_a: { id: 'c_a', name: 'Bren' }, c_b: { id: 'c_b', name: 'Ana' } };
-            const netS = { rollSeq: () => 42, rollsFor: (cid, name, since, max) => { calls.push([cid, name, since, max]); return (o.rolls || []).slice(0, max); } };
+            const netS = { myId: 'u_me', rollSeq: () => 42, rollsFor: (cid, name, since, max) => { calls.push([cid, name, since, max]); return (o.rolls || []).filter(r => !since || r.seq > since).slice(0, max); } };
             const win = { wpVtt: { on: k => k !== 'dice' || !o.diceOff }, wpDice: { renderCard: m => { const c = el('div', 'chat-roll'); c.textContent = 'card ' + m.roll.id; return c; } }, wpDiceCore: { LIMITS: { label: o.label || 60 } } };
-            const huds = {}; ['c_a', 'c_b'].forEach(id => { huds[id] = { charId: id, foot: el('div', 'hud-foot'), histOpen: !!o.open }; });
+            const huds = {}, fresh = id => (huds[id] = { charId: id, foot: el('div', 'hud-foot'), histOpen: !!o.open });
+            ['c_a', 'c_b'].forEach(fresh);
             const api = new Function('el', 'iconNode', 'pref', 'setPref', 'getActiveCampaign', 'charById', 'net', 'systemOf', 'huds', 'document', 'window', ftSrc + '\nreturn { renderHudFoot, rolled, histDepth, rollName, cleared: _histCleared };')(
                 el, iconNode, (k, d) => (k in prefs ? prefs[k] : d), (k, v) => { prefs[k] = String(v); }, () => ({ id: 'k1' }), id => chars[id] || null, () => netS, () => o.sys, huds, doc, win);
-            return { api, huds, doc, prefs, calls, cls: (v, q) => v.foot.querySelectorAll(q) };
+            return { api, huds, doc, prefs, calls, fresh, cls: (v, q) => v.foot.querySelectorAll(q) };
         };
         const sD = cleanSystem(fx5('hud-d20'), { F, gmView: true }), sB = cleanSystem(fx5('hud-bare'), { F, gmView: true }), s3 = cleanSystem(fx5('hud-3d6'), { F, gmView: true });
-        const rollsOf = n => Array.from({ length: n }, (_, i) => ({ roll: { id: 'r' + i } }));
+        const rollsOf = n => Array.from({ length: n }, (_, i) => ({ roll: { id: 'r' + i }, seq: i + 1 }));
         const bare = run({ sys: sB, rolls: rollsOf(2) }), off = run({ sys: sD, diceOff: true, rolls: rollsOf(2) }), none = run({ sys: null, rolls: rollsOf(2) });
         [bare, off, none].forEach(r => r.api.renderHudFoot(r.huds.c_a));
         check('HUD frame HF3: the footer builds NOTHING (the foot hides) when the system the viewer holds has nothing to roll (hud-bare), the table cannot roll (dice off), or there is no system',
             [bare, off, none].every(r => r.huds.c_a.foot.children.length === 0) && sB.rolls.length === 0 && sD.rolls.length > 0 && s3.fields.some(f => f.roll), j([bare, off, none].map(r => r.huds.c_a.foot.children.length)));
+        const gO = { sys: sD, rolls: rollsOf(2) }, gt = run(gO), gv = gt.huds.c_a, bars = [];
+        gt.api.renderHudFoot(gv); bars.push(gt.cls(gv, '.hud-hist-bar').length);
+        gO.diceOff = true; gt.api.renderHudFoot(gv); bars.push(gv.foot.children.length);
+        gO.diceOff = false; gt.api.renderHudFoot(gv); bars.push(gt.cls(gv, '.hud-hist-bar').length);
+        gO.sys = sB; gt.api.rolled(null, ''); bars.push(gv.foot.children.length);
+        check('HUD frame HF3: a drawer already drawn goes at the next repaint once Dice is switched off or the system has nothing to roll, and comes back with Dice',
+            j(bars) === j([1, 0, 1, 0]), j(bars));
+        const f3 = fx5('hud-3d6'); f3.rolls = []; const sF = cleanSystem(f3, { F, gmView: true }), f3n = fx5('hud-3d6'); f3n.rolls = []; f3n.fields.forEach(f => { delete f.roll; }); const sN = cleanSystem(f3n, { F, gmView: true });
+        const fr = run({ sys: sF, rolls: rollsOf(1) }), frn = run({ sys: sN, rolls: rollsOf(1) }); fr.api.renderHudFoot(fr.huds.c_a); frn.api.renderHudFoot(frn.huds.c_a);
+        check('HUD frame HF3: a system whose only rolls are fields\' own Roll buttons has the drawer; with those gone too it has none',
+            sF.rolls.length === 0 && sF.fields.some(f => f.roll) && fr.cls(fr.huds.c_a, '.hud-hist-bar').length === 1 && !sN.fields.some(f => f.roll) && frn.huds.c_a.foot.children.length === 0);
         const cl = run({ sys: s3, rolls: rollsOf(3) }), v = cl.huds.c_a; cl.api.renderHudFoot(v);
         const tg = () => v.foot.querySelector('.hud-hist-toggle');
         check('HUD frame HF3: closed, with rolls — the bar holds the toggle (history glyph, ROLL HISTORY, a NEW pill, a chevron), aria-expanded false, and no list, Clear or depth; it asked net.rollsFor for this character by the name its rolls carry, with no Clear mark and the default depth 10',
@@ -1308,35 +1321,55 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && cl.cls(v, '.hud-hist-ico').length === 1 && cl.cls(v, '.hud-hist-chev').length === 1 && cl.cls(v, '.hud-hist-list').length === 0 && cl.cls(v, '.hud-hist-clear').length === 0 && cl.cls(v, '.hud-hist-depth').length === 0
             && j(cl.calls[0]) === j(['c_a', 'Bren', 0, 10]), j(cl.calls));
         tg().focus(); tg().click();
-        check('HUD frame HF3: the toggle opens the drawer — no NEW, aria-expanded true, Clear and the depth (10/25/50/100) in the tools, one dice card per roll in the list, and focus back on the new toggle',
+        check('HUD frame HF3: the toggle opens the drawer — no NEW, aria-expanded true, Clear and the depth (10/25/50/100, showing the saved 10) in the tools, one dice card per roll in the list, newest first as net.rollsFor gives them, and focus back on the new toggle',
             v.histOpen === true && cl.cls(v, '.hud-hist-new').length === 0 && tg().attrs['aria-expanded'] === 'true' && cl.cls(v, '.hud-hist-clear').length === 1
-            && j(cl.cls(v, '.hud-hist-depth')[0].children.map(o => o.value)) === j(['10', '25', '50', '100']) && cl.cls(v, '.chat-roll').length === 3 && cl.doc.activeElement === tg());
-        cl.cls(v, '.hud-hist-clear')[0].click();
-        check('HUD frame HF3: Clear marks this viewer\'s history for that character at the ring\'s seq (the next list asks for rolls after it); the other character\'s is untouched',
-            cl.api.cleared.c_a === 42 && !('c_b' in cl.api.cleared) && cl.calls[cl.calls.length - 1][2] === 42);
-        const dep = cl.cls(v, '.hud-hist-depth')[0]; dep.value = '50'; dep.on.change(); const bad = cl.calls.length; dep.value = '7'; dep.on.change();
-        const dp = p => run({ sys: sD, prefs: { wp_hudHistDepth: p } }).api.histDepth();
-        check('HUD frame HF3: the depth is the shared pref wp_hudHistDepth (every open HUD repaints with it); only 10/25/50/100 are taken, anything else reads as 10',
-            cl.prefs.wp_hudHistDepth === '50' && cl.calls[bad - 1][3] === 50 && cl.calls[bad - 2][3] === 50 && cl.calls.length === bad && dp('25') === 25 && dp('100') === 100 && dp('7') === 10 && dp('abc') === 10 && dp('1e2') === 10, j(cl.calls.slice(-3)));
+            && j(cl.cls(v, '.hud-hist-depth')[0].children.map(o => o.value)) === j(['10', '25', '50', '100']) && cl.cls(v, '.hud-hist-depth')[0].value === '10'
+            && j(cl.cls(v, '.chat-roll').map(c => c.textContent)) === j(['card r0', 'card r1', 'card r2']) && cl.doc.activeElement === tg());
+        const lst = cl.cls(v, '.hud-hist-list')[0]; lst.scrollTop = 120; cl.api.rolled(null, '');
+        check('HUD frame HF3: a repaint keeps the open list where the reader had scrolled it', cl.cls(v, '.hud-hist-list')[0] !== lst && cl.cls(v, '.hud-hist-list')[0].scrollTop === 120);
+        cl.cls(v, '.hud-hist-clear')[0].focus(); cl.cls(v, '.hud-hist-clear')[0].click();
+        check('HUD frame HF3: Clear marks this viewer\'s history for that character at the ring\'s seq (the next list asks for rolls after it; the other character\'s is untouched); with the list now empty, Clear itself goes and focus lands on the toggle (never on the page)',
+            cl.api.cleared.c_a === 42 && !('c_b' in cl.api.cleared) && cl.calls[cl.calls.length - 1][2] === 42 && cl.cls(v, '.hud-hist-clear').length === 0 && cl.cls(v, '.hud-hist-empty').length === 1 && cl.doc.activeElement === tg());
+        const v2 = cl.fresh('c_a'); cl.api.renderHudFoot(v2);
+        check('HUD frame HF3: Clear lasts the session — the same character\'s HUD closed and opened again (a new window) still lists only what came after it, with no NEW; nothing but the Clear button writes the mark',
+            cl.calls[cl.calls.length - 1][0] === 'c_a' && cl.calls[cl.calls.length - 1][2] === 42 && cl.cls(v2, '.hud-hist-new').length === 0
+            && (ftSrc.match(/_histCleared\[/g) || []).length === 2 && /_histCleared\[v\.charId\] = n\.rollSeq\(\);/.test(ftSrc) && !/delete _histCleared|_histCleared = /.test(sh5.replace('var _histCleared = Object.create(null)', '')));
+        cl.huds.c_a = v;   // the first window again
+        const dep = cl.cls(v, '.hud-hist-depth')[0]; dep.focus(); dep.value = '50'; dep.on.change(); const bad = cl.calls.length; const dep2 = cl.cls(v, '.hud-hist-depth')[0];
+        const depOk = dep2 !== dep && dep2.value === '50' && cl.doc.activeElement === dep2; dep2.value = '7'; dep2.on.change();
+        const dp = p => run({ sys: sD, prefs: { wp_hudHistDepth: p } }).api.histDepth(), seeded = run({ sys: sD, open: true, rolls: rollsOf(1), prefs: { wp_hudHistDepth: '25' } }); seeded.api.renderHudFoot(seeded.huds.c_a);
+        check('HUD frame HF3: the depth is the shared pref wp_hudHistDepth (every open HUD repaints with it; the rebuilt select shows it and keeps the focus); only 10/25/50/100 are taken, anything else reads as 10; a drawer opened later shows the saved depth',
+            depOk && cl.prefs.wp_hudHistDepth === '50' && cl.calls[bad - 1][3] === 50 && cl.calls[bad - 2][3] === 50 && cl.calls.length === bad && dp('25') === 25 && dp('100') === 100 && dp('7') === 10 && dp('abc') === 10 && dp('1e2') === 10
+            && seeded.cls(seeded.huds.c_a, '.hud-hist-depth')[0].value === '25', j([depOk, cl.calls.slice(-3)]));
         const em = run({ sys: sD, rolls: [], open: true }); em.api.renderHudFoot(em.huds.c_b);
         const emC = run({ sys: sD, rolls: [] }); emC.api.renderHudFoot(emC.huds.c_b);
         check('HUD frame HF3: open and empty — the text names the character, no Clear; closed and empty — no NEW',
             em.cls(em.huds.c_b, '.hud-hist-empty')[0].textContent === 'No rolls as Ana yet this session.' && em.cls(em.huds.c_b, '.hud-hist-clear').length === 0 && emC.cls(emC.huds.c_b, '.hud-hist-new').length === 0);
         const hk = run({ sys: sD, rolls: rollsOf(1), label: 3 }), mark = () => ['c_a', 'c_b'].forEach(id => { hk.huds[id].foot.textContent = ''; hk.huds[id].foot.appendChild(hk.doc.E('i')); }), hit = () => ['c_a', 'c_b'].filter(id => hk.huds[id].foot.children[0].tag !== 'i');
-        const hits = [];
-        mark(); hk.api.rolled({ roll: { as: 'Bre' } }, 'c_b'); hits.push(hit());
+        const hits = [], GMf = { id: 'u_gm', gm: true };
+        mark(); hk.api.rolled({ roll: { as: 'Bre' }, from: { id: 'u_mate', gm: false } }, 'c_b'); hits.push(hit());
+        mark(); hk.api.rolled({ roll: { as: 'Bre' }, from: GMf }, ''); hits.push(hit());
+        mark(); hk.api.rolled({ roll: { as: 'Bre' }, from: { id: 'u_me', gm: false } }, ''); hits.push(hit());
+        mark(); hk.api.rolled({ roll: { as: 'Bre' }, from: { id: 'u_mate', gm: false } }, ''); hits.push(hit());
         mark(); hk.api.rolled({ roll: { as: 'Bre' } }, ''); hits.push(hit());
-        mark(); hk.api.rolled({ roll: { as: 'Zed' } }, ''); hits.push(hit());
-        mark(); hk.api.rolled({ roll: {} }, ''); hits.push(hit());
+        mark(); hk.api.rolled({ roll: { as: 'Zed' }, from: GMf }, ''); hits.push(hit());
+        mark(); hk.api.rolled({ roll: {}, from: GMf }, ''); hits.push(hit());
         mark(); hk.api.rolled(null, ''); hits.push(hit());
-        check('HUD frame HF3: the hook repaints the foot of the HUD a roll was made as — by its tag, else by the name it carries (capped as a roll\'s "as" is) — and every foot for a repaint with no roll',
-            j(hits) === j([['c_b'], ['c_a'], [], [], ['c_a', 'c_b']]) && hk.api.rollName({ name: 'Brennan' }) === 'Bre', j(hits));
+        check('HUD frame HF3: the hook repaints the foot of the HUD a roll was made as — by its tag, else by the name it carries (capped as a roll\'s "as" is) only for the GM\'s roll or this machine\'s own, never a teammate\'s — and every foot for a repaint with no roll',
+            j(hits) === j([['c_b'], ['c_a'], ['c_a'], [], [], [], [], ['c_a', 'c_b']]) && hk.api.rollName({ name: 'Brennan' }) === 'Bre', j(hits));
         const hs = sh5.slice(sh5.indexOf('// [systemcheck:hud-start]'), sh5.indexOf('// [systemcheck:hud-end]')), rd = (ftSrc.match(/function rolled\(m, cid\) \{[\s\S]*?\n\}/) || [''])[0];
-        check('HUD frame HF3: the footer is inside the HUD slice and writes no markup (el/textContent and the dice card only); the hook repaints the foot, never the body; renderHud ends by drawing its foot; makeHud starts the drawer closed; wpSheets exports rolled; its CSS lives in the HUD block; the tour and Help name it',
+        check('HUD frame HF3: the footer is inside the HUD slice and writes no markup (el/textContent and the dice card only); the hook repaints the foot, never the body; renderHud gives the panel the look\'s accent (the foot is the body\'s sibling) and ends by drawing its foot; makeHud starts the drawer closed; wpSheets exports rolled; the tour and Help name it',
             hs.indexOf('function renderHudFoot(v)') > 0 && !/innerHTML|outerHTML|insertAdjacentHTML/.test(ftSrc) && /D\.renderCard\(m\)/.test(ftSrc) && rd.length > 50 && /renderHudFoot\(v\)/.test(rd) && !/renderHud\(|renderViews\(/.test(rd)
-            && /    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n\}/.test(hs) && /v\.foot = q\('hud-foot'\); v\.histOpen = false;/.test(hs) && /hudFor: hudFor, rolled: rolled,/.test(sh5)
-            && (() => { const css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b = css5.slice(css5.indexOf('/* ---- Stage 6 HUD frame:')); return /\.hud-hist-bar \{ height: 44px;/.test(b) && /@media \(prefers-reduced-motion: reduce\) \{ \.hud-hist-new \{ animation: none; \} \}/.test(b) && /\.hud-hist-list \{ max-height: 18rem;/.test(b); })()
+            && /    syncFramePad\(v\.body\);\n    \['--sheet-accent', '--sheet-accent-ink'\]\.forEach\(function\(k\) \{ var a = v\.body\.style\.getPropertyValue\(k\); if \(a\) v\.panel\.style\.setProperty\(k, a\); else v\.panel\.style\.removeProperty\(k\); \}\);[^\n]*\n    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n\}/.test(hs)
+            && /v\.foot = q\('hud-foot'\); v\.histOpen = false;/.test(hs) && /hudFor: hudFor, rolled: rolled,/.test(sh5)
             && /When the system has rolls, its <b>Roll history<\/b> drawer/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /<b>Roll history<\/b> \(when the system has rolls\)/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+        const css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b5 = css5.slice(css5.indexOf('/* ---- Stage 6 HUD frame:')), rx5 = (b5.match(/\.hud-hist-list \.roll-expr \{([^}]*)\}/) || [])[1];
+        check('HUD frame HF3: the drawer\'s CSS lives in the HUD block — the 44px bar, NEW still under reduced motion, the list at 18rem; the history\'s label-and-formula line is never uppercased (the formula\'s keys would shout)',
+            /\.hud-hist-bar \{ flex: none; height: 44px;/.test(b5) && /@media \(prefers-reduced-motion: reduce\) \{ \.hud-hist-new \{ animation: none; \} \}/.test(b5) && /\.hud-hist-list \{ max-height: 18rem; flex: 1 1 auto; min-height: 0; overflow: auto;/.test(b5)
+            && typeof rx5 === 'string' && !/text-transform/.test(rx5) && !/\.roll-expr[^{]*\{[^}]*text-transform/.test(b5), rx5);
+        check('HUD frame HF3: in a short window the open drawer gives way instead of being clipped — the foot shrinks as a column over a body that keeps a floor, the list shrinks and scrolls; the grip\'s strip stays under an open list (never over its scrollbar)',
+            /\.hud-foot \{ flex: 0 1 auto; min-height: 45px; display: flex; flex-direction: column;/.test(b5) && /\.hud-body:has\(\+ \.hud-foot:not\(:empty\)\) \{ margin-bottom: 0; flex-basis: 0; min-height: 4\.5rem; \}/.test(b5)
+            && /\.hud-foot:has\(> \.hud-hist-list\) \{ padding-bottom: 12px; \}/.test(b5) && /\.hud-body \{ flex: 1 1 auto; min-height: 0;[^}]*margin-bottom: 12px;/.test(b5));
     }
 
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */

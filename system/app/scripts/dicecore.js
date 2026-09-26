@@ -125,6 +125,10 @@ function cleanRollReq(msg) {
     if (msg.priv !== undefined) { if (msg.priv !== 'gm') return null; out.priv = 'gm'; }
     if (msg.charId !== undefined) { if (typeof msg.charId !== 'string' || !CHAR_RE.test(msg.charId)) return null; out.charId = msg.charId; }   // roll as this character (its own values)
     var label = cleanLabel(msg.label); if (label === null) return null; if (label) out.label = label;
+    if (msg.row !== undefined) {   // Stage 6 F5b: a roll on one row of a carried list (its Row.* names), only as a character
+        var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f) || typeof rw.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rw.r)) return null;
+        out.row = { f: rw.f, r: rw.r };
+    }
     return out;
 }
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }

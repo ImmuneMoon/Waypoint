@@ -1829,6 +1829,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var noteLn = null;
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
+        rowRollBtns(line, spec, entry, def, c, f);   // F5b: the list's rolls on this row
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
         var rr = editable ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
         if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
@@ -1839,6 +1840,18 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
     });
     if (carried.length && spec && res && res.foot) totalsLine(wrap, spec, res.foot);   // F5a1: the list's totals under its rows
     if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', empty || 'No items.'));
+}
+// Stage 6 F5b: a list's rolls on a row — a button each, rolled with the row's own names (Row.lvl, Row.<stat>, a column) through the dice path (the
+// host resolves them; a roll on a GM-only item stays private); inert in the Layout preview and a pop-out, and for a viewer who cannot roll for it
+function rowRollBtns(host, spec, entry, def, c, f) {
+    if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !_fxLive || entry.hid === 1 || !canRoll(c)) return;
+    var rid = rowIdOf(entry), nm = (def && def.name) || 'Item';
+    spec.rolls.forEach(function(r) {
+        if (!r || typeof r.formula !== 'string' || !r.formula) return;
+        var lb = r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';
+        b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, { row: { f: f.id, r: rid } }); });
+        host.appendChild(b);
+    });
 }
 // Stage 6 F5a1: the columns shown on a row — a chip each, its label small ("Cost 11 pts"); an error reads "\u2014" with the message on hover
 function colChips(host, spec, cells) {
@@ -1912,6 +1925,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
                 actTd.appendChild(nt);
             }
+            rowRollBtns(actTd, spec, entry, def, c, f);   // F5b: the list's rolls
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
             if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); actTd.appendChild(itemRmBtn(entry, def, c, f)); }
             tr.appendChild(actTd);
@@ -3076,6 +3090,17 @@ function listCard(f, allCats) {
         cb2.appendChild(cr);
     });
     var cadd = el('button', 'tool ghost sys-btn sys-list-coladd', '+ Column'); cadd.dataset.act = 'coladd'; cadd.disabled = cls.length >= LIMITS.listCols; cadd.title = cadd.disabled ? 'At most ' + LIMITS.listCols + ' columns a list' : 'A formula worked out for each row (a skill\u2019s cost from its level, a weapon\u2019s to-hit)'; cb2.appendChild(cadd);
+    // Stage 6 F5b: the list's rolls — a button on each row, the formula rolled with the row's names (dice allowed), four at most
+    var rls = Array.isArray(sp.rolls) ? sp.rolls : [];
+    cb2.appendChild(el('span', 'sys-num-cap', 'Rolls'));
+    rls.forEach(function(r0, ri) {
+        var rr = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-list-roll'); rw.dataset.ri = String(ri);
+        var rl = input('sys-list-rolllabel field', typeof rr.label === 'string' ? rr.label : '', 'The button\u2019s name on each row (Attack, Check)', 'Label'); rl.maxLength = LIMITS.label; rw.appendChild(rl);
+        var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
+        [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        cb2.appendChild(rw);
+    });
+    var radd = el('button', 'tool ghost sys-btn sys-list-rolladd', '+ Roll'); radd.dataset.act = 'rolladd'; radd.disabled = rls.length >= LIMITS.rowRolls; radd.title = radd.disabled ? 'At most ' + LIMITS.rowRolls + ' rolls a list' : 'A button on each row that rolls this formula with the row\u2019s names (a weapon\u2019s Attack, a skill\u2019s Check)'; cb2.appendChild(radd);
     cb2.appendChild(el('div', 'sys-note sys-list-names', listNamesText(f.key, sp)));
     card.appendChild(cb2);
     return card;
@@ -3084,7 +3109,7 @@ function listCard(f, allCats) {
 function listNamesText(key, sp) {
     var k = String(key || 'List'), own = [];
     (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) own.push(x.key); });
-    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key. A column reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
+    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key. A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
 }
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
 function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
@@ -3184,6 +3209,13 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-roll') >= 0) {   // Stage 6 F5b: a roll's boxes (Save cleans them)
+            var rrw = t.closest('.sys-list-roll'), rix = rrw ? +rrw.dataset.ri : -1, rL = Array.isArray(lsp.rolls) ? lsp.rolls : null; if (!rL || !(rix >= 0 && rix < rL.length)) return;
+            var rD = rL[rix] && typeof rL[rix] === 'object' && !Array.isArray(rL[rix]) ? rL[rix] : (rL[rix] = {});
+            if (lcc.indexOf('sys-list-rolllabel') >= 0) rD.label = t.value.slice(0, LIMITS.label);
+            else if (lcc.indexOf('sys-list-rollformula') >= 0) rD.formula = t.value.slice(0, LIMITS.formula);
+            else return;
+        }
         else if (lcc.indexOf('sys-list-col') >= 0) {   // Stage 6 F5a1: a column's boxes (Save cleans them)
             var crw = t.closest('.sys-list-col'), cix = crw ? +crw.dataset.ci : -1, cL = Array.isArray(lsp.cols) ? lsp.cols : null; if (!cL || !(cix >= 0 && cix < cL.length)) return;
             var cD = cL[cix] && typeof cL[cix] === 'object' && !Array.isArray(cL[cix]) ? cL[cix] : (cL[cix] = {});
@@ -3384,6 +3416,16 @@ function onClick(e) {
         markDirty(); renderAll(); return;
     }
     var lcb = listOfCard(b);
+    if (lcb && /^roll(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5b: a Lists card's roll buttons (add, move, remove)
+        var lsr = lcb.list || (lcb.list = {}), rArr = Array.isArray(lsr.rolls) ? lsr.rolls : [], ract = b.dataset.act, rRow = b.closest('.sys-list-roll'), rI = rRow ? +rRow.dataset.ri : -1;
+        if (ract === 'rolladd') { if (rArr.length >= LIMITS.rowRolls) { toast('At most ' + LIMITS.rowRolls + ' rolls a list.'); return; } rArr.push({ label: '', formula: '' }); lsr.rolls = rArr; }
+        else if (ract === 'rollup' && rI > 0 && rI < rArr.length) { var ruS = rArr[rI]; rArr[rI] = rArr[rI - 1]; rArr[rI - 1] = ruS; }
+        else if (ract === 'rolldown' && rI >= 0 && rI < rArr.length - 1) { var rdS = rArr[rI]; rArr[rI] = rArr[rI + 1]; rArr[rI + 1] = rdS; }
+        else if (ract === 'rolldel' && rI >= 0 && rI < rArr.length) rArr.splice(rI, 1);
+        else return;
+        if (!rArr.length) delete lsr.rolls;
+        markDirty(); renderAll(); return;
+    }
     if (lcb && /^col(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5a1: a Lists card's column buttons (add, move, remove)
         var lsq = lcb.list || (lcb.list = {}), cArr = Array.isArray(lsq.cols) ? lsq.cols : [], cact = b.dataset.act, cRow = b.closest('.sys-list-col'), cI = cRow ? +cRow.dataset.ci : -1;
         if (cact === 'coladd') { if (cArr.length >= LIMITS.listCols) { toast('At most ' + LIMITS.listCols + ' columns a list.'); return; } cArr.push({ key: '', label: '', formula: '' }); lsq.cols = cArr; }

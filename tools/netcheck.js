@@ -922,6 +922,68 @@ pendingChecks.push((async () => {
         gmOnlyOut === 0 && j(gm.owner[0]) === j({ type: 'charDelta', campId: 'k', id: 'c_1', values: { f_mana: { cur: 9 } } }) && gm.owner.length === 3 && gm.mate.length === 3 && !gm.owner.concat(gm.mate).some(m => hideP.test(j(m))), j([gm.owner, gm.mate]));
 })());
 
+// Turn-based combat T5b on the wire: a player's press on a timed effect's countdown (pause, resume, reset, dismiss) through the host's
+// char-effect (the [netcheck:charfx] slice, run for real with the real systemcore): its owner may unless the campaign keeps timers the GM's;
+// a teammate never; an unknown act never passes the shape. And the player's own machine (net.charEffect, sliced) sends the act, and holds
+// back a press the campaign keeps the GM's
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const fxSrc = between('// [netcheck:charfx-start]', '// [netcheck:charfx-end]', 'charfx'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const sysQ = Sx.cleanSystem({ v: 1, name: 'Q', rolls: [], fields: [{ id: 'f_fx', key: 'Fx', kind: 'effects', edit: 'owner' }], effects: [{ id: 'e_b', name: 'Bless', dur: '2 turns', mods: [] }] }, { F: Fx, gmView: true });
+    const row0 = () => [{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: 0 } }];
+    const host = (act, rules, from) => {
+        const camp = { id: 'k', system: sysQ, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_fx: row0() } }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } };
+        if (rules) camp.turnRules = rules;
+        const out = { answer: [], owner: [], mate: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: from || 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        const msg = { type: 'char-effect', rid: 'e1', charId: 'c_1', fieldId: 'f_fx', op: 'timer', rowId: 'x_1', act };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + fxSrc)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true });
+        out.list = camp.chars.c_1.values.f_fx; return out;
+    };
+    const same = r => j(r.list) === j(row0()) && r.owner.length === 0 && r.mate.length === 0 && r.saves === 0;
+    const pA = host('pause'), pG = host('pause', { timers: 'gm' }), pO = host('pause', { timers: 'owner' }), pB = host('pause', null, 'pB'), pX = host('explode'), rA = host('reset'), dA = host('dismiss');
+    const ownT = r => { const d = r.owner.find(m => m.type === 'charDelta'); return d && d.values && d.values.f_fx ? d.values.f_fx[0].t : undefined; };
+    check('T5b on the wire (host): the owner\'s pause is stored, acked, saved and synced to them with the paused countdown (a teammate\'s copy carries none); with Effect timers "You only" refused as "field", nothing stored, sent or saved; a teammate\'s press refused as not theirs; an unknown act dropped unanswered; reset from now, dismiss drops the countdown',
+        j(pA.answer) === j([{ type: 'char-ack', rid: 'e1' }]) && j(pA.list[0].t) === j({ left: 12, at: 0, p: 1 }) && j(ownT(pA)) === j({ left: 12, at: 0, p: 1 }) && pA.saves === 1 && !/"t":/.test(j(pA.mate))
+        && j(pG.answer) === j([{ type: 'char-deny', rid: 'e1', reason: 'field' }]) && same(pG) && j(pO.list[0].t) === j({ left: 12, at: 0, p: 1 })
+        && j(pB.answer) === j([{ type: 'char-deny', rid: 'e1', reason: 'owner' }]) && same(pB) && pX.answer.length === 0 && same(pX)
+        && rA.list[0].t.left === 12 && rA.list[0].t.at > 0 && !('t' in dA.list[0]) && j(dA.answer) === j([{ type: 'char-ack', rid: 'e1' }]), j([pA.answer, pA.list, pA.owner, pG.answer, pB.answer, pX.answer, rA.list, dA.list]));
+    const ceSrc = src.replace(/\r\n/g, '\n'), ceA = ceSrc.indexOf('net.charEffect = function'), ceB = ceSrc.indexOf('// A player throws an item from their sheet');
+    const client = (rules) => {
+        const sent = [], camp = { id: 'k', system: Sx.cleanSystem(sysQ, { F: Fx, gmView: false }), chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_fx: [{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: Date.now() } }] } } } };
+        if (rules) camp.turnRules = rules;
+        const net = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', conns: [{ peer: 'h', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) }] };
+        new Function('net', 'SC', 'getActiveCampaign', 'window', 'charPendingDone', 'setTimeout', 'var _charPending = {};\n' + ceSrc.slice(ceA, ceB))(net, () => Sx, () => camp, { wpFormula: Fx, wpVtt: { on: () => true } }, () => {}, () => 0);
+        const r = net.charEffect('c_1', 'f_fx', { op: 'timer', rowId: 'x_1', act: 'pause' });
+        return { r, sent, t: camp.chars.c_1.values.f_fx[0].t };
+    };
+    const cO = client(null), cG = client({ timers: 'gm' });
+    check('T5b on the wire (player): the press is applied at once (paused) and sent with its act and nothing else; kept the GM\'s, it is refused on the player\'s machine and nothing is sent',
+        ceA > 0 && ceB > ceA && cO.r.ok && cO.t.p === 1 && cO.sent.length === 1 && j(Object.keys(cO.sent[0]).sort()) === j(['act', 'charId', 'fieldId', 'op', 'rid', 'rowId', 'type']) && cO.sent[0].act === 'pause' && cO.sent[0].op === 'timer'
+        && cG.r.error === 'That list cannot be changed.' && cG.sent.length === 0 && !cG.t.p, j([cO, cG]));
+    // the option mid-session: the host's sync (sliced) and a client's take (sliced), run for real
+    const trS = between('// [netcheck:turnrulessync-start]', '// [netcheck:turnrulessync-end]', 'turnrulessync'), trR = between('// [netcheck:turnrules-start]', '// [netcheck:turnrules-end]', 'turnrules');
+    const sentT = { a: [], w: [] }, campT = { id: 'k_1', turnRules: { walls: 'warn', timers: 'owner' } };
+    const netT = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); sentT.a.push(JSON.parse(JSON.stringify(m))); } }, { peer: 'pW', open: true, send: m => sentT.w.push(m) }], roster: { pA: { id: 'u_a' } } };
+    new Function('net', 'getActiveCampaign', 'own', 'sendFailed', trS)(netT, () => campT, (o, k) => Object.prototype.hasOwnProperty.call(o, k), e => { throw e; });
+    netT.syncTurnRules(); netT.syncTurnRules(); campT.turnRules.timers = 'gm'; netT.syncTurnRules(); campT.turnRules.walls = 'off'; netT.syncTurnRules(); netT.role = 'client'; campT.turnRules.timers = 'owner'; netT.syncTurnRules();
+    check('T5b the option mid-session (host): sent to admitted players once per change of who may press (a waiting peer gets nothing; a change to another rule sends nothing), the one word only; a client never sends one; it follows every host save and the snapshot sets its signature',
+        j(sentT.a) === j([{ type: 'turnRules', campId: 'k_1', timers: 'owner' }, { type: 'turnRules', campId: 'k_1', timers: 'gm' }]) && sentT.w.length === 0
+        && /net\.syncCampName\(\); \/\/ [^\n]*\n\s*net\.syncTurnRules\(\);/.test(src.replace(/\r\n/g, '\n')) && /var trm = net\.turnRulesMessage\(\); if \(trm\) net\._lastTurnRulesSig = trm\.campId \+ '\\n' \+ trm\.timers;/.test(src)
+        && !/msg\.type === 'turnRules' && net\.role === 'host'/.test(src), j(sentT));
+    const runT = (netC, msg, peer) => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', turnRules: { walls: 'warn' } } } } }; let drawn = 0;
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', trR)(netC, { peer }, msg, st, id => (Object.prototype.hasOwnProperty.call(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpSheetsSync: () => { drawn++; } });
+        return [st.appState.campaigns.k_1.turnRules, drawn]; };
+    const cl = { foreign: true, syncedPeer: 'h', stream: false }, TR = t => ({ type: 'turnRules', campId: 'k_1', timers: t });
+    const tOk = runT(cl, TR('gm'), 'h'), tBad = runT(cl, TR('everyone'), 'h'), tOther = runT(cl, TR('gm'), 'x'), tCamp = runT(cl, { type: 'turnRules', campId: 'k_2', timers: 'gm' }, 'h'), tStream = runT({ foreign: true, syncedPeer: 'h', stream: true }, TR('gm'), 'h'), tProto = runT(cl, { type: 'turnRules', campId: '__proto__', timers: 'gm' }, 'h');
+    check('T5b the option mid-session (player): taken from the synced host only, for the hosted campaign, gm or owner only; the other rules kept; the sheet redrawn; anything else changes nothing',
+        j(tOk) === j([{ walls: 'warn', timers: 'gm' }, 1]) && [tBad, tOther, tCamp, tStream, tProto].every(r => j(r) === j([{ walls: 'warn' }, 0])), j([tOk, tBad, tOther, tCamp, tStream, tProto]));
+})());
+
 // Stage 6 HUD H7: the apply action on the wire. The host's char-apply (sliced, run for real with the real systemcore, formula engine, the host's
 // per-peer sync and the card's delivery, also sliced): the owner's press is worked out through THEIR view (a GM-only action, one naming a GM-only
 // value, or one moving a GM-only pool is not there) and applied all or nothing whatever the pool's edit setting (owner, 2026-09-26); the card
@@ -1518,7 +1580,7 @@ pendingChecks.push((async () => {
         && d.camp.chars.c_q.values.f_fx.length === 1 && !d.out.chat.length && e.camp.chars.c_q.values.f_fx.length === 1, j([c.out.chat, c.conns[0].sent]));
     const T = src.replace(/\r\n/g, '\n');
     check('T5a the wiring (source): a player\'s added effect starts its timer on the host with the host\'s clock and whether they are in a combat; turnStarted takes a round; a combat\'s start banks and its end resumes; the clock starts with the first render',
-        /view: window\.wpSheets \? window\.wpSheets\.playerSystem\(campX\) : null, now: Date\.now\(\), inCombat: !!\(net\.charInCombat && net\.charInCombat\(qx\.charId\)\) \}\);/.test(T) && /try \{ turnFxStart\(mapId, c\); \} catch \(e\)/.test(T)
+        /view: window\.wpSheets \? window\.wpSheets\.playerSystem\(campX\) : null, now: Date\.now\(\), inCombat: !!\(net\.charInCombat && net\.charInCombat\(qx\.charId\)\), timersGm: !!\(campX\.turnRules && campX\.turnRules\.timers === 'gm'\) \}\);/.test(T) && /try \{ turnFxStart\(mapId, c\); \} catch \(e\)/.test(T)
         && /if \(combat && !had\) \{ try \{ fxCombatEdge\(mapId, net\.combats\[mapId\], 'bank'\); \}/.test(T) && /if \(had\) \{ try \{ fxCombatEdge\(mapId, had, 'resume'\); \}/.test(T) && /function renderWhere\(\) \{\n\s*if \(typeof fxClockStart === 'function'\) fxClockStart\(\);/.test(T));
 })());
 

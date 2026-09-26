@@ -48,7 +48,8 @@ var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, 
 // player may see is decided by the host (cleanSystem's opts.pages) and again when the sheet is drawn.
 var PAGE_ID = /^[A-Za-z0-9_.:-]{1,80}$/;
 var EFFECT_ID = /^e_[A-Za-z0-9_]{1,24}$/, FXROW_ID = /^x_[A-Za-z0-9_]{1,24}$/;   // 5h: a library effect, a row on a character's list
-var FX_OPS = Object.freeze({ add: 1, adhoc: 1, on: 1, remove: 1 });
+var FX_OPS = Object.freeze({ add: 1, adhoc: 1, on: 1, remove: 1, timer: 1 });   // timer (turn-based combat T5b): pause, resume, reset or dismiss a row's countdown
+var FX_TIMER_ACTS = Object.freeze({ pause: 1, resume: 1, reset: 1, dismiss: 1 });
 function validPageId(id) { return typeof id === 'string' && PAGE_ID.test(id) && !(id in Object.prototype); }
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 });
@@ -2687,6 +2688,7 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
     var f = fieldById(sys, fieldId); if (!f || f.kind !== 'effects') return { ok: false, reason: 'field' };
     if (opts.player && (f.edit !== 'owner' || f.vis !== 'all')) return { ok: false, reason: 'field' };
     if (!isObj(q) || !FX_OPS[q.op]) return { ok: false, reason: 'value' };
+    if (q.op === 'timer' && opts.player && opts.timersGm) return { ok: false, reason: 'field' };   // T5b: the campaign keeps timers the GM's
     var src = char && char.values && Array.isArray(char.values[fieldId]) ? char.values[fieldId] : [];
     var list = JSON.parse(JSON.stringify(src)), idx = -1, rowId = q.op === 'adhoc' ? (isObj(q.row) ? q.row.id : null) : q.rowId;
     if (typeof rowId !== 'string' || !FXROW_ID.test(rowId)) return { ok: false, reason: 'value' };
@@ -2717,6 +2719,14 @@ function applyEffectOp(sys, char, fieldId, q, F, opts) {
         var nr = { id: rowId, name: core.name, icon: core.icon, tone: core.tone, dur: core.dur, notes: core.notes, on: q.row.on !== false, mods: core.mods };
         var tH = idx >= 0 && list[idx].dur === core.dur && isObj(list[idx].t) ? list[idx].t : fxTimerFor(core, sys, opts); if (tH) nr.t = tH;   // T5a: a new row (or a changed duration) starts its timer; an edit keeps it
         if (idx >= 0) list[idx] = nr; else if (list.length >= LIMITS.effectRows) return { ok: false, reason: 'field' }; else list.push(nr);
+    } else if (q.op === 'timer') {   // Turn-based combat T5b (D9): pause (what is left is held), resume (from now, or stopped in a combat), reset (its full time again), dismiss (no countdown: it stays until ended)
+        if (idx < 0 || typeof q.act !== 'string' || FX_TIMER_ACTS[q.act] !== 1) return { ok: false, reason: idx < 0 ? 'missing' : 'value' };
+        var rwT = list[idx], tT = isObj(rwT.t) ? rwT.t : null, nowT = typeof opts.now === 'number' ? opts.now : 0, defT = null;
+        if (typeof rwT.ref === 'string') (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && d.id === rwT.ref) defT = d; });
+        if (q.act === 'pause') { if (!tT || tT.p === 1) return { ok: false, reason: 'value' }; rwT.t = { left: Math.max(0, fxLeftNow(tT, nowT)), at: 0, p: 1 }; }
+        else if (q.act === 'resume') { if (!tT || tT.p !== 1) return { ok: false, reason: 'value' }; rwT.t = { left: tT.left, at: opts.inCombat ? 0 : Math.max(0, Math.floor(nowT)) }; }
+        else if (q.act === 'reset') { var fullT = lastsSecs(defT || rwT, sys); if (!(fullT > 0)) return { ok: false, reason: 'value' }; rwT.t = { left: fullT, at: (tT && tT.p === 1) || opts.inCombat ? 0 : Math.max(0, Math.floor(nowT)) }; if (tT && tT.p === 1) rwT.t.p = 1; }
+        else { if (!tT) return { ok: false, reason: 'value' }; delete rwT.t; }
     } else if (q.op === 'on') {
         if (idx < 0 || typeof q.on !== 'boolean') return { ok: false, reason: idx < 0 ? 'missing' : 'value' };
         list[idx].on = q.on;
@@ -2753,6 +2763,7 @@ function cleanCharEffect(msg) {
     if (typeof msg.rowId !== 'string' || !FXROW_ID.test(msg.rowId)) return null; q.rowId = msg.rowId;
     if (msg.op === 'add') { if (typeof msg.ref !== 'string' || !EFFECT_ID.test(msg.ref)) return null; q.ref = msg.ref; }
     if (msg.op === 'on') { if (typeof msg.on !== 'boolean') return null; q.on = msg.on; }
+    if (msg.op === 'timer') { if (typeof msg.act !== 'string' || FX_TIMER_ACTS[msg.act] !== 1) return null; q.act = msg.act; }   // T5b
     return q;
 }
 // The item def a token/character would throw, by id (host reads area.ft from here, never from the wire). Null if absent.

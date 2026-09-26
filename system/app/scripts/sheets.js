@@ -2260,6 +2260,17 @@ function fxLeftText(t, sys) {
     return (t.p === 1 ? 'paused, ' : '') + txt + ' left';
 }
 var _fxTicker = null;
+// T5b: pause or resume, reset and dismiss a timed effect's countdown — whoever may change the list, a player unless the campaign keeps timers the GM's
+function fxTimerCtl(r, d, f, c, sys, editable) {
+    var camp = getActiveCampaign();
+    if (!editable || (isClient() && camp && camp.turnRules && camp.turnRules.timers === 'gm') || !(lastsSecs(d, sys) > 0)) return null;
+    var box = el('span', 'sheet-fx-timer'), t = r.t;
+    var mk = function(act, txt, tip) { var b = el('button', 'tool ghost sheet-pm sheet-fx-tbtn', txt); b.type = 'button'; b.title = tip; b.addEventListener('click', function(e) { e.stopPropagation(); commitEffect(c, f, { op: 'timer', rowId: r.id, act: act }); }); box.appendChild(b); };
+    if (t && t.p === 1) mk('resume', '\u25b6', 'Resume the countdown'); else if (t) mk('pause', '\u23f8', 'Pause the countdown (what is left is held)');
+    mk('reset', '\u21bb', 'Start its full time again');
+    if (t) mk('dismiss', '\u23f9', 'Stop the countdown: it stays until someone ends it');
+    return box;
+}
 function fxLeftChip(t, sys) {
     var chip = el('span', 'sheet-fx-left', fxLeftText(t, sys)); chip.title = 'Runs out by itself: in a combat on its character\u2019s turns, out of one by the clock';
     chip._t = t; chip._sys = sys;
@@ -2286,6 +2297,7 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
         if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
         if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
         if (r.t) line.appendChild(fxLeftChip(r.t, sys));   // T5a
+        var tcL = fxTimerCtl(r, d, f, c, sys, editable); if (tcL) line.appendChild(tcL);   // T5b
         if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
         var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
         wrap.appendChild(line);
@@ -2316,6 +2328,7 @@ function fxCard(line, sw, r, d, f, c, labels, editable, sys) {   // sys (T5a): a
     if (d.tone === 'buff' || d.tone === 'debuff') meta.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
     if (d.dur) { var du = el('span', 'sheet-fx-dur'); du.appendChild(iconNode('icon:hourglass-half', 'sheet-fx-durico')); du.appendChild(document.createTextNode(' ' + d.dur)); meta.appendChild(du); }
     if (r.t) meta.appendChild(fxLeftChip(r.t, sys));   // T5a
+    var tcC = fxTimerCtl(r, d, f, c, sys, editable); if (tcC) meta.appendChild(tcC);   // T5b
     if (meta.childNodes.length) head.appendChild(meta);
     line.appendChild(head);
     if (d.notes) line.appendChild(el('div', 'sheet-fx-notes', d.notes));

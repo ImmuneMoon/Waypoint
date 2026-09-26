@@ -4068,10 +4068,11 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && j(kC.expired) === j(['Quick']) && j(kC2.values) === '{}' && j(S.fxTick(gmT, { id: 'c', values: {} }, 'turn', 1)) === j({ values: {}, expired: [] }), j([kT, kB, kR, kC.expired, kC2]));
         // the sheet's chip and the effects list drawn for real (both looks), so a missing name in a render path fails here
         const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), fxS = shF.slice(shF.indexOf('function fxLeftText('), shF.indexOf('// Stage 5g: a value coloured by its sign'));
-        const mkEl = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], get childNodes() { return this.children; }, style: {}, dataset: {}, classList: { add() {}, toggle() {} }, appendChild(c) { this.children.push(c); return c; }, addEventListener() {}, insertBefore(c) { this.children.unshift(c); return c; } });
+        const mkEl = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], get childNodes() { return this.children; }, style: {}, dataset: {}, classList: { add() {}, toggle() {} }, appendChild(c) { this.children.push(c); return c; }, addEventListener(ev, fn) { this['_on' + ev] = fn; }, insertBefore(c) { this.children.unshift(c); return c; } });
+        let campH = null, clientH = false; const cmts = [];
         const docF = { createTextNode: t => ({ textContent: t, children: [] }), querySelectorAll: () => [] };
-        const API = new Function('el', 'iconNode', 'commitEffect', 'fxChangeText', 'opt', 'uid', 'iconText', 'effectForm', 'document', 'window', 'roundSecs', 'fxLeftNow', 'var _fxLive = true, _fxForm = null, _fxView = "sheet";' + NL + fxS + NL + 'return { fxLeftText: fxLeftText, effectsInto: effectsInto };')(
-            mkEl, () => mkEl('i'), () => {}, () => 'x', mkEl, () => 'x_n', () => '', () => mkEl('div'), docF, {}, S.roundSecs, S.fxLeftNow);
+        const API = new Function('el', 'iconNode', 'commitEffect', 'fxChangeText', 'opt', 'uid', 'iconText', 'effectForm', 'document', 'window', 'roundSecs', 'fxLeftNow', 'getActiveCampaign', 'isClient', 'lastsSecs', 'var _fxLive = true, _fxForm = null, _fxView = "sheet";' + NL + fxS + NL + 'return { fxLeftText: fxLeftText, effectsInto: effectsInto };')(
+            mkEl, () => mkEl('i'), (c, f, q) => cmts.push(q), () => 'x', mkEl, () => 'x_n', () => '', () => mkEl('div'), docF, {}, S.roundSecs, S.fxLeftNow, () => campH, () => clientH, S.lastsSecs);
         const flat = n => (n.textContent || '') + (n.children || []).map(flat).join('|');
         const rowsF = [{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: 0 } }], sysL = gmT, sysC = Object.assign({}, gmT, { sheet: { sections: [], look: { effects: 'cards' } } });
         const wL = mkEl('div'), wC = mkEl('div'); API.effectsInto(wL, { id: 'f_fx' }, { id: 'c_p' }, rowsF, sysL, false); API.effectsInto(wC, { id: 'f_fx' }, { id: 'c_p' }, rowsF, sysC, false);
@@ -4079,6 +4080,42 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('T5a what a timed effect shows (sheets.js, run for real): in a combat the rounds left (2 rounds, 1 round), by the clock the time (1:05, 42s, 2h 5m), paused held, run out "ending"; drawn as a list row and as a card, each with its chip',
             ft({ left: 12, at: 0 }, gmT) === '2 rounds left' && ft({ left: 5, at: 0 }, gmT) === '1 round left' && ft({ left: 65, at: now0 }, gmT) === '1:05 left' && ft({ left: 42, at: now0 }, gmT) === '42s left' && ft({ left: 7500, at: now0 }, gmT) === '2h 5m left'
             && ft({ left: 90, at: 0, p: 1 }, gmT) === 'paused, 1:30 left' && ft({ left: 0, at: 0 }, gmT) === 'ending' && /2 rounds left/.test(flat(wL)) && /2 rounds left/.test(flat(wC)), j([flat(wL).slice(0, 200), flat(wC).slice(0, 200)]));
+        /* ---- T5b: pause / resume, reset, dismiss a row's countdown ---- */
+        const cT = m => S.cleanCharEffect(Object.assign({ rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'timer', rowId: 'x_1' }, m));
+        check('T5b the wire shape: a timer op carries its row and one of pause, resume, reset, dismiss (nothing else passes)',
+            j(cT({ act: 'pause' })) === j({ rid: 'r1', charId: 'c_1', fieldId: 'f_fx', op: 'timer', rowId: 'x_1', act: 'pause' }) && ['resume', 'reset', 'dismiss'].every(a => cT({ act: a }) && cT({ act: a }).act === a)
+            && cT({ act: 'explode' }) === null && cT({}) === null && cT({ act: 1 }) === null && cT({ act: '__proto__' }) === null && cT({ act: 'pause', rowId: 5 }) === null, j(cT({ act: 'pause' })));
+        const TQ = act => ({ op: 'timer', rowId: 'x_1', act }), rB = t => [Object.assign({ id: 'x_1', ref: 'e_b', on: true }, t ? { t } : {})], tq = (res) => res.ok ? res.value[0].t : res.reason;
+        const pz = opA(rB({ left: 12, at: 5000 }), TQ('pause'), { now: 8000 }), pzC = opA(rB({ left: 12, at: 0 }), TQ('pause'), { now: 8000, inCombat: true });
+        const rs1 = opA(rB({ left: 9, at: 0, p: 1 }), TQ('resume'), { now: 20000 }), rs2 = opA(rB({ left: 9, at: 0, p: 1 }), TQ('resume'), { now: 20000, inCombat: true });
+        check('T5b pause holds what is left (its clock stops, 3 s having run: 9 left; in a combat as it stands); resume carries on from there — by the clock from now, in a combat stopped for its turns; pausing a paused or untimed row, or resuming a running one, is refused',
+            j(tq(pz)) === j({ left: 9, at: 0, p: 1 }) && j(tq(pzC)) === j({ left: 12, at: 0, p: 1 }) && j(tq(rs1)) === j({ left: 9, at: 20000 }) && j(tq(rs2)) === j({ left: 9, at: 0 })
+            && tq(opA(rB({ left: 9, at: 0, p: 1 }), TQ('pause'), { now: 1 })) === 'value' && tq(opA(rB(null), TQ('pause'), { now: 1 })) === 'value' && tq(opA(rB({ left: 9, at: 5 }), TQ('resume'), { now: 1 })) === 'value', j([pz, pzC, rs1, rs2]));
+        const re1 = opA(rB({ left: 3, at: 100 }), TQ('reset'), { now: 30000 }), re2 = opA(rB({ left: 3, at: 0 }), TQ('reset'), { now: 30000, inCombat: true }), re3 = opA(rB({ left: 3, at: 0, p: 1 }), TQ('reset'), { now: 30000 });
+        const re4 = opA(rB(null), TQ('reset'), { now: 30000 }), re5 = opA([{ id: 'x_1', ref: 'e_n', on: true }], TQ('reset'), { now: 1 }), re6 = opA([{ id: 'x_1', name: 'Stun', dur: '1 turn', mods: [], on: true, t: { left: 1, at: 0 } }], TQ('reset'), { now: 1, inCombat: true });
+        check('T5b reset starts its full time again (Bless 2 turns = 12 s): by the clock from now, in a combat stopped, a paused one stays paused; a row whose countdown was stopped gets one again; an ad hoc row by its own note; a note with no time is refused',
+            j(tq(re1)) === j({ left: 12, at: 30000 }) && j(tq(re2)) === j({ left: 12, at: 0 }) && j(tq(re3)) === j({ left: 12, at: 0, p: 1 }) && j(tq(re4)) === j({ left: 12, at: 30000 }) && tq(re5) === 'value' && j(tq(re6)) === j({ left: 6, at: 0 }), j([re1, re2, re3, re4, re5, re6]));
+        const dm = opA(rB({ left: 3, at: 100 }), TQ('dismiss'), { now: 1 });
+        check('T5b dismiss stops the countdown: the effect stays, applied, until someone ends it; a row with none is refused; a missing row is "missing"',
+            dm.ok && j(dm.value) === j([{ id: 'x_1', ref: 'e_b', on: true }]) && tq(opA(rB(null), TQ('dismiss'), { now: 1 })) === 'value' && tq(opA(rB({ left: 3, at: 0 }), { op: 'timer', rowId: 'x_9', act: 'pause' }, { now: 1 })) === 'missing', j(dm));
+        const rawG = JSON.parse(JSON.stringify(rawT)); rawG.fields[1].edit = 'gm'; const gmG = cleanSystem(rawG, { F, gmView: true });
+        const opP = (sys, o) => S.applyEffectOp(sys, { id: 'c_p', values: { f_fx: rB({ left: 12, at: 5000 }) } }, 'f_fx', TQ('pause'), F, Object.assign({ player: true, now: 8000 }, o));
+        check('T5b who may: a player on a list they may change, unless the campaign keeps timers the GM\'s (timersGm); never on a list the GM alone changes; the GM always',
+            opP(gmT, {}).ok && opP(gmT, { timersGm: true }).reason === 'field' && opP(gmG, {}).reason === 'field' && S.applyEffectOp(gmT, { id: 'c_p', values: { f_fx: rB({ left: 12, at: 5000 }) } }, 'f_fx', TQ('pause'), F, { now: 8000, timersGm: true }).ok);
+        const bt = w => { const out = []; const walk = n => { if (/sheet-fx-tbtn/.test(n.className || '')) out.push(n); (n.children || []).forEach(walk); }; walk(w); return out; };
+        const drawT = (rows, sys, ed) => { const w = mkEl('div'); API.effectsInto(w, { id: 'f_fx' }, { id: 'c_p' }, rows, sys, ed); return w; };
+        const bRun = bt(drawT(rB({ left: 12, at: 5 }), sysL, true)), bPau = bt(drawT(rB({ left: 12, at: 0, p: 1 }), sysL, true)), bOff = bt(drawT(rB(null), sysL, true)), bNone = bt(drawT([{ id: 'x_1', ref: 'e_n', on: true }], sysL, true));
+        const bCard = bt(drawT(rB({ left: 12, at: 5 }), sysC, true)), bRO = bt(drawT(rB({ left: 12, at: 5 }), sysL, false));
+        clientH = true; campH = { turnRules: { timers: 'gm' } }; const bGm = bt(drawT(rB({ left: 12, at: 5 }), sysL, true)); campH = { turnRules: { timers: 'owner' } }; const bOwn = bt(drawT(rB({ left: 12, at: 5 }), sysL, true)); clientH = false; campH = null;
+        cmts.length = 0; const press = bn => { if (bn && bn._onclick) bn._onclick({ stopPropagation() {} }); }; press(bRun[0]); press(bPau[0]); press(bRun[1]); press(bRun[2]);
+        const tx = a => a.map(b => b.textContent).join('');
+        check('T5b the controls (sheets.js, run for real): a running countdown shows pause, reset, stop; a paused one resume, reset, stop; one stopped reset only; an effect with no time none; a card the same; none where the list is not changeable, nor on a player\'s machine when the campaign keeps timers the GM\'s; each press sends its op',
+            tx(bRun) === '\u23f8\u21bb\u23f9' && tx(bPau) === '\u25b6\u21bb\u23f9' && tx(bOff) === '\u21bb' && bNone.length === 0 && tx(bCard) === tx(bRun) && bRO.length === 0 && bGm.length === 0 && tx(bOwn) === tx(bRun)
+            && j(cmts) === j([TQ('pause'), TQ('resume'), TQ('reset'), TQ('dismiss')]), j([tx(bRun), tx(bPau), tx(bOff), bNone.length, tx(bCard), bRO.length, bGm.length, tx(bOwn), cmts]));
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8'), hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuT = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('T5b the option and the docs (source): Effect timers is a GM-only select writing camp.turnRules.timers (gm or owner); Help names the controls and the option; the tour says a countdown can be paused, reset or stopped',
+            /Effect timers <select id="setTimersMode"/.test(hmT) && /var val = _timersSel\.value === 'gm' \? 'gm' : 'owner';\s+camp\.turnRules = Object\.assign\(\{\}, camp\.turnRules && typeof camp\.turnRules === 'object' \? camp\.turnRules : \{\}, \{ timers: val \}\);/.test(shT)
+            && /for its player and you, or you only \(<b>Effect timers<\/b>, which reaches players at the table at once\)/.test(hmT) && /and its countdown can be paused, reset or stopped\./.test(tuT));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

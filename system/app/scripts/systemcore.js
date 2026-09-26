@@ -46,7 +46,7 @@ function validPageId(id) { return typeof id === 'string' && PAGE_ID.test(id) && 
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 });
 // Stage 6 F4a: a carried row's id (w_…; a legacy {defId, qty} row's is derived from its item) and the row ops a change may carry
-var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1 });   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts
+var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1 });   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
 var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1 });
 // Stage 6 F4c1: a list's stat key (F5a reads Row.<key>) — never an Object.prototype name in either case (the wire's packer refuses one, and the
@@ -60,6 +60,8 @@ function statNum(x) { return typeof x === 'number' && fin(x) && Math.abs(x) <= L
 // the GM keeps it on the character, out of their sight, until the GM removes it. Absent: an ordinary removal. The GM's secret: never in the
 // players' view, so every item looks and behaves the same on a player's sheet until they try.
 var RM_MODES = Object.freeze({ bound: 1, curse: 1 });
+// Stage 6 F4c2: a copy's own removal or switch lock (ov.rm, ov.eq) — a mode, or none: this copy is free whatever the library says. Always tested === 1
+var OV_LOCK = Object.freeze({ bound: 1, curse: 1, none: 1 });
 var GROUP_ID = /^g_[A-Za-z0-9_]{1,24}$/;   // Stage 6 look fold: a band group
 var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
 var CTRL_RE_G = new RegExp(CTRL_RE.source, 'g');   // for replace(): every control character, not just the first
@@ -309,6 +311,9 @@ function cleanCombat(c, resIds) {
     if (typeof c.hpResource === 'string' && resIds && resIds[c.hpResource]) out.hpResource = c.hpResource;
     return out;
 }
+// Stage 6 F4c2: the system's rules for item lists (the Lists tab's Rules box) — ownerStats: players may change the stats of their own copies
+// (Setting A). Both views carry it: a player's sheet draws its ✎ and their own check judges by it, the host by the full system. null when unset
+function cleanListRules(v) { return isObj(v) && v.ownerStats === true ? { ownerStats: true } : null; }
 // Stage 3: optional per-section colors — hex only (accent = title + left stripe, bg = panel, border = box), like the doc-theming whitelist.
 function cleanSecStyle(v) {
     if (!isObj(v)) return null;
@@ -679,6 +684,7 @@ function cleanSystem(sys, opts) {
     (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (effs.length >= LIMITS.effects) return; var c = cleanEffectDef(d, fieldIds, gmView); if (!c || seenFx[c.id]) return; seenFx[c.id] = 1; effs.push(c); });
     if (effs.length) out.effects = effs;
     out.combat = cleanCombat(sys.combat, resIds);
+    var lr = cleanListRules(sys.listRules); if (lr) out.listRules = lr;   // Stage 6 F4c2: Setting A, in both views (absent: GM only)
     var pages = null;   // Stage 5f: the host passes the ids of the pages players may read, so a chip or link to any other page never travels
     if (opts.pages !== undefined) { pages = map(); (Array.isArray(opts.pages) ? opts.pages : []).forEach(function(id) { if (validPageId(id)) pages[id] = 1; }); }
     out.sheet = cleanSheet(sys.sheet, fieldIds, rollIds, pages, gmView);
@@ -823,6 +829,7 @@ function cleanCharItem(msg) {
     if (typeof msg.rowId !== 'string' || !ROW_ID.test(msg.rowId)) return null; out.rowId = msg.rowId;
     if (msg.op === 'add' || msg.op === 'setQty' || msg.op === 'undo') { var qty = msg.qty === undefined ? 1 : (cleanNum(msg.qty, NaN) | 0); if (!(qty >= 0)) return null; out.qty = clampNum(qty, 0, LIMITS.maxQty); }
     if (msg.op === 'set') { var fx = cleanFacts(msg.facts); if (!fx) return null; out.facts = fx; }   // F4b
+    if (msg.op === 'ov') { if (msg.ov === null) out.ov = null; else { var ovm = cleanOvMsg(msg.ov); if (!ovm) return null; out.ov = ovm; } }   // F4c2: back to the library only when the wire says null; a patch malformed, or holding nothing, refuses the message
     return out;
 }
 // Stage 6 F4b: a set op's facts — a level (a number, or null: back to the default), a switch, a note ('' clears it); F4c1: what one cost (a number
@@ -835,6 +842,30 @@ function cleanFacts(v) {
     if (v.note !== undefined) { if (typeof v.note !== 'string' || v.note.length > LIMITS.rowNote * 4) return null; out.note = cutText(v.note, LIMITS.rowNote); }
     if (v.paid === null) out.paid = null; else if (v.paid !== undefined) { if (typeof v.paid !== 'number' || !fin(v.paid) || v.paid < 0 || v.paid > LIMITS.statAbs) return null; out.paid = v.paid; }
     return Object.keys(out).length ? out : null;
+}
+// Stage 6 F4c2: an ov op's patch, by shape (applyRowOp judges the rest) — each text null or a string within four times its cap, a lock null or a
+// mode (none lifts the library's), a blast null or { ft, name? }, stats null or up to 16 keys (a stat key, never a prototype name in either case),
+// each null or a number within 1e9. held never comes from the wire (the host keeps it); other keys are dropped; a wrong type refuses the whole
+// message. A plain object; null when it is malformed or nothing is left
+var OV_KEYS = ['name', 'icon', 'category', 'notes', 'stats', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg'], OV_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 800, damage: 1200, cost: 1200, rmMsg: 800, eqMsg: 800 });
+function cleanOvMsg(v) {
+    if (!isObj(v)) return null;
+    var out = {};
+    for (var i = 0; i < OV_KEYS.length; i++) {
+        var k = OV_KEYS[i], x = v[k]; if (x === undefined) continue;
+        if (x === null) { out[k] = null; continue; }
+        if (k === 'rm' || k === 'eq') { if (OV_LOCK[x] !== 1) return null; out[k] = x; }
+        else if (k === 'area') { if (!isObj(x) || typeof x.ft !== 'number' || !fin(x.ft) || (x.name !== undefined && (typeof x.name !== 'string' || x.name.length > 240))) return null; out.area = { ft: x.ft }; if (typeof x.name === 'string') out.area.name = x.name; }
+        else if (k === 'stats') { var sp = statsPatch(x); if (!sp) return null; if (Object.keys(sp).length) out.stats = sp; }
+        else { if (typeof x !== 'string' || x.length > OV_CAP[k]) return null; out[k] = x; }
+    }
+    return Object.keys(out).length ? out : null;
+}
+function statsPatch(v) {
+    if (!isObj(v)) return null;
+    var ks = Object.keys(v), out = {}; if (ks.length > LIMITS.entryStats) return null;
+    for (var i = 0; i < ks.length; i++) { var k = ks[i], x = v[k]; if (!STAT_KEY.test(k) || (k in Object.prototype) || (lower(k) in Object.prototype)) return null; if (x !== null && statNum(x) === undefined) return null; out[k] = x; }
+    return out;
 }
 function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'value'; }
 function cleanItemMsg(v) { return cutText(v, LIMITS.rmMsg); }   // Stage 6: a bound or cursed item's message as a player receives it (shown as text)
@@ -870,7 +901,7 @@ function cleanRow(e, items, spec) {   // spec (F4b): the list's options (f.list)
     if (typeof e.defId === 'string' && ITEM_ID.test(e.defId)) {
         var known = items[e.defId] === 1, snap = !known && isObj(e.snap) ? cleanRowDef(e.snap, true) : null;   // a copy of a deleted entry keeps its snapshot; once the entry is back the row reads the library again
         if (!known && !snap) return null;   // an unknown item with no copy is dropped (the rule before Stage 6)
-        var o = {}; if (id) o.id = id; o.defId = e.defId; o.qty = qty; rowFacts(o, e, spec); if (snap) o.snap = snap; if (id && e.hid === 1) o.hid = 1; if (e.keptOn === 1 && o.on === true) o.keptOn = 1; return o;
+        var o = {}; if (id) o.id = id; o.defId = e.defId; o.qty = qty; rowFacts(o, e, spec); var ov = cleanOv(e.ov, spec); if (ov) o.ov = ov; if (snap) o.snap = snap; if (id && e.hid === 1) o.hid = 1; if (e.keptOn === 1 && o.on === true) o.keptOn = 1; return o;   // F4c2: its own values (a custom row never has any: its definition is its own)
     }
     if (!id || !isObj(e.def)) return null;
     var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null;
@@ -885,6 +916,32 @@ function rowFacts(o, e, spec) {
     var nt = cutText(e.note, LIMITS.rowNote); if (nt) o.note = nt;
     if (typeof e.paid === 'number' && fin(e.paid) && e.paid >= 0 && e.paid <= LIMITS.statAbs) o.paid = e.paid;   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
 }
+// Stage 6 F4c2: a linked copy's own values (ov), by shape — only the fields deliberately changed on this copy (the host drops one equal to the
+// copy's base): its name, icon, category, notes, its list's stats (held: the ones the GM set, which its owner's Setting A leaves alone), a
+// blast, the damage and cost formulas, its own removal and switch locks (none: free, whatever the library says) and their messages. Never vis,
+// key, level or throw skill: secrecy and addressing stay the library's. spec: the list's options (no stats without them); spec true: compare
+// only (every stat by the key rule). A plain object in this key order, each key only when set; null when nothing is left
+function cleanOv(v, spec) {
+    if (!isObj(v)) return null;
+    var o = {}, nm = cutText(v.name, LIMITS.name), ic = cleanIcon(v.icon), ca = cutText(v.category, LIMITS.category);
+    if (nm) o.name = nm;
+    if (ic) o.icon = ic;
+    if (ca) o.category = ca;
+    if (typeof v.notes === 'string') { var nt = str(v.notes, LIMITS.text).replace(CTRL_RE_G, ' '); if (nt.trim()) o.notes = nt; }
+    var st = spec === true ? cleanEntryStats(v.stats, null) : rowStats(v.stats, spec); if (st) o.stats = st;
+    if (st && Array.isArray(v.held)) { var hs = map(), hl = []; v.held.slice(0, LIMITS.entryStats * 4).forEach(function(h) { if (typeof h === 'string') hs[lower(h)] = 1; }); Object.keys(st).forEach(function(k) { if (hs[lower(k)] === 1) hl.push(k); }); if (hl.length) o.held = hl; }
+    if (isObj(v.area)) { var ft = cleanNum(v.area.ft, 0) | 0; if (ft > 0) o.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: 'circle', name: cutText(v.area.name, LIMITS.label) }; }
+    var dm = cleanFormulaText(v.damage); if (dm) o.damage = dm;
+    var co = cleanFormulaText(v.cost); if (co) o.cost = co;
+    if (OV_LOCK[v.rm] === 1) o.rm = v.rm;
+    var rmm = cutText(v.rmMsg, LIMITS.rmMsg); if (rmm) o.rmMsg = rmm;
+    if (OV_LOCK[v.eq] === 1) o.eq = v.eq;
+    var eqm = cutText(v.eqMsg, LIMITS.rmMsg); if (eqm) o.eqMsg = eqm;
+    return Object.keys(o).length ? o : null;
+}
+// F4c2: what of a copy's own values its owner receives — the name, icon, category, notes, its list's stats (with which of them the GM set) and a
+// blast; never the formulas or the locks (a whitelist: a later GM-only key stays home). In cleanOv's key order, never empty (null)
+function ownOv(v, spec) { return isObj(v) ? cleanOv({ name: v.name, icon: v.icon, category: v.category, notes: v.notes, stats: v.stats, held: v.held, area: v.area }, spec) : null; }
 // F4b: a row's level and switch as read (the sheet; F5a's formulas): a stored level, else the item's default level, else the list's; the
 // switch as stored, else the list's "starts on" (an id-less legacy row follows it: critic 13). A kept-on curse is on.
 function rowLvl(spec, row, def) { var l = isObj(spec) && isObj(spec.lvl) ? spec.lvl : null; if (isObj(row) && typeof row.lvl === 'number') return row.lvl; if (l && isObj(def) && typeof def.lvl === 'number') return lvlClamp(l, def.lvl); return l ? l.def : 0; }
@@ -904,11 +961,24 @@ function rowStat(spec, def, key) {
 }
 function rowPaid(spec, row, def) { if (isObj(row) && typeof row.paid === 'number' && fin(row.paid)) return row.paid; return isObj(spec) && typeof spec.price === 'string' && spec.price ? Math.max(0, rowStat(spec, def, spec.price)) : 0; }
 function catIn(cats, c) { var l = lower(cutText(c, LIMITS.category)); return !!l && cats.some(function(x) { return lower(x) === l; }); }
-// The definition a row draws and throws from: the library entry, else the deleted entry's copy, else the row's own. { def, src } or null.
+// Stage 6 F4c2: a definition with a copy's own values over it (the library entry, or a deleted one's copy) — a new object, base untouched; base
+// itself when there are none. The texts and formulas set replace the base's, a blast replaces its blast, stats merge per key; a lock of none
+// lifts the base's (with its message), a mode replaces it, a message replaces the base's while a lock holds. Never vis, key, level or throw skill
+function mergeOv(base, ov) {
+    if (!isObj(base) || !isObj(ov)) return base;
+    var d = Object.assign({}, base);
+    ['name', 'icon', 'category', 'notes', 'damage', 'cost'].forEach(function(k) { if (typeof ov[k] === 'string' && ov[k]) d[k] = ov[k]; });
+    if (isObj(ov.area)) d.area = Object.assign({}, ov.area);
+    if (isObj(ov.stats)) d.stats = Object.assign({}, isObj(base.stats) ? base.stats : {}, ov.stats);
+    [['rm', 'rmMsg'], ['eq', 'eqMsg']].forEach(function(p) { var m = ov[p[0]]; if (m === 'none') { delete d[p[0]]; delete d[p[1]]; return; } if (RM_MODES[m] === 1) d[p[0]] = m; if (RM_MODES[d[p[0]]] === 1 && typeof ov[p[1]] === 'string' && ov[p[1]]) d[p[1]] = ov[p[1]]; });
+    return d;
+}
+// The definition a row draws and throws from: the library entry, else the deleted entry's copy, else the row's own. { def, src, base } or null.
+// F4c2: def carries the copy's own values over base (the entry, the copy); without them def is base itself (the library object)
 function rowDef(sys, row) {
     if (!isObj(row)) return null;
-    if (typeof row.defId === 'string') { var it = itemDef(sys, row.defId); if (it) return { def: it, src: 'lib' }; if (isObj(row.snap)) return { def: row.snap, src: 'lost' }; return null; }
-    if (isObj(row.def)) return { def: row.def, src: row.lnk === 1 ? 'inline' : 'custom' };
+    if (typeof row.defId === 'string') { var it = itemDef(sys, row.defId); if (it) return { def: mergeOv(it, row.ov), src: 'lib', base: it }; if (isObj(row.snap)) return { def: mergeOv(row.snap, row.ov), src: 'lost', base: row.snap }; return null; }
+    if (isObj(row.def)) return { def: row.def, src: row.lnk === 1 ? 'inline' : 'custom', base: row.def };
     return null;
 }
 // The owner's copy of a carried list (charFor): a visible entry as a pointer; a GM-only entry, or a deleted one's copy, inline with its
@@ -927,8 +997,8 @@ function projectRows(rows, view, lib, spec) {
         if (!isObj(r) || r.hid === 1) return;
         var rid = rowIdOf(r); if (!rid) return;
         if (typeof r.defId === 'string') {
-            if (vis[r.defId] === 1 && !r.snap) { var o = {}; if (r.id) o.id = r.id; o.defId = r.defId; o.qty = r.qty; projFacts(o, r); out.push(o); return; }
-            var d = (lib && Object.prototype.hasOwnProperty.call(lib, r.defId)) ? lib[r.defId] : r.snap, pd = cleanRowDef(d, false); if (!pd) return;
+            if (vis[r.defId] === 1 && !r.snap) { var o = {}; if (r.id) o.id = r.id; o.defId = r.defId; o.qty = r.qty; projFacts(o, r); var oo = ownOv(r.ov, spec); if (oo) o.ov = oo; out.push(o); return; }   // F4c2: its own values the owner may see
+            var d = mergeOv((lib && Object.prototype.hasOwnProperty.call(lib, r.defId)) ? lib[r.defId] : r.snap, r.ov), pd = cleanRowDef(d, false); if (!pd) return;   // F4c2: inline, with its own values folded in (then reduced to the players' fields)
             ownStats(pd, d, spec);
             var io = { id: rid, qty: r.qty }; projFacts(io, r); io.def = pd; io.lnk = 1; out.push(io); return;
         }
@@ -974,16 +1044,18 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             list.push(row); extra.base = 0; extra.row = rowIdOf(row); extra.qty = n; extra.added = n;
             if (row.on === true && RM_MODES[ent.eq] === 1 && opts.player) { extra.onRow = extra.row; extra.eqNote = ent.eq; }   // F4b: picked up already on — the equip lock's grace opens
         }
-        if (RM_MODES[ent.rm] === 1) { extra.note = ent.rm; extra.name = ent.name || 'Item'; }
+        var dN = have >= 0 ? ((rowDef(sys, list[have]) || {}).def || ent) : ent;   // F4c2 review: merged into a copy, its own lock and name tell the GM (a new row has no ov: the entry)
+        if (RM_MODES[dN.rm] === 1) { extra.note = dN.rm; extra.name = dN.name || 'Item'; }
         if (extra.eqNote) extra.name = ent.name || 'Item';
     } else {
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId)) return { ok: false, reason: 'value' };
+        if (q.op === 'ov' && (!spec || (opts.player && !(isObj(sys.listRules) && sys.listRules.ownerStats === true)))) return { ok: false, reason: 'field' };   // F4c2: a copy's own values need a list shaped in the Lists tab; its owner changes them only under Setting A (the rules of the system judged on: the host's, the client's view)
         var idx = at(q.rowId); if (idx < 0 || (opts.player && list[idx].hid === 1)) return { ok: false, reason: 'missing' };   // a kept curse reads as gone to a player
         extra.row = q.rowId;
         if (q.op === 'keep') {   // "Make custom" — a deleted entry's copy becomes the character's own item
             if (opts.player || !isObj(list[idx].snap)) return { ok: false, reason: 'field' };
             var wasHid = list[idx].hid === 1;
-            var kr = { id: q.rowId, qty: list[idx].qty }; ['lvl', 'on', 'note', 'paid', 'keptOn'].forEach(function(k) { if (list[idx][k] !== undefined) kr[k] = list[idx][k]; }); kr.def = list[idx].snap;   // F4b: its facts go with it (F4c1: what it cost)
+            var kr = { id: q.rowId, qty: list[idx].qty }; ['lvl', 'on', 'note', 'paid', 'keptOn'].forEach(function(k) { if (list[idx][k] !== undefined) kr[k] = list[idx][k]; }); kr.def = isObj(list[idx].ov) ? mergeOv(list[idx].snap, list[idx].ov) : list[idx].snap;   // F4b: its facts go with it (F4c1: what it cost; F4c2: its own values folded into its definition, the ov itself not kept)
             list[idx] = kr; if (wasHid) list[idx].hid = 1;
             extra.qty = list[idx].qty;
         } else if (q.op === 'set') {   // F4b: a row's facts, all or none. A player switching off an item with an equip lock: bound — it stays on
@@ -1010,6 +1082,16 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
                 } else rw.on = false;
             }
             extra.qty = rw.qty | 0;
+        } else if (q.op === 'ov') {   // F4c2: a copy's own values — the GM's on a linked copy (the library's, or a deleted one's copy); its owner's on a library copy they can see, stats only (Setting A, above)
+            var rwO = list[idx], rdO = rowDef(sys, rwO), pq = q.ov;
+            if (!rdO || rdO.src === 'custom' || (!opts.player && rdO.src !== 'lib' && rdO.src !== 'lost')) return { ok: false, reason: 'field' };   // a custom row changes with its own op
+            if (opts.player && (rdO.src !== 'lib' || valueOpts(opts.view || null).items[rwO.defId] !== 1)) return { ok: false, reason: 'missing' };   // an inline copy on the client is a GM-only entry or a deleted one's copy on the host: gone to both alike
+            if (pq !== null && !isObj(pq)) return { ok: false, reason: 'value' };
+            if (opts.player && pq !== null && Object.keys(pq).some(function(k) { return k !== 'stats'; })) return { ok: false, reason: 'field' };
+            var prP = spec && typeof spec.price === 'string' && spec.price ? lower(spec.price) : '';   // F4c2 review: paid is the GM's — a player's stat change that can move the price first records what the row read (a recorded Paid never moves)
+            if (opts.player && prP && typeof rwO.paid !== 'number' && (pq === null || (isObj(pq) && (pq.stats === null || (isObj(pq.stats) && Object.keys(pq.stats).some(function(k) { return lower(k) === prP; })))))) rwO.paid = clampNum(rowPaid(spec, rwO, rdO.def), 0, LIMITS.statAbs);
+            var ovr = applyOv(rwO, rdO.base, pq, spec, F, !!opts.player); if (ovr) return ovr;
+            extra.qty = rwO.qty | 0;
         } else {
             var cur = list[idx].qty | 0, nq = 0, gr = isObj(opts.grace) ? Math.max(0, opts.grace.added | 0) : -1;   // gr: what the open pickup window may still take back (-1: none open)
             if (q.op === 'setQty') { nq = cleanNum(q.qty, NaN); if (!isFinite(nq)) return { ok: false, reason: 'value' }; nq = Math.min(Math.max(0, nq | 0), LIMITS.maxQty); }
@@ -1035,6 +1117,68 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     var value = cleanValue(f, list, vo); if (value === undefined) return { ok: false, reason: 'value' };
     var out = { ok: true, value: value }; Object.keys(extra).forEach(function(k) { out[k] = extra[k]; });
     return out;
+}
+// Stage 6 F4c2: an ov patch applied to a row (in place, all or nothing): null once applied, else the refusal. A text or formula null or blank goes back to
+// the base's; one equal to the base's is not stored ("only the fields deliberately changed", so a later library edit reaches it). The formulas
+// must parse (a cost without dice); a blast is whole feet 1..3000; a lock a mode or none, the switch's only on a list with a switch. A stat is
+// one of the list's; the GM's is held (Q1 A: its owner's Setting A leaves it alone), taken back only by the GM. null: everything back (the
+// owner's: their own stats); stats null: every stat back (the owner's: their own)
+function applyOv(rw, base, pq, spec, F, player) {
+    base = isObj(base) ? base : {};
+    var cur = isObj(rw.ov) ? JSON.parse(JSON.stringify(rw.ov)) : {}, held = Array.isArray(cur.held) ? cur.held.filter(function(h) { return typeof h === 'string'; }) : [];
+    var isHeld = function(k) { return held.some(function(h) { return lower(h) === lower(k); }); };
+    var unHold = function(k) { held = held.filter(function(h) { return lower(h) !== lower(k); }); };
+    var dropStat = function(k) { if (isObj(cur.stats)) Object.keys(cur.stats).forEach(function(k2) { if (lower(k2) === lower(k)) delete cur.stats[k2]; }); };
+    var dropOwn = function() { if (isObj(cur.stats)) Object.keys(cur.stats).forEach(function(k) { if (!isHeld(k)) delete cur.stats[k]; }); };   // the owner's take-back: their own stats, never the GM's
+    var bad = { ok: false, reason: 'value' }, blank = function(x) { return x === null || (typeof x === 'string' && !x.trim()); };
+    if (pq === null) { if (player) dropOwn(); else { cur = {}; held = []; } }
+    else {
+        var ks = Object.keys(pq);
+        for (var i = 0; i < ks.length; i++) {
+            var k = ks[i], v = pq[k];
+            if (k === 'name' || k === 'icon' || k === 'category' || k === 'notes' || k === 'rmMsg' || k === 'eqMsg') {
+                if (k === 'eqMsg' && !blank(v) && !(spec && isObj(spec.on))) return bad;
+                if (blank(v)) { delete cur[k]; continue; }
+                if (typeof v !== 'string') return bad;
+                var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.name : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
+                if (!t || !t.trim()) return bad;   // text that cleans to nothing (an icon that is not bundled)
+                if (t === (typeof base[k] === 'string' ? base[k] : '')) delete cur[k]; else cur[k] = t;
+            } else if (k === 'damage' || k === 'cost') {
+                if (blank(v)) { delete cur[k]; continue; }
+                var fm = cleanFormulaText(v), pp = fm && F && F.parse ? F.parse(fm) : null;
+                if (!pp || !pp.ok || (k === 'cost' && hasDice(pp.ast.body))) return { ok: false, reason: 'value', why: 'formula' };   // why: the GM's own toast (never travels)
+                if (fm === (typeof base[k] === 'string' ? base[k] : '')) delete cur[k]; else cur[k] = fm;
+            } else if (k === 'area') {
+                if (v === null) { delete cur.area; continue; }
+                if (!isObj(v) || typeof v.ft !== 'number' || v.ft !== Math.floor(v.ft) || v.ft < 1 || v.ft > LIMITS.maxBlastFt) return bad;
+                var na = { ft: v.ft, shape: 'circle', name: cutText(v.name, LIMITS.label) };
+                if (isObj(base.area) && base.area.ft === na.ft && (base.area.name || '') === na.name) delete cur.area; else cur.area = na;
+            } else if (k === 'rm' || k === 'eq') {
+                if (v === null) { delete cur[k]; continue; }
+                if (OV_LOCK[v] !== 1 || (k === 'eq' && !(spec && isObj(spec.on)))) return bad;
+                if (v === (RM_MODES[base[k]] === 1 ? base[k] : 'none')) delete cur[k]; else cur[k] = v;
+            } else if (k === 'stats') {
+                if (v === null) { if (player) dropOwn(); else { delete cur.stats; held = []; } continue; }
+                if (!isObj(v)) return bad;
+                var sks = Object.keys(v);
+                for (var j = 0; j < sks.length; j++) {
+                    var sk = sks[j], sx = v[sk], canon = '';
+                    (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!canon && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(sk)) canon = s.key; });
+                    if (!canon) return bad;
+                    if (player && isHeld(canon)) return { ok: false, reason: 'field' };   // Q1 (A): a stat the GM set holds
+                    if (sx === null) { dropStat(canon); unHold(canon); continue; }
+                    if (statNum(sx) === undefined) return bad;
+                    dropStat(canon); unHold(canon);
+                    if (sx !== rowStat(spec, base, canon)) { cur.stats = isObj(cur.stats) ? cur.stats : {}; cur.stats[canon] = sx; if (!player) held.push(canon); }
+                }
+            } else return bad;
+        }
+    }
+    held = held.filter(function(h) { return isObj(cur.stats) && Object.keys(cur.stats).some(function(k2) { return lower(k2) === lower(h); }); });
+    if (isObj(cur.stats) && !Object.keys(cur.stats).length) delete cur.stats;
+    if (held.length) cur.held = held; else delete cur.held;
+    if (Object.keys(cur).length) rw.ov = cur; else delete rw.ov;
+    return null;
 }
 // A copy of an entry that has just left the library keeps the entry as it was, so the character still has the item (prevSys: the system
 // before the change). Returns how many rows were given a copy; the rows are changed in place.
@@ -1062,6 +1206,48 @@ function stampRows(sys, chars) {
         lists.forEach(function(f) { var v = c.values[f.id]; if (!Array.isArray(v)) return; v.forEach(function(r) { if (isObj(r) && !r.id && typeof r.defId === 'string' && (secret[r.defId] === 1 || (isObj(r.snap) && r.snap.vis === 'gm'))) { r.id = uid('w_'); n++; } }); });
     });
     return n;
+}
+// Stage 6 F4c2: how far a library edit reaches (a Save) — for each entry both systems hold whose GM-view definition changed, the characters
+// carrying it (a row of it without a copy of its own: a kept curse counts, a deleted one's copy does not; a character once however many rows)
+// and how many of them have their own value of a changed field (a stat by its list's label). An entry nobody carries says nothing. Pure;
+// prevSys may be absent (a first save). { lines: one per entry, text: the one line, or a summary of several }
+var REACH_KEYS = ['name', 'icon', 'category', 'notes', 'area', 'damage', 'cost', 'throwSkill', 'rm', 'rmMsg', 'eq', 'eqMsg', 'key', 'lvl', 'vis'];
+var REACH_WORD = Object.freeze({ name: 'name', icon: 'icon', category: 'category', notes: 'notes', area: 'blast', damage: 'damage', cost: 'cost formula', rm: 'removal lock', rmMsg: 'removal message', eq: 'switch lock', eqMsg: 'switch message' });
+function itemReach(prevSys, sys, chars) {
+    var out = { lines: [], text: '' }; if (!isObj(prevSys) || !isObj(sys)) return out;
+    var had = map(), who = map(), nWho = 0, lists = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list' && typeof f.id === 'string'; });
+    var sm = function(st) { var m = map(); if (isObj(st)) Object.keys(st).forEach(function(k) { m[lower(k)] = st[k]; }); return m; }, js = function(x) { return JSON.stringify(x === undefined ? null : x); };
+    (Array.isArray(prevSys.items) ? prevSys.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string') had[it.id] = it; });
+    (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
+        if (!isObj(it) || typeof it.id !== 'string' || !had[it.id]) return;
+        var a = had[it.id], ch = REACH_KEYS.filter(function(k) { return js(a[k]) !== js(it[k]); }), sa = sm(a.stats), sb = sm(it.stats), sk = [];
+        Object.keys(sa).concat(Object.keys(sb)).forEach(function(k) { if (sk.indexOf(k) < 0 && js(sa[k]) !== js(sb[k])) sk.push(k); });
+        if (!ch.length && !sk.length) return;
+        var n = 0, own = 0, words = [];
+        Object.keys(isObj(chars) ? chars : {}).forEach(function(cid) {
+            var c = chars[cid]; if (!isObj(c) || !isObj(c.values)) return;
+            var carries = false, owns = false;
+            lists.forEach(function(f) {
+                var v = c.values[f.id]; if (!Array.isArray(v)) return;
+                v.forEach(function(r) {
+                    if (!isObj(r) || r.defId !== it.id || r.snap) return;
+                    carries = true; var ov = isObj(r.ov) ? r.ov : null; if (!ov) return;
+                    ch.forEach(function(k) { if (REACH_WORD[k] && ov[k] !== undefined) { owns = true; if (words.indexOf(REACH_WORD[k]) < 0) words.push(REACH_WORD[k]); } });
+                    if (isObj(ov.stats)) Object.keys(ov.stats).forEach(function(k) {
+                        if (sk.indexOf(lower(k)) < 0) return;
+                        var s = isObj(f.list) && Array.isArray(f.list.stats) ? f.list.stats.filter(function(x) { return isObj(x) && typeof x.key === 'string' && lower(x.key) === lower(k); })[0] : null, w = s && s.label ? s.label : k;
+                        owns = true; if (words.indexOf(w) < 0) words.push(w);
+                    });
+                });
+            });
+            if (!carries) return;
+            n++; if (owns) own++; if (!who[cid]) { who[cid] = 1; nWho++; }
+        });
+        if (!n) return;
+        out.lines.push((it.name || 'Item') + ': affects ' + n + ' character' + (n === 1 ? '' : 's') + (own ? '; ' + own + (own === 1 ? ' has its own ' : ' have their own ') + words.join(', ') : '') + '.');
+    });
+    out.text = out.lines.length === 1 ? out.lines[0] : out.lines.length > 1 ? out.lines.length + ' changed items reach ' + nWho + ' character' + (nWho === 1 ? '' : 's') + ' (each is in the session log’s Items).' : '';
+    return out;
 }
 
 /* ---------- the resolver: the engine reads a character's names through this ---------- */
@@ -1927,6 +2113,6 @@ function gmPools(sys, F) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

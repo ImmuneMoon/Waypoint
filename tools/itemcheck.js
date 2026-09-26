@@ -123,6 +123,14 @@ const j = v => JSON.stringify(v);
         return j(st) === j({ Acc: 2, Wt: 0.0001 }) && ci({ paid: 12.5 }).facts.paid === 12.5 && ci({ paid: null }).facts.paid === null && ci({ paid: '5' }) === null && ci({ paid: -1 }) === null && ci({ paid: 2e9 }) === null && !('stats' in cleanItemDef({ id: 'i_s', name: 'S' }, F, true));
     })());
 
+    /* ---- Stage 6 F4c2: a copy's own values (ov) — the merged definition, the op's shape ---- */
+    check('F4c2: rowDef with a copy\'s own values gives the merged definition (a new object; the library entry untouched), without them the library entry itself; an ov op carries a patch or null and refuses nothing to do', (() => {
+        const frag = itemDef(gm, 'i_frag'), before = j(frag), lib = rowDef(gm, { id: 'w_1', defId: 'i_frag', qty: 1 }), own = rowDef(gm, { id: 'w_1', defId: 'i_frag', qty: 1, ov: { name: 'Big frag', area: { ft: 20, shape: 'circle', name: '' }, damage: '6d6' } });
+        const ci = ov => cleanCharItem({ rid: 'r1', charId: 'c_a', fieldId: 'f_kit', op: 'ov', rowId: 'w_f1', ov });
+        return lib.def === frag && lib.base === frag && own.def !== frag && own.base === frag && own.def.name === 'Big frag' && own.def.area.ft === 20 && own.def.damage === '6d6' && j(frag) === before
+            && ci(null).ov === null && j(ci({ name: 'N', stats: { Acc: 1 } }).ov) === j({ name: 'N', stats: { Acc: 1 } }) && ci({}) === null && ci(undefined) === null && ci({ stats: { toString: 1 } }) === null;
+    })());
+
     /* ---- charFor: an item-list never travels to another player, even with hover set ---- */
     check('charFor: item-list excluded for a non-owner (hover ignored), included for the owner', (() => {
         const c = cleanChar({ id: 'c_b', name: 'B', ownerId: 'p1', values: { f_str: 12, f_kit: [{ defId: 'i_frag', qty: 1 }] } }, gm);

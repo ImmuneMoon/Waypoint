@@ -1878,6 +1878,17 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
                 paysBA.length === 3 && paysBA[0].textContent === 'Pay' && j(appliedBA.map(a => a.slice(2))) === j([['Blaster · Pay', { f: 'f_wp', r: 'w_b', i: 1 }]]) && appliedBA[0][1] === chB
                 && find5(noDiceBA, 'sheet-item-apply').length === 3 && find5(noDiceBA, 'sheet-item-roll').length === 3 && find5(noEditBA, 'sheet-item-apply').length === 0 && find5(noEditBA, 'sheet-item-roll').length === 3 && find5(inertBA, 'sheet-item-roll').length === 0,
                 j([paysBA.map(b => b.textContent), appliedBA.map(a => a.slice(2)), find5(noDiceBA, 'sheet-item-roll').length, find5(noEditBA, 'sheet-item-roll').length]));
+            // HUD R2a: a row's counters draw as chips (Charges 13/30) with minus and plus for whoever may change the row, each click one set op
+            const rawBC = JSON.parse(JSON.stringify(rawB)); rawBC.fields.find(x => x.id === 'f_wp').list.counters = [{ key: 'Charges', label: 'Charges', def: 5, max: 'Row.Acc + 6' }];
+            const sysBC = cleanSystem(rawBC, { F, gmView: true }), wpBC = sysBC.fields.find(x => x.id === 'f_wp'), chBC = JSON.parse(JSON.stringify(chB)); chBC.values.f_wp[0].ct = { Charges: 9 };
+            const committedBC = [], resBC = resolveAll(sysBC, chBC, F).f_wp;
+            const drawBC = editable => { const g = fe5('div'); new Function(...deps5, 'canRoll', 'sheetRoll', itSrc5 + '\nreturn { itemListInto: itemListInto };')(fe5, (v, cls) => fe5('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, (cc, ff, q) => committedBC.push(q), opt5, S.fmtNum, v => v || '', S.LIMITS, true, doc5, () => {}, () => {}, () => {}, {}, S.rowStat, S.rowPaid, 'sheet', () => false, () => {}).itemListInto(g, wpBC, chBC, chBC.values.f_wp, sysBC, false, editable, true, '', resBC); return g; };
+            const gBC = drawBC(true), ctBC = find5(gBC, 'sheet-item-ct'), roBC = drawBC(false);
+            const blBC = ctBC.find(x => /9\/9/.test(j(walk5(x, () => true, []).map(n => n.textContent))));
+            if (blBC) find5(blBC, 'sheet-item-ctb')[0].on.click({});
+            check('R2a the sheet: each row that is not a kept curse shows its counters as a chip with its most (Blaster: 9/9 — Row.Acc 3 + 6), minus and plus for an editable sheet (plus greyed at the most), a click sends one set op with the new number; read-only there are no buttons',
+                ctBC.length === 3 && !!blBC && find5(blBC, 'sheet-item-ctb').length === 2 && find5(blBC, 'sheet-item-ctb')[1].disabled === true && j(committedBC) === j([{ op: 'set', rowId: 'w_b', facts: { ct: { Charges: 8 } } }])
+                && find5(roBC, 'sheet-item-ct').length === 3 && find5(roBC, 'sheet-item-ctb').length === 0, j([ctBC.length, committedBC, find5(roBC, 'sheet-item-ctb').length]));
             const inpR = (cls, v, t, ph) => { const i = fe5('input', cls); i.type = 'text'; i.value = v == null ? '' : String(v); i.title = t || ''; i.placeholder = ph || ''; return i; };
             const rNR = new Function('el', cutT('function numInput(', 'function select(') + '\nreturn { numInput: numInput, numField: numField };')(fe5);
             const LCR = new Function('el', 'input', 'numField', 'document', 'LIMITS', cutT('function listCard(', 'function renderCombat(') + '\nreturn listCard;')(fe5, inpR, rNR.numField, doc5, S.LIMITS);
@@ -3693,6 +3704,40 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /else if \(act === 'applydel' && aI >= 0 && aI < aArr\.length\) aArr\.splice\(aI, 1\);\n\s*else return;\n\s*if \(aK === 'then' && !aArr\.length\) delete ctx\.r\.then;/.test(shT)
             && /if \(Array\.isArray\(r\.then\) && r\.then\.length\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR\);/.test(shT)
             && /A <b>roll<\/b> can make changes too: its <b>\+ Then&hellip;<\/b> changes/.test(hT) && /the host rolls the button&rsquo;s own formula \(a modifier or advantage from shift-click included\), so a hit cannot be made up\./.test(hT) && /a roll can make changes after it lands \(<b>On success<\/b>: Hits \+ 1\)/.test(tT));
+    }
+    /* ---- Stage 6 HUD R2a: a list's counters — a whole number each row keeps (Charges, Hits), read as Row.<key> ---- */
+    {
+        const rawW = { v: 1, name: 'W', rolls: [{ id: 'r_x', label: 'X', formula: 'd6 + Weapons.Blaster.Charges' }, { id: 'r_bad', label: 'Bad', formula: 'd6 + Weapons.Charges' }], fields: [
+            { id: 'f_g', key: 'GMFig', kind: 'number', def: 2, vis: 'gm' },
+            { id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Shots' }], cols: [{ key: 'Left', label: 'Left', formula: 'Row.Charges' }],
+                counters: [{ key: 'Charges', label: 'Charges', def: 20.4, max: 'Row.Shots' }, { key: 'Hits', def: -3 }, { key: 'Shots', label: 'a stat has it' }, { key: 'Secret', max: 'GMFig' }, { key: 'Bad', max: 'd6 + Nope' }, { key: 'Five' }, { key: 'Six' }] } },
+            { id: 'f_bare', key: 'Bare', kind: 'item-list', edit: 'owner' }],
+            items: [{ id: 'i_bl', name: 'Blaster', key: 'Blaster', stats: { Shots: 30 } }], sheet: { sections: [] } };
+        const gmW = cleanSystem(rawW, { F, gmView: true }), plW = cleanSystem(rawW, { F, gmView: false }), cW = s => s.fields.find(f => f.id === 'f_wp').list.counters;
+        check('R2a a list\'s counters (cleanListSpec): four at most, a key of their own (a stat\'s or a column\'s name is dropped), a label (blank: the key), a start rounded (0 or less: none) and a most as a formula; the players\' view blanks a most naming a GM-only value; fixed points',
+            j(cW(gmW)) === j([{ key: 'Charges', label: 'Charges', def: 20, max: 'Row.Shots' }, { key: 'Hits', label: 'Hits' }, { key: 'Secret', label: 'Secret', max: 'GMFig' }, { key: 'Bad', label: 'Bad', max: 'd6 + Nope' }])
+            && j(cW(plW).map(t => t.max === undefined ? '-' : t.max)) === j(['Row.Shots', '-', null, 'd6 + Nope']) && j(cleanSystem(gmW, { F, gmView: true })) === j(gmW) && j(cleanSystem(plW, { F, gmView: false })) === j(plW), j([cW(gmW), cW(plW)]));
+        const chW = cleanChar({ id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_wp: [{ id: 'w_1', defId: 'i_bl', qty: 1, ct: { charges: 12.6, HITS: -4, nope: 5 } }, { id: 'w_3', defId: 'i_bl', qty: 1, ct: { Hits: 2e7 } }, { id: 'w_2', defId: 'i_bl', qty: 1 }], f_bare: [{ id: 'w_9', defId: 'i_bl', qty: 1, ct: { Charges: 3 } }] } }, gmW);
+        check('R2a a row\'s counters are stored as whole numbers from 0 to 1e6 under its list\'s keys, spelled as the list spells them (an unknown key goes); a list with no counters keeps none',
+            j(chW.values.f_wp[0].ct) === j({ Charges: 13, Hits: 0 }) && chW.values.f_wp[0].ct.Charges === 13 && !('ct' in chW.values.f_wp[2]) && j(chW.values.f_wp[1].ct) === j({ Hits: 1000000 }) && !('ct' in chW.values.f_bare[0]), j(chW.values));
+        const rW = makeResolver(gmW, chW, F), aW = resolveAll(gmW, chW, F);
+        check('R2a reads: Row.<counter> on a row, List.<key>.<counter> on a named row, the start when none is stored; a counter has no total (the validator says so); the sheet gets each row\'s value and its own most worked out (Row.Shots: 30), a column reads it too',
+            rW.row('f_wp', 'w_1')('Row.Charges') === 13 && rW.row('f_wp', 'w_2')('Row.Charges') === 20 && rW('Weapons.Blaster.Charges') === 13 && rW.row('f_wp', 'w_1')('Row.Hits') === 0
+            && j(aW.f_wp.cts.w_1.slice(0, 2)) === j([{ key: 'Charges', label: 'Charges', value: 13, max: 30 }, { key: 'Hits', label: 'Hits', value: 0, max: null }]) && aW.f_wp.cells.w_2[0].value === 20
+            && validateSystem(gmW, F).errors.some(e => e.id === 'r_bad' && /"Weapons\.Charges" is a counter, so it has no total: read one row \(Weapons\.<key>\.Charges\)\./.test(e.message)) && !validateSystem(gmW, F).errors.some(e => e.id === 'r_x'),
+            j([aW.f_wp.cts, validateSystem(gmW, F).errors]));
+        const setW = (ct, pl) => S.applyRowOp(gmW, chW, 'f_wp', { op: 'set', rowId: 'w_1', facts: { ct } }, F, { player: !!pl, view: plW });
+        const s5 = setW({ charges: 5 }), s99 = setW({ Charges: 99 }), sNeg = setW({ Hits: -3 }), sBad = setW({ Nope: 1 }), sPl = setW({ Hits: 4 }, true);
+        check('R2a the set op writes counters (the owner may, like a level): a whole number from 0 to the row\'s own most (99 stops at Row.Shots 30), by key ignoring case; an unknown key is refused; cleanCharItem takes { ct: { key: number } } only',
+            j(s5.value[0].ct) === j({ Charges: 5, Hits: 0 }) && s99.value[0].ct.Charges === 30 && sNeg.value[0].ct.Hits === 0 && j(sBad) === j({ ok: false, reason: 'value' }) && sPl.ok && sPl.value[0].ct.Hits === 4
+            && S.cleanCharItem({ type: 'char-item', rid: 'i1', charId: 'c_a', fieldId: 'f_wp', op: 'set', rowId: 'w_1', facts: { ct: { Charges: 3 } } }).facts.ct.Charges === 3
+            && [{ Charges: '3' }, {}, { a: 1, b: 2, c: 3, d: 4, e: 5 }, 'x'].every(ct => S.cleanCharItem({ type: 'char-item', rid: 'i1', charId: 'c_a', fieldId: 'f_wp', op: 'set', rowId: 'w_1', facts: { ct } }) === null), j([s5, s99.value[0].ct, sNeg.value[0].ct, sBad]));
+        const prW = charFor(chW, plW, 'u_a', { items: { i_bl: gmW.items[0] } }), vW = validateSystem(gmW, F).errors.filter(e => e.id === 'f_wp').map(e => e.message);
+        check('R2a the owner\'s copy carries each row\'s counters as stored; a most\'s formula is checked as a column\'s (no dice, known names) under the list\'s card',
+            j(prW.values.f_wp[0].ct) === j({ Charges: 13, Hits: 0 }) && vW.some(m => /^Counter “Bad”, its most: /.test(m)), j([prW.values.f_wp, vW]));
+        const hW = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tW = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('R2a the tour and Help: a list\'s Counters (key, label, start, most), kept on each row with minus and plus, read as Row.Charges or Weapons.Blaster.Charges, no total',
+            /A list&rsquo;s <b>Counters<\/b> \(four at most: a key, a label, where a row starts and its most/.test(hW) && /read as <code>Row\.Charges<\/code> or <code>Weapons\.Blaster\.Charges<\/code> \(a counter has no total\)/.test(hW) && /<b>Counters<\/b> keep a number on each row \(a weapon&rsquo;s Charges, 12\/20\), with &minus; and \+\./.test(tW));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

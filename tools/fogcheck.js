@@ -214,6 +214,14 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const c = cleanCampFog({ defaults: { emptyFog: 'junk' } });
         return a.defaults.emptyFog === 'none' && b.defaults.emptyFog === undefined && c.defaults.emptyFog === undefined; })());
 
+    /* ---- the layers over the play map (style.css): the rulers over the fog, under screen effects and the minimap ---- */
+    {
+        const css = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
+        const zOf = id => { const m = css.match(new RegExp('#' + id + ' \\{[^}]*z-index: (\\d+)')); return m ? +m[1] : NaN; };
+        const fogZ = zOf('fogScreen'), fxZ = zOf('fxScreen'), mmZ = zOf('minimap'), rz = ['rulerTop', 'rulerLeft', 'rulerCursorX', 'rulerCursorY'].map(zOf);
+        check('the coordinate rulers and their cursor marks draw over the fog of war and under screen effects and the minimap', rz.every(z => z > fogZ && z < fxZ && z < mmZ), JSON.stringify({ fogZ, fxZ, mmZ, rz }));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const X2 = await import(url('fogcore.js') + '?x');

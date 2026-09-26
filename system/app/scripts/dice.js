@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText } from './dicecore.js';
+import { LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum } from './dicecore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -45,6 +45,31 @@ function renderCard(m) {
     var total = el('div', 'roll-total' + (v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : ''), v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, crit === 'crit' ? 'natural 20' : 'natural 1'));
     wrap.appendChild(total);
+    return wrap;
+}
+// Stage 6 HUD H7: an apply action's card (a chat entry with m.apply = the cleaned record) — who, the tags, the action, then each change
+// "Fatigue \u22123 \u2192 0"; text only
+function renderApply(m) {
+    var rec = m.apply, n = net(), priv = rec.priv === 'gm';
+    var wrap = el('div', 'chat-roll chat-apply' + (priv ? ' whisper' : ''));
+    var mine = n && ((rec.from.gm && (!n.active || n.role === 'host')) || (n.myId && rec.from.id === n.myId));
+    var who = el('b', null, mine ? 'You' : (rec.from.name || 'Player'));
+    who.style.color = rec.from.gm ? 'var(--gold)' : 'hsl(' + playerHue(rec.from.id) + ', 55%, 68%)';
+    wrap.appendChild(who);
+    if (rec.from.gm) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-gm', 'GM')); }
+    if (priv) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'private')); }
+    if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', 'as ' + rec.as)); }
+    wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
+    wrap.appendChild(el('br'));
+    wrap.appendChild(el('div', 'roll-expr', rec.label || 'Applied'));
+    var ls = el('div', 'apply-lines');
+    rec.lines.forEach(function(l) {
+        var s = el('span', 'apply-line'); s.appendChild(el('span', 'apply-n', l.n + ' '));
+        s.appendChild(el('span', 'apply-d ' + (l.d < 0 ? 'apply-sub' : 'apply-add'), (l.d < 0 ? '\u2212' : '+') + fmtNum(Math.abs(l.d))));
+        s.appendChild(document.createTextNode(' \u2192 ')); s.appendChild(el('b', null, fmtNum(l.v)));
+        ls.appendChild(s);
+    });
+    wrap.appendChild(ls);
     return wrap;
 }
 // one line for toasts, the unread badge and the log
@@ -217,4 +242,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

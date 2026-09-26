@@ -1099,7 +1099,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('F4b review: Revert (run for real) takes back a change to an item list its owner never saw (the GM switching off a kept-on curse) without sending anything, asking with the row as it was and as it goes back; one the owner saw is sent as before',
             rvS.length > 0 && j(rvA.out.deltas) === j([{}]) && j(rvA.ch.values.f_g) === j(prevRow) && j(rvA.out.asked) === j([keptRow, prevRow]) && j(rvB.out.deltas) === j([{ f_g: prevRow }]), j([rvA.out, rvB.out]));
         check('F4b review, the source: a refused switch says "It stays on." unless the GM wrote a message (the client passes the op); Revert of a change its owner never held sends nothing; the Layout toggle stays while it is set, so it can be cleared after the list lost its switch; the key\'s error names every reason; the host spends a switch\'s grace once and lets it cover a drop',
-            /function editResult\(rid, ok, reason, msg, op\) \{ if \(!ok\) toast\(reason === 'stays' \? \(msg \|\| \(op === 'set' \? 'It stays on\.' :/.test(shR) && /window\.wpSheets\.editResult\(rid, false, reason, msg, p\.q \? p\.q\.op : ''\)/.test(ntR)
+            /function editResult\(rid, ok, reason, msg, op\) \{ if \(!ok\) toast\(reason === 'none' \? 'Nothing to apply\.' : .*? reason === 'stays' \? \(msg \|\| \(op === 'set' \? 'It stays on\.' :/.test(shR) && /window\.wpSheets\.editResult\(rid, false, reason, msg, p\.apply \? 'apply' : p\.q \? p\.q\.op : ''\)/.test(ntR)
             && /if \(fR && fR\.kind === 'item-list' && ownerSeesSame\(camp, sysR, curR, lastChange\.prev\)\) delete d\[fidR\];/.test(shR) && /if \(plOn \|\| \(pl\.on && plf && plf\.kind === 'item-list'\)\)/.test(shR)
             && /not a word formulas already use \(count, qty, on, has, lvl, paid, row; max, cur, ranks, base;/.test(shR) && /if \(resI\.onGraceUsed\) delete _rowGrace\[gkI \+ '\|on'\];/.test(ntR) && /var ogI = !!\(_rowGrace\[gkI \+ '\|on'\] && _rowGrace\[gkI \+ '\|on'\]\.until > nowI\);/.test(ntR));
     }
@@ -3434,6 +3434,115 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         // The sheet builder's picture picker (the library at z 99999) opens from a modal at z 100000: the library must lift over it and settle back
         const wbSrc = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
         check('image library: a pick lifts the library above the caller and every close path settles it back', /window\.wpPickImage = async function[\s\S]{0,600}?imgLibLift\(true\)/.test(wbSrc) && (wbSrc.match(/imgLibLift\(false\)/g) || []).length >= 3 && /m\.style\.zIndex = '100005'/.test(wbSrc));
+    }
+    /* ---- Stage 6 HUD H7: the apply action — a roll entry of a second kind that moves pools or numbers by an amount (no dice) ---- */
+    {
+        const rawA = { v: 1, name: 'A', fields: [
+            { id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10', min: -20, def: 'max', edit: 'gm', hover: true },
+            { id: 'f_fp', key: 'FP', label: 'Fatigue', kind: 'resource', maxFormula: '8', min: 0, def: 'max', edit: 'owner' },
+            { id: 'f_ep', key: 'EP', kind: 'resource', maxFormula: '6', def: 'max', edit: 'owner', hover: true },
+            { id: 'f_in', key: 'Incoming', kind: 'number', def: 0, min: -100, max: 100, edit: 'owner' },
+            { id: 'f_dr', key: 'DR', kind: 'number', def: 2, vis: 'gm' },
+            { id: 'f_ammo', key: 'Ammo', kind: 'number', def: 5, min: 0, max: 30, edit: 'owner', hover: true },
+            { id: 'f_vig', key: 'Vigor', kind: 'resource', maxFormula: 'DR * 5', def: 'max', min: 0, edit: 'owner', hover: true },
+            { id: 'f_note', key: 'Note', kind: 'text' },
+            { id: 'f_fx', key: 'Fx', kind: 'effects', edit: 'owner' }],
+            effects: [{ id: 'e_load', name: 'Loaded', mods: [{ f: 'f_ammo', op: 'add', v: 10 }] }],
+            rolls: [
+                { id: 'r_atk', label: 'Attack', formula: 'd20 + 2' },
+                { id: 'r_cost', label: 'Apply costs', apply: [{ f: 'f_fp', formula: '3' }, { f: 'f_ep', formula: '2' }], tone: 'outline', icon: '⚡', formula: 'd6', init: true },
+                { id: 'r_wound', label: 'Apply wounds', apply: [{ f: 'f_hp', formula: 'max(0, Incoming - DR)' }], tone: 'danger' },
+                { id: 'r_heal', label: 'Rest', apply: [{ f: 'f_fp', formula: '2', add: true }] },
+                { id: 'r_shot', label: '', apply: [{ f: 'f_ammo', formula: '1' }] },
+                { id: 'r_bad', label: 'Bad', apply: [{ f: 'f_note', formula: '1' }, { f: 'f_nope', formula: '' }, { f: 'f_hp', formula: '1d6' }] },
+                { id: 'r_dup', label: 'Dup', apply: [{ f: 'f_ammo', formula: '1' }, { f: 'f_ammo', formula: '2' }, { f: 'f_ep', formula: '1' }, { f: 'f_fp', formula: '1' }, { f: 'f_hp', formula: '1' }, { f: 'f_in', formula: '1' }] },
+                { id: 'r_gm', label: 'GM', apply: [{ f: 'f_hp', formula: '1' }], vis: 'gm' },
+                { id: 'r_vig', label: 'Vig', apply: [{ f: 'f_vig', formula: '1' }] },
+                { id: 'r_empty', label: 'Empty', apply: [] },
+                { id: 'r_div', label: 'Div', apply: [{ f: 'f_fp', formula: 'FP / (Incoming - Incoming)' }] },
+                { id: 'r_first', label: 'First', apply: [{ f: 'f_fp', formula: '3' }, { f: 'f_ep', formula: 'FP' }] },
+                { id: 'r_half', label: 'Half', apply: [{ f: 'f_fp', formula: '2.6' }] }],
+            sheet: { sections: [] } };
+        const gmA = cleanSystem(rawA, { F, gmView: true }), plA = cleanSystem(rawA, { F, gmView: false }), rA = id => gmA.rolls.find(r => r.id === id);
+        check('H7 cleanRollDef: an apply action keeps its changes ({ f, formula, add? }), label (blank: Apply), tone, icon and vis, never a formula or the initiative; each field once, four at most; a change on a field that is not a pool or a number (text, unknown) keeps its amount with no field; a roll is untouched; a fixed point in both views',
+            j(rA('r_cost')) === j({ id: 'r_cost', label: 'Apply costs', apply: [{ f: 'f_fp', formula: '3' }, { f: 'f_ep', formula: '2' }], vis: 'all', tone: 'outline', icon: '⚡' })
+            && rA('r_shot').label === 'Apply' && rA('r_heal').apply[0].add === true && j(rA('r_empty').apply) === '[]'
+            && j(rA('r_bad').apply) === j([{ f: '', formula: '1' }, { f: '', formula: '' }, { f: 'f_hp', formula: '1d6' }])
+            && j(rA('r_dup').apply.map(c => c.f)) === j(['f_ammo', 'f_ep', 'f_fp', 'f_hp']) && rA('r_dup').apply[0].formula === '1'
+            && j(rA('r_atk')) === j({ id: 'r_atk', label: 'Attack', formula: 'd20 + 2', vis: 'all' })
+            && j(cleanSystem(gmA, { F, gmView: true }).rolls) === j(gmA.rolls) && j(cleanSystem(plA, { F, gmView: false }).rolls) === j(plA.rolls),
+            j([rA('r_cost'), rA('r_bad'), rA('r_dup')]));
+        check('H7 the players\' view drops an apply action whole when it is GM only, names a GM-only value (Apply wounds reads DR), moves a GM-only pool (Vigor\'s max reads DR) or is unfinished (no field, no amount, no change); the rest travel as they are',
+            j(plA.rolls.map(r => r.id)) === j(['r_atk', 'r_cost', 'r_heal', 'r_shot', 'r_dup', 'r_div', 'r_first', 'r_half']) && !/DR|Vigor|f_vig|f_dr/.test(j(plA.rolls)), j(plA.rolls.map(r => r.id)));
+        const vA = validateSystem(gmA, F), errA = id => vA.errors.filter(e => e.id === id).map(e => e.prop + ' ' + e.message), wrnA = id => vA.warnings.filter(e => e.id === id).map(e => e.prop + ' ' + e.message);
+        check('H7 the validator: each change needs a pool or a number and an amount with no dice (its own message); an action with no change says so; a visible action reading a GM-only value or moving a GM-only pool warns that players will not get it; the finished ones pass',
+            j(errA('r_bad')) === j(['apply.0 Pick the pool or number this changes.', 'apply.1 Pick the pool or number this changes.', 'apply.1 Missing formula', 'apply.2 An amount cannot roll dice: roll first, and let the amount read the field the result goes in.'])
+            && j(errA('r_empty')) === j(['apply An apply action needs a change: the pool or number it moves, and by how much.'])
+            && j(wrnA('r_wound')) === j(['apply.0 "DR" is GM only: players will not get this action.']) && j(wrnA('r_vig')) === j(['apply.0 "Vigor" is GM only: players will not get this action.'])
+            && ['r_cost', 'r_heal', 'r_shot', 'r_dup', 'r_div', 'r_first', 'r_half', 'r_gm'].every(id => !errA(id).length && !wrnA(id).length),
+            j([errA('r_bad'), errA('r_empty'), wrnA('r_wound'), wrnA('r_vig'), vA.errors.filter(e => /^r_/.test(e.id))]));
+        const chA = { id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_in: 7, f_fp: { cur: 2 } } }, runA = (id, ch) => { ch = ch || chA; return S.applyAct(gmA, ch, rA(id), makeResolver(gmA, ch, F), F); };
+        const aCost = runA('r_cost'), aWound = runA('r_wound'), aHeal = runA('r_heal'), aFirst = runA('r_first'), aHalf = runA('r_half');
+        check('H7 applyAct: Apply costs takes each amount from its pool in one change, floored by the pool\'s min (FP 2 - 3 = 0; EP full 6 - 2 = 4), lines = label, signed amount, new value; Apply wounds reads the character (7 - DR 2 = 5 off a full 10); an add raises (FP 2 + 2); every amount is worked out before any pool moves (EP - FP reads FP as it was: 8); a pool\'s amount is rounded (2.6: 3); the character itself is untouched',
+            j(aCost) === j({ ok: true, values: { f_fp: { cur: 0 }, f_ep: { cur: 4 } }, lines: [{ f: 'f_fp', n: 'Fatigue', d: -3, v: 0 }, { f: 'f_ep', n: 'EP', d: -2, v: 4 }], names: [] })
+            && j(aWound.values) === j({ f_hp: { cur: 5 } }) && j(aWound.lines) === j([{ f: 'f_hp', n: 'Hit points', d: -5, v: 5 }]) && j(aWound.names.map(n => n.name)) === j(['Incoming', 'DR'])
+            && j(aHeal.values) === j({ f_fp: { cur: 4 } }) && aHeal.lines[0].d === 2
+            && j(runA('r_first', { id: 'c_b', values: {} }).values) === j({ f_fp: { cur: 5 }, f_ep: { cur: 0 } }) && runA('r_first', { id: 'c_b', values: {} }).lines[1].d === -8
+            && j(aHalf.values) === j({ f_fp: { cur: 0 } }) && aHalf.lines[0].d === -3 && j(chA.values) === j({ f_in: 7, f_fp: { cur: 2 } }),
+            j([aCost, aWound, aHeal, aFirst, aHalf]));
+        const chBig = { id: 'c_b', values: { f_in: 60 } }, chZero = { id: 'c_z', values: { f_in: 1 } }, chNeg = { id: 'c_n', values: { f_in: -50 } };
+        const chFx = { id: 'c_f', values: { f_ammo: 5, f_fx: [{ id: 'x_1', ref: 'e_load', on: true }] } }, aFx = runA('r_shot', chFx);
+        const aDiv = runA('r_div'), aDice = S.applyAct(gmA, chA, { apply: [{ f: 'f_hp', formula: '1d6' }] }, makeResolver(gmA, chA, F), F), aText = S.applyAct(gmA, chA, { apply: [{ f: 'f_note', formula: '1' }] }, makeResolver(gmA, chA, F), F);
+        check('H7 applyAct: a pool\'s floor holds however big the amount (HP 10 - 58 stops at its min -20: "unfloored" is a GM\'s negative min); an amount of 0 or below is nothing to apply (none, nothing moved); an amount that fails refuses the whole action with the engine\'s message; dice are refused even past the validator; a text field is not a target; a number moves its STORED value, so an effect on it stays the effect\'s (Ammo 5 stored + 10 from Loaded: 5 - 1 = 4)',
+            j(runA('r_wound', chBig).values) === j({ f_hp: { cur: -20 } }) && runA('r_wound', chBig).lines[0].d === -58
+            && j(runA('r_wound', chZero)) === j({ ok: false, reason: 'none' }) && j(runA('r_wound', chNeg)) === j({ ok: false, reason: 'none' })
+            && j(aDiv) === j({ ok: false, reason: 'error', message: 'Division by zero.' }) && j(aDice) === j({ ok: false, reason: 'error', message: 'An amount cannot roll dice.' }) && j(aText) === j({ ok: false, reason: 'field' })
+            && j(aFx.values) === j({ f_ammo: 4 }) && j(aFx.lines) === j([{ f: 'f_ammo', n: 'Ammo', d: -1, v: 4 }]) && makeResolver(gmA, Object.assign({}, chFx, { values: Object.assign({}, chFx.values, aFx.values) }), F)('Ammo') === 14,
+            j([runA('r_wound', chBig), aDiv, aDice, aText, aFx]));
+        const aNeg = S.applyAct(gmA, chNeg, { apply: [{ f: 'f_fp', formula: 'Incoming' }] }, makeResolver(gmA, chNeg, F), F), aMix = S.applyAct(gmA, chNeg, { apply: [{ f: 'f_fp', formula: 'Incoming' }, { f: 'f_ep', formula: '2' }] }, makeResolver(gmA, chNeg, F), F);
+        check('H7 applyAct: a negative amount counts as 0 — a subtract never raises a pool (FP - (-50) is nothing to apply), and beside a real change it is left out (only EP moves)',
+            j(aNeg) === j({ ok: false, reason: 'none' }) && j(aMix.values) === j({ f_ep: { cur: 4 } }) && j(aMix.lines.map(l => l.f)) === j(['f_ep']), j([aNeg, aMix]));
+        const scA = (id, ch, gm) => S.applyScope(gmA, ch || chA, rA(id), !!gm, F);
+        check('H7 applyScope (owner, 2026-09-26): the table when every field it moves is shown on hover (HP), the owner and the GM when one is not (Apply costs: FP), the GM alone for an NPC, an unowned character, a GM-only action, a GM-only pool, or when the caller says the amount read a GM-only value',
+            scA('r_wound') === 'table' && scA('r_shot') === 'table' && scA('r_cost') === 'owner' && scA('r_heal') === 'owner'
+            && scA('r_wound', Object.assign({}, chA, { npc: true })) === 'gm' && scA('r_wound', { id: 'c_u', values: {} }) === 'gm' && scA('r_gm') === 'gm' && scA('r_vig') === 'gm' && scA('r_wound', null, true) === 'gm',
+            j([scA('r_wound'), scA('r_cost'), scA('r_vig')]));
+        const cq = S.cleanCharApply;
+        check('H7 cleanCharApply: { rid, charId, act, label? } — a roll id, a label of 60 characters with no control character; anything else is refused whole',
+            j(cq({ type: 'char-apply', rid: 'a1', charId: 'c_a', act: 'r_cost', label: ' Apply costs ', extra: 1 })) === j({ rid: 'a1', charId: 'c_a', act: 'r_cost', label: 'Apply costs' })
+            && j(cq({ rid: 'a1', charId: 'c_a', act: 'r_cost' })) === j({ rid: 'a1', charId: 'c_a', act: 'r_cost' })
+            && [{ rid: 'a1', charId: 'c_a', act: 'f_hp' }, { rid: 'a1', charId: 'x', act: 'r_cost' }, { rid: 'a 1', charId: 'c_a', act: 'r_cost' }, { rid: 'a1', charId: 'c_a', act: 'r_cost', label: 'x'.repeat(61) }, { rid: 'a1', charId: 'c_a', act: 'r_cost', label: 'a' + String.fromCharCode(1) }, { rid: 'a1', charId: 'c_a', act: 'r_cost', label: 5 }].every(m => cq(m) === null));
+        // the sheet's side, run for real: the GM stores ONE change and posts the card by applyScope; a player asks the host
+        const shA = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        const apSrcA = shA.slice(shA.indexOf('// Stage 6 HUD H7: a viewer who may press an apply action'), shA.indexOf('// The combat roster (whiteboard.js): initiative from the system\'s init roll'));
+        const runSheetA = (id, o) => {
+            o = o || {};
+            const ch = JSON.parse(JSON.stringify(o.ch || chA)), camp = { id: 'k', system: gmA, chars: { [ch.id]: ch } }, out = { toasts: [], cards: [], asks: [], after: [] };
+            const n = o.client ? { active: true, role: 'client', charApply: (...a) => { out.asks.push(a); return { ok: true, pending: true }; } } : { active: !!o.host, role: o.host ? 'host' : null, postApplyCard: (...a) => out.cards.push(JSON.parse(JSON.stringify(a))) };
+            const api = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'net', 'toast', 'F', 'resolveAll', 'tokenCtxFor', 'applyAct', 'applyScope', 'gmOnlyNames', 'gmDerivedNames', 'gmEffectNames', 'labelSecret', 'clone', 'afterCharChange', 'charById', 'rollLabel', 'el', 'iconNode', 'ROLL_TONE_CLS', 'fieldById', 'myId', 'window',
+                'var lastChange = null, _fxLive = true;' + NL + apSrcA + NL + 'return { applyAction: applyAction, rollPick: rollPick, applyTitle: applyTitle, last: function() { return lastChange; } };')(
+                () => camp, c => c.system, () => !!o.client, () => true, () => n, t => out.toasts.push(t), () => F, S.resolveAll, () => null, S.applyAct, S.applyScope, S.gmOnlyNames, S.gmDerivedNames, S.gmEffectNames, () => '', x => JSON.parse(JSON.stringify(x)), (c, w, d) => out.after.push(JSON.parse(JSON.stringify(d))), (cid, cp) => cp.chars[cid] || null, r => r.label, () => null, () => null, {}, S.fieldById, () => 'u_a', { wpVtt: { on: () => true } });
+            api.applyAction(rA(id), ch, rA(id).label); out.ch = ch; out.last = api.last(); out.api = api; return out;
+        };
+        const sW = runSheetA('r_wound', { host: true }), sC = runSheetA('r_cost', { host: true }), sOff = runSheetA('r_wound'), sCl = runSheetA('r_cost', { client: true }), sNone = runSheetA('r_wound', { host: true, ch: chZero });
+        check('H7 applyAction (run for real): the GM\'s press stores every value as ONE change (one Revert brings them all back: lastChange + extra), posts the card by applyScope, and a hosting GM\'s card that read a GM-only value (DR) is kept private with one toast; offline nothing is private; a player asks the host with the label and stores nothing; nothing to apply stores and posts nothing',
+            j(sW.ch.values.f_hp) === j({ cur: 5 }) && j(sW.after) === j([{ f_hp: { cur: 5 } }]) && j(sW.last) === j({ charId: 'c_a', fieldId: 'f_hp', extra: null }) && sW.cards.length === 1 && sW.cards[0][3] === 'gm' && j(sW.cards[0][2]) === j([{ f: 'f_hp', n: 'Hit points', d: -5, v: 5 }]) && j(sW.toasts) === j(['Kept private: that amount uses a GM-only value (DR).'])
+            && j(sC.last) === j({ charId: 'c_a', fieldId: 'f_fp', prev: { cur: 2 }, extra: {} }) && sC.cards[0][3] === 'owner' && sC.toasts.length === 0
+            && sOff.cards[0][3] === 'table' && sOff.toasts.length === 0
+            && j(sCl.asks) === j([['c_a', 'r_cost', 'Apply costs']]) && j(sCl.ch.values) === j(chA.values) && sCl.after.length === 0
+            && j(sNone.toasts) === j(['Nothing to apply.']) && sNone.cards.length === 0 && sNone.after.length === 0 && sNone.last === null
+            && sW.api.rollPick(rA('r_wound')) === 'Apply: Apply wounds' && sW.api.rollPick(rA('r_atk')) === 'Roll: Attack' && sW.api.applyTitle(rA('r_cost'), gmA) === 'Fatigue − 3; EP − 2' && sW.api.applyTitle(rA('r_heal'), gmA) === 'Fatigue + 2',
+            j([sW.last, sW.cards, sW.toasts, sC.last, sC.cards, sOff.cards, sCl.asks, sNone.toasts]));
+        check('H7 the sheet and editor (source): a roll entry with changes draws as an apply button, inert in the Layout preview and a pop-out (_fxLive) and for a viewer who may not change the character; the Rolls tab has Kind: Roll | Apply (Apply hides the formula and Initiative) and a change editor (pool or number, Subtract | Add, amount, four at most); a change\'s message says its number; a player\'s refusals read Nothing to apply / the amount\'s own error',
+            /function rollNode\(r, c, sys, vars\) \{[^\n]*\n    if \(Array\.isArray\(r\.apply\)\) return applyNode\(r, c, sys, vars\);/.test(shA) && /can = _fxLive && canApply\(c\)/.test(shA) && /b\.disabled = !can;/.test(shA)
+            && /select\('sys-roll-kind', \[\['roll', 'Roll'\], \['apply', 'Apply'\]\]/.test(shA) && /if \(!isApply\) top\.appendChild\(input\('sys-formula field'/.test(shA) && /if \(!isApply\) \{ var il = el\('label', 'sys-hover'\);/.test(shA)
+            && /addB\.disabled = list\.length >= LIMITS\.applyChanges;/.test(shA) && /if \(m\) return 'Change ' \+ \(\+m\[1\] \+ 1\) \+ ': ';/.test(shA)
+            && /toast\(reason === 'none' \? 'Nothing to apply\.' : reason === 'error' \? \(msg \|\| 'That amount could not be worked out\.'\)/.test(shA));
+        const tutA = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), helpA = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('H7 the tour and Help: the System step names apply buttons (Apply costs, Apply wounds); Help says how a Kind: Apply roll works — up to four changes, Subtract or Add, an amount with no dice, amounts first, the field\'s min and max, who may press it, where its card goes, Revert',
+            /or <b>apply<\/b> buttons that move pools and numbers by an amount \(<b>Apply costs<\/b>: FP &minus; 3; <b>Apply wounds<\/b>: HP &minus; Injury\)/.test(tutA)
+            && /Set a roll&rsquo;s <b>Kind<\/b> to <b>Apply<\/b> for a button that moves pools or numbers instead: up to four changes/.test(helpA) && /Every amount is worked out first/.test(helpA) && /The owner and you may press it on the character, whatever the pool&rsquo;s edit setting\./.test(helpA)
+            && /Its card lands in chat for the whole table when every value it moves is shown on hover, otherwise for the owner and you; an NPC&rsquo;s, or one whose amount reads a GM-only value, stays yours\. Revert takes your press back whole\./.test(helpA));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

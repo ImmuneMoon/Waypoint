@@ -150,6 +150,32 @@ function cleanRoll(rec) {
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;
 }
+// Stage 6 HUD H7: the host's card for an apply action — { type: 'apply', id, from, as?, label?, lines: [{ n, d, v }] (1 to 4), ts, priv? }:
+// each change as text and numbers only (a field's label, the amount signed, the new value); null when anything is malformed
+function cleanApply(rec) {
+    if (!rec || typeof rec !== 'object') return null;
+    if (typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
+    var from = cleanFrom(rec.from); if (!from) return null;
+    if (!Array.isArray(rec.lines) || !rec.lines.length || rec.lines.length > 4) return null;
+    var lines = [];
+    for (var i = 0; i < rec.lines.length; i++) {
+        var l = rec.lines[i]; if (!l || typeof l !== 'object') return null;
+        var n = cleanLabel(l.n); if (!n) return null;
+        if (typeof l.d !== 'number' || !isFinite(l.d) || Math.abs(l.d) > 1e15 || typeof l.v !== 'number' || !isFinite(l.v) || Math.abs(l.v) > 1e15) return null;
+        lines.push({ n: n, d: l.d, v: l.v });
+    }
+    var out = { id: rec.id, from: from, lines: lines, ts: typeof rec.ts === 'number' && isFinite(rec.ts) ? rec.ts : 0 };
+    if (rec.priv !== undefined) { if (rec.priv !== 'gm') return null; out.priv = 'gm'; }
+    var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
+    var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
+    return out;
+}
+// Stage 6 HUD H7: an apply card as one line (a toast, the session log): who, as whom, the action, each change as "FP \u22123 \u2192 0"
+function applyText(rec) {
+    if (!rec || !rec.from || !Array.isArray(rec.lines)) return '';
+    var who = rec.from.gm ? 'GM' : rec.from.name, as = rec.as && rec.as !== rec.from.name ? ' as ' + rec.as : '';
+    return who + (rec.priv === 'gm' ? ' (private)' : '') + as + ' applied ' + (rec.label || 'an action') + ': ' + rec.lines.map(function(l) { return l.n + ' ' + (l.d < 0 ? '\u2212' : '+') + fmtNum(Math.abs(l.d)) + ' \u2192 ' + fmtNum(l.v); }).join(', ');
+}
 // The host's refusal: { type: 'roll-deny', rid, reason, message?, pos?, len? } — pos/len clamped to the expr the client sent
 function cleanDeny(msg, exprLen) {
     if (!msg || typeof msg !== 'object') return null;
@@ -257,6 +283,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };
+export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum };

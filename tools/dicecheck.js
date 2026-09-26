@@ -99,6 +99,23 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
 
     check('uid shape', /^r_[a-z0-9]{1,16}$/.test(uid()));
 
+    /* ---- Stage 6 HUD H7: an apply action's card (the host's record) and its one-line text ---- */
+    {
+        const J = JSON.stringify, good = { type: 'apply', id: 'r_abc123', from: { id: 'u_a', name: 'Ana P', gm: false }, as: 'Ana', label: 'Apply costs', lines: [{ n: 'Fatigue', d: -3, v: 0 }, { n: 'EP', d: 2, v: 5.5 }], ts: 5 };
+        const c = D.cleanApply(good), w = o => Object.assign({}, good, o);
+        check('H7 cleanApply keeps a well-formed card as text and numbers only (id, from, lines {n, d, v}, ts, label, as, priv gm) and nothing else',
+            J(c) === J({ id: 'r_abc123', from: { id: 'u_a', name: 'Ana P', gm: false }, lines: [{ n: 'Fatigue', d: -3, v: 0 }, { n: 'EP', d: 2, v: 5.5 }], ts: 5, label: 'Apply costs', as: 'Ana' })
+            && !('evil' in D.cleanApply(w({ evil: '<b>' }))) && D.cleanApply(w({ priv: 'gm' })).priv === 'gm' && J(D.cleanApply(w({ lines: [{ n: 'HP', d: -1, v: 2, x: '<i>' }] })).lines) === J([{ n: 'HP', d: -1, v: 2 }]), J(c));
+        const ctl = String.fromCharCode(7), bad = [w({ id: 'x' }), w({ from: null }), w({ lines: [] }), w({ lines: 'HP' }), w({ lines: [1, 2, 3, 4, 5].map(i => ({ n: 'A' + i, d: -1, v: 1 })) }),
+            w({ lines: [{ n: '', d: -1, v: 1 }] }), w({ lines: [{ n: 'H' + ctl, d: -1, v: 1 }] }), w({ lines: [{ n: 'x'.repeat(61), d: -1, v: 1 }] }), w({ lines: [{ n: 'HP', d: NaN, v: 1 }] }),
+            w({ lines: [{ n: 'HP', d: -1e16, v: 1 }] }), w({ lines: [{ n: 'HP', d: -1, v: '2' }] }), w({ lines: [null] }), w({ priv: 'x' }), w({ label: 'x'.repeat(61) }), w({ as: 'A' + ctl })];
+        check('H7 cleanApply refuses a malformed card whole (id, from, 1 to 4 lines, a label of 60 with no control character, finite numbers within 1e15, priv gm only)', bad.every(b => D.cleanApply(b) === null), J(bad.map(b => D.cleanApply(b) !== null)));
+        check('H7 applyText: who, as whom, the action and each change ("Fatigue −3 → 0, EP +2 → 5.5"); a private card says so, the GM reads as GM',
+            D.applyText(c) === 'Ana P as Ana applied Apply costs: Fatigue −3 → 0, EP +2 → 5.5'
+            && D.applyText(Object.assign({}, c, { priv: 'gm', from: { id: 'g', name: 'Alex', gm: true } })) === 'GM (private) as Ana applied Apply costs: Fatigue −3 → 0, EP +2 → 5.5'
+            && D.applyText(Object.assign({}, c, { label: undefined })).indexOf(' applied an action: ') > 0, D.applyText(c));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');

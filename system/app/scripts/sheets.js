@@ -467,7 +467,15 @@ function tokenTurned(tokId, final) {
         var rsS = roundSigOf(c, camp); if (rsS !== _roundSig) { _roundSig = rsS; _dialStale = true; }   // HUD frame (HF5b): a round change (Next turn) redraws what reads CombatRound
         if (final && _dialStale) { _dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(); }
     } catch (e) {}   // it runs at the end of every render: a sheet problem never stops the map
+    try { syncEndTurn(); } catch (e) {}   // turn-based combat T2
 }
+// Turn-based combat T2: End turn in the head of the sheet and of each HUD — shown to the player whose character's token has the turn
+function syncEndTurn() {
+    var n = net(), t = n && n.myTurnTok ? n.myTurnTok() : null, who = t && typeof t.tok.charId === 'string' ? t.tok.charId : '';
+    var sb = ui('sheetEndTurn'); if (sb) sb.style.display = who && sheetOpen === who ? '' : 'none';
+    Object.keys(huds).forEach(function(id) { var b = huds[id].panel.querySelector('.hud-endturn'); if (b) b.style.display = who && id === who ? '' : 'none'; });
+}
+function endTurn() { var n = net(), r = n && n.turnEnd ? n.turnEnd() : { error: 'Not at a table.' }; if (r && r.error) toast(r.error); }
 
 /* ---------- the sheet panel ---------- */
 var sheetOpen = null, lastChange = null;
@@ -508,6 +516,7 @@ function renderSheet() {
     _sheetRefSig = refSig(sys);
     buildSections(body, sys, c, all, gm, own, renderSheet, { campId: camp.id, view: 'sheet', preview: false });
     applyPaletteTo(p, sys.sheet && sys.sheet.look);   // Stage 6 look fold: the palette also dresses the panel's own head, border and grip
+    try { syncEndTurn(); } catch (e) {}   // turn-based combat T2: a sheet opened on its turn
     p.classList.toggle('sheet-has-table', !!body.querySelector('.sheet-itemtable'));   // Stage 4: a rich item table gets a wider, responsive panel so its columns fit
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
     applySheetLookTo(body, sheetLook(camp, sys));
@@ -599,6 +608,7 @@ function makeHud(charId) {
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeHud(charId); } });
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
     q('hud-sheet').addEventListener('click', function() { openSheet(charId); });
+    q('hud-endturn').addEventListener('click', endTurn);   // turn-based combat T2
     q('hud-close').addEventListener('click', function() { closeHud(charId); });
     var head = v.head, drag = null;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
@@ -645,6 +655,7 @@ function renderHud(charId) {
     ['--sheet-accent', '--sheet-accent-ink'].forEach(function(k) { var a = v.body.style.getPropertyValue(k); if (a) v.panel.style.setProperty(k, a); else v.panel.style.removeProperty(k); });   // HF3: the foot (the body's sibling) wears the look's accent too (applyLook set a checked hex or nothing)
     restoreFocus(v.body, fk);
     renderHudFoot(v);
+    try { syncEndTurn(); } catch (e) {}   // turn-based combat T2: a HUD opened on its turn
 }
 /* HF3: the docked roll history at the HUD's foot — the reference's footer drawer. It lists what THIS machine saw of the rolls made as the
    character this session (net.rollsFor: tagged locally, or another machine's roll made as its name), newest first, drawn by the dice's
@@ -3869,7 +3880,8 @@ function importFile(file) {
     var sc = ui('sheetClose'); if (sc) sc.addEventListener('click', closeSheet);
     var rv = ui('sheetRevert'); if (rv) rv.addEventListener('click', revertLast);
     var pk = ui('sheetPick'); if (pk) pk.addEventListener('change', function() { if (pk.value) openSheet(pk.value); });
-    var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });   // HUD frame (HF2a): the reference's header button
+    var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });
+    var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
     var dpn = ui('docPanel');   // the doc panel (docpanel.js, not edited here) comes forward when clicked or shown — only while a HUD is open
     if (dpn) { dpn.addEventListener('pointerdown', function() { raisePanel(dpn); }, true); if (window.MutationObserver) { var dpShown = dpn.style.display !== 'none'; new MutationObserver(function() { var now = dpn.style.display !== 'none'; if (now && !dpShown) raisePanel(dpn); dpShown = now; }).observe(dpn, { attributes: true, attributeFilter: ['style'] }); } }

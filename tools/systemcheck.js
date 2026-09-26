@@ -2426,7 +2426,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const hs = sh5.slice(sh5.indexOf('// [systemcheck:hud-start]'), sh5.indexOf('// [systemcheck:hud-end]')), rd = (ftSrc.match(/function rolled\(m, cid\) \{[\s\S]*?\n\}/) || [''])[0];
         check('HUD frame HF3: the footer is inside the HUD slice and writes no markup (el/textContent and the dice card only); the hook repaints the foot, never the body; renderHud gives the panel the look\'s accent (the foot is the body\'s sibling) and ends by drawing its foot; makeHud starts the drawer closed; wpSheets exports rolled; the tour and Help name it',
             hs.indexOf('function renderHudFoot(v)') > 0 && !/innerHTML|outerHTML|insertAdjacentHTML/.test(ftSrc) && /D\.renderCard\(m\)/.test(ftSrc) && rd.length > 50 && /renderHudFoot\(v\)/.test(rd) && !/renderHud\(|renderViews\(/.test(rd)
-            && /    syncFramePad\(v\.body\);\n    \['--sheet-accent', '--sheet-accent-ink'\]\.forEach\(function\(k\) \{ var a = v\.body\.style\.getPropertyValue\(k\); if \(a\) v\.panel\.style\.setProperty\(k, a\); else v\.panel\.style\.removeProperty\(k\); \}\);[^\n]*\n    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n\}/.test(hs)
+            && /    syncFramePad\(v\.body\);\n    \['--sheet-accent', '--sheet-accent-ink'\]\.forEach\(function\(k\) \{ var a = v\.body\.style\.getPropertyValue\(k\); if \(a\) v\.panel\.style\.setProperty\(k, a\); else v\.panel\.style\.removeProperty\(k\); \}\);[^\n]*\n    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n    try \{ syncEndTurn\(\); \} catch \(e\) \{\}[^\n]*\n\}/.test(hs)
             && /v\.foot = q\('hud-foot'\); v\.histOpen = false;/.test(hs) && /hudFor: hudFor, rolled: rolled,/.test(sh5)
             && /When the system has rolls, its <b>Roll history<\/b> drawer/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /<b>Roll history<\/b> \(when the system has rolls\)/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
         const css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b5 = css5.slice(css5.indexOf('/* ---- Stage 6 HUD frame:')), rx5 = (b5.match(/\.hud-hist-list \.roll-expr \{([^}]*)\}/) || [])[1];
@@ -3914,6 +3914,27 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const dc = (grid, diag) => new Function('window', 'state', 'mapMeasureConfig', dcSrc + NL + 'return diagCells;')({ wpSystemCore: S, wpSheets: { systemOf: () => ({ combat: diag ? { turn: { diag: diag } } : {} }) } }, { gridType: grid }, () => ({ cellPx: 50 }))({ x1: 400, y1: 350, x2: 650, y2: 500 });
         check('T1 the ruler\'s diagonals (whiteboard.js diagCells, run for real): on a square grid 250 by 150 px is 6 cells alternating and 5 one-per-diagonal; a straight rule, no rule, a hex grid or no grid keep the straight line (null)',
             dc('square', 'alt') === 6 && dc('square', 'one') === 5 && dc('square', 'line') === null && dc('square', null) === null && dc('hex', 'alt') === null && dc('off', 'one') === null && /measureLabel\(dist, diagCells\(m\)\)/.test(wbT));
+    }
+    /* ---- Turn-based combat T2: End turn in the sheet's and each HUD's head, and on the turn strip ---- */
+    {
+        const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        const seSrc = shE.slice(shE.indexOf('function syncEndTurn() {'), shE.indexOf('\n', shE.indexOf('function endTurn() {')) + 1);
+        const runSE = (tok, open, hudIds) => {
+            const btn = () => ({ style: { display: 'x' } }), sb = btn(), hs = {}; (hudIds || []).forEach(id => { const b = btn(); hs[id] = { panel: { querySelector: s => s === '.hud-endturn' ? b : null }, b: b }; });
+            const toasts = [], ends = [];
+            const api = new Function('net', 'ui', 'huds', 'toast', 'var sheetOpen = ' + JSON.stringify(open) + ';' + NL + seSrc + NL + 'return { syncEndTurn: syncEndTurn, endTurn: endTurn };')(
+                () => ({ myTurnTok: () => tok, turnEnd: () => { ends.push(1); return tok ? { ok: true } : { error: 'It is not your turn.' }; } }), id => id === 'sheetEndTurn' ? sb : null, hs, t => toasts.push(t));
+            api.syncEndTurn(); api.endTurn(); return { sheet: sb.style.display, huds: Object.keys(hs).map(k => k + ':' + hs[k].b.style.display), toasts: toasts, ends: ends.length };
+        };
+        const onT = runSE({ tok: { charId: 'c_p' } }, 'c_p', ['c_p', 'c_q']), offT = runSE(null, 'c_p', ['c_p']), otherT = runSE({ tok: { charId: 'c_q' } }, 'c_p', ['c_p']);
+        check('T2 End turn in the heads (sheets.js, run for real): shown on the sheet and the HUD of the character whose token has the turn (the player\'s own), hidden on every other; pressed, it asks the host and says why not',
+            onT.sheet === '' && j(onT.huds) === j(['c_p:', 'c_q:none']) && offT.sheet === 'none' && j(offT.huds) === j(['c_p:none']) && otherT.sheet === 'none' && j(offT.toasts) === j(['It is not your turn.']) && !onT.toasts.length && onT.ends === 1, j([onT, offT, otherT]));
+        const wbE = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL), hmE = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuE = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), vtE = fs.readFileSync(path.join(app, 'scripts', 'vtt.js'), 'utf8');
+        check('T2 the turn strip, the heads and the feature (source): the strip draws End turn for the player on turn and presses it before the GM-only buttons; the sheet and each HUD sync it when drawn and after every render; Turn-based combat is a GM-controlled VTT feature off by default, with its settings rows; tour and Help say so',
+            /mine = !host && n\.myTurnTok \? n\.myTurnTok\(\) : null;/.test(wbE) && /\(mine \? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn"/.test(wbE) && /if \(b\.dataset\.act === 'endturn'\) \{ var rt = n && n\.turnEnd \? n\.turnEnd\(\) : null; if \(rt && rt\.error\) toast\(rt\.error\); return; \}[^\n]*\n        if \(!\(n && n\.role === 'host' && am\)\) return;/.test(wbE)
+            && (shE.match(/try \{ syncEndTurn\(\); \} catch \(e\) \{\}/g) || []).length === 3 && /q\('hud-endturn'\)\.addEventListener\('click', endTurn\);/.test(shE) && /etB\.addEventListener\('click', endTurn\);/.test(shE)
+            && /\{ id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false \}/.test(vtE) && /id="sheetEndTurn"/.test(hmE) && /hud-endturn/.test(hmE) && /id="setTurnsBtn"/.test(hmE) && /id="setVttGlobalTurnsBtn"/.test(hmE)
+            && /With <b>Turn-based combat<\/b> on \(&#9881; Settings &#9656; VTT features, off by default\) the player whose token has the turn gets <b>End turn<\/b>/.test(hmE) && /with <b>Turn-based combat<\/b> on \(VTT features\) the player on turn ends it themselves\./.test(tuE));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

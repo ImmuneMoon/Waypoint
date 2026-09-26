@@ -1444,6 +1444,22 @@ net.charApply = function(charId, actId, label, row) {   // row (H7b): { f, r, i 
     try { net.conns[0].send(req); } catch (e) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
+// Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }
+// or null (not at a table, turn-based combat off, no combat here, someone else's turn)
+net.myTurnTok = function() {
+    if (!net.active || net.role !== 'client' || net.stream || !window.wpVtt || !window.wpVtt.on('turns')) return null;
+    var camp = getActiveCampaign(), mid = camp && camp.activeItemId, cb = typeof mid === 'string' && net.combats && own(net.combats, mid) ? net.combats[mid] : null, row = cb && Array.isArray(cb.rows) ? cb.rows[cb.turn] : null;
+    if (!row || typeof row.tokId !== 'string' || !row.tokId) return null;
+    var map = camp.items && own(camp.items, mid) ? camp.items[mid] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null;
+    return w && w.isChar && w.ownerId && w.ownerId === net.myId ? { mapId: mid, rowId: row.id, tok: w } : null;
+};
+// the player ends their own turn: the host checks the row is still theirs and the one on turn, then steps as the GM's Next turn
+net.turnEnd = function() {
+    var t = net.myTurnTok(); if (!t) return { error: 'It is not your turn.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    try { net.conns[0].send({ type: 'turn-end', mapId: t.mapId, row: t.rowId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
+};
 // A player's change of a carried list on their own character (Stage 6 F4a: a row op q = { op, defId?, rowId?, qty? }), applied at once, judged on the host.
 net.charItem = function(charId, fieldId, q) {
     var S = SC(), camp = getActiveCampaign();
@@ -2825,6 +2841,22 @@ function handleMessage(msg, conn) {
         if (chA.name) recA.as = String(chA.name).slice(0, 60);
         postApply(recA, Sa.applyScope(campA.system, chA, actA, rowGmA, Fa), chA, conn);
         // [netcheck:charapply-end]
+    } else if (msg.type === 'turn-end' && net.role === 'host') {
+        // [netcheck:turnend-start]
+        // Turn-based combat T2: a player ends their own turn — turn-based combat on, the combat on the map they are on, the row they saw still the
+        // one on turn (a second press, or the GM's Next meanwhile, never skips the next character), its token a character token of theirs; then
+        // the GM's own step (the round hook, the toast, the broadcast)
+        if (net.paused || peerPaused(conn.peer)) return;
+        if (!window.wpVtt || !window.wpVtt.on('turns')) return;
+        var prT = net.roster[conn.peer]; if (!prT || typeof msg.mapId !== 'string' || msg.mapId !== prT.location || typeof msg.row !== 'string') return;
+        if (!allow('turnend', { perMs: 400, burst: 4, windowMs: 4000, table: 400 }, conn.peer)) return;
+        var cbT = own(net.combats, msg.mapId) ? net.combats[msg.mapId] : null, rowT = cbT && Array.isArray(cbT.rows) ? cbT.rows[cbT.turn] : null;
+        if (!rowT || rowT.id !== msg.row || typeof rowT.tokId !== 'string') return;
+        var campT = getActiveCampaign(), mapT = campT && campT.items && own(campT.items, msg.mapId) ? campT.items[msg.mapId] : null;
+        var tokT = mapT && mapT.type === 'map' && Array.isArray(mapT.whiteboard) ? mapT.whiteboard.find(function(w) { return w && w.id === rowT.tokId; }) : null;
+        if (!tokT || !tokT.isChar || !tokT.ownerId || tokT.ownerId !== prT.id) return;
+        net.combatStep(msg.mapId, 1);
+        // [netcheck:turnend-end]
     } else if (msg.type === 'char-item' && net.role === 'host') {
         // [netcheck:charitem-start]
         // a player's change of a carried list on their own character: same gates as char-edit, then applyRowOp reads every definition from the system

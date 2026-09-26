@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, rowRollNames, gmOnlyNames, applyAct, applyScope, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -1074,6 +1074,7 @@ function glyphPicker(inp, anchor, repaint) {
     try { q.focus(); } catch (er) {}
 }
 function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
+    var previewV = !!(vctx && vctx.preview);   // Stage 6 HUD C8: the Layout preview draws a part whose show-if is false, dimmed (the sheet leaves it out)
     var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
     var sheet = (hudV || (sys.sheet && sys.sheet.sections && sys.sheet.sections.length)) ? sys.sheet : autoLayout(sys);   // the HUD has no automatic layout of its own
     var layout = sheet.sections || [];
@@ -1132,6 +1133,8 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     if (stripEl) frame.appendChild(stripEl);
     if (frame.childNodes.length) body.appendChild(frame);   // the band and the strip: the sticky frame, after the dashboard sections
     function renderOneSection(sec, isChild) {
+        var secOff = !!sec.showIf && !showsIf(sec.showIf, all.vars, F());   // Stage 6 HUD C8: its show-if is false for this character
+        if (secOff && !previewV) return null;
         var collap = !!sec.collapsible;
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : '') + (sec.inline === true ? ' sheet-inline' : ''));
         var secKey = (hudV ? 'h:' : '') + sec.id;   // HF1: remembered per view (sheet keys unchanged)
@@ -1164,6 +1167,8 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         }
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
         (sec.fields || []).forEach(function(pl) {
+            var plOff = !!pl.showIf && !showsIf(pl.showIf, all.vars, F());   // C8: a placement's own show-if
+            if (plOff && !previewV) return;
             var node = null;
             if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own, sys, all.vars, pl);   // pl (F4b): an item list's "only switched on"
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c, sys, all.vars);
@@ -1178,12 +1183,14 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             if (!node) return;
             if (sec.inline === true && pl.id && byId[pl.id]) inlineRow(node, byId[pl.id]);   // HUD frame (HF4a, H2)
             if (pl.w === 'row') node.classList.add('sheet-row');
+            if (plOff) node.classList.add('sheet-showif-off');
             grid.appendChild(node);
         });
         var hasOwn = Array.prototype.some.call(grid.childNodes, function(n) { return !n.hidden; });   // 5h: a player's dial with facing off is a hidden placeholder
         if (hasOwn) s.appendChild(grid);
         var kids = 0;
         if (!isChild && children[sec.id]) children[sec.id].forEach(function(ch) { var ce = renderOneSection(ch, true); if (ce) { s.appendChild(ce); kids++; } });   // sub-sections after the parent's own fields
+        if (secOff) s.classList.add('sheet-showif-off');
         return (hasOwn || kids) ? s : null;
     }
     layout.forEach(function(sec) {
@@ -1204,6 +1211,14 @@ function draftHasHud() { var h = draft && draft.sheet && draft.sheet.hud, ln = f
 function layoutSections() { var r = layoutRoot(); if (!Array.isArray(r.sections)) r.sections = []; return r.sections; }
 function layoutTabs() { var r = layoutRoot(); if (!Array.isArray(r.tabs)) r.tabs = []; return r.tabs; }
 function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sheet[key])) ? draft.sheet[key].slice() : []; }   // a copy of one of the sheet's id lists (identity / ledger / band), [] when absent
+// Stage 6 HUD C8: the validator's own words for one show-if, over the draft as Save reads it (the Layout tab shows them under the box)
+function showIfNote(text) {
+    if (typeof text !== 'string' || !text.trim() || !F()) return '';
+    var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return '';
+    clean.sheet = { sections: [{ id: 's_probe', cols: 1, fields: [], showIf: text.trim() }] };
+    var w = validateSystem(clean, F()).warnings.filter(function(x) { return x.id === 's_probe' && x.prop === 'showIf'; });
+    return w.map(function(x) { return x.message; }).join(' ');
+}
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? rollPick(r) : null; }
@@ -1469,6 +1484,10 @@ function renderLayout() {
             if (sec.resetAll && nRs > LIMITS.editBatch) rsRow.appendChild(el('span', 'sys-warn-line sys-reset-note', 'Reset all resets the first ' + LIMITS.editBatch + ' of these ' + nRs + '.'));   // counted on every draw (validateSystem also warns)
             row.appendChild(rsRow);
         }
+        var sifRow = el('div', 'sys-sec-style sys-sec-showifrow'); sifRow.appendChild(el('span', 'sys-sec-style-lbl', 'Show if'));   // Stage 6 HUD C8
+        sifRow.appendChild(input('sys-sec-showif field', sec.showIf || '', 'Show this section only while the formula is true (a number other than 0, or yes): Stun > 0, Station == 2, not(Droid). Empty: always. It only hides \u2014 the values still reach the player (GM only keeps a secret)', 'Always (e.g. Stun > 0)'));
+        var sifN = showIfNote(sec.showIf); if (sifN) sifRow.appendChild(el('span', 'sys-warn-line', sifN));
+        row.appendChild(sifRow);
         var list = el('div', 'sys-pl-list'); list.dataset.sid = sec.id;
         (sec.fields || []).forEach(function(pl, pi) {
             var text = placementLabel(pl, byId, rollById); if (text === null) return;
@@ -1491,6 +1510,8 @@ function renderLayout() {
                 pr.appendChild(select('sys-pl-hudtab', hOpts, pl.tab || '', 'The HUD tab this button opens'));
                 pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = Open and the HUD\'s title)', 'Open the HUD'));
             }
+            var hasIf = typeof pl.showIf === 'string', ifb = el('button', 'tool ghost sys-btn sys-pl-if' + (hasIf ? ' on' : ''), 'if'); ifb.dataset.act = 'plif'; ifb.title = hasIf ? 'Always show it again' : 'Show it only while a formula is true'; pr.appendChild(ifb);   // Stage 6 HUD C8
+            if (hasIf) { pr.appendChild(input('sys-pl-showif field', pl.showIf, 'Shown only while this is true (a number other than 0, or yes); no dice', 'e.g. Stun > 0')); var pifN = showIfNote(pl.showIf); if (pifN) pr.appendChild(el('span', 'sys-warn-line', pifN)); }
             var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
             var plf = pl.id ? (draft.fields || []).find(function(x) { return x.id === pl.id; }) : null, plOn = plf && plf.kind === 'item-list' && plf.list && plf.list.on && typeof plf.list.on === 'object' ? plf.list.on : null;
             if (plOn || (pl.on && plf && plf.kind === 'item-list')) { var ob = el('button', 'tool ghost sys-btn sys-pl-on', pl.on ? 'Only ' + (plOn ? String(plOn.label || 'on').toLowerCase() : 'switched on') : 'All rows'); ob.dataset.act = 'plon'; ob.title = plOn ? 'Every row of the list, or only the rows switched on (' + (plOn.label || 'On') + '), e.g. the HUD\u2019s readied weapons' : 'Its list has no switch now, so every row shows: click to clear it'; pr.appendChild(ob); }   // F4b (review: kept while set, so it can be cleared)
@@ -1535,6 +1556,8 @@ function onLayoutInput(t) {
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
+    else if (plr && c.indexOf('sys-pl-showif') >= 0) { var pls = (sec.fields || [])[+plr.dataset.pi]; if (pls) pls.showIf = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD C8 (kept while empty: the box stays)
+    else if (t.classList.contains('sys-sec-showif')) { if (t.value.trim()) sec.showIf = t.value.slice(0, LIMITS.formula); else delete sec.showIf; }
     else if (t.classList.contains('sys-sec-title')) sec.title = t.value.slice(0, LIMITS.label);
     else if (t.classList.contains('sys-sec-icon')) { if (t.value.trim()) sec.icon = t.value.slice(0, 32); else delete sec.icon; }   // Stage 5g
     else if (t.classList.contains('sys-sec-resettext')) { if (t.value.trim()) sec.resetText = t.value.slice(0, LIMITS.label); else delete sec.resetText; }   // HUD frame (HF4b): the Reset all button's own words
@@ -1544,6 +1567,7 @@ function onLayoutInput(t) {
 function onLayoutChange(t) {
     var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
+    if (t.classList.contains('sys-sec-showif') || t.classList.contains('sys-pl-showif')) { renderLayout(); return true; }   // Stage 6 HUD C8: its note, once the box is left
     if (t.classList.contains('sys-sec-tab')) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-collap')) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-inline')) { if (t.value) sec.inline = true; else delete sec.inline; markDirty(); renderPreview(); return true; }   // HUD frame (HF4a)
@@ -1629,6 +1653,7 @@ function onLayoutClick(b) {
     else if (plr) {
         var list = sec.fields || [], pi = +plr.dataset.pi, pl = list[pi]; if (!pl) return true;
         if (act === 'plw') pl.w = pl.w === 'row' ? 1 : 'row';
+        else if (act === 'plif') { if (typeof pl.showIf === 'string') delete pl.showIf; else pl.showIf = ''; }   // Stage 6 HUD C8: a show-if box for this placement
         else if (act === 'plon') { if (pl.on) delete pl.on; else pl.on = true; }   // F4b: only the rows switched on
         else if (act === 'plup' && pi > 0) { list.splice(pi, 1); list.splice(pi - 1, 0, pl); }
         else if (act === 'pldown' && pi < list.length - 1) { list.splice(pi, 1); list.splice(pi + 1, 0, pl); }

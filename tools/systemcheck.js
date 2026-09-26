@@ -3610,6 +3610,44 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); listApplyEditor\(cb2, rr, ri\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri\) \{/.test(shL)
             && /A list&rsquo;s roll can be an <b>apply<\/b> action too/.test(hA) && /a list&rsquo;s <b>apply<\/b> actions move pools from the row \(Apply costs: FP &minus; Row\.FPCost\)/.test(tA));
     }
+    /* ---- Stage 6 HUD C8: show-if — a section or a placement shows only while its formula is true (render only, fail open) ---- */
+    {
+        const ctl8 = String.fromCharCode(1);
+        const rawS = { v: 1, name: 'S', fields: [
+            { id: 'f_stun', key: 'Stun', kind: 'number', def: 0 }, { id: 'f_droid', key: 'Droid', kind: 'toggle', def: false }, { id: 'f_ep', key: 'EP', kind: 'number', def: 5 },
+            { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }, { id: 'f_note', key: 'Note', kind: 'text' }],
+            rolls: [{ id: 'r_rec', label: 'Recover', formula: '3d6' }],
+            sheet: { sections: [
+                { id: 's_stun', title: 'Stunned', showIf: 'Stun > 0', fields: [{ roll: 'r_rec', showIf: 'Stun == 1' }, { kind: 'heading', text: 'Immune', showIf: 'not(Droid)' }] },
+                { id: 's_ep', title: 'EP', fields: [{ id: 'f_ep', showIf: 'not(Droid)' }, { id: 'f_stun', showIf: 'GMFig > 0' }, { id: 'f_droid', showIf: 'd6' }] },
+                { id: 's_bad', title: 'Bad', showIf: 'Nope + (', fields: [{ id: 'f_note', showIf: 'Note' }, { kind: 'divider', showIf: 'x'.repeat(301) }, { kind: 'heading', text: 'H', showIf: 'Stun' + ctl8 }] },
+                { id: 's_sec', title: 'Secret', showIf: 'GMFig', fields: [] }],
+                hud: { tabs: [], sections: [{ id: 's_h', title: 'H', showIf: 'Stun', fields: [{ roll: 'r_rec', showIf: 'GMFig == 2' }] }] } } };
+        const gmS = cleanSystem(rawS, { F, gmView: true }), plS = cleanSystem(rawS, { F, gmView: false });
+        const shape = s => j(s.sheet.sections.map(x => [x.id, x.showIf || '', x.fields.map(p => p.showIf || '')]).concat(s.sheet.hud.sections.map(x => [x.id, x.showIf || '', x.fields.map(p => p.showIf || '')])));
+        check('C8 the cleaner keeps a section\'s and a placement\'s show-if (sheet and HUD) as formula text, dropping one past 300 characters or with a control character; absent stays absent; a fixed point',
+            shape(gmS) === j([['s_stun', 'Stun > 0', ['Stun == 1', 'not(Droid)']], ['s_ep', '', ['not(Droid)', 'GMFig > 0', 'd6']], ['s_bad', 'Nope + (', ['Note', '', '']], ['s_sec', 'GMFig', []], ['s_h', 'Stun', ['GMFig == 2']]])
+            && !('showIf' in gmS.sheet.sections[1]) && j(cleanSystem(gmS, { F, gmView: true })) === j(gmS), shape(gmS));
+        check('C8 the players\' view drops a show-if that names a GM-only value (the part simply shows for players: whether it showed would tell the value), on the sheet and the HUD, and keeps the rest; a fixed point',
+            shape(plS) === j([['s_stun', 'Stun > 0', ['Stun == 1', 'not(Droid)']], ['s_ep', '', ['not(Droid)', '', 'd6']], ['s_bad', 'Nope + (', ['Note', '', '']], ['s_sec', '', []], ['s_h', 'Stun', ['']]]) && !/GMFig/.test(j(plS.sheet)) && j(cleanSystem(plS, { F, gmView: false })) === j(plS), shape(plS));
+        const wS = validateSystem(gmS, F).warnings.filter(w => /^showIf/.test(w.prop)).map(w => w.id + '|' + w.prop + '|' + w.message);
+        check('C8 the validator warns on the section, by placement: a GM-only value (players always see it), dice (never rolled: it shows), a formula that does not parse (it shows until fixed), a name that is not a number (it shows); a good one says nothing',
+            j(wS) === j(['s_ep|showIf.1|Show if: "GMFig" is GM only, so players always see it.', 's_ep|showIf.2|Show if: dice are not rolled here, so it always shows.', 's_bad|showIf|Show if: Something is missing after "(". It shows until this is fixed.', 's_bad|showIf.0|Show if: "Note" is not a number, so it shows.', 's_sec|showIf|Show if: "GMFig" is GM only, so players always see it.', 's_h|showIf.0|Show if: "GMFig" is GM only, so players always see it.'])
+            && validateSystem(gmS, F).ok, j(wS));
+        const r0 = makeResolver(gmS, { id: 'c', values: {} }, F), r1 = makeResolver(gmS, { id: 'c', values: { f_stun: 1, f_droid: true } }, F), si = S.showsIf;
+        check('C8 showsIf: a number other than 0 or yes shows it, 0 or no hides it (Stun > 0, not(Droid), Stun); none, an unknown name, dice, a formula that does not parse or a text value shows it (fail open)',
+            si('Stun > 0', r0, F) === false && si('Stun > 0', r1, F) === true && si('not(Droid)', r1, F) === false && si('not(Droid)', r0, F) === true && si('Stun', r0, F) === false && si('Stun + 2', r0, F) === true
+            && si('', r0, F) === true && si(undefined, r0, F) === true && si('Nope', r0, F) === true && si('d6 > 6', r0, F) === true && si('Stun +', r0, F) === true && si('Note', r0, F) === true && si('Stun > 0', null, F) === true);
+        const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hS = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tS = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('C8 the sheet and HUD (source): a section or a placement whose show-if is false is left out, and drawn dimmed (sheet-showif-off) in the Layout preview only; the Layout tab has a Show if box per section, an if button per placement with its box, and a note in the validator\'s own words',
+            /var secOff = !!sec\.showIf && !showsIf\(sec\.showIf, all\.vars, F\(\)\);[^\n]*\n\s*if \(secOff && !previewV\) return null;/.test(shS) && /var plOff = !!pl\.showIf && !showsIf\(pl\.showIf, all\.vars, F\(\)\);[^\n]*\n\s*if \(plOff && !previewV\) return;/.test(shS)
+            && /if \(plOff\) node\.classList\.add\('sheet-showif-off'\);/.test(shS) && /if \(secOff\) s\.classList\.add\('sheet-showif-off'\);/.test(shS) && /var previewV = !!\(vctx && vctx\.preview\);/.test(shS)
+            && /input\('sys-sec-showif field'/.test(shS) && /ifb\.dataset\.act = 'plif';/.test(shS) && /else if \(act === 'plif'\) \{ if \(typeof pl\.showIf === 'string'\) delete pl\.showIf; else pl\.showIf = ''; \}/.test(shS)
+            && /function showIfNote\(text\) \{[\s\S]{0,400}validateSystem\(clean, F\(\)\)\.warnings\.filter/.test(shS));
+        check('C8 the tour and Help: Show if on a section or one placement (its if button), worked out on the character\'s own values on the sheet and the HUD, dimmed in the preview, failing open, GM-only values always showing for players, and not a secret',
+            /<b>Show if<\/b>: a section, or one placement \(its <b>if<\/b> button\), shows only while a formula is true/.test(hS) && /the Layout preview draws a hidden part dimmed/.test(hS) && /A formula that cannot be worked out shows the part, and one reading a GM-only value always shows for players\. It only hides: the values still reach the player, so a secret stays <b>GM only<\/b>\./.test(hS)
+            && /can <b>Show if<\/b> a formula is true \(<code>Stun &gt; 0<\/code>\): a stunned banner that comes and goes\./.test(tS));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

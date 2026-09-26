@@ -1,0 +1,401 @@
+{
+  "v": 1,
+  "name": "Generic d20 (rows)",
+  "preset": "",
+  "updated": 0,
+  "fields": [
+    {
+      "id": "f_str",
+      "key": "STR",
+      "label": "STR",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "def": 10
+    },
+    {
+      "id": "f_strmod",
+      "key": "STRmod",
+      "label": "STR modifier",
+      "kind": "formula",
+      "vis": "all",
+      "hover": false,
+      "formula": "floor((STR - 10) / 2)",
+      "roll": "d20 + STRmod",
+      "sign": true
+    },
+    {
+      "id": "f_dex",
+      "key": "DEX",
+      "label": "DEX",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "def": 10
+    },
+    {
+      "id": "f_dexmod",
+      "key": "DEXmod",
+      "label": "DEX modifier",
+      "kind": "formula",
+      "vis": "all",
+      "hover": false,
+      "formula": "floor((DEX - 10) / 2)",
+      "roll": "d20 + DEXmod",
+      "sign": true
+    },
+    {
+      "id": "f_gmfig",
+      "key": "GMFig",
+      "label": "GM figure",
+      "kind": "number",
+      "vis": "gm",
+      "hover": false,
+      "edit": "gm",
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "def": 3
+    },
+    {
+      "id": "f_inv",
+      "key": "Inventory",
+      "label": "Inventory",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner"
+    },
+    {
+      "id": "f_wpn",
+      "key": "Weapons",
+      "label": "Weapons",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "table": {
+        "footer": true
+      },
+      "list": {
+        "cats": [
+          "Weapon"
+        ],
+        "multi": true,
+        "on": {
+          "label": "Equipped"
+        },
+        "stats": [
+          {
+            "key": "die",
+            "label": "Die",
+            "labels": [
+              "d4",
+              "d6",
+              "d8",
+              "d10",
+              "d12"
+            ],
+            "show": true
+          },
+          {
+            "key": "dtype",
+            "label": "Type",
+            "labels": [
+              "Slashing",
+              "Piercing",
+              "Bludgeoning"
+            ]
+          },
+          {
+            "key": "bonus",
+            "label": "Bonus",
+            "show": true
+          },
+          {
+            "key": "wt",
+            "label": "Wt"
+          },
+          {
+            "key": "cost",
+            "label": "Cost"
+          }
+        ],
+        "price": "cost"
+      }
+    },
+    {
+      "id": "f_spl",
+      "key": "Spells",
+      "label": "Spells",
+      "kind": "item-list",
+      "vis": "all",
+      "hover": false,
+      "edit": "owner",
+      "list": {
+        "cats": [
+          "Spell"
+        ],
+        "noQty": true,
+        "on": {
+          "label": "Prepared"
+        },
+        "stats": [
+          {
+            "key": "slvl",
+            "label": "Level",
+            "labels": [
+              "Cantrip",
+              "1st",
+              "2nd",
+              "3rd",
+              "4th",
+              "5th",
+              "6th",
+              "7th",
+              "8th",
+              "9th"
+            ],
+            "show": true
+          },
+          {
+            "key": "school",
+            "label": "School",
+            "labels": [
+              "Abjuration",
+              "Conjuration",
+              "Divination",
+              "Enchantment",
+              "Evocation",
+              "Illusion",
+              "Necromancy",
+              "Transmutation"
+            ]
+          },
+          {
+            "key": "conc",
+            "label": "Concentration",
+            "labels": [
+              "No",
+              "Yes"
+            ]
+          },
+          {
+            "key": "ritual",
+            "label": "Ritual",
+            "labels": [
+              "No",
+              "Yes"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "rolls": [
+    {
+      "id": "r_str",
+      "label": "Strength check",
+      "formula": "d20 + STRmod",
+      "vis": "all"
+    }
+  ],
+  "items": [
+    {
+      "id": "i_longsword",
+      "name": "Longsword",
+      "category": "Weapon",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "1d8 + STRmod",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Longsword",
+      "stats": {
+        "die": 2,
+        "dtype": 0,
+        "cost": 15,
+        "wt": 3
+      }
+    },
+    {
+      "id": "i_rapier",
+      "name": "Rapier",
+      "category": "Weapon",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "1d8 + DEXmod",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Rapier",
+      "stats": {
+        "die": 2,
+        "dtype": 1,
+        "cost": 25,
+        "wt": 2
+      }
+    },
+    {
+      "id": "i_dagger",
+      "name": "Dagger",
+      "category": "Weapon",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "1d4 + DEXmod",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Dagger",
+      "stats": {
+        "die": 0,
+        "dtype": 1,
+        "cost": 2,
+        "wt": 0.5
+      }
+    },
+    {
+      "id": "i_vorpal",
+      "name": "Vorpal Sword",
+      "category": "Weapon",
+      "icon": "",
+      "notes": "",
+      "vis": "gm",
+      "area": null,
+      "damage": "1d8 + 3",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Vorpal",
+      "stats": {
+        "die": 2,
+        "dtype": 0,
+        "bonus": 3,
+        "cost": 5000,
+        "wt": 3
+      }
+    },
+    {
+      "id": "i_fireball",
+      "name": "Fireball",
+      "category": "Spell",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": {
+        "ft": 20,
+        "shape": "circle",
+        "name": "Fireball"
+      },
+      "damage": "8d6",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Fireball",
+      "stats": {
+        "slvl": 3,
+        "school": 4
+      }
+    },
+    {
+      "id": "i_shield",
+      "name": "Shield",
+      "category": "Spell",
+      "icon": "",
+      "notes": "",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "key": "Shield",
+      "stats": {
+        "slvl": 1,
+        "school": 0,
+        "ritual": 0
+      }
+    },
+    {
+      "id": "i_rope",
+      "name": "Rope",
+      "category": "Gear",
+      "icon": "",
+      "notes": "Fifty feet, hempen",
+      "vis": "all",
+      "area": null,
+      "damage": "",
+      "cost": "",
+      "throwSkill": "",
+      "stats": {
+        "wt": 10,
+        "cost": 1
+      }
+    }
+  ],
+  "combat": {
+    "blastAuto": "roll",
+    "blastRoller": "owner",
+    "hpResource": "",
+    "cover": {
+      "on": false,
+      "style": "graded"
+    }
+  },
+  "sheet": {
+    "tabs": [],
+    "sections": [
+      {
+        "id": "s_abil",
+        "title": "Abilities",
+        "cols": 2,
+        "fields": [
+          {
+            "id": "f_str",
+            "w": 1
+          },
+          {
+            "id": "f_strmod",
+            "w": 1
+          },
+          {
+            "id": "f_dex",
+            "w": 1
+          },
+          {
+            "id": "f_dexmod",
+            "w": 1
+          }
+        ]
+      },
+      {
+        "id": "s_gear",
+        "title": "Gear",
+        "cols": 1,
+        "fields": [
+          {
+            "id": "f_wpn",
+            "w": "row"
+          },
+          {
+            "id": "f_spl",
+            "w": "row"
+          },
+          {
+            "id": "f_inv",
+            "w": "row"
+          }
+        ]
+      }
+    ]
+  }
+}

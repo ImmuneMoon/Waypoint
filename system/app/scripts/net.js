@@ -1196,6 +1196,7 @@ net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets it
     window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } });
 };
 // A blast thrown from a character sheet, shown to the players ON THAT MAP (item library, 1.5.0). Host only; no GM-only data.
+// [netcheck:blast-start]
 net.broadcastBlast = function(blast, mapId) {
     if (!net.active || net.role !== 'host' || !blast) return;
     var b = { x: Number(blast.x), y: Number(blast.y), ft: Number(blast.ft), elev: Number(blast.elev) || 0, name: typeof blast.name === 'string' ? blast.name.slice(0, 60) : '', by: typeof blast.by === 'string' ? blast.by.slice(0, 60) : '' };
@@ -1204,6 +1205,7 @@ net.broadcastBlast = function(blast, mapId) {
     var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
+// [netcheck:blast-end]
 net.broadcastBlastClear = function(mapId) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;
@@ -3569,6 +3571,7 @@ net.diceRoll = function(expr, o) {
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
     if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names, chR) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
     if (o.priv) rec.priv = 'gm';
+    else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
     else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
     else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rec.names).join(', ') + '.'); }   // 5h: nor a number a GM-only effect moved
     else if (hosting) {

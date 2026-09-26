@@ -1653,9 +1653,9 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
 }
 // ---- item-list widgets (Stage 4: the plain list and the rich table share these) ----
 var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
-function itemThrowBtn(def, c, f, rid) {   // Stage 6 F4a: the throw names the carried row (the host reads its definition)
+function itemThrowBtn(def, c, f, rid) {   // Stage 6 F4a: the throw names the carried row (the host reads its definition). A GM-only item, or one on a GM-only list: its damage and its blast's name stay the GM's
     var tb = el('button', 'tool ghost sheet-item-throw', '💥 Throw'); tb.title = 'Throw ' + def.name + ' — then click the map';
-    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '' }); var hp = tb.closest('.hud-panel'); if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
+    tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '', gmOnly: def.vis === 'gm' || f.vis === 'gm' }); var hp = tb.closest('.hud-panel'); if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
     return tb;
 }
 function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has the same controls on a player's sheet (a bound or cursed one never shows it)
@@ -1962,7 +1962,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
-    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); rb.addEventListener('click', function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key); }); lab.appendChild(rb); }   // the field's own roll (1.5.0)
+    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); rb.addEventListener('click', function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined); }); lab.appendChild(rb); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
@@ -2086,7 +2086,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     b.addEventListener('click', function(e) {
         var lb = label, vv = vars, cv = c;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); cv = cN; } catch (err) { lb = label; vv = vars; cv = c; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label, cv); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, lb, why ? { priv: true } : undefined);
+        var why = labelSecret(sys, vv, r.label, cv); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, lb, why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined);   // a GM-only roll stays the GM's
     });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
@@ -2101,7 +2101,7 @@ function rollInit(charId) {
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
     var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label, c) : '';   // HF5a: the label's value, and the GM's privacy rule
     if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
-    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI });
+    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI, gmOnly: r.vis === 'gm' });
 }
 // One value changed on the open sheet: the GM applies it here; a player asks the host and shows it meanwhile
 function commit(c, f, value) {

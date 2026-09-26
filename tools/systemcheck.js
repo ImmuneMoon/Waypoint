@@ -1696,7 +1696,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && NF(nfSys([{ label: '{Facing}' }], [{ key: 'Facing', kind: 'number' }])) === false && NF({ fields: [{ key: 'X', formula: 'Facing + 1' }], rolls: [] }) === true);
         check('HUD frame HF5a (source): both roll buttons (the band and a section) are drawn with the system and the render\'s resolver, and nothing else builds one; the initiative roll resolves its label and its privacy the same way; the privacy check is the host\'s alone; the label input says so; the tour and Help describe it',
             /rollNode\(rollById\[q\.roll\], c, sys, all\.vars\)/.test(sh8) && /rollNode\(rollById\[pl\.roll\], c, sys, all\.vars\)/.test(sh8) && (sh8.match(/rollNode\(/g) || []).length === 3
-            && /lbI = allI \? rollLabel\(r, sys, c, allI\.vars\) : r\.label, whyI = allI \? labelSecret\(sys, allI\.vars, r\.label, c\) : ''/.test(sh8) && /rollFor\(charId, r\.formula, lbI \|\| 'Initiative', \{ source: 'combat', priv: !!whyI \}\)/.test(sh8)
+            && /lbI = allI \? rollLabel\(r, sys, c, allI\.vars\) : r\.label, whyI = allI \? labelSecret\(sys, allI\.vars, r\.label, c\) : ''/.test(sh8) && /rollFor\(charId, r\.formula, lbI \|\| 'Initiative', \{ source: 'combat', priv: !!whyI, gmOnly: r\.vis === 'gm' \}\)/.test(sh8)
             && /if \(isClient\(\) \|\| !\(n && n\.active && n\.role === 'host'\)/.test(sh8) && /import \{[^}]*labelGmNames, gmEffectNames, labelNames[^}]*\} from '\.\/systemcore\.js';/.test(sh8) && sh8.indexOf('{formula} shows a value: Attack ({' + BS8 + 'u00b1AtkBonus})') > 0
             && /A roll&rsquo;s label can show a value: <code>Attack \(\{&plusmn;AtkBonus\}\)<\/code>\./.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'))
             && /<b>Values in labels<\/b>: a roll&rsquo;s label can carry <code>\{formula\}<\/code> values like a caption/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
@@ -1821,8 +1821,8 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             ri('c_i'); return { calls, toasts }; };
         const iA = runInit('Init ({' + PMR + 'DEXmod})'), iG = runInit('Init ({GMFig})'), iOff = runInit('Init ({GMFig})', { net: null }), iNoF = runInit('Init ({' + PMR + 'DEXmod})', { noF: true });
         check('HUD frame HF5 review: rollInit (run for real) sends the label as worked out ("Init (+2)" at DEX 14) from the combat roster; one naming a GM-only value goes private with one toast on a hosting GM and public offline; with no formula engine the label goes as written',
-            j(iA.calls) === j([['c_i', 'd20 + DEXmod', 'Init (+2)', { source: 'combat', priv: false }]]) && iA.toasts.length === 0 && j(iG.calls[0].slice(2)) === j(['Init (0)', { source: 'combat', priv: true }]) && iG.toasts.length === 1 && /GMFig/.test(iG.toasts[0])
-            && j(iOff.calls[0].slice(2)) === j(['Init (0)', { source: 'combat', priv: false }]) && iOff.toasts.length === 0 && j(iNoF.calls[0].slice(2)) === j(['Init ({' + PMR + 'DEXmod})', { source: 'combat', priv: false }]), j([iA.calls, iG.calls, iG.toasts, iOff.calls, iNoF.calls]));
+            j(iA.calls) === j([['c_i', 'd20 + DEXmod', 'Init (+2)', { source: 'combat', priv: false, gmOnly: false }]]) && iA.toasts.length === 0 && j(iG.calls[0].slice(2)) === j(['Init (0)', { source: 'combat', priv: true, gmOnly: false }]) && iG.toasts.length === 1 && /GMFig/.test(iG.toasts[0])
+            && j(iOff.calls[0].slice(2)) === j(['Init (0)', { source: 'combat', priv: false, gmOnly: false }]) && iOff.toasts.length === 0 && j(iNoF.calls[0].slice(2)) === j(['Init ({' + PMR + 'DEXmod})', { source: 'combat', priv: false, gmOnly: false }]), j([iA.calls, iG.calls, iG.toasts, iOff.calls, iNoF.calls]));
         // turnView and the sheet's branch of tokenTurned, run for real: a round change marks the view stale and the final call redraws it once
         const flJ = JSON.stringify(flagsR); let rNow = '', nfR = true, swapsR = 0; const redrawsV = [], redrawsS = [];
         const tvSrc = shR.slice(shR.indexOf('function turnView(v, final) {'), shR.indexOf('// The floating panels'));
@@ -1920,14 +1920,14 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             j(apiA.sent) === j([['Attack (13)', { priv: true }]]) && apiA.toasts.length === 1 && /GM-only value \(Bonus\)/.test(apiA.toasts[0])
             && btnB.textContent === 'Pool (5)' && j(apiB.sent) === j([['Pool (24)', { priv: true }]]) && apiB.toasts.length === 1 && j(apiC.sent) === j([['Pool (5)', undefined]]) && apiC.toasts.length === 0, j([apiA.sent, apiA.toasts, btnB.textContent, apiB.sent, apiC.sent]));
         const riSrcD = shD.slice(shD.indexOf('function rollInit(charId) {'), shD.indexOf('// One value changed on the open sheet'));
-        const runInitD = (label, vals, o) => { o = o || {}; const sysI = Object.assign({}, gD, { rolls: [{ id: 'r_i', label: label, formula: 'd20 + A', init: true }] }), calls = [], toasts = [], ch = { id: 'c_i', name: 'I', values: vals || {} }, camp = { id: 'k', system: sysI, chars: { c_i: ch } }, api = mkD({ net: o.net === undefined ? { active: true, role: 'host' } : o.net });
+        const runInitD = (label, vals, o) => { o = o || {}; const sysI = Object.assign({}, gD, { rolls: [{ id: 'r_i', label: label, formula: 'd20 + A', init: true, vis: o.vis }] }), calls = [], toasts = [], ch = { id: 'c_i', name: 'I', values: vals || {} }, camp = { id: 'k', system: sysI, chars: { c_i: ch } }, api = mkD({ net: o.net === undefined ? { active: true, role: 'host' } : o.net });
             const ri = new Function('getActiveCampaign', 'systemOf', 'charById', 'initRoll', 'window', 'F', 'resolveAll', 'tokenCtxFor', 'rollLabel', 'labelSecret', 'toast', riSrcD + '\nreturn rollInit;')(
                 () => camp, c => c.system, (id, c) => (c.chars[id] || null), S.initRoll, { wpDice: { rollFor: (...a) => { calls.push(a); return { ok: true }; } }, wpVtt: { on: () => true } }, () => F, S.resolveAll, () => null, api.rollLabel, api.labelSecret, t => toasts.push(t));
             ri('c_i'); return { calls, toasts }; };
         const iBD = runInitD('Init ({Bonus})'), iOffD = runInitD('Init ({Bonus})', {}, { net: null }), iFullD = runInitD('Init ({HP})'), iStD = runInitD('Init ({HP})', { f_hp: { cur: 7 } });
         check('derived GM-only values: rollInit (run for real) with a label showing a derived value goes private with one toast on a hosting GM and public offline; the character\'s own pool decides (full: private; stored: public)',
-            j(iBD.calls[0].slice(2)) === j(['Init (13)', { source: 'combat', priv: true }]) && iBD.toasts.length === 1 && /\(Bonus\)/.test(iBD.toasts[0]) && j(iOffD.calls[0].slice(2)) === j(['Init (13)', { source: 'combat', priv: false }]) && iOffD.toasts.length === 0
-            && j(iFullD.calls[0].slice(2)) === j(['Init (24)', { source: 'combat', priv: true }]) && j(iStD.calls[0].slice(2)) === j(['Init (7)', { source: 'combat', priv: false }]) && iStD.toasts.length === 0, j([iBD, iOffD, iFullD, iStD]));
+            j(iBD.calls[0].slice(2)) === j(['Init (13)', { source: 'combat', priv: true, gmOnly: false }]) && iBD.toasts.length === 1 && /\(Bonus\)/.test(iBD.toasts[0]) && j(iOffD.calls[0].slice(2)) === j(['Init (13)', { source: 'combat', priv: false, gmOnly: false }]) && iOffD.toasts.length === 0
+            && j(iFullD.calls[0].slice(2)) === j(['Init (24)', { source: 'combat', priv: true, gmOnly: false }]) && j(iStD.calls[0].slice(2)) === j(['Init (7)', { source: 'combat', priv: false, gmOnly: false }]) && iStD.toasts.length === 0, j([iBD, iOffD, iFullD, iStD]));
         const lsD = shD.slice(shD.indexOf('function labelSecret('), shD.indexOf('function rollNode('));
         check('derived GM-only values (source): labelSecret asks gmDerivedNames of the drawn names beside the direct and the effect checks, and both callers hand it the character; net.diceRoll asks gmOnlyNames of every name the formula writes and gmDerivedNames of the names it read, once each, before the whisper; the export and the window API carry it; Help says so',
             (lsD.match(/gmDerivedNames\(/g) || []).length === 1 && /gmDerivedNames\(sys, Fm, ns, c\)/.test(lsD) && /var why = labelSecret\(sys, vv, r\.label, cv\);/.test(shD) && /whyI = allI \? labelSecret\(sys, allI\.vars, r\.label, c\) : ''/.test(shD)
@@ -1974,6 +1974,55 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const parK = parityD(kRaw, chK);
         check('derived GM-only values: on this system too, gmDerivedNames lists a visible name exactly when the players\' view reads it as an error — SZ included, a skill over a GM-only field that is 0, whose ranks + 0 was the GM\'s very total',
             parK.length === 0 && j(S.gmDerivedNames(gK, F, ND(['SZ', 'SZ.base', 'SZ.ranks', 'SE']), chK)) === j(['SZ', 'SZ.base']), j(parK));
+
+        /* 1.5.0 GM-only rolls: a GM-only field's own roll, a GM-only roll (initiative too) and the throw of a GM-only item (or of one on a GM-only list)
+           tell the dice path so (gmOnly); net.diceRoll keeps such a roll the hosting GM's (netcheck). The field's button, rollNode, rollInit,
+           itemThrowBtn, sheetRoll and dice.js's rollFor and roll run for real */
+        const gRG = cleanSystem({ v: 1, name: 'G', fields: dRaw.fields.concat([{ id: 'f_hs', key: 'Sanity', label: 'Hidden Sanity', kind: 'formula', formula: '50', vis: 'gm', roll: 'd100' }, { id: 'f_lk', key: 'Luck', kind: 'formula', formula: '3', roll: 'd6 + Luck' }]),
+            rolls: [{ id: 'r_gs', label: 'Secret check', formula: 'd20', vis: 'gm' }, { id: 'r_op', label: 'Open check', formula: 'd20' }, { id: 'r_gv', label: 'Veiled ({Bonus})', formula: 'd20', vis: 'gm' }] }, GVD);
+        const fbSrcG = shD.slice(shD.indexOf('function fieldNodeBody('), shD.indexOf('// A roll from a sheet button: shift/alt-click'));
+        const feG = (tag, cls, text) => Object.assign(feD(tag, cls, text), { classList: { add() {} }, closest: () => null });
+        const fieldG = key => { const sent = [], f = gRG.fields.find(x => x.key === key);
+            const fnb = new Function('el', 'canRoll', 'sheetRoll', 'signTone', 'valueTone', 'TONE_CLASS', 'fxMark', fbSrcG + '\nreturn fieldNodeBody;')(feG, () => true, (e, cid, expr, label, opts) => sent.push([cid, expr, label, opts]), () => '', () => '', {}, () => null);
+            const box = fnb(f, chE, { value: 1, text: '1' }, true, true, gRG), rb = box.children[0].children[0]; rb.on.click({}); return { sent, f }; };
+        const fHs = fieldG('Sanity'), fLk = fieldG('Luck');
+        check('GM-only rolls: a GM-only field\'s own roll button (fieldNodeBody, run for real) tells the dice path the roll is GM-only, with the field\'s label; a visible field\'s asks nothing',
+            fHs.f.vis === 'gm' && fHs.f.roll === 'd100' && j(fHs.sent) === j([['c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]]) && j(fLk.sent) === j([['c_d', 'd6 + Luck', 'Luck', undefined]]), j([fHs.f, fHs.sent, fLk.sent]));
+        const varsG = S.resolveAll(gRG, chE, F, null).vars, rollG = id => gRG.rolls.find(r => r.id === id);
+        const clickG = (id, o) => { const api = mkD(Object.assign({ camp: { chars: { c_d: chE } } }, o || {})); api.rollNode(rollG(id), chE, gRG, varsG).children[0].on.click({}); return api; };
+        const rGs = clickG('r_gs'), rGsOff = clickG('r_gs', { net: null }), rOp = clickG('r_op'), rGv = clickG('r_gv');
+        check('GM-only rolls: a GM-only roll (rollNode, run for real) tells the dice path so, hosting or not (net.diceRoll decides, and says so; no toast here); a visible roll asks nothing; a GM-only roll whose label shows a GM-only value goes private with the label\'s one toast',
+            rollG('r_gs').vis === 'gm' && j(rGs.sent) === j([['Secret check', { gmOnly: true }]]) && rGs.toasts.length === 0 && j(rGsOff.sent) === j([['Secret check', { gmOnly: true }]]) && j(rOp.sent) === j([['Open check', undefined]])
+            && j(rGv.sent) === j([['Veiled (13)', { priv: true }]]) && rGv.toasts.length === 1 && /\(Bonus\)/.test(rGv.toasts[0]), j([rGs.sent, rGsOff.sent, rOp.sent, rGv.sent, rGv.toasts]));
+        const iGs = runInitD('Init', {}, { vis: 'gm' }), iGsOff = runInitD('Init', {}, { vis: 'gm', net: null }), iOp = runInitD('Init');
+        check('GM-only rolls: a GM-only initiative roll (rollInit, run for real) tells the dice path so from the combat roster, hosting or not; a visible one asks nothing',
+            j(iGs.calls[0].slice(1)) === j(['d20 + A', 'Init', { source: 'combat', priv: false, gmOnly: true }]) && iGs.toasts.length === 0 && j(iGsOff.calls[0].slice(2)) === j(['Init', { source: 'combat', priv: false, gmOnly: true }])
+            && j(iOp.calls[0].slice(2)) === j(['Init', { source: 'combat', priv: false, gmOnly: false }]), j([iGs.calls, iGsOff.calls, iOp.calls]));
+        const itSrcG = shD.slice(shD.indexOf('function itemThrowBtn('), shD.indexOf('function itemQtyCell('));
+        const throwG = (def, f) => { const arms = []; let closed = 0;
+            const itb = new Function('el', 'window', 'closeHud', 'closeSheet', itSrcG + '\nreturn itemThrowBtn;')(feG, { wpArmBlast: (...a) => arms.push(JSON.parse(JSON.stringify(a))) }, () => {}, () => { closed++; });
+            itb(def, { id: 'c_n', name: 'Nix' }, f, 'w_1').on.click({}); return { arms, closed }; };
+        const dGI = { name: 'Orb', vis: 'gm', area: { ft: 10, name: '' }, damage: '3d6' }, dVI = { name: 'Grenade', vis: 'all', area: { ft: 15, name: 'Frag' }, damage: '2d6' }, lA = { id: 'f_it', vis: 'all' }, lG = { id: 'f_ig', vis: 'gm' };
+        const tGA = throwG(dGI, lA), tVA = throwG(dVI, lA), tVG = throwG(dVI, lG);
+        check('GM-only rolls: a sheet Throw (itemThrowBtn, run for real) arms the blast marked GM-only for a GM-only item or an item on a GM-only list, and unmarked for a visible item on a visible list; the rest of the throw as before',
+            j(tGA.arms) === j([[10, 'Orb', { charId: 'c_n', fieldId: 'f_it', rowId: 'w_1', by: 'Nix', damage: '3d6', gmOnly: true }]]) && j(tVA.arms) === j([[15, 'Frag', { charId: 'c_n', fieldId: 'f_it', rowId: 'w_1', by: 'Nix', damage: '2d6', gmOnly: false }]])
+            && tVG.arms.length === 1 && tVG.arms[0][2].gmOnly === true && tVG.arms[0][2].fieldId === 'f_ig' && tGA.closed === 1, j([tGA.arms, tVA.arms, tVG.arms]));
+        const srSrcG = shD.slice(shD.indexOf('function sheetRoll('), shD.indexOf('var ROLL_TONE_CLS'));
+        const dkG = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n'), DCG = await import(url('dicecore.js'));
+        const cutG = (s, a, b) => { const i = s.indexOf(a), k = s.indexOf(b, i); return i < 0 || k < 0 ? '' : s.slice(i, k); };
+        const rfSrcG = cutG(dkG, 'function rollFor(', '/* ---------- Stage 5a'), roSrcG = cutG(dkG, 'function roll(expr, opts) {', 'function rollFromPanel()');
+        const askedG = [], diceG = new Function('ui', 'panelOpen', 'syncChars', 'toast', 'net', 'cleanExpr', 'LIMITS', 'remember', "var lastSource = 'panel';\n" + rfSrcG + roSrcG + '\nreturn rollFor;')(
+            () => null, () => false, () => {}, () => {}, () => ({ diceRoll: (expr, o) => { askedG.push([expr, o]); return { ok: true, priv: false }; } }), DCG.cleanExpr, DCG.LIMITS, () => {});
+        diceG('c_d', 'd100', 'Hidden Sanity', { gmOnly: true }); diceG('c_d', 'd6', 'Luck'); diceG('c_d', 'd6', 'Both', { priv: true, gmOnly: true });
+        const viaG = [], srG = new Function('window', srSrcG + '\nreturn sheetRoll;')({ wpDice: { rollFor: (...a) => viaG.push(['plain'].concat(a)), rollWithMod: (...a) => viaG.push(['mod'].concat(a.slice(0, 4))) } });
+        srG({}, 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }); srG({ shiftKey: true, currentTarget: null }, 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true });
+        check('GM-only rolls: the hint reaches net.diceRoll unchanged — sheetRoll hands it to a plain roll and to the modifier popover (whose Roll passes it on), and dice.js\'s rollFor and roll (run for real) give net.diceRoll gmOnly beside priv; a roll without it asks gmOnly false',
+            j(viaG) === j([['plain', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }], ['mod', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]])
+            && j(askedG) === j([['d100', { priv: false, gmOnly: true, charId: 'c_d', label: 'Hidden Sanity' }], ['d6', { priv: false, gmOnly: false, charId: 'c_d', label: 'Luck' }], ['d6', { priv: true, gmOnly: true, charId: 'c_d', label: 'Both' }]])
+            && /closeModPop\(\); rollFor\(charId, r\.expr, label, opts\); \}\);/.test(dkG), j([viaG, askedG]));
+        const hG = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('GM-only rolls (source): Help says a GM-only field\'s own roll, a GM-only roll and the damage of a GM-only item (or one thrown from a GM-only list) are kept private, and what a visible item\'s damage and a GM-only item\'s blast show',
+            /So are a GM-only field&rsquo;s own roll, a GM-only roll, and the damage of an item that is GM-only or thrown from a GM-only list\./.test(hG) && /A visible item&rsquo;s damage is rolled at the table like any roll; the damage of a GM-only item, or of one thrown from a GM-only list, goes to you alone, and its blast reaches players without its name\./.test(hG) && !/Item formulas never leave your machine/.test(hG));
     }
 
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */

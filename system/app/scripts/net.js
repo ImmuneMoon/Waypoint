@@ -1879,6 +1879,17 @@ function handlePos(msg, conn) {
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
         msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = Math.max(-1e6, Math.min(1e6, prot)); msg.front = Math.max(-1e6, Math.min(1e6, pfr));   // bounded (see the item gate)
+        var dkW = msg.itemId + '|' + msg.wbId; if (!_dragFrom[dkW]) { if (Object.keys(_dragFrom).length > 400) _dragFrom = Object.create(null); _dragFrom[dkW] = { x: Number(w.x) || 0, y: Number(w.y) || 0 }; }
+        var frW = _dragFrom[dkW], wlM = moveMode(camp, 'walls');
+        if (msg.final) delete _dragFrom[dkW];
+        if (wlM !== 'off' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, frW.x, frW.y, msg.x, msg.y)) {   // T3a: a wall in the way, from where the drag began
+            if (wlM === 'refuse') {
+                if (!msg.final) return;   // mid-drag: not applied (nothing past the wall reaches them meanwhile)
+                snapBack(camp, map, w, msg, frW); turnNote(conn, 'A wall is in the way: your token goes back.');
+                return;
+            }
+            if (msg.final) { turnNote(conn, 'That move went through a wall.'); toast((w.charName || 'A token') + ' moved through a wall.'); }
+        }
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
@@ -1900,6 +1911,16 @@ function handlePos(msg, conn) {
         applyPosToDom(msg);
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final === true);   // 5h Fold 3: the facing dial (the values are re-checked by facingCtx)
     }
+}
+// Turn-based combat T3a (D11, owner 2026-09-26): the campaign's movement modes, each refuse (the default), warn or off — walls: a player's token
+// landing in or crossing a cell a sight-blocker occupies, always (in or out of combat), as a wall stops a token; the GM is never stopped
+function moveMode(camp, k) { var t = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[k] : ''; return t === 'warn' || t === 'off' ? t : 'refuse'; }
+var _dragFrom = Object.create(null);   // itemId|wbId -> where a player's drag began (its token's position before the drag's first move)
+function turnNote(conn, text) { if (conn && typeof conn.send === 'function') { try { conn.send({ type: 'turn-note', text: String(text).slice(0, 200) }); } catch (e) { sendFailed(e); } } }
+function snapBack(camp, map, w, msg, to) {   // the token goes back where its drag began, for everyone (the mover too)
+    w.x = to.x; w.y = to.y;
+    var back = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: to.x, y: to.y, rot: w.rot || 0, front: w.front || 0, final: true };
+    applyPosToDom(back); broadcastPos(back, null, camp, map, w);
 }
 // [netcheck:pos-end]
 
@@ -3086,6 +3107,12 @@ function handleMessage(msg, conn) {
         var ap = Dp.cleanApply(msg); if (!ap) return;
         pushChat({ from: ap.from, text: '', scope: ap.priv ? 'whisper' : 'global', ts: ap.ts, apply: ap });
         // [netcheck:applyin-end]
+    } else if (msg.type === 'turn-note' && net.role === 'client') {
+        // [netcheck:turnnote-start]
+        // Turn-based combat T3a: why the host stopped or noted a move of theirs — from the synced host only, a plain line as a toast
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || typeof msg.text !== 'string') return;
+        var tnx = msg.text.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').slice(0, 200).trim(); if (tnx) toast(tnx);
+        // [netcheck:turnnote-end]
     } else if (msg.type === 'due' && net.role === 'client') {
         // [netcheck:duein-start]
         // Turn-based combat T2b: a reminder for a timed action of the player's own character, from the synced host only — cleaned (ids and text);

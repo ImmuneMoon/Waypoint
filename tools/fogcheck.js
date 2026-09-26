@@ -14,7 +14,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     try { X = await import(url('fogcore.js')); } catch (e) { err = e; }
     check('module loads in Node with no window', !!X && !err, err && err.message);
     if (!X) { console.log(NL + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
-    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog } = X;
+    const { LIMITS, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog } = X;
 
     /* ---- square geometry ---- */
     const sq = squareGrid(50);
@@ -100,6 +100,12 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
         const ctr = cellCenter({ q: 1, r: 1 }, hx);
         const cells = cellsUnderHex(ctr.x - 30, ctr.y - 26, 60, 52, hx).map(c => cellKey(c, hx));
         return cells.indexOf(cellKey({ q: 1, r: 1 }, hx)) >= 0 && cells.length <= 3; })());
+    check('moveClear (turn-based combat T3a, D11): a token\'s move is clear with no blockers or no grid; it may not land in or cross a blocker cell; its start cell never counts (it steps out of a wall); a hex wall too', (() => {
+        const wall = { '3,0': 1, '3,1': 1 }, hxW = {}; hxW[cellKey(cellOf(105, 26, hx), hx)] = 1;
+        return moveClear(25, 25, 275, 25, sq, null) === true && moveClear(25, 25, 275, 25, null, wall) === true
+            && moveClear(25, 25, 275, 25, sq, wall) === false && moveClear(25, 25, 175, 25, sq, wall) === false && moveClear(25, 25, 125, 25, sq, wall) === true
+            && moveClear(175, 25, 225, 25, sq, wall) === true && moveClear(125, 25, 160, 25, sq, wall) === false && moveClear(160, 25, 240, 25, sq, wall) === true && moveClear(175, 25, 175, 75, sq, wall) === false && moveClear(25, 125, 275, 125, sq, wall) === true
+            && moveClear(15, 26, 195, 26, hx, hxW) === false && moveClear(15, 26, 60, 52, hx, hxW) === true && moveClear(NaN, 0, 10, 10, sq, wall) === true; })());
     check('lineClear: clear with no blockers, blocked through an opaque intermediate, adjacent always clear', (() => {
         return lineClear({ c: 0, r: 0 }, { c: 5, r: 0 }, sq, null) === true
             && lineClear({ c: 0, r: 0 }, { c: 5, r: 0 }, sq, { '3,0': 1 }) === false

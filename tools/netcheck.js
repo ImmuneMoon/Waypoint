@@ -1334,6 +1334,34 @@ pendingChecks.push((async () => {
         j(callsT) === j(['R1', 'T1.0', 'T1.2', 'R2', 'T2.0', 'R1', 'T1.2', 'T1.1', 'T1.0']), j(callsT));
 })());
 
+// Turn-based combat T3a (D11, owner): walls stop a player's token — the host's pos gate (net.js, run for real) asks the fog for the move from
+// where the drag began; the campaign's mode: refuse (mid-drag moves are not applied; the drop puts the token back for everyone, the mover
+// too, with a note), warn (through, a note to the mover and the GM), off; a client shows the note from its synced host only, as plain text
+{
+    const posW = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), tnW = between('// [netcheck:turnnote-start]', '// [netcheck:turnnote-end]', 'turnnote');
+    const runW = (mode, moves, o) => {
+        o = o || {}; const w = { id: 't1', isChar: true, ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, map = { type: 'map', whiteboard: [w] }, camp = { items: { m1: map }, turnRules: mode === undefined ? undefined : { walls: mode } };
+        const out = { bcast: [], dom: [], toasts: [], sent: [], asked: [] }, conn = { peer: 'pA', send: m => out.sent.push(m) };
+        const env = { net: { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' } }, tokenDropped() {} }, campOf: () => camp, validKey: k => k === 'm1', peerPaused: () => false, allow: () => true, checkRoomHandouts() {},
+            applyPosToDom: m => out.dom.push(m), broadcastPos: (m, ex) => out.bcast.push([m.x, m.y, m.final, ex === null ? 'all' : 'others']), toast: t => out.toasts.push(t), saveRemoteSoon() {}, sendFailed: e => { throw e; },
+            window: { wpFog: { moveBlocked: (mp, tok, fx, fy, tx, ty) => { out.asked.push([fx, fy, tx, ty]); return tx >= 200 && fx < 200; } } }, setTimeout: f => f() };
+        const run = new Function('env', 'msg', 'conn', 'var net = env.net, campOf = env.campOf, validKey = env.validKey, peerPaused = env.peerPaused, allow = env.allow, checkRoomHandouts = env.checkRoomHandouts, applyPosToDom = env.applyPosToDom, broadcastPos = env.broadcastPos, toast = env.toast, saveRemoteSoon = env.saveRemoteSoon, sendFailed = env.sendFailed, window = env.window, setTimeout = env.setTimeout;\n' + posW + '\nreturn function(m, c) { return handlePos(m, c); };')(env);
+        moves.forEach(mv => run(Object.assign({ type: 'pos', campId: 'c', itemId: 'm1', wbId: 't1' }, mv), conn));
+        out.at = [w.x, w.y]; return out;
+    };
+    const drag = [{ x: 100, y: 0 }, { x: 250, y: 0 }, { x: 300, y: 0, final: true }];
+    const rf = runW(undefined, drag), rfE = runW('refuse', drag), wn = runW('warn', drag), of = runW('off', drag), ok = runW('refuse', [{ x: 100, y: 0 }, { x: 150, y: 0, final: true }]);
+    const two = runW('refuse', [{ x: 100, y: 0, final: true }, { x: 150, y: 0 }, { x: 250, y: 0, final: true }]);
+    check('walls (host, run for real): refuse by default — a move past the wall is not applied mid-drag, the drop puts the token back where the drag began for everyone (the mover too) with one note to them; every check measures from where the drag began',
+        j(rf.at) === j([0, 0]) && j(rf.bcast) === j([[100, 0, false, 'others'], [0, 0, true, 'all']]) && rf.sent.length === 1 && rf.sent[0].type === 'turn-note' && /wall/.test(rf.sent[0].text) && rf.asked.every(a => a[0] === 0 && a[1] === 0) && j(rfE) === j(rf), j(rf));
+    check('walls: warn lets the move through with a note to the mover and the GM; off never asks; a move clear of the wall goes through untouched; each drop begins the next drag from where it landed',
+        j(wn.at) === j([300, 0]) && wn.sent.length === 1 && /went through a wall/.test(wn.sent[0].text) && wn.toasts.length === 1 && j(of.at) === j([300, 0]) && !of.asked.length && !of.sent.length
+        && j(ok.at) === j([150, 0]) && !ok.sent.length && j(two.at) === j([100, 0]) && j(two.asked.map(a => a[0])) === j([0, 100, 100]), j([wn, of.asked, two]));
+    const runTN = (msg, o) => { o = o || {}; const t = []; new Function('msg', 'conn', 'net', 'toast', tnW)(msg, { peer: o.peer || 'h' }, { foreign: true, syncedPeer: 'h', stream: false }, x => t.push(x)); return t; };
+    check('turn-note (client, run for real): the synced host\'s note shows as one plain line (controls and bidi marks out, 200 at most); nothing from another peer or that is not text',
+        j(runTN({ type: 'turn-note', text: 'A wall\u202e\u0007 is <b>here</b>' + 'x'.repeat(300) })) === j(['A wall   is <b>here</b>' + 'x'.repeat(177)]) && !runTN({ type: 'turn-note', text: 'x' }, { peer: 'o' }).length && !runTN({ type: 'turn-note', text: 5 }).length);
+}
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

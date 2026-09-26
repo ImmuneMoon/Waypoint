@@ -502,6 +502,10 @@
             {
               "id": "f_dodge",
               "w": 1
+            },
+            {
+              "id": "f_turn",
+              "w": 1
             }
           ],
           "inline": true

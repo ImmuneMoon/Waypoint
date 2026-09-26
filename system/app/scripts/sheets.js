@@ -2073,10 +2073,11 @@ function rollLabel(r, sys, c, vars) {
 }
 // A public roll never carries a GM-only value: on the host, in a session, a roll whose label shows one (a GM-only field named anywhere in it,
 // as the players' view scrubs it, a value worked out from one, or a value a GM-only effect changed) goes to the GM alone, as its formula would.
+// The last two read the names the drawn values actually read (vars: the resolver the label is worked out with), as a roll's breakdown does.
 // c: the character the label is worked out for (a full pool reads its max). The names, each once, joined for the toast, or ''
 function labelSecret(sys, vars, text, c) {
     var n = net(), Fm = F(); if (isClient() || !(n && n.active && n.role === 'host') || !Fm || typeof text !== 'string' || text.indexOf('{') < 0) return '';
-    var ns = labelNames(Fm, text), hit = labelGmNames(sys, Fm, text).concat(gmDerivedNames(sys, Fm, ns, c), gmEffectNames(vars, ns)), low = hit.map(function(x) { return String(x).toLowerCase(); });
+    var ns = labelNames(Fm, text, vars), hit = labelGmNames(sys, Fm, text).concat(gmDerivedNames(sys, Fm, ns, c), gmEffectNames(vars, ns)), low = hit.map(function(x) { return String(x).toLowerCase(); });
     hit = hit.filter(function(x, i) { return low.indexOf(low[i]) === i; }); return hit.length ? hit.join(', ') : '';
 }
 function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the render's resolver, for the label (HF5a)

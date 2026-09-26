@@ -1218,11 +1218,18 @@ function capExpr(s) { var t = String(s).trim(), m = /^(\u00b1|\+\/-)\s*/.exec(t)
 // HUD frame (HF5a, H3): a roll's label may show values like a caption. What players see of a label that names a GM-only value: its plain
 // text before the first "{", less a trailing separator ("Trap save ({GMFig})" -> "Trap save"), or Roll
 function labelHead(text) { return String(text).split('{')[0].replace(/[\s(\[:\u00b7-]+$/, '') || 'Roll'; }
-// The names a label's {...} values read, as a roll's breakdown names them ([{ name }]) for the GM's privacy check; the first LIMITS.captionExprs, as drawn
-function labelNames(F, text) {
+// The names a label's {...} values read, as a roll's breakdown names them ([{ name }]) for the GM's privacy check; the first LIMITS.captionExprs, as drawn.
+// vars: the resolver the label is worked out with (captionParts' own evaluation), and then only the names each value actually read — a branch
+// if() does not take reads nothing, a value that fails shows a dash and reads nothing — as the roll's breakdown lists them; without it, every name written
+function labelNames(F, text, vars) {
     var out = [], seen = map(); if (typeof text !== 'string' || !F || !F.names) return out;
     var re = /\{([^{}]{1,300})\}/g, m, n = 0;
-    while (n < LIMITS.captionExprs && (m = re.exec(text))) { n++; var ns = []; try { ns = F.names(capExpr(m[1]).expr) || []; } catch (e) {} ns.forEach(function(nm) { var l = lower(nm); if (!seen[l]) { seen[l] = 1; out.push({ name: nm }); } }); }
+    while (n < LIMITS.captionExprs && (m = re.exec(text))) {
+        n++; var ex = capExpr(m[1]).expr, ns = null;
+        if (typeof vars === 'function' && typeof F.evaluate === 'function') { try { var res = F.evaluate(ex, { vars: vars, random: noDice }); ns = res && res.ok ? ((res.breakdown && res.breakdown.names) || []).map(function(x) { return x && x.name; }) : []; } catch (e) { ns = null; } }   // a throw reads as every name written (fail closed)
+        if (!ns) { try { ns = F.names(ex) || []; } catch (e) { ns = []; } }
+        ns.forEach(function(nm) { if (typeof nm !== 'string') return; var l = lower(nm); if (!seen[l]) { seen[l] = 1; out.push({ name: nm }); } });
+    }
     return out;
 }
 // HF5 review: the GM-only names a label shows ANYWHERE, read as the players' view scrubs it (fail closed): after every "{", closed or not,

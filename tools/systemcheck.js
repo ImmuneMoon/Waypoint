@@ -535,7 +535,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const again = S.applyEffectOp(GM5, ch5([{ id: 'x_1', ref: 'e_rage', on: false }]), 'f_fx', { op: 'add', rowId: 'x_2', ref: 'e_rage' }, F, {});
         const endBless = S.applyEffectOp(GM5, cP, 'f_fx', { op: 'remove', rowId: 'x_1' }, F, {});
         check('5h: adding an effect a character already has turns it back on (once per character); ending Blessed brings HP 14 down to the new max 10 in the same change',
-            again.ok && j(again.value) === j([{ id: 'x_1', ref: 'e_rage', on: true }]) && endBless.ok && endBless.value.length === 0 && endBless.clamp && j(endBless.clamp.f_hp) === j({ cur: 10 }), j([again, endBless]));
+            again.ok && j(again.value) === j([{ id: 'x_1', ref: 'e_rage', on: true, t: { left: 18, at: 0 } }]) && endBless.ok && endBless.value.length === 0 && endBless.clamp && j(endBless.clamp.f_hp) === j({ cur: 10 }), j([again, endBless]));
         check('5h: switching and ending need an existing row; a plain edit can never set an effects list', !S.applyEffectOp(GM5, cP, 'f_fx', { op: 'on', rowId: 'x_404', on: false }, F, {}).ok && S.applyEffectOp(GM5, cP, 'f_fx', { op: 'on', rowId: 'x_1', on: false }, F, {}).value[0].on === false && !S.applyEdit(GM5, cP, 'f_fx', [], F, {}).ok);
         // the projection: the owner gets a GM-only effect inline, a teammate names only
         const cc = { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_fx: [{ id: 'x_1', ref: 'e_rage', on: true }, { id: 'x_2', ref: 'e_curse', on: true }] } };
@@ -3233,7 +3233,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('look L6: fxCard and fxPillText sit inside the effects slice (no innerHTML there); the card is used only when the look asks, with the switch built once above the branch; a pill\'s class is picked by comparison; the × is the existing remove, for whoever may end it',
             /function fxCard\(/.test(fxSlice6) && /function fxPillText\(/.test(fxSlice6) && !/innerHTML/.test(fxSlice6)
             && /var cards = !!\(sys && sys\.sheet && sys\.sheet\.look && sys\.sheet\.look\.effects === 'cards'\);/.test(fxSlice6)
-            && /sw\.addEventListener\('change', function\(\) \{ commitEffect\(c, f, \{ op: 'on', rowId: r\.id, on: sw\.checked \}\); \}\);\n\s*if \(cards\) \{ wrap\.appendChild\(fxCard\(line, sw, r, d, f, c, labels, editable\)\); return; \}/.test(fxSlice6)
+            && /sw\.addEventListener\('change', function\(\) \{ commitEffect\(c, f, \{ op: 'on', rowId: r\.id, on: sw\.checked \}\); \}\);\n\s*if \(cards\) \{ wrap\.appendChild\(fxCard\(line, sw, r, d, f, c, labels, editable, sys\)\); return; \}/.test(fxSlice6)
             && /'sheet-fx-mod ' \+ \(m\.op === 'on' \? 'sheet-fx-mod-on' : m\.v >= 0 \? 'sheet-fx-mod-pos' : 'sheet-fx-mod-neg'\)/.test(fxSlice6)
             && /if \(editable\) \{ var rm = el\('button', 'tool ghost sheet-pm sheet-fx-rm sheet-fx-x', '\\u00d7'\);[^\n]*commitEffect\(c, f, \{ op: 'remove', rowId: r\.id \}\)/.test(fxSlice6)
             && /iconNode\('icon:hourglass-half', 'sheet-fx-durico'\)/.test(fxSlice6));
@@ -4031,7 +4031,54 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('T4 the sheet (source): a system roll with a cost names its entry and greys when spent; a list roll with a cost names its row index and greys; a list\'s apply greys; Actions per turn is a GM-only select writing camp.turnRules.acts; Help and the tour say so',
             /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf \|\| r\.cost\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shC) && /var cbR = can && typeof costBlock === 'function' \? costBlock\(c, r\.cost\) : ''; if \(cbR\) \{ b\.disabled = true;/.test(shC)
             && /withE = !!\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| !!r\.needs \|\| !!r\.malf \|\| !!r\.cost;/.test(shC) && /var cbL = typeof costBlock === 'function' \? costBlock\(c, r\.cost\) : ''; if \(cbL\) \{ b\.disabled = true;/.test(shC) && /var cbA = typeof costBlock === 'function' \? costBlock\(c, r\.cost\) : ''; if \(cbA\) \{ ab\.disabled = true;/.test(shC)
-            && /Actions per turn <select id="setActsMode"/.test(hmC) && /\['setActsMode', 'acts'\]/.test(stC) && /A roll or apply action that <b>costs<\/b> an action \(the Combat card&rsquo;s Turns\) spends one when a player presses it/.test(hmC) && /and spends the actions a turn allows\./.test(tuC));
+            && /Actions per turn <select id="setActsMode"/.test(hmC) && /\['setActsMode', 'acts'\]/.test(stC) && /A roll or apply action that <b>costs<\/b> an action \(the Combat card&rsquo;s Turns\) spends one when a player presses it/.test(hmC) && /and spends the actions a turn allows[;.]/.test(tuC));
+    }
+    /* ---- Turn-based combat T5a: an effect's time from its note; a row's one remaining amount; the ticks; what the owner sees; the chip ---- */
+    {
+        const sysD = { combat: { turn: { secs: 1, units: [{ key: 'watch', label: 'Watch', secs: 14400 }] } } }, pl = S.parseLasts, ls = S.lastsSecs;
+        check('T5a parseLasts / lastsSecs: a note that reads as an amount and a unit — turns or rounds (the System\'s A round is, else 6 s), seconds, minutes, hours, days, the system\'s own units by key or label, a plural s dropped, "next turn" one — is its time in game seconds; any other note none',
+            j(pl('10 seconds')) === j({ n: 10, u: 'seconds' }) && j(pl(' 3  Turns ')) === j({ n: 3, u: 'turns' }) && j(pl('next turn')) === j({ n: 1, u: 'turns' }) && pl('until dawn') === null && pl('0 turns') === null && pl('3') === null && pl(5) === null && pl('10 parsecs') === null
+            && ls({ dur: '3 turns' }, null) === 18 && ls({ dur: '3 turns' }, sysD) === 3 && ls({ dur: '1.5 minutes' }, sysD) === 90 && ls({ dur: '2 watches' }, sysD) === 28800 && ls({ dur: '1 Watch' }, sysD) === 14400 && ls({ dur: '2 hours' }, null) === 7200 && ls({ dur: 'until dawn' }, sysD) === 0 && S.roundSecs({ combat: { turn: { secs: 0 } } }) === 6);
+        const rawT = { v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_fx', key: 'Effects', kind: 'effects', edit: 'owner', hover: true }], rolls: [],
+            effects: [{ id: 'e_b', name: 'Bless', dur: '2 turns', mods: [] }, { id: 'e_q', name: 'Quick', dur: '10 seconds', mods: [] }, { id: 'e_n', name: 'Mark', dur: 'until dawn', mods: [] }, { id: 'e_s', name: 'Secret', dur: '1 minute', vis: 'gm', mods: [] }], sheet: { sections: [] } };
+        const gmT = cleanSystem(rawT, { F, gmView: true }), plT = cleanSystem(rawT, { F, gmView: false });
+        const opA = (list, q, o) => S.applyEffectOp(gmT, { id: 'c_p', values: { f_fx: list } }, 'f_fx', q, F, o || {});
+        const add1 = opA([], { op: 'add', rowId: 'x_1', ref: 'e_b' }, { now: 5000 }), add2 = opA([], { op: 'add', rowId: 'x_1', ref: 'e_b' }, { now: 5000, inCombat: true }), add3 = opA([], { op: 'add', rowId: 'x_1', ref: 'e_n' }, { now: 5000 });
+        const again = opA([{ id: 'x_1', ref: 'e_b', on: false, t: { left: 2, at: 0 } }], { op: 'add', rowId: 'x_9', ref: 'e_b' }, { now: 7000 });
+        const ah1 = opA([], { op: 'adhoc', row: { id: 'x_2', name: 'Stun', dur: '1 turn', mods: [] } }, { now: 9000 }), ah2 = opA([{ id: 'x_2', name: 'Stun', dur: '1 turn', mods: [], on: true, t: { left: 3, at: 0 } }], { op: 'adhoc', row: { id: 'x_2', name: 'Stunned', dur: '1 turn', mods: [] } }, { now: 9000 }), ah3 = opA([{ id: 'x_2', name: 'Stun', dur: '1 turn', mods: [], on: true, t: { left: 3, at: 0 } }], { op: 'adhoc', row: { id: 'x_2', name: 'Stun', dur: '2 turns', mods: [] } }, { now: 9000 });
+        check('T5a an effect added starts its timer: its time from now (out of combat) or stopped (in a combat); added again, afresh; a note with no time none; a new ad hoc row one, an edit keeps it unless its duration changed',
+            j(add1.value[0].t) === j({ left: 12, at: 5000 }) && j(add2.value[0].t) === j({ left: 12, at: 0 }) && !('t' in add3.value[0]) && j(again.value[0]) === j({ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: 7000 } })
+            && j(ah1.value[0].t) === j({ left: 6, at: 9000 }) && j(ah2.value[0].t) === j({ left: 3, at: 0 }) && j(ah3.value[0].t) === j({ left: 12, at: 9000 }), j([add1.value, add2.value, again.value, ah1.value, ah2.value, ah3.value]));
+        const cv = v => S.cleanValue(gmT.fields.find(f => f.id === 'f_fx'), v, S.valueOpts(gmT));
+        check('T5a a row keeps its timer through the cleaner (a number of seconds, 0 to 1e9, to the thousandth; at a whole ms or 0; p only as 1); a malformed one goes; a row without one stays as it was',
+            j(cv([{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12.34567, at: 5000.7, p: 1, x: 2 } }])) === j([{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12.346, at: 5000, p: 1 } }]) && j(cv([{ id: 'x_1', ref: 'e_b', on: true, t: { left: -3, at: -1, p: true } }])[0].t) === j({ left: 0, at: 0 })
+            && !('t' in cv([{ id: 'x_1', ref: 'e_b', on: true, t: { left: 'x' } }])[0]) && !('t' in cv([{ id: 'x_1', ref: 'e_b', on: true }])[0]) && j(cv([{ id: 'x_3', name: 'S', dur: '', mods: [], t: { left: 5, at: 0 } }])[0].t) === j({ left: 5, at: 0 }));
+        const chT = { id: 'c_p', ownerId: 'u_a', values: { f_fx: [{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: 0 } }, { id: 'x_2', ref: 'e_s', on: true, t: { left: 60, at: 1000 } }, { id: 'x_3', name: 'Stun', dur: '1 turn', mods: [], t: { left: 6, at: 0 } }] } };
+        const own = S.charFor(chT, plT, 'u_a', { lib: { e_b: gmT.effects[0], e_s: gmT.effects[3] } }), mate = S.charFor(chT, plT, 'u_b', { lib: { e_b: gmT.effects[0], e_s: gmT.effects[3] } });
+        const ownRows = own && own.values.f_fx, mateRows = mate && mate.values && mate.values.f_fx;
+        check('T5a the owner receives each timer (a library row\'s reference, a GM-only one inline, an ad hoc row); a teammate gets names only, never a timer',
+            !!ownRows && ownRows.every(r => r.t) && j(ownRows.map(r => r.t.left)) === j([12, 60, 6]) && Array.isArray(mateRows) && mateRows.length === 3 && mateRows.every(r => !r.t), j([ownRows, mateRows]));
+        const chK = { id: 'c_p', values: { f_hp: 3, f_fx: [{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: 0 } }, { id: 'x_2', ref: 'e_q', on: true, t: { left: 10, at: 1000 } }, { id: 'x_3', name: 'Stun', dur: '1 turn', mods: [], t: { left: 6, at: 0, p: 1 } }, { id: 'x_4', ref: 'e_n', on: true }, { id: 'x_5', ref: 'e_gone', on: true, t: { left: 1, at: 0 } }] } };
+        const kT = S.fxTick(gmT, chK, 'turn', 5000), kB = S.fxTick(gmT, chK, 'bank', 5000), kR = S.fxTick(gmT, chK, 'resume', 5000), kC = S.fxTick(gmT, chK, 'clock', 12000), kC2 = S.fxTick(gmT, chK, 'clock', 5000);
+        const tOf = (res, id) => { const l = res.values.f_fx; const r = l && l.find(x => x.id === id); return r ? r.t : null; };
+        check('T5a fxTick: a turn banks a running clock then takes one round (6 s); a combat\'s start stops the clock, keeping what ran; its end starts it again unless paused; outside combat the clock alone; what runs out comes off by its name (the library\'s, or the row\'s, "An effect" when the definition is gone); a row with no timer is untouched',
+            j(tOf(kT, 'x_1')) === j({ left: 6, at: 0 }) && tOf(kT, 'x_2') === null && j(kT.expired) === j(['Quick', 'Stun', 'An effect']) && kT.values.f_fx.some(r => r.id === 'x_4' && !r.t)
+            && j(tOf(kB, 'x_2')) === j({ left: 6, at: 0 }) && j(tOf(kB, 'x_1')) === j({ left: 12, at: 0 }) && j(kB.expired) === '[]'
+            && j(tOf(kR, 'x_1')) === j({ left: 12, at: 5000 }) && j(tOf(kR, 'x_3')) === j({ left: 6, at: 0, p: 1 }) && j(tOf(kR, 'x_2')) === j({ left: 10, at: 1000 })
+            && j(kC.expired) === j(['Quick']) && j(kC2.values) === '{}' && j(S.fxTick(gmT, { id: 'c', values: {} }, 'turn', 1)) === j({ values: {}, expired: [] }), j([kT, kB, kR, kC.expired, kC2]));
+        // the sheet's chip and the effects list drawn for real (both looks), so a missing name in a render path fails here
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), fxS = shF.slice(shF.indexOf('function fxLeftText('), shF.indexOf('// Stage 5g: a value coloured by its sign'));
+        const mkEl = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], get childNodes() { return this.children; }, style: {}, dataset: {}, classList: { add() {}, toggle() {} }, appendChild(c) { this.children.push(c); return c; }, addEventListener() {}, insertBefore(c) { this.children.unshift(c); return c; } });
+        const docF = { createTextNode: t => ({ textContent: t, children: [] }), querySelectorAll: () => [] };
+        const API = new Function('el', 'iconNode', 'commitEffect', 'fxChangeText', 'opt', 'uid', 'iconText', 'effectForm', 'document', 'window', 'roundSecs', 'fxLeftNow', 'var _fxLive = true, _fxForm = null, _fxView = "sheet";' + NL + fxS + NL + 'return { fxLeftText: fxLeftText, effectsInto: effectsInto };')(
+            mkEl, () => mkEl('i'), () => {}, () => 'x', mkEl, () => 'x_n', () => '', () => mkEl('div'), docF, {}, S.roundSecs, S.fxLeftNow);
+        const flat = n => (n.textContent || '') + (n.children || []).map(flat).join('|');
+        const rowsF = [{ id: 'x_1', ref: 'e_b', on: true, t: { left: 12, at: 0 } }], sysL = gmT, sysC = Object.assign({}, gmT, { sheet: { sections: [], look: { effects: 'cards' } } });
+        const wL = mkEl('div'), wC = mkEl('div'); API.effectsInto(wL, { id: 'f_fx' }, { id: 'c_p' }, rowsF, sysL, false); API.effectsInto(wC, { id: 'f_fx' }, { id: 'c_p' }, rowsF, sysC, false);
+        const now0 = Date.now(), ft = API.fxLeftText;
+        check('T5a what a timed effect shows (sheets.js, run for real): in a combat the rounds left (2 rounds, 1 round), by the clock the time (1:05, 42s, 2h 5m), paused held, run out "ending"; drawn as a list row and as a card, each with its chip',
+            ft({ left: 12, at: 0 }, gmT) === '2 rounds left' && ft({ left: 5, at: 0 }, gmT) === '1 round left' && ft({ left: 65, at: now0 }, gmT) === '1:05 left' && ft({ left: 42, at: now0 }, gmT) === '42s left' && ft({ left: 7500, at: now0 }, gmT) === '2h 5m left'
+            && ft({ left: 90, at: 0, p: 1 }, gmT) === 'paused, 1:30 left' && ft({ left: 0, at: 0 }, gmT) === 'ending' && /2 rounds left/.test(flat(wL)) && /2 rounds left/.test(flat(wC)), j([flat(wL).slice(0, 200), flat(wC).slice(0, 200)]));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

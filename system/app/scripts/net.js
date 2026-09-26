@@ -2190,7 +2190,7 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } }
-function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began; T3b: its move
+function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began; T3b: its move
 // [netcheck:turnmove-start]
 // Turn-based combat T3b (D1, D2): the move of the character whose turn begins — how far its token may go this turn, in the map's cells (its
 // system's Move per turn, worked out through its player's view with its token; none, a GM-only one, one that fails: no limit) and how far
@@ -2214,6 +2214,49 @@ function turnMoveStart(mapId, c) {
 }
 function noteOwner(pid, text) { net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) turnNote(c, text); }); }
 // [netcheck:turnmove-end]
+// [netcheck:turnacts-start]
+// Turn-based combat T4 (D4, D5): the actions a turn allows (the System's Combat card) — a player's press of a roll or an apply action that costs
+// one spends it while their character's token is in a combat on the map they are on (turn-based combat on), on or off its turn (a reaction);
+// each character's counts refill when its turn begins. The campaign's mode: refuse (none left: refused, with why), warn (through, a note to
+// them and the GM), off. The GM's own presses are never limited. Their player hears what is left, and their sheet greys what is spent
+net.turnSpent = {};   // charId -> { actKey: spent since its last turn began }
+function actsOf(camp) { var t = camp && camp.system && camp.system.combat && camp.system.combat.turn; return t && Array.isArray(t.acts) ? t.acts : []; }
+function actsCombat(camp, charId, pr) {
+    if (!window.wpVtt || !window.wpVtt.on('turns') || !pr || typeof pr.location !== 'string' || !own(net.combats, pr.location)) return null;
+    var cb = net.combats[pr.location], map = camp && camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, S = SC();
+    var tok = S && map ? S.charTokenOn(map, charId, pr.id, { strict: true }) : null;
+    return tok && Array.isArray(cb.rows) && cb.rows.some(function(r) { return r && r.tokId === tok.id; }) ? cb : null;
+}
+function actsTell(camp, charId, cleared) {   // what is left, to each connection of the character's player
+    var ch = camp && camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || !ch.ownerId || ch.npc) return;
+    var left = null; if (!cleared) { left = {}; var sp = net.turnSpent[charId] || {}; actsOf(camp).forEach(function(a) { if (a && typeof a.key === 'string') left[a.key] = Math.max(0, (a.n || 1) - (sp[a.key] || 0)); }); }
+    var m = { type: 'acts-left', charId: charId, left: left, mode: moveMode(camp, 'acts') === 'warn' ? 'warn' : 'refuse' };
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+}
+// '' when the press may go ahead (its cost spent, or nothing to spend); else the refusal's text
+function actSpend(camp, charId, pr, cost, conn, who) {
+    if (!cost || moveMode(camp, 'acts') === 'off') return '';
+    var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); if (!a || !actsCombat(camp, charId, pr)) return '';
+    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = a.n || 1;
+    if (used >= n) {
+        if (moveMode(camp, 'acts') === 'refuse') return 'No ' + lbl + ' left this turn.';
+        turnNote(conn, lbl + ': used past what a turn allows.'); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.');
+    } else turnNote(conn, lbl + ': ' + (n - used - 1) + ' of ' + n + ' left this turn.');
+    sp[a.key] = used + 1; actsTell(camp, charId);
+    return '';
+}
+function turnActsStart(mapId, c) {   // the character whose turn begins has its actions back
+    var row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null, camp = getActiveCampaign(); if (!row || typeof row.tokId !== 'string' || !camp || !actsOf(camp).length) return;
+    var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null;
+    if (!w || typeof w.charId !== 'string') return;
+    delete net.turnSpent[w.charId]; if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);
+}
+function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop greying)
+    var camp = getActiveCampaign(); if (!had || !camp || !actsOf(camp).length) return;
+    var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!map || !Array.isArray(had.rows) || !Array.isArray(map.whiteboard)) return;
+    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; actsTell(camp, w.charId, true); } });
+}
+// [netcheck:turnacts-end]
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
 net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
 // host: put a combat on a map (or take it off with null)
@@ -2227,6 +2270,7 @@ net.combatSet = function(mapId, combat) {
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
     } else {
+        if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
         if (had) { logEvent('table', 'Combat ended on ' + mapTitleOf(mapId) + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); toast('Combat ended on ' + mapTitleOf(mapId) + '.'); }
         delete net.combats[mapId];
     }
@@ -2938,6 +2982,7 @@ function handleMessage(msg, conn) {
         if (qa.row) { varsA = varsA.row(qa.row.f, qa.row.r); if (!varsA) { denyA('missing'); return; } rowGmA = !!Sa.rowRollNames(campA.system, chA, qa.row.f, qa.row.r, [], Fa).gm; }   // H7b: the row's own names (a row they cannot see is gone); a row of a GM-only item keeps the card between them and the GM
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null);   // R2b: a list's action may move its row's counters
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
+        var costA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name) : ''; if (costA) { denyA('error', costA); return; }   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
         chA.values = chA.values || {}; Object.keys(resA.values).forEach(function(k) { chA.values[k] = resA.values[k]; }); chA.updated = Date.now();
         saveRemoteSoon();
         try { conn.send({ type: 'char-ack', rid: qa.rid }); } catch (e) { sendFailed(e); }
@@ -3170,6 +3215,7 @@ function handleMessage(msg, conn) {
         var resQ = Fq.evaluate(q.expr, varsQ ? { vars: varsQ } : {});
         if (!resQ.ok) { denyQ('error', resQ); return; }
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
+        if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, q.charId, net.roster[conn.peer], actQ.cost, conn, chQ.name); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }   // turn-based combat T4: what it costs
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
         if (mfQ !== null) recQ.malf = mfQ;
@@ -3193,6 +3239,19 @@ function handleMessage(msg, conn) {
         var ap = Dp.cleanApply(msg); if (!ap) return;
         pushChat({ from: ap.from, text: '', scope: ap.priv ? 'whisper' : 'global', ts: ap.ts, apply: ap });
         // [netcheck:applyin-end]
+    } else if (msg.type === 'acts-left' && net.role === 'client') {
+        // [netcheck:actsin-start]
+        // Turn-based combat T4: what their character has left of each action this turn — from the synced host only, whole numbers 0 to 9 under
+        // action keys (six at most); null clears it (the combat ended). Their sheet and HUD grey what is spent
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || typeof msg.charId !== 'string' || !/^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId)) return;
+        net.actsLeft = net.actsLeft || Object.create(null);
+        if (msg.left === null) delete net.actsLeft[msg.charId];
+        else if (msg.left && typeof msg.left === 'object' && !Array.isArray(msg.left)) {
+            var alv = Object.create(null), aln = 0; Object.keys(msg.left).forEach(function(k) { var v = msg.left[k]; if (aln < 6 && /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(k) && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v <= 9) { alv[k] = v; aln++; } });
+            net.actsLeft[msg.charId] = { left: alv, mode: msg.mode === 'warn' ? 'warn' : 'refuse' };
+        } else return;
+        if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(msg.charId);
+        // [netcheck:actsin-end]
     } else if (msg.type === 'turn-note' && net.role === 'client') {
         // [netcheck:turnnote-start]
         // Turn-based combat T3a: why the host stopped or noted a move of theirs — from the synced host only, a plain line as a toast

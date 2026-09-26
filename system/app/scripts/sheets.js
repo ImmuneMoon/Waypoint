@@ -1887,13 +1887,15 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
             var al = r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()));
+            var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (cN) applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });
             host.appendChild(ab); return;
         }
         if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
         var lb = r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';
-        var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs || !!r.malf;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
+        var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs || !!r.malf || !!r.cost;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }
+        var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, { row: withE ? { f: f.id, r: rid, i: ri } : { f: f.id, r: rid } }); });
         host.appendChild(b);
     });
@@ -2535,14 +2537,21 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     if (Array.isArray(r.apply)) return applyNode(r, c, sys, vars);   // Stage 6 HUD H7: an apply action draws as a roll's button
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
+    var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbR) { b.disabled = true; b.title = cbR + ' \u2014 ' + r.formula; }   // turn-based combat T4
     b.addEventListener('click', function(e) {
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if ((Array.isArray(r.then) && r.then.length) || r.malf) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself   // a GM-only roll stays the GM's
     });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character
+// Turn-based combat T4: why a button that costs an action cannot be pressed now — none of it left this turn, as the host last told this player
+// ('' when it can; a warn table never greys, the note says so). The host judges every press; this only spares the player a refusal
+function costBlock(c, cost) {
+    var n = net(), al = cost && c && n && n.actsLeft ? n.actsLeft[c.id] : null; if (!al || al.mode !== 'refuse' || typeof al.left[cost] !== 'number' || al.left[cost] > 0) return '';
+    return 'No ' + cost + ' left this turn';
+}
 function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return true; }
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)

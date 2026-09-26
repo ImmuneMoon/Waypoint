@@ -183,6 +183,16 @@ function coverBetween(x1, y1, x2, y2) {
     var cov = C.coverBetween(a, b, grid, blockersFor(map, grid));
     return window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect);
 }
+// Turn-based combat T3a (D11): whether a token's straight move from (fx, fy) to (tx, ty) — its stored top-left — lands in or crosses a cell a
+// sight-blocker occupies on this map (the same blocker cells fog uses: a closed door blocks, an open one or a hidden item never). The host's
+// pos gate asks it for a player's move; no grid (and no fog cell): never
+function moveBlocked(map, w, fx, fy, tx, ty) {
+    var C = core(); if (!C || !C.moveClear || !map || map.type !== 'map') return false;
+    var grid = gridForMap(map); if (!grid) return false;
+    var bl = blockersFor(map, grid); if (!bl) return false;
+    var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
+    return !C.moveClear(fx + hw, fy + hh, tx + hw, ty + hh, grid, bl);
+}
 // GM clicks a door while in fog mode → flip open/closed on the topmost door under the point. Host-authoritative:
 // save() runs onLocalSave (invalidateVision + resend the map to players); the invalidate+redraw refresh the GM overlay.
 function toggleDoorAt(boardX, boardY) {
@@ -504,7 +514,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, canSeePoint: canSeePoint, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, canSeePoint: canSeePoint, moveBlocked: moveBlocked, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

@@ -129,6 +129,14 @@ function lineClear(a, b, grid, blockers) {
     return segClear(pa.x, pa.y, pb.x, pb.y, grid, blockers, skip);
 }
 
+// Turn-based combat T3a (D11, owner 2026-09-26): a token's straight move from one point to another is clear unless it lands in, or crosses, a
+// cell a sight-blocker occupies. Its start cell never counts (a token the GM left in a wall can step out). No blockers or no grid: clear
+function moveClear(x1, y1, x2, y2, grid, blockers) {
+    if (!blockers || !grid || !fin(x1) || !fin(y1) || !fin(x2) || !fin(y2)) return true;
+    var s = Object.create(null), a = cellKey(cellOf(x1, y1, grid), grid), b = cellKey(cellOf(x2, y2, grid), grid); s[a] = 1;
+    if (b !== a && blockers[b]) return false;
+    return segClear(x1, y1, x2, y2, grid, blockers, s);
+}
 /* ---------- cover (line-of-effect between two cells, for combat cover) ----------
    Reuses the SAME opaque-cell blocker set as fog, so the cover readout, host enforcement and the client overlay
    agree. coverBetween returns a SYSTEM-NEUTRAL result — { coverage 0..1 (kept < 1), lineOfEffect } — and each
@@ -268,6 +276,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, cellCorners: cellCorners, coverBetween: coverBetween, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

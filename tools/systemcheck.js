@@ -3990,6 +3990,20 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const mR = { due: mD.due }, seenR = [], nodeR = new Function('el', 'chatTime', 'document', 'window', rdSrc + NL + 'return renderDue;')(fakeEl, () => '', { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }) }, { wpSheets: { runDue: () => { seenR.push(mR.done); return true; } } })(mR); btnOf(nodeR).on.click();
         check('T2b a reminder is marked pressed before its press runs (the GM\'s own press posts its card, and the chat redraws the reminder then: it must already read Pressed)', j(seenR) === j([true]) && mR.done === true, j(seenR));
     }
+    /* ---- Turn-based combat T3a: walls stop player tokens (the setting, the fog's test, the docs) ---- */
+    {
+        const stW = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, NL), fgW = fs.readFileSync(path.join(app, 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, NL), hmW = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuW = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const mbSrc = fgW.slice(fgW.indexOf('function moveBlocked('), fgW.indexOf('// GM clicks a door while in fog mode'));
+        const FCx = { moveClear: (x1, y1, x2, y2, g, b) => { FCx.args = [x1, y1, x2, y2]; return !(x2 > 200); } };
+        const mb = (map, grid, bl) => new Function('core', 'gridForMap', 'blockersFor', mbSrc + NL + 'return moveBlocked;')(() => FCx, () => grid, () => bl)(map, { w: 40, h: 20 }, 0, 0, 300, 0);
+        const mbHit = mb({ type: 'map' }, { type: 'square' }, { '1,1': 1 }), mbArgs = FCx.args;
+        check('T3a moveBlocked (fog.js, run for real): the move of a token\'s centre (its top-left plus half its size) against the map\'s blocker cells; no map, no grid or no blockers: never blocked',
+            mbHit === true && j(mbArgs) === j([20, 10, 320, 10]) && mb(null, { type: 'square' }, { a: 1 }) === false && mb({ type: 'map' }, null, { a: 1 }) === false && mb({ type: 'map' }, { type: 'square' }, null) === false && mb({ type: 'doc' }, { type: 'square' }, { a: 1 }) === false);
+        check('T3a the setting and the docs (source): Walls stop player tokens is a GM-only select in the Fog of war row (Refuse, Warn, Off) writing camp.turnRules.walls, shown from the campaign; Help and the tour say so',
+            /<label class="gm-only set-move-mode"[^>]*>Walls stop player tokens <select id="setWallsMode"[^>]*><option value="refuse">Refuse<\/option><option value="warn">Warn<\/option><option value="off">Off<\/option><\/select><\/label>/.test(hmW)
+            && /camp\.turnRules = Object\.assign\(\{\}, camp\.turnRules && typeof camp\.turnRules === 'object' \? camp\.turnRules : \{\}, \{ walls: val \}\);/.test(stW) && /wm\.value = tr === 'warn' \|\| tr === 'off' \? tr : 'refuse'; wm\.disabled = !editable;/.test(stW)
+            && /<b>Walls stop player tokens<\/b>: a player&rsquo;s token cannot land in or cross a cell a wall or a closed door occupies/.test(hmW) && /Walls and closed doors also stop players&rsquo; tokens\./.test(tuW));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

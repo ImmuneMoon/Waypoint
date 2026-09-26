@@ -130,7 +130,14 @@
           }
         ],
         "price": "cost",
-        "custom": true
+        "custom": true,
+        "cols": [
+          {
+            "key": "Hit",
+            "label": "To hit",
+            "formula": "STRmod + Row.bonus"
+          }
+        ]
       }
     },
     {

@@ -2038,6 +2038,18 @@
   /* Stage 6 F4c2: a copy's own values — the dot on a value of its own, ✎, the form under the row (a box a field, its ↺), the Lists tab's Rules box */
   #sysListRules:empty { display: none; }
   .sheet-ov { color: var(--gold); font-size: 10px; margin-left: 3px; cursor: help; }
+  /* Stage 6 F5a1: a row's columns, the list's totals, and the Lists card's Columns */
+  .sheet-chip.sheet-item-col, .sheet-chip.sheet-item-total { white-space: nowrap; font-size: 11px; }
+  .sheet-chip.sheet-item-col small, .sheet-chip.sheet-item-total small { color: var(--dim); }
+  .sheet-chip.sheet-item-colerr { color: var(--red, #e5534b); cursor: help; }
+  .sheet-item-totals { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; padding: 4px 2px 0; font-size: 11px; }
+  .sheet-item-totals-cap { color: var(--dim); text-transform: uppercase; letter-spacing: .04em; font-size: 10px; }
+  .sheet-itcol-col, .sheet-itft-sum { white-space: nowrap; text-align: right; }
+  .sys-list-card .sys-flags.sys-list-col { flex-wrap: wrap; }
+  .sys-list-card .sys-flags.sys-list-col input.sys-list-colkey { flex: 0 0 120px; width: 120px; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
+  .sys-list-card .sys-flags.sys-list-col input.sys-list-colformula { flex: 3 1 260px; font-family: ui-monospace, Consolas, monospace; }
+  .sys-list-card .sys-flags.sys-list-col input.sys-list-colunit { flex: 0 0 64px; width: 64px; min-width: 0; }
+  .sys-list-names { margin-top: 4px; }
   .sheet-item-name > .sheet-ov { margin: 0 4px 0 0; }   /* F4c2 review: a list row's dot sits before the name (a long name is cut at its end) */
   .sheet-item-edit { padding: 0 6px; height: 24px; }
   .sheet-row-form { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 6px 20px; padding: 6px 8px; border: 1px dashed var(--edge); border-radius: 6px; font-size: 12px; }

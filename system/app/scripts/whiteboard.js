@@ -2424,11 +2424,11 @@ window.wpFitToGrid = fitToGrid;
 
   }
 
-  function measureLabel(dist) {
+  function measureLabel(dist, cellsOv) {   // cellsOv (turn-based combat T1): the cells by the system's diagonal rule, worked out by the caller
 
       var cfg = mapMeasureConfig();
 
-      var cells = dist / cfg.cellPx;
+      var cells = typeof cellsOv === 'number' && isFinite(cellsOv) ? cellsOv : dist / cfg.cellPx;
 
       var val = cells * cfg.per;
 
@@ -2449,6 +2449,13 @@ window.wpFitToGrid = fitToGrid;
   }
 
   // [sinkcheck:measure-end]
+  // Turn-based combat T1 (D8): on a square grid the ruler counts a diagonal as the system says (every diagonal 1 square, or alternating 1-2);
+  // null keeps the straight line (no rule, a hex grid, no grid)
+  function diagCells(m) {
+      var sc = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
+      if (!sc || !sc.gridCells || (dg !== 'one' && dg !== 'alt') || state.gridType !== 'square') return null;
+      var px = mapMeasureConfig().cellPx; return sc.gridCells((m.x2 - m.x1) / px, (m.y2 - m.y1) / px, dg);
+  }
   function renderMeasures() {
 
       var layer = document.getElementById('measureLayer');
@@ -2488,7 +2495,7 @@ window.wpFitToGrid = fitToGrid;
               var cv = window.wpFog.coverBetween(m.x1, m.y1, m.x2, m.y2);   // advisory: Waypoint estimates cover from the map's blockers; the GM makes the call
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
-          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist) + '</text>';
+          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + '</text>';
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';

@@ -1195,7 +1195,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         else if (k === 'skill') {
             var ranks = storedOf(field, char);
             if (suffix === 'ranks') out = ranks;
-            else if (suffix === 'base' || !suffix) { var b = field.base ? evalDef(l, field.base) : { value: 0 }; if (b.error) return b; out = suffix === 'base' ? withFx(l, b.value, b.via || null) : withFx(l, ranks + b.value, b.via || null); }   // 5h: effects reach the total; ranks and base stay raw
+            else if (suffix === 'base' || !suffix) { var b = (field.base || field.base === null) ? evalDef(l, field.base) : { value: 0 }; if (b.error) return b; out = suffix === 'base' ? withFx(l, b.value, b.via || null) : withFx(l, ranks + b.value, b.via || null); }   // 5h: effects reach the total; ranks and base stay raw. A base the players' view blanked (it names a GM-only field) reads "GM only" for the skill and .base, as a formula does (never ranks + 0); no base is ranks alone
             else return undefined;
         } else if (k === 'resource') {
             if (suffix && suffix !== 'max' && suffix !== 'cur') return undefined;

@@ -1880,13 +1880,14 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const chSysD = cleanSystem({ v: 1, name: 'C', rolls: [], fields: [{ id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }].concat(chainD.reverse()) }, GVD), lastD = 'C' + (LIMITS.fields - 2);
         const t0D = process.hrtime.bigint(), chHitD = S.gmDerivedNames(chSysD, F, ND([lastD, 'C0', 'Nope']), chE), msD = Number(process.hrtime.bigint() - t0D) / 1e6;
         check('derived GM-only values: gmDerivedNames follows a chain of LIMITS.fields fields to the GM-only one at its end, whatever the order the fields are in, in one pass (well under 2 s)', chSysD.fields.length === LIMITS.fields && j(chHitD) === j([lastD, 'C0']) && msD < 2000, j([chSysD.fields.length, chHitD, msD]));
-        // the property: a visible name is listed exactly when the players' view cannot give the value the GM's resolver has
+        // the property: a visible name is listed exactly when the players' view reads it as an error (never another number: a skill over a
+        // GM-only base read ranks + 0 there), and a name not listed reads there as the GM's resolver has it
         const namesD = f => [f.key].concat(f.kind === 'resource' ? [f.key + '.max', f.key + '.cur'] : f.kind === 'skill' ? [f.key + '.base', f.key + '.ranks'] : []), isValD = v => v !== undefined && !(v && typeof v === 'object');
         const parityD = (raw, ch) => { const g = cleanSystem(raw, GVD), p = cleanSystem(raw, PVD), gv = S.makeResolver(g, ch, F, null), pv = S.makeResolver(p, ch, F, null), off = [];
-            g.fields.filter(f => f.vis !== 'gm').forEach(f => namesD(f).forEach(n => { const a = gv(n); if (!isValD(a)) return; const b = pv(n); if ((S.gmDerivedNames(g, F, [{ name: n }], ch).length > 0) !== (!isValD(b) || b !== a)) off.push(n); })); return off; };
+            g.fields.filter(f => f.vis !== 'gm').forEach(f => namesD(f).forEach(n => { const a = gv(n); if (!isValD(a)) return; const b = pv(n); const listed = S.gmDerivedNames(g, F, [{ name: n }], ch).length > 0; if (listed !== !isValD(b) || (!listed && b !== a)) off.push(n); })); return off; };
         const fxD = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
         const parD = [[dRaw, chE], [dRaw, chS], [d20, chE], [g3d6, chE], [fxD('hud-d20'), chE], [fxD('hud-3d6'), chE]].map(([r, c]) => parityD(r, c)), countD = namesD(gD.fields.find(f => f.key === 'HP')).length;
-        check('derived GM-only values: gmDerivedNames lists a visible name exactly when the players\' view cannot give its value as the GM\'s resolver has it (an error, or another number) — on this system with its pools full and stored, both presets and both HUD fixtures',
+        check('derived GM-only values: gmDerivedNames lists a visible name exactly when the players\' view reads it as an error (a skill over a GM-only base too, never ranks + 0), and every name it does not list reads there as the GM\'s resolver has it — on this system with its pools full and stored, both presets and both HUD fixtures',
             parD.every(x => x.length === 0) && countD === 3, j(parD));
         // labelSecret, rollNode and rollInit, run for real
         const rnSrcD = shD.slice(shD.indexOf('var LABEL_CTRL_G = '), shD.indexOf('// A roll from this character\'s sheet: the dice feature on')), lsD0 = shD.slice(shD.indexOf('function labelSecret('), shD.indexOf('function rollNode('));
@@ -1933,6 +1934,46 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && (ntD.match(/gmDerivedNames\(/g) || []).length === 1 && /SR\.gmOnlyNames\(campR\.system, F\.names\(expr\)\.map\(/.test(ntD) && /SR\.gmDerivedNames\(campR\.system, F, rec\.names, chR\)/.test(ntD)
             && ntD.indexOf('else if (gmR.length)') > 0 && ntD.indexOf('else if (gmR.length)') < ntD.indexOf("var toKey = ui('chatTo')") && typeof S.gmDerivedNames === 'function'
             && /A GM&rsquo;s roll that names a GM-only field, or uses a value worked out from one \(a formula, a skill&rsquo;s base or a pool&rsquo;s maximum built on it\), is kept private\./.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+        // A skill whose base names a GM-only field: the players' view nulls the base, and the resolver reads that as "GM only" for the skill and its
+        // .base, as it does a nulled formula or pool max (it read ranks + 0: a plausible, wrong total on the sheet and in the player's own roll); .ranks is stored
+        const kRaw = { v: 1, name: 'K', rolls: [], fields: [
+            { id: 'f_g', key: 'GMFig', kind: 'number', def: 12, vis: 'gm' }, { id: 'f_z', key: 'GZ', kind: 'number', def: 0, vis: 'gm' }, { id: 'f_a', key: 'A', kind: 'number', def: 4, caption: 'Sneak {Sk}, ranks {Sk.ranks}' },
+            { id: 'f_sk', key: 'Sk', kind: 'skill', base: 'GMFig', def: 3, hover: true, edit: 'owner' }, { id: 'f_sz', key: 'SZ', kind: 'skill', base: 'GZ', def: 2, hover: true },
+            { id: 'f_se', key: 'SE', kind: 'skill', base: '', def: 2, hover: true }, { id: 'f_sn', key: 'SN', kind: 'skill', def: 1, hover: true }, { id: 'f_sa', key: 'SA', kind: 'skill', base: 'A - 1', def: 1, hover: true },
+            { id: 'f_sr', key: 'SR', kind: 'formula', formula: 'Sk.ranks * 2', hover: true }, { id: 'f_sb', key: 'SB', kind: 'formula', formula: 'Sk + 1', hover: true },
+            { id: 'f_hk', key: 'HK', kind: 'resource', maxFormula: 'Sk.base * 2', def: 'max', hover: true }] };
+        const gK = cleanSystem(kRaw, GVD), pK = cleanSystem(kRaw, PVD), chK = { id: 'c_k', ownerId: 'u_p', values: {} }, gvK = S.makeResolver(gK, chK, F), pvK = S.makeResolver(pK, chK, F);
+        const fK = (sy, k) => sy.fields.find(f => f.key === k), msgK = v => (v && typeof v === 'object' && v.error) ? String(v.error.message) : null;
+        const dieK = F.evaluate('d20 + Sk', { vars: pvK }), dieKR = F.evaluate('d20 + Sk.ranks', { vars: pvK });
+        check('derived GM-only values: a skill whose base names a GM-only field reads "GM only" on the players\' view, the skill and its .base (and a formula or a pool\'s max over them), as a nulled formula does, never ranks + 0 (the base stays null through the client\'s own clean of what the host sends); its .ranks still reads; a skill with no base (empty, absent, or absent from an uncleaned field) is ranks alone and a visible base still adds; the GM\'s view is unchanged',
+            fK(pK, 'Sk').base === null && fK(pK, 'SZ').base === null && fK(pK, 'SE').base === '' && fK(pK, 'SN').base === '' && fK(pK, 'SA').base === 'A - 1' && fK(gK, 'Sk').base === 'GMFig' && fK(cleanSystem(JSON.parse(j(pK)), PVD), 'Sk').base === null
+            && msgK(pvK('Sk')) === 'GM only' && msgK(pvK('Sk.base')) === 'GM only' && ['SZ', 'SZ.base', 'SB', 'HK', 'HK.max'].every(n => /GM only/.test(msgK(pvK(n)))) && pvK('Sk.ranks') === 3 && pvK('SZ.ranks') === 2 && pvK('SR') === 6
+            && pvK('SE') === 2 && pvK('SE.base') === 0 && pvK('SN') === 1 && pvK('SA') === 4 && pvK('SA.base') === 3 && S.makeResolver({ fields: [{ id: 'f_q', key: 'Q', kind: 'skill', def: 2, vis: 'all' }] }, { id: 'c', values: { f_q: 5 } }, F)('Q') === 5
+            && !dieK.ok && /GM only/.test(dieK.error.message) && dieKR.ok && gvK('Sk') === 15 && gvK('Sk.base') === 12 && gvK('SZ') === 2 && gvK('SB') === 16 && gvK('HK') === 24,
+            j(['Sk', 'Sk.base', 'Sk.ranks', 'SZ', 'SB', 'HK', 'SE', 'SE.base', 'SN', 'SA'].map(n => [n, pvK(n)]).concat([dieK.error || dieK.value])));
+        const allPK = S.resolveAll(pK, chK, F), allGK = S.resolveAll(gK, chK, F), heK = S.headerEntry(fK(pK, 'Sk'), allPK.f_sk), capK = S.captionParts(pK, chK, F, fK(pK, 'A').caption, allPK.vars);
+        check('derived GM-only values: on the players\' view such a skill resolves as an error — an em dash with "GM only", its ranks kept for the box; the header block prints the dash with the reason as its title, the hover lines leave it out (a teammate\'s too: the host works them out on the same view), a caption shows "Sk: GM only" for it; the GM\'s view shows the total',
+            allPK.f_sk.error === 'GM only' && allPK.f_sk.text === '\u2014' && allPK.f_sk.value === undefined && allPK.f_sk.ranks === 3 && allPK.f_sz.error === 'GM only' && allPK.f_se.text === '2' && allPK.f_sa.text === '4'
+            && j(heK) === j({ text: '\u2014', error: 'GM only' }) && allGK.f_sk.text === '15' && allGK.f_sk.error === null
+            && j(S.hoverLines(pK, chK, F)) === j(['SE 2', 'SN 1', 'SA 4', 'SR 6']) && j(S.hoverLines(gK, chK, F)) === j(['Sk 15', 'SZ 2', 'SE 2', 'SN 1', 'SA 4', 'SR 6', 'SB 16', 'HK 24 / 24'])
+            && j(capK) === j([{ text: 'Sneak ' }, { error: 'Sk: GM only' }, { text: ', ranks ' }, { value: 3, text: '3' }]),
+            j([allPK.f_sk, heK, S.hoverLines(pK, chK, F), capK]));
+        const vK = validateSystem(gK, F);
+        check('derived GM-only values: the editor\'s warning for such a skill ("players will see an error for this field") is what players see',
+            vK.warnings.some(w => w.id === 'f_sk' && w.prop === 'base' && w.message === '"GMFig" is GM only: players will see an error for this field.') && vK.warnings.some(w => w.id === 'f_sz' && w.prop === 'base'), j(vK.warnings));
+        // the row the sheet draws: fieldNode, run for real (the band draws a field through it at bandInto, and the sheet's and the HUD's sections at buildSections)
+        const fnSrcK = shD.slice(shD.indexOf('function signTone('), shD.indexOf('// A roll from a sheet button:')), fxSrcK = shD.slice(shD.indexOf('function fxMark('), shD.indexOf('// 5h: a character\'s status effects'));
+        const feK = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], title: '', type: '', value: '', disabled: false, dataset: {}, classList: { add() {} }, appendChild(x) { this.children.push(x); return x; }, addEventListener() {} });
+        const fieldNodeK = new Function('el', 'F', 'fxText', 'fmtNum', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', fxSrcK + fnSrcK + '\nreturn fieldNode;')(feK, () => F, S.fxText, S.fmtNum, () => true, () => {}, () => {}, S.valueTone, {});
+        const rowK = (sy, all, key, gm, own) => { const f = fK(sy, key), row = fieldNodeK(f, chK, all[f.id], gm, own, sy).children[1], inp = row.children[0], tot = row.children[1]; return [inp.value, inp.disabled, tot.textContent, tot.className, tot.title]; };
+        check('derived GM-only values: the sheet row such a skill draws on the players\' view (fieldNode, run for real — the band and the sheet\'s and the HUD\'s sections draw through it): the ranks box keeps the player\'s ranks, theirs to edit, and the total is an em dash marked as an error with "GM only" as its title; a skill with no base, or a visible one, shows its total; the GM\'s row shows the whole total',
+            j(rowK(pK, allPK, 'Sk', false, true)) === j(['3', false, '\u2014', 'sheet-total sheet-err', 'GM only']) && j(rowK(pK, allPK, 'SE', false, true)) === j(['2', false, '= 2', 'sheet-total', 'ranks'])
+            && j(rowK(pK, allPK, 'SA', false, true)) === j(['1', false, '= 4', 'sheet-total', 'ranks + A - 1']) && j(rowK(gK, allGK, 'Sk', true, false)) === j(['3', false, '= 15', 'sheet-total', 'ranks + GMFig'])
+            && /var node = \(q\.id && byId\[q\.id\]\) \? fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shD) && /node = fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars\)/.test(shD),
+            j([rowK(pK, allPK, 'Sk', false, true), rowK(pK, allPK, 'SE', false, true), rowK(pK, allPK, 'SA', false, true), rowK(gK, allGK, 'Sk', true, false)]));
+        const parK = parityD(kRaw, chK);
+        check('derived GM-only values: on this system too, gmDerivedNames lists a visible name exactly when the players\' view reads it as an error — SZ included, a skill over a GM-only field that is 0, whose ranks + 0 was the GM\'s very total',
+            parK.length === 0 && j(S.gmDerivedNames(gK, F, ND(['SZ', 'SZ.base', 'SZ.ranks', 'SE']), chK)) === j(['SZ', 'SZ.base']), j(parK));
     }
 
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */

@@ -170,6 +170,7 @@ function paintWhere(box, mapBox, w, doc) {   // the campaign in its own section 
 // [netcheck:where-end]
 var _whereKey = null;   // what the top bar shows now ('' = nothing): render() runs often, the box is touched only when this changes
 function renderWhere() {
+    if (typeof fxClockStart === 'function') fxClockStart();   // turn-based combat T5a: the effects' clock (it acts on the GM's own machine only)
     var box = ui('tableWhere'), mapBox = ui('tableWhereMap'); if (!box || !mapBox) return;
     var w = tableWhere(net, campOf(state.appState && state.appState.activeCampaignId));
     var key = w ? w.camp + '\n' + w.map : '';
@@ -2190,7 +2191,7 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } }
-function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began; T3b: its move
+function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } try { turnFxStart(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began; T3b: its move
 // [netcheck:turnmove-start]
 // Turn-based combat T3b (D1, D2): the move of the character whose turn begins — how far its token may go this turn, in the map's cells (its
 // system's Move per turn, worked out through its player's view with its token; none, a GM-only one, one that fails: no limit) and how far
@@ -2257,6 +2258,46 @@ function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts g
     had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; actsTell(camp, w.charId, true); } });
 }
 // [netcheck:turnacts-end]
+// [netcheck:fxtime-start]
+// Turn-based combat T5a (D9, D10): timed effects — each row's one remaining amount (systemcore fxTick) moves on the character's own turns in a
+// combat, stops while a combat runs and starts again at its end, and runs by the clock outside combat (this machine checks every few seconds:
+// the GM's own, hosting or alone). What runs out comes off, with a line for its player and the GM
+function charCombat(camp, charId) {   // the combat a character's token is in, and its map id — or null
+    var hit = null; if (!camp || !camp.items) return null;
+    Object.keys(net.combats || {}).forEach(function(mid) { if (hit || !own(camp.items, mid)) return; var cb = net.combats[mid], mp = camp.items[mid];
+        if (!cb || !Array.isArray(cb.rows) || !mp || !Array.isArray(mp.whiteboard)) return;
+        if (cb.rows.some(function(r) { return r && r.tokId && mp.whiteboard.some(function(w) { return w && w.id === r.tokId && w.charId === charId; }); })) hit = { mapId: mid, combat: cb }; });
+    return hit;
+}
+net.charInCombat = function(charId) { return !!(net.active && charCombat(getActiveCampaign(), charId)); };
+function fxApply(camp, ch, kind, now) {   // one tick of one character: its lists stored and sent, what ran out told
+    var S = SC(); if (!S || !S.fxTick || !camp || !camp.system || !ch) return;
+    var r = S.fxTick(camp.system, ch, kind, now), ids = Object.keys(r.values); if (!ids.length) return;
+    ch.values = ch.values || {}; ids.forEach(function(fid) { ch.values[fid] = r.values[fid]; }); ch.updated = now;
+    saveRemoteSoon();
+    if (net.active && net.role === 'host') net.syncCharDelta(ch.id, r.values);
+    if (window.wpSheets) window.wpSheets.charChanged(ch.id);
+    r.expired.forEach(function(nm) { fxEnded(ch, nm); });
+}
+function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for the GM, and one for its player at the table
+    var text = String(name).slice(0, 60) + ' ran out on ' + String(ch.name || 'a character').slice(0, 60) + '.', from = { id: net.myId || 'gm', name: 'GM', gm: true }, m = { type: 'chat', scope: 'whisper', from: from, text: text, ts: Date.now() };
+    if (net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+    pushChat(m);
+}
+function fxCombatChars(mapId, combat) { var camp = getActiveCampaign(); if (!camp || !camp.system) return []; var S = SC(), mp = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; return S && S.combatChars && mp ? S.combatChars(mp, combat, camp.chars || {}).map(function(e) { return camp.chars[e.charId]; }).filter(Boolean) : []; }
+function turnFxStart(mapId, c) {   // the character whose turn begins: a round of its timed effects passes
+    var camp = getActiveCampaign(), row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!camp || !row) return;
+    fxCombatChars(mapId, { rows: [row] }).forEach(function(ch) { fxApply(camp, ch, 'turn', Date.now()); });
+}
+function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now = Date.now(); fxCombatChars(mapId, combat).forEach(function(ch) { fxApply(camp, ch, kind, now); }); }   // bank at a combat's start, resume at its end
+function fxClockTick() {   // out of combat: the clock, on the GM's own machine
+    if (net.role === 'client' || net.stream || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
+    var camp = getActiveCampaign(), now = Date.now(); if (!camp || !camp.system || !camp.chars) return;
+    Object.keys(camp.chars).forEach(function(id) { if (!charCombat(camp, id)) fxApply(camp, camp.chars[id], 'clock', now); });
+}
+var _fxClock = null;
+function fxClockStart() { if (!_fxClock && typeof setInterval === 'function') _fxClock = setInterval(function() { try { fxClockTick(); } catch (e) {} }, 5000); }
+// [netcheck:fxtime-end]
 function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && camp.items[mapId]; return (m && m.meta && m.meta.title) || mapId; }
 net.combatFor = function(mapId) { return net.active && net.combats[mapId] || null; };
 // host: put a combat on a map (or take it off with null)
@@ -2271,10 +2312,12 @@ net.combatSet = function(mapId, combat) {
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
     } else {
         if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
+        if (had) { try { fxCombatEdge(mapId, had, 'resume'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks run again
         if (had) { logEvent('table', 'Combat ended on ' + mapTitleOf(mapId) + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); toast('Combat ended on ' + mapTitleOf(mapId) + '.'); }
         delete net.combats[mapId];
     }
     broadcastCombats(); combatRefresh();
+    if (combat && !had) { try { fxCombatEdge(mapId, net.combats[mapId], 'bank'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks stop (what ran is kept)
     if (combat && !had) turnStarted(mapId, net.combats[mapId]);   // T2b: the first turn (after the broadcast: its player's note comes last)
 };
 net.combatStep = function(mapId, dir) {
@@ -3060,7 +3103,7 @@ function handleMessage(msg, conn) {
         var campX = getActiveCampaign(), chX = campX && campX.chars && campX.chars[qx.charId];
         if (!campX || !campX.system || !chX) { denyX('missing'); return; }
         var profX = net.roster[conn.peer]; if (chX.npc || !chX.ownerId || !profX || chX.ownerId !== profX.id) { denyX('owner'); return; }
-        var resX = Sx.applyEffectOp(campX.system, chX, qx.fieldId, qx, Fx, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campX) : null });
+        var resX = Sx.applyEffectOp(campX.system, chX, qx.fieldId, qx, Fx, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campX) : null, now: Date.now(), inCombat: !!(net.charInCombat && net.charInCombat(qx.charId)) });   // T5a: a timed effect starts its timer
         if (!resX.ok) { denyX(resX.reason); return; }
         chX.values = chX.values || {}; chX.values[qx.fieldId] = resX.value;
         var dX = {}; dX[qx.fieldId] = resX.value;

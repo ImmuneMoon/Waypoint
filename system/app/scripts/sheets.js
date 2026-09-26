@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -2250,6 +2250,22 @@ function fxMark(e, max) {
 // 5h: a character's status effects — each row with its switch, icon, name, tone, duration and what it changes; add one from the library
 // in a click, or make one on the spot (New…). Rights are the list field's (the host judges every change again).
 var _fxLive = true, _fxForm = null, _fxView = 'sheet';   // _fxView (HUD frame HF1): the view being drawn, so an open New… form shows in one view only   // live: false while drawing the Layout preview or a pop-out (their controls act on nothing real); the open New… form's state
+// Turn-based combat T5a: what a timed effect has left — in a combat (its clock stopped) the rounds its character's turns will take, out of it
+// the time by the clock (a ticker keeps each such chip current), paused: the time, held
+function fxLeftText(t, sys) {
+    if (!t || typeof t.left !== 'number') return '';
+    var rs = roundSecs(sys), left = fxLeftNow(t, Date.now()); if (!(left > 0)) return 'ending';
+    if (!(t.at > 0) && t.p !== 1 && left <= rs * 100) { var nR = Math.ceil(left / rs - 1e-6); return nR + (nR === 1 ? ' round left' : ' rounds left'); }
+    var s = Math.ceil(left), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60, txt = h ? h + 'h ' + m + 'm' : m ? m + ':' + (sec < 10 ? '0' : '') + sec : sec + 's';
+    return (t.p === 1 ? 'paused, ' : '') + txt + ' left';
+}
+var _fxTicker = null;
+function fxLeftChip(t, sys) {
+    var chip = el('span', 'sheet-fx-left', fxLeftText(t, sys)); chip.title = 'Runs out by itself: in a combat on its character\u2019s turns, out of one by the clock';
+    chip._t = t; chip._sys = sys;
+    if (!_fxTicker && typeof window !== 'undefined' && window.requestAnimationFrame) _fxTicker = setInterval(function() { document.querySelectorAll('.sheet-fx-left').forEach(function(x) { if (x._t) x.textContent = fxLeftText(x._t, x._sys); }); }, 1000);
+    return chip;
+}
 function effectsInto(wrap, f, c, rows, sys, editable) {
     editable = editable && _fxLive;
     var lib = {}, labels = {};
@@ -2263,12 +2279,13 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
         var sw = el('input'); sw.type = 'checkbox'; sw.checked = r.on !== false; sw.disabled = !editable; sw.dataset.fid = f.id; sw.dataset.part = 'fx-' + r.id;
         sw.title = r.on === false ? 'Suspended \u2014 tick to apply it again' : 'Applied \u2014 untick to suspend it';
         sw.addEventListener('change', function() { commitEffect(c, f, { op: 'on', rowId: r.id, on: sw.checked }); });
-        if (cards) { wrap.appendChild(fxCard(line, sw, r, d, f, c, labels, editable)); return; }
+        if (cards) { wrap.appendChild(fxCard(line, sw, r, d, f, c, labels, editable, sys)); return; }
         line.appendChild(sw);
         if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
         var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
         if (d.tone === 'buff' || d.tone === 'debuff') line.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
         if (d.dur) line.appendChild(el('span', 'sheet-fx-dur', d.dur));
+        if (r.t) line.appendChild(fxLeftChip(r.t, sys));   // T5a
         if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
         var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
         wrap.appendChild(line);
@@ -2290,7 +2307,7 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
 }
 // Stage 6 look fold (L6): one effect as a card — the switch, icon, name, then its tone and duration (with the hourglass); the notes as text; a
 // pill per change ("+2 ST", "−5 HP max", or the name of what it switches on); the × in the corner for whoever may end it
-function fxCard(line, sw, r, d, f, c, labels, editable) {
+function fxCard(line, sw, r, d, f, c, labels, editable, sys) {   // sys (T5a): a timed effect's round length
     line.classList.add('sheet-fx-card');
     var head = el('div', 'sheet-fx-head'); head.appendChild(sw);
     if (d.icon) head.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
@@ -2298,6 +2315,7 @@ function fxCard(line, sw, r, d, f, c, labels, editable) {
     var meta = el('span', 'sheet-fx-meta');
     if (d.tone === 'buff' || d.tone === 'debuff') meta.appendChild(el('span', 'sheet-fx-tone', d.tone === 'buff' ? 'Buff' : 'Debuff'));
     if (d.dur) { var du = el('span', 'sheet-fx-dur'); du.appendChild(iconNode('icon:hourglass-half', 'sheet-fx-durico')); du.appendChild(document.createTextNode(' ' + d.dur)); meta.appendChild(du); }
+    if (r.t) meta.appendChild(fxLeftChip(r.t, sys));   // T5a
     if (meta.childNodes.length) head.appendChild(meta);
     line.appendChild(head);
     if (d.notes) line.appendChild(el('div', 'sheet-fx-notes', d.notes));
@@ -2694,7 +2712,7 @@ function commitEffect(c, f, q) {
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     if (isClient()) { var n = net(); if (!n || !n.charEffect) return; var r = n.charEffect(c.id, f.id, q); if (r && r.error) toast(r.error); renderViews(c.id); return; }
     if (!canWrite()) return;
-    var res = applyEffectOp(sys, c, f.id, q, F(), {});
+    var nC = net(), res = applyEffectOp(sys, c, f.id, q, F(), { now: Date.now(), inCombat: !!(nC && nC.charInCombat && nC.charInCombat(c.id)) });   // T5a: a timed effect starts its timer
     if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed.' : res.reason === 'missing' ? 'That effect is gone.' : 'That change is not allowed.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined, extra = null;
     if (res.clamp) { extra = {}; Object.keys(res.clamp).forEach(function(fid) { extra[fid] = c.values && Object.prototype.hasOwnProperty.call(c.values, fid) ? clone(c.values[fid]) : undefined; }); }
@@ -3122,7 +3140,7 @@ function effectRow(d) {
     var xIcoIn = input('sys-fx-icon field', d.icon, 'An icon (an emoji or a bundled icon)', 'Icon'); top.appendChild(xIcoIn); top.appendChild(glyphButton(xIcoIn));
     top.appendChild(input('sys-fx-name field', d.name, 'The effect\u2019s name on the sheet (Rage, Prone, Blessed\u2026)', 'Name'));
     top.appendChild(select('sys-fx-tone', [['', 'Neutral'], ['buff', 'Buff'], ['debuff', 'Debuff']], d.tone || '', 'Buff or Debuff (a colour on the sheet)'));
-    top.appendChild(input('sys-fx-dur field', d.dur, 'A duration note (3 rounds, until dawn) \u2014 you end the effect by hand', 'Duration'));
+    top.appendChild(input('sys-fx-dur field', d.dur, 'How long it lasts: 3 turns, 10 seconds, 1 minute, next turn, or your own unit (2 watches) \u2014 it then runs out by itself (in a combat on its character\u2019s turns, out of one by the clock); any other note (until dawn) you end by hand', 'Duration'));
     var mods = el('div', 'sys-fx-mods'), targets = fxTargets(draft);
     (d.mods || []).forEach(function(m, mi) {
         var ln = el('div', 'sys-fx-mod'); ln.dataset.mi = String(mi);

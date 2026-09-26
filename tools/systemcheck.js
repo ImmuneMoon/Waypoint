@@ -1886,7 +1886,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
                 j(find5(cardR, 'sys-list-rolllabel').map(x => x.value)) === j(['Attack', 'Sneak', 'Roll', 'Four']) && find5(cardR, 'sys-list-rollformula')[0].maxLength === 300 && find5(cardR, 'sys-list-rolladd')[0].disabled === true && find5(LCR({ id: 'f_y', key: 'Y', label: 'Y', kind: 'item-list', list: {} }, []), 'sys-list-rolladd')[0].disabled === false && find5(four, 'sys-list-roll').length === 4
                 && /else if \(lcc\.indexOf\('sys-list-rollformula'\) >= 0\) rD\.formula = t\.value\.slice\(0, LIMITS\.formula\);/.test(shT) && /if \(ract === 'rolladd'\) \{ if \(rArr\.length >= LIMITS\.rowRolls\)/.test(shT)
                 && /var rvQ = varsQ\.row\(q\.row\.f, q\.row\.r\); if \(!rvQ\) \{ denyQ\('char'\); return; \}\n\s*varsQ = rvQ; if \(SQ\.rowRollNames\(campQ\.system, srcQ, q\.row\.f, q\.row\.r, \[\], Fq\)\.gm\) q\.priv = 'gm';/.test(netSrcR) && /if \(o\.row && o\.charId\) req\.row = \{ f: String\(o\.row\.f\), r: String\(o\.row\.r\) \};/.test(netSrcR)
-                && /else if \(hosting && rowP && rowP\.gm\) \{ rec\.priv = 'gm';/.test(netSrcR) && /if \(!r\.error && !opts\.row\) remember\(clean\);/.test(diceSrcR) && /row: opts\.row \|\| undefined \}\);   \/\/ row \(F5b\)/.test(diceSrcR)
+                && /else if \(hosting && rowP && rowP\.gm\) \{ rec\.priv = 'gm';/.test(netSrcR) && /if \(!r\.error && !opts\.row\) remember\(clean\);/.test(diceSrcR) && /row: opts\.row \|\| undefined, act: opts\.act \|\| undefined, mod: opts\.mod \|\| undefined, adv: opts\.adv \|\| undefined \}\);   \/\/ row \(F5b\)/.test(diceSrcR)
                 && /<b>Rolls<\/b> put a button on each row/.test(tut5c) && /A list&rsquo;s <b>Rolls<\/b> \(four at most/.test(html5c), j([find5(cardR, 'sys-list-rolllabel').map(x => x.value)]));
         }
         const tut5 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), html5 = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
@@ -3070,7 +3070,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('GM-only rolls: the hint reaches net.diceRoll unchanged — sheetRoll hands it to a plain roll and to the modifier popover (whose Roll passes it on), and dice.js\'s rollFor and roll (run for real) give net.diceRoll gmOnly beside priv; a roll without it asks gmOnly false',
             j(viaG) === j([['plain', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }], ['mod', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]])
             && j(askedG) === j([['d100', { priv: false, gmOnly: true, charId: 'c_d', label: 'Hidden Sanity' }], ['d6', { priv: false, gmOnly: false, charId: 'c_d', label: 'Luck' }], ['d6', { priv: true, gmOnly: true, charId: 'c_d', label: 'Both' }]])
-            && /closeModPop\(\); rollFor\(charId, r\.expr, label, opts\); \}\);/.test(dkG), j([viaG, askedG]));
+            && /closeModPop\(\); rollFor\(charId, r\.expr, label, opts && opts\.act \? Object\.assign\(\{\}, opts, \{ mod: mod \|\| undefined, adv: advMode !== 'normal' \? advMode : undefined \}\) : opts\); \}\);/.test(dkG), j([viaG, askedG]));
         const hG = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('GM-only rolls (source): Help says a GM-only field\'s own roll, a GM-only roll and the damage of a GM-only item (or one thrown from a GM-only list) are kept private, and what a visible item\'s damage and a GM-only item\'s blast show',
             /So are a GM-only field&rsquo;s own roll, a GM-only roll, and the damage of an item that is GM-only or thrown from a GM-only list\./.test(hG) && /A visible item&rsquo;s damage is rolled at the table like any roll; the damage of a GM-only item, or of one thrown from a GM-only list, goes to you alone, and its blast reaches players without its name\./.test(hG) && !/Item formulas never leave your machine/.test(hG));
@@ -3548,7 +3548,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('H7 the sheet and editor (source): a roll entry with changes draws as an apply button, inert in the Layout preview and a pop-out (_fxLive) and for a viewer who may not change the character; the Rolls tab has Kind: Roll | Apply (Apply hides the formula and Initiative) and a change editor (pool or number, Subtract | Add, amount, four at most); a change\'s message says its number; a player\'s refusals read Nothing to apply / the amount\'s own error',
             /function rollNode\(r, c, sys, vars\) \{[^\n]*\n    if \(Array\.isArray\(r\.apply\)\) return applyNode\(r, c, sys, vars\);/.test(shA) && /can = _fxLive && canApply\(c\)/.test(shA) && /b\.disabled = !can;/.test(shA)
             && /select\('sys-roll-kind', \[\['roll', 'Roll'\], \['apply', 'Apply'\]\]/.test(shA) && /if \(!isApply\) top\.appendChild\(input\('sys-formula field'/.test(shA) && /if \(!isApply\) \{ var il = el\('label', 'sys-hover'\);/.test(shA)
-            && /addB\.disabled = list\.length >= LIMITS\.applyChanges;/.test(shA) && /if \(m\) return 'Change ' \+ \(\+m\[1\] \+ 1\) \+ ': ';/.test(shA)
+            && /addB\.disabled = list\.length >= LIMITS\.applyChanges;/.test(shA) && /if \(m\) return \(m\[1\] === 'then' \? 'Then ' : 'Change '\) \+ \(\+m\[2\] \+ 1\) \+ ': ';/.test(shA)
             && /toast\(reason === 'none' \? 'Nothing to apply\.' : reason === 'error' \? \(msg \|\| 'That amount could not be worked out\.'\)/.test(shA));
         const tutA = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), helpA = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('H7 the tour and Help: the System step names apply buttons (Apply costs, Apply wounds); Help says how a Kind: Apply roll works — up to four changes, Subtract or Add, an amount with no dice, amounts first, the field\'s min and max, who may press it, where its card goes, Revert',
@@ -3647,6 +3647,52 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('C8 the tour and Help: Show if on a section or one placement (its if button), worked out on the character\'s own values on the sheet and the HUD, dimmed in the preview, failing open, GM-only values always showing for players, and not a secret',
             /<b>Show if<\/b>: a section, or one placement \(its <b>if<\/b> button\), shows only while a formula is true/.test(hS) && /the Layout preview draws a hidden part dimmed/.test(hS) && /A formula that cannot be worked out shows the part, and one reading a GM-only value always shows for players\. It only hides: the values still reach the player, so a secret stays <b>GM only<\/b>\./.test(hS)
             && /can <b>Show if<\/b> a formula is true \(<code>Stun &gt; 0<\/code>\): a stunned banner that comes and goes\./.test(tS));
+    }
+    /* ---- Stage 6 HUD R1: a roll's consequences (then: always / on success / on failure) and Set to ---- */
+    {
+        const dkR1 = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, NL), cutR1 = (x, y) => dkR1.slice(dkR1.indexOf(x), dkR1.indexOf(y));
+        const DCR1 = await import(url('dicecore.js')), askedR1 = [];
+        const diceR1 = new Function('ui', 'panelOpen', 'syncChars', 'toast', 'net', 'cleanExpr', 'LIMITS', 'remember', "var lastSource = 'panel';\n" + cutR1('function rollFor(', '/* ---------- Stage 5a') + cutR1('function roll(expr, opts) {', 'function rollFromPanel()') + '\nreturn rollFor;')(
+            () => null, () => false, () => {}, () => {}, () => ({ diceRoll: (expr, o) => { askedR1.push([expr, o]); return { ok: true, pending: true }; } }), DCR1.cleanExpr, DCR1.LIMITS, () => {});
+        diceR1('c_d', '3d6 <= (12) + 2', 'Attack', { act: 'r_atk', mod: 2, adv: 'adv' }); diceR1('c_d', 'd6', 'Luck');
+        check('R1 dice.js (run for real): rollFor and roll hand net.diceRoll the entry, its modifier and advantage (a roll with consequences); a plain roll carries none',
+            j(askedR1[0]) === j(['3d6 <= (12) + 2', { priv: false, gmOnly: false, charId: 'c_d', label: 'Attack', act: 'r_atk', mod: 2, adv: 'adv' }]) && j(askedR1[1]) === j(['d6', { priv: false, gmOnly: false, charId: 'c_d', label: 'Luck' }]), j(askedR1));
+        const rawT = { v: 1, name: 'T', fields: [
+            { id: 'f_hits', key: 'Hits', kind: 'number', def: 0, min: 0, max: 9, edit: 'gm' }, { id: 'f_stun', key: 'Stun', kind: 'number', def: 2, min: 0 },
+            { id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '10', min: 0, def: 'max' }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }, { id: 'f_note', key: 'Note', kind: 'text' }],
+            rolls: [
+                { id: 'r_atk', label: 'Attack', formula: '3d6 <= 12', then: [{ f: 'f_hits', formula: '1', add: true, when: 'hit' }, { f: 'f_hits', formula: '0', set: true, when: 'miss' }, { f: 'f_fp', formula: '1' }, { f: 'f_hits', formula: '5', add: true, when: 'hit' }, { f: 'f_stun', formula: '0', set: true, add: true, when: 'nope' }, { f: 'f_fp', formula: '2', when: 'hit' }] },
+                { id: 'r_dmg', label: 'Damage', formula: '2d6', then: [{ f: 'f_hits', formula: '0', set: true }, { f: 'f_hits', formula: '1', when: 'hit' }] },
+                { id: 'r_sec', label: 'Secret', formula: '3d6 <= 10', then: [{ f: 'f_hits', formula: 'GMFig', add: true }] },
+                { id: 'r_bad', label: 'Bad', formula: '3d6 <= 10', then: [{ f: 'f_note', formula: '1' }, { f: 'f_fp', formula: 'd6' }] },
+                { id: 'r_ap', label: 'Reset', apply: [{ f: 'f_stun', formula: '0', set: true, when: 'hit' }] }],
+            sheet: { sections: [] } };
+        const gmT = cleanSystem(rawT, { F, gmView: true }), plT = cleanSystem(rawT, { F, gmView: false }), rT = (s, id) => s.rolls.find(r => r.id === id);
+        check('R1 the cleaner keeps a roll\'s consequences (then, four at most): each change always / on success / on failure, Subtract, Add or Set to (Set wins); a field once per When; an apply action\'s changes take Set to but no When; a fixed point',
+            j(rT(gmT, 'r_atk').then) === j([{ f: 'f_hits', formula: '1', add: true, when: 'hit' }, { f: 'f_hits', formula: '0', set: true, when: 'miss' }, { f: 'f_fp', formula: '1' }, { f: 'f_stun', formula: '0', set: true }])
+            && j(rT(gmT, 'r_dmg').then) === j([{ f: 'f_hits', formula: '0', set: true }, { f: 'f_hits', formula: '1', when: 'hit' }]) && j(rT(gmT, 'r_ap').apply) === j([{ f: 'f_stun', formula: '0', set: true }]) && !('then' in rT(gmT, 'r_ap'))
+            && j(cleanSystem(gmT, { F, gmView: true })) === j(gmT), j([rT(gmT, 'r_atk').then, rT(gmT, 'r_dmg').then, rT(gmT, 'r_ap')]));
+        check('R1 the players\' view drops a roll\'s consequences whole (the roll stays) when one names a GM-only value or is unfinished; the rest travel; a fixed point',
+            !('then' in rT(plT, 'r_sec')) && !('then' in rT(plT, 'r_bad')) && rT(plT, 'r_sec').formula === '3d6 <= 10' && j(rT(plT, 'r_atk').then) === j(rT(gmT, 'r_atk').then) && j(cleanSystem(plT, { F, gmView: false })) === j(plT), j([rT(plT, 'r_sec'), rT(plT, 'r_bad')]));
+        const vT = validateSystem(gmT, F), eT = id => vT.errors.filter(e => e.id === id).map(e => e.prop + ' ' + e.message), wT = id => vT.warnings.filter(e => e.id === id).map(e => e.prop + ' ' + e.message);
+        check('R1 the validator: a consequence needs a pool or a number and an amount with no dice; On success / On failure on a roll that tests nothing warns; one naming a GM-only value warns that players\' rolls will not apply it',
+            j(eT('r_bad')) === j(['then.0 Pick the pool or number this changes.', 'then.1 An amount cannot roll dice: roll first, and let the amount read the field the result goes in.'])
+            && j(wT('r_dmg')) === j(['then.1 This roll tests nothing (no comparison, like 3d6 <= Skill), so On success never happens.']) && j(wT('r_sec')) === j(['then.0 "GMFig" is GM only: players’ rolls will not apply it.']) && !eT('r_atk').length && !wT('r_atk').length,
+            j([eT('r_bad'), wT('r_dmg'), wT('r_sec'), eT('r_atk')]));
+        const chT = { id: 'c_t', values: { f_fp: { cur: 4 } } }, rsv = makeResolver(gmT, chT, F), apT = list => S.applyAct(gmT, chT, { apply: list }, rsv, F);
+        const sStun = apT([{ f: 'f_stun', formula: '0', set: true }]), sHits = apT([{ f: 'f_hits', formula: '99', set: true }]), sFp = apT([{ f: 'f_fp', formula: '-5', set: true }]);
+        check('R1 Set to: the amount is the new value (clamped by the field: Hits 99 to its max 9, FP -5 to its min 0), a Set to 0 applies (never "nothing to apply"), and its line says what it moved (Stun 2 to 0: -2)',
+            j(sStun) === j({ ok: true, values: { f_stun: 0 }, lines: [{ f: 'f_stun', n: 'Stun', d: -2, v: 0 }], names: [] }) && j(sHits.values) === j({ f_hits: 9 }) && sHits.lines[0].d === 9 && j(sFp.values) === j({ f_fp: { cur: 0 } }) && sFp.lines[0].d === -4,
+            j([sStun, sHits, sFp]));
+        const tc = pass => S.thenChanges(rT(gmT, 'r_atk'), pass).map(c => c.f + (c.when ? ':' + c.when : ''));
+        check('R1 thenChanges: a success takes the On success and Always changes, a failure the On failure and Always ones, a roll that tests nothing only the Always ones',
+            j(tc(true)) === j(['f_hits:hit', 'f_fp', 'f_stun']) && j(tc(false)) === j(['f_hits:miss', 'f_fp', 'f_stun']) && j(tc(null)) === j(['f_fp', 'f_stun']) && j(S.thenChanges({ id: 'r_x' }, true)) === '[]');
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hT = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tT = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('R1 the editor and sheet (source): a roll row has its + Then… editor (When, target, Subtract | Add | Set to, amount); the change buttons keep their order (a removal that empties the list drops it, every other press saves and redraws); a roll with consequences names itself to the dice path; tour and Help say so',
+            /row\.appendChild\(applyEditor\(r, isApply \? 'apply' : 'then'\)\);/.test(shT) && /select\('sys-apply-when', \[\['', 'Always'\], \['hit', 'On success'\], \['miss', 'On failure'\]\]/.test(shT) && /\['sub', 'Subtract'\], \['add', 'Add'\], \['set', 'Set to'\]\], ch\.set \? 'set'/.test(shT)
+            && /else if \(act === 'applydel' && aI >= 0 && aI < aArr\.length\) aArr\.splice\(aI, 1\);\n\s*else return;\n\s*if \(aK === 'then' && !aArr\.length\) delete ctx\.r\.then;/.test(shT)
+            && /if \(Array\.isArray\(r\.then\) && r\.then\.length\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \} sheetRoll\(e, c\.id, r\.formula, lb, oR\);/.test(shT)
+            && /A <b>roll<\/b> can make changes too: its <b>\+ Then&hellip;<\/b> changes/.test(hT) && /the host rolls the button&rsquo;s own formula \(a modifier or advantage from shift-click included\), so a hit cannot be made up\./.test(hT) && /a roll can make changes after it lands \(<b>On success<\/b>: Hits \+ 1\)/.test(tT));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

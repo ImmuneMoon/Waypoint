@@ -129,6 +129,12 @@ function cleanRollReq(msg) {
         var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f) || typeof rw.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rw.r)) return null;
         out.row = { f: rw.f, r: rw.r };
     }
+    if (msg.act !== undefined) {   // Stage 6 HUD R1: a roll with consequences names its entry; its modifier and advantage travel as data (the host rebuilds the formula from the entry)
+        if (!out.charId || out.row || typeof msg.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(msg.act)) return null;
+        out.act = msg.act;
+        if (msg.mod !== undefined) { if (!isInt(msg.mod) || msg.mod < -99 || msg.mod > 99) return null; if (msg.mod) out.mod = msg.mod; }
+        if (msg.adv !== undefined) { if (msg.adv !== 'adv' && msg.adv !== 'dis') return null; out.adv = msg.adv; }
+    } else if (msg.mod !== undefined || msg.adv !== undefined) return null;
     return out;
 }
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }

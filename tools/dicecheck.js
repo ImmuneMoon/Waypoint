@@ -116,6 +116,15 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
             && D.applyText(Object.assign({}, c, { label: undefined })).indexOf(' applied an action: ') > 0, D.applyText(c));
     }
 
+    /* ---- Stage 6 HUD R1: a roll with consequences names its entry; its modifier and advantage travel as data ---- */
+    {
+        const J = JSON.stringify, base = { type: 'roll-req', rid: 'q1', expr: '3d6 <= 12', charId: 'c_a' }, q = o => cleanRollReq(Object.assign({}, base, o));
+        check('R1 cleanRollReq: act (a roll id) with a whole modifier of -99 to 99 (0: none) and adv or dis, only as a character and never with a row; a modifier or advantage without act, or out of shape, refuses the request whole',
+            J(q({ act: 'r_atk', mod: 2, adv: 'adv' })) === J({ rid: 'q1', expr: '3d6 <= 12', charId: 'c_a', act: 'r_atk', mod: 2, adv: 'adv' }) && J(q({ act: 'r_atk', mod: 0 })) === J({ rid: 'q1', expr: '3d6 <= 12', charId: 'c_a', act: 'r_atk' })
+            && [{ act: 'r_atk', mod: 100 }, { act: 'r_atk', mod: 1.5 }, { act: 'r_atk', mod: '2' }, { act: 'r_atk', adv: 'x' }, { act: 'x' }, { act: 'r_atk', row: { f: 'f_w', r: 'w_1' } }, { mod: 2 }, { adv: 'adv' }].every(o => q(o) === null)
+            && cleanRollReq({ type: 'roll-req', rid: 'q1', expr: 'd6', act: 'r_atk' }) === null);
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');

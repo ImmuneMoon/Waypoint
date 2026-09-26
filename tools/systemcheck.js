@@ -1268,6 +1268,77 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             [zSel, zBar, zSheet, zHud, zDoc, zStrip].every(isFinite) && zSel < Math.min(zSheet, zHud, zDoc) && zBar < Math.min(zSheet, zHud, zDoc) && zSel > zStrip && zBar > zStrip && zBar < zSel, j({ zSel, zBar, zSheet, zHud, zDoc, zStrip }));
     }
 
+    /* ---- Stage 6 HUD frame (HF3): the docked roll history — the footer run for real on a tiny DOM, its gate, NEW, Clear, depth, the hook ---- */
+    {
+        const sh5 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), fx5 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
+        const ftSrc = sh5.slice(sh5.indexOf('var _histCleared = '), sh5.indexOf('// One refresh path for every view of a character'));
+        // a DOM just big enough for the footer: elements with classes, text, children, attributes, listeners and focus
+        const mkDoc = () => {
+            const doc = { activeElement: null };
+            const E = tag => { const e = { tag, className: '', children: [], attrs: {}, on: {}, style: {}, title: '', type: '', value: '', scrollTop: 0, _t: '', parent: null,
+                get textContent() { return this._t + this.children.map(c => c.textContent).join(''); }, set textContent(v) { this.children.forEach(c => { c.parent = null; }); this.children = []; this._t = String(v); },
+                appendChild(c) { c.parent = this; this.children.push(c); if (c.tag === 'option' && !this.value) this.value = c.value; return c; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(k, f) { this.on[k] = f; },
+                get classList() { const s = this; return { contains: k => s.className.split(/\s+/).includes(k) }; },
+                all() { return this.children.flatMap(c => [c, ...c.all()]); }, querySelector(q) { return this.all().find(c => c.classList.contains(q.slice(1))) || null; }, querySelectorAll(q) { return this.all().filter(c => c.classList.contains(q.slice(1))); },
+                contains(x) { return x === this || this.all().includes(x); }, focus() { doc.activeElement = this; }, click() { if (this.on.click) this.on.click({ preventDefault() {} }); } }; return e; };
+            doc.E = E; return doc;
+        };
+        const run = o => {
+            const doc = mkDoc(), prefs = Object.assign({}, o.prefs), calls = [];
+            const el = (t, c, x) => { const e = doc.E(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; };
+            const iconNode = (v, c) => el('span', c + ' wp-glyph');
+            const chars = { c_a: { id: 'c_a', name: 'Bren' }, c_b: { id: 'c_b', name: 'Ana' } };
+            const netS = { rollSeq: () => 42, rollsFor: (cid, name, since, max) => { calls.push([cid, name, since, max]); return (o.rolls || []).slice(0, max); } };
+            const win = { wpVtt: { on: k => k !== 'dice' || !o.diceOff }, wpDice: { renderCard: m => { const c = el('div', 'chat-roll'); c.textContent = 'card ' + m.roll.id; return c; } }, wpDiceCore: { LIMITS: { label: o.label || 60 } } };
+            const huds = {}; ['c_a', 'c_b'].forEach(id => { huds[id] = { charId: id, foot: el('div', 'hud-foot'), histOpen: !!o.open }; });
+            const api = new Function('el', 'iconNode', 'pref', 'setPref', 'getActiveCampaign', 'charById', 'net', 'systemOf', 'huds', 'document', 'window', ftSrc + '\nreturn { renderHudFoot, rolled, histDepth, rollName, cleared: _histCleared };')(
+                el, iconNode, (k, d) => (k in prefs ? prefs[k] : d), (k, v) => { prefs[k] = String(v); }, () => ({ id: 'k1' }), id => chars[id] || null, () => netS, () => o.sys, huds, doc, win);
+            return { api, huds, doc, prefs, calls, cls: (v, q) => v.foot.querySelectorAll(q) };
+        };
+        const sD = cleanSystem(fx5('hud-d20'), { F, gmView: true }), sB = cleanSystem(fx5('hud-bare'), { F, gmView: true }), s3 = cleanSystem(fx5('hud-3d6'), { F, gmView: true });
+        const rollsOf = n => Array.from({ length: n }, (_, i) => ({ roll: { id: 'r' + i } }));
+        const bare = run({ sys: sB, rolls: rollsOf(2) }), off = run({ sys: sD, diceOff: true, rolls: rollsOf(2) }), none = run({ sys: null, rolls: rollsOf(2) });
+        [bare, off, none].forEach(r => r.api.renderHudFoot(r.huds.c_a));
+        check('HUD frame HF3: the footer builds NOTHING (the foot hides) when the system the viewer holds has nothing to roll (hud-bare), the table cannot roll (dice off), or there is no system',
+            [bare, off, none].every(r => r.huds.c_a.foot.children.length === 0) && sB.rolls.length === 0 && sD.rolls.length > 0 && s3.fields.some(f => f.roll), j([bare, off, none].map(r => r.huds.c_a.foot.children.length)));
+        const cl = run({ sys: s3, rolls: rollsOf(3) }), v = cl.huds.c_a; cl.api.renderHudFoot(v);
+        const tg = () => v.foot.querySelector('.hud-hist-toggle');
+        check('HUD frame HF3: closed, with rolls — the bar holds the toggle (history glyph, ROLL HISTORY, a NEW pill, a chevron), aria-expanded false, and no list, Clear or depth; it asked net.rollsFor for this character by the name its rolls carry, with no Clear mark and the default depth 10',
+            v.foot.children.length === 1 && v.foot.children[0].className === 'hud-hist-bar' && tg() && tg().attrs['aria-expanded'] === 'false' && cl.cls(v, '.hud-hist-new').length === 1 && cl.cls(v, '.hud-hist-new')[0].textContent === 'NEW'
+            && cl.cls(v, '.hud-hist-ico').length === 1 && cl.cls(v, '.hud-hist-chev').length === 1 && cl.cls(v, '.hud-hist-list').length === 0 && cl.cls(v, '.hud-hist-clear').length === 0 && cl.cls(v, '.hud-hist-depth').length === 0
+            && j(cl.calls[0]) === j(['c_a', 'Bren', 0, 10]), j(cl.calls));
+        tg().focus(); tg().click();
+        check('HUD frame HF3: the toggle opens the drawer — no NEW, aria-expanded true, Clear and the depth (10/25/50/100) in the tools, one dice card per roll in the list, and focus back on the new toggle',
+            v.histOpen === true && cl.cls(v, '.hud-hist-new').length === 0 && tg().attrs['aria-expanded'] === 'true' && cl.cls(v, '.hud-hist-clear').length === 1
+            && j(cl.cls(v, '.hud-hist-depth')[0].children.map(o => o.value)) === j(['10', '25', '50', '100']) && cl.cls(v, '.chat-roll').length === 3 && cl.doc.activeElement === tg());
+        cl.cls(v, '.hud-hist-clear')[0].click();
+        check('HUD frame HF3: Clear marks this viewer\'s history for that character at the ring\'s seq (the next list asks for rolls after it); the other character\'s is untouched',
+            cl.api.cleared.c_a === 42 && !('c_b' in cl.api.cleared) && cl.calls[cl.calls.length - 1][2] === 42);
+        const dep = cl.cls(v, '.hud-hist-depth')[0]; dep.value = '50'; dep.on.change(); const bad = cl.calls.length; dep.value = '7'; dep.on.change();
+        const dp = p => run({ sys: sD, prefs: { wp_hudHistDepth: p } }).api.histDepth();
+        check('HUD frame HF3: the depth is the shared pref wp_hudHistDepth (every open HUD repaints with it); only 10/25/50/100 are taken, anything else reads as 10',
+            cl.prefs.wp_hudHistDepth === '50' && cl.calls[bad - 1][3] === 50 && cl.calls[bad - 2][3] === 50 && cl.calls.length === bad && dp('25') === 25 && dp('100') === 100 && dp('7') === 10 && dp('abc') === 10 && dp('1e2') === 10, j(cl.calls.slice(-3)));
+        const em = run({ sys: sD, rolls: [], open: true }); em.api.renderHudFoot(em.huds.c_b);
+        const emC = run({ sys: sD, rolls: [] }); emC.api.renderHudFoot(emC.huds.c_b);
+        check('HUD frame HF3: open and empty — the text names the character, no Clear; closed and empty — no NEW',
+            em.cls(em.huds.c_b, '.hud-hist-empty')[0].textContent === 'No rolls as Ana yet this session.' && em.cls(em.huds.c_b, '.hud-hist-clear').length === 0 && emC.cls(emC.huds.c_b, '.hud-hist-new').length === 0);
+        const hk = run({ sys: sD, rolls: rollsOf(1), label: 3 }), mark = () => ['c_a', 'c_b'].forEach(id => { hk.huds[id].foot.textContent = ''; hk.huds[id].foot.appendChild(hk.doc.E('i')); }), hit = () => ['c_a', 'c_b'].filter(id => hk.huds[id].foot.children[0].tag !== 'i');
+        const hits = [];
+        mark(); hk.api.rolled({ roll: { as: 'Bre' } }, 'c_b'); hits.push(hit());
+        mark(); hk.api.rolled({ roll: { as: 'Bre' } }, ''); hits.push(hit());
+        mark(); hk.api.rolled({ roll: { as: 'Zed' } }, ''); hits.push(hit());
+        mark(); hk.api.rolled({ roll: {} }, ''); hits.push(hit());
+        mark(); hk.api.rolled(null, ''); hits.push(hit());
+        check('HUD frame HF3: the hook repaints the foot of the HUD a roll was made as — by its tag, else by the name it carries (capped as a roll\'s "as" is) — and every foot for a repaint with no roll',
+            j(hits) === j([['c_b'], ['c_a'], [], [], ['c_a', 'c_b']]) && hk.api.rollName({ name: 'Brennan' }) === 'Bre', j(hits));
+        const hs = sh5.slice(sh5.indexOf('// [systemcheck:hud-start]'), sh5.indexOf('// [systemcheck:hud-end]')), rd = (ftSrc.match(/function rolled\(m, cid\) \{[\s\S]*?\n\}/) || [''])[0];
+        check('HUD frame HF3: the footer is inside the HUD slice and writes no markup (el/textContent and the dice card only); the hook repaints the foot, never the body; renderHud ends by drawing its foot; makeHud starts the drawer closed; wpSheets exports rolled; its CSS lives in the HUD block; the tour and Help name it',
+            hs.indexOf('function renderHudFoot(v)') > 0 && !/innerHTML|outerHTML|insertAdjacentHTML/.test(ftSrc) && /D\.renderCard\(m\)/.test(ftSrc) && rd.length > 50 && /renderHudFoot\(v\)/.test(rd) && !/renderHud\(|renderViews\(/.test(rd)
+            && /    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n\}/.test(hs) && /v\.foot = q\('hud-foot'\); v\.histOpen = false;/.test(hs) && /hudFor: hudFor, rolled: rolled,/.test(sh5)
+            && (() => { const css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b = css5.slice(css5.indexOf('/* ---- Stage 6 HUD frame:')); return /\.hud-hist-bar \{ height: 44px;/.test(b) && /@media \(prefers-reduced-motion: reduce\) \{ \.hud-hist-new \{ animation: none; \} \}/.test(b) && /\.hud-hist-list \{ max-height: 18rem;/.test(b); })()
+            && /When the system has rolls, its <b>Roll history<\/b> drawer/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /<b>Roll history<\/b> \(when the system has rolls\)/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+    }
+
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */
     {
         const sys8 = look => cleanSystem({ v: 1, name: 'L8', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true }).sheet.look;

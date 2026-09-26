@@ -587,6 +587,7 @@ function makeHud(charId) {
     var p = tpl.content.firstElementChild.cloneNode(true); p.dataset.cid = charId;
     var q = function(cls) { return p.querySelector('.' + cls); };
     var v = { charId: charId, panel: p, head: q('hud-head'), body: q('hud-body'), name: q('hud-name'), sub: q('hud-sub'), por: q('hud-portrait'), dialSig: '', dialStale: false, dialOn: null, redraw: null };
+    v.foot = q('hud-foot'); v.histOpen = false;   // HF3: the roll history drawer, closed on a new window (as the reference)
     layer.appendChild(p);
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeHud(charId); } });
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
@@ -635,6 +636,63 @@ function renderHud(charId) {
     applySheetLookTo(v.body, sheetLook(camp, sys));
     syncFramePad(v.body);
     restoreFocus(v.body, fk);
+    renderHudFoot(v);
+}
+/* HF3: the docked roll history at the HUD's foot — the reference's footer drawer. It lists what THIS machine saw of the rolls made as the
+   character this session (net.rollsFor: tagged locally, or another machine's roll made as its name), newest first, drawn by the dice's
+   own textContent-only card. Nothing is built (the foot hides) when the table cannot roll or the system the viewer holds has nothing to
+   roll. Clear is this viewer's alone (a seq mark, for the session); the depth is a pref, 10/25/50/100. The body is never rebuilt here. */
+var _histCleared = Object.create(null), HIST_DEPTHS = [10, 25, 50, 100];
+function histDepth() { var d = parseInt(pref('wp_hudHistDepth', '10'), 10); return HIST_DEPTHS.indexOf(d) >= 0 ? d : 10; }
+function sysRolls(sys) { return !!sys && ((Array.isArray(sys.rolls) && sys.rolls.length > 0) || (Array.isArray(sys.fields) && sys.fields.some(function(f) { return f && f.roll; }))); }
+function rollName(c) { var DL = window.wpDiceCore && window.wpDiceCore.LIMITS; return String((c && c.name) || '').slice(0, (DL && DL.label) || 60); }   // as a roll's "as" carries it
+function renderHudFoot(v) {
+    var foot = v && v.foot; if (!foot) return;
+    var fa = document.activeElement, fcls = fa && foot.contains(fa) ? ['hud-hist-toggle', 'hud-hist-clear', 'hud-hist-depth'].filter(function(k) { return fa.classList.contains(k); })[0] || '' : '';
+    var old = foot.querySelector('.hud-hist-list'), top = old ? old.scrollTop : 0;
+    foot.textContent = '';
+    var camp = getActiveCampaign(), c = charById(v.charId, camp), n = net(), D = window.wpDice;
+    if (!c || !n || typeof n.rollsFor !== 'function' || !D || typeof D.renderCard !== 'function' || (window.wpVtt && !window.wpVtt.on('dice')) || !sysRolls(systemOf(camp))) return;
+    var rolls = n.rollsFor(v.charId, rollName(c), _histCleared[v.charId] || 0, histDepth());
+    var bar = el('div', 'hud-hist-bar'), tg = el('button', 'hud-hist-toggle'); tg.type = 'button';
+    tg.setAttribute('aria-expanded', v.histOpen ? 'true' : 'false'); tg.title = v.histOpen ? 'Hide the roll history' : 'Show this session’s rolls as ' + c.name;
+    var ib = el('span', 'hud-hist-icobox'); ib.appendChild(iconNode('icon:clock-rotate-left', 'hud-hist-ico')); tg.appendChild(ib);
+    tg.appendChild(el('span', 'hud-hist-title', 'Roll history'));
+    if (!v.histOpen && rolls.length) tg.appendChild(el('span', 'hud-hist-new', 'NEW'));   // the reference's pulse: closed, with rolls in it
+    tg.appendChild(iconNode(v.histOpen ? 'icon:chevron-down' : 'icon:chevron-up', 'hud-hist-chev'));
+    tg.addEventListener('click', function() { v.histOpen = !v.histOpen; renderHudFoot(v); });
+    bar.appendChild(tg);
+    if (v.histOpen) {
+        var tools = el('div', 'hud-hist-tools');
+        if (rolls.length) {
+            var clr = el('button', 'tool ghost hud-hist-clear', 'Clear'); clr.type = 'button'; clr.title = 'Empty this history for you (the chat keeps every roll)';
+            clr.addEventListener('click', function() { _histCleared[v.charId] = n.rollSeq(); renderHudFoot(v); });
+            tools.appendChild(clr);
+        }
+        var sel = el('select', 'field hud-hist-depth'); sel.title = 'How many rolls to list';
+        HIST_DEPTHS.forEach(function(d) { var o = el('option', null, String(d)); o.value = String(d); sel.appendChild(o); });
+        sel.value = String(histDepth());
+        sel.addEventListener('change', function() { var d = parseInt(sel.value, 10); if (HIST_DEPTHS.indexOf(d) < 0) return; setPref('wp_hudHistDepth', d); Object.keys(huds).forEach(function(id) { renderHudFoot(huds[id]); }); });
+        tools.appendChild(sel);
+        bar.appendChild(tools);
+    }
+    foot.appendChild(bar);
+    if (v.histOpen) {
+        var list = el('div', 'hud-hist-list');
+        if (rolls.length) rolls.forEach(function(m) { list.appendChild(D.renderCard(m)); });
+        else list.appendChild(el('div', 'hud-hist-empty notepad-who', 'No rolls as ' + c.name + ' yet this session.'));
+        foot.appendChild(list); list.scrollTop = top;
+    }
+    if (fcls) { var back = foot.querySelector('.' + fcls) || foot.querySelector('.hud-hist-toggle'); if (back) back.focus(); }
+}
+// net.js's hook: a roll landed (m) made as cid (a local tag; '' when another machine made it) — repaint the FOOT of each HUD of that
+// character (by tag, or by name when untagged); m null (the join's history, a session reset): every HUD's foot
+function rolled(m, cid) {
+    Object.keys(huds).forEach(function(id) {
+        var v = huds[id]; if (!v) return;
+        if (m && m.roll) { if (cid ? id !== cid : !(m.roll.as && m.roll.as === rollName(charById(id)))) return; }
+        renderHudFoot(v);
+    });
 }
 // One refresh path for every view of a character: the sheet when it shows charId (any when null), then every HUD of it (all when null) —
 // never the body that just painted itself (skip)
@@ -2672,7 +2730,7 @@ setTimeout(sync, 0);
 window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
-    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
 (function wireSheetPopout() {

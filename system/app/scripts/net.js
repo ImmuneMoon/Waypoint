@@ -2265,7 +2265,7 @@ function admitPlayer(conn, prof, provenKey) {
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
     setTimeout(function() {   // the table's recent conversation, so a latecomer is not lost
-        var recent = chatLog.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: m.roll } : m; });
+        var recent = chatHistoryOf(chatLog);
         if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) { sendFailed(e); } }
     }, 1200);
     var camp = getActiveCampaign();
@@ -2817,8 +2817,8 @@ function handleMessage(msg, conn) {
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
-        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper'); }
-        else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global'); }
+        if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
+        else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
@@ -2832,9 +2832,10 @@ function handleMessage(msg, conn) {
             return;
         }
         var rc = Dr.cleanRoll(msg); if (!rc) return;
+        var cidP = (_dicePending && rc.rid === _dicePending.rid) ? _dicePending.charId : '';   // HF3: our own roll, made as the character we asked it for (a local tag, never sent)
         if (_dicePending && rc.rid === _dicePending.rid) { clearTimeout(_dicePending.timer); _dicePending = null; if (window.wpDice) window.wpDice.onRolled(rc); }
         var rp = Dr.replay(rc, Fr, Fr.VERSION);
-        pushRoll(rc, rp.ok ? rp.result : null, rc.priv || rc.to ? 'whisper' : 'global', { bad: rp.ok ? null : rp.reason });
+        pushRoll(rc, rp.ok ? rp.result : null, rc.priv || rc.to ? 'whisper' : 'global', { bad: rp.ok ? null : rp.reason, cid: cidP });
     } else if (msg.type === 'asset-req' && net.role === 'host') {
         handleAssetRequest(msg, conn);
     } else if (msg.type === 'asset-part' && net.role === 'client') {
@@ -2866,14 +2867,15 @@ function handleMessage(msg, conn) {
         var histD = window.wpDiceCore, histF = window.wpFormula;
         var hist = Array.isArray(msg.log) ? msg.log.filter(function(m) { return m && m.from && (typeof m.text === 'string' || m.roll); }).slice(-60) : [];
         var have = {}; chatLog.forEach(function(m) { have[m.roll ? 'r|' + m.roll.id : (m.ts || 0) + '|' + (m.from && m.from.id) + '|' + m.text] = true; });
-        var added = 0;
+        var added = 0, addedR = 0;
         hist.forEach(function(m) {
             if (m.roll) {   // a roll entry: the record is validated and replayed exactly like a live one
                 if (!histD || !histF) return;
                 var hr = histD.cleanRoll(m.roll); if (!hr || hr.priv || hr.to || have['r|' + hr.id]) return;
                 have['r|' + hr.id] = true;
                 var hp = histD.replay(hr, histF, histF.VERSION);
-                chatLog.push({ from: hr.from, text: '', scope: 'global', ts: hr.ts, roll: hr, res: hp.ok ? hp.result : null, rollBad: hp.ok ? null : hp.reason }); added++;
+                var hm = { from: hr.from, text: '', scope: 'global', ts: hr.ts, roll: hr, res: hp.ok ? hp.result : null, rollBad: hp.ok ? null : hp.reason };
+                chatLog.push(hm); ringPush(hm, '', true); added++; addedR++;   // HF3: into the HUDs' history too, in time order, never NEW
                 return;
             }
             var k = (m.ts || 0) + '|' + m.from.id + '|' + m.text;
@@ -2881,6 +2883,7 @@ function handleMessage(msg, conn) {
         });
         chatLog.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
         while (chatLog.length > 200) chatLog.shift();
+        if (addedR) ringRepaint();
         if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none') { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
     } else if (msg.type === 'roster' && net.role === 'client') {   // the host owns the roster; a player's copy never replaces it
         if (conn.peer !== net.syncedPeer) return;   // only the table this player is synced to
@@ -3422,15 +3425,41 @@ function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() woul
     net.conns.forEach(function(c) { if (c !== exceptConn && c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 }
 function diceFrom(prof, gm) { return { id: String((prof && prof.id) || 'x').slice(0, 60), name: String((prof && prof.name) || (gm ? 'GM' : 'Player')).slice(0, 60), gm: !!gm }; }
+// [netcheck:rolltag-start]
+// A HUD's roll history (Stage 6 HUD frame, HF3): every roll this machine saw, tagged HERE with the character it was made as (the host knows
+// the character of every roll made as one; a player knows its own from its pending request) — the tag never goes on the wire; in time
+// order, at most 300, gone with the session like the chat. seq is this machine's own counter (a host's ts is another clock): Clear
+// compares seq, never ts; it never resets, so a Clear from before a session reset hides nothing new
+var rollRing = [], ringSeq = 0;
+function ringPush(m, cid, replay) {
+    if (!m || !m.roll) return;
+    if (replay && rollRing.some(function(x) { return x.m.roll.id === m.roll.id; })) return;   // the join's history never doubles a roll already here
+    var e = { m: m, cid: typeof cid === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(cid) ? cid : '', camp: (getActiveCampaign() || {}).id || '', seq: ++ringSeq, replay: !!replay };
+    if (replay) { var i = rollRing.length; while (i > 0 && (rollRing[i - 1].m.ts || 0) > (m.ts || 0)) i--; rollRing.splice(i, 0, e); }   // the join's history lands in time order
+    else rollRing.push(e);
+    if (rollRing.length > 300) rollRing.shift();
+    if (!replay) { try { if (window.wpSheets && window.wpSheets.rolled) window.wpSheets.rolled(m, e.cid); } catch (x) {} }
+}
+function ringRepaint() { try { if (window.wpSheets && window.wpSheets.rolled) window.wpSheets.rolled(null, ''); } catch (x) {} }   // every HUD's footer, no NEW of its own
+net.rollSeq = function() { return ringSeq; };
+net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged with this character, or (untagged: another machine's roll) made as its name; roll/res are shared with the chat — read-only
+    var camp = (getActiveCampaign() || {}).id || '', out = [], n = Math.max(1, Math.min(100, max | 0 || 10));
+    for (var i = rollRing.length - 1; i >= 0 && out.length < n; i--) { var e = rollRing[i]; if (e.camp !== camp || (sinceSeq && e.seq <= sinceSeq)) continue;
+        if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name)) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
+    return out;
+};
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: m.roll } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+// [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
-    pushChat({ from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res, rollBad: res ? null : ((opts && opts.bad) || 'error'), toName: opts && opts.toName ? opts.toName : '' });
+    var m = { from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res, rollBad: res ? null : ((opts && opts.bad) || 'error'), toName: opts && opts.toName ? opts.toName : '' };
+    pushChat(m); ringPush(m, opts && opts.cid);
 }
 function diceSessionReset(clearChat) {
     if (_dicePending) { clearTimeout(_dicePending.timer); _dicePending = null; }
     if (diceLimit) diceLimit.reset();
     _diceSlowSaid = {};
     charSessionReset();
-    if (clearChat) { chatLog = []; chatUnread = 0; renderChat(); }   // the table that is over keeps its chat and its rolls to itself
+    if (clearChat) { chatLog = []; chatUnread = 0; renderChat(); rollRing = []; ringRepaint(); }   // the table that is over keeps its chat and its rolls to itself (the HUDs' history too; ringSeq runs on)
 }
 // Roll from here: a client asks the host; a host or a solo GM rolls at once. Returns { ok } or { error, pos?, len? }.
 net.diceRoll = function(expr, o) {
@@ -3447,7 +3476,7 @@ net.diceRoll = function(expr, o) {
         if (o.priv) req.priv = 'gm';
         if (o.charId) req.charId = o.charId;
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
-        _dicePending = { rid: rid, expr: expr, timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
+        _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -3471,7 +3500,7 @@ net.diceRoll = function(expr, o) {
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     if (hosting && scope === 'global') sendTable(rec, null);
-    pushRoll(rec, res, scope, { toName: toName });
+    pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
     return { ok: true, value: res.value, priv: !!rec.priv };
 };

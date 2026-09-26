@@ -922,6 +922,98 @@ pendingChecks.push((async () => {
         gmOnlyOut === 0 && j(gm.owner[0]) === j({ type: 'charDelta', campId: 'k', id: 'c_1', values: { f_mana: { cur: 9 } } }) && gm.owner.length === 3 && gm.mate.length === 3 && !gm.owner.concat(gm.mate).some(m => hideP.test(j(m))), j([gm.owner, gm.mate]));
 })());
 
+// Stage 6 HUD H7: the apply action on the wire. The host's char-apply (sliced, run for real with the real systemcore, formula engine, the host's
+// per-peer sync and the card's delivery, also sliced): the owner's press is worked out through THEIR view (a GM-only action, one naming a GM-only
+// value, or one moving a GM-only pool is not there) and applied all or nothing whatever the pool's edit setting (owner, 2026-09-26); the card
+// goes to the table only when every pool it moves is shown on hover (else the owner and the GM); and a client takes a card only from its host
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const apSrc = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply');
+    const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), aiSrc = between('// [netcheck:applyin-start]', '// [netcheck:applyin-end]', 'applyin');
+    const sysA = Sx.cleanSystem({ v: 1, name: 'A', fields: [
+        { id: 'f_g', key: 'GMFig', kind: 'number', def: 4, vis: 'gm' },
+        { id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10', def: 'max', min: -5, edit: 'gm', hover: true },
+        { id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '6', def: 'max', min: 0, edit: 'owner' },
+        { id: 'f_in', key: 'Incoming', kind: 'number', def: 0, min: -99, max: 99, edit: 'owner' },
+        { id: 'f_vig', key: 'Vigor', kind: 'resource', maxFormula: 'GMFig * 2', def: 'max', min: 0, edit: 'owner', hover: true }],
+        rolls: [
+            { id: 'r_w', label: 'Apply wounds', apply: [{ f: 'f_hp', formula: 'Incoming' }] },
+            { id: 'r_c', label: 'Costs', apply: [{ f: 'f_fp', formula: '2' }, { f: 'f_hp', formula: '1' }] },
+            { id: 'r_s', label: 'Secret', apply: [{ f: 'f_hp', formula: 'GMFig' }] },
+            { id: 'r_g', label: 'GM', apply: [{ f: 'f_hp', formula: '1' }], vis: 'gm' },
+            { id: 'r_v', label: 'Vig', apply: [{ f: 'f_vig', formula: '1' }] },
+            { id: 'r_z', label: 'Div', apply: [{ f: 'f_fp', formula: 'FP / (Incoming - Incoming)' }] },
+            { id: 'r_roll', label: 'Roll', formula: 'd6' }] }, { F: Fx, gmView: true });
+    const START = { f_in: 3, f_fp: { cur: 1 } };
+    const host = (msg, o) => {
+        o = o || {};
+        const camp = { id: 'k', system: sysA, items: {}, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(o.vals || START)) }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} }, c_n: { id: 'c_n', name: 'Orc', ownerId: 'u_a', npc: true, values: {} } } };
+        const out = { answer: [], owner: [], mate: [], wait: [], chat: [], logs: [], saves: 0, changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: !!o.paused, combats: {}, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }, { peer: 'pW', open: true, send: box(out.wait) }], roster: { pA: { id: 'u_a', name: 'Ana P', location: 'm1' }, pB: { id: 'u_b', name: 'Bo P' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: k => o.off !== k }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged: id => out.changed.push(id) }, wpDiceCore: null };
+        const sendTable = (m, ex) => net.conns.forEach(c => { if (c !== ex && c.open && net.roster[c.peer]) c.send(m); });
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), o.lim || { allow: () => true },
+            (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), sendTable, m => out.chat.push(JSON.parse(JSON.stringify(m))), (k, t) => out.logs.push(k + ': ' + t), r => Dx.applyText(r));
+        out.vals = camp.chars.c_1.values; return out;
+    };
+    const A = (act, extra) => Object.assign({ type: 'char-apply', rid: 'a1', charId: 'c_1', act: act }, extra || {});
+    const card = list => list.filter(m => m.type === 'apply'), still = r => j(r.vals) === j(START) && r.owner.length === 0 && r.mate.length === 0 && r.chat.length === 0 && r.saves === 0;
+    const denied = (r, reason) => j(r.answer.map(m => m.type + ':' + m.reason)) === j(['char-deny:' + reason]) && still(r);
+    const w1 = host(A('r_w', { label: 'Apply wounds' })), cW = card(w1.owner)[0] || {};
+    check('H7 char-apply: the owner presses Apply wounds on their own character — HP is "GM edits", and the host still works it out and applies it (10 - Incoming 3 = 7): one ack, one save, the delta to the owner, the card to the whole table (HP is shown on hover) and to the host\'s chat and log, never to a peer still waiting',
+        j(w1.answer) === j([{ type: 'char-ack', rid: 'a1' }]) && j(w1.vals.f_hp) === j({ cur: 7 }) && w1.saves === 1 && j(w1.changed) === j(['c_1'])
+        && w1.owner.some(m => m.type === 'charDelta' && j(m.values) === j({ f_hp: { cur: 7 } }))
+        && cW.from && j(cW.from) === j({ id: 'u_a', name: 'Ana P', gm: false }) && cW.as === 'Ana' && cW.label === 'Apply wounds' && j(cW.lines) === j([{ n: 'Hit points', d: -3, v: 7 }]) && !('priv' in cW) && Dx.cleanApply(cW) !== null
+        && card(w1.mate).length === 1 && w1.wait.length === 0 && w1.chat.length === 1 && w1.chat[0].scope === 'global' && w1.logs.length === 1 && /^char: Ana P as Ana applied Apply wounds: Hit points/.test(w1.logs[0]),
+        j([w1.answer, w1.vals, w1.owner, w1.mate, w1.chat, w1.logs]));
+    const c1 = host(A('r_c')), cC = card(c1.owner)[0] || {};
+    check('H7 char-apply: Apply costs moves both pools at once (FP 1 - 2 floors at 0, HP 10 - 1) and, since FP is not shown on hover, its card goes to the owner and the GM only (priv), never to a teammate; with no label sent, the action\'s own',
+        j(c1.vals.f_fp) === j({ cur: 0 }) && j(c1.vals.f_hp) === j({ cur: 9 }) && cC.priv === 'gm' && cC.label === 'Costs' && j(cC.lines) === j([{ n: 'FP', d: -2, v: 0 }, { n: 'Hit points', d: -1, v: 9 }]) && card(c1.mate).length === 0 && c1.chat[0].scope === 'whisper',
+        j([c1.vals, c1.owner, c1.mate]));
+    const dS = host(A('r_s')), dG = host(A('r_g')), dV = host(A('r_v')), dN = host(A('r_nope')), dR = host(A('r_roll'));
+    check('H7 char-apply: an action not in the player\'s own view — one naming a GM-only value, a GM-only one, one moving a GM-only pool, an unknown id, a roll — is refused ("field"): nothing stored, sent, shown or saved',
+        [dS, dG, dV, dN, dR].every(r => denied(r, 'field')), j([dS.answer, dG.answer, dV.answer, dN.answer, dR.answer]));
+    const dO = host(A('r_w', { charId: 'c_2' })), dNpc = host(A('r_w', { charId: 'c_n' })), dM = host(A('r_w', { charId: 'c_9' })), dP = host(A('r_w'), { paused: true }), dOff = host(A('r_w'), { off: 'sheets' });
+    let asked = 0; const dSlow = host(A('r_w'), { lim: { allow: () => { asked++; return 'slow'; } } });
+    check('H7 char-apply: another player\'s character or an NPC ("owner"), a character that is gone ("missing"), a paused table ("paused"), sheets off ("off") and a peer over the edit rate ("slow", one token) are refused with nothing moved',
+        denied(dO, 'owner') && denied(dNpc, 'owner') && denied(dM, 'missing') && denied(dP, 'paused') && denied(dOff, 'off') && denied(dSlow, 'slow') && asked === 1,
+        j([dO.answer, dNpc.answer, dM.answer, dP.answer, dOff.answer, dSlow.answer]));
+    const dZ = host(A('r_w'), { vals: { f_in: 0, f_fp: { cur: 1 } } }), dE = host(A('r_z'));
+    check('H7 char-apply: an amount of 0 is "none" (nothing to apply); an amount the engine refuses is "error" with its own message riding along; either way nothing moves',
+        j(dZ.answer) === j([{ type: 'char-deny', rid: 'a1', reason: 'none' }]) && dZ.saves === 0 && dZ.chat.length === 0
+        && j(dE.answer) === j([{ type: 'char-deny', rid: 'a1', reason: 'error', msg: 'Division by zero.' }]) && still(dE), j([dZ.answer, dE.answer]));
+    const bad = [A('x'), A('r_w', { charId: 'nope' }), Object.assign(A('r_w'), { rid: 'a b' }), A('r_w', { label: 'x'.repeat(61) }), A('r_w', { label: 'a' + String.fromCharCode(0) })].map(m => host(m));
+    check('H7 char-apply: a malformed request (not a roll id, a bad character id or rid, a label past 60 or with a control character) is dropped in silence', bad.every(r => r.answer.length === 0 && still(r)), j(bad.map(r => r.answer)));
+    // the GM's own press goes through the same delivery: 'gm' reaches no one; 'owner' each of the owner's connections
+    const gmOut = host(''); const Pn = new Function('net', 'sendTable', 'sendFailed', 'peerProfileId', 'pushChat', 'logEvent', 'applyLine', paSrc + '\nreturn postApply;');
+    const sent = [], mk = p => ({ peer: p, open: true, send: m => sent.push(p + ':' + m.type + (m.priv ? ':priv' : '')) }), netG = { active: true, role: 'host', conns: [mk('pA'), mk('pA2'), mk('pB')], roster: { pA: { id: 'u_a' }, pA2: { id: 'u_a' }, pB: { id: 'u_b' } } };
+    const chatG = [], postG = Pn(netG, (m, ex) => netG.conns.forEach(c => c.send(m)), e => { throw e; }, c => netG.roster[c.peer] ? netG.roster[c.peer].id : null, m => chatG.push(m.scope), () => {}, () => '');
+    postG({ type: 'apply', id: 'r_1', from: { id: 'g', name: 'GM', gm: true }, lines: [{ n: 'HP', d: -1, v: 1 }], ts: 1 }, 'gm', { ownerId: 'u_a' }, null);
+    postG({ type: 'apply', id: 'r_2', from: { id: 'g', name: 'GM', gm: true }, lines: [{ n: 'HP', d: -1, v: 1 }], ts: 1 }, 'owner', { ownerId: 'u_a' }, null);
+    check('H7 postApply: a GM-only card reaches no one (the GM\'s chat alone, private); an owner card reaches each of the owner\'s connections, private, never another player',
+        gmOut.answer.length === 0 && j(sent) === j(['pA:apply:priv', 'pA2:apply:priv']) && j(chatG) === j(['whisper', 'whisper']), j([sent, chatG]));
+    // the late joiner's chat history: the host sends the public cards rebuilt (nothing local rides along), never a private one; a client takes
+    // a public card cleaned, once, and never a private or malformed one (a hostile host's)
+    const nsrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const hoAt = nsrc.indexOf('function chatHistoryOf(log) {'), chatHistoryOf = new Function(nsrc.slice(hoAt, nsrc.indexOf('\n', hoAt)) + '\nreturn chatHistoryOf;')();
+    const pubRec = { type: 'apply', id: 'r_pub', from: { id: 'u_a', name: 'Ana P', gm: false }, label: 'Take 3', lines: [{ n: 'HP', d: -3, v: 7 }], ts: 3 }, prvRec = Object.assign({}, pubRec, { id: 'r_prv', priv: 'gm', ts: 4 });
+    const sentH = chatHistoryOf([{ from: pubRec.from, text: '', scope: 'global', ts: 3, apply: pubRec, local: 1 }, { from: prvRec.from, text: '', scope: 'whisper', ts: 4, apply: prvRec }]);
+    const hiA = nsrc.indexOf('var histD = window.wpDiceCore, histF = window.wpFormula;'), hiB = nsrc.indexOf("    } else if (msg.type === 'roster' && net.role === 'client') {");
+    const runHist = log => { const box = {}; new Function('msg', 'window', 'box', 'ringPush', 'ringRepaint', 'renderChat', 'ui', 'var chatLog = [], chatUnread = 0;\n' + nsrc.slice(hiA, hiB) + '\nbox.chatLog = chatLog;')({ type: 'chat-history', log }, { wpDiceCore: Dx, wpFormula: Fx }, box, () => {}, () => {}, () => {}, () => null); return box.chatLog; };
+    const gotH = runHist(sentH.concat([{ from: prvRec.from, text: '', scope: 'global', ts: 4, apply: prvRec }, { from: pubRec.from, text: '', scope: 'global', ts: 5, apply: Object.assign({}, pubRec, { id: 'r_bad', lines: [] }) }, sentH[0]]));
+    check('H7 chat history: the host sends a public apply card rebuilt (no local keys) and never a private one; a late joiner takes the public card once, cleaned, and never a private or malformed one',
+        j(sentH) === j([{ from: pubRec.from, text: '', scope: 'global', ts: 3, apply: pubRec }]) && gotH.length === 1 && j(gotH[0]) === j({ from: pubRec.from, text: '', scope: 'global', ts: 3, apply: Dx.cleanApply(pubRec) }), j([sentH, gotH]));
+    const client = (msg, from, o) => { o = o || {}; const chat = []; new Function('msg', 'conn', 'net', 'DC', 'pushChat', aiSrc)(msg, { peer: from || 'H' }, { foreign: true, syncedPeer: 'H', stream: !!o.stream }, () => Dx, m => chat.push(m)); return chat; };
+    const recOk = { type: 'apply', id: 'r_abc', from: { id: 'u_a', name: 'Ana P', gm: false }, as: 'Ana', label: 'Costs', lines: [{ n: 'FP', d: -2, v: 0 }], ts: 9, priv: 'gm', evil: '<b>' };
+    const got = client(recOk), fromOther = client(recOk, 'X'), inStream = client(recOk, 'H', { stream: true }), badRec = client(Object.assign({}, recOk, { lines: [{ n: '', d: 1, v: 1 }] }));
+    check('H7 a client takes an apply card only from its synced host, outside the stream window, cleaned (a private one as a whisper; nothing extra rides along); a malformed one is dropped',
+        got.length === 1 && got[0].scope === 'whisper' && j(got[0].apply) === j(Dx.cleanApply(recOk)) && !('evil' in got[0].apply) && fromOther.length === 0 && inStream.length === 0 && badRec.length === 0, j(got));
+})());
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

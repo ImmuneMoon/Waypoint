@@ -2052,6 +2052,12 @@
   .sys-list-names { margin-top: 4px; }
   /* Stage 6 F5b: a row's roll buttons; the Lists card's Rolls */
   .sheet-item-roll { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; }
+  /* Stage 6 HUD H7: an apply action's changes in the Rolls tab; its card in Table Chat */
+  .sys-apply { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
+  .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }
+  .apply-lines { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; font-size: 13px; }
+  .apply-line b { color: var(--gold); }
+  .apply-d { font-weight: 700; } .apply-d.apply-sub { color: var(--red); } .apply-d.apply-add { color: var(--green); }
   .sys-list-card .sys-flags.sys-list-roll input.sys-list-rollformula { flex: 3 1 260px; font-family: ui-monospace, Consolas, monospace; }
   .sheet-item-name > .sheet-ov { margin: 0 4px 0 0; }   /* F4c2 review: a list row's dot sits before the name (a long name is cut at its end) */
   .sheet-item-edit { padding: 0 6px; height: 24px; }

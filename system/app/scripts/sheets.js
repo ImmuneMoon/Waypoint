@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, gmOnlyNames, applyAct, applyScope, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -1206,7 +1206,7 @@ function layoutTabs() { var r = layoutRoot(); if (!Array.isArray(r.tabs)) r.tabs
 function sheetList(key) { return (draft && draft.sheet && Array.isArray(draft.sheet[key])) ? draft.sheet[key].slice() : []; }   // a copy of one of the sheet's id lists (identity / ledger / band), [] when absent
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
-    if (pl.roll) { var r = rollById[pl.roll]; return r ? 'Roll: ' + (r.label || r.formula) : null; }
+    if (pl.roll) { var r = rollById[pl.roll]; return r ? rollPick(r) : null; }
     if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
     return null;
 }
@@ -1382,7 +1382,7 @@ function renderLayout() {
         }
         var opts = [['', cfg.addLabel]];
         draft.fields.forEach(function(f) { if (cfg.kinds[f.kind] === 1 && !on[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '')]); });
-        if (cfg.rolls) draft.rolls.forEach(function(r) { if (!on[r.id]) opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
+        if (cfg.rolls) draft.rolls.forEach(function(r) { if (!on[r.id]) opts.push(['r:' + r.id, rollPick(r)]); });
         var row = el('div', 'sys-row-main sys-band-addrow');
         var add = select('sys-band-add', opts, '', cfg.addTitle); row.appendChild(add);
         if (list.length) { var clr = el('button', 'tool ghost sys-btn', 'Clear'); clr.title = cfg.clearTitle; clr.addEventListener('click', function() { delete layoutRoot()[cfg.key]; markDirty(); renderLayout(); }); row.appendChild(clr); }
@@ -1500,7 +1500,7 @@ function renderLayout() {
         row.appendChild(list);
         var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft, hudOn ? (draft.sheet && draft.sheet.hud) || null : undefined);
         draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
-        draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, 'Roll: ' + (r.label || r.formula)]); });
+        draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, rollPick(r)]); });
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
         grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages
@@ -2470,6 +2470,7 @@ function labelSecret(sys, vars, text) {
     hit = hit.filter(function(x, i) { return low.indexOf(low[i]) === i; }); return hit.length ? hit.join(', ') : '';
 }
 function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the render's resolver, for the label (HF5a)
+    if (Array.isArray(r.apply)) return applyNode(r, c, sys, vars);   // Stage 6 HUD H7: an apply action draws as a roll's button
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     b.addEventListener('click', function(e) {
@@ -2481,6 +2482,46 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character
 function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return true; }
+// Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
+// sheets feature on (an apply moves the sheet, no dice)
+function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return canWrite(); }
+function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (f ? (f.label || f.key) : 'a value') + (ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
+function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || 'Apply') : 'Roll: ' + (r.label || r.formula); }   // Stage 6 HUD H7: the Layout tab's name for a roll entry
+// Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
+// Layout preview and a pop-out, and for a viewer who may not change this character
+function applyNode(r, c, sys, vars) {
+    var label = rollLabel(r, sys, c, vars), can = _fxLive && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
+    if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild);
+    b.title = applyTitle(r, sys) + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
+    b.addEventListener('click', function() {
+        var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
+        var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
+        applyAction(r, cN, lb);
+    });
+    var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
+}
+// Stage 6 HUD H7: an apply action pressed — a player asks the host (the new values come back as its delta, the card as its record); the GM
+// works it out here with the saved system (the sheet's own resolver, token and round included), stores it as ONE change (one Revert brings
+// every value back) and posts the card to whoever may see it (applyScope); a card that would carry a GM-only value is kept private, with a toast
+function applyAction(r, c, label) {
+    var n = net(), camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !F()) return;
+    if (isClient()) { if (!n || !n.charApply) return; var q = n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
+    if (!canWrite()) return;
+    var act = null; (sys.rolls || []).forEach(function(x) { if (x && x.id === r.id && Array.isArray(x.apply)) act = x; }); if (!act) return;   // the saved action, never a draft's
+    var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, c, F(), tc).vars, res = applyAct(sys, c, act, vv, F(), tc);
+    if (!res.ok) { toast(res.reason === 'none' ? 'Nothing to apply.' : res.reason === 'error' ? (res.message || 'That amount could not be worked out.') : 'That action cannot change those values now.'); return; }
+    var ids = Object.keys(res.values), prevs = {}, extra = null;
+    ids.forEach(function(fid) { prevs[fid] = c.values && Object.prototype.hasOwnProperty.call(c.values, fid) ? clone(c.values[fid]) : undefined; });
+    ids.slice(1).forEach(function(fid) { (extra = extra || {})[fid] = prevs[fid]; });
+    lastChange = { charId: c.id, fieldId: ids[0], prev: prevs[ids[0]], extra: extra };
+    c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; });
+    afterCharChange(c, false, res.values);
+    var hit = [], low = [], keep = function(x) { var l = String(x).toLowerCase(); if (low.indexOf(l) < 0) { low.push(l); hit.push(String(x)); } };
+    if (n && n.active && n.role === 'host' && act.vis !== 'gm') { gmOnlyNames(sys, res.names).concat(gmDerivedNames(sys, F(), res.names), gmEffectNames(vv, res.names)).forEach(keep); var ls = labelSecret(sys, vv, act.label); if (ls) keep(ls); }
+    var scope = applyScope(sys, c, act, hit.length > 0, F());
+    if (hit.length && applyScope(sys, c, act, false, F()) !== 'gm') toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
+    if (n && n.postApplyCard) n.postApplyCard(c, label, res.lines, scope);
+}
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
 function hasInitRoll() { var sys = systemOf(getActiveCampaign()); return !!(sys && initRoll(sys)); }
 function rollInit(charId) {
@@ -2618,7 +2659,7 @@ function ownerFromToken(w) {
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
+function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
@@ -2758,18 +2799,19 @@ function refreshErrors() {
 function errorCell(id) {
     var cell = el('div', 'sys-err');
     (errorsById[id] || []).forEach(function(e) {
-        cell.appendChild(el('div', 'sys-err-line', (e.prop && e.prop !== 'formula' && e.prop !== 'rollFormula' ? e.prop + ': ' : '') + e.message));
+        cell.appendChild(el('div', 'sys-err-line', errPrefix(e.prop) + e.message));
         if (e.pos !== undefined && e.len > 0) { var src = formulaTextFor(id, e.prop); if (src) { var pre = el('pre', 'dice-caret'); pre.textContent = src + NL + new Array(Math.min(e.pos, src.length) + 1).join(' ') + new Array(Math.min(e.len, 200) + 1).join('^'); cell.appendChild(pre); } }
     });
-    (warningsById[id] || []).forEach(function(w) { cell.appendChild(el('div', 'sys-warn-line', w.message)); });
+    (warningsById[id] || []).forEach(function(w) { cell.appendChild(el('div', 'sys-warn-line', errPrefix(w.prop, true) + w.message)); });
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
+function errPrefix(p, warn) { var m = /^apply\.(\d+)$/.exec(p || ''); if (m) return 'Change ' + (+m[1] + 1) + ': '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     var f = draft.fields.find(function(x) { return x.id === id; });
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
-    if (r) return r.formula || '';
+    if (r) { var amI = /^apply\.(\d+)$/.exec(prop || ''); return amI ? ((Array.isArray(r.apply) && r.apply[+amI[1]] && r.apply[+amI[1]].formula) || '') : (r.formula || ''); }   // H7: a change's amount
     var it = (draft.items || []).find(function(x) { return x.id === id; });
     return it ? (prop === 'cost' ? it.cost || '' : it.damage || '') : '';
 }
@@ -2880,17 +2922,37 @@ function buildDefCell(def, f) {
     }
     else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
 }
+// Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); four at most
+function applyEditor(r) {
+    var box = el('div', 'sys-apply'), list = Array.isArray(r.apply) ? r.apply : [];
+    var targets = draft.fields.filter(function(f) { return f && APPLY_KINDS[f.kind] === 1; }).map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; });
+    list.forEach(function(ch0, i) {
+        var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-apply-row'); rw.dataset.ai = String(i);
+        var opts = [['', 'Pick a pool or number\u2026']].concat(targets); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
+        rw.appendChild(select('sys-apply-target', opts, ch.f || '', 'What this change moves: a pool\u2019s current value, or a number'));
+        rw.appendChild(select('sys-apply-op', [['sub', 'Subtract'], ['add', 'Add']], ch.add ? 'add' : 'sub', 'Subtract (a cost, a wound) or add (rest, healing); never past the field\u2019s min and max'));
+        var fm = input('sys-apply-formula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount, worked out when pressed: no dice (3, FPCost, max(0, Incoming - DR)); below 0 counts as 0', 'Amount'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
+        [['applyup', '\u25b2', 'Move up'], ['applydown', '\u25bc', 'Move down'], ['applydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        box.appendChild(rw);
+    });
+    var addB = el('button', 'tool ghost sys-btn sys-apply-add', '+ Change'); addB.dataset.act = 'applyadd'; addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes an action' : 'Another pool or number this button moves (Apply costs: FP and EP together)'; box.appendChild(addB);
+    return box;
+}
+function applyChangeOf(t, r) { var rw = t.closest('.sys-apply-row'), i = rw ? +rw.dataset.ai : -1; return r && Array.isArray(r.apply) && i >= 0 && i < r.apply.length && r.apply[i] && typeof r.apply[i] === 'object' ? r.apply[i] : null; }
 function rollRow(r) {
     var row = el('div', 'sys-row'); row.dataset.id = r.id;
     var top = el('div', 'sys-row-main');
     top.appendChild(input('sys-label field', r.label, 'The button\u2019s label; {formula} shows a value: Attack ({\u00b1AtkBonus})', 'Label'));
-    top.appendChild(input('sys-formula field', r.formula, 'The roll: d20 + STRmod, 3d6 <= Skill.Stealth', 'Roll formula'));
+    var isApply = Array.isArray(r.apply);   // Stage 6 HUD H7: the second kind — changes in place of a formula, never the initiative
+    top.appendChild(select('sys-roll-kind', [['roll', 'Roll'], ['apply', 'Apply']], isApply ? 'apply' : 'roll', 'Roll: dice at the table. Apply: a button that moves pools or numbers by an amount (Apply costs, Apply wounds)'));
+    if (!isApply) top.appendChild(input('sys-formula field', r.formula, 'The roll: d20 + STRmod, 3d6 <= Skill.Stealth', 'Roll formula'));
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red (damage)'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold
     var roIcoIn = input('sys-roll-icon field', r.icon, 'An icon on the button \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(roIcoIn); top.appendChild(glyphButton(roIcoIn));
-    var il = el('label', 'sys-hover'); var ic = el('input'); ic.type = 'checkbox'; ic.className = 'sys-init-chk'; ic.checked = !!r.init; il.appendChild(ic); il.appendChild(document.createTextNode(' Initiative')); il.title = 'The combat roster rolls this for initiative'; top.appendChild(il);
+    if (!isApply) { var il = el('label', 'sys-hover'); var ic = el('input'); ic.type = 'checkbox'; ic.className = 'sys-init-chk'; ic.checked = !!r.init; il.appendChild(ic); il.appendChild(document.createTextNode(' Initiative')); il.title = 'The combat roster rolls this for initiative'; top.appendChild(il); }
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
     row.appendChild(top);
+    if (isApply) row.appendChild(applyEditor(r));
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
     return row;
 }
@@ -3157,7 +3219,7 @@ function renderAll() {
     if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
     draft.fields.forEach(function(f) { fr.appendChild(fieldRow(f)); });
     var rr = ui('sysRollRows'); rr.textContent = '';
-    if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod.'));
+    if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); });
     var itr = ui('sysItemRows'); if (itr) { itr.textContent = ''; if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); }
     var cr = ui('sysCharRows'); if (cr) { cr.textContent = ''; var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); }
@@ -3266,7 +3328,8 @@ function onInput(e) {
         else if (c.indexOf('sys-options') >= 0) f.options = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
         else return;
     } else if (r) {
-        if (c.indexOf('sys-label') >= 0) r.label = t.value.slice(0, LIMITS.label);
+        if (c.indexOf('sys-apply-formula') >= 0) { var chI = applyChangeOf(t, r); if (!chI) return; chI.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H7: a change's amount
+        else if (c.indexOf('sys-label') >= 0) r.label = t.value.slice(0, LIMITS.label);
         else if (c.indexOf('sys-formula') >= 0) r.formula = t.value;
         else if (c.indexOf('sys-roll-icon') >= 0) { if (t.value.trim()) r.icon = t.value.slice(0, 32); else delete r.icon; }   // Stage 6 look fold
         else return;
@@ -3357,7 +3420,10 @@ function onChange(e) {
         else if (c.indexOf('sys-def-lbl') >= 0) f.def = Number(t.value);
         else return;
     } else if (r) {
-        if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
+        if (c.indexOf('sys-roll-kind') >= 0) { if (t.value === 'apply') { if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else delete r.apply; markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)
+        else if (c.indexOf('sys-apply-target') >= 0) { var chT = applyChangeOf(t, r); if (!chT) return; chT.f = t.value; }
+        else if (c.indexOf('sys-apply-op') >= 0) { var chO = applyChangeOf(t, r); if (!chO) return; if (t.value === 'add') chO.add = true; else delete chO.add; }
+        else if (c.indexOf('sys-vis') >= 0) r.vis = t.value;
         else if (c.indexOf('sys-roll-tone') >= 0) { if (t.value) r.tone = t.value; else delete r.tone; }   // Stage 6 look fold
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;
@@ -3450,6 +3516,15 @@ function onClick(e) {
     var ctx = fieldOfRow(b); if (!ctx) return;
     var list = ctx.f ? draft.fields : draft.rolls, item = ctx.f || ctx.r; if (!item) return;
     var i = list.indexOf(item), act = b.dataset.act;
+    if (ctx.r && /^apply(add|up|down|del)$/.test(act || '')) {   // Stage 6 HUD H7: an apply action's changes (add, move, remove)
+        var aArr = Array.isArray(ctx.r.apply) ? ctx.r.apply : (ctx.r.apply = []), aRow = b.closest('.sys-apply-row'), aI = aRow ? +aRow.dataset.ai : -1;
+        if (act === 'applyadd') { if (aArr.length >= LIMITS.applyChanges) { toast('At most ' + LIMITS.applyChanges + ' changes an action.'); return; } aArr.push({ f: '', formula: '' }); }
+        else if (act === 'applyup' && aI > 0 && aI < aArr.length) { var auS = aArr[aI]; aArr[aI] = aArr[aI - 1]; aArr[aI - 1] = auS; }
+        else if (act === 'applydown' && aI >= 0 && aI < aArr.length - 1) { var adS = aArr[aI]; aArr[aI] = aArr[aI + 1]; aArr[aI + 1] = adS; }
+        else if (act === 'applydel' && aI >= 0 && aI < aArr.length) aArr.splice(aI, 1);
+        else return;
+        markDirty(); renderAll(); return;
+    }
     if (act === 'up' && i > 0) { list.splice(i, 1); list.splice(i - 1, 0, item); }
     else if (act === 'down' && i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, item); }
     else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }

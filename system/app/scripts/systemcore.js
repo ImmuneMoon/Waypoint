@@ -19,6 +19,7 @@ var LIMITS = Object.freeze({
     listCols: 6,                             // Stage 6 F5a1: a list's columns (a formula per row)
     pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
     rowRolls: 4,                             // Stage 6 F5b: a list's rolls (a button on each row)
+    applyChanges: 4,                         // Stage 6 HUD H7: an apply action's changes (a pool or a number each)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 10,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
     band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
@@ -70,7 +71,7 @@ var CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCod
 var CTRL_RE_G = new RegExp(CTRL_RE.source, 'g');   // for replace(): every control character, not just the first
 var CTRL_KEEP_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
 var PATH_RE = /^[/]saves[/]images[/][^?#]{1,300}$/;
-var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1, paused: 1, stays: 1 });   // stays (Stage 6): a bound item did not come off
+var DENY = Object.freeze({ off: 1, slow: 1, owner: 1, field: 1, value: 1, missing: 1, paused: 1, stays: 1, none: 1, error: 1 });   // none, error (Stage 6 HUD H7): an apply action with nothing to apply, or an amount that could not be worked out (its message rides along)   // stays (Stage 6): a bound item did not come off
 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function str(v, cap) { return typeof v === 'string' ? v.slice(0, cap) : ''; }
@@ -116,6 +117,7 @@ function cleanIcon(v) {
     return cutPoints(v, LIMITS.icon, '');
 }
 var TONES = Object.freeze({ good: 1, warn: 1, danger: 1, accent: 1, primary: 1 });   // Stage 6 look fold (L7): a value name's colour on a badge (one vocabulary with the palette keys)
+var APPLY_KINDS = Object.freeze({ resource: 1, number: 1 });   // Stage 6 HUD H7: what an apply action moves (a pool's current value, a number's stored value)
 var ROLL_TONES = Object.freeze({ primary: 1, danger: 1, neutral: 1, outline: 1 });   // Stage 6 look fold: a roll button's tone (filled, red, grey, outline)
 function fin(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; }   // bounded: the wire's packer refuses a whole number past 64 bits (1e20 typed into a field once stopped every join)
 function map() { return Object.create(null); }
@@ -246,10 +248,41 @@ function cleanSlider(v) {
     ['lowColor', 'highColor'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
     return out;
 }
+// Stage 6 HUD H7: an apply action — a roll entry of a second kind: changes (a pool or a number moved by a formula, no dice) in place of a
+// formula; never the initiative roll. A change: { f: fieldId, formula, add? }; each field once, four at most. An unfinished one (no field,
+// no formula) is kept for the GM's editor, where the validator names it; the players' view drops the whole action (applyTargets)
+function cleanApplyChanges(list) {
+    var out = [], seen = map();
+    (Array.isArray(list) ? list : []).forEach(function(c) {
+        if (out.length >= LIMITS.applyChanges || !isObj(c)) return;
+        var f = typeof c.f === 'string' && FIELD_ID.test(c.f) ? c.f : '';
+        if (f && seen[f]) return; if (f) seen[f] = 1;
+        var o = { f: f, formula: cleanFormulaText(c.formula) || '' }; if (c.add === true) o.add = true;
+        out.push(o);
+    });
+    return out;
+}
+function cleanApplyDef(r, vis) {
+    var out = { id: r.id, label: str(r.label, LIMITS.label).replace(CTRL_RE_G, ' ').trim() || 'Apply', apply: cleanApplyChanges(r.apply), vis: vis };
+    if (typeof r.tone === 'string' && Object.prototype.hasOwnProperty.call(ROLL_TONES, r.tone)) out.tone = r.tone;
+    var aIcon = cleanIcon(r.icon); if (aIcon) out.icon = aIcon;
+    return out;
+}
+// Stage 6 HUD H7: each apply action's targets against this view's fields — the GM's: a change whose field is no longer a pool or a number
+// (deleted, or its kind changed) keeps its amount and loses the field (the validator asks for one); the players': an action with any change
+// unfinished or out of their view is dropped whole (half an action would mislead)
+function applyTargets(out, fieldIds, gmView) {
+    out.rolls = out.rolls.filter(function(r) {
+        if (!r.apply) return true;
+        r.apply.forEach(function(c) { if (c.f && APPLY_KINDS[fieldIds[c.f]] !== 1) c.f = ''; });
+        return gmView || (r.apply.length > 0 && r.apply.every(function(c) { return !!c.f && !!c.formula; }));
+    });
+}
 function cleanRollDef(r, gmView) {
     if (!isObj(r) || typeof r.id !== 'string' || !ROLL_ID.test(r.id)) return null;
     var vis = r.vis === 'gm' ? 'gm' : 'all';
     if (!gmView && vis === 'gm') return null;
+    if (Array.isArray(r.apply)) return cleanApplyDef(r, vis);   // Stage 6 HUD H7: an apply action
     var fm = cleanFormulaText(r.formula); if (!fm) return null;
     var out = { id: r.id, label: str(r.label, LIMITS.label).replace(CTRL_RE_G, ' ').trim() || 'Roll', formula: fm, vis: vis };   // HUD frame (HF5a): every control character (the non-global pattern replaced only the first, and the dice path then refused the whole roll)
     if (r.init === true) out.init = true;
@@ -717,11 +750,11 @@ function cleanSystem(sys, opts) {
         };
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
         out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
-        out.rolls = out.rolls.filter(function(r) { return !mentions(r.formula); });
+        out.rolls = out.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); });   // H7: an apply action naming a GM-only value goes whole
         out.rolls.forEach(function(r) { if (r.label.indexOf('{') >= 0 && capMentions(r.label)) r.label = labelHead(r.label); });   // HUD frame (HF5a, H3): a label naming a GM-only value keeps only its plain text before the first {...} (fail closed, as a caption)
     }
     var fieldIds = map(), rollIds = map(), resIds = map();
-    out.fields.forEach(function(f) { fieldIds[f.id] = f.kind; if (f.kind === 'resource') resIds[f.id] = 1; }); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });   // fieldIds: id -> kind (always truthy; the band gates on the kind)
+    out.fields.forEach(function(f) { fieldIds[f.id] = f.kind; if (f.kind === 'resource') resIds[f.id] = 1; }); applyTargets(out, fieldIds, gmView); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });   // H7: an apply action's targets first   // fieldIds: id -> kind (always truthy; the band gates on the kind)
     var seenIt = map(), stKeys = statKeys(out.fields), stPicks = statPicks(out.fields);   // F4c1: the stats this view's item lists define (the players' view: visible lists only, so a GM-only list's stat never travels)
     (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
         if (out.items.length >= LIMITS.items) return;
@@ -851,6 +884,60 @@ function cleanCharEdits(msg) {
         seen[one.fieldId] = 1; out.push({ fieldId: one.fieldId, value: one.value });
     }
     return { rid: msg.rid, charId: msg.charId, values: out };
+}
+// Stage 6 HUD H7: an apply action worked out for a character. Every amount first, through vars (the presser's resolver: a player's own view,
+// the GM's full one), as his Apply Costs works the costs out before it moves a pool; then each target in order on one working copy of char:
+// a pool's current value (full = its max) or a number's stored value (an effect's change stays the effect's), minus the amount (plus, for an
+// add), clamped by the field (applyEdit: a pool's min is its floor). An amount is a number, no dice, a pool's rounded; below 0 it counts as 0
+// (a subtract never raises, an add never lowers). All or nothing. { ok: true, values: { fieldId: value }, lines: [{ f, n, d, v }], names:
+// [{ name, value }] } — lines: the label, the amount (signed), the new value — or { ok: false, reason: field|value|none|error, message? }
+function applyAct(sys, char, act, vars, F, tctx) {
+    if (!sys || !Array.isArray(sys.fields) || !char || !isObj(act) || !Array.isArray(act.apply) || !act.apply.length || typeof vars !== 'function' || !F) return { ok: false, reason: 'field' };
+    var amts = [], names = [], seenN = map();
+    for (var i = 0; i < act.apply.length; i++) {
+        var c = act.apply[i], f = isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null;
+        if (!f || APPLY_KINDS[f.kind] !== 1 || typeof c.formula !== 'string' || !c.formula) return { ok: false, reason: 'field' };
+        var p = F.parse(c.formula); if (!p.ok) return { ok: false, reason: 'error', message: p.error.message };
+        if (hasDice(p.ast.body)) return { ok: false, reason: 'error', message: 'An amount cannot roll dice.' };
+        var res = F.evaluate(c.formula, { vars: vars });
+        if (!res.ok) return { ok: false, reason: 'error', message: res.error.message };
+        var v = typeof res.value === 'boolean' ? (res.value ? 1 : 0) : res.value;
+        if (typeof v !== 'number' || !fin(v)) return { ok: false, reason: 'error', message: 'That amount is not a number.' };
+        ((res.breakdown && Array.isArray(res.breakdown.names)) ? res.breakdown.names : []).forEach(function(n) { if (n && typeof n.name === 'string' && !seenN[lower(n.name)]) { seenN[lower(n.name)] = 1; names.push(n); } });
+        if (f.kind === 'resource') v = Math.round(v);
+        amts.push({ f: f, amt: v > 0 ? v : 0, add: c.add === true });
+    }
+    if (!amts.some(function(a) { return a.amt > 0; })) return { ok: false, reason: 'none' };
+    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [];
+    for (var j = 0; j < amts.length; j++) {
+        var a = amts[j]; if (!(a.amt > 0)) continue;
+        var cur = 0;
+        if (a.f.kind === 'resource') { var rv = makeResolver(sys, work, F, tctx || null)(a.f.key); if (typeof rv === 'number' && fin(rv)) cur = rv; }   // full (nothing stored) reads as the max
+        else { var sv = storedOf(a.f, work); if (typeof sv === 'number' && fin(sv)) cur = sv; }
+        var next = a.add ? cur + a.amt : cur - a.amt;
+        var ed = applyEdit(sys, work, a.f.id, a.f.kind === 'resource' ? { cur: next } : next, F, {});
+        if (!ed.ok) return { ok: false, reason: ed.reason };
+        work.values[a.f.id] = ed.value; out[a.f.id] = ed.value;
+        lines.push({ f: a.f.id, n: a.f.label || a.f.key, d: a.add ? a.amt : -a.amt, v: a.f.kind === 'resource' ? ed.value.cur : ed.value });
+    }
+    return { ok: true, values: out, lines: lines, names: names };
+}
+// Stage 6 HUD H7 (owner, 2026-09-26): who sees an apply action's card — 'table' when every field it moves is shown to teammates on hover (the
+// card tells them nothing new), else 'owner' (the character's player and the GM); 'gm' for an NPC, a GM-only action or field, and when the
+// caller says the amount read a GM-only value (gm) — the GM only (and the player who pressed it on a GM-only row: the caller's)
+function applyScope(sys, char, act, gm, F) {
+    if (gm || !sys || !Array.isArray(sys.fields) || !isObj(act) || act.vis === 'gm' || !char || char.npc || !char.ownerId || !Array.isArray(act.apply) || !act.apply.length) return 'gm';
+    var gmP = F ? gmPools(sys, F) : map(), fs = act.apply.map(function(c) { return isObj(c) && typeof c.f === 'string' ? fieldById(sys, c.f) : null; });
+    if (fs.some(function(f) { return !f || f.vis === 'gm' || gmP[f.id] === 1; })) return 'gm';
+    return fs.every(function(f) { return f.hover === true; }) ? 'table' : 'owner';
+}
+// Stage 6 HUD H7: a player's press of an apply action on their own character — { rid, charId, act, label? }. The host finds the action in the
+// player's own view and works everything out (nothing else rides along); the label is the button as drawn, the card's title as a roll's is
+function cleanCharApply(msg) {
+    if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.act !== 'string' || !ROLL_ID.test(msg.act)) return null;
+    var out = { rid: msg.rid, charId: msg.charId, act: msg.act };
+    if (msg.label !== undefined) { if (typeof msg.label !== 'string' || msg.label.length > LIMITS.label || CTRL_RE.test(msg.label)) return null; var lb = msg.label.trim(); if (lb) out.label = lb; }
+    return out;
 }
 // HUD frame (HF4b, H13): what a section's Reset all resets for this viewer — the first LIMITS.editBatch pools and counters of its own placements
 // (not a sub-section's) that the viewer may edit (the GM any; the owner a field Player may edit, visible). Counters first — their start (the
@@ -2054,12 +2141,13 @@ function validateSystem(sys, F) {
     }
     function listT(n) { var t = listTarget(n, null); return t && !t.rowOutside ? t : null; }   // captions and labels: never inside a column
     function isRollProp(p) { return p === 'roll' || p === 'rollFormula' || (typeof p === 'string' && p.indexOf('list.roll.') === 0); }   // F5b: a list's roll is a roll
+    function isApplyProp(p) { return typeof p === 'string' && p.indexOf('apply.') === 0; }   // Stage 6 HUD H7: an apply action's amount (no dice, no loop edge: nothing reads an action)
     function checkFormula(owner, prop, text, allowDice, vis, rowList) {   // rowList (F5a1): the list whose column this is (Row.* is known there)
         if (text === null) return;
         if (!text) { errors.push({ id: owner.id, prop: prop, message: 'Missing formula', pos: 0, len: 0 }); return; }
         var p = F.parse(text);
         if (!p.ok) { errors.push({ id: owner.id, prop: prop, message: p.error.message, pos: p.error.pos, len: p.error.len }); return; }
-        if (!allowDice && hasDice(p.ast.body)) { errors.push({ id: owner.id, prop: prop, message: 'Dice are not allowed in a definition; put the dice in a roll.', pos: 0, len: text.length }); }
+        if (!allowDice && hasDice(p.ast.body)) { errors.push({ id: owner.id, prop: prop, message: isApplyProp(prop) ? 'An amount cannot roll dice: roll first, and let the amount read the field the result goes in.' : 'Dice are not allowed in a definition; put the dice in a roll.', pos: 0, len: text.length }); }
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; }   // F5a1
@@ -2070,10 +2158,10 @@ function validateSystem(sys, F) {
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
                 if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row has it.' }); }
-                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.' });
+                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? 'players will not get this action.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             }
-            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.' });
-            if (!isRollProp(prop) && !target.noEdge) { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
+            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? 'players will not get this action.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+            if (!isRollProp(prop) && !isApplyProp(prop) && !target.noEdge) { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
         });
     }
     sys.fields.forEach(function(f) {
@@ -2097,7 +2185,16 @@ function validateSystem(sys, F) {
             if (cn > LIMITS.captionExprs) warnings.push({ id: f.id, prop: 'caption', message: 'Caption: only the first ' + LIMITS.captionExprs + ' {\u2026} values are worked out; the rest show as written.' });   // Stage 6
         }
     });
-    sys.rolls.forEach(function(r) { checkFormula({ id: r.id, key: r.id }, 'rollFormula', r.formula, true, r.vis); });
+    sys.rolls.forEach(function(r) {
+        if (!r.apply) { checkFormula({ id: r.id, key: r.id }, 'rollFormula', r.formula, true, r.vis); return; }
+        if (!r.apply.length) { errors.push({ id: r.id, prop: 'apply', message: 'An apply action needs a change: the pool or number it moves, and by how much.' }); return; }   // Stage 6 HUD H7
+        r.apply.forEach(function(c, i) {
+            var pr = 'apply.' + i, tf = c.f ? fieldById(sys, c.f) : null;
+            if (!tf || APPLY_KINDS[tf.kind] !== 1) errors.push({ id: r.id, prop: pr, message: 'Pick the pool or number this changes.' });
+            else if (r.vis === 'all' && (tf.vis === 'gm' || gmP[tf.id] === 1)) warnings.push({ id: r.id, prop: pr, message: '"' + tf.key + '" is GM only: players will not get this action.' });
+            checkFormula({ id: r.id, key: r.id }, pr, c.formula, false, r.vis);
+        });
+    });
     // Stage 6 F5a1: each list's columns (no dice; Row.* known there), and field keys that would hide a list's names
     sys.fields.forEach(function(f) {
         if (lower(f.key) === 'row') errors.push({ id: f.id, prop: 'key', message: 'Row is the name a list\u2019s columns read their row by: give this field another key.' });
@@ -2501,6 +2598,6 @@ function gmPools(sys, F) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, rowRollNames: rowRollNames, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, rowRollNames, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };
+export { VERSION, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, fmtNum, suggest };

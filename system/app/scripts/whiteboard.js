@@ -82,11 +82,13 @@ function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
     var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
-    if (!rows && !sheetRow) return;
-    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + rows.replace('<div class="menu-divider"></div>', '');
+    var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;</div>' : '';   // HUD frame (HF2b)
+    if (!rows && !sheetRow && !hudRow) return;
+    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
     placeMenu(cMenu, e);
     var ownSheet = cMenu.querySelector('.cm-sheet-own'); if (ownSheet) ownSheet.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openSheet(tok.charId); });
+    var ownHud = cMenu.querySelector('.cm-hud-own'); if (ownHud) ownHud.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openHud(tok.charId); });
     wireStanceMenu(cMenu, [tok], function() { save(); render(); });
 }
 
@@ -2096,6 +2098,7 @@ window.wpFitToGrid = fitToGrid;
           if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', label: '\u27A4 Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', label: '\u25CE Target ' + name });
           if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', label: String.fromCharCode(55357, 56523) + ' ' + (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
+          if (loc && loc.tok && loc.tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(loc.tok.charId)) items.push({ act: 'hud', label: '\u3030 HUD\u2026' });   // HUD frame (HF2b)
           if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', label: '\uD83C\uDFAD Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
           if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
           fillPartyMenu(items, tok.dataset.key);
@@ -2143,6 +2146,7 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'unpausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), false); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
           else if (act === 'sheet') { var campS = getActiveCampaign(), locS = locateCharacter(campS, key, campS && campS.activeItemId); if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
+          else if (act === 'hud') { var campH = getActiveCampaign(), locH = locateCharacter(campH, key, campH && campH.activeItemId); if (locH && locH.tok && locH.tok.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(locH.tok.charId); }   // HUD frame (HF2b)
           else if (act === 'chars') { if (window.wpSheets) window.wpSheets.open('chars'); }
           else if (act === 'target') {
               var camp = getActiveCampaign(); var loc = locateCharacter(camp, key, camp && camp.activeItemId);
@@ -5721,6 +5725,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += stanceMenuHtml(firstItem);
             }
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
+            if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(firstItem.ownerId)) {
                 var pausedTok = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(firstItem.ownerId);
                 html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '&#9654;&#65039; Resume this player' : '&#9208;&#65039; Pause this player') + '</div>';
@@ -5864,6 +5869,12 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-sheet')) {
                     var itS = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     if (itS && window.wpSheets) { if (!itS.charId) window.wpSheets.newFromToken(itS); if (itS.charId) window.wpSheets.openSheet(itS.charId); }
+                    cMenu.style.display = 'none';   // the sheet is open: the menu goes (it used to stay until the next click)
+                    return;
+                } else if (action.includes('cm-hud')) {   // HUD frame (HF2b)
+                    var itH = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
+                    cMenu.style.display = 'none';
+                    if (itH && itH.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(itH.charId);
                     return;
                 } else if (action.includes('cm-player-pause')) {
                     var itPP = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });

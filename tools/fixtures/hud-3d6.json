@@ -396,6 +396,12 @@
           {
             "id": "f_fx",
             "w": "row"
+          },
+          {
+            "kind": "hud",
+            "tab": "t_hst",
+            "text": "Active Effects",
+            "w": 1
           }
         ]
       },

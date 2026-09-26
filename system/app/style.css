@@ -239,7 +239,7 @@
         align-items: center;
         padding: 6px;
         gap: 6px;
-        z-index: 9999;
+        z-index: 8993;   /* the map's own tool bar (and its flyouts, which stack inside it): over the map, under the token toolbar (8995) and every floating window (9000 and up) — a window dragged over it covers it, as the owner chose */
         box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
     .wb-tool-btn {
@@ -793,7 +793,7 @@
 
   /* Floating mini-toolbar above the whiteboard selection */
   #selToolbar {
-    position: absolute; z-index: 16000; display: none; align-items: center; gap: 2px;
+    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map, the party and combat strips (8990) — under every floating window (the sheet, a HUD, the doc panel: 9000 and up) */
     background: var(--panel2); border: 1px solid var(--edge); border-radius: 7px;
     padding: 3px 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     pointer-events: none;   /* the bar itself never blocks the board... */
@@ -2427,3 +2427,8 @@
   .hud-ico-user { -webkit-mask-image: url("assets/icons/fa/solid/user.svg"); mask-image: url("assets/icons/fa/solid/user.svg"); }
   .hud-ico-open, .hud-ico-wave { -webkit-mask-image: url("assets/icons/fa/solid/wave-square.svg"); mask-image: url("assets/icons/fa/solid/wave-square.svg"); }
   .hud-ico-wave { width: 15px; height: 15px; color: var(--sheet-primary, var(--gold)); }
+  /* HF2b: the HUD button placement — a full-width button led by the HUD's wave glyph */
+  .sheet-hud-link { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+  .sheet-hud-link .sheet-hud-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-hud-link .sheet-hud-icon { width: 14px; height: 14px; color: var(--sheet-primary, var(--gold)); }
+  .sheet-hud-link:disabled .sheet-hud-icon { opacity: .5; }

@@ -129,7 +129,8 @@
             "label": "Cost"
           }
         ],
-        "price": "cost"
+        "price": "cost",
+        "custom": true
       }
     },
     {

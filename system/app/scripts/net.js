@@ -1268,10 +1268,15 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items }), camp.chars[charId], view, lib, items);
 }
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
-function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; _charHost = {}; _rowGrace = {}; if (charLimit) charLimit.reset(); }
+function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; _charHost = {}; _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); }
 // Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
 function itemNotice(ch, name, what) {
     var who = ch && ch.name ? ch.name : 'A character', nm = name || 'an item';
+    if (/-try$/.test(what)) {   // F4b follow-up: a refused attempt repeated is one notice per quiet window, the next one saying how many went unsaid
+        var tk = (ch && ch.id ? ch.id : who) + '|' + nm + '|' + what, ts = _triedSaid[tk], tnow = Date.now();
+        if (ts && tnow - ts.at < TRY_QUIET_MS) { ts.more++; return; }
+        var more = ts ? ts.more : 0; _triedSaid[tk] = { at: tnow, more: 0 };
+    }
     var t = what === 'bound-pick' ? who + ' picked up ' + nm + ' — bound: it stays until you remove it.'
         : what === 'curse-pick' ? who + ' picked up ' + nm + ' — curse on contact: if they drop it, you keep it on their sheet.'
         : what === 'bound-try' ? who + ' tried to remove ' + nm + ' — it stays (bound).'
@@ -1280,8 +1285,10 @@ function itemNotice(ch, name, what) {
         : what === 'eq-bound-try' ? who + ' tried to switch off ' + nm + ' — it stays on (bound).'
         : what === 'eq-curse-off' ? who + ' switched off ' + nm + ' — it stays on, out of their sight, until you switch it off.'
         : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
+    if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('items', t);
 }
+var _triedSaid = {}, TRY_QUIET_MS = 30000;   // host: 'charId|item|kind' -> { at, more } — the last said refused attempt (memory only)
 net.syncChars = function() {   // every character, per peer (after the system changed)
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;

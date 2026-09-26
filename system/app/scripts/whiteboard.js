@@ -5404,12 +5404,13 @@ function renderCombatStrip() {
     var c = n && n.active && am && am.type === 'map' && state.viewMode === 'visual' && n.combats && n.combats[am.id];
     if (!c) { strip.innerHTML = ''; strip.style.display = 'none'; return; }
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
-    var host = n.role === 'host';
+    var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
     strip.style.display = 'flex';
     strip.innerHTML = '<span class="combat-strip-round" title="Round">&#9876; R' + c.round + '</span>'
         + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
         + '<span class="combat-strip-cur" title="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + esc(cur.name || '') + '</span>'
         + '<span class="combat-strip-next" title="Up next">next ' + esc(nxt.name || '') + '</span>'
+        + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order">End turn</button>' : '')
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
 }
 window.wpRenderCombatStrip = renderCombatStrip;
@@ -5419,7 +5420,9 @@ window.wpRenderCombatStrip = renderCombatStrip;
     strip.addEventListener('click', function(e) {
         var b = e.target.closest && e.target.closest('.combat-strip-btn'); if (!b) return;
         e.stopPropagation();
-        var n = window.wpNet, am = getActiveMap(); if (!(n && n.role === 'host' && am)) return;
+        var n = window.wpNet, am = getActiveMap();
+        if (b.dataset.act === 'endturn') { var rt = n && n.turnEnd ? n.turnEnd() : null; if (rt && rt.error) toast(rt.error); return; }   // turn-based combat T2
+        if (!(n && n.role === 'host' && am)) return;
         if (b.dataset.act === 'next') n.combatStep(am.id, 1);
         else if (b.dataset.act === 'prev') n.combatStep(am.id, -1);
         else if (b.dataset.act === 'edit') openCombatModal(am.id, {});

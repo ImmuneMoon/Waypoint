@@ -1714,6 +1714,7 @@
   .roll-total.roll-malf { font-style: italic; }
   .sys-turn { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }   /* turn-based combat T1: the Combat card's turn rules */
   .sys-turn-head { font-weight: 600; }
+  .combat-strip-btn.combat-strip-endturn, .notepad-btn.sheet-endturn { width: auto; padding: 0 8px; font-size: 11.5px; font-weight: 600; color: var(--gold); white-space: nowrap; }   /* turn-based combat T2: End turn */
   .sys-turn .sys-combat-item, .sys-turn .sys-turn-add { align-self: flex-start; }
   .sys-turn-row input.sys-turn-mvf { flex: 1 1 200px; font-family: ui-monospace, monospace; }
   .sys-turn-act input, .sys-turn-tu input { flex: 1 1 90px; min-width: 0; }

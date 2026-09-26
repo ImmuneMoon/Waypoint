@@ -316,7 +316,8 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
     fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.'],
     fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
-    turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.']
+    turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.'],
+    turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.']
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
@@ -357,7 +358,7 @@ function syncVttPanel() {
                 if (btn) btn.style.display = 'none';
                 row.style.opacity = gmOn ? '' : '.55';
                 if (help) help.style.display = 'none';
-                if (role) { role.style.display = ''; role.textContent = gmOn ? 'The GM runs fog for this table \u2014 there is no per-player switch.' : 'The GM has fog off for this table.'; }
+                if (role) { role.style.display = ''; role.textContent = gmOn ? 'The GM runs ' + f.label.toLowerCase() + ' for this table \u2014 there is no per-player switch.' : 'The GM has ' + f.label.toLowerCase() + ' off for this table.'; }
             } else {
             if (btn) btn.style.display = '';
             if (st) st.textContent = gmOn ? (lo ? 'GM: on \u2014 off for you' : 'GM: on') : 'GM: off';

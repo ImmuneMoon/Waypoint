@@ -128,10 +128,13 @@ function cleanRollReq(msg) {
     if (msg.row !== undefined) {   // Stage 6 F5b: a roll on one row of a carried list (its Row.* names), only as a character
         var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f) || typeof rw.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rw.r)) return null;
         out.row = { f: rw.f, r: rw.r };
+        if (rw.i !== undefined) { if (!isInt(rw.i) || rw.i < 0 || rw.i > 3) return null; out.row.i = rw.i; }   // Stage 6 HUD R2b: the list's roll (with consequences or needs: the host rebuilds it)
     }
     if (msg.act !== undefined) {   // Stage 6 HUD R1: a roll with consequences names its entry; its modifier and advantage travel as data (the host rebuilds the formula from the entry)
         if (!out.charId || out.row || typeof msg.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(msg.act)) return null;
         out.act = msg.act;
+    }
+    if (out.act || (out.row && out.row.i !== undefined)) {   // R1/R2b: a named entry's modifier and advantage
         if (msg.mod !== undefined) { if (!isInt(msg.mod) || msg.mod < -99 || msg.mod > 99) return null; if (msg.mod) out.mod = msg.mod; }
         if (msg.adv !== undefined) { if (msg.adv !== 'adv' && msg.adv !== 'dis') return null; out.adv = msg.adv; }
     } else if (msg.mod !== undefined || msg.adv !== undefined) return null;

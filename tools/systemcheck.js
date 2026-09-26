@@ -1896,7 +1896,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             check('F5b the Lists card (run for real): a row per roll (label, formula up to 300, ▲ ▼ ×) and + Roll (greyed at four); the handlers write the draft; a roll on a GM-only row or through a GM-only value stays private (net.js, pinned); the player\'s request carries the row, the host resolves it through their own view; a row roll is not remembered in the dice history; tour and Help say so',
                 j(find5(cardR, 'sys-list-rolllabel').map(x => x.value)) === j(['Attack', 'Sneak', 'Roll', 'Four']) && find5(cardR, 'sys-list-rollformula')[0].maxLength === 300 && find5(cardR, 'sys-list-rolladd')[0].disabled === true && find5(LCR({ id: 'f_y', key: 'Y', label: 'Y', kind: 'item-list', list: {} }, []), 'sys-list-rolladd')[0].disabled === false && find5(four, 'sys-list-roll').length === 4
                 && /else if \(lcc\.indexOf\('sys-list-rollformula'\) >= 0\) rD\.formula = t\.value\.slice\(0, LIMITS\.formula\);/.test(shT) && /if \(ract === 'rolladd'\) \{ if \(rArr\.length >= LIMITS\.rowRolls\)/.test(shT)
-                && /var rvQ = varsQ\.row\(q\.row\.f, q\.row\.r\); if \(!rvQ\) \{ denyQ\('char'\); return; \}\n\s*varsQ = rvQ; if \(SQ\.rowRollNames\(campQ\.system, srcQ, q\.row\.f, q\.row\.r, \[\], Fq\)\.gm\) q\.priv = 'gm';/.test(netSrcR) && /if \(o\.row && o\.charId\) req\.row = \{ f: String\(o\.row\.f\), r: String\(o\.row\.r\) \};/.test(netSrcR)
+                && /var rvQ = varsQ\.row\(q\.row\.f, q\.row\.r\); if \(!rvQ\) \{ denyQ\('char'\); return; \}\n\s*varsQ = rvQ; if \(SQ\.rowRollNames\(campQ\.system, srcQ, q\.row\.f, q\.row\.r, \[\], Fq\)\.gm\) q\.priv = 'gm';/.test(netSrcR) && /if \(o\.row && o\.charId\) \{ req\.row = \{ f: String\(o\.row\.f\), r: String\(o\.row\.r\) \};/.test(netSrcR)
                 && /else if \(hosting && rowP && rowP\.gm\) \{ rec\.priv = 'gm';/.test(netSrcR) && /if \(!r\.error && !opts\.row\) remember\(clean\);/.test(diceSrcR) && /row: opts\.row \|\| undefined, act: opts\.act \|\| undefined, mod: opts\.mod \|\| undefined, adv: opts\.adv \|\| undefined \}\);   \/\/ row \(F5b\)/.test(diceSrcR)
                 && /<b>Rolls<\/b> put a button on each row/.test(tut5c) && /A list&rsquo;s <b>Rolls<\/b> \(four at most/.test(html5c), j([find5(cardR, 'sys-list-rolllabel').map(x => x.value)]));
         }
@@ -3081,7 +3081,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('GM-only rolls: the hint reaches net.diceRoll unchanged — sheetRoll hands it to a plain roll and to the modifier popover (whose Roll passes it on), and dice.js\'s rollFor and roll (run for real) give net.diceRoll gmOnly beside priv; a roll without it asks gmOnly false',
             j(viaG) === j([['plain', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }], ['mod', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]])
             && j(askedG) === j([['d100', { priv: false, gmOnly: true, charId: 'c_d', label: 'Hidden Sanity' }], ['d6', { priv: false, gmOnly: false, charId: 'c_d', label: 'Luck' }], ['d6', { priv: true, gmOnly: true, charId: 'c_d', label: 'Both' }]])
-            && /closeModPop\(\); rollFor\(charId, r\.expr, label, opts && opts\.act \? Object\.assign\(\{\}, opts, \{ mod: mod \|\| undefined, adv: advMode !== 'normal' \? advMode : undefined \}\) : opts\); \}\);/.test(dkG), j([viaG, askedG]));
+            && /closeModPop\(\); rollFor\(charId, r\.expr, label, opts && \(opts\.act \|\| \(opts\.row && typeof opts\.row\.i === 'number'\)\) \? Object\.assign\(\{\}, opts, \{ mod: mod \|\| undefined, adv: advMode !== 'normal' \? advMode : undefined \}\) : opts\); \}\);/.test(dkG), j([viaG, askedG]));
         const hG = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('GM-only rolls (source): Help says a GM-only field\'s own roll, a GM-only roll and the damage of a GM-only item (or one thrown from a GM-only list) are kept private, and what a visible item\'s damage and a GM-only item\'s blast show',
             /So are a GM-only field&rsquo;s own roll, a GM-only roll, and the damage of an item that is GM-only or thrown from a GM-only list\./.test(hG) && /A visible item&rsquo;s damage is rolled at the table like any roll; the damage of a GM-only item, or of one thrown from a GM-only list, goes to you alone, and its blast reaches players without its name\./.test(hG) && !/Item formulas never leave your machine/.test(hG));
@@ -3585,7 +3585,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && j(j(cleanSystem(gmL, { F, gmView: true }))) === j(j(gmL)) && j(cleanSystem(plL, { F, gmView: false })) === j(plL), j([lsL(gmL, 'f_pw'), lsL(plL, 'f_pw'), plL.fields.find(x => x.id === 'f_only')]));
         const vL = validateSystem(gmL, F), msgL = (a, id) => a.filter(e => e.id === id && e.prop === 'list').map(e => e.message);
         check('H7b the validator: a list action\'s messages go under its list\'s card by action and change ("Apply “B”, change 2: …"): a field to pick, no dice, a missing amount; an action with no change; a GM-only value warns that players will not get it; Row.* is known there',
-            j(msgL(vL.errors, 'f_bad')) === j(['Apply “B”, change 1: Pick the pool or number this changes.', 'Apply “B”, change 2: An amount cannot roll dice: roll first, and let the amount read the field the result goes in.', 'Apply “B”, change 3: Missing formula'])
+            j(msgL(vL.errors, 'f_bad')) === j(['Apply “B”, change 1: Pick the pool, number or counter this changes.', 'Apply “B”, change 2: An amount cannot roll dice: roll first, and let the amount read the field the result goes in.', 'Apply “B”, change 3: Missing formula'])
             && j(msgL(vL.errors, 'f_pw')) === j(['Apply “Apply”: An apply action needs a change: the pool or number it moves, and by how much.'])
             && j(msgL(vL.warnings, 'f_pw')) === j(['Apply “Secret”, change 1: "GMFig" is GM only: players will not get this action.']), j([msgL(vL.errors, 'f_bad'), msgL(vL.errors, 'f_pw'), msgL(vL.warnings, 'f_pw')]));
         const chL = { id: 'c_l', name: 'Jed', ownerId: 'u_l', values: { f_fp: { cur: 5 }, f_pw: [{ id: 'w_1', defId: 'i_push' }, { id: 'w_2', defId: 'i_dark' }, { id: 'w_3', defId: 'i_push', hid: 1 }] } };
@@ -3618,7 +3618,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             j([rw1.cards, rw1.toasts, rw2.cards, rw2.toasts, rw3.toasts, rwC.asks]));
         const hA = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tA = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('H7b the Lists card (source) and the tour and Help: a list roll has Kind: Roll | Apply and, as an apply action, its own change editor (listApplyEditor, built with el only); Help and the Lists step say a list\'s action works its amount out from the row',
-            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); listApplyEditor\(cb2, rr, ri\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri\) \{/.test(shL)
+            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); listApplyEditor\(cb2, rr, ri, 'apply', sp, targets\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri, key, sp, targets\) \{/.test(shL)
             && /A list&rsquo;s roll can be an <b>apply<\/b> action too/.test(hA) && /a list&rsquo;s <b>apply<\/b> actions move pools from the row \(Apply costs: FP &minus; Row\.FPCost\)/.test(tA));
     }
     /* ---- Stage 6 HUD C8: show-if — a section or a placement shows only while its formula is true (render only, fail open) ---- */
@@ -3737,7 +3737,55 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             j(prW.values.f_wp[0].ct) === j({ Charges: 13, Hits: 0 }) && vW.some(m => /^Counter “Bad”, its most: /.test(m)), j([prW.values.f_wp, vW]));
         const hW = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tW = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('R2a the tour and Help: a list\'s Counters (key, label, start, most), kept on each row with minus and plus, read as Row.Charges or Weapons.Blaster.Charges, no total',
-            /A list&rsquo;s <b>Counters<\/b> \(four at most: a key, a label, where a row starts and its most/.test(hW) && /read as <code>Row\.Charges<\/code> or <code>Weapons\.Blaster\.Charges<\/code> \(a counter has no total\)/.test(hW) && /<b>Counters<\/b> keep a number on each row \(a weapon&rsquo;s Charges, 12\/20\), with &minus; and \+\./.test(tW));
+            /A list&rsquo;s <b>Counters<\/b> \(four at most: a key, a label, where a row starts and its most/.test(hW) && /read as <code>Row\.Charges<\/code> or <code>Weapons\.Blaster\.Charges<\/code> \(a counter has no total\)/.test(hW) && /<b>Counters<\/b> keep a number on each row \(a weapon&rsquo;s Charges, 12\/20\), with &minus; and \+/.test(tW));
+    }
+    /* ---- Stage 6 HUD R2b: a list roll's consequences move the row's counters; what it needs; a list's action moves a counter ---- */
+    {
+        const rawV = { v: 1, name: 'V', rolls: [], fields: [
+            { id: 'f_g', key: 'GMFig', kind: 'number', def: 2, vis: 'gm' }, { id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '10', def: 'max', min: 0, hover: true },
+            { id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Shots' }], counters: [{ key: 'Charges', def: 3, max: 'Row.Shots' }, { key: 'Hits' }],
+                rolls: [
+                    { label: 'Fire', formula: '3d6 <= 30', needs: 'Row.Charges >= 1', needsText: 'Out of charges', then: [{ c: 'Charges', formula: '1' }, { c: 'hits', formula: '1', add: true, when: 'hit' }] },
+                    { label: 'Damage', formula: '2d6', needs: 'Row.Hits > 0', then: [{ c: 'Hits', formula: '0', set: true }, { f: 'f_fp', formula: '1', when: 'hit' }, { c: 'Nope', formula: '1' }] },
+                    { label: 'Reload', apply: [{ c: 'Charges', formula: 'Row.Shots', set: true }] },
+                    { label: 'Sec', formula: '3d6 <= 30', needs: 'GMFig > 0', then: [{ c: 'Hits', formula: 'GMFig' }] }] } }],
+            items: [{ id: 'i_bl', name: 'Blaster', key: 'Blaster', stats: { Shots: 5 } }], sheet: { sections: [] } };
+        const gmV = cleanSystem(rawV, { F, gmView: true }), plV = cleanSystem(rawV, { F, gmView: false }), lrV = s => s.fields.find(f => f.id === 'f_wp').list.rolls;
+        check('R2b the cleaner: a list roll keeps its consequences (a counter { c } spelled as its list spells it, a field, or an unfinished change where the counter is not the list\'s) and what it needs (formula and text); a list\'s action may move a counter; fixed points',
+            j(lrV(gmV)[0]) === j({ label: 'Fire', formula: '3d6 <= 30', then: [{ c: 'Charges', formula: '1' }, { c: 'Hits', formula: '1', add: true, when: 'hit' }], needs: 'Row.Charges >= 1', needsText: 'Out of charges' })
+            && j(lrV(gmV)[1].then) === j([{ c: 'Hits', formula: '0', set: true }, { f: 'f_fp', formula: '1', when: 'hit' }, { f: '', formula: '1' }]) && j(lrV(gmV)[2]) === j({ label: 'Reload', apply: [{ c: 'Charges', formula: 'Row.Shots', set: true }] })
+            && j(cleanSystem(gmV, { F, gmView: true })) === j(gmV) && j(cleanSystem(plV, { F, gmView: false })) === j(plV), j(lrV(gmV)));
+        check('R2b the players\' view drops a list roll\'s consequences whole when one is unfinished or names a GM-only value, and a needs naming one (players\' rolls then change nothing / are not held back); the rest travel',
+            !('then' in lrV(plV)[1]) && lrV(plV)[1].needs === 'Row.Hits > 0' && !('then' in lrV(plV)[3]) && !('needs' in lrV(plV)[3]) && j(lrV(plV)[0]) === j(lrV(gmV)[0]), j(lrV(plV)));
+        const eV = validateSystem(gmV, F), mV = a => a.filter(e => e.id === 'f_wp').map(e => e.message);
+        check('R2b the validator, under the list\'s card by roll: a consequence with no pool, number or counter; On success on a roll that tests nothing; a needs or a consequence reading a GM-only value warns what players get',
+            j(mV(eV.errors)) === j(['Roll “Damage”, then 3: Pick the pool, number or counter this changes.'])
+            && j(mV(eV.warnings)) === j(['Roll “Damage”, then 2: This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so On success never happens.', 'Roll “Sec”, needs: "GMFig" is GM only: players’ rolls are not held back by it.', 'Roll “Sec”, then 1: "GMFig" is GM only: players’ rolls will not apply it.']),
+            j([mV(eV.errors), mV(eV.warnings)]));
+        const chV = cleanChar({ id: 'c_v', ownerId: 'u_v', values: { f_wp: [{ id: 'w_1', defId: 'i_bl', qty: 1, ct: { Charges: 2 } }, { id: 'w_h', defId: 'i_bl', qty: 1, hid: 1 }] } }, gmV), ctx1 = { f: 'f_wp', r: 'w_1' };
+        const rvV = makeResolver(gmV, chV, F).row('f_wp', 'w_1'), fireHit = S.applyAct(gmV, chV, { apply: S.thenChanges(lrV(gmV)[0], true) }, rvV, F, null, ctx1), fireMiss = S.applyAct(gmV, chV, { apply: S.thenChanges(lrV(gmV)[0], false) }, rvV, F, null, ctx1);
+        const reload = S.applyAct(gmV, chV, lrV(gmV)[2], rvV, F, null, ctx1), gone = S.applyAct(gmV, chV, lrV(gmV)[2], rvV, F, null, { f: 'f_wp', r: 'w_9' }), kept = S.applyAct(gmV, chV, lrV(gmV)[2], rvV, F, null, { f: 'f_wp', r: 'w_h' }), noCtx = S.applyAct(gmV, chV, lrV(gmV)[2], rvV, F, null, null);
+        check('R2b applyAct moves the row\'s counters (rowCtx): Fire on success spends a charge and scores a hit (2 to 1, 0 to 1), on a miss only spends; Reload sets Charges to Row.Shots (5, its most too); a row that is gone or a kept curse is "missing"; no row, no counter ("field"); the list comes back whole',
+            j(fireHit.values.f_wp[0].ct) === j({ Charges: 1, Hits: 1 }) && j(fireHit.lines.map(l => [l.n, l.d, l.v])) === j([['Charges', -1, 1], ['Hits', 1, 1]]) && j(fireMiss.values.f_wp[0].ct) === j({ Charges: 1 })
+            && j(reload.values.f_wp[0].ct) === j({ Charges: 5 }) && reload.values.f_wp.length === 2 && j(gone) === j({ ok: false, reason: 'missing' }) && j(kept) === j({ ok: false, reason: 'missing' }) && j(noCtx) === j({ ok: false, reason: 'field' }) && j(chV.values.f_wp[0].ct) === j({ Charges: 2 }),
+            j([fireHit, fireMiss.values, reload.values, gone, kept, noCtx]));
+        const aVv = resolveAll(gmV, chV, F);
+        const over = S.applyAct(gmV, chV, { apply: [{ c: 'Charges', formula: '99', set: true }, { c: 'Hits', formula: '7', add: true }] }, rvV, F, null, ctx1);
+        check('R2b a counter stops at the row\'s own most (Charges set to 99: Row.Shots 5) and at 0; one with no most takes the number (Hits + 7)', j(over.values.f_wp[0].ct) === j({ Charges: 5, Hits: 7 }), j(over));
+        const shV2 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), apSrcV = shV2.slice(shV2.indexOf('// Stage 6 HUD H7: a viewer who may press an apply action'), shV2.indexOf('// The combat roster (whiteboard.js): initiative from the system\'s init roll'));
+        const chV2 = JSON.parse(JSON.stringify(chV)), campV = { id: 'k', system: gmV, chars: { c_v: chV2 } }, cardsV = [];
+        const apiV = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'net', 'toast', 'F', 'resolveAll', 'tokenCtxFor', 'applyAct', 'applyScope', 'gmOnlyNames', 'gmDerivedNames', 'gmEffectNames', 'labelSecret', 'clone', 'afterCharChange', 'charById', 'rollLabel', 'el', 'iconNode', 'ROLL_TONE_CLS', 'fieldById', 'myId', 'window', 'rowRollNames',
+            'var lastChange = null, _fxLive = true;' + NL + apSrcV + NL + 'return { applyAction: applyAction };')(
+            () => campV, c => c.system, () => false, () => true, () => ({ active: true, role: 'host', postApplyCard: (...a) => cardsV.push(a[3]) }), () => {}, () => F, S.resolveAll, () => null, S.applyAct, S.applyScope, S.gmOnlyNames, S.gmDerivedNames, S.gmEffectNames, () => '', x => JSON.parse(JSON.stringify(x)), () => {}, (cid, cp) => cp.chars[cid] || null, r => r.label, () => null, () => null, {}, S.fieldById, () => 'u_v', { wpVtt: { on: () => true } }, S.rowRollNames);
+        apiV.applyAction(lrV(gmV)[2], chV2, 'Blaster · Reload', { f: 'f_wp', r: 'w_1', i: 2 });
+        check('R2b the GM\'s own list action (applyAction, run for real) moves the row\'s counter (Reload: Charges 2 to 5) and its card goes to the owner and the GM', j(chV2.values.f_wp[0].ct) === j({ Charges: 5 }) && j(cardsV) === j(['owner']), j([chV2.values.f_wp[0], cardsV]));
+        check('R2b a counter\'s card goes to the owner and the GM (a list never reaches teammates); the sheet gets each row\'s answer to its rolls\' needs (Fire yes with 2 charges, Damage no with no hit)',
+            S.applyScope(gmV, chV, lrV(gmV)[2], false, F) === 'owner' && j(aVv.f_wp.rn.w_1) === j([true, false, true, true]), j([aVv.f_wp.rn]));
+        const shV = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        check('R2b the sheet and the Lists card (source): a row\'s roll greys with its needs text while its needs fail, and one with consequences or needs names its index; the card has each roll\'s Needs box and its + Then\u2026 editor, a counter among the targets',
+            /var nOk = !r\.needs \|\| !\(res && res\.rn && res\.rn\[rid\]\) \|\| res\.rn\[rid\]\[ri\] !== false, withE = /.test(shV) && /if \(!nOk\) \{ b\.disabled = true; b\.title = \(r\.needsText \|\| 'Not now'\)/.test(shV) && /row: withE \? \{ f: f\.id, r: rid, i: ri \} : \{ f: f\.id, r: rid \}/.test(shV)
+            && /input\('sys-list-needs field'/.test(shV) && /listApplyEditor\(cb2, rr, ri, 'then', sp, targets\);/.test(shV) && /ctrs\.map\(function\(t\) \{ return \['c:' \+ t\.key, 'Counter: ' \+ \(t\.label \|\| t\.key\)\]; \}\)/.test(shV)
+            && /if \(t\.value\.indexOf\('c:'\) === 0\) \{ atC\.c = t\.value\.slice\(2\); delete atC\.f; \}/.test(shV));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

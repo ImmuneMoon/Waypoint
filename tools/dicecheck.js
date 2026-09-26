@@ -125,6 +125,14 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
             && cleanRollReq({ type: 'roll-req', rid: 'q1', expr: 'd6', act: 'r_atk' }) === null);
     }
 
+    /* ---- Stage 6 HUD R2b: a list roll with consequences or needs names its index (0-3); its modifier and advantage then travel as data ---- */
+    {
+        const J = JSON.stringify, q = o => cleanRollReq(Object.assign({ type: 'roll-req', rid: 'q1', expr: '3d6 <= 30', charId: 'c_a' }, o));
+        check('R2b cleanRollReq: row.i from 0 to 3 (with a modifier and advantage beside it); an index out of range or a modifier on a plain row roll refuses the request whole',
+            J(q({ row: { f: 'f_w', r: 'w_1', i: 3 }, mod: -2, adv: 'dis' })) === J({ rid: 'q1', expr: '3d6 <= 30', charId: 'c_a', row: { f: 'f_w', r: 'w_1', i: 3 }, mod: -2, adv: 'dis' })
+            && [{ row: { f: 'f_w', r: 'w_1', i: 4 } }, { row: { f: 'f_w', r: 'w_1', i: -1 } }, { row: { f: 'f_w', r: 'w_1', i: 1.5 } }, { row: { f: 'f_w', r: 'w_1' }, mod: 2 }, { row: { f: 'f_w', r: 'w_1' }, adv: 'adv' }].every(o => q(o) === null));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');

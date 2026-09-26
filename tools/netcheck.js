@@ -1138,6 +1138,65 @@ pendingChecks.push((async () => {
         j([gWin.vals, gWin.deltas, gOff.vals, gNo.vals]));
 })());
 
+// Stage 6 HUD R2b: a list roll with consequences or needs on the wire — the host finds the list's roll in the player's view by its index, rebuilds its
+// formula, refuses it while its needs fail, and moves the row's counters after it lands (sliced roll-req and diceroll, run for real)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src3 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src3.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src3.slice(i, src3.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const sysW = Sx.cleanSystem({ v: 1, name: 'W', rolls: [], fields: [
+        { id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Shots' }], counters: [{ key: 'Charges', def: 3, max: 'Row.Shots' }, { key: 'Hits' }],
+            rolls: [{ label: 'Fire', formula: '3d6 <= 30', needs: 'Row.Charges >= 1', needsText: 'Out of charges', then: [{ c: 'Charges', formula: '1' }, { c: 'Hits', formula: '1', add: true, when: 'hit' }] }, { label: 'Damage', formula: '2d6', needs: 'Row.Hits > 0', needsText: 'No hit pending', then: [{ c: 'Hits', formula: '0', set: true }] }] } }],
+        items: [{ id: 'i_bl', name: 'Blaster', stats: { Shots: 5 } }] }, { F: Fx, gmView: true });
+    const rowsW = ct => [{ id: 'w_1', defId: 'i_bl', qty: 1, ct: ct }];
+    const runW = (msg, ct) => { const out = { table: [], sent: [], deltas: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sysW, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: rowsW(ct) } } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta: (id, d) => out.deltas.push(JSON.parse(JSON.stringify(d))) };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a' }, msg), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { out.table.push(rec.expr); }, () => {}, () => {}, () => {});
+        out.ct = camp.chars.c_a.values.f_wp[0].ct; return out; };
+    const wFire = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 0 } }, { Charges: 2 }), wEmpty = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 0 } }, { Charges: 0 });
+    const wDmg = runW({ expr: '2d6', row: { f: 'f_wp', r: 'w_1', i: 1 } }, { Charges: 2, Hits: 1 }), wNoHit = runW({ expr: '2d6', row: { f: 'f_wp', r: 'w_1', i: 1 } }, { Charges: 2 }), wFake = runW({ expr: '3d6 <= 99', row: { f: 'f_wp', r: 'w_1', i: 0 } }, { Charges: 2 });
+    const wMod = runW({ expr: Dx.composeModifier('3d6 <= 30', 1, Fx.parse).expr, row: { f: 'f_wp', r: 'w_1', i: 0 }, mod: 1 }, { Charges: 2 }), wPlain = runW({ expr: 'd6', row: { f: 'f_wp', r: 'w_1' } }, { Charges: 2 });
+    const refusedW = (w, m) => w.table.length === 0 && w.deltas.length === 0 && w.sent.length === 1 && w.sent[0].type === 'roll-deny' && w.sent[0].message === m;
+    check('R2b a player\'s list roll by its index: Fire spends a charge and scores a hit on the host\'s copy (one delta); with no charge it is refused "Out of charges" before anything is rolled; Damage clears the hit, and with none it is refused "No hit pending"; a formula that is not the roll\'s is refused; a modifier sent as data is rolled; a plain row roll (no index) changes nothing',
+        wFire.table.length === 1 && j(wFire.ct) === j({ Charges: 1, Hits: 1 }) && wFire.deltas.length === 1 && refusedW(wEmpty, 'Out of charges') && j(wEmpty.ct) === j({ Charges: 0 })
+        && wDmg.table.length === 1 && j(wDmg.ct) === j({ Charges: 2, Hits: 0 }) && refusedW(wNoHit, 'No hit pending') && refusedW(wFake, 'That roll does not match its button now.')
+        && wMod.table.length === 1 && j(wMod.ct) === j({ Charges: 1, Hits: 1 }) && wPlain.table.length === 1 && wPlain.deltas.length === 0 && j(wPlain.ct) === j({ Charges: 2 }),
+        j([wFire.ct, wEmpty.sent, wDmg.ct, wNoHit.sent, wFake.sent, wMod.ct, wPlain.ct]));
+    // the GM's own: net.diceRoll with the row's index — its needs before anything is rolled, its consequences here
+    const runGW = (expr, o, ct) => { const out = { deltas: [], saves: 0 };
+        const camp = { id: 'k', system: sysW, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: rowsW(ct) } } } };
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta: (id, d) => out.deltas.push(JSON.parse(JSON.stringify(d))) };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => { out.saves++; });
+        out.ret = dr(expr, Object.assign({ charId: 'c_a' }, o)); out.ct = camp.chars.c_a.values.f_wp[0].ct; return out; };
+    const gFire = runGW('3d6 <= 30', { row: { f: 'f_wp', r: 'w_1', i: 0 } }, { Charges: 2 }), gEmpty = runGW('3d6 <= 30', { row: { f: 'f_wp', r: 'w_1', i: 0 } }, { Charges: 0 });
+    check('R2b the GM\'s own list roll by its index: its consequences move the counters here (one delta, a save); a roll whose needs fail is refused with its text before anything is rolled',
+        gFire.ret.ok && j(gFire.ct) === j({ Charges: 1, Hits: 1 }) && gFire.deltas.length === 1 && gFire.saves === 1 && j(gEmpty.ret) === j({ error: 'Out of charges' }) && j(gEmpty.ct) === j({ Charges: 0 }) && gEmpty.saves === 0,
+        j([gFire.ret, gFire.ct, gEmpty.ret]));
+    const runCW = o => { const sent = []; const conn = { peer: 'H', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) };
+        const net = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', conns: [conn], roster: {} };
+        new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'setTimeout', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true } }, () => ({ id: 'k', system: sysW, chars: {} }), () => ({ id: 'u_a', name: 'Pat' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => {}, () => 0)('3d6 <= (30) + 1', o); return sent; };
+    const cwI = runCW({ charId: 'c_a', row: { f: 'f_wp', r: 'w_1', i: 0 }, mod: 1 });
+    check('R2b the player\'s request (net.diceRoll, run for real): a list roll with consequences or needs sends the row\'s index and its modifier', cwI.length === 1 && j(cwI[0].row) === j({ f: 'f_wp', r: 'w_1', i: 0 }) && cwI[0].mod === 1 && Dx.cleanRollReq(cwI[0]) !== null, j(cwI));
+    const apSrcW = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), paSrcW = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), dlSrcW = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const sysWA = Sx.cleanSystem({ v: 1, name: 'WA', rolls: [], fields: [{ id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Shots' }], counters: [{ key: 'Charges', def: 3, max: 'Row.Shots' }], rolls: [{ label: 'Reload', apply: [{ c: 'Charges', formula: 'Row.Shots', set: true }] }] } }], items: [{ id: 'i_bl', name: 'Blaster', stats: { Shots: 5 } }] }, { F: Fx, gmView: true });
+    const campWA = { id: 'k', system: sysWA, items: {}, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: [{ id: 'w_1', defId: 'i_bl', qty: 1, ct: { Charges: 1 } }] } } } }, outWA = { sent: [], chat: [] };
+    const connWA = { peer: 'pA', open: true, send: m => { packCheck(m); outWA.sent.push(JSON.parse(JSON.stringify(m))); } }, netWA = { active: true, role: 'host', paused: false, combats: {}, conns: [connWA], roster: { pA: { id: 'u_a', name: 'Pat' } } };
+    new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrcW + '\n' + paSrcW + '\n' + apSrcW)(
+        { type: 'char-apply', rid: 'a1', charId: 'c_a', row: { f: 'f_wp', r: 'w_1', i: 0 }, label: 'Blaster · Reload' }, connWA, netWA, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } }, () => false, () => campWA, () => {}, e => { throw e; }, c => (netWA.roster[c.peer] ? netWA.roster[c.peer].id : null), { allow: () => true },
+        (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), () => {}, m => outWA.chat.push(m), () => {}, r => Dx.applyText(r));
+    check('R2b a player\'s list action (char-apply with the row) moves the row\'s counter on the host\'s copy (Reload: Charges 1 to 5), acked, its card to them and the GM',
+        j(campWA.chars.c_a.values.f_wp[0].ct) === j({ Charges: 5 }) && outWA.sent.some(m => m.type === 'char-ack') && outWA.sent.some(m => m.type === 'apply' && m.priv === 'gm' && j(m.lines) === j([{ n: 'Charges', d: 4, v: 5 }])), j([campWA.chars.c_a.values.f_wp, outWA.sent.map(m => m.type)]));
+})());
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

@@ -2809,7 +2809,7 @@ function handleMessage(msg, conn) {
         var tcA = Sa.withRound(Sa.tokenCtx(mapA, Sa.charTokenOn(mapA, qa.charId, profA.id, { strict: true }), { turning: ruleA('turning'), posture: ruleA('posture'), elevation: ruleA('elevation') }), mapA && own(net.combats, locA) ? net.combats[locA] : null);
         var varsA = Sa.makeResolver(viewA, chvA, Fa, tcA);
         if (qa.row) { varsA = varsA.row(qa.row.f, qa.row.r); if (!varsA) { denyA('missing'); return; } rowGmA = !!Sa.rowRollNames(campA.system, chA, qa.row.f, qa.row.r, [], Fa).gm; }   // H7b: the row's own names (a row they cannot see is gone); a row of a GM-only item keeps the card between them and the GM
-        var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA);
+        var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null);   // R2b: a list's action may move its row's counters
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
         chA.values = chA.values || {}; Object.keys(resA.values).forEach(function(k) { chA.values[k] = resA.values[k]; }); chA.updated = Date.now();
         saveRemoteSoon();
@@ -3013,12 +3013,14 @@ function handleMessage(msg, conn) {
                 var rvQ = varsQ.row(q.row.f, q.row.r); if (!rvQ) { denyQ('char'); return; }
                 varsQ = rvQ; if (SQ.rowRollNames(campQ.system, srcQ, q.row.f, q.row.r, [], Fq).gm) q.priv = 'gm';
             }
-            if (q.act) {   // Stage 6 HUD R1: a roll with consequences — the entry as their view has it, and its formula rebuilt from it (no faked hit)
-                (Array.isArray(viewQ.rolls) ? viewQ.rolls : []).forEach(function(r) { if (r && r.id === q.act && typeof r.formula === 'string' && !r.apply) actQ = r; });
+            if (q.act || (q.row && typeof q.row.i === 'number')) {   // Stage 6 HUD R1/R2b: a roll with consequences or needs — the entry as their view has it (a system roll, a list's roll), its formula rebuilt from it (no faked hit), its needs met
+                if (q.act) (Array.isArray(viewQ.rolls) ? viewQ.rolls : []).forEach(function(r) { if (r && r.id === q.act && typeof r.formula === 'string' && !r.apply) actQ = r; });
+                else (Array.isArray(viewQ.fields) ? viewQ.fields : []).forEach(function(f) { if (f && f.id === q.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lrQ = f.list.rolls[q.row.i]; if (lrQ && typeof lrQ.formula === 'string' && !lrQ.apply) actQ = lrQ; } });
                 var wantQ = actQ ? actQ.formula : null;
                 if (wantQ && q.adv) { var awQ = Dq.withAdvantage(wantQ, q.adv, Fq.parse); wantQ = awQ.ok ? awQ.expr : null; }
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, q.mod || 0, Fq.parse) : null;
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
+                if (actQ.needs) { var ndQ = Fq.evaluate(actQ.needs, { vars: varsQ }); if (!(ndQ.ok && (ndQ.value === true || (typeof ndQ.value === 'number' && ndQ.value !== 0)))) { denyQ('error', { error: { message: actQ.needsText || ('Not now: it needs ' + actQ.needs), pos: 0, len: 0 } }); return; } }   // R2b: what it needs, through their view (the row's names)
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
@@ -3034,7 +3036,7 @@ function handleMessage(msg, conn) {
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
             var vdQ = Dq.verdictOf(resQ), thQ = SQ.thenChanges(actQ, vdQ && vdQ.kind === 'check' ? vdQ.pass : null);
-            var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, varsQ, Fq, tcQ) : null;
+            var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, varsQ, Fq, tcQ, q.row ? { f: q.row.f, r: q.row.r } : null) : null;   // R2b: a list roll may move its row's counters
             if (taQ && taQ.ok) { chQ.values = chQ.values || {}; Object.keys(taQ.values).forEach(function(k) { chQ.values[k] = taQ.values[k]; }); chQ.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(q.charId, taQ.values); if (window.wpSheets) window.wpSheets.charChanged(q.charId); }
         }
         // [netcheck:rollreq-end]
@@ -3753,8 +3755,8 @@ net.diceRoll = function(expr, o) {
         if (o.priv) req.priv = 'gm';
         if (o.charId) req.charId = o.charId;
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
-        if (o.row && o.charId) req.row = { f: String(o.row.f), r: String(o.row.r) };
-        if (o.act && o.charId && !o.row) { req.act = String(o.act); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; }   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
+        if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.i === 'number') req.row.i = o.row.i; }   // R2b: a list's roll with consequences or needs names its index
+        if (o.charId && ((o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; }   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
@@ -3762,7 +3764,13 @@ net.diceRoll = function(expr, o) {
     var campR = getActiveCampaign(), SR = SC(), chR = null, varsR = null;   // a character makes its sheet's names available (character sheets, 1.5.0)
     if (o.charId) { chR = campR && campR.chars && campR.chars[o.charId]; if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F, window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null); }
     var rowP = null;
-    if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }   // Stage 6 F5b: a roll on one row — its Row.* names
+    if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }
+    var entR = null;   // Stage 6 HUD R1/R2b: the entry a roll with consequences or needs names — a system roll by act, a list's roll by its index
+    if (chR && SR && campR && campR.system) {
+        if (o.act && !o.row) (Array.isArray(campR.system.rolls) ? campR.system.rolls : []).forEach(function(r) { if (r && r.id === o.act && typeof r.formula === 'string' && !r.apply) entR = r; });
+        else if (o.row && typeof o.row.i === 'number') (Array.isArray(campR.system.fields) ? campR.system.fields : []).forEach(function(f) { if (f && f.id === o.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lrR0 = f.list.rolls[o.row.i]; if (lrR0 && typeof lrR0.formula === 'string' && !lrR0.apply) entR = lrR0; } });
+    }
+    if (entR && entR.needs && varsR) { var ndR = F.evaluate(entR.needs, { vars: varsR }); if (!(ndR.ok && (ndR.value === true || (typeof ndR.value === 'number' && ndR.value !== 0)))) return { error: entR.needsText || ('Not now: it needs ' + entR.needs) }; }   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     if (o.row && chR && SR && campR && campR.system) rowP = SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, (res.breakdown && res.breakdown.names) || [], F);   // what its Row.* names read, and whether the row is GM-only
@@ -3789,10 +3797,9 @@ net.diceRoll = function(expr, o) {
     if (hosting && scope === 'global') sendTable(rec, null);
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
-    if (o.act && !o.row && chR && SR && campR && campR.system) {   // Stage 6 HUD R1: the GM's own roll's consequences, here (a player's are the host's)
-        var actR = null; (Array.isArray(campR.system.rolls) ? campR.system.rolls : []).forEach(function(r) { if (r && r.id === o.act && typeof r.formula === 'string' && !r.apply) actR = r; });
-        var vdR = actR && actR.then ? D.verdictOf(res) : null, thR = actR ? SR.thenChanges(actR, vdR && vdR.kind === 'check' ? vdR.pass : null) : [];
-        var taR = thR.length ? SR.applyAct(campR.system, chR, { apply: thR }, varsR, F, null) : null;
+    if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
+        var vdR = D.verdictOf(res), thR = SR.thenChanges(entR, vdR && vdR.kind === 'check' ? vdR.pass : null);
+        var taR = thR.length ? SR.applyAct(campR.system, chR, { apply: thR }, varsR, F, null, o.row ? { f: o.row.f, r: o.row.r } : null) : null;
         if (taR && taR.ok) { chR.values = chR.values || {}; Object.keys(taR.values).forEach(function(k) { chR.values[k] = taR.values[k]; }); chR.updated = Date.now(); save(true); if (hosting && net.syncCharDelta) net.syncCharDelta(chR.id, taR.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chR.id); }
     }
     return { ok: true, value: res.value, priv: !!rec.priv };

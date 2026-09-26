@@ -160,7 +160,7 @@ function rollWithMod(charId, expr, label, opts, anchor) {
     var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
     numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
     prevEl = el('div', 'dice-modpop-prev', expr); pop.appendChild(prevEl);
-    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts && opts.act ? Object.assign({}, opts, { mod: mod || undefined, adv: advMode !== 'normal' ? advMode : undefined }) : opts); });   // R1: a roll with consequences sends its modifier and advantage as data
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts && (opts.act || (opts.row && typeof opts.row.i === 'number')) ? Object.assign({}, opts, { mod: mod || undefined, adv: advMode !== 'normal' ? advMode : undefined }) : opts); });   // R1: a roll with consequences sends its modifier and advantage as data
     pop.appendChild(go);
     document.body.appendChild(pop);
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };

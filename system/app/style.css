@@ -2005,6 +2005,21 @@
   .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; }
   .sheet-item-hid { opacity: 0.6; }
   .sheet-item-undo { font-size: 11px; padding: 1px 6px; }
+  /* Stage 6 F4b: a row's facts (level, switch, note) and the Lists tab. Two classes beat the base input.field { width: 100% } */
+  .sheet-item-lvl { display: inline-flex; align-items: center; flex: none; }
+  .sheet-item-lvl input.sheet-item-lvlin { width: 58px; flex: none; padding: 2px 4px; text-align: center; }
+  .sheet-item-lvl select.sheet-item-lvlsel { width: auto; max-width: 150px; flex: none; padding: 2px 4px; }
+  .sheet-item-lvln { font-variant-numeric: tabular-nums; }
+  .sheet-item-onl { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11px; color: var(--dim); cursor: pointer; }
+  .sheet-item-noteline { padding: 2px 8px 6px 28px; font-size: 12px; color: var(--dim); }
+  .sheet-item-noteline input.sheet-item-note { width: 100%; margin-top: 4px; padding: 3px 6px; font-size: 12px; }
+  .sys-list-card { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .sys-list-title { font-weight: 600; color: var(--gold); }
+  .sys-list-cats { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; }
+  .sys-list-cat, .sys-check { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; cursor: pointer; }
+  .sys-list-card .sys-flags { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .sys-list-card .sys-flags input.field { width: auto; flex: 1 1 140px; min-width: 100px; }
+  .sys-list-card input[type=number] { width: 68px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; font-size: 12px; box-sizing: border-box; }
   /* Stage 6 look fold (L1): a sheet palette. The palette remaps the theme's variables on the sheet (sheets.js applyPaletteTo); these rules
      add what the variables alone can't say. Every rule is gated by .sheet-paletted, so a sheet without a palette is exactly as before. */
   .sheet-paletted { background-color: var(--panel2); color: var(--ink); --sheet-canvas: var(--panel2); --edge-weak: color-mix(in srgb, var(--edge) 60%, transparent); }

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -1164,7 +1164,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
         (sec.fields || []).forEach(function(pl) {
             var node = null;
-            if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own, sys, all.vars);
+            if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own, sys, all.vars, pl);   // pl (F4b): an item list's "only switched on"
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c, sys, all.vars);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
@@ -1491,6 +1491,8 @@ function renderLayout() {
                 pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = Open and the HUD\'s title)', 'Open the HUD'));
             }
             var wb = el('button', 'tool ghost sys-btn sys-pl-w', pl.w === 'row' ? 'Full row' : '1 column'); wb.dataset.act = 'plw'; wb.title = 'Width: one column of the section, or the full row'; pr.appendChild(wb);
+            var plf = pl.id ? (draft.fields || []).find(function(x) { return x.id === pl.id; }) : null, plOn = plf && plf.kind === 'item-list' && plf.list && plf.list.on && typeof plf.list.on === 'object' ? plf.list.on : null;
+            if (plOn || (pl.on && plf && plf.kind === 'item-list')) { var ob = el('button', 'tool ghost sys-btn sys-pl-on', pl.on ? 'Only ' + (plOn ? String(plOn.label || 'on').toLowerCase() : 'switched on') : 'All rows'); ob.dataset.act = 'plon'; ob.title = plOn ? 'Every row of the list, or only the rows switched on (' + (plOn.label || 'On') + '), e.g. the HUD\u2019s readied weapons' : 'Its list has no switch now, so every row shows: click to clear it'; pr.appendChild(ob); }   // F4b (review: kept while set, so it can be cleared)
             pr.appendChild(btnRow([['plup', 'Move up', '&#9650;'], ['pldown', 'Move down', '&#9660;'], ['pldel', 'Take off the sheet (the field stays defined)', '&times;']]));
             list.appendChild(pr);
         });
@@ -1626,6 +1628,7 @@ function onLayoutClick(b) {
     else if (plr) {
         var list = sec.fields || [], pi = +plr.dataset.pi, pl = list[pi]; if (!pl) return true;
         if (act === 'plw') pl.w = pl.w === 'row' ? 1 : 'row';
+        else if (act === 'plon') { if (pl.on) delete pl.on; else pl.on = true; }   // F4b: only the rows switched on
         else if (act === 'plup' && pi > 0) { list.splice(pi, 1); list.splice(pi - 1, 0, pl); }
         else if (act === 'pldown' && pi < list.length - 1) { list.splice(pi, 1); list.splice(pi + 1, 0, pl); }
         else if (act === 'pldel') list.splice(pi, 1);
@@ -1677,11 +1680,76 @@ function itemCellText(col, def) {
     return '';
 }
 // Stage 6: what only the GM sees on a row — a bound or cursed item, and a curse the player dropped (kept here, out of their sight)
-function gmItemBits(host, def, entry, gm) {
+function gmItemBits(host, def, entry, gm, sw) {   // sw (F4b): the list has a switch — the equip lock's chips
     if (!gm) return;
     if (entry.hid === 1) { var hc = el('span', 'sheet-chip sheet-item-kept', 'hidden from player'); hc.title = 'The player dropped it; it stays on this character, out of their sight, until you remove it'; host.appendChild(hc); }
     else if (def.rm === 'bound') { var bc = el('span', 'sheet-chip sheet-item-bound', 'bound'); bc.title = 'Only you can remove it: a player\u2019s attempt fails' + (def.rmMsg ? ' with \u201c' + def.rmMsg + '\u201d' : ''); host.appendChild(bc); }
     else if (def.rm === 'curse') { var cc = el('span', 'sheet-chip sheet-item-curse', 'curse'); cc.title = 'Curse on contact: if the player drops it, it stays on this character, out of their sight'; host.appendChild(cc); }
+    if (!sw) return;
+    if (entry.keptOn === 1) { var kc = el('span', 'sheet-chip sheet-item-kept', 'kept on'); kc.title = 'The player switched it off: it looks off to them but stays on, out of their sight, until you switch it off'; host.appendChild(kc); }
+    else if (def.eq === 'bound') { var eb = el('span', 'sheet-chip sheet-item-bound', 'stays on'); eb.title = 'Only you switch it off: a player\u2019s attempt fails' + (def.eqMsg ? ' with \u201c' + def.eqMsg + '\u201d' : '') + ' (just after it goes on, it still comes off)'; host.appendChild(eb); }
+    else if (def.eq === 'curse') { var ec = el('span', 'sheet-chip sheet-item-curse', 'curse (on)'); ec.title = 'Curse on contact: if the player switches it off, it looks off to them and stays on, out of their sight'; host.appendChild(ec); }
+}
+// Stage 6 F4b: a row's level — a number box, or a dropdown when the level has names (they count from its minimum); text when it cannot be
+// changed. One set op per change (the host judges it again)
+function lvlCtl(entry, def, c, f, spec, editable) {
+    var L = spec.lvl; if (!L || typeof L !== 'object') return null;
+    var lv = rowLvl(spec, entry, def), w = el('span', 'sheet-item-lvl'), rid = rowIdOf(entry); w.title = L.label;
+    if (!editable) { w.appendChild(el('span', 'sheet-item-lvln', lvlText(L, lv))); return w; }
+    if (Array.isArray(L.labels) && L.labels.length) {
+        var s = el('select', 'field sheet-item-lvlsel'); s.title = L.label; s.dataset.fid = f.id; s.dataset.part = 'lvl-' + rid;
+        L.labels.forEach(function(t, i) { var v = (L.min || 0) + i; s.appendChild(opt(String(v), t || String(v), v === lv)); });
+        if (L.labels.every(function(t, i) { return (L.min || 0) + i !== lv; })) { var xo = opt(String(lv), fmtNum(lv), true); xo.disabled = true; s.appendChild(xo); }   // a stored level past the names
+        s.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rid, facts: { lvl: Number(s.value) } }); });
+        w.appendChild(s); return w;
+    }
+    var i = el('input', 'field sheet-item-lvlin'); i.type = 'number'; i.value = String(lv); i.title = L.label; i.dataset.fid = f.id; i.dataset.part = 'lvl-' + rid;
+    if (L.min !== undefined) i.min = String(L.min); if (L.max !== undefined) i.max = String(L.max); i.step = String(L.step || 1);
+    i.addEventListener('change', function() { var n = Number(i.value); if (String(i.value).trim() === '' || !isFinite(n)) { i.value = String(lv); return; } commitItem(c, f, { op: 'set', rowId: rid, facts: { lvl: n } }); });
+    w.appendChild(i); return w;
+}
+function lvlText(L, lv) { var i = lv - (L.min || 0); return Array.isArray(L.labels) && i >= 0 && i === Math.floor(i) && i < L.labels.length && L.labels[i] ? L.labels[i] : fmtNum(lv); }
+// F4b: a row's switch — a checkbox with the list's label (in a table the header carries it); read-only, a chip while it is on
+function onCtl(entry, c, f, spec, editable, labelled) {
+    var S = spec.on; if (!S || typeof S !== 'object') return null;
+    var on = rowOn(spec, entry);
+    if (!editable) return on ? el('span', 'sheet-chip sheet-item-onc', labelled ? S.label : '\u2713') : null;
+    var cb = el('input', 'sheet-item-on'); cb.type = 'checkbox'; cb.checked = on; cb.title = S.label; cb.dataset.fid = f.id; cb.dataset.part = 'on-' + rowIdOf(entry);
+    cb.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { on: cb.checked } }); });
+    if (!labelled) return cb;
+    var l = el('label', 'sheet-item-onl'); l.appendChild(cb); l.appendChild(el('span', 'sheet-item-onn', S.label)); return l;
+}
+// F4b: 📝 — the item's notes and the row's own note (a box for whoever may change the row); null when there is nothing to show
+function noteBits(entry, def, c, f, editable) {
+    var box = el('div', 'sheet-item-noteline');
+    if (def.notes) box.appendChild(el('div', 'sheet-item-notes', def.notes));
+    if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
+    else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
+    return box.childNodes.length ? box : null;
+}
+var _noteOpen = Object.create(null);   // F4b: the rows whose 📝 line is open (kept across a redraw)
+function noteToggle(line, entry, c, f) {
+    var k = c.id + '|' + f.id + '|' + rowIdOf(entry), b = el('button', 'tool ghost sheet-item-notes-t', '📝'); b.title = entry.note ? 'Notes \u00b7 ' + entry.note : 'Notes';
+    line.style.display = _noteOpen[k] ? '' : 'none';
+    b.addEventListener('click', function() { if (_noteOpen[k]) delete _noteOpen[k]; else _noteOpen[k] = 1; line.style.display = _noteOpen[k] ? '' : 'none'; });
+    return b;
+}
+// F4b: a list's picker — the items of its categories (every one when it names none), a group per category; on a list with no quantity that
+// holds an item once, one already carried is greyed. Returns how many it offers
+function pickerInto(sel, items, spec, carried) {
+    var cats = Array.isArray(spec.cats) ? spec.cats.map(function(x) { return String(x).toLowerCase(); }) : null, groups = [], byCat = Object.create(null), loose = [], have = Object.create(null), n = 0;
+    if (spec.noQty && !spec.multi) carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) have[r.defId] = 1; });
+    items.forEach(function(it) {
+        var cat = String(it.category || '').trim(), lc = cat.toLowerCase();
+        if (cats && cats.indexOf(lc) < 0) return;
+        var o = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name); if (have[it.id] === 1) { o.disabled = true; o.title = 'Already on the list'; }
+        n++;
+        if (!cat) { loose.push(o); return; }
+        if (!byCat[lc]) { byCat[lc] = el('optgroup'); byCat[lc].label = cat; groups.push(byCat[lc]); }
+        byCat[lc].appendChild(o);
+    });
+    loose.forEach(function(o) { sel.appendChild(o); }); groups.forEach(function(g) { sel.appendChild(g); });
+    return n;
 }
 // Stage 6: a pickup's Undo — for a moment after an item is picked up (added, or its + pressed), an Undo sits on its row, every item alike so
 // it tells nothing. It takes back what those pickups added; the host judges it by its own count and keeps its window a little longer (the
@@ -1708,32 +1776,42 @@ function lostBits(host, rd, entry, c, f, gm, editable) {
     var chip = el('span', 'sheet-chip sheet-item-lost', 'not in library'); chip.title = 'Deleted from the library; the character keeps their copy'; host.appendChild(chip);
     if (gm && editable) { var mk = el('button', 'tool ghost sheet-item-keep', 'Make custom'); mk.title = 'Make this copy the character\u2019s own item'; mk.addEventListener('click', function() { commitItem(c, f, { op: 'keep', rowId: rowIdOf(entry) }); }); host.appendChild(mk); }
 }
-function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
+function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {   // empty (F4b): the note when nothing shows
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
+    var spec = f.list || null, seenCat = Object.create(null), nCat = 0;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one
+    if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
+    var chips = nCat > 1;
     carried.forEach(function(entry) {
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
         var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : ''));
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; line.appendChild(nm);
-        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm);
+        if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
+        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on));
+        var noteLn = null;
+        if (spec) { var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); noteLn = noteBits(entry, def, c, f, editable); }
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
-        if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
-        else line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
+        if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
+        if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
+        else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
+        if (noteLn) wrap.appendChild(noteLn);
     });
-    if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No items.'));
+    if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', empty || 'No items.'));
 }
-function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
+function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
-    var tbl = f.table, cols = (tbl.columns || []).slice();
+    var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl), hasO = !!(spec && spec.on), hasQ = !(spec && spec.noQty);   // F4b: a level and a switch column; no quantity
     if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
     var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
-    var hasAct = editable || canThrow || wantNotes, span = 1 + cols.length + 1 + (hasAct ? 1 : 0);
+    var hasAct = editable || canThrow || wantNotes || !!spec, span = 1 + cols.length + (hasL ? 1 : 0) + (hasO ? 1 : 0) + (hasQ ? 1 : 0) + (hasAct ? 1 : 0);
     var table = el('table', 'sheet-itemtable'), thead = el('thead'), htr = el('tr');
     htr.appendChild(el('th', 'sheet-itcol-name', 'Item'));
     cols.forEach(function(col) { htr.appendChild(el('th', 'sheet-itcol-' + col, ITEM_COL_LABEL[col] || col)); });
-    htr.appendChild(el('th', 'sheet-itcol-qty', 'Qty'));
+    if (hasL) htr.appendChild(el('th', 'sheet-itcol-lvl', spec.lvl.label));
+    if (hasO) htr.appendChild(el('th', 'sheet-itcol-on', spec.on.label));
+    if (hasQ) htr.appendChild(el('th', 'sheet-itcol-qty', 'Qty'));
     if (hasAct) htr.appendChild(el('th', 'sheet-itcol-act', ''));
     thead.appendChild(htr); table.appendChild(thead);
     var tbody = el('tbody'), shown = 0, totalQty = 0;
@@ -1746,17 +1824,24 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
         nameTd.appendChild(document.createTextNode(def.name));
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm);
+        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
-        var qtyTd = el('td', 'sheet-itcol-qty');
-        qtyTd.appendChild(editable ? itemQtyCell(entry, c, f) : el('span', 'sheet-item-qtyn', '×' + entry.qty));
-        tr.appendChild(qtyTd);
+        if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, editable); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
+        if (hasO) { var oTd = el('td', 'sheet-itcol-on'), ocT = onCtl(entry, c, f, spec, editable, false); if (ocT) oTd.appendChild(ocT); tr.appendChild(oTd); }
+        if (hasQ) {
+            var qtyTd = el('td', 'sheet-itcol-qty');
+            qtyTd.appendChild(editable ? itemQtyCell(entry, c, f) : el('span', 'sheet-item-qtyn', '×' + entry.qty));
+            tr.appendChild(qtyTd);
+        }
         var notesRow = null;
         if (hasAct) {
             var actTd = el('td', 'sheet-itcol-act');
             if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) actTd.appendChild(itemThrowBtn(def, c, f, rid));
-            if (wantNotes && def.notes) {
+            if (spec) {   // F4b: 📝 — the item's notes and the row's own note
+                var nbT = noteBits(entry, def, c, f, editable);
+                if (nbT) { notesRow = el('tr', 'sheet-itemtable-notes'); var ntdS = el('td'); ntdS.colSpan = span; ntdS.appendChild(nbT); notesRow.appendChild(ntdS); actTd.appendChild(noteToggle(notesRow, entry, c, f)); }
+            } else if (wantNotes && def.notes) {
                 notesRow = el('tr', 'sheet-itemtable-notes'); var ntd = el('td', null, def.notes); ntd.colSpan = span; notesRow.appendChild(ntd); notesRow.style.display = 'none';
                 var nt = el('button', 'tool ghost sheet-item-notes-t', '📝'); nt.title = 'Notes';
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
@@ -1768,11 +1853,11 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm) {
         tbody.appendChild(tr);
         if (notesRow) tbody.appendChild(notesRow);
     });
-    if (!shown) { var er = el('tr'), ec = el('td', 'sheet-empty-note', 'No items.'); ec.colSpan = span; er.appendChild(ec); tbody.appendChild(er); }
+    if (!shown) { var er = el('tr'), ec = el('td', 'sheet-empty-note', empty || 'No items.'); ec.colSpan = span; er.appendChild(ec); tbody.appendChild(er); }
     table.appendChild(tbody);
     if (tbl.footer && shown) {
-        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')); fc.colSpan = 1 + cols.length; ftr.appendChild(fc);
-        ftr.appendChild(el('td', 'sheet-itft-qty', '×' + totalQty));
+        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')); fc.colSpan = 1 + cols.length + (hasL ? 1 : 0) + (hasO ? 1 : 0); ftr.appendChild(fc);
+        if (hasQ) ftr.appendChild(el('td', 'sheet-itft-qty', '×' + totalQty));
         if (hasAct) ftr.appendChild(el('td', null, ''));
         tfoot.appendChild(ftr); table.appendChild(tfoot);
     }
@@ -1943,8 +2028,8 @@ var TONE_CLASS = Object.freeze({ good: ' sheet-tone-good', warn: ' sheet-tone-wa
 // Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
 function signTone(f, e) { if (!f.sign || !e || e.error || e.label || typeof e.value !== 'number') return ''; return e.value < 0 ? ' sheet-neg' : e.value > 0 ? ' sheet-pos' : ''; }
 // A field on the sheet: its control, then (Fold B) its caption line — text, with each {formula} worked out for this character, drawn as text
-function fieldNode(f, c, e, gm, own, sysArg, vars) {   // vars: the render's resolver (sections pass it; the band shows no captions)
-    var box = fieldNodeBody(f, c, e, gm, own, sysArg);
+function fieldNode(f, c, e, gm, own, sysArg, vars, plc) {   // vars: the render's resolver (sections pass it; the band shows no captions); plc (F4b): the placement
+    var box = fieldNodeBody(f, c, e, gm, own, sysArg, plc);
     if (f.caption && sysArg && vars && F()) box.appendChild(captionNode(f.caption, sysArg, c, vars));
     return box;
 }
@@ -1957,7 +2042,7 @@ function captionNode(text, sys, c, vars) {
     });
     return line;
 }
-function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
+function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the section placement drawn (an item list may show only its rows switched on); sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
@@ -2040,16 +2125,19 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
     }
     if (k === 'item-list') {
         var sysI = sysArg || systemOf(getActiveCampaign()), carried = Array.isArray(raw) ? raw : [];
+        var specI = f.list || null, onOnly = !!(plc && plc.on === true && specI && specI.on), emptyI = onOnly ? 'Nothing ' + String(specI.on.label || 'on').toLowerCase() + '.' : '';   // F4b: a placement that shows only the rows switched on (the HUD's readied weapons)
+        if (onOnly) carried = carried.filter(function(r) { return rowOn(specI, r); });
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
         var canThrow = (gm || (own && !gmThrows && !!facingTarget(c))) && !c.partial;   // who-rolls='gm' means only the GM throws; a player throws from the character whose token they hold here (never a kept one)
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
-        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm);   // Stage 4: rich table
-        else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm);            // the plain carried list (as before)
-        if (editable && _fxLive && sysI && sysI.items && sysI.items.length) {
-            var add = el('select', 'field sheet-item-add'); add.appendChild(opt('', '+ Add item…', true));
-            sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
+        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI);   // Stage 4: rich table
+        else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI);            // the plain carried list (as before)
+        if (editable && _fxLive && sysI && sysI.items && sysI.items.length && !onOnly) {
+            var add = el('select', 'field sheet-item-add'), nPick = -1; add.appendChild(opt('', '+ Add item…', true));
+            if (specI) nPick = pickerInto(add, sysI.items, specI, carried);   // F4b: the list's categories, grouped
+            else sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
             add.addEventListener('change', function() { if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
-            wrap.appendChild(add);
+            if (nPick !== 0) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker
         }
         box.appendChild(wrap); return box;
     }
@@ -2192,10 +2280,11 @@ function ownerSeesSame(camp, sys, a, b) {
 function revertLast() {
     if (!lastChange || isClient()) return;
     var camp = getActiveCampaign(), c = charById(lastChange.charId, camp); if (!c) { lastChange = null; return; }
-    var d = {};
+    var d = {}, fidR = lastChange.fieldId, sysR = systemOf(camp), fR = sysR ? fieldById(sysR, fidR) : null, curR = c.values && Object.prototype.hasOwnProperty.call(c.values, fidR) ? clone(c.values[fidR]) : undefined;
     if (lastChange.prev === undefined) { delete c.values[lastChange.fieldId]; d[lastChange.fieldId] = null; }
     else { c.values[lastChange.fieldId] = lastChange.prev; d[lastChange.fieldId] = lastChange.prev; }
     if (lastChange.extra) Object.keys(lastChange.extra).forEach(function(fid) { var pv = lastChange.extra[fid]; if (pv === undefined) { delete c.values[fid]; d[fid] = null; } else { c.values[fid] = pv; d[fid] = pv; } });   // 5h: a pool an effect's end brought down
+    if (fR && fR.kind === 'item-list' && ownerSeesSame(camp, sysR, curR, lastChange.prev)) delete d[fidR];   // F4b review: taking back a change its owner never held (a kept curse, a kept-on switch) tells them nothing
     lastChange = null;
     afterCharChange(c, d[Object.keys(d)[0]] === null, d);
     toast('Reverted.');
@@ -2228,7 +2317,7 @@ function ownerFromToken(w) {
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg) { if (!ok) toast(reason === 'stays' ? (msg || 'You can\u2019t get rid of it.') : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
+function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
@@ -2308,6 +2397,7 @@ function refreshErrors() {
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
     });
+    (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
     var v = validateSystem(clean, F());
@@ -2517,12 +2607,65 @@ function itemRow(it) {
     flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: kept out of the players\u2019 list. One you give a character reaches its owner (name, icon, category and notes); its formulas never leave your machine'));
     flags.appendChild(select('sys-item-rmmode', [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], it.rm || '', 'When a player removes it from their character. Bound: it stays on their sheet and they see your message. Curse on contact: it leaves their sheet but stays on the character, out of their sight, until you remove it. Players never see this setting.'));   // Stage 6
     var rmIn = input('sys-item-rmtext field', it.rmMsg || '', 'Shown to the player when they try to remove it (optional)', 'Message on removal'); rmIn.maxLength = LIMITS.rmMsg; if (!it.rm) rmIn.style.opacity = '0.5'; flags.appendChild(rmIn);
+    var anyL = (draft.fields || []).some(function(x) { return x.kind === 'item-list' && x.list && x.list.lvl; }), anyO = (draft.fields || []).some(function(x) { return x.kind === 'item-list' && x.list && x.list.on; });   // Stage 6 F4b
+    if (anyO) {
+        flags.appendChild(select('sys-item-eqmode', [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], it.eq || '', 'When a player switches it off (Readied, Equipped\u2026). Bound: it stays on and they see your message; just after it goes on, it still comes off. Curse on contact: it looks off to them but stays on, out of their sight, until you switch it off. Players never see this setting.'));
+        var eqIn = input('sys-item-eqtext field', it.eqMsg || '', 'Shown to the player when they try to switch it off (optional)', 'Message on switching off'); eqIn.maxLength = LIMITS.rmMsg; if (!it.eq) eqIn.style.opacity = '0.5'; flags.appendChild(eqIn);
+    }
+    flags.appendChild(input('sys-item-key field', it.key || '', 'A short fixed name for it, once in each list it can be on: a letter, then letters, digits and _. Formulas that read a list\u2019s rows will use it (they come in a later update)', 'Key (optional)'));
+    if (anyL) flags.appendChild(numField('sys-item-lvl', it.lvl, 'The level a new row of it starts at (blank: the list\u2019s default)', 'Level'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
     return row;
 }
+// Stage 6 F4b: the Lists tab — one card per item-list field: the categories its picker offers, the same item more than once, no quantity, a
+// level per row (names count from its minimum) and a switch per row. Changes go to the draft; Save cleans them
+function renderLists() {
+    var box = ui('sysListRows'); if (!box) return; box.textContent = '';
+    var lists = (draft.fields || []).filter(function(f) { return f.kind === 'item-list'; });
+    if (!lists.length) { box.appendChild(el('div', 'sys-empty', 'No item lists yet. Add an Item list field in Fields (Skills, Weapons, Gear\u2026), then shape it here.')); return; }
+    var cats = [], seen = Object.create(null);
+    (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
+    lists.forEach(function(f) { box.appendChild(listCard(f, cats)); });
+}
+function listCard(f, allCats) {
+    var sp = f.list && typeof f.list === 'object' ? f.list : {}, card = el('div', 'sys-list-card'); card.dataset.lid = f.id;
+    card.appendChild(el('div', 'sys-list-title', (f.label || f.key || 'Item list') + (f.key ? ' (' + f.key + ')' : '')));
+    var cl = el('div', 'sys-list-cats'); cl.appendChild(el('span', 'sys-num-cap', 'Categories'));
+    var mine = Array.isArray(sp.cats) ? sp.cats.map(String) : [], low = mine.map(function(x) { return x.toLowerCase(); }), shown = allCats.slice();
+    mine.forEach(function(x) { if (!shown.some(function(y) { return y.toLowerCase() === x.toLowerCase(); })) shown.push(x); });   // one no item has any more stays tickable
+    if (!shown.length) cl.appendChild(el('span', 'sys-note', 'Give items a category in Items to choose which ones this list offers.'));
+    shown.forEach(function(x) { var lb = el('label', 'sys-list-cat'), cb = el('input', 'sys-list-catcb'); cb.type = 'checkbox'; cb.checked = low.indexOf(x.toLowerCase()) >= 0; cb.dataset.cat = x; if (!cb.checked && mine.length >= LIMITS.listCats) { cb.disabled = true; lb.title = 'At most ' + LIMITS.listCats + ' categories a list'; } lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + x)); cl.appendChild(lb); });   // review: the cap Save keeps, shown
+    if (shown.length && !mine.length) cl.appendChild(el('span', 'sys-note', 'None ticked: every category.'));
+    card.appendChild(cl);
+    var fl = el('div', 'sys-flags');
+    fl.appendChild(checkLabel('sys-list-multi', sp.multi === true, 'Same item more than once', 'Adding an item it already holds makes a new row (a skill twice, with two specialties) instead of raising the quantity'));
+    fl.appendChild(checkLabel('sys-list-noqty', sp.noQty === true, 'No quantity', 'Rows have no quantity (skills, powers): the \u2212/+ and \u00d7n go, and an item is on the list once unless the same item may be there more than once. Quantities already stored come back if you untick it'));
+    card.appendChild(fl);
+    var lv = sp.lvl && typeof sp.lvl === 'object' ? sp.lvl : null, lr = el('div', 'sys-flags sys-list-lvl');
+    lr.appendChild(checkLabel('sys-list-haslvl', !!lv, 'Rows have a level', 'Each row carries a level its owner sets: a skill\u2019s level, a power\u2019s rank, a language\u2019s fluency'));
+    if (lv) {
+        lr.appendChild(input('sys-list-lvllabel field', lv.label || '', 'The level\u2019s name on the sheet', 'Level'));
+        lr.appendChild(numField('sys-list-lvlmin', lv.min, 'The lowest level (blank: none)', 'min'));
+        lr.appendChild(numField('sys-list-lvlmax', lv.max, 'The highest level (blank: none; with value names, the names set it)', 'max'));
+        lr.appendChild(numField('sys-list-lvlstep', lv.step, 'The step between levels', 'step'));
+        lr.appendChild(numField('sys-list-lvldef', lv.def, 'The level a new row starts at (an item\u2019s own Level in Items comes first); a row with no level of its own reads it', 'default'));
+        lr.appendChild(input('sys-list-lvlnames field', (lv.labels || []).join(', '), 'Names for the levels from the minimum up, separated by commas (Broken, Accented, Fluent): the level becomes a dropdown', 'Value names (optional)'));
+    }
+    card.appendChild(lr);
+    var sw = sp.on && typeof sp.on === 'object' ? sp.on : null, orow = el('div', 'sys-flags sys-list-on');
+    orow.appendChild(checkLabel('sys-list-hason', !!sw, 'Rows have a switch', 'Each row can be switched on and off: Readied, Equipped, Active, Stowed\u2026 In Layout a placement of the list can show only the rows switched on'));
+    if (sw) {
+        orow.appendChild(input('sys-list-onlabel field', sw.label || '', 'The switch\u2019s name on the sheet', 'On'));
+        orow.appendChild(checkLabel('sys-list-ondef', sw.def === true, 'Starts on', 'A new row starts switched on; a row from before the list had its switch reads it until it is switched'));
+    }
+    card.appendChild(orow);
+    return card;
+}
+function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
+function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
 function renderCombat() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
@@ -2544,6 +2687,7 @@ function renderAll() {
     var sc = ui('sysChars'); if (sc) sc.style.display = tab === 'chars' ? '' : 'none';
     var siEl = ui('sysItems'); if (siEl) siEl.style.display = tab === 'items' ? '' : 'none';
     var sfEl = ui('sysEffects'); if (sfEl) sfEl.style.display = tab === 'effects' ? '' : 'none';   // 5h
+    var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
     var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var fr = ui('sysFieldRows'); fr.textContent = '';
@@ -2585,6 +2729,22 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-icon') >= 0) it.icon = t.value.slice(0, 32);   // Save keeps an emoji's first 8 code points, or a bundled icon's name
         else if (ic.indexOf('sys-item-notes') >= 0) it.notes = t.value.slice(0, LIMITS.text);
         else if (ic.indexOf('sys-item-rmtext') >= 0) it.rmMsg = t.value.slice(0, LIMITS.rmMsg);   // Stage 6
+        else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
+        else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
+        else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
+        else return;
+        markDirty(); patchErrors(); return;
+    }
+    var lcd = listOfCard(t);
+    if (lcd) {   // Stage 6 F4b: the Lists tab's boxes (Save cleans them)
+        var lcc = t.className || '', lsp = lcd.list || (lcd.list = {}), lvD = lsp.lvl && typeof lsp.lvl === 'object' ? lsp.lvl : null, numOr = function(o, k) { if (String(t.value).trim() === '') delete o[k]; else o[k] = Number(t.value); };
+        if (lcc.indexOf('sys-list-lvllabel') >= 0 && lvD) lvD.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-lvlmin') >= 0 && lvD) numOr(lvD, 'min');
+        else if (lcc.indexOf('sys-list-lvlmax') >= 0 && lvD) numOr(lvD, 'max');
+        else if (lcc.indexOf('sys-list-lvlstep') >= 0 && lvD) numOr(lvD, 'step');
+        else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
+        else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
+        else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
         else return;
         markDirty(); patchErrors(); return;
     }
@@ -2644,8 +2804,21 @@ function onChange(e) {
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-item-rmmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.rm = t.value; else delete iit.rm; markDirty(); renderAll(); return; }   // Stage 6
+        if (c.indexOf('sys-item-eqmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.eq = t.value; else delete iit.eq; markDirty(); renderAll(); return; }   // F4b
         if (c.indexOf('sys-item-shape') >= 0) { if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' }; markDirty(); renderAll(); return; }
         return;
+    }
+    var lch = listOfCard(t);
+    if (lch) {   // Stage 6 F4b: the Lists tab's ticks
+        var lsc = lch.list || (lch.list = {});
+        if (c.indexOf('sys-list-catcb') >= 0) { var cur = Array.isArray(lsc.cats) ? lsc.cats.slice() : [], cx = t.dataset.cat || '', ci = cur.findIndex(function(y) { return String(y).toLowerCase() === cx.toLowerCase(); }); if (t.checked && ci < 0) cur.push(cx); if (!t.checked && ci >= 0) cur.splice(ci, 1); if (cur.length) lsc.cats = cur; else delete lsc.cats; }
+        else if (c.indexOf('sys-list-multi') >= 0) { if (t.checked) lsc.multi = true; else delete lsc.multi; }
+        else if (c.indexOf('sys-list-noqty') >= 0) { if (t.checked) lsc.noQty = true; else delete lsc.noQty; }
+        else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
+        else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
+        else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
+        else return;
+        markDirty(); renderAll(); return;
     }
     var crow = t.closest && t.closest('.sys-char-row');
     if (crow) {   // characters save as you go

@@ -1812,7 +1812,7 @@ function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
     var pc = el('span', 'sheet-chip sheet-item-paid', (labelled ? 'Paid ' : '') + statFmt(has ? entry.paid : lp)); pc.title = has ? 'Price paid for one (list price ' + statFmt(lp) + ')' : 'Not recorded: the list price';
     return pc;
 }
-function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {   // empty (F4b): the note when nothing shows
+function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res) {   // empty (F4b): the note when nothing shows; res (F5a1): the field's resolved entry (its columns' cells and totals)
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
@@ -1827,7 +1827,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) 
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL);
         var noteLn = null;
-        if (spec) { statChips(line, def, spec, ovc); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
         var rr = editable ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
@@ -1837,20 +1837,38 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) 
         if (noteLn) wrap.appendChild(noteLn);
         if (rr && rfOpen(c, f, rid)) wrap.appendChild(rowForm(entry, rd, c, f, spec, sysI, rr));   // F4c2: its form, under the row (one at a time, in the view it was opened in)
     });
+    if (carried.length && spec && res && res.foot) totalsLine(wrap, spec, res.foot);   // F5a1: the list's totals under its rows
     if (!carried.length) wrap.appendChild(el('div', 'sheet-empty-note', empty || 'No items.'));
 }
-function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {
+// Stage 6 F5a1: the columns shown on a row — a chip each, its label small ("Cost 11 pts"); an error reads "\u2014" with the message on hover
+function colChips(host, spec, cells) {
+    if (!cells || !Array.isArray(spec.cols)) return;
+    spec.cols.forEach(function(cc, i) { var v = cells[i]; if (cc.hide === true || !v) return; var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + v.text + (cc.unit && !v.error ? ' ' + cc.unit : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
+}
+// F5a1: the totals under a list — each stat shown on the row and each column marked Total, summed over the rows carried (a kept curse is not)
+function totalsLine(wrap, spec, foot) {
+    var parts = [];
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (foot[s.key]) parts.push({ lab: s.label, t: foot[s.key] }); });
+    (Array.isArray(spec.cols) ? spec.cols : []).forEach(function(cc) { if (foot[cc.key]) parts.push({ lab: cc.label, t: foot[cc.key], unit: cc.unit }); });
+    if (!parts.length) return;
+    var tl = el('div', 'sheet-item-totals'); tl.appendChild(el('span', 'sheet-item-totals-cap', 'Total'));
+    parts.forEach(function(p) { var sp = el('span', 'sheet-chip sheet-item-total'); sp.appendChild(el('small', null, p.lab)); sp.appendChild(document.createTextNode(' ' + p.t.text + (p.unit && !p.t.error ? ' ' + p.unit : ''))); if (p.t.error) sp.title = p.t.error; tl.appendChild(sp); });
+    wrap.appendChild(tl);
+}
+function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res) {   // res (F5a1): the field's resolved entry
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl), hasO = !!(spec && spec.on), hasQ = !(spec && spec.noQty);   // F4b: a level and a switch column; no quantity
     var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && s.show === true; }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price);   // F4c1: a column per stat shown On the row, and Paid
+    var shownCl = spec && Array.isArray(spec.cols) ? spec.cols.map(function(cc, i) { return { c: cc, i: i }; }).filter(function(x) { return x.c && x.c.hide !== true; }) : [], nCol = shownCl.length;   // F5a1: a column per list column not Hidden
     var unseenT = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
     var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
-    var hasAct = editable || canThrow || wantNotes || !!spec, span = 1 + cols.length + nStat + (hasL ? 1 : 0) + (hasO ? 1 : 0) + (hasQ ? 1 : 0) + (hasP ? 1 : 0) + (hasAct ? 1 : 0);
+    var hasAct = editable || canThrow || wantNotes || !!spec, span = 1 + cols.length + nStat + nCol + (hasL ? 1 : 0) + (hasO ? 1 : 0) + (hasQ ? 1 : 0) + (hasP ? 1 : 0) + (hasAct ? 1 : 0);
     var table = el('table', 'sheet-itemtable'), thead = el('thead'), htr = el('tr');
     htr.appendChild(el('th', 'sheet-itcol-name', 'Item'));
     cols.forEach(function(col) { htr.appendChild(el('th', 'sheet-itcol-' + col, ITEM_COL_LABEL[col] || col)); });
     shownSt.forEach(function(s) { htr.appendChild(el('th', 'sheet-itcol-stat', s.label)); });
+    shownCl.forEach(function(x) { htr.appendChild(el('th', 'sheet-itcol-col', x.c.label + (x.c.unit ? ' (' + x.c.unit + ')' : ''))); });   // F5a1
     if (hasL) htr.appendChild(el('th', 'sheet-itcol-lvl', spec.lvl.label));
     if (hasO) htr.appendChild(el('th', 'sheet-itcol-on', spec.on.label));
     if (hasQ) htr.appendChild(el('th', 'sheet-itcol-qty', 'Qty'));
@@ -1872,6 +1890,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
+        var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns
         if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, editable); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
         if (hasO) { var oTd = el('td', 'sheet-itcol-on'), ocT = onCtl(entry, c, f, spec, editable, false); if (ocT) oTd.appendChild(ocT); tr.appendChild(oTd); }
         if (hasQ) {
@@ -1904,7 +1923,14 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
     if (!shown) { var er = el('tr'), ec = el('td', 'sheet-empty-note', empty || 'No items.'); ec.colSpan = span; er.appendChild(ec); tbody.appendChild(er); }
     table.appendChild(tbody);
     if (tbl.footer && shown) {
-        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')); fc.colSpan = 1 + cols.length + nStat + (hasL ? 1 : 0) + (hasO ? 1 : 0); ftr.appendChild(fc);
+        var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')), ftT = res && res.foot ? res.foot : null;
+        if (!ftT) { fc.colSpan = 1 + cols.length + nStat + nCol + (hasL ? 1 : 0) + (hasO ? 1 : 0); ftr.appendChild(fc); }
+        else {   // F5a1: the totals under their columns (a stat shown on the row, a column marked Total)
+            fc.colSpan = 1 + cols.length; ftr.appendChild(fc);
+            var ftd = function(t) { var td = el('td', 'sheet-itft-sum', t ? t.text : ''); if (t && t.error) td.title = t.error; return td; };
+            shownSt.forEach(function(s) { ftr.appendChild(ftd(ftT[s.key])); }); shownCl.forEach(function(x) { ftr.appendChild(ftd(ftT[x.c.key])); });
+            if (hasL) ftr.appendChild(el('td', null, '')); if (hasO) ftr.appendChild(el('td', null, ''));
+        }
         if (hasQ) ftr.appendChild(el('td', 'sheet-itft-qty', '×' + totalQty));
         if (hasP) ftr.appendChild(el('td', null, ''));   // F4c1: under Paid (F5a totals it)
         if (hasAct) ftr.appendChild(el('td', null, ''));
@@ -1947,7 +1973,7 @@ function unseenKeys(c, f, carried, sysI) {
 function keyShareChip(host, entry, rd, unseen) {
     var d = rd && rd.src === 'custom' ? rd.def : null, k = d && typeof d.key === 'string' ? d.key.toLowerCase() : '';
     if (!unseen || !k || entry.hid === 1 || d.vis === 'gm' || unseen()[k] !== 1) return;
-    var ch = el('span', 'sheet-chip sheet-item-keyshare', 'key shared with a GM-only row'); ch.title = 'A row its player cannot see (GM-only, or kept out of their sight) on this list has the key ' + d.key + ' too; formulas that read keys (a later update) find this row on their sheet'; host.appendChild(ch);
+    var ch = el('span', 'sheet-chip sheet-item-keyshare', 'key shared with a GM-only row'); ch.title = 'A row its player cannot see (GM-only, or kept out of their sight) on this list has the key ' + d.key + ' too; formulas that read the key (List.key.lvl) find this row on their sheet'; host.appendChild(ch);
 }
 function ovDot(title) { var d = el('span', 'sheet-ov', '•'); d.title = title; return d; }
 function ovCtx(entry, rd, gm) {   // what a copy holds of its own, for its dots: null when nothing (a row with no ov draws as before)
@@ -2381,8 +2407,8 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
         var canThrow = (gm || (own && !gmThrows && !!facingTarget(c))) && !c.partial;   // who-rolls='gm' means only the GM throws; a player throws from the character whose token they hold here (never a kept one)
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
-        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI);   // Stage 4: rich table
-        else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI);            // the plain carried list (as before)
+        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
+        else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);            // the plain carried list (as before)
         var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
         if (editable && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK) && !onOnly) {
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
@@ -2915,7 +2941,7 @@ function itemRow(it) {
         flags.appendChild(select('sys-item-eqmode', [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], it.eq || '', 'When a player switches it off (Readied, Equipped\u2026). Bound: it stays on and they see your message; just after it goes on, it still comes off. Curse on contact: it looks off to them but stays on, out of their sight, until you switch it off. Players never see this setting.'));
         var eqIn = input('sys-item-eqtext field', it.eqMsg || '', 'Shown to the player when they try to switch it off (optional)', 'Message on switching off'); eqIn.maxLength = LIMITS.rmMsg; if (!it.eq) eqIn.style.opacity = '0.5'; flags.appendChild(eqIn);
     }
-    flags.appendChild(input('sys-item-key field', it.key || '', 'A short fixed name for it, once in each list it can be on: a letter, then letters, digits and _. Formulas that read a list\u2019s rows will use it (they come in a later update)', 'Key (optional)'));
+    flags.appendChild(input('sys-item-key field', it.key || '', 'A short fixed name for it, once in each list it can be on: a letter, then letters, digits and _. Formulas read its row by it: List.key.lvl, List.key.qty', 'Key (optional)'));
     if (anyL) flags.appendChild(numField('sys-item-lvl', it.lvl, 'The level a new row of it starts at (blank: the list\u2019s default)', 'Level'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this item', '&times;']]));
     row.appendChild(top); row.appendChild(flags);
@@ -3004,7 +3030,7 @@ function listCard(f, allCats) {
     sb.appendChild(el('span', 'sys-num-cap', 'Stats'));
     sts.forEach(function(s0, si) {
         var s = s0 && typeof s0 === 'object' ? s0 : {}, sr = el('div', 'sys-flags sys-list-stat'); sr.dataset.si = String(si);
-        var ki = input('sys-list-statkey field', typeof s.key === 'string' ? s.key : '', 'The stat’s key: a letter, then letters, digits and _ (up to 24); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true). The key is the stat’s identity: renaming or removing it drops its values at Save. Formulas will read it in a later update', 'Key'); ki.maxLength = 24; sr.appendChild(ki);
+        var ki = input('sys-list-statkey field', typeof s.key === 'string' ? s.key : '', 'The stat’s key: a letter, then letters, digits and _ (up to 24); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true). The key is the stat’s identity: renaming or removing it drops its values at Save. A column reads it as Row.key, any formula as List.key (the list\u2019s total)', 'Key'); ki.maxLength = 24; sr.appendChild(ki);
         sr.appendChild(input('sys-list-statlabel field', typeof s.label === 'string' ? s.label : '', 'The stat’s name on the sheet (blank: its key)', 'Label'));
         sr.appendChild(numField('sys-list-statdef', typeof s.def === 'number' ? s.def : '', 'What an item without its own value reads (blank: 0)', 'default', 'any'));
         sr.appendChild(input('sys-list-statnames field', Array.isArray(s.labels) ? s.labels.join(', ') : '', 'Names for the values 0, 1, 2… separated by commas (E, A, H, VH): a row shows the name, Items a dropdown; the value stays a number', 'Value names (optional)'));
@@ -3015,7 +3041,31 @@ function listCard(f, allCats) {
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
     if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); }
     card.appendChild(sb);
+    // Stage 6 F5a1: the list's columns — a formula worked out for each row (Row.lvl, Row.<stat>, another column), six at most — and the names it offers
+    var cls = Array.isArray(sp.cols) ? sp.cols : [], cb2 = el('div', 'sys-list-cols');
+    cb2.appendChild(el('span', 'sys-num-cap', 'Columns'));
+    cls.forEach(function(c0, ci) {
+        var cc = c0 && typeof c0 === 'object' ? c0 : {}, cr = el('div', 'sys-flags sys-list-col'); cr.dataset.ci = String(ci);
+        var ckI = input('sys-list-colkey field', typeof cc.key === 'string' ? cc.key : '', 'The column\u2019s key, as a stat\u2019s: a letter, then letters, digits and _ (up to 24); not a stat\u2019s key of this list or a word formulas already use. Totals read it as List.key', 'Key'); ckI.maxLength = 24; cr.appendChild(ckI);
+        cr.appendChild(input('sys-list-collabel field', typeof cc.label === 'string' ? cc.label : '', 'The column\u2019s name on the sheet (blank: its key)', 'Label'));
+        var cfI = input('sys-list-colformula field', typeof cc.formula === 'string' ? cc.formula : '', 'Worked out for each row, no dice: Row.lvl, Row.qty, Row.on, Row.has, Row.paid, Row.<stat> and Row.<another column> read the row; any other name reads the character', 'Formula (Row.lvl * 2 + Row.Rel)'); cfI.maxLength = LIMITS.formula; cr.appendChild(cfI);
+        var cuI = input('sys-list-colunit field', typeof cc.unit === 'string' ? cc.unit : '', 'A unit after the value (pts, lb)', 'Unit'); cuI.maxLength = LIMITS.unit; cr.appendChild(cuI);
+        cr.appendChild(input('sys-list-colnames field', Array.isArray(cc.labels) ? cc.labels.join(', ') : '', 'Names for the values 0, 1, 2\u2026 separated by commas: the row shows the name, formulas read the number', 'Value names (optional)'));
+        cr.appendChild(checkLabel('sys-list-colhide', cc.hide === true, 'Hidden', 'Worked out (for totals and other columns) but not shown on the row'));
+        cr.appendChild(checkLabel('sys-list-colfoot', cc.foot === true, 'Total', 'Its total shows under the list'));
+        [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; cr.appendChild(bb); });
+        cb2.appendChild(cr);
+    });
+    var cadd = el('button', 'tool ghost sys-btn sys-list-coladd', '+ Column'); cadd.dataset.act = 'coladd'; cadd.disabled = cls.length >= LIMITS.listCols; cadd.title = cadd.disabled ? 'At most ' + LIMITS.listCols + ' columns a list' : 'A formula worked out for each row (a skill\u2019s cost from its level, a weapon\u2019s to-hit)'; cb2.appendChild(cadd);
+    cb2.appendChild(el('div', 'sys-note sys-list-names', listNamesText(f.key, sp)));
+    card.appendChild(cb2);
     return card;
+}
+// F5a1: the names a list offers formulas, as one line of text for its card (its key as typed)
+function listNamesText(key, sp) {
+    var k = String(key || 'List'), own = [];
+    (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) own.push(x.key); });
+    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key. A column reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
 }
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
 function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
@@ -3115,6 +3165,17 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-col') >= 0) {   // Stage 6 F5a1: a column's boxes (Save cleans them)
+            var crw = t.closest('.sys-list-col'), cix = crw ? +crw.dataset.ci : -1, cL = Array.isArray(lsp.cols) ? lsp.cols : null; if (!cL || !(cix >= 0 && cix < cL.length)) return;
+            var cD = cL[cix] && typeof cL[cix] === 'object' && !Array.isArray(cL[cix]) ? cL[cix] : (cL[cix] = {});
+            if (lcc.indexOf('sys-list-colkey') >= 0) cD.key = t.value.trim().slice(0, 24);
+            else if (lcc.indexOf('sys-list-collabel') >= 0) cD.label = t.value.slice(0, LIMITS.label);
+            else if (lcc.indexOf('sys-list-colformula') >= 0) cD.formula = t.value.slice(0, LIMITS.formula);
+            else if (lcc.indexOf('sys-list-colunit') >= 0) { if (t.value.trim()) cD.unit = t.value.slice(0, LIMITS.unit); else delete cD.unit; }
+            else if (lcc.indexOf('sys-list-colnames') >= 0) { var cln = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (cln.length && !cln[cln.length - 1]) cln.pop(); if (cln.some(Boolean)) cD.labels = cln; else delete cD.labels; }
+            else return;
+            var nCard = t.closest('.sys-list-card'), nLine = nCard ? nCard.querySelector('.sys-list-names') : null; if (nLine) nLine.textContent = listNamesText(lcd.key, lsp);   // the names line follows a key as it is typed
+        }
         else if (lcc.indexOf('sys-list-stat') >= 0) {   // Stage 6 F4c1: a stat's boxes
             var srw = t.closest('.sys-list-stat'), sti = srw ? +srw.dataset.si : -1, stL = Array.isArray(lsp.stats) ? lsp.stats : null; if (!stL || !(sti >= 0 && sti < stL.length)) return;
             var stD = stL[sti] && typeof stL[sti] === 'object' && !Array.isArray(stL[sti]) ? stL[sti] : (stL[sti] = {});
@@ -3200,6 +3261,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
+        else if (c.indexOf('sys-list-colhide') >= 0 || c.indexOf('sys-list-colfoot') >= 0) { var chr = t.closest('.sys-list-col'), chD = chr && Array.isArray(lsc.cols) ? lsc.cols[+chr.dataset.ci] : null; if (!chD || typeof chD !== 'object') return; var chK = c.indexOf('sys-list-colhide') >= 0 ? 'hide' : 'foot'; if (t.checked) chD[chK] = true; else delete chD[chK]; }   // Stage 6 F5a1
         else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
         else if (c.indexOf('sys-list-price') >= 0) { _priceAt.delete(lsc); if (t.value) lsc.price = t.value; else delete lsc.price; }
         else return;
@@ -3300,6 +3362,16 @@ function onClick(e) {
         markDirty(); renderAll(); return;
     }
     var lcb = listOfCard(b);
+    if (lcb && /^col(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5a1: a Lists card's column buttons (add, move, remove)
+        var lsq = lcb.list || (lcb.list = {}), cArr = Array.isArray(lsq.cols) ? lsq.cols : [], cact = b.dataset.act, cRow = b.closest('.sys-list-col'), cI = cRow ? +cRow.dataset.ci : -1;
+        if (cact === 'coladd') { if (cArr.length >= LIMITS.listCols) { toast('At most ' + LIMITS.listCols + ' columns a list.'); return; } cArr.push({ key: '', label: '', formula: '' }); lsq.cols = cArr; }
+        else if (cact === 'colup' && cI > 0 && cI < cArr.length) { var cuS = cArr[cI]; cArr[cI] = cArr[cI - 1]; cArr[cI - 1] = cuS; }
+        else if (cact === 'coldown' && cI >= 0 && cI < cArr.length - 1) { var cdS = cArr[cI]; cArr[cI] = cArr[cI + 1]; cArr[cI + 1] = cdS; }
+        else if (cact === 'coldel' && cI >= 0 && cI < cArr.length) cArr.splice(cI, 1);
+        else return;
+        if (!cArr.length) delete lsq.cols;
+        markDirty(); renderAll(); return;
+    }
     if (lcb) {   // Stage 6 F4c1: a Lists card's stat buttons (add, move, remove — a removed price goes with its stat)
         var lsb = lcb.list || (lcb.list = {}), sArr = Array.isArray(lsb.stats) ? lsb.stats : [], sact = b.dataset.act, sRow = b.closest('.sys-list-stat'), sI = sRow ? +sRow.dataset.si : -1;
         if (sact === 'statadd') { if (sArr.length >= LIMITS.listStats) { toast('At most ' + LIMITS.listStats + ' stats a list.'); return; } sArr.push({ key: '', label: '' }); lsb.stats = sArr; }

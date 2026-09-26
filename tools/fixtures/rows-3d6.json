@@ -101,7 +101,16 @@
             ]
           }
         ],
-        "custom": true
+        "custom": true,
+        "cols": [
+          {
+            "key": "Cost",
+            "label": "Cost",
+            "formula": "Row.lvl * 2",
+            "unit": "pts",
+            "foot": true
+          }
+        ]
       }
     },
     {

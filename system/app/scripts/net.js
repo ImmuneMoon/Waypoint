@@ -2998,7 +2998,7 @@ function handleMessage(msg, conn) {
         if (lim !== true) { var sk = conn.peer + '|' + lim; if (!_diceSlowSaid[sk] || Date.now() - _diceSlowSaid[sk] > Dq.LIMITS.windowMs) { _diceSlowSaid[sk] = Date.now(); denyQ(lim); } return; }   // one 'slow' per window, then silence
         if (window.wpVtt && !window.wpVtt.on('dice')) { denyQ('off'); return; }
         if (net.paused || peerPaused(conn.peer)) { denyQ('paused'); return; }   // frozen table (or this player is paused): no rolls
-        var chQ = null, varsQ = null, SQ = SC();
+        var chQ = null, varsQ = null, SQ = SC(), actQ = null, tcQ = null;
         if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = campQ && campQ.chars && campQ.chars[q.charId];
             if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || !SQ || !campQ.system) { denyQ('char'); return; }
@@ -3006,12 +3006,19 @@ function handleMessage(msg, conn) {
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
             var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };
-            var tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation') });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
+            tcQ = SQ.tokenCtx(mapQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), { turning: ruleQ('turning'), posture: ruleQ('posture'), elevation: ruleQ('elevation') });   // facing and stance from the player's own token, on the table's settings (as their sheet reads them)
             tcQ = SQ.withRound(tcQ, mapQ && own(net.combats, locQ) ? net.combats[locQ] : null);   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
             if (q.row) {   // Stage 6 F5b: a roll on one of their rows — its names through their own view; a row of a GM-only item keeps the roll between them and the GM
                 var rvQ = varsQ.row(q.row.f, q.row.r); if (!rvQ) { denyQ('char'); return; }
                 varsQ = rvQ; if (SQ.rowRollNames(campQ.system, srcQ, q.row.f, q.row.r, [], Fq).gm) q.priv = 'gm';
+            }
+            if (q.act) {   // Stage 6 HUD R1: a roll with consequences — the entry as their view has it, and its formula rebuilt from it (no faked hit)
+                (Array.isArray(viewQ.rolls) ? viewQ.rolls : []).forEach(function(r) { if (r && r.id === q.act && typeof r.formula === 'string' && !r.apply) actQ = r; });
+                var wantQ = actQ ? actQ.formula : null;
+                if (wantQ && q.adv) { var awQ = Dq.withAdvantage(wantQ, q.adv, Fq.parse); wantQ = awQ.ok ? awQ.expr : null; }
+                var cmQ = wantQ ? Dq.composeModifier(wantQ, q.mod || 0, Fq.parse) : null;
+                if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
@@ -3025,6 +3032,11 @@ function handleMessage(msg, conn) {
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
+        if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
+            var vdQ = Dq.verdictOf(resQ), thQ = SQ.thenChanges(actQ, vdQ && vdQ.kind === 'check' ? vdQ.pass : null);
+            var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, varsQ, Fq, tcQ) : null;
+            if (taQ && taQ.ok) { chQ.values = chQ.values || {}; Object.keys(taQ.values).forEach(function(k) { chQ.values[k] = taQ.values[k]; }); chQ.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(q.charId, taQ.values); if (window.wpSheets) window.wpSheets.charChanged(q.charId); }
+        }
         // [netcheck:rollreq-end]
     } else if (msg.type === 'apply' && net.role === 'client') {
         // [netcheck:applyin-start]
@@ -3741,7 +3753,8 @@ net.diceRoll = function(expr, o) {
         if (o.priv) req.priv = 'gm';
         if (o.charId) req.charId = o.charId;
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
-        if (o.row && o.charId) req.row = { f: String(o.row.f), r: String(o.row.r) };   // Stage 6 F5b: a roll on a row
+        if (o.row && o.charId) req.row = { f: String(o.row.f), r: String(o.row.r) };
+        if (o.act && o.charId && !o.row) { req.act = String(o.act); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; }   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
@@ -3776,6 +3789,12 @@ net.diceRoll = function(expr, o) {
     if (hosting && scope === 'global') sendTable(rec, null);
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
+    if (o.act && !o.row && chR && SR && campR && campR.system) {   // Stage 6 HUD R1: the GM's own roll's consequences, here (a player's are the host's)
+        var actR = null; (Array.isArray(campR.system.rolls) ? campR.system.rolls : []).forEach(function(r) { if (r && r.id === o.act && typeof r.formula === 'string' && !r.apply) actR = r; });
+        var vdR = actR && actR.then ? D.verdictOf(res) : null, thR = actR ? SR.thenChanges(actR, vdR && vdR.kind === 'check' ? vdR.pass : null) : [];
+        var taR = thR.length ? SR.applyAct(campR.system, chR, { apply: thR }, varsR, F, null) : null;
+        if (taR && taR.ok) { chR.values = chR.values || {}; Object.keys(taR.values).forEach(function(k) { chR.values[k] = taR.values[k]; }); chR.updated = Date.now(); save(true); if (hosting && net.syncCharDelta) net.syncCharDelta(chR.id, taR.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chR.id); }
+    }
     return { ok: true, value: res.value, priv: !!rec.priv };
 };
 // [netcheck:diceroll-end]

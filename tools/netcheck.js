@@ -1072,6 +1072,72 @@ pendingChecks.push((async () => {
         j([cr.sent, cr.res, cr2.sent, cr3.res]));
 })());
 
+// Stage 6 HUD R1: a roll's consequences on the wire. A player's roll that names its entry is rebuilt by the host from the entry's own formula
+// (their modifier and advantage as data) — a made-up formula is refused, so a hit cannot be faked; its consequences land on the host's copy through
+// the player's own view (success, failure, always; Set to), with one delta. The GM's own roll applies them where it is made (sliced, run for real)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src2 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src2.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src2.slice(i, src2.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const sysT = Sx.cleanSystem({ v: 1, name: 'T', fields: [
+        { id: 'f_hits', key: 'Hits', kind: 'number', def: 0, min: 0, max: 9, edit: 'gm' }, { id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '10', min: 0, def: 'max' }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }],
+        rolls: [
+            { id: 'r_win', label: 'Win', formula: '3d6 <= 30', then: [{ f: 'f_hits', formula: '1', add: true, when: 'hit' }, { f: 'f_hits', formula: '0', set: true, when: 'miss' }] },
+            { id: 'r_lose', label: 'Lose', formula: '3d6 <= 0', then: [{ f: 'f_hits', formula: '1', add: true, when: 'hit' }, { f: 'f_hits', formula: '0', set: true, when: 'miss' }, { f: 'f_fp', formula: '1' }] },
+            { id: 'r_d20', label: 'Adv', formula: 'd20 >= 1', then: [{ f: 'f_hits', formula: '2', add: true, when: 'hit' }] },
+            { id: 'r_plain', label: 'Plain', formula: 'd6' },
+            { id: 'r_sec', label: 'Sec', formula: '3d6 <= 30', then: [{ f: 'f_hits', formula: 'GMFig', add: true }] },
+            { id: 'r_gm', label: 'GM', formula: '3d6 <= 30', vis: 'gm', then: [{ f: 'f_hits', formula: '1', add: true }] }] }, { F: Fx, gmView: true });
+    const START = { f_hits: 3 };
+    const runQ = (msg, o) => { o = o || {}; const out = { table: [], sent: [], deltas: [], saves: 0 };
+        const camp = { id: 'k', activeItemId: 'm1', system: sysT, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a' }, msg), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => { out.saves++; });
+        out.vals = camp.chars.c_a.values; return out; };
+    const qWin = runQ({ act: 'r_win', expr: '3d6 <= 30' }), qLose = runQ({ act: 'r_lose', expr: '3d6 <= 0' });
+    check('R1 a player\'s roll with consequences: on success (Win) Hits + 1, on failure (Lose) Hits set to 0 and FP - 1 always — on the host\'s copy, through their view, with one delta and a save, after the roll went to the table',
+        qWin.table.length === 1 && j(qWin.vals.f_hits) === '4' && j(qWin.deltas) === j([['c_a', { f_hits: 4 }]]) && qWin.saves === 1
+        && qLose.table.length === 1 && j(qLose.vals) === j({ f_hits: 0, f_fp: { cur: 9 } }) && j(qLose.deltas) === j([['c_a', { f_hits: 0, f_fp: { cur: 9 } }]]), j([qWin.vals, qWin.deltas, qLose.vals, qLose.deltas]));
+    const wMod = Dx.composeModifier('3d6 <= 30', 2, Fx.parse).expr, qMod = runQ({ act: 'r_win', expr: wMod, mod: 2 }), aAdv = Dx.withAdvantage('d20 >= 1', 'adv', Fx.parse).expr, qAdv = runQ({ act: 'r_d20', expr: aAdv, adv: 'adv' });
+    const qFake = runQ({ act: 'r_lose', expr: '3d6 <= 100' }), qFakeMod = runQ({ act: 'r_win', expr: '3d6 <= 30', mod: 2 }), qNoAdv = runQ({ act: 'r_d20', expr: 'd20 >= 1', adv: 'dis' });
+    const refused = q => q.table.length === 0 && q.deltas.length === 0 && j(q.vals) === j(START) && q.sent.length === 1 && q.sent[0].type === 'roll-deny' && q.sent[0].message === 'That roll does not match its button now.';
+    check('R1 the host rebuilds the formula from the entry (advantage, then the modifier): a shift-click modifier or advantage sent as data is rolled and applies its consequences; a formula that is not the entry\'s (a made-up target, a modifier it does not carry, the wrong advantage) is refused with nothing rolled or changed',
+        qMod.table.length === 1 && qMod.table[0].expr === wMod && j(qMod.vals.f_hits) === '4' && qAdv.table.length === 1 && qAdv.table[0].expr === aAdv && j(qAdv.vals.f_hits) === '5' && [qFake, qFakeMod, qNoAdv].every(refused),
+        j([qMod.table.map(r => r.expr), qAdv.table.map(r => r.expr), qFake.sent, qFakeMod.sent, qNoAdv.sent]));
+    const qGm = runQ({ act: 'r_gm', expr: '3d6 <= 30' }), qSec = runQ({ act: 'r_sec', expr: '3d6 <= 30' }), qPlain = runQ({ act: 'r_plain', expr: 'd6' });
+    check('R1 an entry the player\'s view does not have (a GM-only roll) is refused; one whose consequences name a GM-only value rolls with none (their view dropped them); a roll with none changes nothing',
+        refused(qGm) && qSec.table.length === 1 && qSec.deltas.length === 0 && j(qSec.vals) === j(START) && qPlain.table.length === 1 && qPlain.deltas.length === 0, j([qGm.sent, qSec.deltas, qPlain.deltas]));
+    // the player's side: net.diceRoll's client branch sends the entry, its modifier and advantage as data (never with a row)
+    const runC = (expr, o) => { const sent = []; const conn = { peer: 'H', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) };
+        const net = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', conns: [conn], roster: {} };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'setTimeout', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true } }, () => ({ id: 'k', system: sysT, chars: {} }), () => ({ id: 'u_a', name: 'Pat' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => {}, () => 0);
+        const ret = dr(expr, o); return { ret, sent }; };
+    const cA = runC('3d6 <= (30) + 2', { charId: 'c_a', act: 'r_win', mod: 2, adv: 'adv', label: 'Win' }), cR = runC('d6', { charId: 'c_a', act: 'r_win', row: { f: 'f_w', r: 'w_1' } }), cP = runC('d6', { charId: 'c_a' });
+    check('R1 the player\'s request (net.diceRoll, run for real): a roll with consequences sends act, mod and adv beside its formula (the host rebuilds and checks it); a row roll sends no act; a plain roll neither',
+        cA.sent.length === 1 && cA.sent[0].act === 'r_win' && cA.sent[0].mod === 2 && cA.sent[0].adv === 'adv' && Dx.cleanRollReq(cA.sent[0]) !== null && cR.sent.length === 1 && !('act' in cR.sent[0]) && cP.sent.length === 1 && !('act' in cP.sent[0]) && !('mod' in cP.sent[0]),
+        j([cA.sent, cR.sent, cP.sent]));
+    // the GM's own roll: net.diceRoll applies them here, synced when hosting
+    const runG = (expr, o, env) => { env = env || {}; const out = { deltas: [], saves: 0, changed: [] };
+        const camp = { id: 'k', system: sysT, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } } };
+        const net = { active: env.active !== false, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged: id => out.changed.push(id) } };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, win, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => { out.saves++; });
+        out.ret = dr(expr, Object.assign({ charId: 'c_a' }, o || {})); out.vals = camp.chars.c_a.values; return out; };
+    const gWin = runG('3d6 <= 30', { act: 'r_win' }), gOff = runG('3d6 <= 0', { act: 'r_lose' }, { active: false }), gNo = runG('3d6 <= 30', {});
+    check('R1 the GM\'s own roll with consequences applies them where it is rolled: hosting, one delta and a save; offline, a save and no delta; a roll that does not name its entry changes nothing',
+        gWin.ret.ok && j(gWin.vals.f_hits) === '4' && j(gWin.deltas) === j([['c_a', { f_hits: 4 }]]) && gWin.saves === 1 && j(gWin.changed) === j(['c_a'])
+        && gOff.ret.ok && j(gOff.vals) === j({ f_hits: 0, f_fp: { cur: 9 } }) && gOff.deltas.length === 0 && gOff.saves === 1 && gNo.ret.ok && j(gNo.vals) === j(START) && gNo.saves === 0,
+        j([gWin.vals, gWin.deltas, gOff.vals, gNo.vals]));
+})());
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

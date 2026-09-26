@@ -121,7 +121,7 @@ function syncChars() {
 function rollFor(charId, expr, label, opts) {
     opts = opts || {};
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
-    var r = roll(expr, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: charId, label: label, source: opts.source || 'sheet', row: opts.row || undefined });   // row (F5b): a roll on a list's row   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)
+    var r = roll(expr, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: charId, label: label, source: opts.source || 'sheet', row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined });   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)
     if (r.error) toast(r.error);
     return r;
 }
@@ -160,7 +160,7 @@ function rollWithMod(charId, expr, label, opts, anchor) {
     var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
     numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
     prevEl = el('div', 'dice-modpop-prev', expr); pop.appendChild(prevEl);
-    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts); });
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts && opts.act ? Object.assign({}, opts, { mod: mod || undefined, adv: advMode !== 'normal' ? advMode : undefined }) : opts); });   // R1: a roll with consequences sends its modifier and advantage as data
     pop.appendChild(go);
     document.body.appendChild(pop);
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
@@ -186,7 +186,7 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr + ' characters).' };
-    var r = n.diceRoll(clean, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: opts.charId || undefined, label: opts.label || undefined, row: opts.row || undefined });
+    var r = n.diceRoll(clean, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: opts.charId || undefined, label: opts.label || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined });
     if (!r.error && !opts.row) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }

@@ -2058,6 +2058,7 @@
   .sys-sec-showifrow input.sys-sec-showif { flex: 1 1 220px; font-family: ui-monospace, Consolas, monospace; }
   /* Stage 6 HUD H7: an apply action's changes in the Rolls tab; its card in Table Chat */
   .sys-apply { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
+  .sys-apply.sys-then { margin-left: 18px; } .sys-apply.sys-then .sys-apply-add { align-self: flex-start; }   /* R1: a roll's consequences */
   .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }
   .sys-list-card .sys-flags.sys-list-applyrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-applyrow input.sys-list-applyformula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }   /* H7b: a list action's changes */
   .sys-list-card .sys-list-applyadd { margin-left: 18px; }

@@ -413,6 +413,15 @@
       "max": 3,
       "step": 1,
       "counter": true
+    },
+    {
+      "id": "f_round",
+      "key": "RoundNow",
+      "label": "Round",
+      "kind": "formula",
+      "formula": "CombatRound",
+      "vis": "all",
+      "hover": false
     }
   ],
   "rolls": [
@@ -848,6 +857,10 @@
         },
         {
           "roll": "r_init"
+        },
+        {
+          "id": "f_round",
+          "g": "g_hud"
         }
       ],
       "ledger": [

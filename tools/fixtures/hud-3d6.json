@@ -227,7 +227,8 @@
       "hover": false,
       "min": 0,
       "step": 1,
-      "counter": true
+      "counter": true,
+      "caption": "round {CombatRound}"
     }
   ],
   "rolls": [

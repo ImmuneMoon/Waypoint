@@ -1641,8 +1641,8 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const rnSrc = sh8.slice(sh8.indexOf('var LABEL_CTRL_G = '), sh8.indexOf('// A roll from this character\'s sheet: the dice feature on'));
         const fe8 = (tag, cls, text) => ({ tag, className: cls || '', textContent: text || '', children: [], title: '', disabled: false, firstChild: null, on: {}, appendChild(x) { this.children.push(x); if (!this.firstChild) this.firstChild = x; return x; }, insertBefore(x) { this.children.unshift(x); this.firstChild = x; return x; }, addEventListener(k, f) { this.on[k] = f; } });
         const btn = (sys, r, ch, o) => { o = o || {}; const rolls = [], toasts = [], all = S.resolveAll(sys, ch, F, null);
-            const mk = new Function('F', 'net', 'isClient', 'captionParts', 'labelNames', 'labelGmNames', 'gmEffectNames', 'el', 'iconNode', 'canRoll', 'sheetRoll', 'toast', 'ROLL_TONE_CLS', 'getActiveCampaign', 'charById', 'resolveAll', 'tokenCtxFor', rnSrc + '\nreturn { rollLabel: rollLabel, labelSecret: labelSecret, rollNode: rollNode };')(
-                () => (o.noF ? null : F), () => o.net || null, () => !!o.client, S.captionParts, S.labelNames, S.labelGmNames, S.gmEffectNames, fe8, (v, c) => fe8('span', c), () => true, (e, cid, expr, label, opts) => rolls.push([cid, expr, label, opts]), t => toasts.push(t), { primary: ' p' }, () => ({ chars: {} }), () => null, S.resolveAll, () => null);
+            const mk = new Function('F', 'net', 'isClient', 'captionParts', 'labelNames', 'labelGmNames', 'gmDerivedNames', 'gmEffectNames', 'el', 'iconNode', 'canRoll', 'sheetRoll', 'toast', 'ROLL_TONE_CLS', 'getActiveCampaign', 'charById', 'resolveAll', 'tokenCtxFor', rnSrc + '\nreturn { rollLabel: rollLabel, labelSecret: labelSecret, rollNode: rollNode };')(
+                () => (o.noF ? null : F), () => o.net || null, () => !!o.client, S.captionParts, S.labelNames, S.labelGmNames, S.gmDerivedNames, S.gmEffectNames, fe8, (v, c) => fe8('span', c), () => true, (e, cid, expr, label, opts) => rolls.push([cid, expr, label, opts]), t => toasts.push(t), { primary: ' p' }, () => ({ chars: {} }), () => null, S.resolveAll, () => null);
             const box = mk.rollNode(r, ch, sys, all.vars), b = box.children[0]; return { text: b.textContent, rolls, toasts, click() { b.on.click({}); }, secret: mk.labelSecret(sys, all.vars, r.label) }; };
         const chA = { id: 'c_a', values: { f_str: 14, f_level: 5 } }, host = { active: true, role: 'host' };
         const bAtk = btn(gD8, rl8(gD8, 'r_atk'), chA), bAtkH = btn(gD8, rl8(gD8, 'r_atk'), chA, { net: host }), bTrap = btn(gD8, rl8(gD8, 'r_trap'), chA, { net: host }), bTrapOff = btn(gD8, rl8(gD8, 'r_trap'), chA), bTrapP = btn(pD8, rl8(pD8, 'r_trap'), chA, { net: { active: true, role: 'client' }, client: true });
@@ -1696,7 +1696,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && NF(nfSys([{ label: '{Facing}' }], [{ key: 'Facing', kind: 'number' }])) === false && NF({ fields: [{ key: 'X', formula: 'Facing + 1' }], rolls: [] }) === true);
         check('HUD frame HF5a (source): both roll buttons (the band and a section) are drawn with the system and the render\'s resolver, and nothing else builds one; the initiative roll resolves its label and its privacy the same way; the privacy check is the host\'s alone; the label input says so; the tour and Help describe it',
             /rollNode\(rollById\[q\.roll\], c, sys, all\.vars\)/.test(sh8) && /rollNode\(rollById\[pl\.roll\], c, sys, all\.vars\)/.test(sh8) && (sh8.match(/rollNode\(/g) || []).length === 3
-            && /lbI = allI \? rollLabel\(r, sys, c, allI\.vars\) : r\.label, whyI = allI \? labelSecret\(sys, allI\.vars, r\.label\) : ''/.test(sh8) && /rollFor\(charId, r\.formula, lbI \|\| 'Initiative', \{ source: 'combat', priv: !!whyI \}\)/.test(sh8)
+            && /lbI = allI \? rollLabel\(r, sys, c, allI\.vars\) : r\.label, whyI = allI \? labelSecret\(sys, allI\.vars, r\.label, c\) : ''/.test(sh8) && /rollFor\(charId, r\.formula, lbI \|\| 'Initiative', \{ source: 'combat', priv: !!whyI \}\)/.test(sh8)
             && /if \(isClient\(\) \|\| !\(n && n\.active && n\.role === 'host'\)/.test(sh8) && /import \{[^}]*labelGmNames, gmEffectNames, labelNames[^}]*\} from '\.\/systemcore\.js';/.test(sh8) && sh8.indexOf('{formula} shows a value: Attack ({' + BS8 + 'u00b1AtkBonus})') > 0
             && /A roll&rsquo;s label can show a value: <code>Attack \(\{&plusmn;AtkBonus\}\)<\/code>\./.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'))
             && /<b>Values in labels<\/b>: a roll&rsquo;s label can carry <code>\{formula\}<\/code> values like a caption/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
@@ -1784,8 +1784,8 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const rnSrcR = shR.slice(shR.indexOf('var LABEL_CTRL_G = '), shR.indexOf('// A roll from this character\'s sheet: the dice feature on'));
         const feR = (tag, cls, text) => ({ tag, className: cls || '', textContent: text || '', children: [], title: '', disabled: false, firstChild: null, on: {}, appendChild(x) { this.children.push(x); if (!this.firstChild) this.firstChild = x; return x; }, insertBefore(x) { this.children.unshift(x); this.firstChild = x; return x; }, addEventListener(k, f) { this.on[k] = f; } });
         const mkR = o => { o = o || {}; const sent = [], toasts = [];
-            const api = new Function('F', 'net', 'isClient', 'captionParts', 'labelNames', 'labelGmNames', 'gmEffectNames', 'el', 'iconNode', 'canRoll', 'sheetRoll', 'toast', 'ROLL_TONE_CLS', 'getActiveCampaign', 'charById', 'resolveAll', 'tokenCtxFor', rnSrcR + '\nreturn { rollLabel: rollLabel, labelSecret: labelSecret, rollNode: rollNode };')(
-                () => F, () => (o.net === undefined ? { active: true, role: 'host' } : o.net), () => !!o.client, S.captionParts, S.labelNames, S.labelGmNames, S.gmEffectNames, feR, (v, c) => feR('span', c), () => true, (e, cid, expr, label, opts) => sent.push([label, opts]), t => toasts.push(t), {},
+            const api = new Function('F', 'net', 'isClient', 'captionParts', 'labelNames', 'labelGmNames', 'gmDerivedNames', 'gmEffectNames', 'el', 'iconNode', 'canRoll', 'sheetRoll', 'toast', 'ROLL_TONE_CLS', 'getActiveCampaign', 'charById', 'resolveAll', 'tokenCtxFor', rnSrcR + '\nreturn { rollLabel: rollLabel, labelSecret: labelSecret, rollNode: rollNode };')(
+                () => F, () => (o.net === undefined ? { active: true, role: 'host' } : o.net), () => !!o.client, S.captionParts, S.labelNames, S.labelGmNames, S.gmDerivedNames, S.gmEffectNames, feR, (v, c) => feR('span', c), () => true, (e, cid, expr, label, opts) => sent.push([label, opts]), t => toasts.push(t), {},
                 () => (o.camp || { chars: {} }), (id, c) => (c && c.chars && c.chars[id]) || null, S.resolveAll, () => (o.tctx ? o.tctx() : null));
             api.sent = sent; api.toasts = toasts; return api; };
         const hostR = mkR(), varsL = S.resolveAll(lgSys, { id: 'c_l', values: {} }, F, null).vars, secR = cases.map(([t]) => hostR.labelSecret(lgSys, varsL, t));
@@ -1847,6 +1847,87 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const frameB = fe2('div'); BI(frameB, [{ roll: 'r_atk' }, { id: 'f_hp' }, { roll: 'r_init' }], { c: chB, all: allB, gm: true, own: true, sys: gDR, byId: byIdB, rollById: rollByIdB, grpById: {}, targets: {}, vctx: {} });
         check('HUD frame HF5 review: the band (bandInto, run for real) draws each roll with the system and the render\'s own resolver, the one the sections use (AtkBonus 5, RoundNow 4 in a round-4 combat); the section context hands the band that result by reference, never a copy (whose hidden resolver a copy would lose)',
             j(rnCalls) === j([['r_atk', true, [5, 4]], ['r_init', true, [5, 4]]]) && frameB.children.length === 1 && /var pctx = \{ byId: byId, rollById: rollById, c: c, all: all, /.test(shR), j(rnCalls));
+    }
+
+    /* ---- 1.5.0 derived GM-only values: a value worked out from a GM-only field is GM-only too — gmDerivedNames on its own, then labelSecret, rollNode and rollInit run for real ---- */
+    {
+        const shD = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ntD = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const GVD = { F, gmView: true }, PVD = { F, gmView: false }, ND = a => a.map(name => ({ name })), PMD = String.fromCharCode(0xB1);
+        const dRaw = { v: 1, name: 'D', rolls: [], fields: [
+            { id: 'f_g', key: 'GMFig', kind: 'number', def: 12, vis: 'gm' }, { id: 'f_gt', key: 'GMT', kind: 'toggle', def: true, vis: 'gm' },
+            { id: 'f_b', key: 'Bonus', kind: 'formula', formula: 'GMFig + 1' }, { id: 'f_at', key: 'Atk', kind: 'formula', formula: 'Bonus + 2' }, { id: 'f_tg', key: 'TG', kind: 'formula', formula: 'if(GMT, 5, 0)' },
+            { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: 'GMFig * 2', def: 'max' }, { id: 'f_hq', key: 'HQ', kind: 'resource', maxFormula: 'GMFig * 2', def: 3 },
+            { id: 'f_hm', key: 'HM', kind: 'formula', formula: 'HQ.max' }, { id: 'f_w', key: 'W', kind: 'formula', formula: 'HP + 0' }, { id: 'f_w2', key: 'W2', kind: 'formula', formula: 'HQ + 0' },
+            { id: 'f_sk', key: 'Sk', kind: 'skill', base: 'GMFig', def: 3 }, { id: 'f_sr', key: 'SR', kind: 'formula', formula: 'Sk.ranks * 2' },
+            { id: 'f_a', key: 'A', kind: 'number', def: 4 }, { id: 'f_fl', key: 'Flag', kind: 'number', def: 0 },
+            { id: 'f_l1', key: 'L1', kind: 'formula', formula: 'L2 + 1' }, { id: 'f_l2', key: 'L2', kind: 'formula', formula: 'L1 + GMFig' },
+            { id: 'f_ga', key: 'GA', kind: 'formula', formula: 'if(Flag, GB, GMFig)' }, { id: 'f_gb', key: 'GB', kind: 'formula', formula: 'if(Flag, 1, GA)' },
+            { id: 'f_v1', key: 'V1', kind: 'formula', formula: 'V2' }, { id: 'f_v2', key: 'V2', kind: 'formula', formula: 'V1' },
+            { id: 'f_bad', key: 'Bad', kind: 'formula', formula: 'GMFig +' }, { id: 'f_cr', key: 'CR', kind: 'formula', formula: 'CombatRound + A' }, { id: 'f_pa', key: 'PA', kind: 'formula', formula: 'A * 2' }] };
+        const gD = cleanSystem(dRaw, GVD), chE = { id: 'c_d', values: {} }, chS = { id: 'c_d', values: { f_hp: { cur: 5 }, f_hq: { cur: null } } };
+        const ASK = ['Bonus', 'atk', 'TG', 'HP', 'HP.max', 'HP.cur', 'HQ', 'HQ.cur', 'HQ.max', 'HM', 'W', 'W2', 'Sk', 'Sk.base', 'Sk.ranks', 'SR', 'A', 'Flag', 'L1', 'L2', 'GA', 'GB', 'V1', 'Bad', 'CR', 'PA', 'Nope', 'Facing', 'GMFig', 'GMFig.base', 'Bonus.max', 'CombatRound'];
+        const gotD = ch => S.gmDerivedNames(gD, F, ND(ASK), ch), gE = gotD(chE), gS = gotD(chS), gN = gotD(undefined);
+        check('derived GM-only values: gmDerivedNames lists a GM-only field (by key or a suffix) and every visible value worked out from one, however deep — a formula (a branch of if() too), a formula over a formula, a skill and its .base (never .ranks), a pool\'s .max, and the pool and .cur while it is full (stored: not; no character: every pool counts as full); a loop (a real one, or one if() keeps from running) ends; a stored number, an unknown name, a suffix a formula has not, a built-in name and a definition that does not parse are not listed; each name once, as spelled',
+            j(gE) === j(['Bonus', 'atk', 'TG', 'HP', 'HP.max', 'HP.cur', 'HQ.max', 'HM', 'W', 'Sk', 'Sk.base', 'L1', 'L2', 'GA', 'GB', 'GMFig', 'GMFig.base'])
+            && j(gS) === j(['Bonus', 'atk', 'TG', 'HP.max', 'HQ', 'HQ.cur', 'HQ.max', 'HM', 'W2', 'Sk', 'Sk.base', 'L1', 'L2', 'GA', 'GB', 'GMFig', 'GMFig.base'])
+            && j(gN) === j(['Bonus', 'atk', 'TG', 'HP', 'HP.max', 'HP.cur', 'HQ', 'HQ.cur', 'HQ.max', 'HM', 'W', 'W2', 'Sk', 'Sk.base', 'L1', 'L2', 'GA', 'GB', 'GMFig', 'GMFig.base'])
+            && j(S.gmDerivedNames(gD, F, ND(['Bonus', 'bonus', 'BONUS', 'A']), chE)) === j(['Bonus']) && j(S.gmDerivedNames(gD, F, ['Atk', { name: 'Sk' }, 7, null], chE)) === j(['Atk', 'Sk']), j([gE, gS, gN]));
+        const throwsD = { names() { throw new Error('boom'); } };
+        check('derived GM-only values: gmDerivedNames returns [] with no system, fields, engine or list, and never throws — an engine that throws lists every name asked, each once (fail closed)',
+            [S.gmDerivedNames(null, F, ND(['Bonus'])), S.gmDerivedNames({ fields: null }, F, ND(['Bonus'])), S.gmDerivedNames(gD, null, ND(['Bonus'])), S.gmDerivedNames(gD, {}, ND(['Bonus'])), S.gmDerivedNames(gD, F, null), S.gmDerivedNames(gD, F, 'Bonus')].every(x => j(x) === '[]')
+            && j(S.gmDerivedNames(gD, throwsD, ND(['A', 'a', 'Nope']), chE)) === j(['A', 'Nope']));
+        const chainD = []; for (let i = 0; i < LIMITS.fields - 1; i++) chainD.push({ id: 'f_c' + i, key: 'C' + i, kind: 'formula', formula: i ? 'C' + (i - 1) + ' + 1' : 'GMFig' });
+        const chSysD = cleanSystem({ v: 1, name: 'C', rolls: [], fields: [{ id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }].concat(chainD.reverse()) }, GVD), lastD = 'C' + (LIMITS.fields - 2);
+        const t0D = process.hrtime.bigint(), chHitD = S.gmDerivedNames(chSysD, F, ND([lastD, 'C0', 'Nope']), chE), msD = Number(process.hrtime.bigint() - t0D) / 1e6;
+        check('derived GM-only values: gmDerivedNames follows a chain of LIMITS.fields fields to the GM-only one at its end, whatever the order the fields are in, in one pass (well under 2 s)', chSysD.fields.length === LIMITS.fields && j(chHitD) === j([lastD, 'C0']) && msD < 2000, j([chSysD.fields.length, chHitD, msD]));
+        // the property: a visible name is listed exactly when the players' view cannot give the value the GM's resolver has
+        const namesD = f => [f.key].concat(f.kind === 'resource' ? [f.key + '.max', f.key + '.cur'] : f.kind === 'skill' ? [f.key + '.base', f.key + '.ranks'] : []), isValD = v => v !== undefined && !(v && typeof v === 'object');
+        const parityD = (raw, ch) => { const g = cleanSystem(raw, GVD), p = cleanSystem(raw, PVD), gv = S.makeResolver(g, ch, F, null), pv = S.makeResolver(p, ch, F, null), off = [];
+            g.fields.filter(f => f.vis !== 'gm').forEach(f => namesD(f).forEach(n => { const a = gv(n); if (!isValD(a)) return; const b = pv(n); if ((S.gmDerivedNames(g, F, [{ name: n }], ch).length > 0) !== (!isValD(b) || b !== a)) off.push(n); })); return off; };
+        const fxD = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
+        const parD = [[dRaw, chE], [dRaw, chS], [d20, chE], [g3d6, chE], [fxD('hud-d20'), chE], [fxD('hud-3d6'), chE]].map(([r, c]) => parityD(r, c)), countD = namesD(gD.fields.find(f => f.key === 'HP')).length;
+        check('derived GM-only values: gmDerivedNames lists a visible name exactly when the players\' view cannot give its value as the GM\'s resolver has it (an error, or another number) — on this system with its pools full and stored, both presets and both HUD fixtures',
+            parD.every(x => x.length === 0) && countD === 3, j(parD));
+        // labelSecret, rollNode and rollInit, run for real
+        const rnSrcD = shD.slice(shD.indexOf('var LABEL_CTRL_G = '), shD.indexOf('// A roll from this character\'s sheet: the dice feature on'));
+        const feD = (tag, cls, text) => ({ tag, className: cls || '', textContent: text || '', children: [], title: '', disabled: false, firstChild: null, on: {}, appendChild(x) { this.children.push(x); if (!this.firstChild) this.firstChild = x; return x; }, insertBefore(x) { this.children.unshift(x); this.firstChild = x; return x; }, addEventListener(k, f) { this.on[k] = f; } });
+        const mkD = o => { o = o || {}; const sent = [], toasts = [];
+            const api = new Function('F', 'net', 'isClient', 'captionParts', 'labelNames', 'labelGmNames', 'gmDerivedNames', 'gmEffectNames', 'el', 'iconNode', 'canRoll', 'sheetRoll', 'toast', 'ROLL_TONE_CLS', 'getActiveCampaign', 'charById', 'resolveAll', 'tokenCtxFor', rnSrcD + '\nreturn { rollLabel: rollLabel, labelSecret: labelSecret, rollNode: rollNode };')(
+                () => F, () => (o.net === undefined ? { active: true, role: 'host' } : o.net), () => !!o.client, S.captionParts, S.labelNames, S.labelGmNames, S.gmDerivedNames, S.gmEffectNames, feD, (v, c) => feD('span', c), () => true, (e, cid, expr, label, opts) => sent.push([label, opts]), t => toasts.push(t), {},
+                () => (o.camp || { chars: {} }), (id, c) => (c && c.chars && c.chars[id]) || null, S.resolveAll, () => null);
+            api.sent = sent; api.toasts = toasts; return api; };
+        const E8D = Array.from({ length: 8 }, () => '{A}').join('');
+        const lCasesD = [['Attack ({Bonus})', 'Bonus'], ['Hit ({' + PMD + 'Atk})', 'Atk'], ['Skill {Sk}', 'Sk'], ['Base {Sk.base}', 'Sk.base'], ['Ranks {Sk.ranks}', ''], ['Plain {A} {SR}', ''], ['Pool {HP}', 'HP'], ['Max {HQ.max}', 'HQ.max'], ['Stored {HQ}', ''],
+            ['Nine ' + E8D + '{Bonus}', ''], ['Open {Bonus', ''], ['Both {GMFig} {Bonus}', 'GMFig, Bonus'], ['Case {bonus} {BONUS}', 'bonus'], ['Loop {GB}', 'GB'], ['None', ''], ['Odd {GMFIG y {gmfig}', 'GMFIG']];
+        const hostD = mkD(), varsE = S.resolveAll(gD, chE, F, null).vars, varsS = S.resolveAll(gD, chS, F, null).vars;
+        const secD = lCasesD.map(([t]) => hostD.labelSecret(gD, varsE, t, chE)), secSD = hostD.labelSecret(gD, varsS, 'Pool {HP}', chS), secND = hostD.labelSecret(gD, varsE, 'Stored {HQ}');
+        const offD = lCasesD.map(([t]) => mkD({ net: null }).labelSecret(gD, varsE, t, chE)), clD = lCasesD.map(([t]) => mkD({ client: true, net: { active: true, role: 'client' } }).labelSecret(gD, varsE, t, chE));
+        const scrubD = cleanSystem({ v: 1, name: 'D', fields: dRaw.fields, rolls: lCasesD.map(([t], i) => ({ id: 'r_' + i, label: t, formula: 'd6' })) }, PVD).rolls.map(r => r.label);
+        check('derived GM-only values: a label that shows a value worked out from a GM-only field (in one of the 8 {...} it draws) makes the host\'s public roll private — with the sign, a suffix, a full pool (a stored one not; with no character every pool counts as full), a loop; each name once whatever its case, a direct GM-only name too; never offline or on a client; labelGmNames and the players\' view stay direct (players keep the label and see the error)',
+            j(secD) === j(lCasesD.map(c => c[1])) && secSD === '' && secND === 'HQ' && offD.every(x => x === '') && clD.every(x => x === '')
+            && j(S.labelGmNames(gD, F, 'Attack ({Bonus})')) === '[]' && scrubD[0] === 'Attack ({Bonus})' && scrubD[11] === 'Both', j([secD, secSD, secND, scrubD[0], scrubD[11]]));
+        const rollDD = { id: 'r_d', label: 'Attack ({Bonus})', formula: 'd6 + Bonus' }, rollPD = { id: 'r_p', label: 'Pool ({HP})', formula: 'd6' };
+        const apiA = mkD({ camp: { chars: { c_d: chE } } }); apiA.rollNode(rollDD, chE, gD, varsE).children[0].on.click({});
+        const apiB = mkD({ camp: { chars: { c_d: chE } } }), btnB = apiB.rollNode(rollPD, chS, gD, varsS).children[0]; btnB.on.click({});   // drawn from a copy whose pool was stored; full by the click
+        const apiC = mkD({ camp: { chars: { c_d: chS } } }); apiC.rollNode(rollPD, chS, gD, varsS).children[0].on.click({});
+        check('derived GM-only values: a roll button (rollNode, run for real) whose label shows a derived value sends it private with one toast naming it; the character at the click decides a pool (drawn stored, full at the click: private; stored at the click: public, no toast)',
+            j(apiA.sent) === j([['Attack (13)', { priv: true }]]) && apiA.toasts.length === 1 && /GM-only value \(Bonus\)/.test(apiA.toasts[0])
+            && btnB.textContent === 'Pool (5)' && j(apiB.sent) === j([['Pool (24)', { priv: true }]]) && apiB.toasts.length === 1 && j(apiC.sent) === j([['Pool (5)', undefined]]) && apiC.toasts.length === 0, j([apiA.sent, apiA.toasts, btnB.textContent, apiB.sent, apiC.sent]));
+        const riSrcD = shD.slice(shD.indexOf('function rollInit(charId) {'), shD.indexOf('// One value changed on the open sheet'));
+        const runInitD = (label, vals, o) => { o = o || {}; const sysI = Object.assign({}, gD, { rolls: [{ id: 'r_i', label: label, formula: 'd20 + A', init: true }] }), calls = [], toasts = [], ch = { id: 'c_i', name: 'I', values: vals || {} }, camp = { id: 'k', system: sysI, chars: { c_i: ch } }, api = mkD({ net: o.net === undefined ? { active: true, role: 'host' } : o.net });
+            const ri = new Function('getActiveCampaign', 'systemOf', 'charById', 'initRoll', 'window', 'F', 'resolveAll', 'tokenCtxFor', 'rollLabel', 'labelSecret', 'toast', riSrcD + '\nreturn rollInit;')(
+                () => camp, c => c.system, (id, c) => (c.chars[id] || null), S.initRoll, { wpDice: { rollFor: (...a) => { calls.push(a); return { ok: true }; } }, wpVtt: { on: () => true } }, () => F, S.resolveAll, () => null, api.rollLabel, api.labelSecret, t => toasts.push(t));
+            ri('c_i'); return { calls, toasts }; };
+        const iBD = runInitD('Init ({Bonus})'), iOffD = runInitD('Init ({Bonus})', {}, { net: null }), iFullD = runInitD('Init ({HP})'), iStD = runInitD('Init ({HP})', { f_hp: { cur: 7 } });
+        check('derived GM-only values: rollInit (run for real) with a label showing a derived value goes private with one toast on a hosting GM and public offline; the character\'s own pool decides (full: private; stored: public)',
+            j(iBD.calls[0].slice(2)) === j(['Init (13)', { source: 'combat', priv: true }]) && iBD.toasts.length === 1 && /\(Bonus\)/.test(iBD.toasts[0]) && j(iOffD.calls[0].slice(2)) === j(['Init (13)', { source: 'combat', priv: false }]) && iOffD.toasts.length === 0
+            && j(iFullD.calls[0].slice(2)) === j(['Init (24)', { source: 'combat', priv: true }]) && j(iStD.calls[0].slice(2)) === j(['Init (7)', { source: 'combat', priv: false }]) && iStD.toasts.length === 0, j([iBD, iOffD, iFullD, iStD]));
+        const lsD = shD.slice(shD.indexOf('function labelSecret('), shD.indexOf('function rollNode('));
+        check('derived GM-only values (source): labelSecret asks gmDerivedNames of the drawn names beside the direct and the effect checks, and both callers hand it the character; net.diceRoll asks gmOnlyNames of every name the formula writes and gmDerivedNames of the names it read, once each, before the whisper; the export and the window API carry it; Help says so',
+            (lsD.match(/gmDerivedNames\(/g) || []).length === 1 && /gmDerivedNames\(sys, Fm, ns, c\)/.test(lsD) && /var why = labelSecret\(sys, vv, r\.label, cv\);/.test(shD) && /whyI = allI \? labelSecret\(sys, allI\.vars, r\.label, c\) : ''/.test(shD)
+            && (ntD.match(/gmDerivedNames\(/g) || []).length === 1 && /SR\.gmOnlyNames\(campR\.system, F\.names\(expr\)\.map\(/.test(ntD) && /SR\.gmDerivedNames\(campR\.system, F, rec\.names, chR\)/.test(ntD)
+            && ntD.indexOf('else if (gmR.length)') > 0 && ntD.indexOf('else if (gmR.length)') < ntD.indexOf("var toKey = ui('chatTo')") && typeof S.gmDerivedNames === 'function'
+            && /A GM&rsquo;s roll that names a GM-only field, or uses a value worked out from one \(a formula, a skill&rsquo;s base or a pool&rsquo;s maximum built on it\), is kept private\./.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
     }
 
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */

@@ -3538,6 +3538,7 @@ function diceSessionReset(clearChat) {
     if (clearChat) { chatLog = []; chatUnread = 0; renderChat(); rollRing = []; ringRepaint(); }   // the table that is over keeps its chat and its rolls to itself (the HUDs' history too; ringSeq runs on)
 }
 // Roll from here: a client asks the host; a host or a solo GM rolls at once. Returns { ok } or { error, pos?, len? }.
+// [netcheck:diceroll-start]
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
     if (!D || !F) return { error: 'Dice are not available.' };
@@ -3565,9 +3566,10 @@ net.diceRoll = function(expr, o) {
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);
-    var hosting = net.active && net.role === 'host', toName = '';
+    var hosting = net.active && net.role === 'host', toName = '', gmR = [];
+    if (hosting && !o.priv && SR && campR && campR.system) SR.gmOnlyNames(campR.system, F.names(expr).map(function(n) { return { name: n }; })).concat(rec.names ? SR.gmDerivedNames(campR.system, F, rec.names, chR) : []).forEach(function(n) { if (!gmR.some(function(m) { return m.toLowerCase() === n.toLowerCase(); })) gmR.push(n); });   // a GM-only name the formula writes (a branch not taken too: the card shows the text), and a value it read that is GM-only or worked out from one
     if (o.priv) rec.priv = 'gm';
-    else if (hosting && rec.names && SR && SR.gmOnlyNames(campR.system, rec.names).length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + SR.gmOnlyNames(campR.system, rec.names).join(', ') + ').'); }   // a public roll never carries a GM-only value
+    else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
     else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rec.names).join(', ') + '.'); }   // 5h: nor a number a GM-only effect moved
     else if (hosting) {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
@@ -3580,6 +3582,7 @@ net.diceRoll = function(expr, o) {
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
     return { ok: true, value: res.value, priv: !!rec.priv };
 };
+// [netcheck:diceroll-end]
 
 /* ---------- table chat ---------- */
 var chatLog = [];   // {from:{id,name}, text, scope:'global'|'whisper', ts}

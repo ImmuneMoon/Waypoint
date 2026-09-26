@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, gmOnlyNames, gmEffectNames, labelNames } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -327,7 +327,11 @@ function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in 
         var re = /\{([^{}]{1,300})\}/g, m, cap = typeof f.caption === 'string' ? f.caption : '';
         while ((m = re.exec(cap))) if (hit(capExpr(m[1]).expr)) return true;   // Stage 6: a {\u00b1\u2026} too
         return false;
-    });
+    }) || (Array.isArray(sys.rolls) && sys.rolls.some(function(r) {   // HUD frame (HF5a): a roll's label that shows such a value
+        var lre = /\{([^{}]{1,300})\}/g, lm, lb = r && typeof r.label === 'string' ? r.label : '';
+        while ((lm = lre.exec(lb))) if (hit(capExpr(lm[1]).expr)) return true;
+        return false;
+    }));
 }
 // A finished turn redraws the numbers that read facing — never under someone's typing (a redraw commits a half-typed value): while a box
 // on the sheet has focus, the redraw waits for it to lose focus
@@ -999,7 +1003,7 @@ function bandInto(frame, bandDef, ctx) {
     bandDef.forEach(function(q) {
         var g = typeof q.g === 'string' && PIN_GID.test(q.g) && Object.prototype.hasOwnProperty.call(ctx.grpById, q.g) ? ctx.grpById[q.g] : null;
         if (g && !groupShown(g, ctx.targets, ctx.vctx, c.id)) return;
-        var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own, sys) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c) : null;
+        var node = (q.id && byId[q.id]) ? fieldNode(byId[q.id], c, all[q.id], gm, own, sys) : (q.roll && rollById[q.roll]) ? rollNode(rollById[q.roll], c, sys, all.vars) : null;
         if (!node) return;
         node.classList.add('sheet-band-item'); node.classList.remove('sheet-tile');   // the band has its own compact look; a stat tile's column layout (and hidden bar) would out-specify it
         node.querySelectorAll('[data-fid]').forEach(function(x) { x.dataset.band = '1'; });
@@ -1157,7 +1161,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         (sec.fields || []).forEach(function(pl) {
             var node = null;
             if (pl.id && byId[pl.id]) node = fieldNode(byId[pl.id], c, all[pl.id], gm, own, sys, all.vars);
-            else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c);
+            else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c, sys, all.vars);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
             else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
@@ -2054,10 +2058,25 @@ function sheetRoll(e, charId, expr, label, opts) {
     else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
 }
 var ROLL_TONE_CLS = { primary: ' sheet-roll-primary', danger: ' sheet-roll-danger', neutral: ' sheet-roll-neutral', outline: ' sheet-roll-outline' };   // Stage 6 look fold: literal classes, looked up by own key
-function rollNode(r, c) {
-    var b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), r.label); var can = canRoll(c);
+// HUD frame (HF5a, H3): a roll's label with each {formula} worked out for this character, as a caption is (text only; a value that fails
+// prints a dash); the label as written when there is no resolver. Cut to the dice path's 60 without splitting a surrogate pair (a lone one is dropped)
+var LABEL_CTRL_G = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g'), LONE_SURR = new RegExp('^[' + String.fromCharCode(55296) + '-' + String.fromCharCode(57343) + ']$');
+function rollLabel(r, sys, c, vars) {
+    if (!r.label || r.label.indexOf('{') < 0 || !sys || typeof vars !== 'function' || !F()) return r.label;
+    var s = captionParts(sys, c, F(), r.label, vars).map(function(p) { return p.error ? '\u2014' : p.text; }).join('').replace(LABEL_CTRL_G, ' ').trim();   // the engine yields numbers and booleans only (a text value prints the dash); the dice path's no-control rule, kept cheaply
+    var out = ''; Array.from(s).some(function(ch) { if (LONE_SURR.test(ch)) return false; if (out.length + ch.length > 60) return true; out += ch; return false; });
+    return out.trim() || 'Roll';
+}
+// A public roll never carries a GM-only value: on the host, in a session, a roll whose label shows one (a GM-only field, or a value a GM-only
+// effect changed) goes to the GM alone, as its formula would. The names that make it so, joined for the toast, or ''
+function labelSecret(sys, vars, text) {
+    var n = net(), Fm = F(); if (isClient() || !(n && n.active && n.role === 'host') || !Fm || typeof text !== 'string' || text.indexOf('{') < 0) return '';
+    var ns = labelNames(Fm, text), hit = gmOnlyNames(sys, ns).concat(gmEffectNames(vars, ns)); return hit.length ? hit.join(', ') : '';
+}
+function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the render's resolver, for the label (HF5a)
+    var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
-    b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, r.label); });
+    b.addEventListener('click', function(e) { var why = labelSecret(sys, vars, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, label, why ? { priv: true } : undefined); });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character
@@ -2069,7 +2088,9 @@ function rollInit(charId) {
     if (!c || !r) return { error: 'No initiative roll in this system (tick Initiative on a roll in the System editor).' };
     if (!window.wpDice || !window.wpDice.rollFor) return { error: 'Dice are not available.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
-    return window.wpDice.rollFor(charId, r.formula, r.label || 'Initiative', { source: 'combat' });
+    var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
+    if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
+    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI });
 }
 // One value changed on the open sheet: the GM applies it here; a player asks the host and shows it meanwhile
 function commit(c, f, value) {
@@ -2410,7 +2431,7 @@ function buildDefCell(def, f) {
 function rollRow(r) {
     var row = el('div', 'sys-row'); row.dataset.id = r.id;
     var top = el('div', 'sys-row-main');
-    top.appendChild(input('sys-label field', r.label, 'The button\'s label', 'Label'));
+    top.appendChild(input('sys-label field', r.label, 'The button\u2019s label; {formula} shows a value: Attack ({\u00b1AtkBonus})', 'Label'));
     top.appendChild(input('sys-formula field', r.formula, 'The roll: d20 + STRmod, 3d6 <= Skill.Stealth', 'Roll formula'));
     top.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], r.vis || 'all', 'GM only: players never see this roll'));
     top.appendChild(select('sys-roll-tone', [['', 'Plain button'], ['primary', 'Filled'], ['danger', 'Red (damage)'], ['neutral', 'Grey'], ['outline', 'Outline']], r.tone || '', 'How the button looks on the sheet'));   // Stage 6 look fold

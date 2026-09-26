@@ -1275,6 +1275,10 @@ function itemNotice(ch, name, what) {
     var t = what === 'bound-pick' ? who + ' picked up ' + nm + ' — bound: it stays until you remove it.'
         : what === 'curse-pick' ? who + ' picked up ' + nm + ' — curse on contact: if they drop it, you keep it on their sheet.'
         : what === 'bound-try' ? who + ' tried to remove ' + nm + ' — it stays (bound).'
+        : what === 'eq-bound-on' ? who + ' switched on ' + nm + ' — bound: it stays on until you switch it off.'   // Stage 6 F4b: the equip lock
+        : what === 'eq-curse-on' ? who + ' switched on ' + nm + ' — curse on contact: if they switch it off, you keep it on.'
+        : what === 'eq-bound-try' ? who + ' tried to switch off ' + nm + ' — it stays on (bound).'
+        : what === 'eq-curse-off' ? who + ' switched off ' + nm + ' — it stays on, out of their sight, until you switch it off.'
         : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
     toast(t); logEvent('items', t);
 }
@@ -1377,7 +1381,7 @@ net.charItem = function(charId, fieldId, q) {
     c.values = c.values || {}; c.values[fieldId] = res.value;
     _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, kind: 'item', q: JSON.parse(JSON.stringify(q)), timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };   // Stage 6: the op itself, worked out again over a newer host copy
     var mI = { type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: q.op };   // only the keys this op uses
-    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty;
+    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty; if (q.facts !== undefined) mI.facts = q.facts;   // facts (F4b): a set op's level, switch, note
     try { net.conns[0].send(mI); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true, row: res.row, added: res.added, qty: res.qty };   // Stage 6: the row a pickup landed on, how much it added (the Undo), its quantity now
 };
@@ -1430,7 +1434,7 @@ function charPendingDone(rid, ok, reason, msg) {
             reapplyPending(p.charId);
         }
     }
-    if (window.wpSheets) { if (ok) window.wpSheets.charChanged(p.charId); else window.wpSheets.editResult(rid, false, reason, msg); }
+    if (window.wpSheets) { if (ok) window.wpSheets.charChanged(p.charId); else window.wpSheets.editResult(rid, false, reason, msg, p.q ? p.q.op : ''); }
     if (ok && msg) toast(msg);   // Stage 6: a cursed item's message as it leaves the sheet
 }
 // The changes still waiting for the host, laid over the character again (a new host copy arrived, or one change was refused): each field an
@@ -2712,9 +2716,10 @@ function handleMessage(msg, conn) {
         if (!campI || !campI.system || !chI) { denyI('missing'); return; }
         var profI = net.roster[conn.peer]; if (chI.npc || !chI.ownerId || !profI || chI.ownerId !== profI.id) { denyI('owner'); return; }
         var nowI = Date.now(), gkI = qi.charId + '|' + qi.fieldId + '|' + (qi.rowId || ''), grI = qi.op !== 'add' && _rowGrace[gkI] && _rowGrace[gkI].until > nowI ? _rowGrace[gkI] : null;   // Stage 6: inside a pickup's Undo window
-        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI });
+        var ogI = !!(_rowGrace[gkI + '|on'] && _rowGrace[gkI + '|on'].until > nowI);   // F4b: a bound item switched on a moment ago may come off (or be dropped: the lock covers that while it is on)
+        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI });
         if (!resI.ok) {
-            if (resI.reason === 'stays') { itemNotice(chI, resI.name, 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
+            if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             denyI(resI.reason); return;
         }
         chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = nowI;
@@ -2723,11 +2728,15 @@ function handleMessage(msg, conn) {
             var gkA = qi.charId + '|' + qi.fieldId + '|' + resI.row, gA = _rowGrace[gkA];
             if (gA) { gA.added += resI.added; gA.until = nowI + Si.LIMITS.undoGraceMs; } else _rowGrace[gkA] = { until: nowI + Si.LIMITS.undoGraceMs, added: resI.added };
         } else if (grI && resI.undone > 0) grI.added = Math.max(0, grI.added - resI.undone);   // taken back: the window stays until it lapses (a later Undo takes back nothing and says nothing)
+        if (resI.onGraceUsed) delete _rowGrace[gkI + '|on'];   // F4b review: a grace lets it go once (the GM switching it on again is not undone by it)
+        if (typeof resI.onRow === 'string' && resI.eqNote === 'bound') _rowGrace[qi.charId + '|' + qi.fieldId + '|' + resI.onRow + '|on'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0 };   // F4b: switched on (or picked up on) — it may come off for a moment, as a pickup's Undo
         saveRemoteSoon();
-        try { conn.send(resI.hid && resI.msg ? { type: 'char-ack', rid: qi.rid, msg: resI.msg } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets)
+        try { conn.send((resI.hid || resI.keptOn) && resI.msg ? { type: 'char-ack', rid: qi.rid, msg: resI.msg } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets); F4b: a curse kept on, too
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
         if (resI.note && resI.added > 0) itemNotice(chI, resI.name, resI.note === 'bound' ? 'bound-pick' : 'curse-pick');
         else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');
+        if (resI.eqNote && typeof resI.onRow === 'string') itemNotice(chI, resI.name, resI.eqNote === 'bound' ? 'eq-bound-on' : 'eq-curse-on');   // F4b
+        if (resI.keptOn) itemNotice(chI, resI.name, 'eq-curse-off');
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
         // [netcheck:charitem-end]
     } else if (msg.type === 'char-effect' && net.role === 'host') {

@@ -365,7 +365,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /\.sheet-head \.tool\.ghost, \.sheet-frame \.tool\.ghost, \.sheet-head \.tool\.ghost:hover, \.sheet-frame \.tool\.ghost:hover \{ color: var\(--sheet-ink, var\(--ink\)\); \}/.test(css5) && /\.sheet-frame \.sheet-slider-ends \{ color: var\(--sheet-dim, var\(--dim\)\); \}/.test(css5)
             && /\.sheet-frame \.sheet-tabs:not\(\.sheet-tabs-filled\) > \.sheet-tab\.active \{ color: var\(--sheet-accent, var\(--sheet-ink, var\(--gold\)\)\);/.test(css5) && /\.sheet-head-name \{[^}]*color: var\(--sheet-accent, var\(--sheet-ink, var\(--gold\)\)\);/.test(css5)
             && /\.sheet-hdr-val\.sheet-hdr-edit:focus-within \{ border-color:/.test(css5) && /\.sheet-tabs-filled \.sheet-tab\.active \{ background: var\(--sheet-accent, var\(--gold\)\); color: var\(--sheet-accent-ink, #111318\); \}/.test(css5));
-        check('Stage 5g: the item list resolves its definitions from the system being drawn (the pop-out\'s cleaned copy, the preview\'s draft), not the raw campaign', /function fieldNodeBody\(f, c, e, gm, own, sysArg\)/.test(sh5) && /var sysI = sysArg \|\| systemOf\(getActiveCampaign\(\)\)/.test(sh5) && (sh5.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2);
+        check('Stage 5g: the item list resolves its definitions from the system being drawn (the pop-out\'s cleaned copy, the preview\'s draft), not the raw campaign', /function fieldNodeBody\(f, c, e, gm, own, sysArg, plc\)/.test(sh5) && /var sysI = sysArg \|\| systemOf\(getActiveCampaign\(\)\)/.test(sh5) && (sh5.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars, pl)?\)/g) || []).length === 2);
         check('Stage 5g: a section is boxed only for a panel, a border or a stripe (an accent with no stripe colours the title alone); headline titles and filled tabs are class-gated',
             /var stripe = !!\(sec\.style && sec\.style\.accent && sec\.style\.stripe !== false\);[\s\S]{0,200}?if \(sec\.style && \(sec\.style\.bg \|\| sec\.style\.border \|\| stripe\)\)/.test(sh5) && /if \(stripe\) s\.style\.borderLeft/.test(sh5)
             && /body\.classList\.toggle\('sheet-titles-headline', look\.titles === 'headline'\);/.test(sh5) && /el\('div', 'sheet-tabs' \+ \(look\.tabs === 'filled' \? ' sheet-tabs-filled' : ''\)\)/.test(sh5)
@@ -418,7 +418,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const allCh = S.resolveAll(chS, chC, F), capCh = S.captionParts(chS, chC, F, 'Top: {K79}', allCh.vars);
         check('Fold B review: captions read the render\'s resolver (resolveAll(...).vars, not enumerable): a long chain the field shows is shown in its caption too, and nothing is worked out twice', typeof allCh.vars === 'function' && Object.keys(allCh).indexOf('vars') < 0 && allCh.f_k79.value === 80 && capCh[1] && capCh[1].value === 80, JSON.stringify(capCh));
         const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
-        check('Fold B review: a control that disabled itself (↻ once full) hands keyboard focus to its field\'s own box; sections pass the resolver to captions, the band does not', /if \(q && q\.disabled && k\.part\) q = root\.querySelector\('\[data-fid="' \+ k\.fid \+ '"\]:not\(\[data-part\]\)'/.test(shR) && /fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars\)/.test(shR) && /fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shR));
+        check('Fold B review: a control that disabled itself (↻ once full) hands keyboard focus to its field\'s own box; sections pass the resolver to captions, the band does not', /if \(q && q\.disabled && k\.part\) q = root\.querySelector\('\[data-fid="' \+ k\.fid \+ '"\]:not\(\[data-part\]\)'/.test(shR) && /fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars, pl\)/.test(shR) && /fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shR));
     }
 
     /* ---- Stage 5h Fold 1: the character-sync fixes effects depend on ---- */
@@ -847,6 +847,263 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /select\('sys-item-rmmode'/.test(sh4) && /input\('sys-item-rmtext field'/.test(sh4) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(sh4) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(sh4) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(sh4) && !/commitItem\(c, f, '/.test(sh4));
     }
 
+    /* ---- Stage 6 F4b: row facts (level, switch, note), list options, the equip lock, the Lists tab ---- */
+    {
+        const LS = S.cleanListSpec, C7 = String.fromCharCode(7);
+        const sp1 = LS({ lvl: { label: 'Rank', min: 1, labels: ['I', 'II', 'III', 'IV'], def: 9 }, on: { label: 'Active', def: true }, cats: ['Force', 'force', ' Force Power ', '', 'x'.repeat(50)].concat(Array.from({ length: 30 }, (_, i) => 'C' + i)), multi: true, noQty: 1 }, true);
+        check('F4b cleanListSpec: value names count from the level\'s minimum (min 1: max 4, step 1, the default clamped to 4); categories cut to 40, once each ignoring case, at most 20; the same item more than once and no quantity only when true; the switch keeps its label, "starts on" only when true',
+            j(sp1.lvl) === j({ label: 'Rank', min: 1, max: 4, step: 1, def: 4, labels: ['I', 'II', 'III', 'IV'] }) && j(sp1.on) === j({ label: 'Active', def: true }) && sp1.multi === true && !('noQty' in sp1)
+            && sp1.cats.length === 20 && sp1.cats[0] === 'Force' && sp1.cats[1] === 'Force Power' && sp1.cats[2] === 'x'.repeat(40) && sp1.cats[3] === 'C0', j(sp1));
+        const sp2 = LS({ lvl: { min: '3', max: 1, step: -2, def: '2.3' }, on: {} }, true), sp3 = LS({ lvl: { max: 5e6, step: 0.5, def: 1.3 } }, true), sp4 = LS({ lvl: { labels: ['Native', 'Broken', 'Fluent'], min: -1.6, def: 'x' } }, true);
+        check('F4b cleanListSpec: the editor\'s boxes give strings or numbers; a max below the min is the min; a step of zero or less is 1; a bound past 1e6 is left open; names without a min count from 0 (a fractional min rounds); defaults "Level" / "On" and a default level from the min (else 0); nothing set = null; an empty categories list only in the players\' view (nothing to pick); what the Lists tab\'s ticks make cleans to itself',
+            j(sp2) === j({ lvl: { label: 'Level', min: 3, max: 3, step: 1, def: 3 }, on: { label: 'On' } }) && j(sp3) === j({ lvl: { label: 'Level', step: 0.5, def: 1.5 } }) && j(sp4.lvl) === j({ label: 'Level', min: -2, max: 0, step: 1, def: -2, labels: ['Native', 'Broken', 'Fluent'] })
+            && LS({}, true) === null && LS(null, true) === null && LS({ cats: [] }, true) === null && j(LS({ cats: [] }, false)) === j({ cats: [] }) && LS({ multi: 'yes', noQty: 1, lvl: 3, on: true }, true) === null
+            && j(LS({ lvl: { label: 'Level', min: 0, step: 1, def: 0 }, on: { label: 'On' } }, true)) === j({ lvl: { label: 'Level', min: 0, step: 1, def: 0 }, on: { label: 'On' } }), j([sp2, sp3, sp4]));
+        const itK = k => { const c = S.cleanItemDef({ id: 'i_k', name: 'K', key: k }, F, true); return c ? (c.key || '') : null; };
+        check('F4b an item\'s key: a letter, then letters, digits and _ (40 at most); never a row word, a reserved suffix, a function name or an Object.prototype name (the wire\'s packer refuses those); only one a formula can address (L.<key>.lvl)',
+            itK('Karate') === 'Karate' && itK('Blaster_2') === 'Blaster_2' && itK('a'.repeat(40)) === 'a'.repeat(40) && itK('a'.repeat(41)) === ''
+            && ['qty', 'On', 'lvl', 'row', 'has', 'paid', 'count', 'max', 'cur', 'ranks', 'floor', 'if', 'constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', '2x', 'a b', 'a.b', '_a', '', 7, null].every(k => itK(k) === '')
+            && S.cleanItemKey('Karate') === 'Karate' && S.cleanItemKey('toString') === '' && S.cleanItemKey('Karate', F) === 'Karate', j(['qty', 'constructor', '_a'].map(itK)));
+        const itG = S.cleanItemDef({ id: 'i_r', name: 'Ring', eq: 'bound', eqMsg: ' It will' + C7 + ' not ', lvl: '12', rm: 'curse' }, F, true), itP = S.cleanItemDef({ id: 'i_r', name: 'Ring', eq: 'bound', eqMsg: 'x', lvl: 12 }, F, false), itX = S.cleanItemDef({ id: 'i_r', name: 'Ring', eq: 'stuck', eqMsg: 'x', lvl: 2e6 }, F, true);
+        check('F4b an item\'s equip lock (bound / curse on contact) and its message are the GM\'s alone (never in the players\' view; anything else is no lock); its default level is a number within 1e6',
+            itG.eq === 'bound' && itG.eqMsg === 'It will  not' && itG.lvl === 12 && itG.rm === 'curse' && !('eq' in itP) && !('eqMsg' in itP) && itP.lvl === 12 && !('eq' in itX) && !('eqMsg' in itX) && !('lvl' in itX), j([itG, itP, itX]));
+        const rdG = S.cleanRowDef({ name: 'Veil', vis: 'gm', key: 'Veil', lvl: 3, eq: 'curse', eqMsg: 'Clings' }, true), rdP = S.cleanRowDef({ name: 'Veil', vis: 'gm', key: 'Veil', lvl: 3, eq: 'curse' }, false), rdV = S.cleanRowDef({ name: 'Blade', vis: 'all', key: 'Blade', eq: 'bound' }, false);
+        check('F4b a carried copy keeps its key (a GM-only one\'s in the GM\'s view only: critic 2), its default level, and its equip lock in the GM\'s view only',
+            rdG.key === 'Veil' && rdG.lvl === 3 && rdG.eq === 'curse' && rdG.eqMsg === 'Clings' && !('key' in rdP) && rdP.lvl === 3 && !('eq' in rdP) && rdV.key === 'Blade' && !('eq' in rdV), j([rdG, rdP, rdV]));
+
+        const sysB = cleanSystem({ v: 1, name: 'B', rolls: [], fields: [
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Skill', 'Lore'], noQty: true, lvl: { label: 'Level', min: 0, max: 20, def: 10 } } },
+            { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, on: { label: 'Readied' }, cats: ['Gear', 'Jewel'] } },
+            { id: 'f_ar', key: 'Arcana', label: 'Arcana', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Secret'] } },
+            { id: 'f_gm', key: 'Locked', label: 'Locked', kind: 'item-list', edit: 'gm', vis: 'all', list: { on: { label: 'On' } } },
+            { id: 'f_wn', key: 'Worn', label: 'Worn', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', def: true } } },
+            { id: 'f_pl', key: 'Plain', label: 'Plain', kind: 'item-list', edit: 'owner', vis: 'all' }],
+            items: [
+            { id: 'i_karate', name: 'Karate', category: 'Skill', key: 'Karate', lvl: 12 }, { id: 'i_sneak', name: 'Sneak', category: 'skill' },
+            { id: 'i_veil', name: 'Veil', category: 'Secret', vis: 'gm', eq: 'curse', eqMsg: 'It clings' }, { id: 'i_ring', name: 'Ring', category: 'Jewel', eq: 'bound', eqMsg: 'It will not come off' },
+            { id: 'i_amu', name: 'Amulet', category: 'Jewel', eq: 'curse', eqMsg: 'It clings' }, { id: 'i_blade', name: 'Blade', category: 'Gear' }],
+            sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_wp', w: 'row', on: true }, { id: 'f_sk', w: 1, on: true }, { id: 'f_pl', w: 1, on: 'yes' }] }] } }, { F, gmView: true });
+        const pvB = cleanSystem(sysB, { F, gmView: false }), fB = id => sysB.fields.find(f => f.id === id), lib = {}; sysB.items.forEach(i => { lib[i.id] = i; });
+        check('F4b the players\' view: a list\'s categories are only those an item they can see has (Skills keeps Skill; Arcana\'s Secret goes: an empty list, nothing to pick); no equip lock reaches it; the view is a fixed point, as the GM\'s is',
+            j(pvB.fields.map(f => f.list ? (f.list.cats || null) : null)) === j([['Skill'], ['Gear', 'Jewel'], [], null, null, null]) && !/"eq/.test(j(pvB)) && !/clings|come off/.test(j(pvB))
+            && j(cleanSystem(pvB, { F, gmView: false })) === j(pvB) && j(cleanSystem(sysB, { F, gmView: true })) === j(sysB), j(pvB.fields.map(f => f.list)));
+        check('F4b a placement of an item list keeps "only rows switched on" (on: true, nothing else); the validator warns when its list has no switch (every row shows)',
+            j(sysB.sheet.sections[0].fields) === j([{ id: 'f_wp', w: 'row', on: true }, { id: 'f_sk', w: 1, on: true }, { id: 'f_pl', w: 1 }]) && j(cleanSystem({ v: 1, name: 'X', rolls: [], fields: [{ id: 'f_n', key: 'N', kind: 'number' }], sheet: { sections: [{ id: 's_b', title: 'B', cols: 1, fields: [{ id: 'f_n', w: 1, on: true }] }] } }, { F, gmView: true }).sheet.sections[0].fields) === j([{ id: 'f_n', w: 1 }])
+            && validateSystem(sysB, F).warnings.filter(w => /only rows switched on/.test(w.message)).map(w => w.id).join() === 'f_sk', j(validateSystem(sysB, F).warnings));
+        const sysK = cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_s', key: 'Skills', label: 'Skills', kind: 'item-list', list: { cats: ['Skill'] } }, { id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', list: { cats: ['Gear'] } }],
+            items: [{ id: 'i_a', name: 'Karate', category: 'Skill', key: 'Karate' }, { id: 'i_b', name: 'Sneak', category: 'skill', key: 'karate' }, { id: 'i_c', name: 'Blade', category: 'Gear', key: 'Karate' }] }, { F, gmView: true });
+        const vK = validateSystem(sysK, F);
+        check('F4b the validator: an item\'s key is once inside each list it can be on, ignoring case (Sneak repeats Karate in Skills); a key repeated across lists that never share an item is fine (the Blade in Weapons)',
+            j(vK.errors.map(e => [e.id, e.prop, e.message])) === j([['i_b', 'key', 'Key "karate" is also used by "Karate" in Skills.']]), j(vK.errors));
+        const fW = fB('f_sk'), vo = S.valueOpts(sysB);
+        const cv = S.cleanValue(fW, [{ id: 'w_1', defId: 'i_karate', qty: 3, lvl: 99, on: 'yes', note: 'n', keptOn: 1 }, { defId: 'i_sneak', qty: 1, lvl: '4', on: true, keptOn: 1 }, { id: 'w_c', qty: 1, lvl: -5, on: false, note: 'x'.repeat(300), keptOn: 1, def: { name: 'Mine' } }, { id: 'w_i', qty: 1, on: true, keptOn: 1, def: { name: 'In' }, lnk: 1 }], vo);
+        const cvPlain = S.cleanValue(fB('f_pl'), [{ id: 'w_1', defId: 'i_karate', qty: 3, lvl: 99.5 }, { defId: 'i_sneak', qty: 2 }], vo);
+        const dM = S.cleanRowDef({ name: 'Mine' }, true), dI = S.cleanRowDef({ name: 'In' }, false);
+        check('F4b row facts, after the quantity: a level clamped to the list (99 to 20, -5 to 0), a string level dropped; the switch only as a boolean; a note cut to 200; keptOn only beside on: true, never on an owner\'s inline copy; a list with no level keeps a level as stored; a legacy row stays as it was',
+            j(cv) === j([{ id: 'w_1', defId: 'i_karate', qty: 3, lvl: 20, note: 'n' }, { defId: 'i_sneak', qty: 1, on: true, keptOn: 1 }, { id: 'w_c', qty: 1, lvl: 0, on: false, note: 'x'.repeat(200), def: dM }, { id: 'w_i', qty: 1, on: true, def: dI, lnk: 1 }])
+            && j(cvPlain) === j([{ id: 'w_1', defId: 'i_karate', qty: 3, lvl: 99.5 }, { defId: 'i_sneak', qty: 2 }]), j([cv, cvPlain]));
+        const swD = { on: { label: 'x', def: true } };
+        check('F4b rowOn / rowLvl: a switch as stored, else the list\'s "starts on" (an id-less legacy row follows it: critic 13); a level as stored, else the item\'s own (clamped), else the list\'s default, else 0',
+            S.rowOn(swD, { defId: 'i_x', qty: 1 }) === true && S.rowOn(swD, { defId: 'i_x', qty: 1, on: false }) === false && S.rowOn({ on: { label: 'x' } }, { defId: 'i_x' }) === false && S.rowOn(null, {}) === false
+            && S.rowLvl(fW.list, { defId: 'i_karate' }, lib.i_karate) === 12 && S.rowLvl(fW.list, { defId: 'i_karate' }, { lvl: 50 }) === 20 && S.rowLvl(fW.list, { defId: 'i_sneak' }, lib.i_sneak) === 10 && S.rowLvl(fW.list, { lvl: 3 }, lib.i_karate) === 3 && S.rowLvl(null, {}, {}) === 0 && S.rowLvl(null, { lvl: 7 }, {}) === 7);
+
+        let chB = { id: 'c_a', name: 'A', ownerId: 'u_a', npc: false, values: {} };
+        const op = (fid, q, o) => { const r = S.applyRowOp(sysB, chB, fid, q, F, o || {}); if (r.ok) chB.values[fid] = r.value; return r; }, P = { player: true, view: pvB };
+        const a1 = op('f_sk', { op: 'add', defId: 'i_karate', rowId: 'w_k1' }, P), a2 = op('f_sk', { op: 'add', defId: 'i_karate', rowId: 'w_k2' }, P), a3 = op('f_sk', { op: 'add', defId: 'i_sneak', rowId: 'w_s1', qty: 5 }, P);
+        const a4 = op('f_sk', { op: 'add', defId: 'i_ring', rowId: 'w_x' }, P), a5 = op('f_ar', { op: 'add', defId: 'i_veil', rowId: 'w_v' }, P), a6 = op('f_sk', { op: 'add', defId: 'i_ring', rowId: 'w_g' }, {});
+        check('F4b add: the facts are written as a row is added (the item\'s own level, Karate 12; else the list\'s default, Sneak 10); no quantity: once each ("value") and quantity 1; a player adds only from the list\'s categories (the Ring on Skills and a GM-only Veil read as gone: "missing"); the GM may add outside them',
+            a1.ok && a3.ok && j(chB.values.f_sk.slice(0, 2)) === j([{ id: 'w_k1', defId: 'i_karate', qty: 1, lvl: 12 }, { id: 'w_s1', defId: 'i_sneak', qty: 1, lvl: 10 }]) && a2.reason === 'value' && a4.reason === 'missing' && a5.reason === 'missing' && a6.ok && chB.values.f_sk.length === 3, j([a1, a2, a4, a5, a6, chB.values.f_sk]));
+        const s1 = op('f_sk', { op: 'set', rowId: 'w_k1', facts: { lvl: 30 } }, P), s2 = op('f_sk', { op: 'set', rowId: 'w_s1', facts: { lvl: null, note: ' tall' + C7 + 'order ' } }, P), s3 = op('f_sk', { op: 'set', rowId: 'w_k1', facts: { on: true } }, P);
+        const s4 = op('f_sk', { op: 'set', rowId: 'w_k1', facts: { lvl: 5, on: true } }, P), s5 = op('f_sk', { op: 'set', rowId: 'w_zz', facts: { lvl: 5 } }, P), s6 = op('f_gm', { op: 'set', rowId: 'w_k1', facts: { on: true } }, P), s7 = op('f_sk', { op: 'set', rowId: 'w_k1', facts: {} }, P), s8 = op('f_sk', { op: 'set', rowId: 'w_k1' }, P);
+        check('F4b set: a level clamped to the list (30 to 20), null back to the default, a note cut and cleaned; on a list with no switch a switch is refused ("value") and the whole change with it (the level stays 20); an unknown row is "missing"; a list the GM edits is the GM\'s ("field"); no facts is "value"',
+            s1.ok && s2.ok && s1.row === 'w_k1' && s1.qty === 1 && chB.values.f_sk[0].lvl === 20 && !('lvl' in chB.values.f_sk[1]) && chB.values.f_sk[1].note === 'tall order' && s3.reason === 'value' && s4.reason === 'value' && chB.values.f_sk[0].lvl === 20
+            && s5.reason === 'missing' && s6.reason === 'field' && s7.reason === 'value' && s8.reason === 'value' && S.rowLvl(fW.list, chB.values.f_sk[1], lib.i_sneak) === 10, j([s1, s3, s4, s5, s6, s7, chB.values.f_sk]));
+        const w1 = op('f_wp', { op: 'add', defId: 'i_ring', rowId: 'w_r1' }, P), w2 = op('f_wp', { op: 'add', defId: 'i_ring', rowId: 'w_r2' }, P);
+        const e1 = op('f_wp', { op: 'set', rowId: 'w_r1', facts: { on: true } }, P), e2 = op('f_wp', { op: 'set', rowId: 'w_r1', facts: { on: false } }, P), e3 = op('f_wp', { op: 'set', rowId: 'w_r1', facts: { on: false } }, Object.assign({ onGrace: true }, P));
+        const e4 = op('f_wp', { op: 'set', rowId: 'w_r2', facts: { on: false } }, P), e5 = op('f_wp', { op: 'set', rowId: 'w_r1', facts: { on: false } }, {});
+        check('F4b the equip lock, bound: the same item again makes a second row (the list takes it more than once); switching it on answers the row (the grace, the GM\'s notice); switching it off is refused with the GM\'s message ("stays", eq) unless within the grace; an item already off stays off; the GM switches it as they like',
+            w1.ok && w2.ok && w2.row === 'w_r2' && chB.values.f_wp.length === 2 && e1.ok && e1.onRow === 'w_r1' && e1.eqNote === 'bound' && e1.name === 'Ring' && j([e2.ok, e2.reason, e2.msg, e2.name, e2.eq]) === j([false, 'stays', 'It will not come off', 'Ring', true])
+            && e3.ok && !e3.onRow && chB.values.f_wp[0].on === false && e4.ok && chB.values.f_wp[1].on === false && e5.ok, j([e1, e2, e3, e4, chB.values.f_wp]));
+        const c1 = op('f_wp', { op: 'add', defId: 'i_amu', rowId: 'w_a1' }, P), c2 = op('f_wp', { op: 'set', rowId: 'w_a1', facts: { on: true } }, P), c3 = op('f_wp', { op: 'set', rowId: 'w_a1', facts: { on: false } }, P);
+        const amu = () => chB.values.f_wp.find(r => r.id === 'w_a1'), projA = () => S.projectRows(chB.values.f_wp, pvB, lib).find(r => r.id === 'w_a1'), viewA = () => S.charFor(chB, pvB, 'u_a', { items: lib }).values.f_wp.find(r => r.id === 'w_a1');
+        const kept = j(amu()), keptProj = j(projA()), keptView = j(viewA());
+        const c4 = op('f_wp', { op: 'set', rowId: 'w_a1', facts: { on: false } }, P), again = j(amu());
+        const c5 = op('f_wp', { op: 'set', rowId: 'w_a1', facts: { on: true } }, P), cleared = j(amu());
+        op('f_wp', { op: 'set', rowId: 'w_a1', facts: { on: false } }, P); const c6 = op('f_wp', { op: 'set', rowId: 'w_a1', facts: { on: false } }, {}), gmOff = j(amu());
+        check('F4b the equip lock, curse on contact: switched off by its owner it stays on here (keptOn) with the GM\'s message; the owner\'s copy (projectRows, charFor) says off with no keptOn; off again: nothing changes; switched on by the owner, keptOn goes (no new notice); the GM switching it off clears it',
+            c1.ok && !c1.onRow && c2.eqNote === 'curse' && c3.ok && c3.keptOn === true && c3.msg === 'It clings' && c3.name === 'Amulet' && kept === j({ id: 'w_a1', defId: 'i_amu', qty: 1, on: true, keptOn: 1 }) && keptProj === j({ id: 'w_a1', defId: 'i_amu', qty: 1, on: false }) && keptView === keptProj
+            && c4.ok && again === kept && !c4.keptOn && c5.ok && !c5.eqNote && cleared === j({ id: 'w_a1', defId: 'i_amu', qty: 1, on: true }) && c6.ok && gmOff === j({ id: 'w_a1', defId: 'i_amu', qty: 1, on: false }), j([c3, kept, keptProj, c5, cleared, gmOff]));
+        const wn = op('f_wn', { op: 'add', defId: 'i_ring', rowId: 'w_n1' }, P);
+        op('f_wp', { op: 'add', defId: 'i_veil', rowId: 'w_v1' }, {}); op('f_wp', { op: 'set', rowId: 'w_v1', facts: { on: true, note: 'veiled' } }, {});
+        const v1 = op('f_wp', { op: 'set', rowId: 'w_v1', facts: { on: false } }, P), inl = S.projectRows(chB.values.f_wp, pvB, lib).find(r => r.id === 'w_v1'), pF = pvB.fields.find(f => f.id === 'f_wp');
+        const projAll = S.projectRows(chB.values.f_wp, pvB, lib);
+        check('F4b a row picked up already on (a list whose switch starts on) opens the grace like a switch; a GM-only item carried reaches its owner inline with its facts (the note; the switch as they see it) and its lock is judged on the host\'s entry; the owner\'s re-clean of the whole list is a fixed point',
+            wn.ok && wn.onRow === 'w_n1' && wn.eqNote === 'bound' && j(chB.values.f_wn) === j([{ id: 'w_n1', defId: 'i_ring', qty: 1, on: true }]) && v1.ok && v1.keptOn === true
+            && j(inl) === j({ id: 'w_v1', qty: 1, on: false, note: 'veiled', def: S.cleanRowDef(lib.i_veil, false), lnk: 1 }) && !/It clings|"eq"|keptOn/.test(j(projAll)) && j(S.cleanValue(pF, projAll, S.valueOpts(pvB))) === j(projAll), j([wn, v1, inl]));
+        chB.values.f_wp = chB.values.f_wp.concat([{ id: 'w_l', defId: 'i_gone', qty: 2, on: true, note: 'old', snap: { name: 'Gone', vis: 'all' } }]);
+        const k1 = op('f_wp', { op: 'keep', rowId: 'w_l' }, {});
+        check('F4b "Make custom" keeps the row\'s facts (the switch, the note) on the character\'s own item', k1.ok && j(chB.values.f_wp.find(r => r.id === 'w_l')) === j({ id: 'w_l', qty: 2, on: true, note: 'old', def: S.cleanRowDef({ name: 'Gone', vis: 'all' }, true) }), j(chB.values.f_wp));
+        const cc = facts => S.cleanCharItem({ type: 'char-item', rid: 'r1', charId: 'c_a', fieldId: 'f_wp', op: 'set', rowId: 'w_a1', facts });
+        check('F4b cleanCharItem set: a level (a number, or null), a switch (a boolean), a note (cut to 200); any other key in facts is dropped; a string level, a non-boolean switch, a note past 800, a level past 1e6, no facts or no row refuse the message',
+            j(cc({ lvl: null, on: true, note: ' x ', y: 1 }).facts) === j({ lvl: null, on: true, note: 'x' }) && j(cc({ lvl: 3.5 }).facts) === j({ lvl: 3.5 }) && cc({ lvl: '3' }) === null && cc({ on: 1 }) === null && cc({ note: 'x'.repeat(801) }) === null
+            && cc({}) === null && cc(null) === null && cc({ lvl: 2e6 }) === null && S.cleanCharItem({ type: 'char-item', rid: 'r1', charId: 'c_a', fieldId: 'f_wp', op: 'set', facts: { on: true } }) === null && cc({ note: 'y'.repeat(300) }).facts.note.length === 200);
+
+        // the sheet: the real item widgets (sliced from sheets.js) on a fake DOM
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cut = (a, b) => { const i = shB.indexOf(a), k = shB.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('F4b slice: ' + a); return shB.slice(i, k); };
+        const itSrc = cut('// ---- item-list widgets', '// 5h: an effect\'s changes as short text'), fxSrcB = cut('function fxMark(', '// 5h: a character\'s status effects'), fnSrcB = cut('function signTone(', '// A roll from a sheet button:');
+        const fe = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined || text === null ? '' : String(text), children: [], title: '', type: '', value: '', checked: false, disabled: false, selected: false, dataset: {}, style: {}, classList: { add() {} }, on: {}, get childNodes() { return this.children; }, appendChild(x) { this.children.push(x); return x; }, insertBefore(x) { this.children.unshift(x); return x; }, addEventListener(k, f) { this.on[k] = f; } });
+        const commits = [], optF = (v, t, s) => { const o = fe('option', null, t); o.value = v; if (s) o.selected = true; return o; }, docF = { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }) };
+        const deps = ['el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS'];
+        const depV = [fe, (v, cls) => fe('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, (c, f, q) => commits.push([f.id, q]), optF, S.fmtNum, v => v || '', S.LIMITS, true, docF, () => {}, () => {}, () => {}, {}, () => sysB, () => null, () => null, p => p + 'new', () => F, S.fxText, () => true, () => {}, () => {}, S.valueTone, {}];
+        const W = new Function(...deps, itSrc + '\nreturn { itemListInto: itemListInto, itemTableInto: itemTableInto, pickerInto: pickerInto, gmItemBits: gmItemBits };')(...depV);
+        const FN = new Function(...deps, itSrc + fxSrcB + fnSrcB + '\nreturn fieldNode;')(...depV);
+        const kids = n => (n.children || []), cl = n => kids(n).map(k => String(k.className).split(' ').pop()), walk = (n, p, acc) => { if (p(n)) acc.push(n); kids(n).forEach(k => walk(k, p, acc)); return acc; }, find = (n, c) => walk(n, x => (' ' + x.className + ' ').indexOf(' ' + c + ' ') >= 0, []);
+        const chS = { id: 'c_a', name: 'A', ownerId: 'u_a', values: { f_sk: [{ id: 'w_k1', defId: 'i_karate', qty: 1, lvl: 20 }, { id: 'w_s1', defId: 'i_sneak', qty: 1 }] } };
+        const plainW = fe('div'); W.itemListInto(plainW, fB('f_pl'), chS, [{ id: 'w_1', defId: 'i_blade', qty: 2 }], sysB, false, true, true);
+        const listW = fe('div'); W.itemListInto(listW, fW, chS, chS.values.f_sk, sysB, false, true, false);
+        const l1 = listW.children[0], lvIn = find(l1, 'sheet-item-lvlin')[0], note1 = listW.children[1], tog = find(l1, 'sheet-item-notes-t')[0], noteIn = find(note1, 'sheet-item-note')[0];
+        check('F4b the sheet: a list with no options draws its rows as before (name, the qty −/+, remove); a list with options draws no category chip while its rows share one (Skill and skill), a level box (the list\'s range and step), 📝 and remove, no quantity with No quantity, and the row\'s note line under it, closed',
+            j(cl(plainW.children[0])) === j(['sheet-item-name', 'sheet-item-qty', 'sheet-item-rm']) && plainW.children.length === 1
+            && j(cl(l1)) === j(['sheet-item-name', 'sheet-item-lvl', 'sheet-item-notes-t', 'sheet-item-rm']) && listW.children.length === 4 && note1.className === 'sheet-item-noteline' && note1.style.display === 'none'
+            && lvIn.value === '20' && lvIn.min === '0' && lvIn.max === '20' && lvIn.step === '1' && find(listW.children[2], 'sheet-item-lvlin')[0].value === '10', j([cl(plainW.children[0]), cl(l1), cl(listW)]));
+        commits.length = 0; lvIn.value = '7'; lvIn.on.change(); lvIn.value = ''; lvIn.on.change(); const resetTo = lvIn.value; noteIn.value = 'hi'; noteIn.on.change(); tog.on.click(); const opened = note1.style.display;
+        check('F4b the sheet: the level box sends one set op per change (an empty box sends nothing and shows the level again); the note sends its text; 📝 opens the note line (kept open across a redraw)',
+            j(commits) === j([['f_sk', { op: 'set', rowId: 'w_k1', facts: { lvl: 7 } }], ['f_sk', { op: 'set', rowId: 'w_k1', facts: { note: 'hi' } }]]) && resetTo === '20' && opened === ''
+            && (() => { const again = fe('div'); W.itemListInto(again, fW, chS, chS.values.f_sk, sysB, false, true, false); return again.children[1].style.display === ''; })(), j(commits));
+        const nmL = { id: 'f_lg', key: 'Langs', label: 'Langs', kind: 'item-list', list: S.cleanListSpec({ lvl: { label: 'Fluency', min: 1, labels: ['Broken', 'Accented', 'Fluent'] }, on: { label: 'Compr.', def: true } }, true), edit: 'owner', vis: 'all' };
+        const lgW = fe('div'); W.itemListInto(lgW, nmL, chS, [{ id: 'w_g1', defId: 'i_sneak', qty: 1, lvl: 2 }, { id: 'w_g2', defId: 'i_blade', qty: 1, lvl: 7, on: false }], sysB, false, true, false);
+        const sel1 = find(lgW.children[0], 'sheet-item-lvlsel')[0], sel2 = find(lgW.children[2], 'sheet-item-lvlsel')[0], cb1 = find(lgW.children[0], 'sheet-item-on')[0], cb2 = find(lgW.children[2], 'sheet-item-on')[0], onl = find(lgW.children[0], 'sheet-item-onl')[0];
+        commits.length = 0; sel1.value = '3'; sel1.on.change(); cb1.checked = false; cb1.on.change();
+        const roW = fe('div'); W.itemListInto(roW, nmL, chS, [{ id: 'w_g1', defId: 'i_sneak', qty: 1, lvl: 2 }, { id: 'w_g2', defId: 'i_blade', qty: 1, on: false }], sysB, false, false, false);
+        check('F4b the sheet: level names make a dropdown counted from the minimum (1 Broken, 2 Accented, 3 Fluent), a stored level past them an extra greyed entry; the switch is a checkbox with the list\'s label, on by the list\'s "starts on"; each sends a set op. Read-only: the level\'s name and, while on, a chip with the label; no quantity boxes',
+            j(kids(sel1).map(o => [o.value, o.textContent, !!o.selected, !!o.disabled])) === j([['1', 'Broken', false, false], ['2', 'Accented', true, false], ['3', 'Fluent', false, false]]) && j(kids(sel2).map(o => [o.value, !!o.selected, !!o.disabled]).slice(3)) === j([['7', true, true]])
+            && cb1.checked === false && cb2.checked === false && find(lgW.children[2], 'sheet-item-on')[0].title === 'Compr.' && kids(onl)[1].textContent === 'Compr.' && j(commits) === j([['f_lg', { op: 'set', rowId: 'w_g1', facts: { lvl: 3 } }], ['f_lg', { op: 'set', rowId: 'w_g1', facts: { on: false } }]])
+            && find(roW.children[0], 'sheet-item-lvln')[0].textContent === 'Accented' && find(roW.children[0], 'sheet-item-onc')[0].textContent === 'Compr.' && find(roW, 'sheet-item-onc').length === 1 && find(roW, 'sheet-item-qtyn').length === 2 && find(roW, 'sheet-item-note').length === 0, j([kids(sel1).map(o => o.value), commits]));
+        const gmB = (def, entry, sw) => { const h = fe('span'); W.gmItemBits(h, def, entry, true, sw); return kids(h).map(k => k.textContent); };
+        check('F4b the GM\'s chips on a list with a switch: a bound switch "stays on", a cursed one "curse (on)", a curse its owner switched off "kept on"; on a list with none, nothing of the switch; the removal chips as before; a player sees none',
+            j(gmB(lib.i_ring, { id: 'w' }, true)) === j(['stays on']) && j(gmB(lib.i_amu, { id: 'w', on: true, keptOn: 1 }, true)) === j(['kept on']) && j(gmB(lib.i_amu, { id: 'w' }, true)) === j(['curse (on)'])
+            && j(gmB(lib.i_ring, { id: 'w' }, false)) === j([]) && j(gmB({ name: 'B', rm: 'bound', eq: 'curse' }, { id: 'w' }, true)) === j(['bound', 'curse (on)']) && (() => { const h = fe('span'); W.gmItemBits(h, lib.i_ring, { id: 'w' }, false, true); return h.children.length === 0; })());
+        const tSpec = S.cleanListSpec({ lvl: { label: 'Level', min: 0, max: 5 }, on: { label: 'Readied' }, noQty: true }, true), tF = { id: 'f_t', key: 'T', label: 'T', kind: 'item-list', table: { footer: true }, list: tSpec, edit: 'owner', vis: 'all' }, tP = { id: 'f_t', key: 'T', label: 'T', kind: 'item-list', table: { footer: true }, edit: 'owner', vis: 'all' };
+        const tW = fe('div'); W.itemTableInto(tW, tF, chS, [{ id: 'w_t1', defId: 'i_blade', qty: 3, lvl: 2, on: true }], sysB, false, true, false);
+        const tPW = fe('div'); W.itemTableInto(tPW, tP, chS, [{ id: 'w_t1', defId: 'i_blade', qty: 3 }], sysB, false, true, false);
+        const tE = fe('div'); W.itemTableInto(tE, tF, chS, [], sysB, false, true, false, 'Nothing readied.');
+        const thT = t => kids(kids(kids(t.children[0])[0])[0]).map(x => x.textContent), rowT = t => kids(kids(kids(t.children[0])[1])[0]), footT = t => kids(kids(kids(t.children[0])[2])[0]);
+        check('F4b the sheet\'s table: a Level and a switch column headed by the list\'s labels, no Qty column with No quantity, the footer spanning them; a table with no options is as before (Item, Qty, actions; its footer\'s quantity); an empty one says the placement\'s note',
+            j(thT(tW)) === j(['Item', 'Level', 'Readied', '']) && j(rowT(tW).map(x => x.className)) === j(['sheet-itcol-name', 'sheet-itcol-lvl', 'sheet-itcol-on', 'sheet-itcol-act']) && find(rowT(tW)[2], 'sheet-item-on')[0].checked === true
+            && j(footT(tW).map(x => [x.className, x.colSpan || 0])) === j([['sheet-itft', 3], ['', 0]])
+            && j(thT(tPW)) === j(['Item', 'Qty', '']) && j(footT(tPW).map(x => x.className)) === j(['sheet-itft', 'sheet-itft-qty', '']) && footT(tPW)[0].colSpan === 1
+            && kids(kids(kids(tE.children[0])[1])[0])[0].textContent === 'Nothing readied.' && kids(kids(kids(tE.children[0])[1])[0])[0].colSpan === 4, j([thT(tW), footT(tW).map(x => [x.className, x.colSpan]), thT(tPW)]));
+        const pk = fe('select'), nPk = W.pickerInto(pk, sysB.items, { cats: ['Skill', 'Jewel'], noQty: true }, [{ defId: 'i_karate', qty: 1 }, { id: 'w_h', defId: 'i_sneak', qty: 1, hid: 1 }]);
+        const pk2 = fe('select'), nPk2 = W.pickerInto(pk2, [{ id: 'i_a', name: 'Loose' }].concat(sysB.items.slice(5)), {}, []), pk3 = fe('select'), nPk3 = W.pickerInto(pk3, sysB.items, { cats: [] }, []);
+        const pk4 = fe('select'); W.pickerInto(pk4, sysB.items, { cats: ['Skill'], noQty: true, multi: true }, [{ defId: 'i_karate', qty: 1 }]);
+        check('F4b the picker: only the list\'s categories (ignoring case), a group per category in the order met, items with none first; on a list with no quantity that holds an item once, one already carried is greyed (not a kept curse); with the same item more than once, never; an empty categories list offers nothing',
+            nPk === 4 && j(kids(pk).map(g => [g.tag, g.label, kids(g).map(o => [o.value, !!o.disabled])])) === j([['optgroup', 'Skill', [['i_karate', true], ['i_sneak', false]]], ['optgroup', 'Jewel', [['i_ring', false], ['i_amu', false]]]])
+            && nPk2 === 2 && j(kids(pk2).map(g => g.tag === 'option' ? g.value : g.label)) === j(['i_a', 'Gear']) && nPk3 === 0 && kids(pk3).length === 0 && kids(kids(pk4)[0]).every(o => !o.disabled), j(kids(pk).map(g => [g.label, kids(g).map(o => o.value)])));
+        const chN = { id: 'c_a', name: 'A', ownerId: 'u_a', values: { f_wp: [{ id: 'w_r1', defId: 'i_ring', qty: 1, on: true }, { id: 'w_b1', defId: 'i_blade', qty: 1, on: false }], f_pl: [{ id: 'w_p', defId: 'i_blade', qty: 1 }], f_ar: [] } };
+        const box = (fid, gm, own, pl, sy, ch) => { const f = (sy || sysB).fields.find(x => x.id === fid); return find(FN(f, ch || chN, null, gm, own, sy || sysB, null, pl), 'sheet-items')[0]; };
+        const bOn = box('f_wp', false, true, { id: 'f_wp', w: 'row', on: true }), bAll = box('f_wp', false, true, { id: 'f_wp', w: 'row' }), bNone = box('f_wp', false, true, { id: 'f_wp', w: 1, on: true }, null, { id: 'c_a', name: 'A', ownerId: 'u_a', values: { f_wp: [{ id: 'w_b1', defId: 'i_blade', qty: 1 }] } });
+        const bPl = box('f_pl', false, true, { id: 'f_pl', w: 1, on: true }), bAr = box('f_ar', false, true, { id: 'f_ar', w: 1 }, pvB);
+        check('F4b fieldNode (run for real): a placement that shows only the rows switched on draws those alone and no picker, "Nothing readied." when none is; without it every row and the grouped picker; a list with no switch ignores the flag (the plain picker as before, "item — category"); a list whose categories the players cannot see gets no picker',
+            find(bOn, 'sheet-item-name').map(x => x.textContent).join() === 'Ring' && find(bOn, 'sheet-item-add').length === 0 && find(bAll, 'sheet-item-name').map(x => x.textContent).join() === 'Ring,Blade' && find(bAll, 'sheet-item-add').length === 1 && kids(find(bAll, 'sheet-item-add')[0]).some(g => g.tag === 'optgroup')
+            && find(bNone, 'sheet-empty-note')[0].textContent === 'Nothing readied.' && find(bPl, 'sheet-item-name').length === 1 && kids(find(bPl, 'sheet-item-add')[0]).some(o => o.tag === 'option' && /Blade — Gear/.test(o.textContent)) && find(bAr, 'sheet-item-add').length === 0,
+            j([find(bOn, 'sheet-item-name').map(x => x.textContent), find(bAll, 'sheet-item-name').map(x => x.textContent), find(bNone, 'sheet-empty-note').map(x => x.textContent)]));
+
+        // the System editor: the Lists tab's card (real), and the handlers that feed it (pinned)
+        const lcSrc = cut('function listCard(', 'function renderCombat(');
+        const LC = new Function('el', 'input', 'numField', 'document', 'LIMITS', lcSrc + '\nreturn listCard;')(fe, (cls, v, t, ph) => { const i = fe('input', cls); i.value = v == null ? '' : String(v); i.title = t; i.placeholder = ph; return i; }, (cls, v) => { const l = fe('label', 'sys-num'), i = fe('input', cls); i.value = v == null ? '' : String(v); l.appendChild(i); return l; }, docF, S.LIMITS);
+        const card = LC(fB('f_wp'), ['Skill', 'Gear']), cbs = find(card, 'sys-list-catcb'), boxOf = c => find(card, c)[0];
+        const card2 = LC({ id: 'f_z', key: 'Z', label: 'Z', kind: 'item-list', list: { lvl: { label: 'Rank', min: 1, max: 4, step: 1, def: 1, labels: ['I', 'II'] } } }, []);
+        check('F4b the Lists tab: a card per item list — a tick per category the library has, plus one the list names that no item has any more; its options as ticks; the level\'s boxes only while rows have a level, the switch\'s only while they have a switch',
+            card.dataset.lid === 'f_wp' && j(cbs.map(c => [c.dataset.cat, c.checked])) === j([['Skill', false], ['Gear', true], ['Jewel', true]]) && boxOf('sys-list-multi').checked === true && boxOf('sys-list-noqty').checked === false
+            && boxOf('sys-list-haslvl').checked === false && find(card, 'sys-list-lvlmin').length === 0 && boxOf('sys-list-hason').checked === true && boxOf('sys-list-onlabel').value === 'Readied' && boxOf('sys-list-ondef').checked === false
+            && find(card2, 'sys-list-lvlmin')[0].value === '1' && find(card2, 'sys-list-lvlnames')[0].value === 'I, II' && find(card2, 'sys-list-onlabel').length === 0 && find(card2, 'sys-list-catcb').length === 0, j(cbs.map(c => [c.dataset.cat, c.checked])));
+        check('F4b the editor\'s handlers: the Lists tab\'s boxes and ticks write the draft\'s list (numbers or nothing, names split on commas; a tick adds or drops its category, the last one leaves "every category"; turning the level or the switch on seeds its defaults); the Items tab\'s switch lock, message, key and level; the Layout toggle; the live key check; the tab is drawn',
+            /else if \(lcc\.indexOf\('sys-list-lvlmin'\) >= 0 && lvD\) numOr\(lvD, 'min'\);/.test(shB) && /else if \(lcc\.indexOf\('sys-list-lvlnames'\) >= 0 && lvD\) \{ var lvn = t\.value\.split\(','\)/.test(shB) && /if \(t\.checked && ci < 0\) cur\.push\(cx\); if \(!t\.checked && ci >= 0\) cur\.splice\(ci, 1\); if \(cur\.length\) lsc\.cats = cur; else delete lsc\.cats;/.test(shB)
+            && /if \(t\.checked\) lsc\.lvl = \{ label: 'Level', min: 0, step: 1, def: 0 \}; else delete lsc\.lvl;/.test(shB) && /if \(t\.checked\) lsc\.on = \{ label: 'On' \}; else delete lsc\.on;/.test(shB)
+            && /if \(c\.indexOf\('sys-item-eqmode'\) >= 0\) \{ if \(t\.value === 'bound' \|\| t\.value === 'curse'\) iit\.eq = t\.value; else delete iit\.eq;/.test(shB) && /else if \(ic\.indexOf\('sys-item-eqtext'\) >= 0\) it\.eqMsg = t\.value\.slice\(0, LIMITS\.rmMsg\);/.test(shB)
+            && /else if \(ic\.indexOf\('sys-item-key'\) >= 0\) \{ var ikv = t\.value\.trim\(\)\.slice\(0, 40\); if \(ikv\) it\.key = ikv; else delete it\.key; \}/.test(shB) && /else if \(act === 'plon'\) \{ if \(pl\.on\) delete pl\.on; else pl\.on = true; \}/.test(shB)
+            && /if \(it && it\.key && !cleanItemKey\(String\(it\.key\), F\(\)\)\)/.test(shB) && /if \(slEl\) \{ slEl\.style\.display = tab === 'lists' \? '' : 'none'; if \(tab === 'lists'\) renderLists\(\); \}/.test(shB)
+            && fs.readFileSync(path.join(app, 'index.html'), 'utf8').indexOf('<div id="sysLists" class="sys-tab" style="display:none;">') > 0);
+    }
+
+    /* ---- Stage 6 F4b review: the lock covers dropping while it is on; a stored "on"; the level clamp's fixed point; the UI findings ---- */
+    {
+        let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+        const pick = a => a[Math.floor(rnd() * a.length)], nums = [undefined, 0, 1, 3, -2, 10, 11, 20.5, 0.3, 999999, -1e6, 1e6, 5e6, 0.7, -0.35], steps = [undefined, 1, 3, 0.5, 0.1, 7, 1e-310, -1, 0, 0.25, 0.3];
+        const bad = [];
+        for (let i = 0; i < 20000 && bad.length < 3; i++) {
+            const raw = { min: pick(nums), max: pick(nums), step: pick(steps), def: pick(nums) };
+            if (rnd() < 0.2) raw.labels = ['A', 'B', 'C'].slice(0, 1 + Math.floor(rnd() * 3));
+            const a = S.cleanListSpec({ lvl: raw }, true).lvl, b = S.cleanListSpec({ lvl: a }, true).lvl, v = pick(nums.filter(x => x !== undefined)), c1 = S.lvlClamp(a, v), c2 = S.lvlClamp(a, c1);
+            const inR = x => (a.min === undefined || x >= a.min) && (a.max === undefined || x <= a.max) && Math.abs(x) <= 1e6;
+            if (j(a) !== j(b) || c1 !== c2 || !inR(c1) || !inR(a.def)) bad.push([raw, a, v, c1, c2]);
+        }
+        check('F4b review: the level clamp is its own fixed point on 20000 random ranges (a bound off the step grid is never landed on, so the GM\'s view, the players\' and every reload agree), inside the range and 1e6 with no float noise, and the list\'s default with it; a denormal step reads 1; value names never run past 1e6',
+            bad.length === 0 && S.lvlClamp({ min: 0, max: 10, step: 3 }, 11) === 9 && S.lvlClamp({ min: 0, max: 0.3, step: 0.1 }, 0.3) === 0.3 && S.lvlClamp({ min: -1e6, max: 0.7, step: 0.1 }, 5) === 0.7
+            && j(S.cleanListSpec({ lvl: { min: 0, max: 10, step: 3, def: 11 } }, true).lvl) === j({ label: 'Level', min: 0, max: 10, step: 3, def: 9 }) && S.cleanListSpec({ lvl: { step: 1e-310 } }, true).lvl.step === 1
+            && S.cleanListSpec({ lvl: { min: 999999, labels: ['a', 'b', 'c'] } }, true).lvl.max === 1e6, j(bad));
+
+        const sysL = cleanSystem({ v: 1, name: 'L', rolls: [], fields: [{ id: 'f_w', key: 'Worn', label: 'Worn', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', def: true }, multi: true } }],
+            items: [{ id: 'i_ring', name: 'Ring', eq: 'bound', eqMsg: 'Stuck' }, { id: 'i_amu', name: 'Amulet', eq: 'curse', eqMsg: 'Warm' }, { id: 'i_band', name: 'Band', rm: 'bound', rmMsg: 'Bound band', eq: 'curse' }, { id: 'i_hat', name: 'Hat' }] }, { F, gmView: true });
+        const pvL = cleanSystem(sysL, { F, gmView: false }), PL = { player: true, view: pvL };
+        const runL = (rows, q, o) => { const ch = { id: 'c_l', values: { f_w: JSON.parse(JSON.stringify(rows)) } }, r = S.applyRowOp(sysL, ch, 'f_w', q, F, o || PL); return [r, r.ok ? r.value : null]; };
+        const [d1] = runL([{ id: 'w_r', defId: 'i_ring', qty: 1, on: true }], { op: 'remove', rowId: 'w_r' });
+        const [d2] = runL([{ id: 'w_r', defId: 'i_ring', qty: 2, on: true }], { op: 'setQty', rowId: 'w_r', qty: 1 });
+        const [d3, v3] = runL([{ id: 'w_r', defId: 'i_ring', qty: 1, on: true }], { op: 'remove', rowId: 'w_r' }, Object.assign({ onGrace: true }, PL));
+        const [d4, v4] = runL([{ id: 'w_r', defId: 'i_ring', qty: 1, on: false }], { op: 'remove', rowId: 'w_r' });
+        const [d5, v5] = runL([{ id: 'w_r', defId: 'i_ring', qty: 1, on: true }], { op: 'remove', rowId: 'w_r' }, Object.assign({ grace: { added: 1 } }, PL));
+        const [d6, v6] = runL([{ id: 'w_a', defId: 'i_amu', qty: 1, on: true, keptOn: 1 }], { op: 'remove', rowId: 'w_a' });
+        const [d7, v7] = runL([{ id: 'w_a', defId: 'i_amu', qty: 1, on: true }], { op: 'remove', rowId: 'w_a' }, {});
+        const [d8] = runL([{ id: 'w_b', defId: 'i_band', qty: 1, on: true }], { op: 'remove', rowId: 'w_b' });
+        const [d9, v9] = runL([{ defId: 'i_ring', qty: 1 }], { op: 'remove', rowId: 'w_ring' });
+        const [d10, v10] = runL([{ id: 'w_a', defId: 'i_amu', qty: 3, on: true }], { op: 'setQty', rowId: 'w_a', qty: 1 });
+        check('F4b review (owner: the lock covers dropping while it is on): a bound switch that is on cannot be dropped or lowered ("stays", its switch message, eq) unless the switch\'s grace (then spent) or a pickup\'s Undo covers it; off, it drops as usual; a cursed one that is on, kept on or not, leaves the owner\'s sheet and stays on the character hidden, with its message (a partial drop is ordinary); the GM drops it as they like; a removal rule of its own wins with its own message; a row on only by the list\'s "starts on" is not locked',
+            j([d1.ok, d1.reason, d1.msg, d1.eq]) === j([false, 'stays', 'Stuck', true]) && d2.reason === 'stays' && d3.ok && d3.onGraceUsed === true && j(v3) === j([]) && d4.ok && j(v4) === j([]) && d5.ok && !d5.onGraceUsed && j(v5) === j([])
+            && d6.ok && d6.hid === true && d6.msg === 'Warm' && d6.name === 'Amulet' && v6.length === 1 && v6[0].hid === 1 && v6[0].on === true && v6[0].id !== 'w_a' && d7.ok && j(v7) === j([])
+            && j([d8.ok, d8.reason, d8.msg, 'eq' in d8]) === j([false, 'stays', 'Bound band', false]) && d9.ok && j(v9) === j([]) && d10.ok && j(v10) === j([{ id: 'w_a', defId: 'i_amu', qty: 1, on: true }]),
+            j([d1, d2, d3, d6, v6, d8, d9, d10]));
+        const [s1, sv1] = runL([{ defId: 'i_ring', qty: 1 }], { op: 'set', rowId: 'w_ring', facts: { on: false } });
+        const [s2] = runL([{ id: 'w_r', defId: 'i_ring', qty: 1 }], { op: 'set', rowId: 'w_r', facts: { on: true } });
+        const [s3] = runL([{ id: 'w_r', defId: 'i_ring', qty: 1, on: true }], { op: 'set', rowId: 'w_r', facts: { on: false } }, Object.assign({ onGrace: true }, PL));
+        check('F4b review: the switch lock engages only on a row stored on; one on only by the list\'s "starts on" switches off freely (its off is stored); switching it on stores it and opens the grace; a grace that lets a switch go is spent',
+            s1.ok && j(sv1) === j([{ defId: 'i_ring', qty: 1, on: false }]) && s2.ok && s2.onRow === 'w_r' && s2.eqNote === 'bound' && s3.ok && s3.onGraceUsed === true, j([s1, sv1, s2, s3]));
+        const vD = validateSystem(cleanSystem({ v: 1, name: 'D', rolls: [], fields: [{ id: 'f_1', key: 'A1', label: 'A1', kind: 'item-list' }, { id: 'f_2', key: 'A2', label: 'A2', kind: 'item-list' }], items: [{ id: 'i_x', name: 'X', key: 'Ax' }, { id: 'i_y', name: 'Y', key: 'ax' }] }, { F, gmView: true }), F);
+        check('F4b review: a key two items share is one error, on the second, however many lists hold them both', j(vD.errors.map(e => e.id)) === j(['i_y']), j(vD.errors));
+
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ntR = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutR = (a, b) => { const i = shR.indexOf(a), k = shR.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('F4b review slice: ' + a); return shR.slice(i, k); };
+        const feR = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined || text === null ? '' : String(text), children: [], title: '', type: '', value: '', checked: false, disabled: false, dataset: {}, style: {}, classList: { add() {} }, on: {}, get childNodes() { return this.children; }, appendChild(x) { this.children.push(x); return x; }, insertBefore(x) { this.children.unshift(x); return x; }, addEventListener(k, f) { this.on[k] = f; } });
+        const optR = (v, t, s) => { const o = feR('option', null, t); o.value = v; if (s) o.selected = true; return o; }, docR = { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }) };
+        const WR = new Function('el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', cutR('// ---- item-list widgets', '// 5h: an effect\'s changes as short text') + '\nreturn { itemListInto: itemListInto };')(
+            feR, (v, cls) => feR('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, () => {}, optR, S.fmtNum, v => v || '', S.LIMITS, true, docR, () => {}, () => {}, () => {}, {});
+        const sysC = cleanSystem({ v: 1, name: 'C', rolls: [], fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Readied' }, lvl: { min: 0, max: 5 } } }], items: [{ id: 'i_a', name: 'A', category: 'Blade' }, { id: 'i_b', name: 'B', category: 'blade' }, { id: 'i_c', name: 'C', category: 'Jewel' }] }, { F, gmView: true });
+        const chC = { id: 'c_c', name: 'C', ownerId: 'u_c', values: {} }, drawC = rows => { const w = feR('div'); WR.itemListInto(w, sysC.fields[0], chC, rows, sysC, false, true, false); return w; };
+        const one = drawC([{ id: 'w_a', defId: 'i_a', qty: 1 }, { id: 'w_b', defId: 'i_b', qty: 1 }]), two = drawC([{ id: 'w_a', defId: 'i_a', qty: 1, lvl: 2 }, { id: 'w_c', defId: 'i_c', qty: 1 }]);
+        const chipsOf = w => w.children.filter(x => x.className.indexOf('sheet-item') === 0 && x.className.indexOf('noteline') < 0).map(r => r.children.filter(k => k.className === 'sheet-chip').map(k => k.textContent).join());
+        const lvIn = two.children[0].children.find(k => k.className === 'sheet-item-lvl').children[0], cbOn = two.children[0].children.find(k => k.className === 'sheet-item-onl').children[0], noteIn = two.children[1].children.find(k => /sheet-item-note$/.test(k.className));
+        const LCR = new Function('el', 'input', 'numField', 'document', 'LIMITS', cutR('function listCard(', 'function renderCombat(') + '\nreturn listCard;')(feR, (cls, v) => { const i = feR('input', cls); i.value = v == null ? '' : String(v); return i; }, (cls, v) => { const l = feR('label', 'sys-num'), i = feR('input', cls); i.value = v == null ? '' : String(v); l.appendChild(i); return l; }, docR, S.LIMITS);
+        const cats20 = Array.from({ length: 20 }, (_, i) => 'K' + i), cardC = LCR({ id: 'f_z', key: 'Z', label: 'Z', kind: 'item-list', list: { cats: cats20 } }, cats20.concat(['X1', 'X2'])), cbsC = [];
+        const walkR = n => { if ((' ' + n.className + ' ').indexOf(' sys-list-catcb ') >= 0) cbsC.push(n); (n.children || []).forEach(walkR); }; walkR(cardC);
+        check('F4b review, the sheet: a category chip only while the rows drawn span two or more categories (Blade and blade are one); the level box, the switch and the note carry the field and a per-row part, so focus comes back after a commit\'s redraw; the Lists card greys further categories once 20 are ticked',
+            j(chipsOf(one)) === j(['', '']) && j(chipsOf(two)) === j(['Blade', 'Jewel']) && lvIn.dataset.fid === 'f_g' && lvIn.dataset.part === 'lvl-w_a' && cbOn.dataset.part === 'on-w_a' && noteIn && noteIn.dataset.part === 'note-w_a'
+            && cbsC.length === 22 && cbsC.filter(c => c.disabled).map(c => c.dataset.cat).join() === 'X1,X2', j([chipsOf(one), chipsOf(two), lvIn.dataset, cbsC.filter(c => c.disabled).length]));
+        const rvS = (shR.match(/function revertLast\(\) \{[\s\S]*?\n\}/) || [''])[0], keptRow = [{ id: 'w_1', defId: 'i_a', qty: 1, on: true, keptOn: 1 }], prevRow = [{ id: 'w_1', defId: 'i_a', qty: 1, on: true }];
+        const mkRv = seen => {
+            const out = { deltas: [], asked: null }, ch = { id: 'c_r', values: { f_g: JSON.parse(JSON.stringify(keptRow)) } }, camp = { system: sysC, chars: { c_r: ch } };
+            new Function('getActiveCampaign', 'systemOf', 'isClient', 'charById', 'afterCharChange', 'toast', 'clone', 'fieldById', 'ownerSeesSame', 'var lastChange = { charId: "c_r", fieldId: "f_g", prev: ' + j(prevRow) + ' };\n' + rvS + '\nreturn revertLast;')(
+                () => camp, () => sysC, () => false, id => camp.chars[id], (c, w, d) => out.deltas.push(JSON.parse(JSON.stringify(d))), () => {}, x => JSON.parse(JSON.stringify(x)), S.fieldById, (cp, sy, a, b) => { out.asked = [a, b]; return seen; })();
+            return { out, ch };
+        };
+        const rvA = mkRv(true), rvB = mkRv(false);
+        check('F4b review: Revert (run for real) takes back a change to an item list its owner never saw (the GM switching off a kept-on curse) without sending anything, asking with the row as it was and as it goes back; one the owner saw is sent as before',
+            rvS.length > 0 && j(rvA.out.deltas) === j([{}]) && j(rvA.ch.values.f_g) === j(prevRow) && j(rvA.out.asked) === j([keptRow, prevRow]) && j(rvB.out.deltas) === j([{ f_g: prevRow }]), j([rvA.out, rvB.out]));
+        check('F4b review, the source: a refused switch says "It stays on." unless the GM wrote a message (the client passes the op); Revert of a change its owner never held sends nothing; the Layout toggle stays while it is set, so it can be cleared after the list lost its switch; the key\'s error names every reason; the host spends a switch\'s grace once and lets it cover a drop',
+            /function editResult\(rid, ok, reason, msg, op\) \{ if \(!ok\) toast\(reason === 'stays' \? \(msg \|\| \(op === 'set' \? 'It stays on\.' :/.test(shR) && /window\.wpSheets\.editResult\(rid, false, reason, msg, p\.q \? p\.q\.op : ''\)/.test(ntR)
+            && /if \(fR && fR\.kind === 'item-list' && ownerSeesSame\(camp, sysR, curR, lastChange\.prev\)\) delete d\[fidR\];/.test(shR) && /if \(plOn \|\| \(pl\.on && plf && plf\.kind === 'item-list'\)\)/.test(shR)
+            && /not a word formulas already use \(count, qty, on, has, lvl, paid, row; max, cur, ranks, base;/.test(shR) && /if \(resI\.onGraceUsed\) delete _rowGrace\[gkI \+ '\|on'\];/.test(ntR) && /var ogI = !!\(_rowGrace\[gkI \+ '\|on'\] && _rowGrace\[gkI \+ '\|on'\]\.until > nowI\);/.test(ntR));
+    }
+
     /* ---- Stage 6 look fold (L1): the sheet palette ---- */
     {
         const crypto = require('crypto'), H = o => crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex');
@@ -1089,7 +1346,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const iHa = clickH.indexOf("if (b.id === 'sysLayoutAuto' && layoutView === 'hud')"), iHc = clickH.indexOf("if (b.id === 'sysLayoutClear' && layoutView === 'hud')"), iSa = clickH.indexOf("if (b.id === 'sysLayoutAuto') {"), iSc = clickH.indexOf("if (b.id === 'sysLayoutClear') {");
         check('HUD frame HF1: buildSections draws the HUD without an automatic-layout fallback; a Pin in either view drives the band (vctx.targets, else both layouts); the sheet\'s regexes and counts still hold',
             /var sheet = \(hudV \|\| \(sys\.sheet && sys\.sheet\.sections && sys\.sheet\.sections\.length\)\) \? sys\.sheet : autoLayout\(sys\);/.test(shH1) && /targets: \(vctx && vctx\.targets\) \|\| pinTargetsAll\(sys\.sheet\), vctx: vctx,/.test(shH1)
-            && (shH1.match(/_fxLive = false; try \{ buildSections\(/g) || []).length === 2 && (shH1.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2
+            && (shH1.match(/_fxLive = false; try \{ buildSections\(/g) || []).length === 2 && (shH1.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars, pl)?\)/g) || []).length === 2
             && /var secKey = \(hudV \? 'h:' : ''\) \+ sec\.id;/.test(shH1) && /if \(\(_fxForm\.view \|\| 'sheet'\) === fxV\)/.test(shH1)
             && /import \{[^}]*pinTargetsAll, hudView, hudHasContent[, A-Za-z]* \} from '\.\/systemcore\.js';/.test(shH1));
         check('HUD frame HF1: the Layout tab — layoutRoot routes the sections, the tabs and the band / ledger boxes; the switch never dirties the draft; the HUD\'s Copy / Remove come before the sheet\'s Auto / Clear, which keep the HUD; deleteGroup cleans both layouts; the HUD title is handled before the section lookup; the Identity box is the sheet\'s alone; the preview draws hudView',
@@ -1534,9 +1791,9 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const rvSrc = (sh7.match(/function revertLast\(\) \{[\s\S]*?\n\}/) || [''])[0];
         const mkCM = (client, sys, ch, cw) => {
             const log = { deltas: [], toasts: [], sent: [] }, camp = { system: sys, chars: { [ch.id]: ch } };
-            const api = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'applyEdit', 'F', 'clone', 'afterCharChange', 'toast', 'renderViews', 'net', 'LIMITS', 'charById', 'var lastChange = null;\n' + cmSrc + '\n' + rvSrc + '\nreturn { commitMany: commitMany, revertLast: revertLast, last: function() { return lastChange; } };')(
+            const api = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'applyEdit', 'F', 'clone', 'afterCharChange', 'toast', 'renderViews', 'net', 'LIMITS', 'charById', 'fieldById', 'ownerSeesSame', 'var lastChange = null;\n' + cmSrc + '\n' + rvSrc + '\nreturn { commitMany: commitMany, revertLast: revertLast, last: function() { return lastChange; } };')(
                 () => camp, () => sys, () => client, () => cw !== false, S.applyEdit, () => F, x => JSON.parse(JSON.stringify(x)), (c, whole, d) => log.deltas.push(JSON.parse(JSON.stringify(d))), m => log.toasts.push(m), () => {},
-                () => ({ charEdits: (id, list) => { log.sent.push([id, JSON.parse(JSON.stringify(list))]); return { ok: true }; } }), LIMITS, id => camp.chars[id]);
+                () => ({ charEdits: (id, list) => { log.sent.push([id, JSON.parse(JSON.stringify(list))]); return { ok: true }; } }), LIMITS, id => camp.chars[id], S.fieldById, () => false);   // F4b review: Revert asks whether an item list's owner saw the change (these fields are not lists)
             return { api, ch, log };
         };
         const g1 = mkCM(false, gD7, JSON.parse(JSON.stringify(chD))); g1.api.commitMany(g1.ch, tSt.targets.map(t => ({ fieldId: t.fieldId, value: t.value })));
@@ -1751,7 +2008,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /_dialOn = JSON\.stringify\(tokenFlags\(\)\); _roundSig = roundSigOf\(c, camp\);/.test(sh9) && /v\.dialOn = JSON\.stringify\(tokenFlags\(\)\); v\.roundSig = roundSigOf\(c, camp\);/.test(sh9) && /dialOn: null, roundSig: '', redraw: null \}/.test(sh9)
             && /swapTokenControls\(p, c, camp\);\n        \}\n        var rsS = roundSigOf\(c, camp\); if \(rsS !== _roundSig\) \{ _roundSig = rsS; _dialStale = true; \}[^\n]*\n        if \(final && _dialStale\)/.test(sh9)
             && /swapTokenControls\(v\.panel, c, camp\);\n    \}\n    var rs = roundSigOf\(c, camp\); if \(rs !== v\.roundSig\) \{ v\.roundSig = rs; v\.dialStale = true; \}[^\n]*\n    if \(final && v\.dialStale\)/.test(sh9)
-            && /import \{[^}]*labelNames, withRound \} from '\.\/systemcore\.js';/.test(sh9)
+            && /import \{[^}]*labelNames, withRound, rowLvl, rowOn, cleanItemKey \} from '\.\/systemcore\.js';/.test(sh9)
             && /elevation: ruleQ\('elevation'\) \}\);[^\n]*\n            tcQ = SQ\.withRound\(tcQ, mapQ && own\(net\.combats, locQ\) \? net\.combats\[locQ\] : null\);[^\n]*\n            chQ = srcQ; varsQ = SQ\.makeResolver\(viewQ, chvQ, Fq, tcQ\);/.test(nt9)
             && !/\bfin\(/.test(nt9) && !/\bfin\(/.test(sh9)
             && /net\.combats = \{\}; combatAsked = \{\};\n[^\n]*\n[^\n]*\n    if \(window\.wpSheets && window\.wpSheets\.tokenTurned\) setTimeout\(function\(\) \{ window\.wpSheets\.tokenTurned\(null, true\); \}, 0\);/.test(nt9)
@@ -1969,7 +2226,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('derived GM-only values: the sheet row such a skill draws on the players\' view (fieldNode, run for real — the band and the sheet\'s and the HUD\'s sections draw through it): the ranks box keeps the player\'s ranks, theirs to edit, and the total is an em dash marked as an error with "GM only" as its title; a skill with no base, or a visible one, shows its total; the GM\'s row shows the whole total',
             j(rowK(pK, allPK, 'Sk', false, true)) === j(['3', false, '\u2014', 'sheet-total sheet-err', 'GM only']) && j(rowK(pK, allPK, 'SE', false, true)) === j(['2', false, '= 2', 'sheet-total', 'ranks'])
             && j(rowK(pK, allPK, 'SA', false, true)) === j(['1', false, '= 4', 'sheet-total', 'ranks + A - 1']) && j(rowK(gK, allGK, 'Sk', true, false)) === j(['3', false, '= 15', 'sheet-total', 'ranks + GMFig'])
-            && /var node = \(q\.id && byId\[q\.id\]\) \? fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shD) && /node = fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars\)/.test(shD),
+            && /var node = \(q\.id && byId\[q\.id\]\) \? fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shD) && /node = fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars, pl\)/.test(shD),
             j([rowK(pK, allPK, 'Sk', false, true), rowK(pK, allPK, 'SE', false, true), rowK(pK, allPK, 'SA', false, true), rowK(gK, allGK, 'Sk', true, false)]));
         const parK = parityD(kRaw, chK);
         check('derived GM-only values: on this system too, gmDerivedNames lists a visible name exactly when the players\' view reads it as an error — SZ included, a skill over a GM-only field that is 0, whose ranks + 0 was the GM\'s very total',
@@ -2109,7 +2366,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(lkS\.steppers === 'inside' && !\(k === 'number' && f\.slider && f\.min !== undefined && f\.max !== undefined\)\) row\.appendChild\(stepWrap\(inp, f, c, editable\)\);[^\n]*\n\s*else row\.appendChild\(inp\);/.test(sh8)
             && /container\.querySelectorAll\('\[data-part="up"\], \[data-part="down"\]'\)\.forEach\(function\(el\) \{ el\.disabled = true; \}\);/.test(sh8)
             && /body\.classList\.toggle\('sheet-num-mono', L\.numbers === 'mono'\); body\.classList\.toggle\('sheet-steppers-inside', L\.steppers === 'inside'\);/.test(sh8) && /body\.classList\.toggle\('sheet-values-boxed', L\.values === 'boxed'\); body\.classList\.toggle\('sheet-rows-cards', L\.rows === 'cards'\);/.test(sh8)
-            && (sh8.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars)?\)/g) || []).length === 2);
+            && (sh8.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars, pl)?\)/g) || []).length === 2);
         const css8 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), l8css = css8.slice(css8.indexOf('/* Stage 6 look fold (L8)'), css8.indexOf('/* Stage 6 look fold (L7)'));
         const l8rules = l8css.split('\n').filter(x => /\{/.test(x) && !/^\s*\/\*/.test(x)), ungated8 = l8rules.filter(x => !/\.sheet-num-mono|\.sheet-band-inline|\.sheet-band-chips|\.sheet-steppers-inside|\.sheet-values-boxed|\.sheet-rows-cards/.test(x.split('{')[0]));
         check('look L8: every rule is gated by its class; the arrow masks are literal URLs to bundled files; the editor offers all five in the details row; tour and Help say so',
@@ -2316,7 +2573,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('look L2: the renderer builds a glyph URL only from glyphPath\'s answer; no innerHTML in iconNode or the picker; the picker keeps Escape and Enter from the editor, never lets its search box read as an edit, offers Icons and Emoji, and closes on a redraw; the option lists use iconText; a roll\'s tone class comes from an own-key lookup',
             /var p = glyphPath\(v\); if \(!p\) return el\('span', cls, v\);/.test(iconFn) && /var u = 'url\("' \+ GLYPH_BASE \+ p \+ '\.svg"\)';/.test(iconFn) && !/innerHTML/.test(iconFn) && !/innerHTML/.test(pickSrc) && pickSrc.length > 0
             && /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); e\.stopPropagation\(\);/.test(pickSrc) && /else if \(e\.key === 'Enter'\) \{ e\.preventDefault\(\); e\.stopPropagation\(\);/.test(pickSrc) && /q\.addEventListener\('input', function\(e\) \{ e\.stopPropagation\(\);/.test(pickSrc) && /'Emoji'/.test(pickSrc) && /EMOJI_SET/.test(shG2)
-            && /function renderAll\(\) \{\s*\n\s*closeGlyphPicker\(\);/.test(shG2) && (shG2.match(/iconText\((d2|it)\.icon\)/g) || []).length === 4 && /Object\.prototype\.hasOwnProperty\.call\(ROLL_TONE_CLS, r\.tone\) \? ROLL_TONE_CLS\[r\.tone\] : ''/.test(shG2)
+            && /function renderAll\(\) \{\s*\n\s*closeGlyphPicker\(\);/.test(shG2) && (shG2.match(/iconText\((d2|it)\.icon\)/g) || []).length === 6 && /Object\.prototype\.hasOwnProperty\.call\(ROLL_TONE_CLS, r\.tone\) \? ROLL_TONE_CLS\[r\.tone\] : ''/.test(shG2)
             && ['sys-tab-icon', 'sys-sec-icon', 'sys-res-icon', 'sys-fx-icon', 'sys-item-icon', 'sys-roll-icon'].every(c => new RegExp("input\\('" + c + " field'[^\\n]*glyphButton\\(").test(shG2)));
         const cssG = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), faces = cssG.match(/url\("assets\/fonts\/inter\/[^"]+"\)/g) || [];
         check('look L2: Inter is declared from the bundled files (both exist), a glyph is a mask in currentColor, the servers send the font\'s type', faces.length === 2 && faces.every(u => fs.existsSync(path.join(app, u.slice(5, -2)))) && /\.wp-glyph \{[^}]*background-color: currentColor;[^}]*mask-size: contain;/.test(cssG)

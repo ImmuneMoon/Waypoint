@@ -17,6 +17,7 @@ var LIMITS = Object.freeze({
     listCats: 20, rowNote: 200, lvlAbs: 1e6,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level
     listStats: 10, entryStats: 16, statAbs: 1e9,   // Stage 6 F4c1: a list's stats, the stats an item carries, the size of a stat (a price, a weight: 99,999,999 fits)
     listCols: 6,                             // Stage 6 F5a1: a list's columns (a formula per row)
+    pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 10,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
     band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
@@ -258,7 +259,7 @@ function cleanRollDef(r, gmView) {
 // An item definition (camp.system.items). gmView false: a vis:'gm' item is dropped, and a visible item's
 // formula/skill text (damage/cost/throwSkill) is stripped — the host resolves every roll, so players never
 // need the formula, which also removes the GM-only-field-leak surface (cleanSystem's blanking is fields/rolls only).
-function cleanItemDef(it, F, gmView, keys) {   // keys (F4c1): the stat keys of the view's item lists (statKeys); none: the key rule alone
+function cleanItemDef(it, F, gmView, keys, picks) {   // keys (F4c1): the stat keys of the view's item lists (statKeys); none: the key rule alone. picks (F5a2): their choices' labels (statPicks)
     if (!isObj(it) || typeof it.id !== 'string' || !ITEM_ID.test(it.id)) return null;
     var vis = it.vis === 'gm' ? 'gm' : 'all';
     if (!gmView && vis === 'gm') return null;
@@ -274,7 +275,7 @@ function cleanItemDef(it, F, gmView, keys) {   // keys (F4c1): the stat keys of 
     if (gmView && RM_MODES[it.eq] === 1) { out.eq = it.eq; var eqm = cutText(it.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // Stage 6 F4b: a player's switching it off (bound: it stays on; curse on contact: you keep it on) and its message — as secret
     var ik = cleanItemKey(it.key, F); if (ik) out.key = ik;   // F4b: its key in formulas, unique inside each list it can be on (the validator)
     var il = lvlNum(it.lvl); if (il !== undefined) out.lvl = il;   // F4b: the level a new row of it starts at (else the list's)
-    var ist = cleanEntryStats(it.stats, keys); if (ist) out.stats = ist;   // F4c1: its stats — under a key some item list of this view defines (any list, never scoped by category: a category changed later loses nothing, and the GM's sheet and the owner's read the same)
+    var ist = cleanEntryStats(it.stats, keys, picks); if (ist) out.stats = ist;   // F4c1: its stats — under a key some item list of this view defines (any list, never scoped by category: a category changed later loses nothing, and the GM's sheet and the owner's read the same)
     if (isObj(it.area)) {
         var ft = cleanNum(it.area.ft, 0) | 0;
         if (ft > 0) out.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[it.area.shape] ? it.area.shape : 'circle', name: cutText(it.area.name, LIMITS.label) };   // F4c1: every control character (as a copy's)
@@ -410,17 +411,23 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (Array.isArray(v.stats)) {   // F4c1: its stats — a number every item of it carries (Acc, Wt, Cost), ten at most, each key once ignoring case (the first wins; a key is never trimmed or fixed)
         var sts = [], seenS = map();
         for (var si = 0; si < v.stats.length && sts.length < LIMITS.listStats; si++) {
-            var s = v.stats[si]; if (!isObj(s) || (s.kind !== undefined && s.kind !== 'num')) continue;   // F5a brings other kinds (a pick of named values): a newer file's is dropped
+            var s = v.stats[si], pick = isObj(s) && s.kind === 'pick'; if (!isObj(s) || (s.kind !== undefined && s.kind !== 'num' && !pick)) continue;   // F5a2: a number, or a choice (pick) of named options
             var sk = statKey(s.key, F); if (!sk || seenS[lower(sk)]) continue;
             seenS[lower(sk)] = 1;
-            var so = { key: sk, label: cutText(s.label, LIMITS.label) || sk }, sd = statNum(s.def); if (sd !== undefined && sd !== 0) so.def = sd;
-            var slb = cleanLabels(s.labels); if (slb) so.labels = slb;   // names for the values 0, 1, 2... (a value past them shows as the number: no clamp, so lists sharing a key never fight)
+            var so = { key: sk, label: cutText(s.label, LIMITS.label) || sk };
+            if (pick) {   // F5a2: a choice — options { label, name } (the name: one numeric name formulas read, ST); its default is an option's label
+                so.kind = 'pick'; so.opts = cleanPickOpts(s.opts);
+                var pdl = typeof s.def === 'string' ? lower(cutText(s.def, LIMITS.label)) : ''; for (var po = 0; pdl && po < so.opts.length; po++) if (lower(so.opts[po].label) === pdl) { so.def = so.opts[po].label; break; }
+            } else {
+            var sd = statNum(s.def); if (sd !== undefined && sd !== 0) so.def = sd;
+            var slb = cleanLabels(s.labels); if (slb) so.labels = slb;
+            }   // names for the values 0, 1, 2... (a value past them shows as the number: no clamp, so lists sharing a key never fight)
             if (s.show === true) so.show = true;   // On the row: a chip beside the name, a column in a rich table
             sts.push(so);
         }
         if (sts.length) out.stats = sts;
     }
-    if (out.stats && typeof v.price === 'string') { var pl = lower(v.price); for (var pi = 0; pi < out.stats.length; pi++) if (lower(out.stats[pi].key) === pl) { out.price = out.stats[pi].key; break; } }   // F4c1: the price is one of its stats (stored as its key): a row records it as paid when it is added
+    if (out.stats && typeof v.price === 'string') { var pl = lower(v.price); for (var pi = 0; pi < out.stats.length; pi++) if (lower(out.stats[pi].key) === pl) { if (out.stats[pi].kind !== 'pick') out.price = out.stats[pi].key; break; } }   // F5a2: never a choice   // F4c1: the price is one of its stats (stored as its key): a row records it as paid when it is added
     if (v.custom === true) out.custom = true;   // F4c3: Custom rows — players may add rows of their own (+ Custom…); the GM may on any list shaped here
     if (Array.isArray(v.cols)) {   // F5a1: its columns — a formula worked out for each row (Row.lvl, Row.<stat>…), six at most; a key shares the stats' names (unique ignoring case)
         var cls = [], seenK = map(); (out.stats || []).forEach(function(x) { seenK[lower(x.key)] = 1; });
@@ -439,6 +446,26 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     }
     return Object.keys(out).length ? out : null;
 }
+// Stage 6 F5a2: a choice stat's options — { label ≤60, name } each, at most LIMITS.pickOpts, a label once ignoring case; the name one formula name
+// (letters, digits, _ and dots, 64 at most: the dice path's cap). An option without a usable name (the players' view drops a GM-only one) is left out
+function cleanPickOpts(v) {
+    var out = [], seen = map();
+    (Array.isArray(v) ? v : []).forEach(function(o) {
+        if (out.length >= LIMITS.pickOpts || !isObj(o)) return;
+        var lb = cutText(o.label, LIMITS.label), nm = typeof o.name === 'string' ? o.name.trim() : '';
+        if (!lb || seen[lower(lb)] || !/^[A-Za-z_][A-Za-z0-9_.]{0,63}$/.test(nm)) return;
+        seen[lower(lb)] = 1; out.push({ label: lb, name: nm });
+    });
+    return out;
+}
+// F5a2: the choice stats of a view's item lists — lower-case key -> (lower-case label -> the label as the list spells it), the first list's; a key a
+// list defines as a number first is a number. Local, never sent
+function statPicks(fields) {
+    var m = map(), kind = map();
+    (Array.isArray(fields) ? fields : []).forEach(function(f) { if (isObj(f) && f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats)) f.list.stats.forEach(function(s) { var k = isObj(s) ? statKey(s.key) : ''; if (!k || kind[lower(k)]) return; kind[lower(k)] = s.kind === 'pick' ? 'pick' : 'num'; if (s.kind === 'pick') { var lm = map(); (s.opts || []).forEach(function(o) { if (isObj(o) && typeof o.label === 'string') lm[lower(o.label)] = o.label; }); m[lower(k)] = lm; } }); });
+    return m;
+}
+function picksOf(spec) { var m = null; (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { var k = isObj(s) && s.kind === 'pick' ? statKey(s.key) : ''; if (k && !(m && m[lower(k)])) { m = m || map(); var lm = map(); (s.opts || []).forEach(function(o) { if (isObj(o) && typeof o.label === 'string') lm[lower(o.label)] = o.label; }); m[lower(k)] = lm; } }); return m; }
 // F4c1: the stat keys of a view's item lists — lower-case key -> the key as the first list (field order) spells it. Local, never sent
 function statKeys(fields) {
     var m = map();
@@ -454,18 +481,19 @@ function oneSpelling(fields) {
 // F4c1: stats (an item's, a carried copy's) — numbers within 1e9 under keys a list defines (keys: lower-case -> its spelling; none: the key rule
 // alone, a copy's own), at most LIMITS.entryStats, a plain object (the wire's packer refuses a prototype-free one); null when none. One spelling
 // a key (F4c1 review): a copy's cost and Cost keep the first, as a list's keys do, so the GM's sheet and its owner's read one value
-function cleanEntryStats(v, keys) {
+function cleanEntryStats(v, keys, picks) {   // picks (F5a2): lower key -> the choice's labels (a label no option has is dropped); none: numbers only under keys
     if (!isObj(v)) return null;
     var out = {}, seen = map(), n = 0, ks = Object.keys(v);
     for (var i = 0; i < ks.length && n < LIMITS.entryStats; i++) {
-        var kk = keys ? keys[lower(ks[i])] : statKey(ks[i]), x = statNum(v[ks[i]]);
+        var kk = keys ? keys[lower(ks[i])] : statKey(ks[i]), raw = v[ks[i]], pk = kk && picks ? picks[lower(kk)] : null;
+        var x = pk ? (typeof raw === 'string' ? pk[lower(cutText(raw, LIMITS.label))] : undefined) : (!keys && picks === 'labels' && typeof raw === 'string' ? (cutText(raw, LIMITS.label) || undefined) : statNum(raw));   // picks 'labels': a copy's own (a snapshot, a custom row) may hold a choice's label
         if (!kk || x === undefined || seen[lower(kk)]) continue;
         out[kk] = x; seen[lower(kk)] = 1; n++;
     }
     return n ? out : null;
 }
 function keysOf(spec) { var m = null; (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { var k = isObj(s) ? statKey(s.key) : ''; if (k) { m = m || map(); if (!m[lower(k)]) m[lower(k)] = k; } }); return m; }
-function rowStats(v, spec) { var k = keysOf(spec); return k ? cleanEntryStats(v, k) : null; }   // F4c1: a custom or inline copy's stats as its list holds them (a list with no stats: none)
+function rowStats(v, spec) { var k = keysOf(spec); return k ? cleanEntryStats(v, k, picksOf(spec)) : null; }   // F4c1: a custom or inline copy's stats as its list holds them (a list with no stats: none)
 function lvlNum(x) { if (typeof x !== 'number' && typeof x !== 'string') return undefined; if (typeof x === 'string' && !x.trim()) return undefined; var n = Number(x); return fin(n) && Math.abs(n) <= LIMITS.lvlAbs ? n : undefined; }
 function cleanLvlSpec(v) {
     if (!isObj(v)) return null;
@@ -672,7 +700,8 @@ function cleanSystem(sys, opts) {
     var seenR = map();
     (Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (out.rolls.length >= LIMITS.rolls) return; var c = cleanRollDef(r, gmView); if (!c || seenR[c.id]) return; seenR[c.id] = 1; out.rolls.push(c); });
     var gmKeys = gmView ? map() : gmEntryKeys(sys, out.fields), hasGmKeys = Object.keys(gmKeys).length > 0;   // F5a1: per visible list, the keys of the GM-only entries in its scope
-    if (!gmView && (dropped.length || hasGmKeys)) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
+    var hasPicks = out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.stats) && f.list.stats.some(function(x) { return x.kind === 'pick'; }); });   // F5a2
+    if (!gmView && (dropped.length || hasGmKeys || hasPicks)) {   // a visible formula that named a GM-only key is blanked: the player sees "GM only", never the name
         var isDropped = map(); dropped.forEach(function(k) { isDropped[k] = 1; });
         var mentions = function(text) {
             if (!text) return false;
@@ -681,16 +710,16 @@ function cleanSystem(sys, opts) {
             return (String(text).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).some(function(t) { return hit(t) || hit(t.split('.')[0]); });   // Stage 6: text that does not parse is checked word by word — a typo never carries a GM-only name to players
         };
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
-        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); });   // F5a1: a list column too (it reads "GM only")
+        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); });   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
         out.rolls = out.rolls.filter(function(r) { return !mentions(r.formula); });
         out.rolls.forEach(function(r) { if (r.label.indexOf('{') >= 0 && capMentions(r.label)) r.label = labelHead(r.label); });   // HUD frame (HF5a, H3): a label naming a GM-only value keeps only its plain text before the first {...} (fail closed, as a caption)
     }
     var fieldIds = map(), rollIds = map(), resIds = map();
     out.fields.forEach(function(f) { fieldIds[f.id] = f.kind; if (f.kind === 'resource') resIds[f.id] = 1; }); out.rolls.forEach(function(r) { rollIds[r.id] = 1; });   // fieldIds: id -> kind (always truthy; the band gates on the kind)
-    var seenIt = map(), stKeys = statKeys(out.fields);   // F4c1: the stats this view's item lists define (the players' view: visible lists only, so a GM-only list's stat never travels)
+    var seenIt = map(), stKeys = statKeys(out.fields), stPicks = statPicks(out.fields);   // F4c1: the stats this view's item lists define (the players' view: visible lists only, so a GM-only list's stat never travels)
     (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
         if (out.items.length >= LIMITS.items) return;
-        var c = cleanItemDef(it, F, gmView, stKeys);
+        var c = cleanItemDef(it, F, gmView, stKeys, stPicks);
         if (!c || seenIt[c.id]) return;
         seenIt[c.id] = 1; out.items.push(c);
     });
@@ -901,7 +930,7 @@ function patchOf(v, keys, cap) {   // the keys it knows, each null or of its typ
 function statsPatch(v) {
     if (!isObj(v)) return null;
     var ks = Object.keys(v), out = {}; if (ks.length > LIMITS.entryStats) return null;
-    for (var i = 0; i < ks.length; i++) { var k = ks[i], x = v[k]; if (!STAT_KEY.test(k) || (k in Object.prototype) || (lower(k) in Object.prototype)) return null; if (x !== null && statNum(x) === undefined) return null; out[k] = x; }
+    for (var i = 0; i < ks.length; i++) { var k = ks[i], x = v[k]; if (!STAT_KEY.test(k) || (k in Object.prototype) || (lower(k) in Object.prototype)) return null; if (x !== null && statNum(x) === undefined && !(typeof x === 'string' && x.length <= LIMITS.label * 4 && x.trim())) return null; out[k] = x; }
     return out;
 }
 function cleanDenyReason(r) { return typeof r === 'string' && DENY[r] ? r : 'value'; }
@@ -925,7 +954,7 @@ function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by
     if (gmView && RM_MODES[d.eq] === 1) { out.eq = d.eq; var eqm = cutText(d.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // F4b: the equip lock, as secret
     if (gmView || vis === 'all') { var rk = cleanItemKey(d.key); if (rk) out.key = rk; }   // F4b: a GM-only copy's key stays the GM's (critic 2)
     var rl = lvlNum(d.lvl); if (rl !== undefined) out.lvl = rl;
-    var ds = cleanEntryStats(d.stats, null); if (ds) out.stats = ds;   // F4c1: its stats by the key rule (a snapshot keeps every one; a custom or inline copy's are narrowed to its list's: rowStats)
+    var ds = cleanEntryStats(d.stats, null, 'labels'); if (ds) out.stats = ds;   // F4c1: its stats by the key rule (a snapshot keeps every one; a custom or inline copy's are narrowed to its list's: rowStats)
     if (gmView) {   // formula text stays on the GM's machine, as an item's does
         var dmg = cleanFormulaText(d.damage); if (dmg) out.damage = dmg;
         var cst = cleanFormulaText(d.cost); if (cst) out.cost = cst;
@@ -966,7 +995,7 @@ function cleanOv(v, spec) {
     if (ic) o.icon = ic;
     if (ca) o.category = ca;
     if (typeof v.notes === 'string') { var nt = str(v.notes, LIMITS.text).replace(CTRL_RE_G, ' '); if (nt.trim()) o.notes = nt; }
-    var st = spec === true ? cleanEntryStats(v.stats, null) : rowStats(v.stats, spec); if (st) o.stats = st;
+    var st = spec === true ? cleanEntryStats(v.stats, null, 'labels') : rowStats(v.stats, spec); if (st) o.stats = st;
     if (st && Array.isArray(v.held)) { var hs = map(), hl = []; v.held.slice(0, LIMITS.entryStats * 4).forEach(function(h) { if (typeof h === 'string') hs[lower(h)] = 1; }); Object.keys(st).forEach(function(k) { if (hs[lower(k)] === 1) hl.push(k); }); if (hl.length) o.held = hl; }
     if (isObj(v.area)) { var ft = cleanNum(v.area.ft, 0) | 0; if (ft > 0) o.area = { ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: 'circle', name: cutText(v.area.name, LIMITS.label) }; }
     var dm = cleanFormulaText(v.damage); if (dm) o.damage = dm;
@@ -992,6 +1021,8 @@ function rowStat(spec, def, key) {
     (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!st && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(k)) st = s; });
     if (st) k = st.key;
     var v, ds = isObj(def) && isObj(def.stats) ? def.stats : null;
+    if (st && st.kind === 'pick') { var pv = ds && typeof ds[k] === 'string' ? ds[k] : ''; if (!pv && ds) Object.keys(ds).forEach(function(dk) { if (!pv && lower(dk) === lower(k) && typeof ds[dk] === 'string') pv = ds[dk]; }); var pm = null; (st.opts || []).forEach(function(o) { if (!pm && lower(o.label) === lower(pv)) pm = o.label; }); return pm || (typeof st.def === 'string' ? st.def : '');   // F5a2: a choice reads its option's label (else the default, else none)
+    }
     if (ds && Object.prototype.hasOwnProperty.call(ds, k)) v = ds[k];
     else if (ds) { var lk = lower(k), dk = Object.keys(ds); for (var i = 0; i < dk.length; i++) if (lower(dk[i]) === lk) { v = ds[dk[i]]; break; } }   // another spelling of the key (one per system since critic 2; a file from before reads the same)
     if (typeof v === 'number' && fin(v)) return v;
@@ -1086,7 +1117,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (RM_MODES[dN.rm] === 1) { extra.note = dN.rm; extra.name = dN.name || 'Item'; }
         if (extra.eqNote) extra.name = ent.name || 'Item';
     } else if (q.op === 'custom') {   // F4c3: a character's own row, made or changed
-        var cu = applyCustom(sys, list, q, spec, F, opts, extra); if (cu) return cu;
+        var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts)); if (cu) return cu;
     } else {
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId)) return { ok: false, reason: 'value' };
         if (q.op === 'ov' && (!spec || (opts.player && !(isObj(sys.listRules) && sys.listRules.ownerStats === true)))) return { ok: false, reason: 'field' };   // F4c2: a copy's own values need a list shaped in the Lists tab; its owner changes them only under Setting A (the rules of the system judged on: the host's, the client's view)
@@ -1130,7 +1161,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             if (opts.player && pq !== null && Object.keys(pq).some(function(k) { return k !== 'stats'; })) return { ok: false, reason: 'field' };
             var prP = spec && typeof spec.price === 'string' && spec.price ? lower(spec.price) : '';   // F4c2 review: paid is the GM's — a player's stat change that can move the price first records what the row read (a recorded Paid never moves)
             if (opts.player && prP && typeof rwO.paid !== 'number' && (pq === null || (isObj(pq) && (pq.stats === null || (isObj(pq.stats) && Object.keys(pq.stats).some(function(k) { return lower(k) === prP; })))))) rwO.paid = clampNum(rowPaid(spec, rwO, rdO.def), 0, LIMITS.statAbs);
-            var ovr = applyOv(rwO, rdO.base, pq, spec, F, !!opts.player); if (ovr) return ovr;
+            var ovr = applyOv(rwO, rdO.base, pq, spec, F, !!opts.player, actorSpec(sys, fieldId, spec, opts)); if (ovr) return ovr;
             extra.qty = rwO.qty | 0;
         } else {
             var cur = list[idx].qty | 0, nq = 0, gr = isObj(opts.grace) ? Math.max(0, opts.grace.added | 0) : -1;   // gr: what the open pickup window may still take back (-1: none open)
@@ -1163,7 +1194,12 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
 // must parse (a cost without dice); a blast is whole feet 1..3000; a lock a mode or none, the switch's only on a list with a switch. A stat is
 // one of the list's; the GM's is held (Q1 A: its owner's Setting A leaves it alone), taken back only by the GM. null: everything back (the
 // owner's: their own stats); stats null: every stat back (the owner's: their own)
-function applyOv(rw, base, pq, spec, F, player) {
+// Stage 6 F5a2: the list options an actor judges a choice against — a player's own view (a GM-only option never confirmed), the GM's the full
+function actorSpec(sys, fieldId, spec, opts) { if (!opts || !opts.player || !isObj(opts.view)) return spec; var vf = fieldById(opts.view, fieldId); return vf && isObj(vf.list) ? vf.list : null; }
+function statDefOf(spec, key) { var st = null; (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (!st && isObj(x) && typeof x.key === 'string' && lower(x.key) === lower(key)) st = x; }); return st; }
+// F5a2: a choice's value as the list spells its label, or '' (not a string, or no option of the actor's has it)
+function pickLabel(aspec, key, v) { var st = statDefOf(aspec, key), out = ''; if (!st || st.kind !== 'pick' || typeof v !== 'string') return ''; (st.opts || []).forEach(function(o) { if (!out && lower(o.label) === lower(v.trim())) out = o.label; }); return out; }
+function applyOv(rw, base, pq, spec, F, player, aspec) {   // aspec (F5a2): the actor's own list options (a choice's label is judged against them)
     base = isObj(base) ? base : {};
     var cur = isObj(rw.ov) ? JSON.parse(JSON.stringify(rw.ov)) : {}, held = Array.isArray(cur.held) ? cur.held.filter(function(h) { return typeof h === 'string'; }) : [];
     var isHeld = function(k) { return held.some(function(h) { return lower(h) === lower(k); }); };
@@ -1207,9 +1243,11 @@ function applyOv(rw, base, pq, spec, F, player) {
                     if (!canon) return bad;
                     if (player && isHeld(canon)) return { ok: false, reason: 'field' };   // Q1 (A): a stat the GM set holds
                     if (sx === null) { dropStat(canon); unHold(canon); continue; }
-                    if (statNum(sx) === undefined) return bad;
+                    var sPick = (statDefOf(spec, canon) || {}).kind === 'pick';   // F5a2: a choice's value is one of the actor's option labels
+                    if (sPick) { sx = pickLabel(aspec === undefined ? spec : aspec, canon, sx); if (!sx) return bad; }
+                    else if (statNum(sx) === undefined) return bad;
                     dropStat(canon); unHold(canon);
-                    if (sx !== rowStat(spec, base, canon)) { cur.stats = isObj(cur.stats) ? cur.stats : {}; cur.stats[canon] = sx; if (!player) held.push(canon); }
+                    if (sPick ? lower(sx) !== lower(rowStat(spec, base, canon)) : sx !== rowStat(spec, base, canon)) { cur.stats = isObj(cur.stats) ? cur.stats : {}; cur.stats[canon] = sx; if (!player) held.push(canon); }
                 }
             } else return bad;
         }
@@ -1247,7 +1285,7 @@ function keyClash(sys, list, rid, key, spec, opts) {
 // curse (null: none; the switch's only on a list with a switch; a message only with its lock), vis all or gm. Changes list in place and fills
 // extra (the answer's row, qty; added and base for a new one); null once applied, else the refusal
 var CUSTOM_OWN = Object.freeze({ name: 1, icon: 1, category: 1, notes: 1, key: 1, stats: 1 });
-function applyCustom(sys, list, q, spec, F, opts, extra) {
+function applyCustom(sys, list, q, spec, F, opts, extra, aspec) {   // aspec (F5a2): the actor's own list options
     var pl = !!opts.player, pd = q.def, rid = q.rowId, bad = { ok: false, reason: 'value' };
     var blank = function(x) { return x === null || (typeof x === 'string' && !x.trim()); }, said = function(x) { return typeof x === 'string' && !!x.trim(); };
     if (!spec || (pl && spec.custom !== true)) return { ok: false, reason: 'field' };   // a list shaped in the Lists tab (the GM); its Custom rows ticked (a player)
@@ -1308,7 +1346,9 @@ function applyCustom(sys, list, q, spec, F, opts, extra) {
             for (var m = 0; m < sks.length; m++) {
                 var sk = sks[m], sx = v[sk], canon = '';
                 (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!canon && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(sk)) canon = s.key; });
-                if (!canon || (sx !== null && statNum(sx) === undefined)) return bad;
+                if (!canon) return bad;
+                if (sx !== null && (statDefOf(spec, canon) || {}).kind === 'pick') { sx = pickLabel(aspec === undefined ? spec : aspec, canon, sx); if (!sx) return bad; }   // F5a2: a choice: one of the actor's option labels
+                else if (sx !== null && statNum(sx) === undefined) return bad;
                 Object.keys(st).forEach(function(k2) { if (lower(k2) === lower(canon)) delete st[k2]; });   // one spelling a key: the list's
                 if (sx !== null) st[canon] = sx;
             }
@@ -1718,7 +1758,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (w === 'on') return x.virt ? false : rowOn(L.spec, x.r);
         if (w === 'has') return !x.virt;
         if (w === 'paid') return rowPaid(L.spec, x.r, x.d);
-        if (L.st[w]) return rowStat(L.spec, x.d, L.st[w].key);
+        if (L.st[w]) { if (L.st[w].kind !== 'pick') return rowStat(L.spec, x.d, L.st[w].key); var lb = rowStat(L.spec, x.d, L.st[w].key), op = null; (L.st[w].opts || []).forEach(function(o) { if (!op && lower(o.label) === lower(lb)) op = o; }); if (!op) return 0; var ov = fn(op.name); return ov === undefined ? { error: { message: 'Unknown name "' + op.name + '"', pos: 0, len: 0 } } : ov; }   // F5a2: a choice reads its option's value (ST); none chosen: 0
         if (L.cl[w]) return colVal(L, x, L.cl[w]);
         return undefined;
     }
@@ -1744,6 +1784,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     function totalOf(L, l, w, onlyOn) {   // L.count | L.qty | L.paid | L.<stat> | L.<col> (L.on.* over the rows switched on): a stat and paid per unit × qty, a column summed (true counts 1); the first row error wins
         if (l in cache) return cache[l];
         if (w !== 'count' && w !== 'qty' && w !== 'paid' && !L.st[w] && !L.cl[w]) return undefined;
+        if (L.st[w] && L.st[w].kind === 'pick') return undefined;   // F5a2: a choice has no total
         if (chain.indexOf(l) >= 0) return loopError(l);
         chain.push(l);
         var sum = 0, err = null;
@@ -1985,10 +2026,11 @@ function validateSystem(sys, F) {
     // paid|<stat>|<col>) — and a row's own inside its list's columns (Row.<word>): a target like a field's (key: the loop graph's node, a column's
     // own; noEdge: nothing worked out behind it), or null. A Row.* name outside a list's columns reads { rowOutside }
     var lsts = map(), gmKsV = gmEntryKeys(sys, sys.fields); sys.fields.forEach(function(f) { if (f.kind === 'item-list') lsts[lower(f.key)] = f; });
-    function listWords(lf) { var w = map(), sp = isObj(lf.list) ? lf.list : {}; (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = 'stat'; }); (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = 'col'; }); return w; }
+    function listWords(lf) { var w = map(), sp = isObj(lf.list) ? lf.list : {}; (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = x.kind === 'pick' ? 'pick' : 'stat'; }); (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = 'col'; }); return w; }
     function wordTarget(lf, word, total) {
         var w = listWords(lf), node = 'l#' + lower(lf.key);
         if (w[word] === 'col') return { id: '', key: node + '.' + word, kind: 'number', vis: lf.vis, list: lf };
+        if (w[word] === 'pick') return total ? { pickTotal: true, list: lf } : { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // F5a2: a choice reads its option's value; it has no total
         if (w[word] === 'stat' || word === 'qty' || word === 'paid' || (total ? word === 'count' : word === 'lvl')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };
         if (!total && (word === 'on' || word === 'has')) return { id: '', key: node, kind: 'toggle', vis: lf.vis, list: lf, noEdge: true };
         return null;
@@ -2013,6 +2055,7 @@ function validateSystem(sys, F) {
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; }   // F5a1
+            if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no total: read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2
             if ((prop === 'roll' || prop === 'rollFormula') && n.length > 64) { errors.push({ id: owner.id, prop: prop, message: 'A roll carries names of 64 characters at most: "' + n + '" has ' + n.length + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a1 (critic 8): the dice path refuses a longer one
             if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
@@ -2127,6 +2170,24 @@ function validateSystem(sys, F) {
         });
         stack.pop(); state[k] = 2;
     }
+    // Stage 6 F5a2: choice stats — each option reads one number formulas know; one key one kind across lists; a GM-only option on a visible list warns
+    var kindOf = map();
+    sys.fields.forEach(function(f) {
+        if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.stats)) return;
+        f.list.stats.forEach(function(st) {
+            if (!isObj(st) || typeof st.key !== 'string') return;
+            var lk = lower(st.key), kd = st.kind === 'pick' ? 'pick' : 'num', word = function(x) { return x === 'pick' ? 'a choice' : 'a number'; };
+            if (kindOf[lk] && kindOf[lk].kd !== kd) errors.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d is ' + word(kd) + ' here but ' + word(kindOf[lk].kd) + ' on ' + (kindOf[lk].f.label || kindOf[lk].f.key) + ': one key, one kind.' });
+            else if (!kindOf[lk]) kindOf[lk] = { kd: kd, f: f };
+            if (kd !== 'pick') return;
+            if (!Array.isArray(st.opts) || !st.opts.length) errors.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d is a choice with no options yet.' });
+            (st.opts || []).forEach(function(o) {
+                var t = known[lower(o.name)], ok = false; try { var p = F.parse(o.name); ok = !!p.ok && p.names.length === 1 && lower(p.names[0]) === lower(o.name); } catch (e) { ok = false; }
+                if (!ok || !t || !NUMERIC[t.kind]) { errors.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads \u201c' + o.name + '\u201d, which is not a number formulas know.' }); return; }
+                if (f.vis === 'all' && (t.vis === 'gm' || gmP[t.id] === 1)) warnings.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads a GM-only value, so players do not get that option.' });
+            });
+        });
+    });
     function listNode(k) { if (k.slice(0, 2) !== 'l#') return null; var rest = k.slice(2), d = rest.indexOf('.'), lf = lsts[d > 0 ? rest.slice(0, d) : rest]; if (!lf) return null; var ck = d > 0 ? rest.slice(d + 1) : '', col = null; ((lf.list && lf.list.cols) || []).forEach(function(c) { if (!col && lower(c.key) === ck) col = c; }); return { f: lf, col: col }; }
     function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)' : x; }
     lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });

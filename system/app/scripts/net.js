@@ -1046,6 +1046,7 @@ net.onLocalSave = function() {
         net.syncSystem();   // and the system (character sheets), the same way
         net.syncDocStyle(); // and the campaign's document look (doc theming), the same way
         net.syncCampName(); // and its name (a rename reaches the players' top bar), the same way
+        net.syncTurnRules(); // and who may press an effect's timer (turn-based combat T5b), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -1291,6 +1292,21 @@ net.syncCampName = function() {
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:campnamesync-end]
+// Turn-based combat T5b: who may pause, reset or stop an effect's countdown (camp.turnRules.timers) — a player's sheet shows the controls
+// only when they may. The join snapshot carries it; a change mid-session goes out the way a rename does, the one word only (the host
+// judges every press whatever a player's copy says). A host has NO branch for 'turnRules': a client never sets the table's rules.
+// [netcheck:turnrulessync-start]
+net._lastTurnRulesSig = null;
+net.turnRulesMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'turnRules', campId: camp.id, timers: camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner' }; };
+net.syncTurnRules = function() {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.turnRulesMessage(); if (!msg) return;
+    var s = msg.campId + '\n' + msg.timers;
+    if (s === net._lastTurnRulesSig) return;
+    net._lastTurnRulesSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+};
+// [netcheck:turnrulessync-end]
 net._lastSystemSig = null;
 net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
 net.syncSystem = function(force) {
@@ -1494,7 +1510,7 @@ net.charEffect = function(charId, fieldId, q) {
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (!camp.system) return { error: 'No system at this table.' };
-    var res = S.applyEffectOp(camp.system, c, fieldId, q, window.wpFormula, { player: true, view: camp.system });   // a player's copy IS the players' view
+    var res = S.applyEffectOp(camp.system, c, fieldId, q, window.wpFormula, { player: true, view: camp.system, now: Date.now(), timersGm: !!(camp.turnRules && camp.turnRules.timers === 'gm') });   // a player's copy IS the players' view (T5b: the host judges the timer again)
     if (!res.ok) return { error: res.reason === 'field' ? 'That list cannot be changed.' : res.reason === 'missing' ? 'That effect is gone.' : 'That change is not allowed.' };
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
@@ -1502,7 +1518,7 @@ net.charEffect = function(charId, fieldId, q) {
     _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, kind: 'fx', q: JSON.parse(JSON.stringify(q)), timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
     var m = { type: 'char-effect', rid: rid, charId: charId, fieldId: fieldId, op: q.op };   // only the keys this op uses
     if (q.op === 'adhoc') m.row = q.row; else m.rowId = q.rowId;
-    if (q.op === 'add') m.ref = q.ref; if (q.op === 'on') m.on = q.on === true;
+    if (q.op === 'add') m.ref = q.ref; if (q.op === 'on') m.on = q.on === true; if (q.op === 'timer') m.act = String(q.act);   // T5b
     try { net.conns[0].send(m); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
@@ -2624,6 +2640,7 @@ function admitPlayer(conn, prof, provenKey) {
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
+    var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers;   // and who may press an effect's timer
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
 }
@@ -3103,7 +3120,7 @@ function handleMessage(msg, conn) {
         var campX = getActiveCampaign(), chX = campX && campX.chars && campX.chars[qx.charId];
         if (!campX || !campX.system || !chX) { denyX('missing'); return; }
         var profX = net.roster[conn.peer]; if (chX.npc || !chX.ownerId || !profX || chX.ownerId !== profX.id) { denyX('owner'); return; }
-        var resX = Sx.applyEffectOp(campX.system, chX, qx.fieldId, qx, Fx, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campX) : null, now: Date.now(), inCombat: !!(net.charInCombat && net.charInCombat(qx.charId)) });   // T5a: a timed effect starts its timer
+        var resX = Sx.applyEffectOp(campX.system, chX, qx.fieldId, qx, Fx, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campX) : null, now: Date.now(), inCombat: !!(net.charInCombat && net.charInCombat(qx.charId)), timersGm: !!(campX.turnRules && campX.turnRules.timers === 'gm') });   // T5a: a timed effect starts its timer; T5b: its player may pause, reset or dismiss it unless the campaign keeps that the GM's
         if (!resX.ok) { denyX(resX.reason); return; }
         chX.values = chX.values || {}; chX.values[qx.fieldId] = resX.value;
         var dX = {}; dX[qx.fieldId] = resX.value;
@@ -3194,6 +3211,16 @@ function handleMessage(msg, conn) {
         campNm.name = msg.name.slice(0, 200);
         renderWhere();
         // [netcheck:campname-end]
+    } else if (msg.type === 'turnRules' && net.role === 'client') {
+        // [netcheck:turnrules-start]
+        // who may press an effect's timer changed mid-session (turn-based combat T5b): from the synced host only, for the hosted campaign, the one
+        // word; the sheet's controls follow
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || (msg.timers !== 'gm' && msg.timers !== 'owner')) return;
+        var campTR = campOf(msg.campId); if (!campTR) return;
+        campTR.turnRules = Object.assign({}, campTR.turnRules && typeof campTR.turnRules === 'object' ? campTR.turnRules : {}, { timers: msg.timers });
+        if (window.wpSheetsSync) window.wpSheetsSync();
+        // [netcheck:turnrules-end]
     } else if ((msg.type === 'sounds' || msg.type === 'sound') && net.role === 'client') {
         // the hosted campaign's sound list and its cues: only from the synced host, only after the snapshot, validated in sound.js.
         // A host has no branch for these: a player never triggers a sound on anyone.

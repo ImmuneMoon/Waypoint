@@ -378,6 +378,7 @@ function syncVttPanel() {
             if (role) role.style.display = 'none';
         }
     });
+    var tmS = ui('setTimersMode'); if (tmS) { tmS.value = camp && camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner'; tmS.disabled = !editable; }   // T5b
     [['setMoveMode', 'move'], ['setOrderMode', 'order'], ['setActsMode', 'acts']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
     var wm = ui('setWallsMode'); if (wm) { var tr = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.walls : ''; wm.value = tr === 'warn' || tr === 'off' ? tr : 'refuse'; wm.disabled = !editable; }   // turn-based combat T3a (D11): the walls' mode
     var defaults = ui('setVttDefaults'); if (defaults) defaults.style.display = editable ? '' : 'none';
@@ -422,6 +423,14 @@ vttFeatures().forEach(function(f) {
         if (window.wpSave) window.wpSave(true);
         toast(p[2][val === 'refuse' ? 0 : val === 'warn' ? 1 : 2]);
     });
+});
+var _timersSel = ui('setTimersMode');   // turn-based combat T5b: who may pause, reset or stop a timed effect's countdown
+if (_timersSel) _timersSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var val = _timersSel.value === 'gm' ? 'gm' : 'owner';
+    camp.turnRules = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}, { timers: val });
+    if (window.wpSave) window.wpSave(true);
+    toast(val === 'gm' ? 'Only you pause, reset or stop effect timers.' : 'A character\'s player may pause, reset or stop its effect timers too.');
 });
 var _wallsSel = ui('setWallsMode');   // turn-based combat T3a (D11): refuse | warn | off, the campaign's (read by the host at each move)
 if (_wallsSel) _wallsSel.addEventListener('change', function() {

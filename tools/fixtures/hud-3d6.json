@@ -233,7 +233,7 @@
   "rolls": [
     {
       "id": "r_punch",
-      "label": "Punch",
+      "label": "Attack ({Skill.Brawling})",
       "formula": "3d6 <= Skill.Brawling",
       "vis": "all",
       "tone": "outline",

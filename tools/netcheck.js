@@ -1213,6 +1213,83 @@ pendingChecks.push((async () => {
     check('F4c2 on the wire: 150 rows each with every value of its own at its largest (ten stats, all held, a blast, 200-character notes) project, pack and stay within 200,000 bytes (' + sizeB + ' bytes), with no formula or lock in them',
         packedB === true && sizeB < 200000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === 10 && p0.ov.held.length === 10 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
 })());
+{   // the joined player's top bar (1.5.0): "<campaign> › <map>" from the host's strings — the real whereName / tableWhere / paintWhere, sliced from net.js
+    const whereSrc = between('// [netcheck:where-start]', '// [netcheck:where-end]', 'where');
+    const WH = new Function('localStorage', 'crypto', helpersSrc + '\n' + whereSrc + '\nreturn { whereName, tableWhere, paintWhere };')(storage, globalThis.crypto);
+    // A DOM stand-in that records every write: markup (innerHTML, outerHTML, insertAdjacentHTML, document.write) is a failure, and so is any attribute but the separator's constant aria-hidden
+    function fakeDom() {
+        const log = [];
+        function node(tag) {
+            const n = { tag, children: [], className: '', _text: '', _title: '', classes: new Set(), attrs: {} };
+            Object.defineProperty(n, 'textContent', { get() { return n.children.length ? n.children.map(c => c.textContent).join('') : n._text; }, set(v) { n.children = []; n._text = String(v); log.push(['text', tag, String(v)]); } });
+            Object.defineProperty(n, 'title', { get() { return n._title; }, set(v) { n._title = String(v); } });
+            ['innerHTML', 'outerHTML'].forEach(k => Object.defineProperty(n, k, { get() { return ''; }, set(v) { log.push(['markup', k, String(v)]); } }));
+            n.insertAdjacentHTML = (pos, v) => log.push(['markup', 'insertAdjacentHTML', String(v)]);
+            n.setAttribute = (k, v) => { n.attrs[k] = String(v); log.push(['attr', k, String(v)]); };
+            n.appendChild = c => { n.children.push(c); return c; };
+            n.append = (...cs) => { cs.forEach(c => n.children.push(typeof c === 'string' ? { tag: '#text', textContent: c, children: [], attrs: {} } : c)); };
+            n.replaceChildren = (...cs) => { n.children = []; n._text = ''; n.append(...cs); };
+            n.classList = { toggle: (c, on) => { const want = on === undefined ? !n.classes.has(c) : !!on; if (want) n.classes.add(c); else n.classes.delete(c); return want; }, add: c => n.classes.add(c), remove: c => n.classes.delete(c), contains: c => n.classes.has(c) };
+            return n;
+        }
+        return { log, box: node('div'), doc: { createElement: t => node(String(t).toLowerCase()), createTextNode: t => ({ tag: '#text', textContent: String(t), children: [], attrs: {} }), write: v => log.push(['markup', 'document.write', String(v)]) } };
+    }
+    const joined = { role: 'client', syncedPeer: 'room-peer', foreign: true, active: true };
+    const HOST_C = '<img src=x onerror=alert(1)>', HOST_M = '<script>alert(1)</script>\u202e\u200b evil\u0007\nline"><b onclick=x>';
+    const wantM = '<script>alert(1)</script> evil line"><b onclick=x>';
+    const camp = { id: 'c_host', name: HOST_C, activeItemId: 'map_city', items: {
+        map_world: { id: 'map_world', type: 'map', meta: { title: 'Parent World' } },
+        map_region: { id: 'map_region', type: 'map', meta: { title: 'Parent Region', parentId: 'map_world' } },
+        map_city: { id: 'map_city', type: 'map', meta: { title: HOST_M, parentId: 'map_region' } },
+        doc_1: { id: 'doc_1', type: 'doc', meta: { title: 'A page' } } } };
+    const w = WH.tableWhere(joined, camp);
+    check('where (client): the top bar reads the host\'s campaign name and the map the player is on as plain strings — controls to spaces, bidi and zero-width out, never escaped into markup (text nodes need none)',
+        !!w && w.camp === HOST_C && w.map === wantM && w.title === HOST_C + ' \u203a ' + wantM, j(w));
+    const D = fakeDom(); WH.paintWhere(D.box, w, D.doc);
+    const kids = D.box.children;
+    check('where (client): hostile names reach the page as text only — no innerHTML / outerHTML / insertAdjacentHTML / document.write, no attribute but the separator\'s constant aria-hidden, the whole line in the title property',
+        !D.log.some(e => e[0] === 'markup') && D.log.filter(e => e[0] === 'attr').every(e => e[1] === 'aria-hidden' && e[2] === 'true') && D.box.title === HOST_C + ' \u203a ' + wantM
+        && kids.every(k => k.children.length === 0 && Object.keys(k.attrs).every(a => a === 'aria-hidden')), j(D.log));
+    check('where (client): three spans — the campaign, a \u203a separator, the map — and the box is switched on',
+        kids.length === 3 && j(kids.map(k => k.className)) === j(['tw-camp', 'tw-sep', 'tw-map']) && kids[0].textContent === HOST_C && kids[1].textContent === '\u203a' && kids[2].textContent === wantM
+        && D.box.textContent === HOST_C + '\u203a' + wantM && D.box.classes.has('on'), j(kids.map(k => [k.className, k.textContent])));
+    check('where (client): a nested map shows its own title only — no parent map anywhere in the text, the title or the result, and nothing but the one separator',
+        !/Parent/.test(D.box.textContent + '|' + D.box.title + '|' + j(w)) && D.box.textContent.split('\u203a').length === 2 && D.box.title.split('\u203a').length === 2, D.box.textContent);
+    WH.paintWhere(D.box, null, D.doc);
+    check('where (client): with nothing to show the box is emptied, its title cleared and switched off', D.box.children.length === 0 && D.box.textContent === '' && D.box.title === '' && !D.box.classes.has('on'), j([D.box.textContent, D.box.title, [...D.box.classes]]));
+    const off = [
+        ['left the session', Object.assign({}, joined, { role: null, active: false }), camp],
+        ['waiting for admission (no synced host, own campaign on screen)', Object.assign({}, joined, { syncedPeer: null, foreign: false }), camp],
+        ['reconnecting (the host\'s campaign still on screen, no synced host)', Object.assign({}, joined, { syncedPeer: null }), camp],
+        ['own campaign back (not foreign)', Object.assign({}, joined, { foreign: false }), camp],
+        ['the stream window', { role: 'client', foreign: true, stream: true, syncedPeer: 'x' }, camp],
+        ['the GM', { role: 'host', active: true, syncedPeer: null, foreign: false }, camp],
+        ['no state at all', null, camp],
+        ['no campaign yet', joined, null],
+        ['a campaign with no items', joined, { name: 'C' }],
+        ['a campaign with no map', joined, { name: 'C', items: {}, activeItemId: null }],
+        ['an active page instead of a map', joined, Object.assign({}, camp, { activeItemId: 'doc_1' })],
+        ['a prototype key for the active item', joined, Object.assign({}, camp, { activeItemId: 'constructor' })],
+        ['__proto__ for the active item', joined, Object.assign({}, camp, { activeItemId: '__proto__' })],
+        ['an active item that is gone', joined, Object.assign({}, camp, { activeItemId: 'map_gone' })],
+    ];
+    const shown = off.filter(o => WH.tableWhere(o[1], o[2]) !== null).map(o => o[0]);
+    check('where (client): nothing is shown when left, waiting for admission, reconnecting, back on the own campaign, in the stream window, on the GM\'s side, or with no campaign / map on screen', shown.length === 0, shown);
+    const blank = WH.tableWhere(joined, { name: '  \u200b ', activeItemId: 'm', items: { m: { type: 'map', meta: { title: { toString: 1 } } } } });
+    const noMeta = WH.tableWhere(joined, { name: 42, activeItemId: 'm', items: { m: { type: 'map', meta: 'x' } } });
+    const long = WH.tableWhere(joined, { name: 'c'.repeat(5000), activeItemId: 'm', items: { m: { type: 'map', meta: { title: 'm'.repeat(1e6) } } } });
+    check('where (client): a blank or non-string name reads as the GM\'s own fallbacks (Unnamed Campaign, Untitled); each name is capped at 200 characters',
+        !!blank && blank.camp === 'Unnamed Campaign' && blank.map === 'Untitled' && !!noMeta && noMeta.camp === 'Unnamed Campaign' && noMeta.map === 'Untitled' && !!long && long.camp.length === 200 && long.map.length === 200, j([blank, noMeta, long && [long.camp.length, long.map.length]]));
+    const rd = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', f), 'utf8').replace(/\r\n/g, '\n');
+    const mainSrc = rd(path.join('scripts', 'main.js')), htmlSrc = rd('index.html'), cssSrc = rd('style.css');
+    check('where (client): wired — renderWhere paints only through paintWhere with the real document, off the synced host\'s campaign; main.js render() calls it before its no-map return; renderRoster calls it as the session class changes',
+        /function renderWhere\(\) \{[^}]*tableWhere\(net, campOf\(state\.appState && state\.appState\.activeCampaignId\)\);[^}]*paintWhere\(box, w, document\);\n\}/.test(src)
+        && /export function render\(\) \{\s*if \(window\.wpHideTooltip\)[^\n]*\n\s*if \(window\.wpNet && window\.wpNet\.renderWhere\) window\.wpNet\.renderWhere\(\);[^\n]*\n\s*var activeMap = getActiveMap\(\);\s*if\(!activeMap\) return;/.test(mainSrc)
+        && /classList\.toggle\('net-client'[^\n]*\n\s*renderWhere\(\);/.test(src));
+    check('where (client): the box sits in the header beside the campaign select, hidden unless a joined player has something to show',
+        /<header>[\s\S]*<select id="campaignSelect"[^\n]*\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)
+        && /\n\s*#tableWhere \{ display: none;/.test(cssSrc) && /\n\s*body\.net-client #tableWhere\.on \{ display: inline-flex; \}/.test(cssSrc) && !/#tableWhere[^{\n]*\{[^}]*content:/.test(cssSrc));
+}
 
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

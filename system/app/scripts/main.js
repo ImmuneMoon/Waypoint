@@ -176,6 +176,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   export function render() {
 
       if (window.wpHideTooltip) window.wpHideTooltip();   // a re-render never leaves a stale hover card behind
+      if (window.wpNet && window.wpNet.renderWhere) window.wpNet.renderWhere();   // a joined player's campaign › map in the top bar (net.js): before the no-map return, so a map-less table clears it
 
       var activeMap = getActiveMap();
 

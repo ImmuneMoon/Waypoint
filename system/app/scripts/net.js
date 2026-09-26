@@ -1244,7 +1244,7 @@ net.syncSystem = function(force) {
 // payload is built per peer from a fresh view; nothing a client says about a character is applied unchecked.
 var charLimit = null, _doorLimit = null, _charPending = {}, _charSlowSaid = {};
 var _charHost = {};    // Stage 6 (client): the last copy of each character's values the host sent — a refused change goes back to it, never to an older one
-var _rowGrace = {};    // Stage 6 (host): a pickup's Undo window, 'charId|fieldId|rowId' -> { until, base } (memory only; a bound item may go back to base)
+var _rowGrace = {};    // Stage 6 (host): a pickup's Undo window, 'charId|fieldId|rowId' -> { until, added } (memory only; a bound item may drop by what its pickups added)
 function SC() { return window.wpSystemCore || null; }
 function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id : null; }
 // [netcheck:chardelta-start]
@@ -1388,7 +1388,7 @@ net.charItem = function(charId, fieldId, q) {
     c.values = c.values || {}; c.values[fieldId] = res.value;
     _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, kind: 'item', q: JSON.parse(JSON.stringify(q)), timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };   // Stage 6: the op itself, worked out again over a newer host copy
     var mI = { type: 'char-item', rid: rid, charId: charId, fieldId: fieldId, op: q.op };   // only the keys this op uses
-    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty; if (q.facts !== undefined) mI.facts = q.facts;   // facts (F4b): a set op's level, switch, note
+    if (q.defId !== undefined) mI.defId = q.defId; if (q.rowId !== undefined) mI.rowId = q.rowId; if (q.qty !== undefined) mI.qty = q.qty; if (q.facts !== undefined) mI.facts = q.facts; if (q.ov !== undefined) mI.ov = q.ov;   // facts (F4b): a set op's level, switch, note; ov (F4c2): a copy's own stats (null travels: back to the library)
     try { net.conns[0].send(mI); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true, row: res.row, added: res.added, qty: res.qty };   // Stage 6: the row a pickup landed on, how much it added (the Undo), its quantity now
 };

@@ -1748,7 +1748,7 @@
   .sys-row-main, .sys-flags, .sys-def { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sys-flags { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11.5px; color: var(--dim); }
   /* theme every editor input + select alike (number inputs lack the .field class, so they came out browser-default white) */
-  .sys-row input, .sys-row select, #sysCombatBox input, #sysCombatBox select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
+  .sys-row input, .sys-row select, #sysCombatBox input, #sysCombatBox select, #sysListRules select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
   /* the global .field forces width:100%; these beat it so a field reads as tidy rows, not a full-width stack */
   .sys-row .sys-key { width: 140px; flex: 0 0 140px; font-family: ui-monospace, Consolas, monospace; background: rgba(224,165,79,0.09); }
   .sys-row .sys-label { flex: 1 1 180px; min-width: 150px; width: auto; font-weight: 500; }
@@ -1757,7 +1757,7 @@
   .sys-def { flex: 1 0 100%; min-width: 240px; gap: 10px; align-items: flex-end; }
   .sys-num { display: inline-flex; flex-direction: column; gap: 2px; }
   .sys-num-cap { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); padding-left: 1px; }
-  .sys-row input:focus, .sys-row select:focus, #sysCombatBox input:focus, #sysCombatBox select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
+  .sys-row input:focus, .sys-row select:focus, #sysCombatBox input:focus, #sysCombatBox select:focus, #sysListRules select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
   .sys-btns { gap: 3px; }
   .sys-def input[type=number], .sys-row input[type=number] { width: 68px; padding: 4px 6px; font-size: 12px; }
   .sys-def-text, .sys-options { flex: 1; min-width: 120px; }
@@ -1767,7 +1767,7 @@
   .sys-btns { margin-left: auto; display: inline-flex; gap: 2px; }
   .sys-btn { padding: 1px 7px; font-size: 11px; }
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
-  #sysCombatBox { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
+  #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
   .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
   .sys-item-notes-row { margin-top: 5px; }
@@ -2028,6 +2028,22 @@
   .sys-list-statadd { align-self: flex-start; }
   .sys-item-stats { align-items: flex-end; }
   .sys-stat-off .sys-num-cap { color: var(--gold); }
+  /* Stage 6 F4c2: a copy's own values — the dot on a value of its own, ✎, the form under the row (a box a field, its ↺), the Lists tab's Rules box */
+  #sysListRules:empty { display: none; }
+  .sheet-ov { color: var(--gold); font-size: 10px; margin-left: 3px; cursor: help; }
+  .sheet-item-name > .sheet-ov { margin: 0 4px 0 0; }   /* F4c2 review: a list row's dot sits before the name (a long name is cut at its end) */
+  .sheet-item-edit { padding: 0 6px; height: 24px; }
+  .sheet-row-form { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 6px 20px; padding: 6px 8px; border: 1px dashed var(--edge); border-radius: 6px; font-size: 12px; }
+  .sheet-itemtable-form td { padding: 2px 8px 6px; white-space: normal; }
+  .sheet-itemtable-form .sheet-row-form { margin-left: 0; }
+  .sheet-rf-head { display: flex; justify-content: flex-end; gap: 6px; }
+  .sheet-rf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; }
+  .sheet-rf-f { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-width: 0; }
+  .sheet-rf-cap { flex: 1 0 100%; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); }
+  .sheet-rf-f input.field, .sheet-rf-f select.field { flex: 1 1 80px; width: auto; min-width: 0; padding: 2px 5px; font-size: 12px; }
+  .sheet-row-form input[type=number] { flex: 0 0 80px; width: 80px; }
+  .sheet-rf-f .field:disabled { opacity: 0.7; cursor: not-allowed; }
+  .sheet-rf-back { padding: 0 5px; height: 22px; flex: none; }
   .sys-list-card { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   .sys-list-title { font-weight: 600; color: var(--gold); }
   .sys-list-cats { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; }

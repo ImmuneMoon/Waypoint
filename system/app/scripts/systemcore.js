@@ -198,6 +198,7 @@ function cleanField(f, F, gmView) {
     if (k === 'formula' && out.labels) { var tones = cleanTones(f.tones, out.labels.length); if (tones) out.tones = tones; }   // L7: a colour per value name (parallel to labels)
     if (k === 'resource' && typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) out.color = f.color.toLowerCase();   // L7: a pool's own colour (icon, bar, band value)
     if (k === 'number' && (f.slider === true || isObj(f.slider))) out.slider = cleanSlider(f.slider);   // Stage 5e: a gradient slider (end labels, track colours) — drawn once the field has a min and a max (the sheet checks), kept either way so nothing the GM set is lost on Save; a plain number everywhere else
+    if ((k === 'number' || k === 'skill') && f.counter === true && !out.labels && !out.slider) out.counter = true;   // HUD frame (HF4a, H8): a counter — minus and plus either side of the box (a named number is a dropdown and a slider a range, never a counter)
     return out;
 }
 // L7: tones run parallel to a formula's value names — '' or one of TONES each, at most one per name, trailing blanks trimmed; null when all blank
@@ -461,6 +462,7 @@ function cleanSections(list, ctx) {
         var secStyle = cleanSecStyle(s.style); if (secStyle) sec.style = secStyle;   // Stage 3: per-section colors (accent/bg/border)
         var secIcon = cleanIcon(s.icon); if (secIcon) sec.icon = secIcon;   // Stage 5g: an icon before the title
         if (typeof s.pin === 'string' && groupIds[s.pin] === 1) sec.pin = s.pin;   // Stage 6 look fold: a band group's Pin in the header
+        if (s.inline === true) sec.inline = true;   // HUD frame (HF4a, H2): each field on one line (label and value, its Roll on the right)
         (Array.isArray(s.fields) ? s.fields : []).forEach(function(p) {
             if (!isObj(p) || total >= LIMITS.placements) return;
             var w = p.w === 'row' ? 'row' : 1, item = null;

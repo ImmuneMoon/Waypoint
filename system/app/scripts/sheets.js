@@ -656,7 +656,7 @@ function renderHudFoot(v) {
     if (!c || !n || typeof n.rollsFor !== 'function' || !D || typeof D.renderCard !== 'function' || (window.wpVtt && !window.wpVtt.on('dice')) || !sysRolls(systemOf(camp))) return;
     var rolls = n.rollsFor(v.charId, rollName(c), _histCleared[v.charId] || 0, histDepth());
     var bar = el('div', 'hud-hist-bar'), tg = el('button', 'hud-hist-toggle'); tg.type = 'button';
-    tg.setAttribute('aria-expanded', v.histOpen ? 'true' : 'false'); tg.title = v.histOpen ? 'Hide the roll history' : 'Show this session’s rolls as ' + c.name;
+    tg.setAttribute('aria-expanded', v.histOpen ? 'true' : 'false'); tg.title = v.histOpen ? 'Hide the roll history' : 'Show this session\u2019s rolls as ' + c.name;
     var ib = el('span', 'hud-hist-icobox'); ib.appendChild(iconNode('icon:clock-rotate-left', 'hud-hist-ico')); tg.appendChild(ib);
     tg.appendChild(el('span', 'hud-hist-title', 'Roll history'));
     if (!v.histOpen && rolls.length) tg.appendChild(el('span', 'hud-hist-new', 'NEW'));   // the reference's pulse: closed, with rolls in it
@@ -1106,7 +1106,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     if (frame.childNodes.length) body.appendChild(frame);   // the band and the strip: the sticky frame, after the dashboard sections
     function renderOneSection(sec, isChild) {
         var collap = !!sec.collapsible;
-        var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : ''));
+        var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : '') + (sec.inline === true ? ' sheet-inline' : ''));
         var secKey = (hudV ? 'h:' : '') + sec.id;   // HF1: remembered per view (sheet keys unchanged)
         if (collap) { s.open = (secKey in _secOpen) ? _secOpen[secKey] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[secKey] = s.open; }); }
         var stripe = !!(sec.style && sec.style.accent && sec.style.stripe !== false);   // Stage 5g: an accent can colour the title alone
@@ -1147,6 +1147,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.kind === 'pin') node = pl.g && Object.prototype.hasOwnProperty.call(grpById, pl.g) ? pinNode(pl, grpById[pl.g], pctx) : null;   // Stage 6: a band group's Pin button
             else if (pl.kind === 'portrait') { node = el('div', 'sheet-portrait-slot'); if (c.portrait) { var im = el('img'); im.src = imgSrc(c.portrait); im.alt = ''; node.appendChild(im); } }
             if (!node) return;
+            if (sec.inline === true && pl.id && byId[pl.id]) inlineRow(node, byId[pl.id]);   // HUD frame (HF4a, H2)
             if (pl.w === 'row') node.classList.add('sheet-row');
             grid.appendChild(node);
         });
@@ -1402,6 +1403,7 @@ function renderLayout() {
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
         top.appendChild(select('sys-sec-collap', [['', 'Fixed'], ['1', 'Collapsible']], sec.collapsible ? '1' : '', 'A collapsible section the reader can fold away'));
+        top.appendChild(select('sys-sec-inline', [['', 'Stacked fields'], ['1', 'Inline rows']], sec.inline ? '1' : '', 'Each field on one line: label and value on the left, its Roll on the right (numbers, formulas, skills, toggles, selects, text); their stat tiles draw as rows here (a pool and a slider keep their own look)'));   // HUD frame (HF4a)
         top.appendChild(select('sys-sec-pinned', [['', 'On its tab'], ['1', 'Above the tabs']], sec.pinned ? '1' : '', 'A dashboard section: stays above the tab strip on every tab (and comes first on a stacked sheet)'));
         top.appendChild(select('sys-sec-meta', [['', 'No count']].concat(draft.fields.map(function(f) { return [f.id, f.label || f.key || '(field)']; })), sec.meta || '', 'A field whose value shows in the section header (e.g. a running total)'));
         top.appendChild(select('sys-sec-parent', [['', 'Top level']].concat(secs.filter(function(o) { return o.id !== sec.id && !o.parent; }).map(function(o) { return [o.id, 'Under: ' + (o.title || '(untitled)')]; })), sec.parent || '', 'Nest this section under another one (one level)'));
@@ -1502,6 +1504,7 @@ function onLayoutChange(t) {
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     if (t.classList.contains('sys-sec-tab')) { if (t.value) sec.tab = t.value; else delete sec.tab; markDirty(); renderPreview(); return true; }
     if (t.classList.contains('sys-sec-collap')) { if (t.value) sec.collapsible = true; else delete sec.collapsible; markDirty(); renderPreview(); return true; }
+    if (t.classList.contains('sys-sec-inline')) { if (t.value) sec.inline = true; else delete sec.inline; markDirty(); renderPreview(); return true; }   // HUD frame (HF4a)
     if (t.classList.contains('sys-sec-chip')) { if (t.value) sec.chip = t.value; else delete sec.chip; markDirty(); renderPreview(); return true; }   // Stage 5f
     if (t.classList.contains('sys-sec-pin')) { if (t.value && PIN_GID.test(t.value)) sec.pin = t.value; else delete sec.pin; markDirty(); renderLayout(); return true; }   // Stage 6 (HUD frame HF0: exact class tokens — "sys-sec-pinned" contains "sys-sec-pin", so the Above-the-tabs select used to land here)
     if (c.indexOf('sys-pl-group') >= 0) { var plg = t.closest('.sys-pl'), plq = plg ? (sec.fields || [])[+plg.dataset.pi] : null; if (plq && plq.kind === 'pin' && PIN_GID.test(t.value)) { plq.g = t.value; markDirty(); renderLayout(); } return true; }   // Stage 6: a Pin button's group
@@ -1855,23 +1858,46 @@ function effectForm(f, c, sys, onClose) {
     if (!st.name) setTimeout(function() { try { nameI.focus(); } catch (e) {} }, 0);   // a reopened form keeps the page's focus where it is
     return form;
 }
-// Stage 6 look fold (L8): a number box with its up and down arrows inside its right edge. The box changes at once; one commit goes about 200 ms
-// after the last click, none when the value is back where it started (unbatched clicks would hit the host's rate gate), as the slider does
-function stepWrap(inp, f, c, editable) {
-    var wrap = el('span', 'sheet-numwrap'); inp.classList.add('num-stepped'); wrap.appendChild(inp);
-    var steps = el('span', 'sheet-steps'), timer = null, from = inp.value;
-    [['up', 1, '+', 'Up one'], ['down', -1, '\u2212', 'Down one']].forEach(function(d) {
-        var b = el('button', 'tool ghost sheet-step', d[2]); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = d[0]; b.title = d[3]; b.disabled = !editable;
-        b.addEventListener('click', function() {
-            var s0 = Number(f.step) > 0 ? Number(f.step) : 1, v = (Number(inp.value) || 0) + d[1] * s0;
-            if (f.min !== undefined) v = Math.max(f.min, v); if (f.max !== undefined) v = Math.min(f.max, v);
-            inp.value = String(+v.toFixed(6));
-            clearTimeout(timer); timer = setTimeout(function() { if (inp.value === from) return; from = inp.value; commit(c, f, Number(inp.value)); }, 200);
-        });
-        steps.appendChild(b);
-    });
-    wrap.appendChild(steps); return wrap;
+// HUD frame (HF4a, H2): a field drawn as one line in an "Inline rows" section — label and value on the left, its own Roll on the right, a
+// caption on its own line below. The section's flag beats the field's stat tile (as the band does), so one field can be a tile on the sheet
+// and a row in the HUD. Only the kinds a line can hold: a pool (its bar and reset) and a drawn slider keep their own look. A roll placement
+// stays a button.
+var INLINE_KINDS = Object.freeze({ number: 1, formula: 1, skill: 1, toggle: 1, select: 1, text: 1 });
+function inlineRow(node, f) {
+    if (!Object.prototype.hasOwnProperty.call(INLINE_KINDS, f.kind) || node.classList.contains('sheet-has-slider')) return;   // a drawn slider keeps its track
+    node.classList.add('sheet-inline-row'); node.classList.remove('sheet-tile');
+    var rb = node.querySelector('.sheet-field-roll'); if (!rb) return;
+    var cap = null; Array.prototype.forEach.call(node.children, function(k) { if (!cap && k.classList.contains('sheet-caption')) cap = k; });
+    rb.textContent = 'Roll'; rb.classList.add('sheet-inline-roll'); node.insertBefore(rb, cap);
 }
+// Stage 6 look fold (L8): a number box with its up and down arrows inside its right edge. The box changes at once; one commit goes about 200 ms
+// after the last click, none when the value is back where it started (unbatched clicks would hit the host's rate gate), as the slider does.
+// HUD frame (HF4a, H8) flank: a counter — minus and plus either side of the box (span.sheet-counter: [down, box, up]), the same single commit.
+// A burst of clicks is kept by character and field (_stepPend), not in the box: a redraw in the middle of it (a player's own edit comes back
+// as an ack and a delta within a round trip) shows the pending value, and the next click carries on from it under the ONE timer — so a
+// burst is one commit and never loses a click, from the band and from a section alike. A value typed into the box ends the burst and is
+// committed by the box itself (the new start).
+function stepWrap(inp, f, c, editable, flank) {
+    var pk = c.id + '|' + f.id;
+    if (_stepPend[pk]) inp.value = _stepPend[pk].value;   // a burst in flight: the redrawn box shows it
+    var wrap = el('span', flank ? 'sheet-counter' : 'sheet-numwrap'); inp.classList.add('num-stepped'); if (!flank) wrap.appendChild(inp);
+    var steps = flank ? null : el('span', 'sheet-steps'), side = {};
+    inp.addEventListener('change', function() { var p = _stepPend[pk]; if (p) { clearTimeout(p.timer); delete _stepPend[pk]; } });
+    [['up', 1, '+', flank ? 'One more' : 'Up one'], ['down', -1, '\u2212', flank ? 'One less' : 'Down one']].forEach(function(d) {
+        var b = el('button', flank ? 'tool ghost sheet-count' : 'tool ghost sheet-step', d[2]); b.type = 'button'; b.dataset.fid = f.id; b.dataset.part = d[0]; b.title = d[3]; b.disabled = !editable;
+        b.addEventListener('click', function() {
+            var p = _stepPend[pk], at = p ? p.value : inp.value, s0 = Number(f.step) > 0 ? Number(f.step) : 1, v = (Number(at) || 0) + d[1] * s0;
+            if (f.min !== undefined) v = Math.max(f.min, v); if (f.max !== undefined) v = Math.min(f.max, v);
+            if (!p) p = _stepPend[pk] = { from: inp.value, value: '', timer: null };
+            inp.value = p.value = String(+v.toFixed(6));
+            clearTimeout(p.timer); p.timer = setTimeout(function() { if (_stepPend[pk] === p) delete _stepPend[pk]; if (p.value === p.from) return; commit(c, f, Number(p.value)); }, 200);
+        });
+        if (flank) side[d[0]] = b; else steps.appendChild(b);
+    });
+    if (flank) { wrap.appendChild(side.down); wrap.appendChild(inp); wrap.appendChild(side.up); } else wrap.appendChild(steps);
+    return wrap;
+}
+var _stepPend = Object.create(null);   // charId|fieldId -> { from, value, timer }: a counter's (or the arrows') burst in flight
 // Stage 6 look fold (L7): a badge's colour class, looked up from a constant map (never built from a stored string)
 var TONE_CLASS = Object.freeze({ good: ' sheet-tone-good', warn: ' sheet-tone-warn', danger: ' sheet-tone-danger', accent: ' sheet-tone-accent', primary: ' sheet-tone-primary' });
 // Stage 5g: a value coloured by its sign — only on a field that asks (green above zero, red below; zero and errors stay plain)
@@ -1930,7 +1956,8 @@ function fieldNodeBody(f, c, e, gm, own, sysArg) {   // sysArg: the system being
         }
         if (k === 'number') inp.className += signTone(f, { value: Number(inp.value) });   // Stage 5g (a skill colours its total instead); 5h: by the number the box shows
         var lkS = (sysArg && sysArg.sheet && sysArg.sheet.look) || {};
-        if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, editable));   // Stage 6 look fold (L8)
+        if (f.counter) row.appendChild(stepWrap(inp, f, c, editable, true));   // HUD frame (HF4a, H8): a counter, minus and plus either side (the cleaner never keeps one with value names or a slider)
+        else if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, editable));   // Stage 6 look fold (L8)
         else row.appendChild(inp);
         if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); } }   // 5h: the box edits the base; the effective value beside it
         if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } }
@@ -2244,7 +2271,8 @@ function fieldRow(f) {
     if (f.kind !== 'effects') flags.appendChild(select('sys-vis', [['all', 'Visible to players'], ['gm', 'GM only']], f.vis || 'all', 'GM only: the field and its value never leave your machine'));
     var hov = el('label', 'sys-hover'); var hc = el('input'); hc.type = 'checkbox'; hc.checked = !!f.hover; hc.className = 'sys-hover-chk'; hov.appendChild(hc); hov.appendChild(document.createTextNode(' Hover')); hov.title = 'Show on the token\'s hover card and the party strip'; flags.appendChild(hov);
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
-    if (f.kind === 'number') { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e
+    if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
+    if ((f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length)) || f.kind === 'skill') { var cnl = el('label', 'sys-hover'); var cnc = el('input'); cnc.type = 'checkbox'; cnc.checked = !!f.counter; cnc.className = 'sys-counter-chk'; cnl.appendChild(cnc); cnl.appendChild(document.createTextNode(' Counter')); cnl.title = 'Draw \u2212 and + either side of the box (a turn counter, death saves, ammo, slots used)'; flags.appendChild(cnl); }   // HUD frame (HF4a, H8): never with a slider or value names
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft)', 'Unit'));   // Stage 5g
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
@@ -2557,7 +2585,8 @@ function onChange(e) {
         else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a colour picked — "No colour" appears
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button
         else if (c.indexOf('sys-bar-chk') >= 0) { if (t.checked) delete f.bar; else f.bar = false; }   // Fold B: the bar (absent = shown)
-        else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) f.slider = f.slider || {}; else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
+        else if (c.indexOf('sys-slider-chk') >= 0) { if (t.checked) { f.slider = f.slider || {}; delete f.counter; } else delete f.slider; markDirty(); renderAll(); return; }   // Stage 5e: slider on/off (its row of labels and colours appears)
+        else if (c.indexOf('sys-counter-chk') >= 0) { if (t.checked) { f.counter = true; delete f.slider; } else delete f.counter; markDirty(); renderAll(); return; }   // HUD frame (HF4a): counter on/off — a number is a counter or a slider, never both (the other's box hides)
         else if (c.indexOf('sys-slider-lowColor') >= 0 || c.indexOf('sys-slider-highColor') >= 0) { markDirty(); renderAll(); return; }   // a colour picked (the input handler stored it): redraw so "Theme colours" appears
         else if (c.indexOf('sys-itbl-on') >= 0) { if (t.checked) f.table = f.table || { columns: ['category'] }; else delete f.table; markDirty(); renderAll(); return; }   // Stage 4: rich item table on/off (seed one column so it renders)
         else if (c.indexOf('sys-itbl-col-') >= 0) { var col = c.slice(c.indexOf('sys-itbl-col-') + 13).split(/\s/)[0]; f.table = f.table || {}; var arr = Array.isArray(f.table.columns) ? f.table.columns : []; if (t.checked) { if (arr.indexOf(col) < 0) arr.push(col); } else arr = arr.filter(function(x) { return x !== col; }); f.table.columns = arr; }
@@ -2565,7 +2594,7 @@ function onChange(e) {
         else if (c.indexOf('sys-itbl-footer') >= 0) { f.table = f.table || {}; if (t.checked) f.table.footer = true; else delete f.table.footer; }
         else if (c.indexOf('sys-def-bool') >= 0) f.def = t.checked;
         else if (c.indexOf('sys-vnames') >= 0 && f.kind === 'formula' && f.badge) { markDirty(); renderAll(); return; }   // L7: the tones row follows the value names
-        else if (c.indexOf('sys-vnames') >= 0) { if (f.kind === 'number') { var rwV = t.closest('.sys-row'), dcV = rwV && rwV.querySelector('.sys-def'); if (dcV) buildDefCell(dcV, f); } markDirty(); patchErrors(); return; }   // Stage 6: a number's default cell follows (a pick of the names, or its own range back when they are cleared); nothing else in the row moves, so focus stays
+        else if (c.indexOf('sys-vnames') >= 0) { if (f.kind === 'number') { var rwV = t.closest('.sys-row'), dcV = rwV && rwV.querySelector('.sys-def'), wantCnt = !f.slider && !(Array.isArray(f.labels) && f.labels.length); if (rwV && !!rwV.querySelector('.sys-counter-chk') !== wantCnt) { if (Array.isArray(f.labels) && f.labels.length) delete f.counter; markDirty(); renderAll(); return; } if (dcV) buildDefCell(dcV, f); } markDirty(); patchErrors(); return; }   // HF4a: names given or cleared — the Counter box comes or goes (a named number is never a counter)   // Stage 6: a number's default cell follows (a pick of the names, or its own range back when they are cleared); nothing else in the row moves, so focus stays
         else if (c.indexOf('sys-def-lbl') >= 0) f.def = Number(t.value);
         else return;
     } else if (r) {

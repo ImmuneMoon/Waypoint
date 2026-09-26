@@ -3814,15 +3814,15 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
     /* ---- Stage 6 HUD G10: Each round — apply actions the host runs on every character in a combat when its round changes ---- */
     {
         const rawG = { v: 1, name: 'G', fields: [{ id: 'f_t', key: 'Turn', kind: 'number', def: 0 }, { id: 'f_p', key: 'Parries', kind: 'number', def: 0 }, { id: 'f_y', key: 'Tally', kind: 'number', def: 0 }],
-            rolls: [{ id: 'r_sw', label: 'Sweep now', apply: [{ f: 'f_t', formula: 'CombatRound', set: true }, { f: 'f_p', formula: '0', set: true }], round: true },
+            rolls: [{ id: 'r_sw', label: 'Sweep now', apply: [{ f: 'f_t', formula: 'CombatRound', set: true }, { f: 'f_p', formula: '0', set: true }], each: 'round' },
                 { id: 'r_bad', label: 'Bad', apply: [{ f: 'f_p', formula: 'Nope + 1', add: true }], round: true },
-                { id: 'r_ty', label: 'Tally', apply: [{ f: 'f_y', formula: 'Turn', add: true }], round: true },
+                { id: 'r_ty', label: 'Tally', apply: [{ f: 'f_y', formula: 'Turn', add: true }], each: 'round' },
                 { id: 'r_pl', label: 'Plain', apply: [{ f: 'f_p', formula: '5', add: true }] },
                 { id: 'r_ro', label: 'Roll', formula: 'd20', round: true }, { id: 'r_od', label: 'Odd', apply: [{ f: 'f_p', formula: '1' }], round: 'yes' }], sheet: { sections: [] } };
         const gmG = cleanSystem(rawG, { F, gmView: true }), plG = cleanSystem(rawG, { F, gmView: false }), rG = (s, id) => s.rolls.find(r => r.id === id);
-        check('G10 the cleaner keeps Each round (round: true) on an apply action only — never on a roll, never another value — in both views; fixed points; roundActs lists the Each round actions in the System\'s order',
-            rG(gmG, 'r_sw').round === true && rG(plG, 'r_sw').round === true && !('round' in rG(gmG, 'r_ro')) && !('round' in rG(gmG, 'r_od')) && !('round' in rG(gmG, 'r_pl'))
-            && j(cleanSystem(gmG, { F, gmView: true })) === j(gmG) && j(cleanSystem(plG, { F, gmView: false })) === j(plG) && j(S.roundActs(gmG).map(r => r.id)) === j(['r_sw', 'r_bad', 'r_ty']) && j(S.roundActs(null)) === '[]' && j(S.roundActs(rawG).map(r => r.id)) === j(['r_sw', 'r_bad', 'r_ty']) && j(S.roundActs({ rolls: [{ id: 'r_e', apply: [], round: true }] })) === '[]',
+        check('G10 the cleaner keeps each: round on an apply action only — never on a roll, never another value (an older round: true reads as it) — in both views; fixed points; roundActs lists the Each round actions in the System\'s order',
+            rG(gmG, 'r_sw').each === 'round' && rG(plG, 'r_sw').each === 'round' && rG(gmG, 'r_bad').each === 'round' && !('round' in rG(gmG, 'r_bad')) && !('each' in rG(gmG, 'r_ro')) && !('round' in rG(gmG, 'r_ro')) && !('each' in rG(gmG, 'r_od')) && !('each' in rG(gmG, 'r_pl'))
+            && j(cleanSystem(gmG, { F, gmView: true })) === j(gmG) && j(cleanSystem(plG, { F, gmView: false })) === j(plG) && j(S.roundActs(gmG).map(r => r.id)) === j(['r_sw', 'r_bad', 'r_ty']) && j(S.roundActs(null)) === '[]' && j(S.roundActs(rawG).map(r => r.id)) === j(['r_sw', 'r_ty']) && j(S.roundActs({ rolls: [{ id: 'r_e', apply: [], each: 'round' }] })) === '[]',
             j([rG(gmG, 'r_sw'), rG(gmG, 'r_ro'), rG(gmG, 'r_od')]));
         const mpG = { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_a' }, { id: 't2', isChar: true, charId: 'c_a' }, { id: 't3', isChar: true, charId: 'c_gone' }, { id: 't4', isChar: false, charId: 'c_b' }, { id: 't5', isChar: true, charId: 'c_b', hidden: true }, { id: 't6', isChar: true, charId: 'toString' }, { id: 't7', isChar: true }] };
         const cbG = { round: 3, turn: 0, rows: [{ tokId: 't2' }, { tokId: 't1' }, { tokId: null }, { tokId: 't3' }, { tokId: 't4' }, { tokId: 't5' }, { tokId: 't6' }, { tokId: 't7' }, { tokId: 't9' }, null] };
@@ -3840,8 +3840,8 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const runHook = o => {
             o = o || {}; const out = { deltas: [], saves: 0, views: [], renders: 0 }, chars = JSON.parse(JSON.stringify(chG)), camp = { items: { m1: mpG }, chars: chars, system: gmG };
             const n = { role: o.role || 'host', active: o.active !== false, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
-            out.ret = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'resolveAll', 'renderViews', 'save', hkSrc + NL + 'return roundHook;')(
-                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: k => k !== 'sheets' || o.sheets !== false }, appRender: () => out.renders++ }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({}), S.applyRound, S.resolveAll, id => out.views.push(id), () => out.saves++)(o.mapId || 'm1', cbG);
+            out.ret = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', hkSrc + NL + 'return roundHook;')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: k => k !== 'sheets' || o.sheets !== false }, appRender: () => out.renders++ }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({}), S.applyRound, S.dueActs, S.resolveAll, id => out.views.push(id), () => out.saves++)(o.mapId || 'm1', cbG);
             out.chars = chars; return out;
         };
         const hA = runHook(), hC = runHook({ role: 'client' }), hOff = runHook({ sheets: false }), hNo = runHook({ mapId: 'm9' });
@@ -3849,10 +3849,12 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             hA.ret === 2 && j(hA.deltas) === j([['c_a', { f_t: 3, f_p: 0, f_y: 4 }], ['c_b', { f_t: 3, f_p: 0, f_y: 3 }]]) && hA.saves === 1 && j(hA.views) === j(['c_a', 'c_b']) && hA.renders === 1 && hA.chars.c_a.values.f_t === 3 && j(hA.chars.c_c.values) === j({ f_p: 2 })
             && [hC, hOff, hNo].every(h => h.ret === 0 && !h.deltas.length && !h.saves && j(h.chars.c_a.values) === j(chG.c_a.values)), j([hA.ret, hA.deltas, hA.saves, hC.ret, hOff.ret, hNo.ret]));
         const hmG = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuG = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
-        check('G10 the editor (source): an Each round tick on an apply action only, saved as round: true (unticked: none); back to a Roll drops it; the button says it runs by itself; tour and Help say so',
-            /if \(isApply\) \{ var rl = el\('label', 'sys-hover'\); var rc = el\('input'\); rc\.type = 'checkbox'; rc\.className = 'sys-round-chk'; rc\.checked = !!r\.round;/.test(shG)
-            && /else if \(c\.indexOf\('sys-round-chk'\) >= 0\) \{ if \(t\.checked\) r\.round = true; else delete r\.round; \}/.test(shG) && /else \{ delete r\.apply; delete r\.round; \} markDirty\(\); renderAll\(\); return; \}/.test(shG)
-            && /\(r\.round \? ' \\u2014 also by itself on every new round of a combat' : ''\)/.test(shG) && /Tick <b>Each round<\/b> on an apply action and it also runs by itself/.test(hmG) && /or by themselves each round of a combat \(<b>Each round<\/b>\)/.test(tuG));
+        check('G10 + T2b the editor (source): an apply action\'s Runs menu (only when pressed, each round, at its turn\'s start) and, once set, its By menu (automatically, the GM, its player); back to a Roll drops them; the button says when it runs; tour and Help say so',
+            /if \(isApply\) \{ var ea0 = r\.each === 'round' \|\| r\.each === 'turn' \? r\.each : r\.round === true \? 'round' : ''; top\.appendChild\(select\('sys-roll-each', \[\['', 'Only when pressed'\], \['round', 'Also each round'\], \['turn', 'Also at its turn\\u2019s start'\]\], ea0,/.test(shG)
+            && /if \(ea0\) top\.appendChild\(select\('sys-roll-by', \[\['', 'automatically'\], \['gm', 'when the GM presses it'\], \['owner', 'when its player presses it'\]\]/.test(shG)
+            && /else if \(c\.indexOf\('sys-roll-each'\) >= 0\) \{ delete r\.round; if \(t\.value === 'round' \|\| t\.value === 'turn'\) r\.each = t\.value; else \{ delete r\.each; delete r\.by; \} markDirty\(\); renderAll\(\); return; \}/.test(shG)
+            && /else if \(c\.indexOf\('sys-roll-by'\) >= 0\) \{ if \(t\.value === 'gm' \|\| t\.value === 'owner'\) r\.by = t\.value; else delete r\.by; \}/.test(shG) && /else \{ delete r\.apply; delete r\.round; delete r\.each; delete r\.by; \} markDirty\(\); renderAll\(\); return; \}/.test(shG)
+            && /\(r\.each \? ' \\u2014 also ' \+ \(r\.by \? 'due' : 'by itself'\)/.test(shG) && /An apply action can also run by itself during a combat: <b>Also each round<\/b>/.test(hmG) && /<b>Also at its turn&rsquo;s start<\/b> &mdash; on its character only/.test(hmG) && /or by themselves each round of a combat or at a character&rsquo;s turn \(automatically, or as a reminder to press\)/.test(tuG));
     }
     /* ---- Turn-based combat T1: the system's turn rules (move + unit, diagonals, a round's seconds, time units, actions) and what a roll costs ---- */
     {
@@ -3936,6 +3938,57 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && (shE.match(/try \{ syncEndTurn\(\); \} catch \(e\) \{\}/g) || []).length === 3 && /q\('hud-endturn'\)\.addEventListener\('click', endTurn\);/.test(shE) && /etB\.addEventListener\('click', endTurn\);/.test(shE)
             && /\{ id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false \}/.test(vtE) && /id="sheetEndTurn"/.test(hmE) && /hud-endturn/.test(hmE) && /id="setTurnsBtn"/.test(hmE) && /id="setVttGlobalTurnsBtn"/.test(hmE)
             && /With <b>Turn-based combat<\/b> on \(&#9881; Settings &#9656; VTT features, off by default\) the player whose token has the turn gets <b>End turn<\/b>/.test(hmE) && /with <b>Turn-based combat<\/b> on \(VTT features\) the player on turn ends it themselves\./.test(tuE));
+    }
+    /* ---- Turn-based combat T2b: apply actions at a character's turn's start; run automatically, or as a reminder the GM or its player presses ---- */
+    {
+        const rawB = { v: 1, name: 'B', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_r', key: 'Reaction', kind: 'number', def: 0 }, { id: 'f_g', key: 'Secret', kind: 'number', def: 0, vis: 'gm' }],
+            rolls: [{ id: 'r_bl', label: 'Bleed', apply: [{ f: 'f_hp', formula: '1' }], each: 'turn' },
+                { id: 'r_re', label: 'Reaction back', apply: [{ f: 'f_r', formula: '0', set: true }], each: 'turn', by: 'owner' },
+                { id: 'r_gm', label: 'GM tick {Secret}', apply: [{ f: 'f_g', formula: '1', add: true }], each: 'turn', by: 'owner', vis: 'gm' },
+                { id: 'r_rd', label: 'Round due', apply: [{ f: 'f_r', formula: '0', set: true }], each: 'round', by: 'gm' },
+                { id: 'r_old', label: 'Old', apply: [{ f: 'f_r', formula: '0', set: true }], round: true, by: 'gm' },
+                { id: 'r_nb', label: 'By alone', apply: [{ f: 'f_r', formula: '0', set: true }], by: 'owner' },
+                { id: 'r_xb', label: 'Odd by', apply: [{ f: 'f_r', formula: '0', set: true }], each: 'turn', by: 'player' },
+                { id: 'r_xe', label: 'Odd each', apply: [{ f: 'f_r', formula: '0', set: true }], each: 'always', by: 'gm' }], sheet: { sections: [] } };
+        const gmB = cleanSystem(rawB, { F, gmView: true }), plB = cleanSystem(rawB, { F, gmView: false }), rB = (s, id) => s.rolls.find(r => r.id === id), eb = r => r ? (r.each || '') + '/' + (r.by || '') : 'gone';
+        check('T2b the cleaner: each turn or round with by gm or owner (absent: automatically); by with no each goes, another value too; an older round: true keeps its by; both views; fixed points',
+            j(['r_bl', 'r_re', 'r_rd', 'r_old', 'r_nb', 'r_xb', 'r_xe'].map(id => eb(rB(gmB, id)))) === j(['turn/', 'turn/owner', 'round/gm', 'round/gm', '/', 'turn/', '/']) && eb(rB(plB, 'r_re')) === 'turn/owner' && !rB(plB, 'r_gm')
+            && j(cleanSystem(gmB, { F, gmView: true })) === j(gmB) && j(cleanSystem(plB, { F, gmView: false })) === j(plB), j(gmB.rolls.map(r => r.id + ':' + eb(r))));
+        check('T2b roundActs and dueActs by kind: at the turn\'s start the automatic ones (Bleed, and one with an unknown by) and the ones to press (Reaction back, the GM tick); each round the ones to press (Round due, Old)',
+            j(S.roundActs(gmB, 'turn').map(r => r.id)) === j(['r_bl', 'r_xb']) && j(S.dueActs(gmB, 'turn').map(r => r.id)) === j(['r_re', 'r_gm']) && j(S.roundActs(gmB).map(r => r.id)) === '[]' && j(S.dueActs(gmB, 'round').map(r => r.id)) === j(['r_rd', 'r_old']) && j(S.dueActs(null, 'turn')) === '[]');
+        const mpB = { type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a' }, { id: 't_b', isChar: true, charId: 'c_b' }] };
+        const cbB = { round: 2, turn: 1, rows: [{ id: 'x1', tokId: 't_b' }, { id: 'x2', tokId: 't_a' }] };
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        const hkB = shB.slice(shB.indexOf('// Stage 6 HUD G10: the host\'s round hook'), shB.indexOf('// The combat roster (whiteboard.js): initiative from the system\'s init roll'));
+        const runB = (kind, o) => {
+            o = o || {}; const out = { deltas: [], dues: [], toasts: [], pressed: [] }, chars = { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_hp: 10, f_r: 1 } }, c_b: { id: 'c_b', name: 'Orc', npc: true, values: { f_hp: 7 } } }, camp = { items: { m1: mpB }, chars: chars, system: gmB };
+            const n = { role: 'host', active: true, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]), postDue: (c, a, k, r, own) => out.dues.push([c.id, a.id, k, r, own]) };
+            const api = new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', 'toast', 'canApply', 'applyAction', hkB + NL + 'return { roundHook: roundHook, turnHook: turnHook, runDue: runDue };')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: () => true } }, S.combatChars, c => c.chars, (id, c) => (c || camp).chars[id] || null, S.withRound, S.tokenCtx, () => ({}), S.applyRound, S.dueActs, S.resolveAll, () => {}, () => {}, t => out.toasts.push(t), c => o.can !== false, (r, c, l) => out.pressed.push([r.id, c.id, l]));
+            out.ret = kind === 'due' ? api.runDue(o.charId, o.actId) : api[kind + 'Hook']('m1', cbB); out.chars = chars; return out;
+        };
+        const tB = runB('turn'), rdB = runB('round');
+        check('T2b the turn\'s start (sheets.js, run for real): only the character whose turn begins — its automatic actions run (Bleed: HP 10 \u2192 9; the one whose by was not a press: Reaction 0) and its reminders go out (Reaction back to its player; the GM-only one to the GM); each round: every combatant\'s reminders (the GM\'s), nothing automatic',
+            tB.ret === 1 && j(tB.deltas) === j([['c_a', { f_hp: 9, f_r: 0 }]]) && j(tB.dues) === j([['c_a', 'r_re', 'turn', 2, true], ['c_a', 'r_gm', 'turn', 2, false]]) && tB.chars.c_b.values.f_hp === 7
+            && rdB.ret === 0 && j(rdB.dues) === j([['c_b', 'r_rd', 'round', 2, false], ['c_b', 'r_old', 'round', 2, false], ['c_a', 'r_rd', 'round', 2, false], ['c_a', 'r_old', 'round', 2, false]]), j([tB, rdB.dues]));
+        const dOk = runB('due', { charId: 'c_a', actId: 'r_re' }), dGone = runB('due', { charId: 'c_a', actId: 'r_zz' }), dRoll = runB('due', { charId: 'c_zz', actId: 'r_re' }), dNo = runB('due', { charId: 'c_a', actId: 'r_re', can: false }), dLab = runB('due', { charId: 'c_a', actId: 'r_gm' });
+        check('T2b a reminder\'s Run (runDue, run for real): presses the character\'s saved action as its button does (a label with a {value} as Apply); an action or a character not there, or one not theirs to change, says so and presses nothing',
+            dOk.ret === true && j(dOk.pressed) === j([['r_re', 'c_a', 'Reaction back']]) && j(dLab.pressed) === j([['r_gm', 'c_a', 'Apply']])
+            && [dGone, dRoll, dNo].every(d => d.ret === false && !d.pressed.length && d.toasts.length === 1), j([dOk, dGone.toasts, dNo.toasts]));
+        // the reminder card (dice.js renderDue, run for real on a fake page)
+        const dsB = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, NL), rdSrc = dsB.slice(dsB.indexOf('function renderDue(m) {'), dsB.indexOf('function renderApply(m) {'));
+        const fakeEl = (tag, cls, text) => { const n = { tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], style: {}, on: {}, disabled: false, appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; } }; return n; };
+        const drawDue = (m, o) => { o = o || {}; const runs = []; const node = new Function('el', 'chatTime', 'document', 'window', rdSrc + NL + 'return renderDue;')(fakeEl, () => '12:00', { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }) }, { wpPopout: !!o.pop, wpSheets: { runDue: (c, a) => { runs.push([c, a]); return o.ok !== false; } } })(m); return { node, runs }; };
+        const flat = n => n.textContent + (n.children || []).map(flat).join('');
+        const btnOf = n => n.tag === 'button' ? n : (n.children || []).map(btnOf).find(Boolean) || null;
+        const mD = { due: { charId: 'c_a', act: 'r_re', label: '<b>Reaction back</b>', as: 'Ana', why: 'turn', round: 2, ts: 1 } }, dd = drawDue(mD), bD = btnOf(dd.node);
+        bD.on.click(); bD.on.click();
+        const dTheirs = drawDue({ due: Object.assign({}, mD.due, { theirs: 1 }) }), dPop = drawDue({ due: mD.due }, { pop: true }), dFail = drawDue({ due: mD.due }, { ok: false }), bF = btnOf(dFail.node); bF.on.click();
+        check('T2b the reminder card (dice.js, run for real): Due, for whom, what and when as text; Run presses it once (the card then says so); the GM\'s copy of a player\'s reminder and a pop-out window have no Run; a refused press leaves Run to try again',
+            /^Due for Ana12:00<b>Reaction back<\/b> \u2014 the start of its turn/.test(flat(dd.node)) && j(dd.runs) === j([['c_a', 'r_re']]) && mD.done === true && bD.disabled === true
+            && !btnOf(dTheirs.node) && /Its player presses it\./.test(flat(dTheirs.node)) && !btnOf(dPop.node) && dFail.runs.length === 1 && !bF.disabled && /round 7/.test(flat(drawDue({ due: Object.assign({}, mD.due, { why: 'round', round: 7 }) }).node)), flat(dd.node));
+        const mR = { due: mD.due }, seenR = [], nodeR = new Function('el', 'chatTime', 'document', 'window', rdSrc + NL + 'return renderDue;')(fakeEl, () => '', { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }) }, { wpSheets: { runDue: () => { seenR.push(mR.done); return true; } } })(mR); btnOf(nodeR).on.click();
+        check('T2b a reminder is marked pressed before its press runs (the GM\'s own press posts its card, and the chat redraws the reminder then: it must already read Pressed)', j(seenR) === j([true]) && mR.done === true, j(seenR));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

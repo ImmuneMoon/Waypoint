@@ -1702,6 +1702,60 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /<b>Values in labels<\/b>: a roll&rsquo;s label can carry <code>\{formula\}<\/code> values like a caption/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
     }
 
+    /* ---- Stage 6 HUD frame (HF5b): the built-in CombatRound (H8) — withRound and the resolver run for real, the validator, the fixtures, the views' round signature ---- */
+    {
+        const sh9 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), nt9 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fx9 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8')), GV9 = { F, gmView: true }, PV9 = { F, gmView: false };
+        const gD9 = cleanSystem(fx9('hud-d20'), GV9), pD9 = cleanSystem(fx9('hud-d20'), PV9), g39 = cleanSystem(fx9('hud-3d6'), GV9), p39 = cleanSystem(fx9('hud-3d6'), PV9), gB9 = cleanSystem(fx9('hud-bare'), GV9);
+        const tc0 = { facing: null, stance: { posture: 0, elevation: 0 } }, tcJ = j(tc0);
+        const w4 = S.withRound(tc0, { round: 4.7 }), wBig = S.withRound(tc0, { round: 1e9 }), wNeg = S.withRound(tc0, { round: -2 });
+        check('HUD frame HF5b: withRound (run for real) — a NEW context carrying the combat\'s round, floored and kept within 0..9999, the facing and stance as they were, the input untouched; the context itself comes back for no context, no combat, or a round that is not a finite number',
+            j(w4) === j({ facing: null, stance: { posture: 0, elevation: 0 }, combat: { round: 4 } }) && w4 !== tc0 && j(tc0) === tcJ && wBig.combat.round === 9999 && wNeg.combat.round === 0
+            && S.withRound(null, { round: 2 }) === null && S.withRound(tc0, null) === tc0 && S.withRound(tc0, {}) === tc0 && S.withRound(tc0, { round: 'x' }) === tc0 && S.withRound(tc0, { round: NaN }) === tc0 && S.withRound(tc0, { round: Infinity }) === tc0 && S.withRound(undefined, { round: 2 }) === undefined, j([w4, wBig, wNeg]));
+        // the built-in through the resolver and resolveAll: the round, 0 without one, a field of the system's own keeps the name, Round is no name and round() the function
+        const cSys = cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_r', key: 'RoundNow', kind: 'formula', formula: 'CombatRound' }, { id: 'f_t', key: 'Tally', kind: 'formula', formula: 'CombatRound * 2 + round(2.5)' }, { id: 'f_c', key: 'C', kind: 'number', def: 1, caption: 'round {CombatRound}' }], rolls: [] }, GV9);
+        const own9 = cleanSystem({ v: 1, name: 'O', fields: [{ id: 'f_cr', key: 'CombatRound', kind: 'number', def: 7 }, { id: 'f_r', key: 'RoundNow', kind: 'formula', formula: 'CombatRound' }], rolls: [] }, GV9);
+        const ch9 = { id: 'c_9', values: {} }, ctx3 = S.withRound(tc0, { round: 3 });
+        const r3 = S.resolveAll(cSys, ch9, F, ctx3), r0 = S.resolveAll(cSys, ch9, F, tc0), rN = S.resolveAll(cSys, ch9, F, null), rO = S.resolveAll(own9, ch9, F, ctx3);
+        const vars3 = S.makeResolver(cSys, ch9, F, ctx3), evR = F.evaluate('Round', { vars: vars3 }), evF = F.evaluate('round(2.5)', { vars: vars3 }), evC = F.evaluate('CombatRound', { vars: vars3 }), evM = F.evaluate('CombatRound.max', { vars: vars3 });
+        const fxR = cleanSystem({ v: 1, name: 'X', fields: [{ id: 'f_r', key: 'RoundNow', kind: 'formula', formula: 'CombatRound' }, { id: 'f_fx', key: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_b', name: 'Haste', mods: [{ f: 'f_r', op: 'add', v: 2 }] }] }, GV9);
+        const rFx = S.resolveAll(fxR, { id: 'c_x', values: { f_fx: [{ id: 'x_1', ref: 'e_b', on: true }] } }, F, ctx3);
+        check('HUD frame HF5b: CombatRound reads the round of the context (3), 0 with a context without a combat and 0 with none; a field of the system\'s own keyed CombatRound keeps the name (7, and its formula reads it); Round is still an unknown name, round(2.5) still the function, CombatRound.max no name; a caption reads it; an effect on a value reading it shows its base from the same round; validKey allows CombatRound and refuses Round',
+            r3.f_r.value === 3 && r3.f_t.value === 9 && r0.f_r.value === 0 && rN.f_r.value === 0 && rO.f_cr.value === 7 && rO.f_r.value === 7 && evC.ok && evC.value === 3 && !evR.ok && /Unknown name/.test(evR.error.message) && evF.ok && evF.value === 3 && !evM.ok
+            && j(S.captionParts(cSys, ch9, F, 'round {CombatRound}', r3.vars).map(p => p.text)) === j(['round ', '3']) && j(S.captionParts(cSys, ch9, F, 'round {CombatRound}', rN.vars).map(p => p.text)) === j(['round ', '0'])
+            && rFx.f_r.value === 5 && rFx.f_r.base === 3 && S.validKey('CombatRound', F) && !S.validKey('Round', F) && !S.validKey('round', F), j([r3.f_r, r3.f_t, r0.f_r, rO.f_cr, rO.f_r, evR.error, evM.error, rFx.f_r]));
+        const vC = S.validateSystem(cSys, F), vO = S.validateSystem(own9, F), vBad = S.validateSystem(cleanSystem({ v: 1, name: 'B', fields: [{ id: 'f_r', key: 'R', kind: 'formula', formula: 'Round + 1' }], rolls: [] }, GV9), F);
+        check('HUD frame HF5b: validateSystem knows CombatRound as a number (a formula, a caption and a label may read it; a system\'s own field of that name is that field); Round alone is still an unknown name',
+            vC.ok && vC.warnings.every(w => w.prop !== 'caption') && vO.ok && !vBad.ok && /Unknown name "Round"/.test(vBad.errors[0].message) && S.TOKEN_NAMES.indexOf('CombatRound') >= 0 && S.TOKEN_NAMES.indexOf('Round') < 0, j([vC.errors, vO.errors, vBad.errors]));
+        // the fixtures: d20 RoundNow on the HUD band, 3d6 Turn's caption; 0 without a combat; the bare fixture reads 0 and never errs
+        const chD9 = { id: 'c_d', values: {} }, dR = S.resolveAll(gD9, chD9, F, S.withRound(tc0, { round: 5 })), dP = S.resolveAll(pD9, chD9, F, S.withRound(tc0, { round: 5 })), d0 = S.resolveAll(gD9, chD9, F, tc0);
+        const t3 = S.resolveAll(g39, { id: 'c_3', values: {} }, F, S.withRound(tc0, { round: 2 })), t3c = g39.fields.find(f => f.id === 'f_turn').caption, cap3 = S.captionParts(g39, { id: 'c_3', values: {} }, F, t3c, t3.vars).map(p => p.text).join(''), cap0 = S.captionParts(p39, { id: 'c_3', values: {} }, F, p39.fields.find(f => f.id === 'f_turn').caption, S.resolveAll(p39, { id: 'c_3', values: {} }, F, null).vars).map(p => p.text).join('');
+        const bare9 = S.resolveAll(gB9, { id: 'c_b', values: {} }, F, S.withRound(tc0, { round: 9 })), bareR = S.makeResolver(gB9, { id: 'c_b', values: {} }, F, null)('CombatRound');
+        check('HUD frame HF5b (both fixtures + bare): d20 RoundNow (a formula CombatRound) sits on the HUD band in the Quick figures group and reads 5 in a combat at round 5 (the players\' view too), 0 without; 3d6 Turn\'s caption "round {CombatRound}" reads "round 2" and "round 0"; the bare fixture resolves with a combat context without error and CombatRound reads 0 there; all three validate',
+            gD9.fields.some(f => f.id === 'f_round' && f.formula === 'CombatRound') && j(gD9.sheet.hud.band.find(b => b.id === 'f_round')) === j({ id: 'f_round', g: 'g_hud' }) && j(pD9.sheet.hud.band.find(b => b.id === 'f_round')) === j({ id: 'f_round', g: 'g_hud' }) && dR.f_round.value === 5 && dP.f_round.value === 5 && d0.f_round.value === 0 && !dR.f_round.error
+            && t3c === 'round {CombatRound}' && cap3 === 'round 2' && cap0 === 'round 0' && Object.keys(bare9).every(k => !bare9[k].error) && bareR === 0
+            && S.validateSystem(gD9, F).ok && S.validateSystem(g39, F).ok && S.validateSystem(gB9, F).ok, j([dR.f_round, d0.f_round, cap3, cap0, bareR]));
+        // namesFacing (run for real) treats CombatRound as built in, so a round change (or a turn) redraws a sheet that reads it
+        const nfSrc9 = sh9.slice(sh9.indexOf('function namesFacing(sys) {'), sh9.indexOf('// A finished turn redraws the numbers that read facing'));
+        const NF9 = new Function('F', 'capExpr', nfSrc9 + '\nreturn namesFacing;')(() => F, S.capExpr);
+        check('HUD frame HF5b: namesFacing (run for real) sees CombatRound in a formula, a caption or a roll label; a system whose own field is CombatRound, or one only calling round(), is left alone',
+            NF9({ fields: [{ key: 'X', formula: 'CombatRound' }], rolls: [] }) === true && NF9({ fields: [{ key: 'X', formula: '1', caption: 'round {CombatRound}' }], rolls: [] }) === true && NF9({ fields: [{ key: 'X', formula: '1' }], rolls: [{ label: 'Hit ({CombatRound})' }] }) === true
+            && NF9({ fields: [{ key: 'CombatRound', formula: '1' }, { key: 'X', formula: 'CombatRound' }], rolls: [] }) === false && NF9({ fields: [{ key: 'X', formula: 'round(2.5)' }], rolls: [] }) === false);
+        check('HUD frame HF5b (source): the sheet\'s and the hover card\'s token context carry the round through withRound; every view keeps a round signature beside its dial\'s and marks itself stale when it changes; the host\'s roll for a player merges the combat on the map they are on, right after its token context and before the resolver; no fin() outside systemcore; the tour and Help say what reads 0',
+            /function combatOn\(mapId\) \{ var n = net\(\); return n && n\.combatFor && typeof mapId === 'string' \? n\.combatFor\(mapId\) : null; \}/.test(sh9)
+            && /function tokenCtxFor\(charId, camp\) \{ var c = charById\(charId, camp\), t = c \? facingTarget\(c, camp\) : null; return t \? withRound\(tokenCtx\(t\.map, t\.tok, tokenFlags\(\)\), combatOn\(t\.mapId\)\) : null; \}/.test(sh9)
+            && /return hoverLines\(sys, c, F\(\), withRound\(tokenCtx\(amH, w, tokenFlags\(\)\), combatOn\(camp\.activeItemId\)\)\); \} catch \(e\) \{ return \[\]; \}/.test(sh9)
+            && /function roundSigOf\(c, camp\) \{ var t = c \? facingTarget\(c, camp\) : null, cb = t \? combatOn\(t\.mapId\) : null; return cb && typeof cb\.round === 'number' \? String\(cb\.round\) : ''; \}/.test(sh9)
+            && /_dialOn = JSON\.stringify\(tokenFlags\(\)\); _roundSig = roundSigOf\(c, camp\);/.test(sh9) && /v\.dialOn = JSON\.stringify\(tokenFlags\(\)\); v\.roundSig = roundSigOf\(c, camp\);/.test(sh9) && /dialOn: null, roundSig: '', redraw: null \}/.test(sh9)
+            && /swapTokenControls\(p, c, camp\);\n        \}\n        var rsS = roundSigOf\(c, camp\); if \(rsS !== _roundSig\) \{ _roundSig = rsS; _dialStale = true; \}[^\n]*\n        if \(final && _dialStale\)/.test(sh9)
+            && /swapTokenControls\(v\.panel, c, camp\);\n    \}\n    var rs = roundSigOf\(c, camp\); if \(rs !== v\.roundSig\) \{ v\.roundSig = rs; v\.dialStale = true; \}[^\n]*\n    if \(final && v\.dialStale\)/.test(sh9)
+            && /import \{[^}]*labelNames, withRound \} from '\.\/systemcore\.js';/.test(sh9)
+            && /elevation: ruleQ\('elevation'\) \}\);[^\n]*\n            tcQ = SQ\.withRound\(tcQ, mapQ && own\(net\.combats, locQ\) \? net\.combats\[locQ\] : null\);[^\n]*\n            chQ = srcQ; varsQ = SQ\.makeResolver\(viewQ, chvQ, Fq, tcQ\);/.test(nt9)
+            && !/\bfin\(/.test(nt9) && !/\bfin\(/.test(sh9)
+            && /Formulas can read <b>CombatRound<\/b>, the round of the combat on the character&rsquo;s map\./.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'))
+            && /Formulas can read <b>CombatRound<\/b>, the round of the combat on the map of the character&rsquo;s token \(0 with no token, no combat, or offline; a pool&rsquo;s maximum, sight ranges and teammates&rsquo; lines always read 0, as they read Facing neutral\)\. A field of your own named CombatRound keeps the name\./.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+    }
+
     /* ---- Stage 6 look fold (L8): monospaced numbers, band inline / chips, arrows inside, boxed results, item cards ---- */
     {
         const sys8 = look => cleanSystem({ v: 1, name: 'L8', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all', edit: 'owner' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'A', cols: 1, fields: [{ id: 'f_a', w: 1 }] }], look } }, { F, gmView: true }).sheet.look;

@@ -1038,6 +1038,7 @@ net.onLocalSave = function() {
         net.syncMusic();    // and the music library, the same way
         net.syncSystem();   // and the system (character sheets), the same way
         net.syncDocStyle(); // and the campaign's document look (doc theming), the same way
+        net.syncCampName(); // and its name (a rename reaches the players' top bar), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -1268,6 +1269,21 @@ net.syncDocStyle = function(force) {
     net._lastDocStyleSig = s;
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
+// The hosted campaign's name (1.5.0, a joined player's top bar): the join snapshot carries it already (sanitizeAppState keeps camp.name);
+// a rename mid-session goes out the way the look does — once per change, admitted peers only, re-checked on arrival. A host has NO
+// branch for 'campName': a client never names the table.
+// [netcheck:campnamesync-start]
+net._lastCampNameSig = null;
+net.campNameMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'campName', campId: camp.id, name: typeof camp.name === 'string' ? camp.name.slice(0, 200) : '' }; };
+net.syncCampName = function() {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.campNameMessage(); if (!msg) return;
+    var s = msg.campId + '\n' + msg.name;
+    if (s === net._lastCampNameSig) return;
+    net._lastCampNameSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+};
+// [netcheck:campnamesync-end]
 net._lastSystemSig = null;
 net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
 net.syncSystem = function(force) {
@@ -2378,6 +2394,7 @@ function admitPlayer(conn, prof, provenKey) {
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
+    var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
 }
@@ -2881,6 +2898,16 @@ function handleMessage(msg, conn) {
         if (cds) campDS.docStyle = cds; else delete campDS.docStyle;
         try { if (window.wpDocReaderRestyle) window.wpDocReaderRestyle(msg.campId); } catch (e) {}
         try { if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); } catch (e) {}
+    } else if (msg.type === 'campName' && net.role === 'client') {
+        // [netcheck:campname-start]
+        // the hosted campaign renamed mid-session: from the synced host only, for the hosted campaign, a string (cut to 200); the top bar
+        // paints it as text (renderWhere cleans it again)
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || typeof msg.name !== 'string') return;
+        var campNm = campOf(msg.campId); if (!campNm) return;
+        campNm.name = msg.name.slice(0, 200);
+        renderWhere();
+        // [netcheck:campname-end]
     } else if ((msg.type === 'sounds' || msg.type === 'sound') && net.role === 'client') {
         // the hosted campaign's sound list and its cues: only from the synced host, only after the snapshot, validated in sound.js.
         // A host has no branch for these: a player never triggers a sound on anyone.

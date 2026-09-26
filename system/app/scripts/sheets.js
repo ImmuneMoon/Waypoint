@@ -1852,7 +1852,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL);
         var noteLn = null;
-        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f);   // F5b: the list's rolls on this row
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
@@ -1883,6 +1883,22 @@ function rowRollBtns(host, spec, entry, def, c, f) {
         var lb = r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';
         b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, { row: { f: f.id, r: rid } }); });
         host.appendChild(b);
+    });
+}
+// Stage 6 HUD R2: a row's counters — a chip each (Charges 12/20); −/+ for whoever may change the row's facts (one set op a click, the host judges it)
+function ctCtl(host, entry, c, f, spec, editable, cells) {
+    if (!spec || !Array.isArray(spec.counters) || !spec.counters.length || entry.hid === 1) return;
+    var rid = rowIdOf(entry), byKey = {}; (Array.isArray(cells) ? cells : []).forEach(function(x) { if (x && typeof x.key === 'string') byKey[x.key] = x; });
+    spec.counters.forEach(function(t) {
+        if (!t || typeof t.key !== 'string') return;
+        var cell = byKey[t.key], v = cell && typeof cell.value === 'number' ? cell.value : (entry.ct && typeof entry.ct[t.key] === 'number' ? entry.ct[t.key] : (t.def || 0)), mx = cell && typeof cell.max === 'number' ? cell.max : null;
+        var w = el('span', 'sheet-chip sheet-item-ct'); w.title = t.label || t.key;
+        w.appendChild(el('span', 'sheet-item-ctl', (t.label || t.key) + ' '));
+        var set = function(n) { var o = {}; o[t.key] = n; commitItem(c, f, { op: 'set', rowId: rid, facts: { ct: o } }); };
+        if (editable) { var mb = el('button', 'tool ghost sheet-item-ctb', '\u2212'); mb.type = 'button'; mb.title = 'One less'; mb.disabled = v <= 0; mb.addEventListener('click', function() { set(v - 1); }); w.appendChild(mb); }
+        w.appendChild(el('b', 'sheet-item-ctv', fmtNum(v) + (mx !== null ? '/' + fmtNum(mx) : '')));
+        if (editable) { var pb = el('button', 'tool ghost sheet-item-ctb', '+'); pb.type = 'button'; pb.title = 'One more'; pb.disabled = mx !== null && v >= mx; pb.addEventListener('click', function() { set(v + 1); }); w.appendChild(pb); }
+        host.appendChild(w);
     });
 }
 // Stage 6 F5a1: the columns shown on a row — a chip each, its label small ("Cost 11 pts"); an error reads "\u2014" with the message on hover
@@ -1957,6 +1973,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
                 actTd.appendChild(nt);
             }
+            ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters
             rowRollBtns(actTd, spec, entry, def, c, f);   // F5b: the list's rolls
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
             if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); actTd.appendChild(itemRmBtn(entry, def, c, f)); }
@@ -3211,6 +3228,19 @@ function listCard(f, allCats) {
         cb2.appendChild(cr);
     });
     var cadd = el('button', 'tool ghost sys-btn sys-list-coladd', '+ Column'); cadd.dataset.act = 'coladd'; cadd.disabled = cls.length >= LIMITS.listCols; cadd.title = cadd.disabled ? 'At most ' + LIMITS.listCols + ' columns a list' : 'A formula worked out for each row (a skill\u2019s cost from its level, a weapon\u2019s to-hit)'; cb2.appendChild(cadd);
+    // Stage 6 HUD R2: the list's counters — a whole number each row keeps (Charges, Hits), four at most: its key (Row.<key>), label, start and most
+    var ctsL = Array.isArray(sp.counters) ? sp.counters : [];
+    cb2.appendChild(el('span', 'sys-num-cap', 'Counters'));
+    ctsL.forEach(function(t0, ti) {
+        var tt = t0 && typeof t0 === 'object' ? t0 : {}, rw = el('div', 'sys-flags sys-list-ct'); rw.dataset.ti = String(ti);
+        var tk = input('sys-list-ctkey field', typeof tt.key === 'string' ? tt.key : '', 'Its name in formulas: Row.<key> (Charges, Hits)', 'Key'); tk.maxLength = 24; rw.appendChild(tk);
+        var tl = input('sys-list-ctlabel field', typeof tt.label === 'string' ? tt.label : '', 'What the row shows (blank: the key)', 'Label'); tl.maxLength = LIMITS.label; rw.appendChild(tl);
+        var tdf = el('input', 'field sys-list-ctdef'); tdf.type = 'number'; tdf.min = '0'; tdf.step = '1'; tdf.value = typeof tt.def === 'number' ? String(tt.def) : ''; tdf.placeholder = 'Starts at 0'; tdf.title = 'Where a new row starts'; rw.appendChild(tdf);
+        var tmx = input('sys-list-ctmax field', typeof tt.max === 'string' ? tt.max : '', 'Its most, worked out for each row (no dice): 20, Row.Shots; empty: no most', 'Most (e.g. Row.Shots)'); tmx.maxLength = LIMITS.formula; rw.appendChild(tmx);
+        [['ctup', '\u25b2', 'Move up'], ['ctdown', '\u25bc', 'Move down'], ['ctdel', '\u00d7', 'Remove this counter']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        cb2.appendChild(rw);
+    });
+    var tadd = el('button', 'tool ghost sys-btn sys-list-ctadd', '+ Counter'); tadd.dataset.act = 'ctadd'; tadd.disabled = ctsL.length >= LIMITS.rowCounters; tadd.title = tadd.disabled ? 'At most ' + LIMITS.rowCounters + ' counters a list' : 'A number each row keeps and shows with \u2212 and + (a weapon\u2019s Charges, its Hits)'; cb2.appendChild(tadd);
     // Stage 6 F5b: the list's rolls — a button on each row, the formula rolled with the row's names (dice allowed), four at most
     var rls = Array.isArray(sp.rolls) ? sp.rolls : [];
     cb2.appendChild(el('span', 'sys-num-cap', 'Rolls'));
@@ -3333,6 +3363,15 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-ct') >= 0) {   // Stage 6 HUD R2: a counter's boxes (Save cleans them)
+            var ctrw = t.closest('.sys-list-ct'), ctix = ctrw ? +ctrw.dataset.ti : -1, ctL = Array.isArray(lsp.counters) ? lsp.counters : null; if (!ctL || !(ctix >= 0 && ctix < ctL.length)) return;
+            var ctD = ctL[ctix] && typeof ctL[ctix] === 'object' && !Array.isArray(ctL[ctix]) ? ctL[ctix] : (ctL[ctix] = {});
+            if (lcc.indexOf('sys-list-ctkey') >= 0) ctD.key = t.value.trim().slice(0, 24);
+            else if (lcc.indexOf('sys-list-ctlabel') >= 0) ctD.label = t.value.slice(0, LIMITS.label);
+            else if (lcc.indexOf('sys-list-ctmax') >= 0) { if (t.value.trim()) ctD.max = t.value.slice(0, LIMITS.formula); else delete ctD.max; }
+            else if (lcc.indexOf('sys-list-ctdef') >= 0) { var cdn = Number(t.value); if (String(t.value).trim() === '' || !isFinite(cdn)) delete ctD.def; else ctD.def = cdn; }
+            else return;
+        }
         else if (lcc.indexOf('sys-list-applyformula') >= 0) {   // Stage 6 HUD H7b: a list action's amount (Save cleans it)
             var arw = t.closest('.sys-list-applyrow'), aL = Array.isArray(lsp.rolls) ? lsp.rolls : null, aR = arw && aL ? aL[+arw.dataset.ri] : null, aC = aR && Array.isArray(aR.apply) ? aR.apply[+arw.dataset.ai] : null;
             if (!aC || typeof aC !== 'object') return; aC.formula = t.value.slice(0, LIMITS.formula);
@@ -3569,6 +3608,16 @@ function onClick(e) {
         else if (ract === 'rolldel' && rI >= 0 && rI < rArr.length) rArr.splice(rI, 1);
         else return;
         if (!rArr.length) delete lsr.rolls;
+        markDirty(); renderAll(); return;
+    }
+    if (lcb && /^ct(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 HUD R2: a Lists card's counter buttons (add, move, remove)
+        var lst = lcb.list || (lcb.list = {}), tArr = Array.isArray(lst.counters) ? lst.counters : [], tact = b.dataset.act, tRow = b.closest('.sys-list-ct'), tI = tRow ? +tRow.dataset.ti : -1;
+        if (tact === 'ctadd') { if (tArr.length >= LIMITS.rowCounters) { toast('At most ' + LIMITS.rowCounters + ' counters a list.'); return; } tArr.push({ key: '', label: '' }); lst.counters = tArr; }
+        else if (tact === 'ctup' && tI > 0 && tI < tArr.length) { var tuS = tArr[tI]; tArr[tI] = tArr[tI - 1]; tArr[tI - 1] = tuS; }
+        else if (tact === 'ctdown' && tI >= 0 && tI < tArr.length - 1) { var tdS = tArr[tI]; tArr[tI] = tArr[tI + 1]; tArr[tI + 1] = tdS; }
+        else if (tact === 'ctdel' && tI >= 0 && tI < tArr.length) tArr.splice(tI, 1);
+        else return;
+        if (!tArr.length) delete lst.counters;
         markDirty(); renderAll(); return;
     }
     if (lcb && /^col(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5a1: a Lists card's column buttons (add, move, remove)

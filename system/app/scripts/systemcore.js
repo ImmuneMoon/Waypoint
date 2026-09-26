@@ -20,6 +20,7 @@ var LIMITS = Object.freeze({
     pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
     rowRolls: 4,                             // Stage 6 F5b: a list's rolls (a button on each row)
     applyChanges: 4,                         // Stage 6 HUD H7: an apply action's changes (a pool or a number each)
+    rowCounters: 4,                          // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 10,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
     band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
@@ -487,6 +488,18 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         }
         if (cls.length) out.cols = cls;
     }
+    if (Array.isArray(v.counters)) {   // Stage 6 HUD R2: its counters — a whole number each row keeps (Charges, Hits), four at most: a key of its own (never a stat's or a
+        // column's), a label, where a row starts (0..1e6) and its most (a formula, Row.* read; null: the players' view blanked a GM-only name)
+        var cts = [], seenT = map(); (out.stats || []).concat(out.cols || []).forEach(function(x) { seenT[lower(x.key)] = 1; });
+        for (var ti = 0; ti < v.counters.length && cts.length < LIMITS.rowCounters; ti++) {
+            var tv = v.counters[ti]; if (!isObj(tv)) continue;
+            var tk = statKey(tv.key, F); if (!tk || seenT[lower(tk)]) continue; seenT[lower(tk)] = 1;
+            var to = { key: tk, label: cutText(tv.label, LIMITS.label) || tk }, tdn = Number(tv.def); if (typeof tv.def === 'number' && fin(tdn) && tdn > 0) to.def = Math.min(1e6, Math.round(tdn));
+            if (tv.max === null) to.max = null; else { var tmx = cleanFormulaText(tv.max); if (tmx) to.max = tmx; }
+            cts.push(to);
+        }
+        if (cts.length) out.counters = cts;
+    }
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), four at most
         var rls = [];
         v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { rls.push({ label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply) }); return; } rls.push({ label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }); });   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
@@ -760,7 +773,7 @@ function cleanSystem(sys, opts) {
         };
         var showMention = mentions;   // Stage 6 HUD C8: the sheet's show-ifs are checked once the sheet is cleaned (below)
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
-        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
+        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.max && mentions(t.max)) t.max = null; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
         out.rolls = out.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); });   // H7: an apply action naming a GM-only value goes whole
         out.rolls.forEach(function(r) { if (r.then && r.then.some(function(c) { return mentions(c.formula); })) delete r.then; });   // R1: a consequence naming a GM-only value takes them all (players' rolls then change nothing)
         out.rolls.forEach(function(r) { if (r.label.indexOf('{') >= 0 && capMentions(r.label)) r.label = labelHead(r.label); });   // HUD frame (HF5a, H3): a label naming a GM-only value keeps only its plain text before the first {...} (fail closed, as a caption)
@@ -1026,6 +1039,7 @@ function cleanFacts(v) {
     if (v.lvl === null) out.lvl = null; else if (v.lvl !== undefined) { if (typeof v.lvl !== 'number') return null; var n = lvlNum(v.lvl); if (n === undefined) return null; out.lvl = n; }
     if (v.on !== undefined) { if (typeof v.on !== 'boolean') return null; out.on = v.on; }
     if (v.note !== undefined) { if (typeof v.note !== 'string' || v.note.length > LIMITS.rowNote * 4) return null; out.note = cutText(v.note, LIMITS.rowNote); }
+    if (v.ct !== undefined) { if (!isObj(v.ct)) return null; var ctk = Object.keys(v.ct); if (!ctk.length || ctk.length > LIMITS.rowCounters) return null; var cto = {}; for (var cti = 0; cti < ctk.length; cti++) { var cvv = v.ct[ctk[cti]]; if (typeof cvv !== 'number' || !fin(cvv) || ctk[cti].length > 24) return null; cto[ctk[cti]] = cvv; } out.ct = cto; }   // Stage 6 HUD R2: counters by key (applyRowOp judges them)
     if (v.paid === null) out.paid = null; else if (v.paid !== undefined) { if (typeof v.paid !== 'number' || !fin(v.paid) || v.paid < 0 || v.paid > LIMITS.statAbs) return null; out.paid = v.paid; }
     return Object.keys(out).length ? out : null;
 }
@@ -1103,11 +1117,26 @@ function cleanRow(e, items, spec) {   // spec (F4b): the list's options (f.list)
 }
 // Stage 6 F4b: a row's facts, after its quantity — the level on the list's terms (as stored while the list has none), the switch, the note.
 // keptOn (after them, the GM's machine only): the owner switched a curse-on-contact item off and the GM keeps it on
+// Stage 6 HUD R2: a row's counters — whole numbers 0..1e6 under its list's counter keys (spelled as the list spells them); a list with no counters
+// keeps none. None stored: each reads its start (rowCt)
+function cleanCt(v, spec) {
+    var cs = isObj(spec) && Array.isArray(spec.counters) ? spec.counters : null; if (!isObj(v) || !cs) return null;
+    var out = {}, n = 0;
+    Object.keys(v).forEach(function(k) {
+        var x = v[k], key = null; if (n >= LIMITS.rowCounters || typeof x !== 'number' || !fin(x)) return;
+        cs.forEach(function(t) { if (!key && isObj(t) && typeof t.key === 'string' && lower(t.key) === lower(k)) key = t.key; });
+        if (!key || Object.prototype.hasOwnProperty.call(out, key)) return;
+        out[key] = Math.max(0, Math.min(1e6, Math.round(x))); n++;
+    });
+    return n ? out : null;
+}
+function rowCt(r, t) { return isObj(r) && isObj(r.ct) && typeof r.ct[t.key] === 'number' ? r.ct[t.key] : (typeof t.def === 'number' ? t.def : 0); }   // R2: a row's counter (none stored: its start)
 function rowFacts(o, e, spec) {
     var lv = lvlNum(e.lvl); if (lv !== undefined && typeof e.lvl === 'number') o.lvl = isObj(spec) && isObj(spec.lvl) ? lvlClamp(spec.lvl, lv) : lv;
     if (typeof e.on === 'boolean') o.on = e.on;
     var nt = cutText(e.note, LIMITS.rowNote); if (nt) o.note = nt;
-    if (typeof e.paid === 'number' && fin(e.paid) && e.paid >= 0 && e.paid <= LIMITS.statAbs) o.paid = e.paid;   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
+    if (typeof e.paid === 'number' && fin(e.paid) && e.paid >= 0 && e.paid <= LIMITS.statAbs) o.paid = e.paid;
+    var ct = cleanCt(e.ct, spec); if (ct) o.ct = ct;   // Stage 6 HUD R2: its counters   // F4c1: what one cost when it was added (kept while the list has no price, as a level is)
 }
 // Stage 6 F4c2: a linked copy's own values (ov), by shape — only the fields deliberately changed on this copy (the host drops one equal to the
 // copy's base): its name, icon, category, notes, its list's stats (held: the ones the GM set, which its owner's Setting A leaves alone), a
@@ -1180,7 +1209,8 @@ function rowDef(sys, row) {
 // players' fields only (the 5h rule: the owner's sheet, their rolls and the host agree); a custom row without its GM texts; a kept curse
 // (hid) not at all. lib: the host's full items by id — without it a GM-only row is left out (fail closed). F4b: the facts go as stored, a
 // curse the GM keeps on (keptOn) as switched off.
-function projFacts(o, r) { if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; if (typeof r.paid === 'number') o.paid = r.paid; }   // F4c1: paid
+function projFacts(o, r) { if (isObj(r.ct)) o.ct = JSON.parse(JSON.stringify(r.ct));   // R2: its counters go as stored
+ if (typeof r.lvl === 'number') o.lvl = r.lvl; if (typeof r.on === 'boolean') o.on = r.keptOn === 1 ? false : r.on; if (typeof r.note === 'string' && r.note) o.note = r.note; if (typeof r.paid === 'number') o.paid = r.paid; }   // F4c1: paid
 // F4c1: an inline or custom copy's stats as its owner holds them — its list's (spec: the view's list options; none: no stats); spec true is compare
 // only (sheets.js ownerSeesSame): every stat as the GM's machine holds it, so a change to one is never taken for "the same"
 function ownStats(pd, src, spec) { if (spec === true) return; var st = isObj(src) ? rowStats(src.stats, spec) : null; if (st) pd.stats = st; else delete pd.stats; }
@@ -1257,7 +1287,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             extra.qty = list[idx].qty;
         } else if (q.op === 'set') {   // F4b: a row's facts, all or none. A player switching off an item with an equip lock: bound — it stays on
             // (their message; within the grace after it went on, it comes off); curse on contact — it looks off to them and stays on here
-            var fx = isObj(q.facts) ? q.facts : null, rw = list[idx]; if (!fx || (fx.lvl === undefined && fx.on === undefined && fx.note === undefined && fx.paid === undefined)) return { ok: false, reason: 'value' };   // no fact: nothing to do
+            var fx = isObj(q.facts) ? q.facts : null, rw = list[idx]; if (!fx || (fx.lvl === undefined && fx.on === undefined && fx.note === undefined && fx.paid === undefined && fx.ct === undefined)) return { ok: false, reason: 'value' };   // no fact: nothing to do
             if (fx.paid !== undefined) {   // F4c1: what one cost is the GM's to correct (a player's: field, before any fact applies); null: back to the list price
                 if (opts.player) return { ok: false, reason: 'field' };
                 if (!spec || !spec.price) return { ok: false, reason: 'value' };
@@ -1265,6 +1295,18 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             }
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
             if (fx.note !== undefined) { if (typeof fx.note !== 'string') return { ok: false, reason: 'value' }; var nn = cutText(fx.note, LIMITS.rowNote); if (nn) rw.note = nn; else delete rw.note; }
+            if (fx.ct !== undefined) {   // Stage 6 HUD R2: its counters — each one its list has, a whole number from 0 to the row's own most
+                var cst = spec && Array.isArray(spec.counters) ? spec.counters : null; if (!cst || !isObj(fx.ct)) return { ok: false, reason: 'value' };
+                var nct = isObj(rw.ct) ? JSON.parse(JSON.stringify(rw.ct)) : {}, lfR = fieldById(sys, fieldId), rsR = null;
+                for (var ckk in fx.ct) {
+                    if (!Object.prototype.hasOwnProperty.call(fx.ct, ckk)) continue;
+                    var tt = null; cst.forEach(function(t) { if (!tt && lower(t.key) === lower(ckk)) tt = t; }); if (!tt) return { ok: false, reason: 'value' };
+                    var nvv = Number(fx.ct[ckk]); if (!fin(nvv)) return { ok: false, reason: 'value' }; nvv = Math.max(0, Math.min(1e6, Math.round(nvv)));
+                    if (tt.max) { rsR = rsR || makeResolver(sys, char, F); var mxv = rsR.ctMax(lfR, rw, tt.key); if (typeof mxv === 'number') nvv = Math.min(nvv, mxv); }
+                    nct[tt.key] = nvv;
+                }
+                rw.ct = nct;
+            }
             if (fx.on !== undefined) {
                 if (!spec || !isObj(spec.on) || typeof fx.on !== 'boolean') return { ok: false, reason: 'value' };
                 var rdS = rowDef(sys, rw), emode = rdS && rdS.def && RM_MODES[rdS.def.eq] === 1 ? rdS.def.eq : '', wasOn = rw.on === true, enm = emode ? (rdS.def.name || 'Item') : '';   // stored: a row on only by the list's "starts on" was never switched on, so no lock holds it
@@ -1875,7 +1917,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         (Array.isArray(stored) ? stored : []).forEach(function(r) { if (!isObj(r) || r.hid === 1) return; var rd = rowDef(sys, r); rows.push({ r: r, d: rd ? rd.def : null, id: rowIdOf(r) || '' }); });
         (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') st[lower(x.key)] = x; });
         (spec && Array.isArray(spec.cols) ? spec.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') cl[lower(x.key)] = x; });
-        return (lctx[lk] = { f: f, spec: spec, rows: rows, st: st, cl: cl });
+        var ctm = map(); (spec && Array.isArray(spec.counters) ? spec.counters : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') ctm[lower(x.key)] = x; });   // R2: its counters
+        return (lctx[lk] = { f: f, spec: spec, rows: rows, st: st, cl: cl, ct: ctm });
     }
     function astOf(text) { return asts[text] || (asts[text] = F.parse(text)); }
     function rowVal(L, x, w) {   // a row's own name: lvl, qty, on, has, paid, a stat, a column (x.virt: an addressed row not carried — has false, qty 0)
@@ -1886,6 +1929,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (w === 'paid') return rowPaid(L.spec, x.r, x.d);
         if (L.st[w]) { if (L.st[w].kind !== 'pick') return rowStat(L.spec, x.d, L.st[w].key); var lb = rowStat(L.spec, x.d, L.st[w].key), op = null; (L.st[w].opts || []).forEach(function(o) { if (!op && lower(o.label) === lower(lb)) op = o; }); if (!op) return 0; var ov = fn(op.name); return ov === undefined ? { error: { message: 'Unknown name "' + op.name + '"', pos: 0, len: 0 } } : ov; }   // F5a2: a choice reads its option's value (ST); none chosen: 0
         if (L.cl[w]) return colVal(L, x, L.cl[w]);
+        if (L.ct && L.ct[w]) return x.virt ? 0 : rowCt(x.r, L.ct[w]);   // Stage 6 HUD R2: a counter (a row not carried: 0)
         return undefined;
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
@@ -1942,7 +1986,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var L = listCtx(f); if (typeof name === 'string' && !pretty[l]) pretty[l] = name;
         if (segs.length === 2) return totalOf(L, l, segs[1], false);
         if (segs[1] === 'on') return totalOf(L, l, segs[2], true);
-        var w = segs[2]; if (w !== 'lvl' && w !== 'qty' && w !== 'on' && w !== 'has' && w !== 'paid' && !L.st[w] && !L.cl[w]) return undefined;
+        var w = segs[2]; if (w !== 'lvl' && w !== 'qty' && w !== 'on' && w !== 'has' && w !== 'paid' && !L.st[w] && !L.cl[w] && !(L.ct && L.ct[w])) return undefined;   // R2: or a counter
         if (l in cache) return cache[l];
         var v = rowVal(L, findRow(L, segs[1]), w);
         if (v && typeof v === 'object' && v.error) return v;
@@ -1985,6 +2029,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     fn.reset = function() { cache = map(); chain = []; detail = map(); lctx = map(); pretty = map(); };
     fn.row = function(fieldId, rowId) { var f = null; sys.fields.forEach(function(x) { if (!f && x.id === fieldId && x.kind === 'item-list') f = x; }); if (!f) return null; var L = listCtx(f); for (var i = 0; i < L.rows.length; i++) if (L.rows[i].id === rowId) return rowVars(L, L.rows[i]); return null; };   // F5b: a row's own names for a roll on it (a kept curse has none)
+    fn.ctMax = function(f, row, key) { var L = f ? listCtx(f) : null, t = L && L.ct ? L.ct[lower(key)] : null; if (!t || !t.max || !isObj(row)) return null; var rd = rowDef(sys, row), v = F.evaluate(t.max, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); return v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : null; };   // Stage 6 HUD R2: a counter's most for this row (none: null)
     fn.cell = function(f, row, colKey) { var L = listCtx(f), c = L.cl[lower(colKey)]; if (!c || !isObj(row)) return undefined; var rd = rowDef(sys, row); return colVal(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, c); };   // F5a1: one row's column (the sheet's cells)
     fn.chain = function() { return chain.slice(); };
     fn.detail = function(name) { return detail[lower(name)] || null; };   // 5h: { base, mods: [{name, op, v, gm}], via: [{through, name, op, v, gm}] } or null
@@ -2050,7 +2095,7 @@ function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { fa
         var e = { value: undefined, text: '', error: null };
         var k = f.kind;
         if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
-        else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.cols) && f.list.cols.length) listCells(f, e, r); }   // a carried list; sheets.js renders it, not a number. F5a1: its columns' cells and totals
+        else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.cols) && f.list.cols.length) listCells(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.counters) && f.list.counters.length) listCts(f, e, r); }   // a carried list; sheets.js renders it, not a number. F5a1: its columns' cells and totals
         else if (k === 'effects') { e.value = storedOf(f, char); e.text = ''; e.active = activeEffects(sys, e.value); }   // 5h: the rows; e.active names the ones switched on
         else if (k === 'toggle' || k === 'number') { var tv = r(f.key); e.value = (tv === undefined || (tv && typeof tv === 'object')) ? storedOf(f, char) : tv; e.text = fmtNum(e.value); }   // 5h: through the resolver, so an effect shows
         else {
@@ -2088,6 +2133,12 @@ function listCells(f, e, r) {
     f.list.cols.forEach(function(c) { if (c.foot === true) { var t = tot(c.key); if (t) foot[c.key] = t; } });
     (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(s) { if (s.show === true && !(Array.isArray(s.labels) && s.labels.length)) { var t = tot(s.key); if (t) foot[s.key] = t; } });
     e.cells = cells; e.foot = foot;
+}
+// Stage 6 HUD R2: a list's counters for the sheet — e.cts: rowId -> [{ key, label, value, max }] (max: the row's own most worked out, else null)
+function listCts(f, e, r) {
+    var cts = map();
+    (Array.isArray(e.value) ? e.value : []).forEach(function(row) { var id = rowIdOf(row); if (!id) return; cts[id] = f.list.counters.map(function(t) { return { key: t.key, label: t.label || t.key, value: rowCt(row, t), max: r.ctMax(f, row, t.key) }; }); });
+    e.cts = cts;
 }
 // 5h: the rows of an effects list that are switched on, as { name, icon, tone } (a library row by its definition; a missing one is skipped)
 function activeEffects(sys, rows) {
@@ -2153,10 +2204,11 @@ function validateSystem(sys, F) {
     // paid|<stat>|<col>) — and a row's own inside its list's columns (Row.<word>): a target like a field's (key: the loop graph's node, a column's
     // own; noEdge: nothing worked out behind it), or null. A Row.* name outside a list's columns reads { rowOutside }
     var lsts = map(), gmKsV = gmEntryKeys(sys, sys.fields); sys.fields.forEach(function(f) { if (f.kind === 'item-list') lsts[lower(f.key)] = f; });
-    function listWords(lf) { var w = map(), sp = isObj(lf.list) ? lf.list : {}; (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = x.kind === 'pick' ? 'pick' : 'stat'; }); (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = 'col'; }); return w; }
+    function listWords(lf) { var w = map(), sp = isObj(lf.list) ? lf.list : {}; (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = x.kind === 'pick' ? 'pick' : 'stat'; }); (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string') w[lower(x.key)] = 'col'; }); (Array.isArray(sp.counters) ? sp.counters : []).forEach(function(x) { if (isObj(x) && typeof x.key === 'string' && !w[lower(x.key)]) w[lower(x.key)] = 'ctr'; }); return w; }   // R2: counters
     function wordTarget(lf, word, total) {
         var w = listWords(lf), node = 'l#' + lower(lf.key);
         if (w[word] === 'col') return { id: '', key: node + '.' + word, kind: 'number', vis: lf.vis, list: lf };
+        if (w[word] === 'ctr') return total ? { ctrTotal: true, list: lf } : { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // Stage 6 HUD R2: a counter is one row's; it has no total
         if (w[word] === 'pick') return total ? { pickTotal: true, list: lf } : { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // F5a2: a choice reads its option's value; it has no total
         if (w[word] === 'stat' || word === 'qty' || word === 'paid' || (total ? word === 'count' : word === 'lvl')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };
         if (!total && (word === 'on' || word === 'has')) return { id: '', key: node, kind: 'toggle', vis: lf.vis, list: lf, noEdge: true };
@@ -2184,6 +2236,7 @@ function validateSystem(sys, F) {
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; }   // F5a1
+            if (target && target.ctrTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a counter, so it has no total: read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // R2
             if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no total: read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2
             if (isRollProp(prop) && n.length > 64) { errors.push({ id: owner.id, prop: prop, message: 'A roll carries names of 64 characters at most: "' + n + '" has ' + n.length + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a1 (critic 8): the dice path refuses a longer one
             if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
@@ -2262,6 +2315,10 @@ function validateSystem(sys, F) {
                 checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#apply' }, cp, c.formula, false, f.vis, f);
             });
         });
+    });
+    sys.fields.forEach(function(f) {   // Stage 6 HUD R2: a list's counters — each most a formula (no dice) that reads the row
+        if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.counters)) return;
+        f.list.counters.forEach(function(t) { if (isObj(t) && typeof t.key === 'string' && t.max) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#ct' }, 'list.ctr.' + t.key, t.max, false, f.vis, f); });
     });
     sys.rolls.forEach(function(r) {   // HUD frame (HF5a, H3): each {formula} in a roll's label, as the caption checks (warnings); a GM-only name says what players see instead
         if (typeof r.label !== 'string' || r.label.indexOf('{') < 0) return;
@@ -2379,7 +2436,7 @@ function validateSystem(sys, F) {
     function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)' : x; }
     lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });
     Object.keys(edges).forEach(function(k) { if (!state[k]) visit(k); });   // F5a1: the list columns' own nodes
-    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
+    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.ctr.') === 0) { e.message = 'Counter \u201c' + e.prop.slice(9) + '\u201d, its most: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
     return { ok: errors.length === 0, errors: errors, warnings: warnings };
 }
 

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, gmOnlyNames, applyAct, applyScope, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, rowRollNames, gmOnlyNames, applyAct, applyScope, APPLY_KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -1844,10 +1844,17 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
 // Stage 6 F5b: a list's rolls on a row — a button each, rolled with the row's own names (Row.lvl, Row.<stat>, a column) through the dice path (the
 // host resolves them; a roll on a GM-only item stays private); inert in the Layout preview and a pop-out, and for a viewer who cannot roll for it
 function rowRollBtns(host, spec, entry, def, c, f) {
-    if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !_fxLive || entry.hid === 1 || !canRoll(c)) return;
-    var rid = rowIdOf(entry), nm = (def && def.name) || 'Item';
-    spec.rolls.forEach(function(r) {
-        if (!r || typeof r.formula !== 'string' || !r.formula) return;
+    if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !_fxLive || entry.hid === 1) return;
+    var rid = rowIdOf(entry), nm = (def && def.name) || 'Item', rollOk = canRoll(c), applyOk = null;
+    spec.rolls.forEach(function(r, ri) {
+        if (r && Array.isArray(r.apply)) {   // Stage 6 HUD H7b: an apply action on this row (Apply costs on a power), for a viewer who may change the character
+            if (applyOk === null) applyOk = canApply(c);
+            if (!applyOk || !r.apply.length) return;
+            var al = r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()));
+            ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (cN) applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });
+            host.appendChild(ab); return;
+        }
+        if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
         var lb = r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';
         b.addEventListener('click', function(e) { sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, { row: { f: f.id, r: rid } }); });
         host.appendChild(b);
@@ -2503,12 +2510,17 @@ function applyNode(r, c, sys, vars) {
 // Stage 6 HUD H7: an apply action pressed — a player asks the host (the new values come back as its delta, the card as its record); the GM
 // works it out here with the saved system (the sheet's own resolver, token and round included), stores it as ONE change (one Revert brings
 // every value back) and posts the card to whoever may see it (applyScope); a card that would carry a GM-only value is kept private, with a toast
-function applyAction(r, c, label) {
+function applyAction(r, c, label, row) {   // row (H7b): { f, r, i } — a list's action on one of the character's rows
     var n = net(), camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !F()) return;
-    if (isClient()) { if (!n || !n.charApply) return; var q = n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
+    if (isClient()) { if (!n || !n.charApply) return; var q = row ? n.charApply(c.id, null, label, row) : n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
     if (!canWrite()) return;
-    var act = null; (sys.rolls || []).forEach(function(x) { if (x && x.id === r.id && Array.isArray(x.apply)) act = x; }); if (!act) return;   // the saved action, never a draft's
-    var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, c, F(), tc).vars, res = applyAct(sys, c, act, vv, F(), tc);
+    var act = null;
+    if (row) { var lfR = fieldById(sys, row.f), lrR = lfR && lfR.kind === 'item-list' && lfR.list && Array.isArray(lfR.list.rolls) ? lfR.list.rolls[row.i] : null; if (lrR && Array.isArray(lrR.apply)) act = lrR; }   // H7b: the saved list's action
+    else (sys.rolls || []).forEach(function(x) { if (x && x.id === r.id && Array.isArray(x.apply)) act = x; });
+    if (!act) return;   // the saved action, never a draft's
+    var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, c, F(), tc).vars;
+    if (row) { vv = vv && typeof vv.row === 'function' ? vv.row(row.f, row.r) : null; if (!vv) { toast('That row cannot be used now.'); return; } }   // H7b: the row's own names (Row.*)
+    var res = applyAct(sys, c, act, vv, F(), tc);
     if (!res.ok) { toast(res.reason === 'none' ? 'Nothing to apply.' : res.reason === 'error' ? (res.message || 'That amount could not be worked out.') : 'That action cannot change those values now.'); return; }
     var ids = Object.keys(res.values), prevs = {}, extra = null;
     ids.forEach(function(fid) { prevs[fid] = c.values && Object.prototype.hasOwnProperty.call(c.values, fid) ? clone(c.values[fid]) : undefined; });
@@ -2517,9 +2529,11 @@ function applyAction(r, c, label) {
     c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; });
     afterCharChange(c, false, res.values);
     var hit = [], low = [], keep = function(x) { var l = String(x).toLowerCase(); if (low.indexOf(l) < 0) { low.push(l); hit.push(String(x)); } };
-    if (n && n.active && n.role === 'host' && act.vis !== 'gm') { gmOnlyNames(sys, res.names).concat(gmDerivedNames(sys, F(), res.names), gmEffectNames(vv, res.names)).forEach(keep); var ls = labelSecret(sys, vv, act.label); if (ls) keep(ls); }
-    var scope = applyScope(sys, c, act, hit.length > 0, F());
-    if (hit.length && applyScope(sys, c, act, false, F()) !== 'gm') toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
+    var rowP = row ? rowRollNames(sys, c, row.f, row.r, res.names, F()) : null, nmA = rowP ? rowP.names : res.names, gmRow = !!(rowP && rowP.gm);   // H7b: what Row.* read (a column's own names, a choice's option) and a GM-only row
+    if (n && n.active && n.role === 'host' && act.vis !== 'gm') { gmOnlyNames(sys, nmA).concat(gmDerivedNames(sys, F(), nmA), gmEffectNames(vv, nmA)).forEach(keep); var ls = row ? '' : labelSecret(sys, vv, act.label); if (ls) keep(ls); }
+    var scope = applyScope(sys, c, act, hit.length > 0 || gmRow, F()), pub = applyScope(sys, c, act, false, F()) !== 'gm';
+    if (gmRow && pub) toast('Kept private: that is on a GM-only item.');
+    else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
     if (n && n.postApplyCard) n.postApplyCard(c, label, res.lines, scope);
 }
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
@@ -2922,6 +2936,24 @@ function buildDefCell(def, f) {
     }
     else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
 }
+// Stage 6 HUD H7b: a list roll of the Apply kind — its move/remove buttons, then its changes (as the Rolls tab's, the amount reading Row.*); the
+// selects are built with el only (the Lists card's test slice injects no select helper)
+function listApplyEditor(box, rr, ri) {
+    var rw0 = box.lastChild;
+    [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this action']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw0.appendChild(bb); });
+    var targets = draft.fields.filter(function(f) { return f && APPLY_KINDS[f.kind] === 1; }), list = Array.isArray(rr.apply) ? rr.apply : [];
+    var sel = function(cls, opts, val, title) { var s = el('select', cls); s.title = title; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; s.appendChild(op); }); s.value = val; return s; };
+    list.forEach(function(ch0, ai) {
+        var ch = ch0 && typeof ch0 === 'object' ? ch0 : {}, rw = el('div', 'sys-flags sys-list-applyrow'); rw.dataset.ri = String(ri); rw.dataset.ai = String(ai);
+        var opts = [['', 'Pick a pool or number\u2026']].concat(targets.map(function(f) { return [f.id, (f.label || f.key || f.id) + (f.kind === 'resource' ? ' (pool)' : '')]; })); if (ch.f && !targets.some(function(f) { return f.id === ch.f; })) opts.push([ch.f, 'A field that is gone']);
+        rw.appendChild(sel('sys-list-applytarget', opts, ch.f || '', 'What this change moves: a pool\u2019s current value, or a number'));
+        rw.appendChild(sel('sys-list-applyop', [['sub', 'Subtract'], ['add', 'Add']], ch.add ? 'add' : 'sub', 'Subtract (a cost) or add; never past the field\u2019s min and max'));
+        var fm = input('sys-list-applyformula field', typeof ch.formula === 'string' ? ch.formula : '', 'The amount for the row: no dice; Row.lvl, Row.<stat>, Row.<column> read the row (Row.FPCost)', 'Amount (Row.FPCost)'); fm.maxLength = LIMITS.formula; rw.appendChild(fm);
+        [['lapplyup', '\u25b2', 'Move up'], ['lapplydown', '\u25bc', 'Move down'], ['lapplydel', '\u00d7', 'Remove this change']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        box.appendChild(rw);
+    });
+    var addB = el('button', 'tool ghost sys-btn sys-list-applyadd', '+ Change'); addB.dataset.act = 'lapplyadd'; addB.dataset.ri = String(ri); addB.disabled = list.length >= LIMITS.applyChanges; addB.title = addB.disabled ? 'At most ' + LIMITS.applyChanges + ' changes an action' : 'Another pool or number this button moves'; box.appendChild(addB);
+}
 // Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); four at most
 function applyEditor(r) {
     var box = el('div', 'sys-apply'), list = Array.isArray(r.apply) ? r.apply : [];
@@ -3158,6 +3190,9 @@ function listCard(f, allCats) {
     rls.forEach(function(r0, ri) {
         var rr = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-list-roll'); rw.dataset.ri = String(ri);
         var rl = input('sys-list-rolllabel field', typeof rr.label === 'string' ? rr.label : '', 'The button\u2019s name on each row (Attack, Check)', 'Label'); rl.maxLength = LIMITS.label; rw.appendChild(rl);
+        var rApply = Array.isArray(rr.apply), rk = el('select', 'sys-list-rollkind'); rk.title = 'Roll: dice for the row. Apply: moves pools or numbers by an amount the row works out (Apply costs: FP \u2212 Row.FPCost)';   // Stage 6 HUD H7b
+        [['roll', 'Roll'], ['apply', 'Apply']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rk.appendChild(op); }); rk.value = rApply ? 'apply' : 'roll'; rw.appendChild(rk);
+        if (rApply) { cb2.appendChild(rw); listApplyEditor(cb2, rr, ri); return; }
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         [['rollup', '\u25b2', 'Move up'], ['rolldown', '\u25bc', 'Move down'], ['rolldel', '\u00d7', 'Remove this roll']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         cb2.appendChild(rw);
@@ -3271,6 +3306,10 @@ function onInput(e) {
         else if (lcc.indexOf('sys-list-lvldef') >= 0 && lvD) numOr(lvD, 'def');
         else if (lcc.indexOf('sys-list-lvlnames') >= 0 && lvD) { var lvn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (lvn.length && !lvn[lvn.length - 1]) lvn.pop(); if (lvn.some(Boolean)) lvD.labels = lvn; else delete lvD.labels; }
         else if (lcc.indexOf('sys-list-onlabel') >= 0 && lsp.on && typeof lsp.on === 'object') lsp.on.label = t.value.slice(0, LIMITS.label);
+        else if (lcc.indexOf('sys-list-applyformula') >= 0) {   // Stage 6 HUD H7b: a list action's amount (Save cleans it)
+            var arw = t.closest('.sys-list-applyrow'), aL = Array.isArray(lsp.rolls) ? lsp.rolls : null, aR = arw && aL ? aL[+arw.dataset.ri] : null, aC = aR && Array.isArray(aR.apply) ? aR.apply[+arw.dataset.ai] : null;
+            if (!aC || typeof aC !== 'object') return; aC.formula = t.value.slice(0, LIMITS.formula);
+        }
         else if (lcc.indexOf('sys-list-roll') >= 0) {   // Stage 6 F5b: a roll's boxes (Save cleans them)
             var rrw = t.closest('.sys-list-roll'), rix = rrw ? +rrw.dataset.ri : -1, rL = Array.isArray(lsp.rolls) ? lsp.rolls : null; if (!rL || !(rix >= 0 && rix < rL.length)) return;
             var rD = rL[rix] && typeof rL[rix] === 'object' && !Array.isArray(rL[rix]) ? rL[rix] : (rL[rix] = {});
@@ -3380,6 +3419,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-statkind') >= 0) { var skr = t.closest('.sys-list-stat'), skD = skr && Array.isArray(lsc.stats) ? lsc.stats[+skr.dataset.si] : null; if (!skD || typeof skD !== 'object') return; delete skD.def; delete skD.labels; if (t.value === 'pick') { skD.kind = 'pick'; skD.opts = Array.isArray(skD.opts) ? skD.opts : []; if (typeof lsc.price === 'string' && skD.key && lsc.price.toLowerCase() === String(skD.key).toLowerCase()) delete lsc.price; } else { delete skD.kind; delete skD.opts; } markDirty(); renderAll(); return; }   // Stage 6 F5a2: a number or a choice (a choice is never the price)
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
         else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
+        else if (c.indexOf('sys-list-rollkind') >= 0) { var rkr = t.closest('.sys-list-roll'), rkD = rkr && Array.isArray(lsc.rolls) ? lsc.rolls[+rkr.dataset.ri] : null; if (!rkD || typeof rkD !== 'object') return; if (t.value === 'apply') { if (!Array.isArray(rkD.apply)) rkD.apply = [{ f: '', formula: '' }]; } else delete rkD.apply; }   // Stage 6 HUD H7b: Roll | Apply (a formula typed before stays in the draft)
+        else if (c.indexOf('sys-list-applytarget') >= 0 || c.indexOf('sys-list-applyop') >= 0) { var atr = t.closest('.sys-list-applyrow'), atR = atr && Array.isArray(lsc.rolls) ? lsc.rolls[+atr.dataset.ri] : null, atC = atR && Array.isArray(atR.apply) ? atR.apply[+atr.dataset.ai] : null; if (!atC || typeof atC !== 'object') return; if (c.indexOf('sys-list-applytarget') >= 0) atC.f = t.value; else if (t.value === 'add') atC.add = true; else delete atC.add; }
         else if (c.indexOf('sys-list-price') >= 0) { _priceAt.delete(lsc); if (t.value) lsc.price = t.value; else delete lsc.price; }
         else return;
         markDirty(); renderAll(); return;
@@ -3482,6 +3523,16 @@ function onClick(e) {
         markDirty(); renderAll(); return;
     }
     var lcb = listOfCard(b);
+    if (lcb && /^lapply(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 HUD H7b: a list action's change buttons (add, move, remove)
+        var lsa = lcb.list || {}, aHost = b.closest('.sys-list-applyrow'), aRi = aHost ? +aHost.dataset.ri : +b.dataset.ri, aRoll = Array.isArray(lsa.rolls) ? lsa.rolls[aRi] : null; if (!aRoll || !Array.isArray(aRoll.apply)) return;
+        var aArr2 = aRoll.apply, aAct = b.dataset.act, aJ = aHost ? +aHost.dataset.ai : -1;
+        if (aAct === 'lapplyadd') { if (aArr2.length >= LIMITS.applyChanges) { toast('At most ' + LIMITS.applyChanges + ' changes an action.'); return; } aArr2.push({ f: '', formula: '' }); }
+        else if (aAct === 'lapplyup' && aJ > 0 && aJ < aArr2.length) { var auT = aArr2[aJ]; aArr2[aJ] = aArr2[aJ - 1]; aArr2[aJ - 1] = auT; }
+        else if (aAct === 'lapplydown' && aJ >= 0 && aJ < aArr2.length - 1) { var adT = aArr2[aJ]; aArr2[aJ] = aArr2[aJ + 1]; aArr2[aJ + 1] = adT; }
+        else if (aAct === 'lapplydel' && aJ >= 0 && aJ < aArr2.length) aArr2.splice(aJ, 1);
+        else return;
+        markDirty(); renderAll(); return;
+    }
     if (lcb && /^roll(add|up|down|del)$/.test(b.dataset.act || '')) {   // Stage 6 F5b: a Lists card's roll buttons (add, move, remove)
         var lsr = lcb.list || (lcb.list = {}), rArr = Array.isArray(lsr.rolls) ? lsr.rolls : [], ract = b.dataset.act, rRow = b.closest('.sys-list-roll'), rI = rRow ? +rRow.dataset.ri : -1;
         if (ract === 'rolladd') { if (rArr.length >= LIMITS.rowRolls) { toast('At most ' + LIMITS.rowRolls + ' rolls a list.'); return; } rArr.push({ label: '', formula: '' }); lsr.rolls = rArr; }

@@ -1014,6 +1014,64 @@ pendingChecks.push((async () => {
         got.length === 1 && got[0].scope === 'whisper' && j(got[0].apply) === j(Dx.cleanApply(recOk)) && !('evil' in got[0].apply) && fromOther.length === 0 && inStream.length === 0 && badRec.length === 0, j(got));
 })());
 
+// Stage 6 HUD H7b: a list's apply action on the wire — the owner's press names its row ({ f, r, i }); the host finds the list and its action in
+// THEIR view, works the amounts out through that row's names (a row they cannot see is gone), and a row of a GM-only item keeps the card between
+// them and the GM (sliced char-apply + postApply, run for real; here the presser's connection is the table's own, so a card to them is seen)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const apSrc = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply');
+    const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const sysL = Sx.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [
+        { id: 'f_g', key: 'GMFig', kind: 'number', def: 3, vis: 'gm' },
+        { id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '10', def: 'max', min: 0, edit: 'gm' },
+        { id: 'f_ep', key: 'EP', kind: 'resource', maxFormula: '6', def: 'max', min: 0, edit: 'owner', hover: true },
+        { id: 'f_pw', key: 'Powers', kind: 'item-list', edit: 'owner', list: { noQty: true, stats: [{ key: 'FPCost' }, { key: 'EPCost' }], cols: [{ key: 'Sly', label: 'Sly', formula: 'Row.FPCost + GMFig' }],
+            rolls: [{ label: 'Use', formula: '3d6' }, { label: 'Costs', apply: [{ f: 'f_fp', formula: 'Row.FPCost' }, { f: 'f_ep', formula: 'Row.EPCost' }] }, { label: 'Sly', apply: [{ f: 'f_ep', formula: 'Row.Sly' }] }, { label: 'Tire', apply: [{ f: 'f_ep', formula: 'Row.EPCost' }] }] } },
+        { id: 'f_gl', key: 'GMList', kind: 'item-list', vis: 'gm', list: { rolls: [{ label: 'G', apply: [{ f: 'f_ep', formula: '1' }] }] } }],
+        items: [{ id: 'i_push', name: 'Force Push', stats: { FPCost: 3, EPCost: 2 } }, { id: 'i_dark', name: 'Dark', vis: 'gm', stats: { FPCost: 1, EPCost: 1 } }] }, { F: Fx, gmView: true });
+    const START = { f_fp: { cur: 5 }, f_pw: [{ id: 'w_1', defId: 'i_push' }, { id: 'w_2', defId: 'i_dark' }, { id: 'w_3', defId: 'i_push', hid: 1 }], f_gl: [{ id: 'w_g', defId: 'i_push' }] };
+    const host = msg => {
+        const camp = { id: 'k', system: sysL, items: {}, chars: { c_1: { id: 'c_1', name: 'Jed', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } } };
+        const out = { owner: [], mate: [], chat: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conns = [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }];
+        const net = { active: true, role: 'host', paused: false, combats: {}, conns, roster: { pA: { id: 'u_a', name: 'Jed P' }, pB: { id: 'u_b', name: 'Bo P' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            msg, conns[0], net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true },
+            (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), (m, ex) => conns.forEach(c => { if (c !== ex && c.open && net.roster[c.peer]) c.send(m); }), m => out.chat.push(JSON.parse(JSON.stringify(m))), () => {}, r => Dx.applyText(r));
+        out.vals = camp.chars.c_1.values; return out;
+    };
+    const R = (r, i, extra) => Object.assign({ type: 'char-apply', rid: 'a1', charId: 'c_1', row: { f: 'f_pw', r: r, i: i } }, extra || {});
+    const typ = list => list.map(m => m.type + (m.reason ? ':' + m.reason : '') + (m.priv ? ':priv' : ''));
+    const r1 = host(R('w_1', 1, { label: 'Force Push · Costs' })), c1 = r1.owner.find(m => m.type === 'apply') || {};
+    check('H7b char-apply on a row: the owner\'s Apply costs on Force Push reads that row (FP 5 - 3, a "GM edits" pool, and EP 6 - 2) and is acked; the card, labelled with the item, goes to the owner and the GM only (FP is not on hover)',
+        j(r1.vals.f_fp) === j({ cur: 2 }) && j(r1.vals.f_ep) === j({ cur: 4 }) && r1.owner.some(m => m.type === 'char-ack') && c1.label === 'Force Push · Costs' && c1.priv === 'gm' && j(c1.lines) === j([{ n: 'FP', d: -3, v: 2 }, { n: 'EP', d: -2, v: 4 }]) && !r1.mate.some(m => m.type === 'apply'),
+        j([typ(r1.owner), typ(r1.mate), r1.vals]));
+    const r2 = host(R('w_2', 3)), c2 = r2.owner.find(m => m.type === 'apply') || {};
+    check('H7b char-apply on a row of a GM-only item (shown to its owner inline): applied, and its card goes to the presser and the GM alone, even though EP is shown on hover',
+        j(r2.vals.f_ep) === j({ cur: 5 }) && c2.priv === 'gm' && !r2.mate.some(m => m.type === 'apply') && r2.chat.length === 1 && r2.chat[0].scope === 'whisper', j([typ(r2.owner), typ(r2.mate)]));
+    const t1 = host(R('w_1', 3)), cT = t1.owner.find(m => m.type === 'apply') || {};
+    check('H7b char-apply on a visible row moving a pool shown on hover: its card goes to the whole table', j(t1.vals.f_ep) === j({ cur: 4 }) && !('priv' in cT) && t1.mate.some(m => m.type === 'apply'), j([typ(t1.owner), typ(t1.mate)]));
+    const dH = host(R('w_3', 1)), dRoll = host(R('w_1', 0)), dSly = host(R('w_1', 2)), dList = host(Object.assign(R('w_1', 1), { row: { f: 'f_zz', r: 'w_1', i: 1 } })), dNone = host(R('w_9', 1)), dGl = host(Object.assign(R('w_g', 0), { row: { f: 'f_gl', r: 'w_g', i: 0 } }));
+    const quietL = r => j(r.vals) === j(START) && r.chat.length === 0 && r.saves === 0 && r.mate.length === 0;
+    check('H7b char-apply refusals on a row: a kept curse\'s row or one that is not there ("missing"), a list roll, a list that is not theirs or a GM-only list\'s action ("field"), an amount through a column that is GM only in their view ("error", with its message) — nothing moved',
+        j(typ(dH.owner)) === j(['char-deny:missing']) && j(typ(dNone.owner)) === j(['char-deny:missing']) && j(typ(dRoll.owner)) === j(['char-deny:field']) && j(typ(dList.owner)) === j(['char-deny:field']) && j(typ(dGl.owner)) === j(['char-deny:field'])
+        && j(typ(dSly.owner)) === j(['char-deny:error']) && /GM only/.test(dSly.owner[0].msg || '') && [dH, dNone, dRoll, dList, dSly, dGl].every(quietL),
+        j([dH.owner, dNone.owner, dRoll.owner, dList.owner, dSly.owner]));
+    const nsrcL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), caAt = nsrcL.indexOf('net.charApply = function(charId, actId, label, row) {'), caSrc = nsrcL.slice(caAt, nsrcL.indexOf('\n};', caAt) + 3);
+    const clientReq = (calls, o) => { o = o || {}; const sent = [], pend = {}, camp = { system: sysL, chars: { c_1: { id: 'c_1', ownerId: 'u_a' }, c_2: { id: 'c_2', ownerId: 'u_b' } } }, conn = { peer: 'H', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) };
+        const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', myId: 'u_a', conns: [conn] };
+        const run = new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', caSrc + '\nreturn net.charApply;')(netC, () => Sx, () => camp, { wpVtt: { on: () => true } }, pend, () => {}, () => 0);
+        const res = calls.map(a => run.apply(null, a)); return { sent, res }; };
+    const cr = clientReq([['c_1', null, 'x'.repeat(70), { f: 'f_pw', r: 'w_1', i: 1 }], ['c_1', 'r_x', 'Again']]), cr2 = clientReq([['c_1', 'r_x', 'Take 3']]), cr3 = clientReq([['c_2', 'r_x', 'Nope']]);
+    check('H7b net.charApply (the player\'s request, run for real): a list action sends its row ({ f, r, i }) and no act, the label cut to 60; a system action sends its id; a second press while one waits is held; another player\'s character is refused',
+        cr.sent.length === 1 && j(Object.keys(cr.sent[0]).sort()) === j(['charId', 'label', 'rid', 'row', 'type']) && j(cr.sent[0].row) === j({ f: 'f_pw', r: 'w_1', i: 1 }) && cr.sent[0].label.length === 60 && Sx.cleanCharApply(cr.sent[0]) !== null
+        && cr.res[1].error === 'Waiting for the GM to apply the last one.' && j(cr2.sent) === j([{ type: 'char-apply', rid: cr2.sent[0].rid, charId: 'c_1', act: 'r_x', label: 'Take 3' }]) && cr3.sent.length === 0 && cr3.res[0].error === 'That character is not yours.',
+        j([cr.sent, cr.res, cr2.sent, cr3.res]));
+})());
+
 // The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
 // saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
 // creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,

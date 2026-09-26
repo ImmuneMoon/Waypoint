@@ -272,10 +272,16 @@ function cleanApplyDef(r, vis) {
 // (deleted, or its kind changed) keeps its amount and loses the field (the validator asks for one); the players': an action with any change
 // unfinished or out of their view is dropped whole (half an action would mislead)
 function applyTargets(out, fieldIds, gmView) {
-    out.rolls = out.rolls.filter(function(r) {
+    var keep = function(r) {
         if (!r.apply) return true;
         r.apply.forEach(function(c) { if (c.f && APPLY_KINDS[fieldIds[c.f]] !== 1) c.f = ''; });
         return gmView || (r.apply.length > 0 && r.apply.every(function(c) { return !!c.f && !!c.formula; }));
+    };
+    out.rolls = out.rolls.filter(keep);
+    out.fields.forEach(function(f) {   // HUD H7b: a list's apply actions by the same rules; a list spec left with nothing goes (as a load would read it)
+        if (f.kind !== 'item-list' || !isObj(f.list)) return;
+        if (Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(keep); if (!f.list.rolls.length) delete f.list.rolls; }
+        if (!Object.keys(f.list).length) delete f.list;
     });
 }
 function cleanRollDef(r, gmView) {
@@ -480,7 +486,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     }
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), four at most
         var rls = [];
-        v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; rls.push({ label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }); });
+        v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { rls.push({ label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply) }); return; } rls.push({ label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }); });   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
         if (rls.length) out.rolls = rls;
     }
     return Object.keys(out).length ? out : null;
@@ -749,7 +755,7 @@ function cleanSystem(sys, opts) {
             return (String(text).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).some(function(t) { return hit(t) || hit(t.split('.')[0]); });   // Stage 6: text that does not parse is checked word by word — a typo never carries a GM-only name to players
         };
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
-        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
+        out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) delete f.caption; if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
         out.rolls = out.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); });   // H7: an apply action naming a GM-only value goes whole
         out.rolls.forEach(function(r) { if (r.label.indexOf('{') >= 0 && capMentions(r.label)) r.label = labelHead(r.label); });   // HUD frame (HF5a, H3): a label naming a GM-only value keeps only its plain text before the first {...} (fail closed, as a caption)
     }
@@ -934,8 +940,13 @@ function applyScope(sys, char, act, gm, F) {
 // Stage 6 HUD H7: a player's press of an apply action on their own character — { rid, charId, act, label? }. The host finds the action in the
 // player's own view and works everything out (nothing else rides along); the label is the button as drawn, the card's title as a roll's is
 function cleanCharApply(msg) {
-    if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || typeof msg.act !== 'string' || !ROLL_ID.test(msg.act)) return null;
-    var out = { rid: msg.rid, charId: msg.charId, act: msg.act };
+    if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId)) return null;
+    var out = { rid: msg.rid, charId: msg.charId };
+    if (msg.row !== undefined) {   // HUD H7b: a list's action on one row — { f: the list field, r: the row, i: the list's action }, never with an act
+        var rw = msg.row; if (msg.act !== undefined || !isObj(rw) || typeof rw.f !== 'string' || !FIELD_ID.test(rw.f) || typeof rw.r !== 'string' || !ROW_ID.test(rw.r) || typeof rw.i !== 'number' || Math.floor(rw.i) !== rw.i || rw.i < 0 || rw.i >= LIMITS.rowRolls) return null;
+        out.row = { f: rw.f, r: rw.r, i: rw.i };
+    } else if (typeof msg.act !== 'string' || !ROLL_ID.test(msg.act)) return null;
+    else out.act = msg.act;
     if (msg.label !== undefined) { if (typeof msg.label !== 'string' || msg.label.length > LIMITS.label || CTRL_RE.test(msg.label)) return null; var lb = msg.label.trim(); if (lb) out.label = lb; }
     return out;
 }
@@ -2141,7 +2152,7 @@ function validateSystem(sys, F) {
     }
     function listT(n) { var t = listTarget(n, null); return t && !t.rowOutside ? t : null; }   // captions and labels: never inside a column
     function isRollProp(p) { return p === 'roll' || p === 'rollFormula' || (typeof p === 'string' && p.indexOf('list.roll.') === 0); }   // F5b: a list's roll is a roll
-    function isApplyProp(p) { return typeof p === 'string' && p.indexOf('apply.') === 0; }   // Stage 6 HUD H7: an apply action's amount (no dice, no loop edge: nothing reads an action)
+    function isApplyProp(p) { return typeof p === 'string' && (p.indexOf('apply.') === 0 || p.indexOf('list.apply.') === 0); }   // Stage 6 HUD H7: an apply action's amount (no dice, no loop edge: nothing reads an action)
     function checkFormula(owner, prop, text, allowDice, vis, rowList) {   // rowList (F5a1): the list whose column this is (Row.* is known there)
         if (text === null) return;
         if (!text) { errors.push({ id: owner.id, prop: prop, message: 'Missing formula', pos: 0, len: 0 }); return; }
@@ -2204,7 +2215,18 @@ function validateSystem(sys, F) {
     });
     sys.fields.forEach(function(f) {   // F5b: a list's rolls — dice allowed, Row.* known
         if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.rolls)) return;
-        f.list.rolls.forEach(function(r, i) { if (isObj(r)) checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#roll' }, 'list.roll.' + i + '.' + (r.label || 'Roll'), r.formula, true, f.vis, f); });
+        f.list.rolls.forEach(function(r, i) {
+            if (!isObj(r)) return;
+            if (!Array.isArray(r.apply)) { checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#roll' }, 'list.roll.' + i + '.' + (r.label || 'Roll'), r.formula, true, f.vis, f); return; }
+            var al = r.label || 'Apply';   // HUD H7b: an apply action on each row — each change as the system's (a pool or a number, no dice), Row.* known
+            if (!r.apply.length) { errors.push({ id: f.id, prop: 'list.apply.' + i + '.x.' + al, message: 'An apply action needs a change: the pool or number it moves, and by how much.' }); return; }
+            r.apply.forEach(function(c, k) {
+                var cp = 'list.apply.' + i + '.' + k + '.' + al, tf = c.f ? fieldById(sys, c.f) : null;
+                if (!tf || APPLY_KINDS[tf.kind] !== 1) errors.push({ id: f.id, prop: cp, message: 'Pick the pool or number this changes.' });
+                else if (f.vis === 'all' && (tf.vis === 'gm' || gmP[tf.id] === 1)) warnings.push({ id: f.id, prop: cp, message: '"' + tf.key + '" is GM only: players will not get this action.' });
+                checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#apply' }, cp, c.formula, false, f.vis, f);
+            });
+        });
     });
     sys.rolls.forEach(function(r) {   // HUD frame (HF5a, H3): each {formula} in a roll's label, as the caption checks (warnings); a GM-only name says what players see instead
         if (typeof r.label !== 'string' || r.label.indexOf('{') < 0) return;
@@ -2301,7 +2323,7 @@ function validateSystem(sys, F) {
     function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)' : x; }
     lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });
     Object.keys(edges).forEach(function(k) { if (!state[k]) visit(k); });   // F5a1: the list columns' own nodes
-    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
+    [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
     return { ok: errors.length === 0, errors: errors, warnings: warnings };
 }
 

@@ -1814,7 +1814,7 @@ function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
 }
 function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) {   // empty (F4b): the note when nothing shows
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
-    var spec = f.list || null, seenCat = Object.create(null), nCat = 0;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one
+    var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
     var chips = nCat > 1;
     carried.forEach(function(entry) {
@@ -1825,12 +1825,12 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty) 
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on));
+        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL);
         var noteLn = null;
         if (spec) { statChips(line, def, spec, ovc); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
-        var rr = editable ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
+        var rr = editable ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
         if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
         else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
@@ -1843,6 +1843,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl), hasO = !!(spec && spec.on), hasQ = !(spec && spec.noQty);   // F4b: a level and a switch column; no quantity
     var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && s.show === true; }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price);   // F4c1: a column per stat shown On the row, and Paid
+    var unseenT = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
     var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
     var hasAct = editable || canThrow || wantNotes || !!spec, span = 1 + cols.length + nStat + (hasL ? 1 : 0) + (hasO ? 1 : 0) + (hasQ ? 1 : 0) + (hasP ? 1 : 0) + (hasAct ? 1 : 0);
@@ -1867,7 +1868,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO);
+        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
@@ -1892,7 +1893,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
                 actTd.appendChild(nt);
             }
-            if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT));   // F4c2: ✎
+            if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
             if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); actTd.appendChild(itemRmBtn(entry, def, c, f)); }
             tr.appendChild(actTd);
         }
@@ -1918,17 +1919,35 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty)
 // reaches the page only as textContent, value, placeholder and title; a part (focus after the redraw) is built from a row id and a stat key only
 var _rowForm = null;   // { charId, fieldId, rowId, view, typed: { part: text } }
 var OV_WORD = { name: 'name', icon: 'icon', category: 'category', notes: 'notes', area: 'blast', damage: 'damage', cost: 'cost formula', rm: 'removal', rmMsg: 'removal message', eq: 'switch-off', eqMsg: 'switch-off message' }, SK_RE = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
-function rowRights(entry, rd, spec, gm, sysI) {   // who may change this copy's own values here: 'gm', 'stats' (its owner, Setting A) or '' (no ✎)
+function rowRights(entry, rd, spec, gm, sysI) {   // who may change this copy's own values here: 'gm', 'stats' (its owner, Setting A) or '' (no ✎); F4c3: a custom row itself — 'gm', or 'own' (its owner, on a row they made, while the list takes custom rows)
     if (!spec || !rd) return '';
-    if (gm) return rd.src === 'lib' || rd.src === 'lost' ? 'gm' : '';
+    if (gm) return rd.src === 'lib' || rd.src === 'lost' || rd.src === 'custom' ? 'gm' : '';
+    if (rd.src === 'custom') return entry.own === 1 && spec.custom === true && !(rd.def && rd.def.vis === 'gm') ? 'own' : '';
     return rd.src === 'lib' && !!(sysI && sysI.listRules && sysI.listRules.ownerStats === true) && Array.isArray(spec.stats) && spec.stats.length > 0 ? 'stats' : '';
 }
 function rfOpen(c, f, rid, view) { return !!(_rowForm && _rowForm.charId === c.id && _rowForm.fieldId === f.id && _rowForm.rowId === rid && (_rowForm.view || 'sheet') === (view || _fxView)); }
-function editBtn(entry, c, f, mode) {   // ✎ opens this row's form (or closes it), in the view it is drawn in (kept now: another view may be drawn before the click)
+function editBtn(entry, c, f, mode, cust) {   // ✎ opens this row's form (or closes it), in the view it is drawn in (kept now: another view may be drawn before the click); cust (F4c3): a custom row
     var rid = rowIdOf(entry), vw = _fxView, b = el('button', 'tool ghost sheet-item-edit', '✎'); b.type = 'button';
-    b.title = mode === 'gm' ? 'Change this copy' : 'Change this copy’s stats'; b.dataset.fid = f.id; b.dataset.part = 'ed-' + rid;
+    b.title = cust ? 'Change it' : mode === 'gm' ? 'Change this copy' : 'Change this copy’s stats'; b.dataset.fid = f.id; b.dataset.part = 'ed-' + rid;
     b.addEventListener('click', function() { _rowForm = rfOpen(c, f, rid, vw) ? null : { charId: c.id, fieldId: f.id, rowId: rid, view: vw, typed: {} }; renderViews(c.id); });
     return b;
+}
+// F4c3 (critic 7): the keys of the rows of a list its owner cannot see (GM-only, or a curse kept out of their sight), worked out once a draw and only
+// when a custom row asks. A custom row its owner sees whose key one of those has gets a mark on the GM's sheet: their sheet (and the host's roll
+// path) see only theirs, so F5a's addressed lookup reads the rows its owner can see first, on every machine
+function unseenKeys(c, f, carried, sysI) {
+    var m = null;
+    return function() {
+        if (m) return m; m = Object.create(null);
+        var all = c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : carried;
+        all.forEach(function(r) { var d = r && typeof r === 'object' ? rowDef(sysI, r) : null, k = d && d.def && typeof d.def.key === 'string' ? d.def.key.toLowerCase() : ''; if (k && (r.hid === 1 || d.def.vis === 'gm')) m[k] = 1; });
+        return m;
+    };
+}
+function keyShareChip(host, entry, rd, unseen) {
+    var d = rd && rd.src === 'custom' ? rd.def : null, k = d && typeof d.key === 'string' ? d.key.toLowerCase() : '';
+    if (!unseen || !k || entry.hid === 1 || d.vis === 'gm' || unseen()[k] !== 1) return;
+    var ch = el('span', 'sheet-chip sheet-item-keyshare', 'key shared with a GM-only row'); ch.title = 'A row its player cannot see (GM-only, or kept out of their sight) on this list has the key ' + d.key + ' too; formulas that read keys (a later update) find this row on their sheet'; host.appendChild(ch);
 }
 function ovDot(title) { var d = el('span', 'sheet-ov', '•'); d.title = title; return d; }
 function ovCtx(entry, rd, gm) {   // what a copy holds of its own, for its dots: null when nothing (a row with no ov draws as before)
@@ -1957,6 +1976,7 @@ var _rfClearing = false;   // F4c2 review: true while buildSections clears a vie
 // The form: mode 'gm' — a linked copy's own name, icon, category, notes, stats, blast, formulas and its removal and switch locks; mode 'stats' —
 // its owner's own stats (one the GM set is read-only, "Set by the GM"). Drawn only where ✎ is (editable, rowRights)
 function rowForm(entry, rd, c, f, spec, sysI, mode) {
+    if (rd.src === 'custom') return customForm(entry, rd, c, f, spec, sysI, mode);   // F4c3: a custom row's own form (its values are its own: nothing behind them)
     var rid = rowIdOf(entry), ov = entry.ov && typeof entry.ov === 'object' ? entry.ov : {}, base = rd.base || {}, lost = rd.src === 'lost', stRef = _rowForm, typed = stRef && stRef.typed ? stRef.typed : {};
     var lib = lost ? 'Its copy: ' : 'Library: ', ovS = ov.stats && typeof ov.stats === 'object' ? ov.stats : {}, heldL = (Array.isArray(ov.held) ? ov.held : []).map(function(k) { return String(k).toLowerCase(); });
     var form = el('div', 'sheet-row-form'), head = el('div', 'sheet-rf-head'), grid = el('div', 'sheet-rf-grid');
@@ -2027,6 +2047,71 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
         text('rmMsg', 'Message on removal', LIMITS.rmMsg, base.rmMsg || '');
         if (spec && spec.on && typeof spec.on === 'object') { lockSel('eq', 'When a player switches it off', { none: 'A player may switch it off', bound: 'Bound: it stays on', curse: 'Curse on contact: you keep it on' }); text('eqMsg', 'Message on switching off', LIMITS.rmMsg, base.eqMsg || ''); }
     }
+    return form;
+}
+// Stage 6 F4c3: a custom row's form (the character's own item) — its values as they are, nothing behind them (no placeholders, no ↺): name, icon,
+// category (the list's categories, else those of the items drawn from, plus its own; or none), notes, key and stats, for its owner ('own') and
+// the GM ('gm'); the GM's also a blast, the damage and cost formulas, the two locks (a message while one holds) and GM only. Each box commits
+// on change (a custom op of that one field) and what is typed survives a redraw. A new row's form puts the cursor in its name, once
+function customForm(entry, rd, c, f, spec, sysI, mode) {
+    var rid = rowIdOf(entry), d = rd.def && typeof rd.def === 'object' ? rd.def : {}, stRef = _rowForm, typed = stRef && stRef.typed ? stRef.typed : {}, gmF = mode === 'gm';
+    var form = el('div', 'sheet-row-form sheet-row-custom'), head = el('div', 'sheet-rf-head'), grid = el('div', 'sheet-rf-grid');
+    var one = function(k, v) { var p = {}; p[k] = v; commitItem(c, f, { op: 'custom', rowId: rid, def: p }); }, partOf = function(name) { return 'rf-' + rid + '-' + name; };
+    var keepTyped = function(ctl, part) { if (typeof typed[part] === 'string') ctl.value = typed[part]; ctl.addEventListener('input', function() { if (stRef && stRef.typed) stRef.typed[part] = ctl.value; }); };
+    var took = function(part) { if (stRef && stRef.typed) delete stRef.typed[part]; };
+    var hold = function(part, v) { if (!_rfClearing) return false; if (stRef && stRef.typed) stRef.typed[part] = v; return true; };   // the view is being cleared: keep it typed, commit nothing
+    var add = function(cap, ctl, name, title) { var l = el('label', 'sheet-rf-f'); l.appendChild(el('span', 'sheet-rf-cap', cap)); ctl.dataset.fid = f.id; ctl.dataset.part = partOf(name); if (title) ctl.title = title; l.appendChild(ctl); grid.appendChild(l); return ctl; };
+    var text = function(k, cap, max, val, title, trim) {   // a text of its own; blank clears it (a blank name keeps the name)
+        var i = el('input', 'field sheet-rf-in'); i.type = 'text'; i.maxLength = max; i.value = val; keepTyped(i, partOf(k));
+        i.addEventListener('change', function() { if (hold(partOf(k), i.value)) return; took(partOf(k)); var s = trim ? i.value.trim() : i.value; one(k, s.trim() ? s : null); });
+        return add(cap, i, k, title);
+    };
+    var lockSel = function(k, cap, w) {   // a lock: none, bound, curse on contact
+        var s = el('select', 'field sheet-rf-sel'), now = d[k] === 'bound' || d[k] === 'curse' ? d[k] : '';
+        [['', w.none], ['bound', w.bound], ['curse', w.curse]].forEach(function(o) { s.appendChild(opt(o[0], o[1], now === o[0])); });
+        s.addEventListener('change', function() { one(k, s.value || null); }); add(cap, s, k);
+    };
+    var dn = el('button', 'tool ghost sys-btn sheet-rf-done', 'Done'); dn.type = 'button'; dn.dataset.fid = f.id; dn.dataset.part = 'ed-' + rid;
+    dn.addEventListener('click', function() { _rowForm = null; renderViews(c.id); }); head.appendChild(dn);
+    form.appendChild(head); form.appendChild(grid);
+    var nb = text('name', 'Name', LIMITS.name, d.name || '', 'Its name (blank keeps it)');
+    text('icon', 'Icon', 48, d.icon || '', 'An emoji, or icon:name');
+    var cats = [], seenC = Object.create(null), curC = typeof d.category === 'string' ? d.category : '', pushC = function(x) { var t = String(x || '').trim(); if (t && !seenC[t.toLowerCase()]) { seenC[t.toLowerCase()] = 1; cats.push(t); } };
+    if (spec && Array.isArray(spec.cats) && spec.cats.length) spec.cats.forEach(pushC); else ((sysI && sysI.items) || []).forEach(function(it) { pushC(it && it.category); });
+    if (curC && cats.indexOf(curC) < 0) cats.push(curC);   // its own (a spelling the list does not have) stays chosen
+    var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', '(none)', !curC)); cats.forEach(function(x) { cs.appendChild(opt(x, x, x === curC)); });
+    cs.addEventListener('change', function() { one('category', cs.value || null); }); add('Category', cs, 'category');
+    text('notes', 'Notes', LIMITS.text, d.notes || '');
+    text('key', 'Key', 40, d.key || '', 'A short fixed name formulas will read in a later update: a letter, then letters, digits and _ (up to 40); no other row or item of this list may have it', true);
+    (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) {
+        if (!s || typeof s.key !== 'string' || !SK_RE.test(s.key)) return;
+        var k = s.key, lk = k.toLowerCase(), mine, ds = d.stats && typeof d.stats === 'object' ? d.stats : {}, name = 's-' + k, part = partOf(name), ctl;
+        Object.keys(ds).forEach(function(x) { if (mine === undefined && x.toLowerCase() === lk && typeof ds[x] === 'number') mine = ds[x]; });
+        var put = function(n) { var p = {}; p[k] = n; one('stats', p); }, shown = typeof mine === 'number' ? String(mine) : '', dv = typeof s.def === 'number' ? s.def : 0;
+        if (Array.isArray(s.labels) && s.labels.length) {
+            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
+            s.labels.forEach(function(t, i) { ctl.appendChild(opt(String(i), t || String(i), mine === i)); });
+            if (typeof mine === 'number' && !(mine >= 0 && mine < s.labels.length && Math.floor(mine) === mine)) { var xo = opt(shown, statFmt(mine), true); xo.disabled = true; ctl.appendChild(xo); }   // a value past the names
+            ctl.addEventListener('change', function() { put(ctl.value === '' ? null : Number(ctl.value)); });
+        } else {
+            ctl = el('input', 'field sheet-rf-num'); ctl.type = 'number'; ctl.step = 'any'; ctl.value = shown; keepTyped(ctl, part);
+            ctl.addEventListener('change', function() { if (hold(part, ctl.value)) return; took(part); var sv = String(ctl.value).trim(), n = Number(sv); if (ctl.validity && ctl.validity.badInput) { ctl.value = shown; return; } if (sv === '') { put(null); return; } if (!isFinite(n) || Math.abs(n) > LIMITS.statAbs) { ctl.value = shown; return; } put(n); });
+        }
+        add(s.label || k, ctl, name, 'Blank: ' + statText(s, dv) + ' (the list’s default)');
+    });
+    if (gmF) {
+        var ba = d.area && typeof d.area === 'object' && d.area.ft ? d.area : null, bShown = ba ? String(ba.ft) : '', bi = el('input', 'field sheet-rf-num'); bi.type = 'number'; bi.min = '0'; bi.max = String(LIMITS.maxBlastFt); bi.step = '1'; bi.value = bShown; keepTyped(bi, partOf('ft'));
+        bi.addEventListener('change', function() { if (hold(partOf('ft'), bi.value)) return; took(partOf('ft')); var sv = String(bi.value).trim(), n = Math.round(Number(sv)); if (bi.validity && bi.validity.badInput) { bi.value = bShown; return; } if (sv === '') { one('area', null); return; } if (!isFinite(n) || n > LIMITS.maxBlastFt) { bi.value = bShown; return; } one('area', n > 0 ? { ft: n, name: ba && ba.name ? ba.name : '' } : null); });
+        add('Blast ft', bi, 'ft', 'A blast in feet (empty or 0: none)');
+        text('damage', 'Damage', LIMITS.formula, d.damage || '', 'A roll: 2d6 + STRmod');
+        text('cost', 'Cost formula', LIMITS.formula, d.cost || '', 'No dice');
+        lockSel('rm', 'When a player removes it', { none: 'A player may remove it', bound: 'Bound: only you remove it', curse: 'Curse on contact' });
+        if (d.rm === 'bound' || d.rm === 'curse') text('rmMsg', 'Message on removal', LIMITS.rmMsg, d.rmMsg || '');
+        if (spec && spec.on && typeof spec.on === 'object') { lockSel('eq', 'When a player switches it off', { none: 'A player may switch it off', bound: 'Bound: it stays on', curse: 'Curse on contact: you keep it on' }); if (d.eq === 'bound' || d.eq === 'curse') text('eqMsg', 'Message on switching off', LIMITS.rmMsg, d.eqMsg || ''); }
+        var gv = el('input', 'sheet-rf-gm'); gv.type = 'checkbox'; gv.checked = d.vis === 'gm'; gv.addEventListener('change', function() { one('vis', gv.checked ? 'gm' : 'all'); });
+        add('GM only', gv, 'vis', 'Secret: its player still has it (its name, notes and stats), never its key, blast or formulas; they can no longer change it');
+    }
+    if (stRef && stRef.focus === 'name') { delete stRef.focus; setTimeout(function() { try { nb.focus(); } catch (e) {} }, 0); }   // a new row: its name first
     return form;
 }
 // 5h: an effect's changes as short text, with the field labels ("+2 ST · HP max +5 · Prone on")
@@ -2298,12 +2383,14 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
         if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI);   // Stage 4: rich table
         else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI);            // the plain carried list (as before)
-        if (editable && _fxLive && sysI && sysI.items && sysI.items.length && !onOnly) {
-            var add = el('select', 'field sheet-item-add'), nPick = -1; add.appendChild(opt('', '+ Add item…', true));
-            if (specI) nPick = pickerInto(add, sysI.items, specI, carried);   // F4b: the list's categories, grouped
+        var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
+        if (editable && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK) && !onOnly) {
+            var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
+            if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried);   // F4b: the list's categories, grouped
             else sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
-            add.addEventListener('change', function() { if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
-            if (nPick !== 0) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker
+            if (custOK) add.appendChild(opt('__custom', '+ Custom…'));   // F4c3: a blank row of the character's own, its form open on its name (in the view it was chosen in)
+            add.addEventListener('change', function() { if (add.value === '__custom') { var nr = uid('w_'); _rowForm = { charId: c.id, fieldId: f.id, rowId: nr, view: vwP, typed: {}, focus: 'name' }; commitItem(c, f, { op: 'custom', rowId: nr, def: {} }); return; } if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
+            if (nPick !== 0 || custOK) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker (F4c3: unless it takes custom rows)
         }
         box.appendChild(wrap); return box;
     }
@@ -2415,7 +2502,7 @@ function commitEffect(c, f, q) {
     if (res.clamp) Object.keys(res.clamp).forEach(function(fid) { c.values[fid] = res.clamp[fid]; d[fid] = res.clamp[fid]; });
     afterCharChange(c, false, d);
 }
-function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|setQty|keep|undo, defId?, rowId, qty? }; F4b set (facts: lvl, on, note; F4c1 paid); F4c2 ov (a copy's own values)
+function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|setQty|keep|undo, defId?, rowId, qty? }; F4b set (facts: lvl, on, note; F4c1 paid); F4c2 ov (a copy's own values); F4c3 custom (def: a custom row's patch)
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
     var undoFollow = function(r) { if (!r || !r.ok) return; if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
@@ -2428,7 +2515,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     }
     if (!canWrite()) return;
     var res = applyRowOp(sys, c, f.id, q, F(), {});
-    if (!res.ok) { toast(res.why === 'formula' ? 'Not a formula this sheet can roll.' : res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderViews(c.id); return; }   // why (F4c2): the GM's own, never on the wire
+    if (!res.ok) { toast(res.why === 'formula' ? 'Not a formula this sheet can roll.' : res.why === 'key' ? 'That key is already used in this list.' : res.why === 'badkey' ? 'Not a usable key: a letter, then letters, digits and _ (up to 40).' : res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.'); renderViews(c.id); return; }   // why (F4c2, F4c3 key / badkey): the GM's own, never on the wire
     undoFollow(res);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
@@ -2483,7 +2570,7 @@ function ownerFromToken(w) {
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
+function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
@@ -2892,6 +2979,7 @@ function listCard(f, allCats) {
     var fl = el('div', 'sys-flags');
     fl.appendChild(checkLabel('sys-list-multi', sp.multi === true, 'Same item more than once', 'Adding an item it already holds makes a new row (a skill twice, with two specialties) instead of raising the quantity'));
     fl.appendChild(checkLabel('sys-list-noqty', sp.noQty === true, 'No quantity', 'Rows have no quantity (skills, powers): the \u2212/+ and \u00d7n go, and an item is on the list once unless the same item may be there more than once. Quantities already stored come back if you untick it'));
+    fl.appendChild(checkLabel('sys-list-custom', sp.custom === true, 'Custom rows', 'Players may add rows of their own with + Custom\u2026 on their sheet (a name, an icon, a category, notes, a key and stats) and change the ones they made; you can add them on any shaped list'));   // Stage 6 F4c3
     card.appendChild(fl);
     var lv = sp.lvl && typeof sp.lvl === 'object' ? sp.lvl : null, lr = el('div', 'sys-flags sys-list-lvl');
     lr.appendChild(checkLabel('sys-list-haslvl', !!lv, 'Rows have a level', 'Each row carries a level its owner sets: a skill\u2019s level, a power\u2019s rank, a language\u2019s fluency'));
@@ -3108,6 +3196,7 @@ function onChange(e) {
         if (c.indexOf('sys-list-catcb') >= 0) { var cur = Array.isArray(lsc.cats) ? lsc.cats.slice() : [], cx = t.dataset.cat || '', ci = cur.findIndex(function(y) { return String(y).toLowerCase() === cx.toLowerCase(); }); if (t.checked && ci < 0) cur.push(cx); if (!t.checked && ci >= 0) cur.splice(ci, 1); if (cur.length) lsc.cats = cur; else delete lsc.cats; }
         else if (c.indexOf('sys-list-multi') >= 0) { if (t.checked) lsc.multi = true; else delete lsc.multi; }
         else if (c.indexOf('sys-list-noqty') >= 0) { if (t.checked) lsc.noQty = true; else delete lsc.noQty; }
+        else if (c.indexOf('sys-list-custom') >= 0) { if (t.checked) lsc.custom = true; else delete lsc.custom; }   // Stage 6 F4c3
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }

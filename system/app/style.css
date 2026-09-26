@@ -2009,7 +2009,7 @@
   .sheet-chip.sheet-item-lost { color: var(--red, #e5534b); box-shadow: inset 0 0 0 1px currentColor; white-space: nowrap; }
   .sheet-item-keep { font-size: 11px; padding: 1px 6px; }
   /* Stage 6: the GM's marks on a row (a bound or cursed item; a curse the player dropped, kept out of their sight) and a pickup's Undo */
-  .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; white-space: nowrap; }
+  .sheet-chip.sheet-item-bound, .sheet-chip.sheet-item-curse, .sheet-chip.sheet-item-kept, .sheet-chip.sheet-item-keyshare { color: var(--violet, #a371f7); box-shadow: inset 0 0 0 1px currentColor; white-space: nowrap; }
   .sheet-item-hid { opacity: 0.6; }
   .sheet-item-undo { font-size: 11px; padding: 1px 6px; }
   /* Stage 6 F4b: a row's facts (level, switch, note) and the Lists tab. Two classes beat the base input.field { width: 100% } */
@@ -2051,6 +2051,8 @@
   .sheet-row-form input[type=number] { flex: 0 0 80px; width: 80px; }
   .sheet-rf-f .field:disabled { opacity: 0.7; cursor: not-allowed; }
   .sheet-rf-back { padding: 0 5px; height: 22px; flex: none; }
+  /* Stage 6 F4c3: a custom row's form (its GM only tick); the GM's mark on a player's custom row whose key a row they cannot see shares (with the marks above) */
+  .sheet-rf-f input.sheet-rf-gm { flex: none; margin: 3px 0; cursor: pointer; }
   .sys-list-card { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
   .sys-list-title { font-weight: 600; color: var(--gold); }
   .sys-list-cats { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; }
@@ -2075,7 +2077,7 @@
   .sheet-paletted .sheet-field.sheet-tile .sheet-value:not(.sheet-pos):not(.sheet-neg):not(.sheet-err), .sheet-paletted .sheet-field.sheet-tile .sheet-num:not(.sheet-pos):not(.sheet-neg), .sheet-paletted .sheet-field.sheet-tile.sheet-kind-skill .sheet-total:not(.sheet-pos):not(.sheet-neg):not(.sheet-err) { color: var(--sheet-primary); }
   .sheet-paletted .sheet-sec-chip { border-color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 25%, transparent); background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 5%, transparent); color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 80%, transparent); }
   .sheet-paletted .sheet-sec-chip:hover { border-color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 50%, transparent); background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 15%, transparent); color: var(--sheet-accent, var(--gold)); }
-  .sheet-paletted .sheet-chip:not(.sheet-item-lost):not(.sheet-item-bound):not(.sheet-item-curse):not(.sheet-item-kept) { border: 1px solid var(--edge); border-radius: 9999px; }
+  .sheet-paletted .sheet-chip:not(.sheet-item-lost):not(.sheet-item-bound):not(.sheet-item-curse):not(.sheet-item-kept):not(.sheet-item-keyshare) { border: 1px solid var(--edge); border-radius: 9999px; }
   .sheet-paletted .sheet-itemtable th { background: color-mix(in srgb, var(--dim) 10%, transparent); }
   .sheet-paletted .sheet-itemtable tbody tr:hover { background: color-mix(in srgb, var(--dim) 12%, transparent); }
   .sheet-paletted input[type=checkbox] { accent-color: var(--sheet-primary); }

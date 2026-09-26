@@ -2434,9 +2434,13 @@
   .sheet-hud-link:disabled .sheet-hud-icon { opacity: .5; }
   /* HF3: the docked roll history — the reference's footer (a 44px bar: the history glyph in a tinted box, ROLL HISTORY, a pulsing NEW, a
      chevron; Clear and the depth while open) and its drawer, which opens below the bar and scrolls at 18rem */
-  .hud-foot { flex: 0 0 auto; border-top: 1px solid var(--edge); background: color-mix(in srgb, var(--panel2) 50%, transparent); }
-  .hud-body:has(+ .hud-foot:not(:empty)) { margin-bottom: 0; }   /* the foot takes the grip's corner (the bar's right padding keeps its tools clear) */
-  .hud-hist-bar { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 18px 0 10px; }
+  .hud-foot { flex: 0 1 auto; min-height: 45px; display: flex; flex-direction: column; border-top: 1px solid var(--edge); background: color-mix(in srgb, var(--panel2) 50%, transparent); }
+  /* the foot takes the grip's corner: the bar's right padding keeps its tools clear, and an open list keeps the grip's strip below it (never
+     over its scrollbar). In a short window the open drawer gives way, not the panel's clip: the body keeps a floor and every card stays in
+     reach (the list shrinks and scrolls); at the usual heights it opens exactly as the reference's */
+  .hud-body:has(+ .hud-foot:not(:empty)) { margin-bottom: 0; flex-basis: 0; min-height: 4.5rem; }
+  .hud-foot:has(> .hud-hist-list) { padding-bottom: 12px; }
+  .hud-hist-bar { flex: none; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 18px 0 10px; }
   .hud-hist-toggle { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
   .hud-hist-toggle:focus-visible { outline: 2px solid var(--sheet-primary, var(--gold)); outline-offset: -2px; border-radius: 6px; }
   .hud-hist-icobox { display: inline-flex; flex: none; padding: 5px; border-radius: 6px; background: color-mix(in srgb, var(--sheet-primary, var(--gold)) 20%, transparent); }
@@ -2449,7 +2453,7 @@
   .hud-hist-tools { display: flex; align-items: center; gap: 6px; flex: none; }
   .hud-hist-tools .hud-hist-clear { padding: 2px 8px; font-size: 11px; }
   .hud-panel .hud-hist-tools select.hud-hist-depth { width: auto; padding: 2px 4px; font-size: 11.5px; }
-  .hud-hist-list { max-height: 18rem; overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }
+  .hud-hist-list { max-height: 18rem; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }
   .hud-hist-list .chat-roll { padding: 6px 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); background: color-mix(in srgb, var(--dim) 10%, transparent); }
   .hud-hist-list .roll-expr { font-weight: 700; color: var(--sheet-primary, var(--ink)); }
   .hud-hist-list .chat-roll:has(.roll-ok) { border-color: color-mix(in srgb, var(--green) 45%, transparent); }

@@ -632,31 +632,41 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
 // Stage 6 HUD frame (HF3): the HUDs' roll history — a local ring of what this machine saw, tagged here with the character; no wire change
 {
     const rtSrc = between('// [netcheck:rolltag-start]', '// [netcheck:rolltag-end]', 'rolltag');
-    const mk = () => {
-        const env = { camp: { id: 'k1' }, fired: [], net: {} };
-        const win = { wpSheets: { rolled: (m, cid) => env.fired.push([m ? m.roll.id : null, cid]) } };
-        Object.assign(env, new Function('getActiveCampaign', 'window', 'net', rtSrc + '\nreturn { ringPush, ringRepaint, chatHistoryOf, ring: function() { return rollRing; } };')(() => env.camp, win, env.net));
+    // env: the active campaign (its id and characters), this machine's profile id, the dice's label cap, and the HUD hook's calls
+    const mk = (chars, myId) => {
+        const env = { camp: { id: 'k1', chars: chars || {} }, fired: [], net: { myId: myId || 'u_me' } };
+        const win = { wpSheets: { rolled: (m, cid) => env.fired.push([m ? m.roll.id : null, cid]) }, wpDiceCore: { LIMITS: { label: 60 } } };
+        Object.assign(env, new Function('getActiveCampaign', 'window', 'net', rtSrc + '\nreturn { ringPush, ringRepaint, ringReset, tagByName, chatHistoryOf, ring: function() { return rollRing; } };')(() => env.camp, win, env.net));
         return env;
     };
-    const R = (id, ts, as, scope) => ({ from: { id: 'u_1', name: 'Ana' }, text: '', scope: scope || 'global', ts, roll: { id, ts, as, expr: '1d20' }, res: { ok: true }, rollBad: null, toName: '' });
+    const ME = { id: 'u_me', name: 'Me', gm: false }, GM = { id: 'u_gm', name: 'GM', gm: true }, MATE = { id: 'u_mate', name: 'Mate', gm: false };
+    const R = (id, ts, as, from, scope) => ({ from: from || ME, text: '', scope: scope || 'global', ts, roll: { id, ts, as, expr: '1d20', from: from || ME }, res: { ok: true }, rollBad: null, toName: '' });
+    const ids = l => l.map(x => x.roll.id).join(',');
     const e1 = mk();
     ['c_bren', 'bad', '__proto__', 'c_' + 'x'.repeat(25), 7, undefined].forEach((cid, i) => e1.ringPush(R('r' + i, 100 + i, 'Bren'), cid));
-    check('HF3 ring: only a valid character id is kept as the tag (anything else is untagged); seq rises by one per roll; every live roll fires the HUD hook with its tag',
+    check('HF3 ring: only a valid character id is kept as the tag (with no character of that name here, anything else is untagged); seq rises by one per roll; every live roll fires the HUD hook with its tag',
         j(e1.ring().map(e => e.cid)) === j(['c_bren', '', '', '', '', '']) && j(e1.ring().map(e => e.seq)) === j([1, 2, 3, 4, 5, 6]) && e1.net.rollSeq() === 6
         && e1.fired.length === 6 && j(e1.fired[0]) === j(['r0', 'c_bren']) && e1.fired[1][1] === '', j([e1.ring().map(e => e.cid), e1.fired]));
     const e2 = mk();
     e2.ringPush(R('a', 100), 'c_a'); e2.ringPush(R('c', 300), 'c_a'); e2.fired.length = 0;
-    e2.ringPush(R('b', 200, 'Ana'), '', true); e2.ringPush(R('z', 50, 'Ana'), '', true); e2.ringPush(R('b', 200, 'Ana'), '', true);
-    check('HF3 ring: the join\'s history lands in time order, fires no hook (no NEW), and never doubles a roll already there',
-        j(e2.ring().map(e => e.m.roll.id)) === j(['z', 'a', 'b', 'c']) && e2.fired.length === 0 && e2.ring().filter(e => e.replay).length === 2, j([e2.ring().map(e => e.m.roll.id), e2.fired]));
-    const e3 = mk();
-    e3.ringPush(R('t1', 10, 'Ana'), 'c_a'); e3.ringPush(R('t2', 20, 'Ana'), 'c_b'); e3.ringPush(R('u1', 30, 'Ana'), ''); e3.ringPush(R('u2', 40, 'Bob'), ''); e3.ringPush(R('t3', 50, 'Bob'), 'c_a');
-    const ids = l => l.map(x => x.roll.id).join(',');
-    check('HF3 rollsFor: newest first; a tagged roll matches its character only (never by name), an untagged one (another machine\'s) by the name it was made as',
-        ids(e3.net.rollsFor('c_a', 'Ana', 0, 10)) === 't3,u1,t1' && ids(e3.net.rollsFor('c_b', 'Bob', 0, 10)) === 'u2,t2' && ids(e3.net.rollsFor('c_z', '', 0, 10)) === '', ids(e3.net.rollsFor('c_a', 'Ana', 0, 10)));
-    check('HF3 rollsFor: honours max (1..100, default 10) and a Clear\'s seq mark', ids(e3.net.rollsFor('c_a', 'Ana', 0, 2)) === 't3,u1' && ids(e3.net.rollsFor('c_a', 'Ana', 3, 10)) === 't3' && e3.net.rollsFor('c_a', 'Ana', 0, 0).length === 3);
-    e3.camp = { id: 'k2' };
-    check('HF3 rollsFor: another campaign\'s rolls never show', e3.net.rollsFor('c_a', 'Ana', 0, 10).length === 0);
+    e2.ringPush(R('b', 200, 'Ana'), '', true); e2.ringPush(R('z', 50, 'Ana'), '', true); e2.ringPush(R('b', 200, 'Ana'), '', true); e2.ringPush(R('a', 100), '', true);
+    check('HF3 ring: the join\'s history lands in time order, fires no hook (no NEW), and never doubles a roll already there — an earlier replay or a live roll (still in the ring after the chat let it go)',
+        j(e2.ring().map(e => e.m.roll.id)) === j(['z', 'a', 'b', 'c']) && e2.fired.length === 0 && e2.ring().filter(e => e.replay).length === 2 && e2.ring().filter(e => e.m.roll.id === 'a').length === 1 && e2.ring()[1].replay === false, j([e2.ring().map(e => e.m.roll.id), e2.fired]));
+    // tagging on arrival: the one character here a roll can have been made as (any of that name for the GM, else one its sender owns)
+    const chars = { c_mine: { id: 'c_mine', name: 'Kael', ownerId: 'u_me' }, c_mate: { id: 'c_mate', name: 'Kael', ownerId: 'u_mate' }, c_bren: { id: 'c_bren', name: 'Bren', ownerId: 'u_me' }, c_npc: { id: 'c_npc', name: 'Orc' }, c_twin: { id: 'c_twin', name: 'Orc' }, bad_id: { name: 'Bren', ownerId: 'u_me' } };
+    const e3 = mk(chars);
+    e3.ringPush(R('m1', 10, 'Kael', ME), ''); e3.ringPush(R('t1', 20, 'Kael', MATE), ''); e3.ringPush(R('g1', 30, 'Bren', GM), ''); e3.ringPush(R('g2', 40, 'Kael', GM), ''); e3.ringPush(R('g3', 50, 'Orc', GM), ''); e3.ringPush(R('x1', 60, 'Bren', MATE), ''); e3.ringPush(R('p1', 70, undefined, ME), '');
+    check('HF3 ring: another machine\'s roll is tagged on arrival — its sender\'s own character of that name, any of that name for the GM\'s roll; none or several (two named Kael for the GM, two NPCs named Orc), a sender who owns none of that name, or no "as" leave it untagged; a key that is not a character id is never a tag',
+        j(e3.ring().map(e => e.cid)) === j(['c_mine', 'c_mate', 'c_bren', '', '', '', '']) && e3.tagByName({ roll: { as: 'Bren' }, from: ME }) === 'c_bren', j(e3.ring().map(e => e.cid)));
+    check('HF3 rollsFor: newest first; a tagged roll lists for its character only; an untagged one by its name only when the GM or this machine\'s own player made it — a teammate\'s roll as a same-named character of theirs never shows in mine',
+        ids(e3.net.rollsFor('c_mine', 'Kael', 0, 10)) === 'g2,m1' && ids(e3.net.rollsFor('c_mate', 'Kael', 0, 10)) === 'g2,t1' && ids(e3.net.rollsFor('c_bren', 'Bren', 0, 10)) === 'g1'
+        && ids(e3.net.rollsFor('c_npc', 'Orc', 0, 10)) === 'g3' && ids(e3.net.rollsFor('c_zz', 'Zed', 0, 10)) === '' && ids(e3.net.rollsFor('c_zz', '', 0, 10)) === '', j([ids(e3.net.rollsFor('c_mine', 'Kael', 0, 10)), ids(e3.net.rollsFor('c_bren', 'Bren', 0, 10))]));
+    chars.c_bren.name = 'Brennan';
+    check('HF3 rollsFor: a roll tagged on arrival stays with its character after a rename (the GM\'s roll as Bren still lists for Brennan; a later character given the old name does not take it)',
+        ids(e3.net.rollsFor('c_bren', 'Brennan', 0, 10)) === 'g1' && ids(e3.net.rollsFor('c_new', 'Bren', 0, 10)) === '');
+    check('HF3 rollsFor: honours max (1..100, default 10) and a Clear\'s seq mark', ids(e3.net.rollsFor('c_mine', 'Kael', 0, 1)) === 'g2' && ids(e3.net.rollsFor('c_mine', 'Kael', 3, 10)) === 'g2' && e3.net.rollsFor('c_mine', 'Kael', 0, 0).length === 2);
+    e3.camp = { id: 'k2', chars };
+    check('HF3 rollsFor: another campaign\'s rolls never show', e3.net.rollsFor('c_mine', 'Kael', 0, 10).length === 0);
     const e4 = mk();
     e4.ringPush(R('old', 5000, 'Ana'), 'c_a'); const mark = e4.net.rollSeq(); e4.ringPush(R('skew', 1000, 'Ana'), 'c_a');
     const got = e4.net.rollsFor('c_a', 'Ana', mark, 10);
@@ -669,13 +679,16 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
     check('HF3 ring: capped at 300, the oldest going first; seq runs on', e5.ring().length === 300 && e5.ring()[0].m.roll.id === 'n5' && e5.net.rollSeq() === 305);
     e5.fired.length = 0; e5.ringRepaint();
     check('HF3 ring: a repaint calls the hook with no roll (every HUD\'s foot)', j(e5.fired) === j([[null, '']]));
-    const log = [{ from: { id: 'u' }, text: 'hi', scope: 'global', ts: 1 }, { from: { id: 'g' }, text: 'psst', scope: 'whisper', ts: 2 }, Object.assign(R('w', 3, 'Ana', 'whisper')), Object.assign(R('g1', 4, 'Ana'), { cid: 'c_a', seq: 9 })];
+    e5.fired.length = 0; e5.ringReset();
+    check('HF3 ring: a reset empties it and repaints every foot, and seq runs on (a Clear mark from before hides nothing new)', e5.ring().length === 0 && j(e5.fired) === j([[null, '']]) && e5.net.rollSeq() === 305 && (e5.ringPush(R('after', 1, 'Ana'), 'c_a'), e5.net.rollsFor('c_a', 'Ana', 305, 10).length === 1));
+    const log = [{ from: { id: 'u' }, text: 'hi', scope: 'global', ts: 1 }, { from: { id: 'g' }, text: 'psst', scope: 'whisper', ts: 2 }, R('w', 3, 'Ana', ME, 'whisper'), Object.assign(R('g1', 4, 'Ana'), { cid: 'c_a', seq: 9 })];
     const h = e5.chatHistoryOf(log);
     check('HF3 chatHistoryOf: whispers (and private rolls) never go to a joiner; a roll is rebuilt with exactly from, text, scope, ts, roll (no local tag rides along)',
         h.length === 2 && h[0].text === 'hi' && j(Object.keys(h[1])) === j(['from', 'text', 'scope', 'ts', 'roll']) && h[1].roll.id === 'g1', j(h));
     const many = []; for (let i = 0; i < 70; i++) many.push({ from: { id: 'u' }, text: 't' + i, scope: 'global', ts: i });
     check('HF3 chatHistoryOf: the last 60', e5.chatHistoryOf(many).length === 60 && e5.chatHistoryOf(many)[0].text === 't10');
     const dsr = fnSrc('function diceSessionReset(clearChat) {', '\n// Roll from here', 'diceSessionReset');
+    const js = fnSrc('function joinSession(code, name, isRetry, probe) {', '\n    var profile = ', 'joinSession'), gu = fnSrc('function giveUpAndRestore(msg) {', '\n    load();', 'giveUpAndRestore');
     const outside = src.replace(rtSrc, '').replace(dsr, '');
     check('HF3 source: the join sends chatHistoryOf(chatLog); a replayed roll goes into the ring beside the chat; our pending request carries its character and the client reads it before clearing; the host tags a roll-req and a local roll with the character',
         /var recent = chatHistoryOf\(chatLog\);/.test(src) && /chatLog\.push\(hm\); ringPush\(hm, '', true\);/.test(src) && /if \(addedR\) ringRepaint\(\);/.test(src)
@@ -685,8 +698,10 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
         && (src.match(/pushRoll\(recQ, resQ, '(whisper|global)', \{ cid: chQ \? q\.charId : '' \}\)/g) || []).length === 2
         && /pushRoll\(rec, res, scope, \{ toName: toName, cid: chR \? chR\.id : '' \}\);/.test(src)
         && /pushChat\(m\); ringPush\(m, opts && opts\.cid\);/.test(src));
-    check('HF3 source: a session reset that clears the chat empties the ring (and repaints) but never resets seq; nothing outside the ring\'s own code and that reset touches rollRing, so no send path carries it',
-        /if \(clearChat\) \{[^\n]*rollRing = \[\]; ringRepaint\(\);/.test(dsr) && !/ringSeq = 0/.test(dsr) && !/rollRing|ringSeq/.test(outside), (outside.match(/[^\n]*(rollRing|ringSeq)[^\n]*/) || [''])[0]);
+    check('HF3 source: the ring is emptied when a session that clears the chat ends, when a fresh Join starts (never a retry or a generation probe, before the old table is left) and when a lost table is given up; seq is never reset; nothing else touches rollRing, so no send path carries it',
+        /if \(clearChat\) \{[^\n]*rollRing = \[\]; ringRepaint\(\);/.test(dsr) && !/ringSeq = 0/.test(dsr) && !/rollRing|ringSeq/.test(outside)
+        && /\n    if \(!isRetry && !probe\) ringReset\(\);[^\n]*\n    leaveSession\(true\);/.test(js) && /\n    ringReset\(\);/.test(gu) && (outside.match(/ringReset\(\)/g) || []).length === 2,
+        (outside.match(/[^\n]*(rollRing|ringSeq)[^\n]*/) || [''])[0]);
 }
 
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

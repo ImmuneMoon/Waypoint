@@ -2915,6 +2915,7 @@ function giveUpAndRestore(msg) {
     if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(true);
     if (window.wpSound && window.wpSound.tableLeft) window.wpSound.tableLeft(true);
     net.roster = Object.create(null); net.away = Object.create(null);   // the old table's players never carry into this machine's own campaign
+    ringReset();   // HF3: nor its rolls into this machine's own HUDs
     renderRoster();
     setStatus(msg);
     toast(msg + ' Restoring your own campaign.');
@@ -3162,6 +3163,7 @@ function joinSession(code, name, isRetry, probe) {
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     probe = probe || 0;                       // which generation this attempt targets
     if (!isRetry && !probe) cancelReconnect();
+    if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;
@@ -3427,25 +3429,42 @@ function sendTable(msg, exceptConn) {   // admitted peers only: broadcast() woul
 function diceFrom(prof, gm) { return { id: String((prof && prof.id) || 'x').slice(0, 60), name: String((prof && prof.name) || (gm ? 'GM' : 'Player')).slice(0, 60), gm: !!gm }; }
 // [netcheck:rolltag-start]
 // A HUD's roll history (Stage 6 HUD frame, HF3): every roll this machine saw, tagged HERE with the character it was made as (the host knows
-// the character of every roll made as one; a player knows its own from its pending request) — the tag never goes on the wire; in time
-// order, at most 300, gone with the session like the chat. seq is this machine's own counter (a host's ts is another clock): Clear
+// the character of every roll made as one; a player knows its own from its pending request; another machine's roll is tagged on arrival by
+// the one character here it can have been made as) — the tag never goes on the wire; in time order, at most 300, gone with the session
+// like the chat (and emptied when a new table starts here). seq is this machine's own counter (a host's ts is another clock): Clear
 // compares seq, never ts; it never resets, so a Clear from before a session reset hides nothing new
 var rollRing = [], ringSeq = 0;
+// Another machine's roll made as a character carries only that name ("as"): the one character in this campaign it can have been made as —
+// any of that name for the GM's roll, else only one its sender owns (the host lets a player roll as their own character only). '' when
+// none or several: the name then decides at display, for the GM's rolls and this machine's own only. Resolved once, so a rename keeps it
+function tagByName(m) {
+    var as = m.roll.as, from = m.from || {}, camp = getActiveCampaign(), cs = camp && camp.chars;
+    if (typeof as !== 'string' || !as || !cs || typeof cs !== 'object') return '';
+    var DL = window.wpDiceCore && window.wpDiceCore.LIMITS, cap = (DL && DL.label) || 60, hit = '';
+    for (var id in cs) {
+        if (!Object.prototype.hasOwnProperty.call(cs, id) || !/^c_[A-Za-z0-9_]{1,24}$/.test(id)) continue;
+        var ch = cs[id]; if (!ch || typeof ch !== 'object' || String(ch.name || '').slice(0, cap) !== as) continue;
+        if (from.gm !== true && !(typeof ch.ownerId === 'string' && ch.ownerId && ch.ownerId === from.id)) continue;
+        if (hit) return ''; hit = id;
+    }
+    return hit;
+}
 function ringPush(m, cid, replay) {
     if (!m || !m.roll) return;
     if (replay && rollRing.some(function(x) { return x.m.roll.id === m.roll.id; })) return;   // the join's history never doubles a roll already here
-    var e = { m: m, cid: typeof cid === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(cid) ? cid : '', camp: (getActiveCampaign() || {}).id || '', seq: ++ringSeq, replay: !!replay };
+    var e = { m: m, cid: typeof cid === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(cid) ? cid : tagByName(m), camp: (getActiveCampaign() || {}).id || '', seq: ++ringSeq, replay: !!replay };
     if (replay) { var i = rollRing.length; while (i > 0 && (rollRing[i - 1].m.ts || 0) > (m.ts || 0)) i--; rollRing.splice(i, 0, e); }   // the join's history lands in time order
     else rollRing.push(e);
     if (rollRing.length > 300) rollRing.shift();
     if (!replay) { try { if (window.wpSheets && window.wpSheets.rolled) window.wpSheets.rolled(m, e.cid); } catch (x) {} }
 }
-function ringRepaint() { try { if (window.wpSheets && window.wpSheets.rolled) window.wpSheets.rolled(null, ''); } catch (x) {} }   // every HUD's footer, no NEW of its own
+function ringRepaint() { try { if (window.wpSheets && window.wpSheets.rolled) window.wpSheets.rolled(null, ''); } catch (x) {} }   // every HUD's foot, no NEW of its own
+function ringReset() { rollRing = []; ringRepaint(); }   // a new table starts here (a fresh Join) or the old one is given up: its rolls, or this machine's solo ones, are not this session's
 net.rollSeq = function() { return ringSeq; };
-net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged with this character, or (untagged: another machine's roll) made as its name; roll/res are shared with the chat — read-only
+net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged with this character, or (untagged) made as its name by the GM or by this machine's own player; roll/res are shared with the chat — read-only
     var camp = (getActiveCampaign() || {}).id || '', out = [], n = Math.max(1, Math.min(100, max | 0 || 10));
     for (var i = rollRing.length - 1; i >= 0 && out.length < n; i--) { var e = rollRing[i]; if (e.camp !== camp || (sinceSeq && e.seq <= sinceSeq)) continue;
-        if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name)) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
+        if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
 function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).slice(-60).map(function(m) { return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: m.roll } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)

@@ -635,6 +635,7 @@ function renderHud(charId) {
     applyPaletteTo(v.panel, sys.sheet && sys.sheet.look);
     applySheetLookTo(v.body, sheetLook(camp, sys));
     syncFramePad(v.body);
+    ['--sheet-accent', '--sheet-accent-ink'].forEach(function(k) { var a = v.body.style.getPropertyValue(k); if (a) v.panel.style.setProperty(k, a); else v.panel.style.removeProperty(k); });   // HF3: the foot (the body's sibling) wears the look's accent too (applyLook set a checked hex or nothing)
     restoreFocus(v.body, fk);
     renderHudFoot(v);
 }
@@ -685,12 +686,14 @@ function renderHudFoot(v) {
     }
     if (fcls) { var back = foot.querySelector('.' + fcls) || foot.querySelector('.hud-hist-toggle'); if (back) back.focus(); }
 }
-// net.js's hook: a roll landed (m) made as cid (a local tag; '' when another machine made it) — repaint the FOOT of each HUD of that
-// character (by tag, or by name when untagged); m null (the join's history, a session reset): every HUD's foot
+// net.js's hook: a roll landed (m) made as cid (its local tag; '' when this machine cannot tell) — repaint the FOOT of each HUD of that
+// character (by tag, or untagged by name for the GM's roll or this machine's own, as net.rollsFor lists it); m null (the join's history,
+// a session reset, a new table): every HUD's foot
 function rolled(m, cid) {
+    var me = (net() || {}).myId;
     Object.keys(huds).forEach(function(id) {
         var v = huds[id]; if (!v) return;
-        if (m && m.roll) { if (cid ? id !== cid : !(m.roll.as && m.roll.as === rollName(charById(id)))) return; }
+        if (m && m.roll) { if (cid ? id !== cid : !(m.roll.as && m.roll.as === rollName(charById(id)) && m.from && (m.from.gm === true || m.from.id === me))) return; }
         renderHudFoot(v);
     });
 }

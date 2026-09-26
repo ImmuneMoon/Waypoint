@@ -2519,7 +2519,7 @@
   body.net-client .hud-panel .sheet-gm { display: none; }
   .hud-foot:empty { display: none; }
   .hud-ico-user, .hud-ico-open, .hud-ico-wave { width: 13px; height: 13px; }
-  .hud-ico-user { -webkit-mask-image: url("assets/icons/fa/solid/user.svg"); mask-image: url("assets/icons/fa/solid/user.svg"); }
+  .hud-ico-user { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 16 84 84'%3E%3Ccircle cx='50' cy='40' r='24'/%3E%3Cpath d='M24 70 L76 70 L92 100 L8 100 Z'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 16 84 84'%3E%3Ccircle cx='50' cy='40' r='24'/%3E%3Cpath d='M24 70 L76 70 L92 100 L8 100 Z'/%3E%3C/svg%3E"); }   /* the default avatar's figure (main.js wpDefaultAvatar: a circle head over a trapezoid torso), as a player without a photo is drawn */
   .hud-ico-open, .hud-ico-wave { -webkit-mask-image: url("assets/icons/fa/solid/wave-square.svg"); mask-image: url("assets/icons/fa/solid/wave-square.svg"); }
   .hud-ico-wave { width: 15px; height: 15px; color: var(--sheet-primary, var(--gold)); }
   /* HF2b: the HUD button placement — a full-width button led by the HUD's wave glyph */

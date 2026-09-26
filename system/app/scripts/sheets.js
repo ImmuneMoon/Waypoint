@@ -1781,7 +1781,7 @@ function lostBits(host, rd, entry, c, f, gm, editable) {
 // Stage 6 F4c1: a list's stats on a row. A number as it is: whole, two decimals from 1 up, three significant digits below (fmtNum would show
 // 0.0001 lb as 0); a value name for a whole value inside a stat's names
 function statFmt(v) { if (typeof v !== 'number' || !isFinite(v)) return ''; if (Math.floor(v) === v) return String(v); return Math.abs(v) >= 1 ? String(Number(v.toFixed(2))) : String(Number(v.toPrecision(3))); }
-function statText(st, v) { var L = st && Array.isArray(st.labels) ? st.labels : null; return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
+function statText(st, v) { if (typeof v === 'string') return v || '—'; var L = st && Array.isArray(st.labels) ? st.labels : null; return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
 function statChips(host, def, spec, ovc) {   // the stats shown On the row: a chip each beside the name, its label small ("Acc 2"); F4c2: a dot on a value of the copy's own
     (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var ch = el('span', 'sheet-chip sheet-item-stat'); ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statText(s, rowStat(spec, def, s.key)))); var dt = statDot(s, spec, ovc); if (dt) ch.appendChild(dt); host.appendChild(ch); });
 }
@@ -2049,9 +2049,13 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
     (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) {
         if (!s || typeof s.key !== 'string' || !SK_RE.test(s.key)) return;
         var k = s.key, lk = k.toLowerCase(), mine, name = 's-' + k, part = partOf(name), bv = rowStat(spec, base, k), lock = mode === 'stats' && heldL.indexOf(lk) >= 0, ctl;
-        Object.keys(ovS).forEach(function(x) { if (mine === undefined && x.toLowerCase() === lk && typeof ovS[x] === 'number') mine = ovS[x]; });
+        Object.keys(ovS).forEach(function(x) { if (mine === undefined && x.toLowerCase() === lk && (typeof ovS[x] === 'number' || (s.kind === 'pick' && typeof ovS[x] === 'string'))) mine = ovS[x]; });
         var put = function(n) { var p = {}; p[k] = n; send({ stats: p }); }, shown = typeof mine === 'number' ? String(mine) : '';
-        if (Array.isArray(s.labels) && s.labels.length) {
+        if (s.kind === 'pick') {   // F5a2: a choice — its labels
+            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', lib + statText(s, bv), mine === undefined));
+            (s.opts || []).forEach(function(o) { ctl.appendChild(opt(o.label, o.label, typeof mine === 'string' && mine.toLowerCase() === o.label.toLowerCase())); });
+            ctl.addEventListener('change', function() { put(ctl.value === '' ? null : ctl.value); });
+        } else if (Array.isArray(s.labels) && s.labels.length) {
             ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', lib + statText(s, bv), mine === undefined));
             s.labels.forEach(function(t, i) { ctl.appendChild(opt(String(i), t || String(i), mine === i)); });
             if (typeof mine === 'number' && !(mine >= 0 && mine < s.labels.length && Math.floor(mine) === mine)) { var xo = opt(shown, statFmt(mine), true); xo.disabled = true; ctl.appendChild(xo); }   // a value past the names
@@ -2112,9 +2116,13 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) {
         if (!s || typeof s.key !== 'string' || !SK_RE.test(s.key)) return;
         var k = s.key, lk = k.toLowerCase(), mine, ds = d.stats && typeof d.stats === 'object' ? d.stats : {}, name = 's-' + k, part = partOf(name), ctl;
-        Object.keys(ds).forEach(function(x) { if (mine === undefined && x.toLowerCase() === lk && typeof ds[x] === 'number') mine = ds[x]; });
+        Object.keys(ds).forEach(function(x) { if (mine === undefined && x.toLowerCase() === lk && (typeof ds[x] === 'number' || (s.kind === 'pick' && typeof ds[x] === 'string'))) mine = ds[x]; });
         var put = function(n) { var p = {}; p[k] = n; one('stats', p); }, shown = typeof mine === 'number' ? String(mine) : '', dv = typeof s.def === 'number' ? s.def : 0;
-        if (Array.isArray(s.labels) && s.labels.length) {
+        if (s.kind === 'pick') {   // F5a2: a choice — its labels
+            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
+            (s.opts || []).forEach(function(o) { ctl.appendChild(opt(o.label, o.label, typeof mine === 'string' && mine.toLowerCase() === o.label.toLowerCase())); });
+            ctl.addEventListener('change', function() { put(ctl.value === '' ? null : ctl.value); });
+        } else if (Array.isArray(s.labels) && s.labels.length) {
             ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
             s.labels.forEach(function(t, i) { ctl.appendChild(opt(String(i), t || String(i), mine === i)); });
             if (typeof mine === 'number' && !(mine >= 0 && mine < s.labels.length && Math.floor(mine) === mine)) { var xo = opt(shown, statFmt(mine), true); xo.disabled = true; ctl.appendChild(xo); }   // a value past the names
@@ -2968,7 +2976,10 @@ function itemStatsBox(it, defs) {
     defs.forEach(function(s) {
         inScope[s.key.toLowerCase()] = 1;
         var v = valOf(s.key), lb = el('label', 'sys-num'), ctl; lb.appendChild(el('span', 'sys-num-cap', s.label));
-        if (Array.isArray(s.labels) && s.labels.length) {   // a stat with value names: a dropdown (a value past them stays, greyed)
+        if (s.kind === 'pick') {   // F5a2: a choice — a dropdown of its labels (blank: the default)
+            var pv = typeof v === 'string' ? ((s.opts || []).filter(function(o) { return o.label.toLowerCase() === v.toLowerCase(); })[0] || {}).label || '' : '';
+            ctl = select('sys-item-stat', [['', '—' + (s.def ? ' (' + s.def + ')' : '')]].concat((s.opts || []).map(function(o) { return [o.label, o.label]; })), pv, s.label + ' (' + s.key + ')'); ctl.dataset.pick = '1';
+        } else if (Array.isArray(s.labels) && s.labels.length) {   // a stat with value names: a dropdown (a value past them stays, greyed)
             ctl = select('sys-item-stat', [['', '—']].concat(s.labels.map(function(n, i) { return [String(i), n || String(i)]; })), typeof v === 'number' ? String(v) : '', s.label + ' (' + s.key + ')');
             if (typeof v === 'number' && !(v >= 0 && v < s.labels.length && Math.floor(v) === v)) { var xo = el('option', null, String(v)); xo.value = String(v); xo.selected = true; xo.disabled = true; ctl.appendChild(xo); }
         } else ctl = numInput('sys-item-stat', typeof v === 'number' ? v : '', s.label + ' (' + s.key + '; blank: ' + (typeof s.def === 'number' ? s.def : 0) + ')', 'any');
@@ -3032,8 +3043,16 @@ function listCard(f, allCats) {
         var s = s0 && typeof s0 === 'object' ? s0 : {}, sr = el('div', 'sys-flags sys-list-stat'); sr.dataset.si = String(si);
         var ki = input('sys-list-statkey field', typeof s.key === 'string' ? s.key : '', 'The stat’s key: a letter, then letters, digits and _ (up to 24); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true). The key is the stat’s identity: renaming or removing it drops its values at Save. A column reads it as Row.key, any formula as List.key (the list\u2019s total)', 'Key'); ki.maxLength = 24; sr.appendChild(ki);
         sr.appendChild(input('sys-list-statlabel field', typeof s.label === 'string' ? s.label : '', 'The stat’s name on the sheet (blank: its key)', 'Label'));
-        sr.appendChild(numField('sys-list-statdef', typeof s.def === 'number' ? s.def : '', 'What an item without its own value reads (blank: 0)', 'default', 'any'));
-        sr.appendChild(input('sys-list-statnames field', Array.isArray(s.labels) ? s.labels.join(', ') : '', 'Names for the values 0, 1, 2… separated by commas (E, A, H, VH): a row shows the name, Items a dropdown; the value stays a number', 'Value names (optional)'));
+        var kS = el('select', 'sys-list-statkind'); kS.title = 'Number: each item holds a number. Choice: each item picks one of named options (Strength = ST), and formulas read that option\u2019s value';   // Stage 6 F5a2
+        [['', 'Number'], ['pick', 'Choice']].forEach(function(o) { var ko = el('option', null, o[1]); ko.value = o[0]; if ((s.kind === 'pick' ? 'pick' : '') === o[0]) ko.selected = true; kS.appendChild(ko); }); sr.appendChild(kS);
+        if (s.kind === 'pick') {
+            sr.appendChild(input('sys-list-statopts field', (Array.isArray(s.opts) ? s.opts : []).map(function(o) { return o && o.label === o.name ? o.label : (o ? o.label + ' = ' + o.name : ''); }).join(', '), 'The options, separated by commas: a label = the number it reads (Strength = ST, Dexterity = DX); a label alone reads the field of that key. An item stores the label, never the name', 'Options (Strength = ST, Dexterity = DX)'));
+            var pdS = el('select', 'sys-list-statpdef'); pdS.title = 'What an item without its own choice reads'; var pd0 = el('option', null, 'No default'); pd0.value = ''; pdS.appendChild(pd0);
+            (Array.isArray(s.opts) ? s.opts : []).forEach(function(o) { if (!o || typeof o.label !== 'string' || !o.label) return; var po = el('option', null, o.label); po.value = o.label; if (typeof s.def === 'string' && s.def.toLowerCase() === o.label.toLowerCase()) po.selected = true; pdS.appendChild(po); }); sr.appendChild(pdS);
+        } else {
+            sr.appendChild(numField('sys-list-statdef', typeof s.def === 'number' ? s.def : '', 'What an item without its own value reads (blank: 0)', 'default', 'any'));
+            sr.appendChild(input('sys-list-statnames field', Array.isArray(s.labels) ? s.labels.join(', ') : '', 'Names for the values 0, 1, 2… separated by commas (E, A, H, VH): a row shows the name, Items a dropdown; the value stays a number', 'Value names (optional)'));
+        }
         sr.appendChild(checkLabel('sys-list-statshow', s.show === true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat reads in the row’s 📝 line'));
         [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
         sb.appendChild(sr);
@@ -3083,7 +3102,7 @@ function statKeyInput(lsp, stL, sti, raw) {
 function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then each stat by its key (kept up to date as a key is typed)
     sel.textContent = '';
     var pl = typeof sp.price === 'string' ? sp.price.toLowerCase() : '', none = el('option', null, 'No price'); none.value = ''; sel.appendChild(none);
-    (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (!s || typeof s !== 'object' || typeof s.key !== 'string' || !s.key) return; var o = el('option', null, s.label && s.label !== s.key ? s.label + ' (' + s.key + ')' : s.key); o.value = s.key; if (pl && s.key.toLowerCase() === pl) o.selected = true; sel.appendChild(o); });
+    (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (!s || typeof s !== 'object' || typeof s.key !== 'string' || !s.key || s.kind === 'pick') return; var o = el('option', null, s.label && s.label !== s.key ? s.label + ' (' + s.key + ')' : s.key); o.value = s.key; if (pl && s.key.toLowerCase() === pl) o.selected = true; sel.appendChild(o); });
 }
 function renderCombat() {
     var box = ui('sysCombatBox'); if (!box) return; box.textContent = '';
@@ -3151,7 +3170,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
         else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
-        else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
+        else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else if (t.dataset.pick === '1') ist[sk] = sv; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
         else return;
         markDirty(); patchErrors(); return;
     }
@@ -3180,6 +3199,7 @@ function onInput(e) {
             var srw = t.closest('.sys-list-stat'), sti = srw ? +srw.dataset.si : -1, stL = Array.isArray(lsp.stats) ? lsp.stats : null; if (!stL || !(sti >= 0 && sti < stL.length)) return;
             var stD = stL[sti] && typeof stL[sti] === 'object' && !Array.isArray(stL[sti]) ? stL[sti] : (stL[sti] = {});
             if (lcc.indexOf('sys-list-statkey') >= 0) statKeyInput(lsp, stL, sti, t.value);   // the price follows its own stat's key
+            else if (lcc.indexOf('sys-list-statopts') >= 0) stD.opts = t.value.split(',').map(function(p) { var q = p.split('='), lb = q[0].trim(), nm = (q.length > 1 ? q.slice(1).join('=') : q[0]).trim(); return { label: lb.slice(0, LIMITS.label), name: nm.slice(0, 64) }; }).filter(function(o) { return o.label && o.name; }).slice(0, LIMITS.pickOpts);   // Stage 6 F5a2: "Strength = ST, DX" (Save cleans them)
             else if (lcc.indexOf('sys-list-statlabel') >= 0) stD.label = t.value.slice(0, LIMITS.label);
             else if (lcc.indexOf('sys-list-statdef') >= 0) numOr(stD, 'def');
             else if (lcc.indexOf('sys-list-statnames') >= 0) { var stn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (stn.length && !stn[stn.length - 1]) stn.pop(); if (stn.some(Boolean)) stD.labels = stn; else delete stD.labels; }
@@ -3262,6 +3282,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
         else if (c.indexOf('sys-list-colhide') >= 0 || c.indexOf('sys-list-colfoot') >= 0) { var chr = t.closest('.sys-list-col'), chD = chr && Array.isArray(lsc.cols) ? lsc.cols[+chr.dataset.ci] : null; if (!chD || typeof chD !== 'object') return; var chK = c.indexOf('sys-list-colhide') >= 0 ? 'hide' : 'foot'; if (t.checked) chD[chK] = true; else delete chD[chK]; }   // Stage 6 F5a1
+        else if (c.indexOf('sys-list-statkind') >= 0) { var skr = t.closest('.sys-list-stat'), skD = skr && Array.isArray(lsc.stats) ? lsc.stats[+skr.dataset.si] : null; if (!skD || typeof skD !== 'object') return; delete skD.def; delete skD.labels; if (t.value === 'pick') { skD.kind = 'pick'; skD.opts = Array.isArray(skD.opts) ? skD.opts : []; if (typeof lsc.price === 'string' && skD.key && lsc.price.toLowerCase() === String(skD.key).toLowerCase()) delete lsc.price; } else { delete skD.kind; delete skD.opts; } markDirty(); renderAll(); return; }   // Stage 6 F5a2: a number or a choice (a choice is never the price)
+        else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
         else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
         else if (c.indexOf('sys-list-price') >= 0) { _priceAt.delete(lsc); if (t.value) lsc.price = t.value; else delete lsc.price; }
         else return;

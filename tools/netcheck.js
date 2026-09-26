@@ -1644,7 +1644,7 @@ pendingChecks.push((async () => {
             n.classList = { toggle: (c, on) => { const want = on === undefined ? !n.classes.has(c) : !!on; if (want) n.classes.add(c); else n.classes.delete(c); return want; }, add: c => n.classes.add(c), remove: c => n.classes.delete(c), contains: c => n.classes.has(c) };
             return n;
         }
-        return { log, box: node('div'), doc: { createElement: t => node(String(t).toLowerCase()), createTextNode: t => ({ tag: '#text', textContent: String(t), children: [], attrs: {} }), write: v => log.push(['markup', 'document.write', String(v)]) } };
+        return { log, box: node('div'), mapBox: node('div'), doc: { createElement: t => node(String(t).toLowerCase()), createTextNode: t => ({ tag: '#text', textContent: String(t), children: [], attrs: {} }), write: v => log.push(['markup', 'document.write', String(v)]) } };
     }
     const joined = { role: 'client', syncedPeer: 'room-peer', foreign: true, active: true };
     const HOST_C = '<img src=x onerror=alert(1)>', HOST_M = '<script>alert(1)</script>\u202e\u200b evil\u0007\nline"><b onclick=x>';
@@ -1657,18 +1657,18 @@ pendingChecks.push((async () => {
     const w = WH.tableWhere(joined, camp);
     check('where (client): the top bar reads the host\'s campaign name and the map the player is on as plain strings — controls to spaces, bidi and zero-width out, never escaped into markup (text nodes need none)',
         !!w && w.camp === HOST_C && w.map === wantM && w.title === HOST_C + ' \u203a ' + wantM, j(w));
-    const D = fakeDom(); WH.paintWhere(D.box, w, D.doc);
-    const kids = D.box.children;
+    const D = fakeDom(); WH.paintWhere(D.box, D.mapBox, w, D.doc);
+    const kids = D.box.children, mkids = D.mapBox.children;
     check('where (client): hostile names reach the page as text only — no innerHTML / outerHTML / insertAdjacentHTML / document.write, no attribute but the separator\'s constant aria-hidden, the whole line in the title property',
-        !D.log.some(e => e[0] === 'markup') && D.log.filter(e => e[0] === 'attr').every(e => e[1] === 'aria-hidden' && e[2] === 'true') && D.box.title === HOST_C + ' \u203a ' + wantM
-        && kids.every(k => k.children.length === 0 && Object.keys(k.attrs).every(a => a === 'aria-hidden')), j(D.log));
-    check('where (client): three spans — the campaign, a \u203a separator, the map — and the box is switched on',
-        kids.length === 3 && j(kids.map(k => k.className)) === j(['tw-camp', 'tw-sep', 'tw-map']) && kids[0].textContent === HOST_C && kids[1].textContent === '\u203a' && kids[2].textContent === wantM
-        && D.box.textContent === HOST_C + '\u203a' + wantM && D.box.classes.has('on'), j(kids.map(k => [k.className, k.textContent])));
+        !D.log.some(e => e[0] === 'markup') && !D.log.some(e => e[0] === 'attr') && D.box.title === HOST_C && D.mapBox.title === wantM
+        && kids.concat(mkids).every(k => k.children.length === 0 && !Object.keys(k.attrs).length), j(D.log));
+    check('where (client): the campaign in its box and the map in the next section\'s (owner, 2026-09-26) — one span each, no separator, both switched on',
+        kids.length === 1 && kids[0].className === 'tw-camp' && kids[0].textContent === HOST_C && mkids.length === 1 && mkids[0].className === 'tw-map' && mkids[0].textContent === wantM
+        && D.box.textContent === HOST_C && D.mapBox.textContent === wantM && D.box.classes.has('on') && D.mapBox.classes.has('on'), j([kids.map(k => [k.className, k.textContent]), mkids.map(k => [k.className, k.textContent])]));
     check('where (client): a nested map shows its own title only — no parent map anywhere in the text, the title or the result, and nothing but the one separator',
-        !/Parent/.test(D.box.textContent + '|' + D.box.title + '|' + j(w)) && D.box.textContent.split('\u203a').length === 2 && D.box.title.split('\u203a').length === 2, D.box.textContent);
-    WH.paintWhere(D.box, null, D.doc);
-    check('where (client): with nothing to show the box is emptied, its title cleared and switched off', D.box.children.length === 0 && D.box.textContent === '' && D.box.title === '' && !D.box.classes.has('on'), j([D.box.textContent, D.box.title, [...D.box.classes]]));
+        !/Parent/.test(D.box.textContent + '|' + D.box.title + '|' + D.mapBox.textContent + '|' + D.mapBox.title + '|' + j(w)), D.mapBox.textContent);
+    WH.paintWhere(D.box, D.mapBox, null, D.doc);
+    check('where (client): with nothing to show both boxes are emptied, their titles cleared and switched off', [D.box, D.mapBox].every(b => b.children.length === 0 && b.textContent === '' && b.title === '' && !b.classes.has('on')), j([D.box.textContent, D.box.title, [...D.box.classes], D.mapBox.textContent]));
     const off = [
         ['left the session', Object.assign({}, joined, { role: null, active: false }), camp],
         ['waiting for admission (no synced host, own campaign on screen)', Object.assign({}, joined, { syncedPeer: null, foreign: false }), camp],
@@ -1695,12 +1695,12 @@ pendingChecks.push((async () => {
     const rd = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', f), 'utf8').replace(/\r\n/g, '\n');
     const mainSrc = rd(path.join('scripts', 'main.js')), htmlSrc = rd('index.html'), cssSrc = rd('style.css');
     check('where (client): wired — renderWhere paints only through paintWhere with the real document, off the synced host\'s campaign; main.js render() calls it before its no-map return; renderRoster calls it as the session class changes',
-        /function renderWhere\(\) \{[^}]*tableWhere\(net, campOf\(state\.appState && state\.appState\.activeCampaignId\)\);[^}]*paintWhere\(box, w, document\);\n\}/.test(src)
+        /function renderWhere\(\) \{[^}]*tableWhere\(net, campOf\(state\.appState && state\.appState\.activeCampaignId\)\);[^}]*paintWhere\(box, mapBox, w, document\);\n\}/.test(src) && /var box = ui\('tableWhere'\), mapBox = ui\('tableWhereMap'\); if \(!box \|\| !mapBox\) return;/.test(src)
         && /export function render\(\) \{\s*if \(window\.wpHideTooltip\)[^\n]*\n\s*if \(window\.wpNet && window\.wpNet\.renderWhere\) window\.wpNet\.renderWhere\(\);[^\n]*\n\s*var activeMap = getActiveMap\(\);\s*if\(!activeMap\) return;/.test(mainSrc)
         && /classList\.toggle\('net-client'[^\n]*\n\s*renderWhere\(\);/.test(src));
-    check('where (client): the box sits in the header beside the campaign select, hidden unless a joined player has something to show',
-        /<header>[\s\S]*<select id="campaignSelect"[^\n]*\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)
-        && /\n\s*#tableWhere \{ display: none;/.test(cssSrc) && /\n\s*body\.net-client #tableWhere\.on \{ display: inline-flex; \}/.test(cssSrc) && !/#tableWhere[^{\n]*\{[^}]*content:/.test(cssSrc));
+    check('where (client): the campaign\'s box sits beside the campaign select, the map\'s in the next section (after the breadcrumb\'s place), both hidden unless a joined player has something to show',
+        /<header>[\s\S]*<select id="campaignSelect"[^\n]*\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<div class="header-sep"><\/div>[\s\S]*<div id="mapBreadcrumb"><\/div>\n\s*<div id="tableWhereMap" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)
+        && /\n\s*#tableWhere, #tableWhereMap \{ display: none;/.test(cssSrc) && /\n\s*body\.net-client #tableWhere\.on, body\.net-client #tableWhereMap\.on \{ display: inline-flex; \}/.test(cssSrc) && !/#tableWhere(Map)?[^{\n]*\{[^}]*content:/.test(cssSrc));
 }
 
 // 1.5.0 the player's top bar: a campaign renamed mid-session reaches admitted players once per change (the real host sync, sliced), and a

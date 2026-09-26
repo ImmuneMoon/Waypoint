@@ -629,6 +629,66 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
         j(conns[0].sent) === '[{"type":"hb"}]' && j(conns[1].sent) === '[{"type":"hb"}]' && conns[2].sent.length === 0 && bc.every(m => m.type !== 'hb'), j([conns.map(c => c.sent), bc]));
 }
 
+// Stage 6 HUD frame (HF3): the HUDs' roll history — a local ring of what this machine saw, tagged here with the character; no wire change
+{
+    const rtSrc = between('// [netcheck:rolltag-start]', '// [netcheck:rolltag-end]', 'rolltag');
+    const mk = () => {
+        const env = { camp: { id: 'k1' }, fired: [], net: {} };
+        const win = { wpSheets: { rolled: (m, cid) => env.fired.push([m ? m.roll.id : null, cid]) } };
+        Object.assign(env, new Function('getActiveCampaign', 'window', 'net', rtSrc + '\nreturn { ringPush, ringRepaint, chatHistoryOf, ring: function() { return rollRing; } };')(() => env.camp, win, env.net));
+        return env;
+    };
+    const R = (id, ts, as, scope) => ({ from: { id: 'u_1', name: 'Ana' }, text: '', scope: scope || 'global', ts, roll: { id, ts, as, expr: '1d20' }, res: { ok: true }, rollBad: null, toName: '' });
+    const e1 = mk();
+    ['c_bren', 'bad', '__proto__', 'c_' + 'x'.repeat(25), 7, undefined].forEach((cid, i) => e1.ringPush(R('r' + i, 100 + i, 'Bren'), cid));
+    check('HF3 ring: only a valid character id is kept as the tag (anything else is untagged); seq rises by one per roll; every live roll fires the HUD hook with its tag',
+        j(e1.ring().map(e => e.cid)) === j(['c_bren', '', '', '', '', '']) && j(e1.ring().map(e => e.seq)) === j([1, 2, 3, 4, 5, 6]) && e1.net.rollSeq() === 6
+        && e1.fired.length === 6 && j(e1.fired[0]) === j(['r0', 'c_bren']) && e1.fired[1][1] === '', j([e1.ring().map(e => e.cid), e1.fired]));
+    const e2 = mk();
+    e2.ringPush(R('a', 100), 'c_a'); e2.ringPush(R('c', 300), 'c_a'); e2.fired.length = 0;
+    e2.ringPush(R('b', 200, 'Ana'), '', true); e2.ringPush(R('z', 50, 'Ana'), '', true); e2.ringPush(R('b', 200, 'Ana'), '', true);
+    check('HF3 ring: the join\'s history lands in time order, fires no hook (no NEW), and never doubles a roll already there',
+        j(e2.ring().map(e => e.m.roll.id)) === j(['z', 'a', 'b', 'c']) && e2.fired.length === 0 && e2.ring().filter(e => e.replay).length === 2, j([e2.ring().map(e => e.m.roll.id), e2.fired]));
+    const e3 = mk();
+    e3.ringPush(R('t1', 10, 'Ana'), 'c_a'); e3.ringPush(R('t2', 20, 'Ana'), 'c_b'); e3.ringPush(R('u1', 30, 'Ana'), ''); e3.ringPush(R('u2', 40, 'Bob'), ''); e3.ringPush(R('t3', 50, 'Bob'), 'c_a');
+    const ids = l => l.map(x => x.roll.id).join(',');
+    check('HF3 rollsFor: newest first; a tagged roll matches its character only (never by name), an untagged one (another machine\'s) by the name it was made as',
+        ids(e3.net.rollsFor('c_a', 'Ana', 0, 10)) === 't3,u1,t1' && ids(e3.net.rollsFor('c_b', 'Bob', 0, 10)) === 'u2,t2' && ids(e3.net.rollsFor('c_z', '', 0, 10)) === '', ids(e3.net.rollsFor('c_a', 'Ana', 0, 10)));
+    check('HF3 rollsFor: honours max (1..100, default 10) and a Clear\'s seq mark', ids(e3.net.rollsFor('c_a', 'Ana', 0, 2)) === 't3,u1' && ids(e3.net.rollsFor('c_a', 'Ana', 3, 10)) === 't3' && e3.net.rollsFor('c_a', 'Ana', 0, 0).length === 3);
+    e3.camp = { id: 'k2' };
+    check('HF3 rollsFor: another campaign\'s rolls never show', e3.net.rollsFor('c_a', 'Ana', 0, 10).length === 0);
+    const e4 = mk();
+    e4.ringPush(R('old', 5000, 'Ana'), 'c_a'); const mark = e4.net.rollSeq(); e4.ringPush(R('skew', 1000, 'Ana'), 'c_a');
+    const got = e4.net.rollsFor('c_a', 'Ana', mark, 10);
+    check('HF3 rollsFor: a Clear, then a live roll with an OLDER host clock, still shows (Clear compares this machine\'s seq, never ts)', ids(got) === 'skew', ids(got));
+    got[0].ts = 1; got[0].extra = 1;
+    check('HF3 rollsFor: returns top-level copies (the ring\'s entry is untouched) carrying what the card reads', e4.ring()[1].m.ts === 1000 && !('extra' in e4.ring()[1].m) && got[0].fresh === true
+        && j(Object.keys(got[0]).sort()) === j(['extra', 'fresh', 'from', 'res', 'roll', 'rollBad', 'scope', 'seq', 'toName', 'ts']));
+    const e5 = mk();
+    for (let i = 0; i < 305; i++) e5.ringPush(R('n' + i, i, 'Ana'), 'c_a');
+    check('HF3 ring: capped at 300, the oldest going first; seq runs on', e5.ring().length === 300 && e5.ring()[0].m.roll.id === 'n5' && e5.net.rollSeq() === 305);
+    e5.fired.length = 0; e5.ringRepaint();
+    check('HF3 ring: a repaint calls the hook with no roll (every HUD\'s foot)', j(e5.fired) === j([[null, '']]));
+    const log = [{ from: { id: 'u' }, text: 'hi', scope: 'global', ts: 1 }, { from: { id: 'g' }, text: 'psst', scope: 'whisper', ts: 2 }, Object.assign(R('w', 3, 'Ana', 'whisper')), Object.assign(R('g1', 4, 'Ana'), { cid: 'c_a', seq: 9 })];
+    const h = e5.chatHistoryOf(log);
+    check('HF3 chatHistoryOf: whispers (and private rolls) never go to a joiner; a roll is rebuilt with exactly from, text, scope, ts, roll (no local tag rides along)',
+        h.length === 2 && h[0].text === 'hi' && j(Object.keys(h[1])) === j(['from', 'text', 'scope', 'ts', 'roll']) && h[1].roll.id === 'g1', j(h));
+    const many = []; for (let i = 0; i < 70; i++) many.push({ from: { id: 'u' }, text: 't' + i, scope: 'global', ts: i });
+    check('HF3 chatHistoryOf: the last 60', e5.chatHistoryOf(many).length === 60 && e5.chatHistoryOf(many)[0].text === 't10');
+    const dsr = fnSrc('function diceSessionReset(clearChat) {', '\n// Roll from here', 'diceSessionReset');
+    const outside = src.replace(rtSrc, '').replace(dsr, '');
+    check('HF3 source: the join sends chatHistoryOf(chatLog); a replayed roll goes into the ring beside the chat; our pending request carries its character and the client reads it before clearing; the host tags a roll-req and a local roll with the character',
+        /var recent = chatHistoryOf\(chatLog\);/.test(src) && /chatLog\.push\(hm\); ringPush\(hm, '', true\);/.test(src) && /if \(addedR\) ringRepaint\(\);/.test(src)
+        && /_dicePending = \{ rid: rid, expr: expr, charId: o\.charId \|\| '', timer:/.test(src)
+        && /var cidP = \(_dicePending && rc\.rid === _dicePending\.rid\) \? _dicePending\.charId : '';[^\n]*\n\s*if \(_dicePending && rc\.rid === _dicePending\.rid\) \{ clearTimeout\(_dicePending\.timer\); _dicePending = null;/.test(src)
+        && /\{ bad: rp\.ok \? null : rp\.reason, cid: cidP \}/.test(src)
+        && (src.match(/pushRoll\(recQ, resQ, '(whisper|global)', \{ cid: chQ \? q\.charId : '' \}\)/g) || []).length === 2
+        && /pushRoll\(rec, res, scope, \{ toName: toName, cid: chR \? chR\.id : '' \}\);/.test(src)
+        && /pushChat\(m\); ringPush\(m, opts && opts\.cid\);/.test(src));
+    check('HF3 source: a session reset that clears the chat empties the ring (and repaints) but never resets seq; nothing outside the ring\'s own code and that reset touches rollRing, so no send path carries it',
+        /if \(clearChat\) \{[^\n]*rollRing = \[\]; ringRepaint\(\);/.test(dsr) && !/ringSeq = 0/.test(dsr) && !/rollRing|ringSeq/.test(outside), (outside.match(/[^\n]*(rollRing|ringSeq)[^\n]*/) || [''])[0]);
+}
+
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -1949,6 +1949,7 @@ net.notepadInput = function(text) {
    The host owns it; clients get it in the snapshot and in 'combats' messages. Ends with the session. */
 net.combats = {};
 var combatAsked = {};   // mapId|tokId -> true: the "start combat?" question for a targeted NPC is asked once per session
+// [netcheck:combats-start]
 function cleanCombats(c) {
     var out = {}; if (!c || typeof c !== 'object') return out;
     Object.keys(c).slice(0, 40).forEach(function(mapId) {
@@ -1968,18 +1969,20 @@ function applyNotepad(m) {
     else if (!net.notepad.on && was) toast('The GM put the table notepad away.');
     renderNotepad();
 }
-/* Fog of war (1.5.0 FV2): the combat roster and the target pointers name tokens, so a player must not learn an
-   unseen creature through them. On a fogged map a combat row for a token they cannot see is REDACTED (name "Hidden",
-   tokId dropped) — the order, count and turn index stay intact; a target pointer at an unseen token is dropped. Non-fog
-   tables keep the single broadcast. */
+/* What a player gets of the combats: the order, never a number (1.5.0). A row's initiative can be the total of a roll the GM alone saw
+   (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order), and nothing on a player's side
+   reads it, so no row carries init to a player, on any map; the host keeps its own for the roster. Fog of war (1.5.0 FV2): the combat
+   roster and the target pointers name tokens, so a player must not learn an unseen creature through them. On a fogged map a combat row
+   for a token they cannot see is REDACTED (name "Hidden"; no token, no picture, and an id of its place rather than the row's, which
+   carries the token's) — the order, count and turn index stay intact; a target pointer at an unseen token is dropped. Non-fog tables
+   keep the single broadcast. */
+function combatRowOut(r, i, unseen) { return unseen ? { id: 'h' + i, name: 'Hidden', tokId: null, src: null } : { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; }
 function combatsFor(recipientId) {
-    var camp = getActiveCampaign(); if (!anyFog(camp)) return net.combats;
-    var out = {};
+    var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
     Object.keys(net.combats || {}).forEach(function(mapId) {
-        var cmb = net.combats[mapId], map = camp && camp.items[mapId];
-        if (!map || map.type !== 'map' || !(map.fog && map.fog.on)) { out[mapId] = cmb; return; }
-        var drop = fogDrop(camp, map, recipientId) || {};
-        out[mapId] = { round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r) { return (r.tokId && drop[r.tokId]) ? { id: r.id, name: 'Hidden', tokId: null, init: r.init, src: r.src } : r; }) };
+        var cmb = net.combats[mapId], map = fogged && camp && camp.items[mapId];
+        var drop = map && map.type === 'map' && map.fog && map.fog.on ? (fogDrop(camp, map, recipientId) || {}) : null;
+        out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) { return combatRowOut(r, i, !!(drop && r.tokId && drop[r.tokId])); }) };
     });
     return out;
 }
@@ -1996,9 +1999,10 @@ function targetsFor(recipientId) {
 }
 function broadcastCombats() {
     var camp = getActiveCampaign();
-    if (!anyFog(camp)) { broadcast({ type: 'combats', combats: net.combats }, null); return; }
+    if (!anyFog(camp)) { broadcast({ type: 'combats', combats: combatsFor(null) }, null); return; }
     net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'combats', combats: combatsFor(pr.id) }); } catch (e) { sendFailed(e); } });
 }
+// [netcheck:combats-end]
 function broadcastTargets() {
     var camp = getActiveCampaign();
     if (!anyFog(camp)) { broadcast({ type: 'targets', targets: net.targets }, null); return; }

@@ -50,7 +50,7 @@ Every suite is plain Node, no dependencies, exits 1 on any failure:
 | `tools/fogcheck.js` | fog of war |
 | `tools/soundcheck.js`, `fxcheck.js`, `musiccheck.js` | sound, effects, music playlists |
 | `tools/cleanupcheck.js` | save cleanup classifier, the import cleaner (`cleanImport`, run on the real `migrateAppState` sliced from `io.js`), the dev reload gate + the asset gate (slices the real code out of `net.js`) |
-| `tools/netcheck.js` | host-side wire gates: admission, identity, rate limits, chat, the patch/pos/threat gates (a locked token), stage and summons (admitted peers only), travel, Forget, the GM's own roll privacy and a thrown blast's name (slices `net.js` by `[netcheck:*]` markers) |
+| `tools/netcheck.js` | host-side wire gates: admission, identity, rate limits, chat, the patch/pos/threat gates (a locked token), stage and summons (admitted peers only), travel, Forget, the GM's own roll privacy and a thrown blast's name, the combat roster (players get the order, never a number; run with the roster's Roll and Start from `whiteboard.js`) (slices `net.js` by `[netcheck:*]` markers) |
 | `tools/sinkcheck.js` | the GM's own renderers against a campaign from a file: `safecore.js` (esc, cssColor, num, picRef), the planner preview and editor boxes, room inspector, pictures, ruler, music fetch, category-file deletion, the mermaid label config in `index.html` (slices by `[sinkcheck:*]` markers) |
 
 Run them all before a commit:

@@ -1431,14 +1431,14 @@ net.charEdits = function(charId, list) {
 };
 // Stage 6 HUD H7: a player's press of an apply action on their own character — the host works it out and answers; nothing changes here
 // meanwhile (the new values arrive as the host's delta, the card as its record). One at a time per character. { ok, pending } or { error }
-net.charApply = function(charId, actId, label) {
+net.charApply = function(charId, actId, label, row) {   // row (H7b): { f, r, i } — a list's action on one row, in place of an action id
     var S = SC(), camp = getActiveCampaign();
     if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (Object.keys(_charPending).some(function(k) { return _charPending[k].apply && _charPending[k].charId === charId; })) return { error: 'Waiting for the GM to apply the last one.' };
-    var rid = 'a' + Math.random().toString(36).slice(2, 10), req = { type: 'char-apply', rid: rid, charId: charId, act: String(actId) };
+    var rid = 'a' + Math.random().toString(36).slice(2, 10), req = { type: 'char-apply', rid: rid, charId: charId }; if (row) req.row = { f: String(row.f), r: String(row.r), i: Number(row.i) }; else req.act = String(actId);
     if (label) req.label = String(label).slice(0, S.LIMITS.label);
     _charPending[rid] = { charId: charId, apply: true, batch: [], timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };   // batch []: nothing to undo on a refusal
     try { net.conns[0].send(req); } catch (e) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; return { error: 'Could not reach the GM.' }; }
@@ -2800,12 +2800,16 @@ function handleMessage(msg, conn) {
         var profA = net.roster[conn.peer]; if (chA.npc || !chA.ownerId || !profA || chA.ownerId !== profA.id) { denyA('owner'); return; }
         var viewA = window.wpSheets ? window.wpSheets.playerSystem(campA) : null, chvA = viewA ? Sa.charFor(chA, viewA, profA.id, { lib: fxLib(campA.system), items: itemLib(campA.system) }) : null;
         if (!viewA || !chvA) { denyA('missing'); return; }
-        var actA = null; (Array.isArray(viewA.rolls) ? viewA.rolls : []).forEach(function(r) { if (r && r.id === qa.act && Array.isArray(r.apply)) actA = r; });
+        var actA = null, rowGmA = false;
+        if (qa.row) (Array.isArray(viewA.fields) ? viewA.fields : []).forEach(function(f) { if (f && f.id === qa.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lr = f.list.rolls[qa.row.i]; if (lr && Array.isArray(lr.apply)) actA = lr; } });   // HUD H7b: a list's action, as their view has the list
+        else (Array.isArray(viewA.rolls) ? viewA.rolls : []).forEach(function(r) { if (r && r.id === qa.act && Array.isArray(r.apply)) actA = r; });
         if (!actA) { denyA('field'); return; }
         var locA = profA.location, mapA = (typeof locA === 'string' && campA.items && own(campA.items, locA)) ? campA.items[locA] : null;   // the facing and round names read their token on the map they are on, as their rolls do
         var vtA = window.wpVtt, ruleA = function(k) { return !vtA || (vtA.rulesOn ? vtA.rulesOn(k) : vtA.on(k)); };
         var tcA = Sa.withRound(Sa.tokenCtx(mapA, Sa.charTokenOn(mapA, qa.charId, profA.id, { strict: true }), { turning: ruleA('turning'), posture: ruleA('posture'), elevation: ruleA('elevation') }), mapA && own(net.combats, locA) ? net.combats[locA] : null);
-        var resA = Sa.applyAct(campA.system, chA, actA, Sa.makeResolver(viewA, chvA, Fa, tcA), Fa, tcA);
+        var varsA = Sa.makeResolver(viewA, chvA, Fa, tcA);
+        if (qa.row) { varsA = varsA.row(qa.row.f, qa.row.r); if (!varsA) { denyA('missing'); return; } rowGmA = !!Sa.rowRollNames(campA.system, chA, qa.row.f, qa.row.r, [], Fa).gm; }   // H7b: the row's own names (a row they cannot see is gone); a row of a GM-only item keeps the card between them and the GM
+        var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA);
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
         chA.values = chA.values || {}; Object.keys(resA.values).forEach(function(k) { chA.values[k] = resA.values[k]; }); chA.updated = Date.now();
         saveRemoteSoon();
@@ -2814,7 +2818,7 @@ function handleMessage(msg, conn) {
         if (window.wpSheets) window.wpSheets.charChanged(qa.charId);
         var recA = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(profA, false), label: qa.label || (actA.label.indexOf('{') < 0 ? actA.label : 'Apply'), lines: applyLines(resA.lines), ts: Date.now() };
         if (chA.name) recA.as = String(chA.name).slice(0, 60);
-        postApply(recA, Sa.applyScope(campA.system, chA, actA, false, Fa), chA, conn);
+        postApply(recA, Sa.applyScope(campA.system, chA, actA, rowGmA, Fa), chA, conn);
         // [netcheck:charapply-end]
     } else if (msg.type === 'char-item' && net.role === 'host') {
         // [netcheck:charitem-start]

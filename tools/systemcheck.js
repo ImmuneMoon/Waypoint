@@ -1866,6 +1866,18 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             check('F5b the sheet: each row gets a button per list roll (its label), which rolls the formula as the character with the row ("Blaster · Attack", { row: { f, r } }); a kept curse has none; nothing where nothing can be rolled (the Layout preview, a pop-out, a viewer who cannot roll for the character); a table has them in its actions',
                 j(btnsB.map(b => b.textContent)) === j(['Attack', 'Sneak', 'Roll', 'Four']) && j(rolled[0]) === j(['c_b', 'd20 + Row.Hit', 'Blaster · Attack', { row: { f: 'f_wp', r: 'w_b' } }]) && find5(gR, 'sheet-item-roll').length === 12
                 && find5(offR, 'sheet-item-roll').length === 0 && find5(noR, 'sheet-item-roll').length === 0 && find5(tR, 'sheet-item-roll').length === 12, j([btnsB.map(b => b.textContent), rolled, find5(gR, 'sheet-item-roll').length]));
+            // HUD H7b: a list's apply action draws a button per row (sheet-item-apply) for a viewer who may change the character — by its own gate, not the
+            // dice's — none on a kept curse or where the sheet is inert; pressed, it hands applyAction the row ({ f, r, i }) and a label with the item's name
+            const rawBA = JSON.parse(JSON.stringify(rawB)); rawBA.fields.push({ id: 'f_cash', key: 'Cash', kind: 'number', def: 10 }); rawBA.fields.find(x => x.id === 'f_wp').list.rolls = [{ label: 'Attack', formula: 'd20 + Row.Hit' }, { label: 'Pay', apply: [{ f: 'f_cash', formula: 'Row.Acc' }] }];
+            const sysBA = cleanSystem(rawBA, { F, gmView: true }), wpBA = sysBA.fields.find(x => x.id === 'f_wp'), appliedBA = [];
+            const mkA = (live, canR, canA) => new Function(...deps5, 'canRoll', 'sheetRoll', 'canApply', 'applyTitle', 'systemOf', 'getActiveCampaign', 'charById', 'applyAction', itSrc5 + '\nreturn { itemListInto: itemListInto };')(fe5, (v, cls) => fe5('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, () => {}, opt5, S.fmtNum, v => v || '', S.LIMITS, live, doc5, () => {}, () => {}, () => {}, {}, S.rowStat, S.rowPaid, 'sheet', () => canR, () => {}, () => canA, () => 'Cash - Row.Acc', () => sysBA, () => ({ chars: { c_b: chB } }), (id, cp) => cp.chars[id] || null, (...a) => appliedBA.push(a));
+            const drawBA = (live, canR, canA) => { const g = fe5('div'); mkA(live, canR, canA).itemListInto(g, wpBA, chB, chB.values.f_wp, sysBA, false, true, true, ''); return g; };
+            const gBA = drawBA(true, true, true), paysBA = find5(gBA, 'sheet-item-apply'); if (paysBA[0]) paysBA[0].on.click({});
+            const noDiceBA = drawBA(true, false, true), noEditBA = drawBA(true, true, false), inertBA = drawBA(false, true, true);
+            check('H7b the sheet: a list\'s apply action is a button on each row it may move (three: the kept curse has none), pressed with the row and "Blaster · Pay"; its gate is the sheet\'s own (dice off keeps it, a viewer who may not change the character loses it only), and the Layout preview or a pop-out draws none',
+                paysBA.length === 3 && paysBA[0].textContent === 'Pay' && j(appliedBA.map(a => a.slice(2))) === j([['Blaster · Pay', { f: 'f_wp', r: 'w_b', i: 1 }]]) && appliedBA[0][1] === chB
+                && find5(noDiceBA, 'sheet-item-apply').length === 3 && find5(noDiceBA, 'sheet-item-roll').length === 3 && find5(noEditBA, 'sheet-item-apply').length === 0 && find5(noEditBA, 'sheet-item-roll').length === 3 && find5(inertBA, 'sheet-item-roll').length === 0,
+                j([paysBA.map(b => b.textContent), appliedBA.map(a => a.slice(2)), find5(noDiceBA, 'sheet-item-roll').length, find5(noEditBA, 'sheet-item-roll').length]));
             const inpR = (cls, v, t, ph) => { const i = fe5('input', cls); i.type = 'text'; i.value = v == null ? '' : String(v); i.title = t || ''; i.placeholder = ph || ''; return i; };
             const rNR = new Function('el', cutT('function numInput(', 'function select(') + '\nreturn { numInput: numInput, numField: numField };')(fe5);
             const LCR = new Function('el', 'input', 'numField', 'document', 'LIMITS', cutT('function listCard(', 'function renderCombat(') + '\nreturn listCard;')(fe5, inpR, rNR.numField, doc5, S.LIMITS);
@@ -3543,6 +3555,60 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /or <b>apply<\/b> buttons that move pools and numbers by an amount \(<b>Apply costs<\/b>: FP &minus; 3; <b>Apply wounds<\/b>: HP &minus; Injury\)/.test(tutA)
             && /Set a roll&rsquo;s <b>Kind<\/b> to <b>Apply<\/b> for a button that moves pools or numbers instead: up to four changes/.test(helpA) && /Every amount is worked out first/.test(helpA) && /The owner and you may press it on the character, whatever the pool&rsquo;s edit setting\./.test(helpA)
             && /Its card lands in chat for the whole table when every value it moves is shown on hover, otherwise for the owner and you; an NPC&rsquo;s, or one whose amount reads a GM-only value, stays yours\. Revert takes your press back whole\./.test(helpA));
+    }
+    /* ---- Stage 6 HUD H7b: apply actions on a list's rows (Apply costs on a power: its amounts read the row) ---- */
+    {
+        const rawL = { v: 1, name: 'L', rolls: [], fields: [
+            { id: 'f_fp', key: 'FP', label: 'Fatigue', kind: 'resource', maxFormula: '10', min: 0, def: 'max', edit: 'owner' },
+            { id: 'f_ep', key: 'EP', kind: 'resource', maxFormula: '6', min: 0, def: 'max', edit: 'owner', hover: true },
+            { id: 'f_g', key: 'GMFig', kind: 'number', def: 3, vis: 'gm' },
+            { id: 'f_pw', key: 'Powers', label: 'Powers', kind: 'item-list', edit: 'owner', list: { noQty: true, stats: [{ key: 'FPCost' }, { key: 'EPCost' }],
+                rolls: [{ label: 'Use', formula: '3d6' }, { label: 'Costs', apply: [{ f: 'f_fp', formula: 'Row.FPCost' }, { f: 'f_ep', formula: 'Row.EPCost' }] }, { label: 'Secret', apply: [{ f: 'f_fp', formula: 'GMFig' }] }, { label: '', apply: [] }] } },
+            { id: 'f_bad', key: 'Bad', kind: 'item-list', edit: 'owner', list: { rolls: [{ label: 'B', apply: [{ f: 'f_nope', formula: '1' }, { f: 'f_fp', formula: 'd6' }, { f: 'f_ep', formula: '' }] }] } },
+            { id: 'f_only', key: 'Only', kind: 'item-list', edit: 'owner', list: { rolls: [{ label: 'S', apply: [{ f: 'f_fp', formula: 'GMFig' }] }] } }],
+            items: [{ id: 'i_push', name: 'Force Push', key: 'Push', stats: { FPCost: 3, EPCost: 2 } }, { id: 'i_dark', name: 'Dark', key: 'Dark', vis: 'gm', stats: { FPCost: 1 } }] };
+        const gmL = cleanSystem(rawL, { F, gmView: true }), plL = cleanSystem(rawL, { F, gmView: false }), lsL = (s, id) => (s.fields.find(x => x.id === id) || {}).list;
+        check('H7b a list\'s rolls may be apply actions ({ label (blank: Apply), apply }), four in all with its rolls; the players\' view drops one naming a GM-only value, one unfinished or one with no change, and a list left with no spec at all loses it; a fixed point in both views',
+            j(lsL(gmL, 'f_pw').rolls) === j([{ label: 'Use', formula: '3d6' }, { label: 'Costs', apply: [{ f: 'f_fp', formula: 'Row.FPCost' }, { f: 'f_ep', formula: 'Row.EPCost' }] }, { label: 'Secret', apply: [{ f: 'f_fp', formula: 'GMFig' }] }, { label: 'Apply', apply: [] }])
+            && j(lsL(plL, 'f_pw').rolls.map(r => r.label)) === j(['Use', 'Costs']) && !('list' in plL.fields.find(x => x.id === 'f_only')) && !lsL(plL, 'f_bad')
+            && j(j(cleanSystem(gmL, { F, gmView: true }))) === j(j(gmL)) && j(cleanSystem(plL, { F, gmView: false })) === j(plL), j([lsL(gmL, 'f_pw'), lsL(plL, 'f_pw'), plL.fields.find(x => x.id === 'f_only')]));
+        const vL = validateSystem(gmL, F), msgL = (a, id) => a.filter(e => e.id === id && e.prop === 'list').map(e => e.message);
+        check('H7b the validator: a list action\'s messages go under its list\'s card by action and change ("Apply “B”, change 2: …"): a field to pick, no dice, a missing amount; an action with no change; a GM-only value warns that players will not get it; Row.* is known there',
+            j(msgL(vL.errors, 'f_bad')) === j(['Apply “B”, change 1: Pick the pool or number this changes.', 'Apply “B”, change 2: An amount cannot roll dice: roll first, and let the amount read the field the result goes in.', 'Apply “B”, change 3: Missing formula'])
+            && j(msgL(vL.errors, 'f_pw')) === j(['Apply “Apply”: An apply action needs a change: the pool or number it moves, and by how much.'])
+            && j(msgL(vL.warnings, 'f_pw')) === j(['Apply “Secret”, change 1: "GMFig" is GM only: players will not get this action.']), j([msgL(vL.errors, 'f_bad'), msgL(vL.errors, 'f_pw'), msgL(vL.warnings, 'f_pw')]));
+        const chL = { id: 'c_l', name: 'Jed', ownerId: 'u_l', values: { f_fp: { cur: 5 }, f_pw: [{ id: 'w_1', defId: 'i_push' }, { id: 'w_2', defId: 'i_dark' }, { id: 'w_3', defId: 'i_push', hid: 1 }] } };
+        const rvL = makeResolver(gmL, chL, F).row('f_pw', 'w_1'), aL = S.applyAct(gmL, chL, lsL(gmL, 'f_pw').rolls[1], rvL, F);
+        check('H7b applyAct through a row\'s names: Apply costs on Force Push takes its own FPCost and EPCost (FP 5 - 3, EP full 6 - 2) in one change; a kept curse\'s row has no names to use (null)',
+            j(aL.values) === j({ f_fp: { cur: 2 }, f_ep: { cur: 4 } }) && j(aL.lines.map(l => l.d)) === j([-3, -2]) && makeResolver(gmL, chL, F).row('f_pw', 'w_3') === null, j(aL));
+        const cqL = S.cleanCharApply;
+        check('H7b cleanCharApply: a list action names its row ({ f: a field, r: a row id, i: 0 to 3 }) in place of an action id — never both, never another shape',
+            j(cqL({ rid: 'a1', charId: 'c_l', row: { f: 'f_pw', r: 'w_1', i: 1, x: 9 }, label: 'Force Push · Costs' })) === j({ rid: 'a1', charId: 'c_l', row: { f: 'f_pw', r: 'w_1', i: 1 }, label: 'Force Push · Costs' })
+            && [{ row: { f: 'f_pw', r: 'w_1', i: 4 } }, { row: { f: 'f_pw', r: 'w_1', i: -1 } }, { row: { f: 'f_pw', r: 'w_1', i: 1.5 } }, { row: { f: 'f_pw', r: 'w_1', i: '1' } }, { row: { f: 'pw', r: 'w_1', i: 1 } }, { row: { f: 'f_pw', r: 'x_1', i: 1 } }, { row: 'w_1' }, { act: 'r_a', row: { f: 'f_pw', r: 'w_1', i: 1 } }, {}]
+                .every(m => cqL(Object.assign({ rid: 'a1', charId: 'c_l' }, m)) === null));
+        // the sheet's side, run for real: the GM's row press (the row's names, a GM-only row kept private); a player asks with the row
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        const apSrcL = shL.slice(shL.indexOf('// Stage 6 HUD H7: a viewer who may press an apply action'), shL.indexOf('// The combat roster (whiteboard.js): initiative from the system\'s init roll'));
+        const runRowL = (rid, o) => {
+            o = o || {};
+            const ch = JSON.parse(JSON.stringify(chL)), camp = { id: 'k', system: gmL, chars: { c_l: ch } }, out = { toasts: [], cards: [], asks: [], after: [] };
+            const n = o.client ? { active: true, role: 'client', charApply: (...a) => { out.asks.push(a); return { ok: true, pending: true }; } } : { active: true, role: 'host', postApplyCard: (...a) => out.cards.push(JSON.parse(JSON.stringify(a))) };
+            const api = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'net', 'toast', 'F', 'resolveAll', 'tokenCtxFor', 'applyAct', 'applyScope', 'gmOnlyNames', 'gmDerivedNames', 'gmEffectNames', 'labelSecret', 'clone', 'afterCharChange', 'charById', 'rollLabel', 'el', 'iconNode', 'ROLL_TONE_CLS', 'fieldById', 'myId', 'window', 'rowRollNames',
+                'var lastChange = null, _fxLive = true;' + NL + apSrcL + NL + 'return { applyAction: applyAction, last: function() { return lastChange; } };')(
+                () => camp, c => c.system, () => !!o.client, () => true, () => n, t => out.toasts.push(t), () => F, S.resolveAll, () => null, S.applyAct, S.applyScope, S.gmOnlyNames, S.gmDerivedNames, S.gmEffectNames, () => '', x => JSON.parse(JSON.stringify(x)), (c, w, d) => out.after.push(JSON.parse(JSON.stringify(d))), (cid, cp) => cp.chars[cid] || null, r => r.label, () => null, () => null, {}, S.fieldById, () => 'u_l', { wpVtt: { on: () => true } }, S.rowRollNames);
+            api.applyAction(lsL(gmL, 'f_pw').rolls[1], ch, 'Force Push · Costs', { f: 'f_pw', r: rid, i: 1 }); out.ch = ch; out.last = api.last(); return out;
+        };
+        const rw1 = runRowL('w_1'), rw2 = runRowL('w_2'), rw3 = runRowL('w_3'), rwC = runRowL('w_1', { client: true });
+        check('H7b applyAction on a row (run for real): the GM\'s press reads that row (FP 5 - 3, EP 6 - 2) and stores one change; the card goes to the owner (FP is not on hover); a row of a GM-only item keeps it the GM\'s with one toast; a kept curse\'s row does nothing but say so; a player asks the host with the row and stores nothing',
+            j(rw1.ch.values.f_fp) === j({ cur: 2 }) && j(rw1.ch.values.f_ep) === j({ cur: 4 }) && rw1.after.length === 1 && rw1.cards[0][1] === 'Force Push · Costs' && rw1.cards[0][3] === 'owner' && rw1.toasts.length === 0
+            && rw2.cards[0][3] === 'gm' && j(rw2.toasts) === j(['Kept private: that is on a GM-only item.']) && j(rw2.ch.values.f_fp) === j({ cur: 4 })
+            && rw3.after.length === 0 && rw3.cards.length === 0 && j(rw3.toasts) === j(['That row cannot be used now.'])
+            && j(rwC.asks) === j([['c_l', null, 'Force Push · Costs', { f: 'f_pw', r: 'w_1', i: 1 }]]) && rwC.after.length === 0,
+            j([rw1.cards, rw1.toasts, rw2.cards, rw2.toasts, rw3.toasts, rwC.asks]));
+        const hA = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tA = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('H7b the Lists card (source) and the tour and Help: a list roll has Kind: Roll | Apply and, as an apply action, its own change editor (listApplyEditor, built with el only); Help and the Lists step say a list\'s action works its amount out from the row',
+            /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); listApplyEditor\(cb2, rr, ri\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri\) \{/.test(shL)
+            && /A list&rsquo;s roll can be an <b>apply<\/b> action too/.test(hA) && /a list&rsquo;s <b>apply<\/b> actions move pools from the row \(Apply costs: FP &minus; Row\.FPCost\)/.test(tA));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

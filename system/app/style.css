@@ -2055,6 +2055,8 @@
   /* Stage 6 HUD H7: an apply action's changes in the Rolls tab; its card in Table Chat */
   .sys-apply { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
   .sys-flags.sys-apply-row input.sys-apply-formula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }
+  .sys-list-card .sys-flags.sys-list-applyrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-applyrow input.sys-list-applyformula { flex: 3 1 220px; font-family: ui-monospace, Consolas, monospace; }   /* H7b: a list action's changes */
+  .sys-list-card .sys-list-applyadd { margin-left: 18px; }
   .apply-lines { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; font-size: 13px; }
   .apply-line b { color: var(--gold); }
   .apply-d { font-weight: 700; } .apply-d.apply-sub { color: var(--red); } .apply-d.apply-add { color: var(--green); }

@@ -2842,6 +2842,7 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpClearSharedBlasts) return;
         window.wpClearSharedBlasts();
     } else if (msg.type === 'roll-req' && net.role === 'host') {
+        // [netcheck:rollreq-start]
         // a player's roll: validated, rate-limited, rolled HERE with the host's dice, sent as a record (from = the roster entry, never the client's claim)
         var Dq = DC(), Fq = window.wpFormula; if (!Dq || !Fq) return;
         var q = Dq.cleanRollReq(msg); if (!q) { var ridBad = Dq.cleanRid(msg); if (ridBad) { try { conn.send({ type: 'roll-deny', rid: ridBad, reason: 'error', message: 'That roll could not be read.' }); } catch (e) { sendFailed(e); } } return; }
@@ -2874,6 +2875,7 @@ function handleMessage(msg, conn) {
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
+        // [netcheck:rollreq-end]
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
@@ -3311,6 +3313,7 @@ function leaveSession(silent) {
     net.combats = {}; combatAsked = {};
     net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
+    if (window.wpSheets && window.wpSheets.tokenTurned) setTimeout(function() { window.wpSheets.tokenTurned(null, true); }, 0);   // HUD frame (HF5b): CombatRound reads 0 again, so a sheet or HUD showing it repaints (no render runs on a leave)
     stopHeartbeat();
     if (!silent) setIndicator(null);
     setPausedLocal(false);

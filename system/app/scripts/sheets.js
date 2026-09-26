@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, gmOnlyNames, gmEffectNames, labelNames, withRound } from './systemcore.js';
+import { validPageId, LIMITS, KINDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, labelGmNames, gmEffectNames, labelNames, withRound } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -268,18 +268,18 @@ function wireCharSelect(w, rerender) {
 }
 
 /* ---------- hover lines ---------- */
-function hoverLinesForToken(w, camp) {
+function hoverLinesForToken(w, camp, mapId) {   // mapId: the map the token stands on (the party strip finds it on any map); the viewed map when absent (the map's own hover card)
     if (!w || !w.charId || !featureOn() || !F()) return [];
     camp = camp || getActiveCampaign(); var sys = systemOf(camp), c = charById(w.charId, camp);
     if (!sys || !c) return [];
     if (c.npc && isClient()) return [];
     if (c.partial && Array.isArray(c.lines)) return c.lines.slice();   // 5h: a teammate's copy shows the host's lines (it lacks the fields their formulas read)
-    try { var amH = camp.items && camp.items[camp.activeItemId]; return hoverLines(sys, c, F(), withRound(tokenCtx(amH, w, tokenFlags()), combatOn(camp.activeItemId))); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map
+    try { var midH = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? mapId : camp.activeItemId, amH = camp.items && camp.items[midH]; return hoverLines(sys, c, F(), withRound(tokenCtx(amH, w, tokenFlags()), combatOn(midH))); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map (HF5 review: the map it stands on, as its sheet reads it)
 }
 function hoverLinesForTokenId(camp, tokId) {
     if (!camp || !tokId) return [];
-    var w = null; Object.values(camp.items || {}).some(function(m) { if (!m || m.type !== 'map') return false; w = (m.whiteboard || []).find(function(x) { return x && x.id === tokId; }) || null; return !!w; });
-    return w ? hoverLinesForToken(w, camp) : [];
+    var w = null, onMap = null; Object.keys(camp.items || {}).some(function(id) { var m = camp.items[id]; if (!m || m.type !== 'map') return false; w = (m.whiteboard || []).find(function(x) { return x && x.id === tokId; }) || null; if (w) onMap = id; return !!w; });
+    return w ? hoverLinesForToken(w, camp, onMap) : [];
 }
 
 /* ---------- the facing dial (Stage 5h Fold 3): a view of the token's own facing, with threat marks formulas read as Arc / Threats ---------- */
@@ -2071,16 +2071,20 @@ function rollLabel(r, sys, c, vars) {
     var out = ''; Array.from(s).some(function(ch) { if (LONE_SURR.test(ch)) return false; if (out.length + ch.length > 60) return true; out += ch; return false; });
     return out.trim() || 'Roll';
 }
-// A public roll never carries a GM-only value: on the host, in a session, a roll whose label shows one (a GM-only field, or a value a GM-only
-// effect changed) goes to the GM alone, as its formula would. The names that make it so, joined for the toast, or ''
+// A public roll never carries a GM-only value: on the host, in a session, a roll whose label shows one (a GM-only field named anywhere in it,
+// as the players' view scrubs it, or a value a GM-only effect changed) goes to the GM alone, as its formula would. The names, joined for the toast, or ''
 function labelSecret(sys, vars, text) {
     var n = net(), Fm = F(); if (isClient() || !(n && n.active && n.role === 'host') || !Fm || typeof text !== 'string' || text.indexOf('{') < 0) return '';
-    var ns = labelNames(Fm, text), hit = gmOnlyNames(sys, ns).concat(gmEffectNames(vars, ns)); return hit.length ? hit.join(', ') : '';
+    var hit = labelGmNames(sys, Fm, text).concat(gmEffectNames(vars, labelNames(Fm, text))); hit = hit.filter(function(x, i) { return hit.indexOf(x) === i; }); return hit.length ? hit.join(', ') : '';
 }
 function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the render's resolver, for the label (HF5a)
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
-    b.addEventListener('click', function(e) { var why = labelSecret(sys, vars, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, label, why ? { priv: true } : undefined); });
+    b.addEventListener('click', function(e) {
+        var lb = label, vv = vars;
+        if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); sheetRoll(e, c.id, r.formula, lb, why ? { priv: true } : undefined);
+    });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character

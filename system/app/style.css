@@ -1031,11 +1031,11 @@
   .caret.down { transform: rotate(90deg); }
   .caret-spacer { display: inline-block; width: 14px; flex: 0 0 14px; }
 
-  /* ---- rulers & zoom ---- */
-  #rulerTop { position: absolute; top: 0; left: 0; width: 100%; height: 18px; z-index: 900; pointer-events: none; display: none; }
-  #rulerLeft { position: absolute; top: 0; left: 0; width: 36px; height: 100%; z-index: 900; pointer-events: none; display: none; }
-  #rulerCursorX { position: absolute; top: 0; width: 1px; height: 18px; background: var(--gold); z-index: 901; pointer-events: none; display: none; }
-  #rulerCursorY { position: absolute; left: 0; width: 36px; height: 1px; background: var(--gold); z-index: 901; pointer-events: none; display: none; }
+  /* ---- rulers & zoom ---- (the rulers sit over the fog of war (#fogScreen 3950), under screen effects (#fxScreen 4000) and the minimap) */
+  #rulerTop { position: absolute; top: 0; left: 0; width: 100%; height: 18px; z-index: 3960; pointer-events: none; display: none; }
+  #rulerLeft { position: absolute; top: 0; left: 0; width: 36px; height: 100%; z-index: 3960; pointer-events: none; display: none; }
+  #rulerCursorX { position: absolute; top: 0; width: 1px; height: 18px; background: var(--gold); z-index: 3961; pointer-events: none; display: none; }
+  #rulerCursorY { position: absolute; left: 0; width: 36px; height: 1px; background: var(--gold); z-index: 3961; pointer-events: none; display: none; }
   /* Party strip: the players' characters, top-right under the zoom box */
   #partyStrip {
     position: absolute; top: 62px; right: 14px; z-index: 8990; display: flex; flex-wrap: wrap; justify-content: flex-end;
@@ -2291,7 +2291,7 @@
   /* Visual effects (1.5.0, S3): the screen layer over the play map and the burst layer on the board */
   #fxScreen { position: fixed; z-index: 4000; pointer-events: none; overflow: hidden; }
   #fxScreen canvas.fx-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  /* Fog of war (1.5.0): the see-through vision overlay — over the board, under effects, the minimap and the party strip */
+  /* Fog of war (1.5.0): the see-through vision overlay — over the board, under the coordinate rulers, effects, the minimap and the party strip */
   #fogScreen { position: fixed; z-index: 3950; pointer-events: none; overflow: hidden; }
   #fogScreen canvas.fog-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   #fxLayer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15000; overflow: visible; }

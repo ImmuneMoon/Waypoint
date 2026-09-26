@@ -718,7 +718,8 @@
             "id": "f_dc",
             "w": 1
           }
-        ]
+        ],
+        "resetAll": true
       },
       {
         "id": "s_gear",
@@ -905,7 +906,9 @@
               "id": "f_sl3",
               "w": 1
             }
-          ]
+          ],
+          "resetAll": true,
+          "resetText": "Long rest"
         },
         {
           "id": "s_hstat",
@@ -922,6 +925,10 @@
               "w": "row"
             },
             {
+              "id": "f_dsv",
+              "w": 1
+            },
+            {
               "kind": "pin",
               "g": "g_hud",
               "w": 1
@@ -930,7 +937,8 @@
               "id": "f_sl1",
               "w": 1
             }
-          ]
+          ],
+          "resetAll": true
         },
         {
           "id": "s_hgm",

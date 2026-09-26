@@ -1336,6 +1336,30 @@ net.charEdit = function(charId, fieldId, value) {
     try { net.conns[0].send({ type: 'char-edit', rid: rid, charId: charId, fieldId: fieldId, value: res.value }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
+// HUD frame (HF4b): several values of one of our characters at once (a section's Reset all) — ONE message the host judges all-or-nothing (one
+// rate token, one answer); applied here at once, every value undone together on a refusal or silence
+net.charEdits = function(charId, list) {
+    var S = SC(), camp = getActiveCampaign();
+    if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
+    var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    if (!camp.system) return { error: 'No system at this table.' };
+    if (!Array.isArray(list) || !list.length || list.length > S.LIMITS.editBatch) return { error: 'That change is not allowed.' };
+    var work = Object.assign({}, c, { values: JSON.parse(JSON.stringify(c.values || {})) }), batch = [], seen = {};   // judged in order on a working copy, as the host does
+    for (var i = 0; i < list.length; i++) {
+        var e = list[i]; if (!e || typeof e.fieldId !== 'string' || Object.prototype.hasOwnProperty.call(seen, e.fieldId)) return { error: 'That change is not allowed.' }; seen[e.fieldId] = 1;
+        var res = S.applyEdit(camp.system, work, e.fieldId, e.value, window.wpFormula, { player: true });
+        if (!res.ok) return { error: res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed.' };
+        work.values[e.fieldId] = res.value;
+        batch.push({ fieldId: e.fieldId, value: res.value, prev: c.values && Object.prototype.hasOwnProperty.call(c.values, e.fieldId) ? JSON.parse(JSON.stringify(c.values[e.fieldId])) : undefined });
+    }
+    var rid = 'e' + Math.random().toString(36).slice(2, 10);
+    c.values = c.values || {}; batch.forEach(function(b) { c.values[b.fieldId] = b.value; });
+    _charPending[rid] = { charId: charId, fieldId: batch[0].fieldId, value: batch[0].value, prev: batch[0].prev, batch: batch, timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    try { net.conns[0].send({ type: 'char-edits', rid: rid, charId: charId, values: batch.map(function(b) { return { fieldId: b.fieldId, value: b.value }; }) }); } catch (e2) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
 // A player's change of a carried list on their own character (Stage 6 F4a: a row op q = { op, defId?, rowId?, qty? }), applied at once, judged on the host.
 net.charItem = function(charId, fieldId, q) {
     var S = SC(), camp = getActiveCampaign();
@@ -1397,8 +1421,10 @@ function charPendingDone(rid, ok, reason, msg) {
         var camp = getActiveCampaign(), c = camp && camp.chars && camp.chars[p.charId], b = _charHost[p.charId];
         if (c) {
             c.values = c.values || {};
-            var back = b ? (Object.prototype.hasOwnProperty.call(b, p.fieldId) ? b[p.fieldId] : undefined) : p.prev;
-            if (back === undefined) delete c.values[p.fieldId]; else c.values[p.fieldId] = JSON.parse(JSON.stringify(back));
+            (p.batch || [{ fieldId: p.fieldId, prev: p.prev }]).forEach(function(q) {   // HUD frame (HF4b): a batch goes back whole
+                var back = b ? (Object.prototype.hasOwnProperty.call(b, q.fieldId) ? b[q.fieldId] : undefined) : q.prev;
+                if (back === undefined) delete c.values[q.fieldId]; else c.values[q.fieldId] = JSON.parse(JSON.stringify(back));
+            });
             reapplyPending(p.charId);
         }
     }
@@ -1420,7 +1446,7 @@ function reapplyPending(charId) {
             if (r && r.ok) c.values[p.fieldId] = r.value;
             return;
         }
-        c.values[p.fieldId] = p.value;
+        if (p.batch) p.batch.forEach(function(q) { c.values[q.fieldId] = q.value; }); else c.values[p.fieldId] = p.value;   // HF4b: every value of a batch still waiting
     });
 }
 function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
@@ -2636,6 +2662,33 @@ function handleMessage(msg, conn) {
         try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) { sendFailed(e); }
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
+    } else if (msg.type === 'char-edits' && net.role === 'host') {
+        // [netcheck:charedits-start]
+        // HUD frame (HF4b): a player's several values at once (a section's Reset all) — the same gates as one char-edit and ONE rate token, then
+        // every value judged by its field's rules on a working copy: all of them stored, or none (one ack or one deny, one delta)
+        var Sm = SC(), Fm = window.wpFormula; if (!Sm || !Fm) return;
+        var qm = Sm.cleanCharEdits(msg); if (!qm) return;
+        var denyM = function(reason) { try { conn.send({ type: 'char-deny', rid: qm.rid, reason: reason }); } catch (e) { sendFailed(e); } };
+        if (net.paused || peerPaused(conn.peer)) { denyM('paused'); return; }   // frozen table (or this player is paused): no edits
+        if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Sm.LIMITS.editsPerWindow, windowMs: Sm.LIMITS.editWindowMs, table: 400 });
+        var limM = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;   // one token for the whole batch
+        if (limM !== true) { var skM = conn.peer + '|slow'; if (!_charSlowSaid[skM] || Date.now() - _charSlowSaid[skM] > Sm.LIMITS.editWindowMs) { _charSlowSaid[skM] = Date.now(); denyM('slow'); } return; }
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { denyM('off'); return; }
+        var campM = getActiveCampaign(), chM = campM && campM.chars && campM.chars[qm.charId];
+        if (!campM || !campM.system || !chM) { denyM('missing'); return; }
+        var profM = net.roster[conn.peer]; if (chM.npc || !chM.ownerId || !profM || chM.ownerId !== profM.id) { denyM('owner'); return; }
+        var workM = Object.assign({}, chM, { values: JSON.parse(JSON.stringify(chM.values || {})) }), dM = {};
+        for (var iM = 0; iM < qm.values.length; iM++) {
+            var resM = Sm.applyEdit(campM.system, workM, qm.values[iM].fieldId, qm.values[iM].value, Fm, { player: true });
+            if (!resM.ok) { denyM(resM.reason); return; }   // one refused value refuses the batch: nothing is stored
+            workM.values[qm.values[iM].fieldId] = resM.value; dM[qm.values[iM].fieldId] = resM.value;
+        }
+        chM.values = chM.values || {}; Object.keys(dM).forEach(function(k) { chM.values[k] = dM[k]; }); chM.updated = Date.now();
+        saveRemoteSoon();
+        try { conn.send({ type: 'char-ack', rid: qm.rid }); } catch (e) { sendFailed(e); }
+        net.syncCharDelta(qm.charId, dM);
+        if (window.wpSheets) window.wpSheets.charChanged(qm.charId);
+        // [netcheck:charedits-end]
     } else if (msg.type === 'char-item' && net.role === 'host') {
         // [netcheck:charitem-start]
         // a player's change of a carried list on their own character: same gates as char-edit, then applyRowOp reads every definition from the system

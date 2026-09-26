@@ -564,7 +564,8 @@
               "id": "f_fp",
               "w": 1
             }
-          ]
+          ],
+          "resetAll": true
         },
         {
           "id": "s_hfx",

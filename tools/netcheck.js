@@ -1700,7 +1700,8 @@ pendingChecks.push((async () => {
         && /classList\.toggle\('net-client'[^\n]*\n\s*renderWhere\(\);/.test(src));
     check('where (client): the campaign\'s box sits beside the campaign select, the map\'s in the next section (after the breadcrumb\'s place), both hidden unless a joined player has something to show',
         /<header>[\s\S]*<select id="campaignSelect"[^\n]*\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<div class="header-sep"><\/div>[\s\S]*<div id="mapBreadcrumb"><\/div>\n\s*<div id="tableWhereMap" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)
-        && /\n\s*#tableWhere, #tableWhereMap \{ display: none;/.test(cssSrc) && /\n\s*body\.net-client #tableWhere\.on, body\.net-client #tableWhereMap\.on \{ display: inline-flex; \}/.test(cssSrc) && !/#tableWhere(Map)?[^{\n]*\{[^}]*content:/.test(cssSrc));
+        && /\n\s*#tableWhere, #tableWhereMap \{ display: none;/.test(cssSrc) && /\n\s*body\.net-client #tableWhere\.on, body\.net-client #tableWhereMap\.on \{ display: inline-flex; \}/.test(cssSrc) && !/#tableWhere(Map)?[^{\n]*\{[^}]*[{;\s]content\s*:/.test(cssSrc)
+        && /\n\s*body\.net-client #tableWhereMap\.on \{ flex: 1 1 0; justify-content: center; max-width: none; \}/.test(cssSrc) && /\n\s*body\.net-client #tableWhereMap\.on \+ \.spacer \{ display: none; \}/.test(cssSrc) && /<div id="tableWhereMap" class="table-where"><\/div>\n\s*<div class="spacer"><\/div>/.test(htmlSrc));   // centred in its section: the box takes the spacer's place
 }
 
 // 1.5.0 the player's top bar: a campaign renamed mid-session reaches admitted players once per change (the real host sync, sliced), and a

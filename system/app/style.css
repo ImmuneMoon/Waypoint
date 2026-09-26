@@ -1165,6 +1165,8 @@
   #tableWhere, #tableWhereMap { display: none; align-items: center; gap: 6px; min-width: 0; max-width: min(520px, 42vw); overflow: hidden; white-space: nowrap; font-size: 13px; padding: 2px 4px; cursor: default; }
   body.net-client #tableWhere.on, body.net-client #tableWhereMap.on { display: inline-flex; }
   #tableWhereMap { max-width: min(320px, 30vw); }
+  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; }   /* the map's name centred in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
+  body.net-client #tableWhereMap.on + .spacer { display: none; }
   #tableWhere .tw-camp { color: var(--gold); font-weight: bold; max-width: 240px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #tableWhereMap .tw-map { color: var(--ink); font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #updateBanner {

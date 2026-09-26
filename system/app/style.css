@@ -2050,6 +2050,9 @@
   .sys-list-card .sys-flags.sys-list-col input.sys-list-colformula { flex: 3 1 260px; font-family: ui-monospace, Consolas, monospace; }
   .sys-list-card .sys-flags.sys-list-col input.sys-list-colunit { flex: 0 0 64px; width: 64px; min-width: 0; }
   .sys-list-names { margin-top: 4px; }
+  /* Stage 6 F5b: a row's roll buttons; the Lists card's Rolls */
+  .sheet-item-roll { padding: 0 8px; height: 24px; font-size: 11px; flex: 0 0 auto; }
+  .sys-list-card .sys-flags.sys-list-roll input.sys-list-rollformula { flex: 3 1 260px; font-family: ui-monospace, Consolas, monospace; }
   .sheet-item-name > .sheet-ov { margin: 0 4px 0 0; }   /* F4c2 review: a list row's dot sits before the name (a long name is cut at its end) */
   .sheet-item-edit { padding: 0 6px; height: 24px; }
   .sheet-row-form { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 6px 20px; padding: 6px 8px; border: 1px dashed var(--edge); border-radius: 6px; font-size: 12px; }

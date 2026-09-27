@@ -53,6 +53,9 @@ jobs:
       - name: librarycheck — the library's pure core (entries, packs, manifest)
         if: ${{ !cancelled() }}
         run: node tools/librarycheck.js
+      - name: servercheck — the local server's library storage (run on a scratch folder)
+        if: ${{ !cancelled() }}
+        run: node tools/servercheck.js
       - name: vttcheck — VTT feature toggles
         if: ${{ !cancelled() }}
         run: node tools/vttcheck.js

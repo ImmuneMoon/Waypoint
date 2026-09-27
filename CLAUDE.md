@@ -12,7 +12,7 @@ anyone (or any tool) changing the code. The README covers installing and using t
   (Inter, Font Awesome Free — licence texts beside them): a new glyph needs its file, a `GLYPHS` entry in systemcore.js, its attribution
   comment and the bundled-files test. `version.json` is written at build time.
 - `system/resources/app/` — the Electron shell: `main.js` (a small local HTTP server that serves `system/app` and a handful of
-  JSON endpoints over the saves folder, loopback only, own-origin only), `updater.js`, `package.json` (the app version).
+  JSON endpoints over the saves folder, loopback only, own-origin only), `updater.js`, `libstore.js` (a campaign's library pack files beside the save, shared with the dev server), `package.json` (the app version).
 - `tools/` — `dev-server.js` (run from source in a browser), `release.js` (build), and the offline test suites `*check.js`.
 - `saves/`, `dev-saves/`, `dist/`, `docs/*.md`, `.claude/` are git-ignored: a table's data, scratch data, build output, local
   planning notes and machine-specific launch configs never enter the repository.
@@ -46,6 +46,7 @@ Every suite is plain Node, no dependencies, exits 1 on any failure:
 | `tools/systemcheck.js` | the character system + sheet model (`systemcore.js`): cleaners, GM-view stripping, layout, band |
 | `tools/dicecheck.js` | dice engine, modifiers, advantage |
 | `tools/itemcheck.js` | item library |
+| `tools/servercheck.js` | the local server's library storage (`system/resources/app/libstore.js`, shared by main.js and the dev server), run for real on a scratch folder: names, containment, the 16 MB cap, UTF-8 across chunks, revisions kept, backups; both servers wired alike |
 | `tools/librarycheck.js` | the library at scale's pure core (`librarycore.js`): entries per view, packs and pack files, the manifest, names on disk, index rows |
 | `tools/vttcheck.js` | VTT feature toggles |
 | `tools/fogcheck.js` | fog of war |

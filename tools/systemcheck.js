@@ -4660,6 +4660,54 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /ro\.lists\.forEach\(function\(fid\) \{ c\.values\[fid\] = \(Array\.isArray\(c\.values\[fid\]\) \? c\.values\[fid\] : \[\]\)\.filter\(function\(x\) \{ return x && x\.hid === 1; \}\); \}\);/.test(shF)
             && /ro\.ops\.forEach\(function\(o\) \{ var a = applyRowOp\(sys, c, o\.f, o\.q, F\(\), \{\}\);/.test(shF) && /not carried over: /.test(shF));
     }
+
+    /* ---- Stage 6 F7c: the inventory, hit locations and a crystal's pull, from a dossier ---- */
+    {
+        const n = (id, key, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind: 'number', vis: 'all' }, extra || {});
+        const lst = (id, key, list) => ({ id: 'f_' + id, key, label: key, kind: 'item-list', vis: 'all', list });
+        const DR = ['Head', 'Face', 'Torso', 'Arm', 'Leg', 'Hand', 'Foot'].map(p => ({ key: 'dr' + p }));
+        const rawI = { v: 1, name: 'I', rolls: [], fields: [
+            n('dx', 'DX', { def: 10 }), n('dxrace', 'DXRace'), n('mb', 'MoveBonus'), n('cb', 'CarryBonus'), n('cm', 'CrystalMult', { def: 1, step: 0.05 }), n('cf', 'CrystalFlat'),
+            lst('gear', 'Gear', { custom: true, multi: true, on: { label: 'Stowed' }, stats: [{ key: 'wt' }, { key: 'cr' }] }),
+            lst('arm', 'Armor', { custom: true, multi: true, on: { label: 'Equipped' }, stats: [{ key: 'wt' }, { key: 'cr' }].concat(DR) }),
+            lst('wp', 'Weapons', { custom: true, multi: true, on: { label: 'Readied' }, stats: [{ key: 'wsk', kind: 'pick', opts: [{ label: 'Blades', name: 'DX' }] }, { key: 'wt' }, { key: 'cr' }, { key: 'dd' }, { key: 'da' }, { key: 'db' }, { key: 'pm' }] }),
+            lst('am', 'Ammo', { custom: true, multi: true, stats: [{ key: 'wt' }, { key: 'cr' }] }),
+            lst('lc', 'Locations', { cats: ['Spot'], noQty: true, custom: true, multi: true, lvl: { label: 'Innate DR', min: -100, max: 100, def: 0 }, on: { label: 'Crippled' }, stats: [{ key: 'pen' }, { key: 'crip' }] })],
+            items: [{ id: 'i_limb', name: 'Limb', key: 'Limb', category: 'Spot', stats: { pen: -2, crip: 2 } }] };
+        const sI = cleanSystem(rawI, { F, gmView: true }), byN = {}; sI.items.forEach(e => { (byN[e.name.toLowerCase()] = byN[e.name.toLowerCase()] || []).push(e); });
+        const find = nm => byN[String(nm).trim().toLowerCase()] || [];
+        const dosI = { inventory: {
+            general: [{ name: 'Rope', weight: 1.5, cost: 10, quantity: 3 }, { name: 'Tent', weight: 12, cost: 40, storageLocationId: 'box1' }, { name: 'Feather', weight: 5, weightless: true, cost: 1 }, { name: 'Droid part', weight: 9, isInstalled: true, installedInDroidId: 'd1' }],
+            armor: [{ name: 'Plate', slot: 'Torso', pieceId: 'plate-1', drTorso: 9, drLeftArm: 9, drRightArm: 9, finalWeight: 9.5, finalCost: 900, equipped: true },
+                { name: 'Pack', slot: 'Utility', drTorso: 0, weight: 3, cost: 110, finalWeight: 2.6, finalCost: 95, dxPenalty: -1, finalDXPenalty: -1, modifiers: { carryCapacity: 10, dexterity: 0 }, equipped: true },
+                { name: 'Old Coat', drValue: 2, locations: ['Torso', 'Left Arm', 'Right Arm'], weight: 4, cost: 50, equipped: false }, { name: 'Greave', slot: 'Legs', drLeftLeg: 2, drRightLeg: 5, weight: 1, cost: 5, equipped: true },
+                { name: 'Boxed Helm', slot: 'Head', drHead: 4, weight: 2, cost: 60, storageLocationId: 'box1' }],
+            weapons: { lightsabers: [{ name: 'Blade', finalWeight: 2, totalCost: 1200, calculatedDamage: '5d+1 energy', finalParryMod: 2, baseSkill: 'Blades (DX/Hard)', equipped: true, id: 's1' }] },
+            lightsaberModifications: [{ name: 'Grip', category: 'Sleeve Part', notes: '+3 to Force Points', installedInSaberId: 's1', isInstalled: true, equipped: true, weight: 0.2 },
+                { name: 'Stone', category: 'Primary Crystal', notes: '5d base. x1.25 to Force Points.', installedInSaberId: 's1', isInstalled: true, equipped: true, weight: 0.1 },
+                { name: 'Chip', category: 'Primary Crystal', effect: 'A spare. +2 FP and +1 DX (when set).', installedInSaberId: 's2', isInstalled: true, equipped: true },
+                { name: 'Loose Lens', category: 'Lens', weight: 0.3, cost: 20, quantity: 2 }] },
+            characteristics: { locations: [{ name: 'Left Arm', type: 'Limb', side: 'Left', relativeSM: 0, innateDR: 3, currentDegradation: 1, status: 'Healthy' }, { name: 'Tail', type: 'Tail', relativeSM: -1, innateDR: 0, status: 'Crippled' }, { name: 'Small Limb', type: 'Limb', relativeSM: -3, innateDR: 1, status: 'Healthy' },
+                { name: 'Right Arm', type: 'Limb', side: 'Right', relativeSM: -1, innateDR: 0, status: 'Healthy', isAmputated: true }] } };
+        const ro = S.sbRowOps(dosI, sI, find), ch = { id: 'c_i', name: 'I', ownerId: '', npc: true, values: {} }, refused = [];
+        ro.ops.forEach(o => { const r = S.applyRowOp(sI, ch, o.f, o.q, F, {}); if (r.ok) ch.values[o.f] = r.value; else refused.push(o.q.op + ':' + r.reason); });
+        const rows = k => ch.values['f_' + k] || [], g = rows('gear'), a = rows('arm'), w = rows('wp'), am = rows('am'), lc = rows('lc');
+        check('F7c gear: the sheet\'s weight, cost and quantity, stowed when stored (as is stored armour, and a stored weapon); weightless weighs nothing; what sits in a droid is not the character\'s',
+            !refused.length && j(g.map(r => [r.def.name, r.qty, r.on, r.def.stats])) === j([['Rope', 3, false, { wt: 1.5, cr: 10 }], ['Tent', 1, true, { wt: 12, cr: 40 }], ['Feather', 1, false, { wt: 0, cr: 1 }], ['Boxed Helm', 1, true, { wt: 2, cr: 60 }]]), j([refused, g.map(r => [r.def.name, r.qty, r.on, r.def.stats])]));
+        check('F7c armour: its final weight and cost, DR per location (a side\'s the larger; a catalogue torso piece gives the arms 0.65 of the torso; an older sheet\'s one DR over its locations), worn as the switch; its own bag and penalties as changes that work only while worn (the attribute alone, never its trait channel)',
+            j(a.map(r => [r.def.name, r.on, r.def.stats])) === j([['Plate', true, { wt: 9.5, cr: 900, drTorso: 9, drArm: 5 }], ['Pack', true, { wt: 2.6, cr: 95 }], ['Old Coat', false, { wt: 4, cr: 50, drTorso: 2, drArm: 2 }], ['Greave', true, { wt: 1, cr: 5, drLeg: 5 }]])
+            && j(a[1].def.mods) === j([{ f: 'f_cb', op: 'add', v: 10 }, { f: 'f_dx', op: 'add', v: -1 }]) && a[1].def.modsOn === true && !a[0].def.mods, j(a.map(r => [r.def.name, r.def.stats, r.def.mods, r.def.modsOn])));
+        check('F7c a weapon from a saber row: weight, cost, damage dice and adds read from its damage text, its parry mod, the skill choice its text names, readied as the switch; a part in place is part of its weapon, a loose one an ammo row with its quantity',
+            w.length === 1 && j(w[0].def.stats) === j({ wt: 2, cr: 1200, dd: 5, da: 1, pm: 2, wsk: 'Blades' }) && w[0].on === true && j(am.map(r => [r.def.name, r.qty, r.def.stats])) === j([['Loose Lens', 2, { wt: 0.3, cr: 20 }]]), j([w, am]));
+        check('F7c hit locations: by their type\'s entry (kept linked, named as the sheet names them, its penalty plus the size), the innate DR less wear as the level, not healthy as Crippled; a type with no entry a custom row; an amputated one left out and named',
+            lc.length === 3 && lc[0].defId === 'i_limb' && lc[0].lvl === 2 && lc[0].on === false && j(lc[0].ov) === j({ name: 'Left Arm' }) && lc[2].defId === 'i_limb' && j(lc[2].ov) === j({ name: 'Small Limb', stats: { pen: -5 }, held: ['pen'] }) && !lc[1].defId && lc[1].def.name === 'Tail' && j(lc[1].def.stats) === j({ pen: -1 }) && lc[1].on === true && ro.skipped.indexOf('amputated: Right Arm') >= 0, j([lc, ro.skipped]));
+        const vI = aliasFromShadowBase(dosI, sI, F).values;
+        check('F7c the crystal: the best multiplier and the best bonus a saber\'s installed parts read as (not its frame: a sleeve\'s +3 is not a crystal\'s), onto the keys a system has',
+            vI.f_cm === 1.25 && vI.f_cf === 2, j(vI));
+        const tb = S.sbTextBag('+15 lbs carry weight capacity. -1 DX, +2 to Force Points and +1 ST; Hit Points +3 (x2 when rested); halved 1/2'), tb2 = S.sbTextBag({ toString: 1 });
+        check('F7c sbTextBag reads gear text the website\'s way: the first stat a clause names wins (carry, DX, FP, ST, HP), a number in brackets, after an x or in a fraction is no bonus; anything not text reads as nothing',
+            j(Object.assign({}, tb)) === j({ carryCapacity: 15, dexterity: -1, forcePoints: 2, strength: 1, hitPoints: 3 }) && j(Object.assign({}, tb2)) === '{}' && S.sbFpText('x1.5 Force points').mult === 1.5, j(Object.assign({}, tb)));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

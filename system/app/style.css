@@ -1810,6 +1810,16 @@
   .lib-imcell.zero { opacity: .55; }
   .lib-reasons { margin: 0; padding-left: 18px; color: var(--dim); font-size: 11.5px; line-height: 1.45; flex: none; overflow-wrap: anywhere; }
   @media (max-width: 900px) { .lib-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: 140px minmax(220px, 1fr) minmax(260px, 1fr); overflow: auto; } #libraryModal .lib-box { height: 94vh; padding: 12px; } }
+  /* Stage 6 F6b: an item's changes as chips on its row, and a custom row's changes in its form */
+  .sheet-item-mod { border: 1px solid var(--sheet-edge, var(--edge)); color: var(--sheet-ink, var(--ink)); }
+  .sheet-item-mod.off { opacity: .5; }
+  .sheet-rf-mods { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 6px; }
+  .sheet-rf-mods > .sheet-rf-cap { flex: none; }   /* the grid's caption takes a whole row (flex-basis 100%); in this column that would be its whole height */
+  .sheet-rf-mods > .sheet-rf-mod { align-self: stretch; }
+  .sheet-rf-mod { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sheet-rf-mod .sheet-rf-sel { flex: 1; min-width: 110px; }
+  .sheet-rf-mod .sheet-rf-num { width: 72px; }
+  .sheet-rf-lvl { font-size: 11.5px; color: var(--sheet-muted, var(--dim)); display: inline-flex; align-items: center; gap: 4px; }
   /* Stage 6 library L2c: the "From the library…" picker over a sheet (above every floating window, below the app's questions) */
   .lib-pick { position: fixed; z-index: 99990; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); box-sizing: border-box; }
   .lib-pick .field { margin: 0; padding: 4px 8px; font-size: 12.5px; }

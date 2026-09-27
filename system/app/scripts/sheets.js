@@ -1981,6 +1981,20 @@ function itemCellText(col, def) {
     if (col === 'area') return def.area ? (def.area.ft + ' ft' + (def.area.shape && def.area.shape !== 'circle' ? ' ' + def.area.shape : '')) : '';
     return '';
 }
+// Stage 6 F6b: what a row's item changes on its character, as chips on the row ("DEX −2", "HP max +5", "Inspiration on") — a change per level
+// times the row's level; dimmed while an item that works only while switched on is off. The viewer's own fields only (their copy holds no other)
+function modsBits(host, def, entry, spec, sysI) {
+    if (!def || !Array.isArray(def.mods) || !def.mods.length) return;
+    var byId = Object.create(null); ((sysI && sysI.fields) || []).forEach(function(x) { if (x && typeof x.id === 'string') byId[x.id] = x; });
+    var off = def.modsOn === true && !!(spec && spec.on && typeof spec.on === 'object') && !rowOn(spec, entry), lv = rowLvl(spec, entry, def);
+    def.mods.forEach(function(m) {
+        var fx = m && byId[m.f]; if (!fx) return;
+        var nm = fx.label || fx.key, t;
+        if (m.op === 'on') t = nm + ' on';
+        else { var v = (typeof m.v === 'number' ? m.v : 0) * (m.lvl === true ? (typeof lv === 'number' && isFinite(lv) ? lv : 0) : 1); t = nm + (m.part === 'max' ? ' max' : '') + ' ' + (v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(v)); }
+        var ch = el('span', 'sheet-chip sheet-item-mod' + (off ? ' off' : ''), t); ch.title = off ? 'Counts while switched on' : m.lvl === true ? 'Per level (times its level)' : 'While carried'; host.appendChild(ch);
+    });
+}
 // Stage 6: what only the GM sees on a row — a bound or cursed item, and a curse the player dropped (kept here, out of their sight)
 function gmItemBits(host, def, entry, gm, sw) {   // sw (F4b): the list has a switch — the equip lock's chips
     if (!gm) return;
@@ -2126,7 +2140,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL);
+        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         var noteLn = null;
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
@@ -2227,7 +2241,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT);
+        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
@@ -2476,6 +2490,30 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
         }
         add(s.label || k, ctl, name, 'Blank: ' + statText(s, dv) + ' (the list’s default)');
     });
+    // Stage 6 F6b: its changes to the character — the fields of the system this sheet draws (a player's: their own view); the whole list goes
+    // with each change, and the host judges it again
+    var mTg = typeof fxTargets === 'function' ? fxTargets(sysI) : [], mCur = Array.isArray(d.mods) ? d.mods : [];   // (a slice run on its own has no targets)
+    if (mTg.length) {
+        var mw = el('div', 'sheet-rf-mods'), sendM = function(arr) { one('mods', arr.length ? arr : null); }, cpM = function() { return JSON.parse(JSON.stringify(mCur)); };
+        mw.appendChild(el('span', 'sheet-rf-cap', 'Changes to the character'));
+        mCur.forEach(function(m, mi) {
+            var ln = el('div', 'sheet-rf-mod'), val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : 'add'), opsM = mTg.slice(); if (!opsM.some(function(o) { return o[0] === val; })) opsM.unshift([val, '(a field that is gone)']);
+            var ms = el('select', 'field sheet-rf-sel'); opsM.forEach(function(o) { ms.appendChild(opt(o[0], o[1], o[0] === val)); }); ms.title = 'What this change affects';
+            ms.addEventListener('change', function() { var nx = cpM(), tp = ms.value.split('|'), nm = nx[mi]; nm.f = tp[0]; if (tp[1] === 'on') { nm.op = 'on'; delete nm.v; delete nm.part; delete nm.lvl; } else { nm.op = 'add'; if (typeof nm.v !== 'number') nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; else delete nm.part; } sendM(nx); });
+            ln.appendChild(ms);
+            if (m.op !== 'on') {
+                var ma = el('input', 'field sheet-rf-num'); ma.type = 'number'; ma.step = 'any'; ma.value = String(m.v); ma.title = 'How much it adds (negative to take away)'; ma.dataset.fid = f.id; ma.dataset.part = partOf('m' + mi);
+                ma.addEventListener('change', function() { var n = Number(ma.value); if (String(ma.value).trim() === '' || !isFinite(n)) { ma.value = String(m.v); return; } var nx = cpM(); nx[mi].v = n; sendM(nx); });
+                ln.appendChild(ma);
+                if (spec && spec.lvl && typeof spec.lvl === 'object') { var ml = el('label', 'sheet-rf-lvl'), mc = el('input'); mc.type = 'checkbox'; mc.checked = m.lvl === true; ml.appendChild(mc); ml.appendChild(document.createTextNode(' per level')); ml.title = 'Times the row\u2019s level'; mc.addEventListener('change', function() { var nx = cpM(); if (mc.checked) nx[mi].lvl = true; else delete nx[mi].lvl; sendM(nx); }); ln.appendChild(ml); }
+            }
+            var mx = el('button', 'tool ghost sys-btn', '\u00d7'); mx.type = 'button'; mx.title = 'Remove this change'; mx.addEventListener('click', function() { var nx = cpM(); nx.splice(mi, 1); sendM(nx); }); ln.appendChild(mx);
+            mw.appendChild(ln);
+        });
+        if (mCur.length < LIMITS.effectMods) { var mAdd = el('button', 'tool ghost sys-btn', '+ Change'); mAdd.type = 'button'; mAdd.title = 'Add a number to a field, or switch a toggle on, while the character carries it'; mAdd.addEventListener('click', function() { var tp = mTg[0][0].split('|'), nm = { f: tp[0], op: tp[1] === 'on' ? 'on' : 'add' }; if (nm.op === 'add') { nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; } sendM(cpM().concat([nm])); }); mw.appendChild(mAdd); }
+        if (spec && spec.on && typeof spec.on === 'object' && mCur.length) { var mo = el('label', 'sheet-rf-lvl'), moc = el('input'); moc.type = 'checkbox'; moc.checked = d.modsOn === true; mo.appendChild(moc); mo.appendChild(document.createTextNode(' Only while switched on')); moc.addEventListener('change', function() { one('modsOn', moc.checked ? true : null); }); mw.appendChild(mo); }
+        form.appendChild(mw);
+    }
     if (gmF) {
         var ba = d.area && typeof d.area === 'object' && d.area.ft ? d.area : null, bShown = ba ? String(ba.ft) : '', bi = el('input', 'field sheet-rf-num'); bi.type = 'number'; bi.min = '0'; bi.max = String(LIMITS.maxBlastFt); bi.step = '1'; bi.value = bShown; keepTyped(bi, partOf('ft'));
         bi.addEventListener('change', function() { if (hold(partOf('ft'), bi.value)) return; took(partOf('ft')); var sv = String(bi.value).trim(), n = Math.round(Number(sv)); if (bi.validity && bi.validity.badInput) { bi.value = bShown; return; } if (sv === '') { one('area', null); return; } if (!isFinite(n) || n > LIMITS.maxBlastFt) { bi.value = bShown; return; } one('area', n > 0 ? { ft: n, name: ba && ba.name ? ba.name : '' } : null); });

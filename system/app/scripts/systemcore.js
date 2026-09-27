@@ -1236,7 +1236,7 @@ function cleanOvMsg(v) { var out = patchOf(v, OV_KEYS, OV_CAP); return out && Ob
 // Stage 6 F4c3: a custom op's definition patch, by the same shape rules (key: a string within 160, vis within 8; applyRowOp judges who may send
 // what — the GM's keys are kept, so that a player sending one hears "field"). A plain object, {} allowed (a new blank row); null when it is not
 // an object or a key has the wrong type
-var DEF_KEYS = ['name', 'icon', 'category', 'notes', 'key', 'stats', 'vis', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg'], DEF_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 800, key: 160, vis: 8, damage: 1200, cost: 1200, rmMsg: 800, eqMsg: 800 });
+var DEF_KEYS = ['name', 'icon', 'category', 'notes', 'key', 'stats', 'vis', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn'], DEF_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 800, key: 160, vis: 8, damage: 1200, cost: 1200, rmMsg: 800, eqMsg: 800 });
 function cleanDefPatch(v) { return patchOf(v, DEF_KEYS, DEF_CAP); }
 function patchOf(v, keys, cap) {   // the keys it knows, each null or of its type (a text within its cap); {} when none; null when malformed
     if (!isObj(v)) return null;
@@ -1247,6 +1247,12 @@ function patchOf(v, keys, cap) {   // the keys it knows, each null or of its typ
         if (k === 'rm' || k === 'eq') { if (OV_LOCK[x] !== 1) return null; out[k] = x; }
         else if (k === 'area') { if (!isObj(x) || typeof x.ft !== 'number' || !fin(x.ft) || (x.name !== undefined && (typeof x.name !== 'string' || x.name.length > 240))) return null; out.area = { ft: x.ft }; if (typeof x.name === 'string') out.area.name = x.name; }
         else if (k === 'stats') { var sp = statsPatch(x); if (!sp) return null; if (Object.keys(sp).length) out.stats = sp; }
+        else if (k === 'mods') {   // Stage 6 F6b: a custom row's changes by their shape only (applyCustom judges their fields); a malformed one refuses the message
+            if (!Array.isArray(x) || x.length > LIMITS.effectMods) return null; var pm = [];
+            for (var mi = 0; mi < x.length; mi++) { var mx = x[mi]; if (!isObj(mx) || typeof mx.f !== 'string' || !FIELD_ID.test(mx.f) || (mx.op !== 'add' && mx.op !== 'on')) return null; var po = { f: mx.f, op: mx.op }; if (mx.op === 'add') { if (typeof mx.v !== 'number' || !fin(mx.v)) return null; po.v = mx.v; if (mx.part === 'max') po.part = 'max'; if (mx.lvl === true) po.lvl = true; } pm.push(po); }
+            out.mods = pm;
+        }
+        else if (k === 'modsOn') { if (x !== true) return null; out.modsOn = true; }
         else { if (typeof x !== 'string' || x.length > cap[k]) return null; out[k] = x; }
     }
     return out;
@@ -1671,7 +1677,7 @@ function keyClash(sys, list, rid, key, spec, opts) {
 // (null clears one; stats null all), a blast in whole feet 1..3000, formulas that parse (a cost without dice; why formula), a lock bound or
 // curse (null: none; the switch's only on a list with a switch; a message only with its lock), vis all or gm. Changes list in place and fills
 // extra (the answer's row, qty; added and base for a new one); null once applied, else the refusal
-var CUSTOM_OWN = Object.freeze({ name: 1, icon: 1, category: 1, notes: 1, key: 1, stats: 1 });
+var CUSTOM_OWN = Object.freeze({ name: 1, icon: 1, category: 1, notes: 1, key: 1, stats: 1, mods: 1, modsOn: 1 });   // F6b: a player's own row may change their character, as their ad hoc effects may
 function applyCustom(sys, list, q, spec, F, opts, extra, aspec) {   // aspec (F5a2): the actor's own list options
     var pl = !!opts.player, pd = q.def, rid = q.rowId, bad = { ok: false, reason: 'value' };
     var blank = function(x) { return x === null || (typeof x === 'string' && !x.trim()); }, said = function(x) { return typeof x === 'string' && !!x.trim(); };
@@ -1726,6 +1732,16 @@ function applyCustom(sys, list, q, spec, F, opts, extra, aspec) {   // aspec (F5
         } else if (k === 'vis') {
             if (v !== 'gm' && v !== 'all') return bad;
             d.vis = v;
+        } else if (k === 'mods') {   // Stage 6 F6b: its changes to the character — a player's name fields of their own view only (as an ad hoc effect's)
+            if (v === null || (Array.isArray(v) && !v.length)) { delete d.mods; delete d.modsOn; continue; }
+            var fkC = pl ? fieldKinds(opts.view || null) : fieldKinds(sys);
+            if (!Array.isArray(v) || v.length > LIMITS.effectMods || v.some(function(mm) { return !isObj(mm) || typeof mm.f !== 'string' || !fkC[mm.f]; })) return bad;
+            var cmC = cleanItemMods(v, fkC); if (!cmC || cmC.length !== v.length) return bad;   // every one a change that field takes
+            d.mods = cmC;
+        } else if (k === 'modsOn') {
+            if (v === null) { delete d.modsOn; continue; }
+            if (v !== true || !isObj(spec.on)) return bad;   // only on a list with a switch
+            d.modsOn = true;
         } else if (k === 'stats') {
             if (v === null) { delete d.stats; continue; }
             if (!isObj(v)) return bad;

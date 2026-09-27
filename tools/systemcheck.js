@@ -4521,6 +4521,27 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('F6 an inline copy (a GM-only or library item on its owner\'s sheet) carries its changes on their fields only; a row\'s copy keeps them by their shape',
             j(inl[0].def.mods) === j([{ f: 'f_dx', op: 'add', v: 2 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }]) && inl[0].def.modsOn === true && inl[0].lnk === 1 && j(snapT.mods) === j([{ f: 'f_dx', op: 'add', v: 2 }, { f: 'f_gm', op: 'add', v: 1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }]), j([inl[0], snapT]));
     }
+
+    /* ---- Stage 6 F6b: a custom row's changes (the GM's, a player's on their fields) and the chips on rows ---- */
+    {
+        const rawB = { v: 1, name: 'B', rolls: [], fields: [{ id: 'f_dx', key: 'DX', kind: 'number', def: 10 }, { id: 'f_gm', key: 'Luck', kind: 'number', vis: 'gm' }, { id: 'f_c', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', list: { custom: true, on: { label: 'Worn' } } }, { id: 'f_n', key: 'Plain', kind: 'item-list', edit: 'owner', vis: 'all', list: { custom: true } }] };
+        const sB = cleanSystem(rawB, { F, gmView: true }), pB = cleanSystem(rawB, { F, gmView: false }), chB = () => ({ id: 'c_b', name: 'B', ownerId: 'u_p', values: { f_c: [{ id: 'w_1', qty: 1, own: 1, def: { name: 'Charm', category: '', icon: '', notes: '', vis: 'all' } }], f_n: [] } });
+        const P = { player: true, view: pB }, cu = (q, o, ch) => S.applyRowOp(sB, ch || chB(), q.f || 'f_c', Object.assign({ op: 'custom', rowId: 'w_1' }, q), F, o || {});
+        const okP = cu({ def: { mods: [{ f: 'f_dx', op: 'add', v: 2 }] } }, P), gmFld = cu({ def: { mods: [{ f: 'f_gm', op: 'add', v: 9 }] } }, P), gmOk = cu({ def: { mods: [{ f: 'f_gm', op: 'add', v: 9 }] } }, {});
+        const badK = cu({ def: { mods: [{ f: 'f_dx', op: 'on' }] } }, P), badMix = cu({ def: { mods: [{ f: 'f_dx', op: 'add', v: 1 }, { f: 'f_dx', op: 'on' }] } }, P), clr = (() => { const c0 = chB(); c0.values.f_c[0].def.mods = [{ f: 'f_dx', op: 'add', v: 1 }]; c0.values.f_c[0].def.modsOn = true; return cu({ def: { mods: [] } }, P, c0); })();
+        const withM = () => { const c1 = chB(); c1.values.f_c[0].def.mods = [{ f: 'f_dx', op: 'add', v: 1 }]; return c1; }, onOk = cu({ def: { modsOn: true } }, P, withM()), onBare = cu({ def: { modsOn: true } }, P), onNo = cu({ f: 'f_n', rowId: 'w_2', def: { modsOn: true } }, P);
+        check('F6b a custom row\'s changes: a player\'s own row takes changes to fields of their view (as their ad hoc effects do) — one to a GM-only field, or of a kind the field does not take, is refused; the GM\'s takes any field; an empty list clears them and "only while switched on"; that tick needs a list with a switch (and means nothing without changes: a row with none keeps no tick)',
+            okP.ok && j(okP.value[0].def.mods) === j([{ f: 'f_dx', op: 'add', v: 2 }]) && gmFld.ok === false && gmFld.reason === 'value' && gmOk.ok && j(gmOk.value[0].def.mods) === j([{ f: 'f_gm', op: 'add', v: 9 }])
+            && badK.ok === false && badMix.ok === false && clr.ok && !('mods' in clr.value[0].def) && !('modsOn' in clr.value[0].def) && onOk.ok && onOk.value[0].def.modsOn === true && onBare.ok && !('modsOn' in onBare.value[0].def) && onNo.ok === false, j([okP, gmFld, badK, clr.value, onNo]));
+        const msgOk = S.cleanCharItem({ rid: 'r1', charId: 'c_b', fieldId: 'f_c', op: 'custom', rowId: 'w_1', def: { mods: [{ f: 'f_dx', op: 'add', v: 2, lvl: true, name: 'x' }], modsOn: true } });
+        const msgBad = [{ mods: 'x' }, { mods: [{ f: 'f_dx', op: 'add', v: 'x' }] }, { mods: [{ f: 'bad id', op: 'add', v: 1 }] }, { mods: Array.from({ length: 13 }, () => ({ f: 'f_dx', op: 'on' })) }, { modsOn: 'yes' }].map(d => S.cleanCharItem({ rid: 'r1', charId: 'c_b', fieldId: 'f_c', op: 'custom', rowId: 'w_1', def: d }));
+        check('F6b on the wire: a custom op carries its changes by shape only (field, kind, amount, per level) and "only while switched on"; a malformed one refuses the whole message',
+            j(msgOk.def) === j({ mods: [{ f: 'f_dx', op: 'add', v: 2, lvl: true }], modsOn: true }) && msgBad.every(m => m === null), j([msgOk, msgBad]));
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('F6b the sheet shows each row\'s changes as chips (list and table), and a custom row\'s form edits them — the whole list with each change, a field of the system the sheet draws',
+            /keyShareChip\(line, entry, rd, unseenL\); modsBits\(line, def, entry, spec, sysI\);/.test(shB) && /keyShareChip\(nameTd, entry, rd, unseenT\); modsBits\(nameTd, def, entry, spec, sysI\);/.test(shB)
+            && /var mTg = typeof fxTargets === 'function' \? fxTargets\(sysI\) : \[\], mCur = Array\.isArray\(d\.mods\) \? d\.mods : \[\];/.test(shB) && /sendM = function\(arr\) \{ one\('mods', arr\.length \? arr : null\); \}/.test(shB) && /one\('modsOn', moc\.checked \? true : null\)/.test(shB));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

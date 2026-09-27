@@ -603,7 +603,14 @@ function cleanImportItems(ic, deps) {
             if (b.type === 'diagram') b.content = DR && DR.stripMermaidLinks ? DR.stripMermaidLinks(String(b.content || '')) : '';
         });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (isObj(w) && w.type === 'text') w.text = san ? san(String(w.text || '')) : ''; });
+        if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard = it.whiteboard.filter(function(w) { return !(isObj(w) && w.waiting); });   // Onboarding F1a: never a waiting token from a file
     });
+}
+// Onboarding F1a: a waiting token lives only while its session runs — a save, an export or an import never keeps one. Returns how many went.
+function dropWaiting(c) {
+    var n = 0; if (!isObj(c) || !isObj(c.items)) return 0;
+    Object.keys(c.items).forEach(function(id) { var m = c.items[id]; if (isObj(m) && m.type === 'map' && Array.isArray(m.whiteboard)) { var b = m.whiteboard.length; m.whiteboard = m.whiteboard.filter(function(w) { return !(isObj(w) && w.waiting); }); n += b - m.whiteboard.length; } });
+    return n;
 }
 // A whole file brought in by Replace (or a legacy single-campaign file, wrapped): shaped by the load's own normaliser first (deps.migrate =
 // io.js migrateAppState: item shapes, systems cleaned, characters cleaned against them and their owners stamped on their tokens, fog), then
@@ -633,4 +640,4 @@ function cleanImport(data, deps) {
     return out;
 }
 
-export { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, onLoad, askOwnership, sweepRecents, cleanupInfo, cleanImport, cleanImportItems };
+export { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, onLoad, askOwnership, sweepRecents, cleanupInfo, cleanImport, cleanImportItems, dropWaiting };

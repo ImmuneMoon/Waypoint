@@ -827,6 +827,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _wbDelMulti = document.getElementById('wbDelMulti');
             if(_wbDelMulti) _wbDelMulti.addEventListener('click', function() {
+                if (window.wpWaitingGone) window.wpWaitingGone(activeMap.whiteboard.filter(x => selectedIds.includes(x.id)));   // Onboarding F1a: a deleted waiting token stays away this session
                 activeMap.whiteboard = activeMap.whiteboard.filter(x => !selectedIds.includes(x.id));
                 state.selWbIds = []; state.selWbId = null; save(); render();
             });
@@ -847,6 +848,22 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
         } else if(selectedIds.length === 1) {
             var w = activeMap.whiteboard.find(x=>x.id===selectedIds[0]);
             if(w) {
+            if (w.waiting) {   // Onboarding F1a: a waiting token has no shape properties — whose it is, and the GM's three hands (text nodes only)
+                inspector.textContent = '';
+                var wpP = document.createElement('div'); wpP.className = 'insp-waiting';
+                var wpH = document.createElement('h2'); wpH.textContent = String(w.name || 'A player') + '\u2019s waiting token'; wpP.appendChild(wpH);
+                var wpN = document.createElement('div'); wpN.className = 'help'; wpN.textContent = 'A player with no character yet. It gives way to their token when you give them a character; it goes three minutes after they leave, at a ban, and at the end of the session.'; wpP.appendChild(wpN);
+                [['give', '\uD83C\uDFAD Give a character\u2026'], ['hide', w.hidden ? '\uD83D\uDC41 Show it to players' : '\uD83D\uDE48 Hide it from players'], ['remove', '\u2716 Remove it for this session']].forEach(function(b) { var bt = document.createElement('button'); bt.className = 'tool ghost'; bt.type = 'button'; bt.style.cssText = 'width:100%; margin-top:6px;'; bt.textContent = b[1]; bt.dataset.act = b[0]; wpP.appendChild(bt); });
+                inspector.appendChild(wpP);
+                wpP.addEventListener('click', function(e) {
+                    var b = e.target.closest && e.target.closest('button'); if (!b) return;
+                    var nW = window.wpNet, pidW = w.ownerId;
+                    if (b.dataset.act === 'give' && window.wpPartyMenuFor) { var rW = b.getBoundingClientRect(); window.wpPartyMenuFor('p:' + pidW, rW.left, rW.bottom); }
+                    else if (b.dataset.act === 'hide' && nW && nW.hideWaiting) { nW.hideWaiting(pidW, !w.hidden); renderInspector(); }
+                    else if (b.dataset.act === 'remove' && nW && nW.removeWaiting) { nW.removeWaiting(pidW); state.selWbIds = []; state.selWbId = null; render(); }
+                });
+                return;
+            }
             // Every color row ends in a custom picker (a real color wheel)
             var fillCur = (w.color || '').toLowerCase();
             var colorHtml = Object.keys(WB_COLORS).map(function(k) {
@@ -1197,6 +1214,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     } else { var wasO = w.ownerId; delete w.ownerId; if (wasO && !linkedO && campO && window.wpSheets && window.wpSheets.unbindName) window.wpSheets.unbindName(campO, wasO, w.charName || ''); }   // taken back: the name binding goes once they hold no other copy of it
                     save(); toast(this.value ? 'Token assigned — this player now plays ' + (w.charName || 'this character') + ' everywhere.' : 'Token set to GM control.');
                     if (window.wpSheets && w.charId) window.wpSheets.ownerFromToken(w);   // the character follows, and every token of it
+                    else if (this.value && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.reconcilePresence && Object.values(window.wpNet.roster || {}).some(p => p && p.id === this.value && p.location === activeMap.id)) window.wpNet.reconcilePresence(this.value, {});   // Onboarding F1a: a token given on the map they are on: their waiting token gives way
                 });
                 if (window.wpSheets) window.wpSheets.wireCharSelect(w, renderInspector);
             }
@@ -1563,6 +1581,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
 
               } else {
 
+                  if (window.wpWaitingGone) window.wpWaitingGone(activeMap.whiteboard.filter(x => x.id === id));   // Onboarding F1a
                   activeMap.whiteboard = activeMap.whiteboard.filter(x => x.id !== id);
 
                   if (state.selWbId === id) state.selWbId = null;

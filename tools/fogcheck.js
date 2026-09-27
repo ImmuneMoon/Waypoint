@@ -236,6 +236,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('window.wpFogCore published', !!(global.window.wpFogCore && global.window.wpFogCore.visibleCells && global.window.wpFogCore.VERSION === X2.VERSION));
     delete global.window;
 
+    /* ---- Onboarding F1a: a waiting token under fog (fog.js, sliced and run) — a viewer only when the campaign says so, and hidden in fog from other players ---- */
+    {
+        const fogSrc = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cut = (a) => { const i = fogSrc.indexOf(a), k = fogSrc.indexOf('\n}\n', i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogSrc.slice(i, k + 2); };
+        const VF = new Function('window', 'visionOf', 'tokenSightCells', cut('function viewersFor(') + '\nreturn viewersFor;')({}, () => ({ arc: 360 }), () => 3);
+        const mapV = { whiteboard: [{ id: 'a', waiting: 1, ownerId: 'u_a', x: 0, y: 0 }, { id: 'b', isChar: true, ownerId: 'u_a', x: 100, y: 0 }, { id: 'c', waiting: 1, ownerId: 'u_a', hidden: true, x: 0, y: 0 }] };
+        const off = VF(mapV, {}, 'u_a'), onV = VF(mapV, { newPlayers: { sight: true } }, 'u_a'), junk = VF(mapV, { newPlayers: { sight: 'yes' } }, 'u_a');
+        check('F1a viewersFor: a waiting token sees only when the campaign turns its sight on (never hidden, never with a sight setting that is not true); a character token sees as before',
+            off.length === 1 && onV.length === 2 && junk.length === 1, JSON.stringify([off, onV, junk]));
+        const FD = new Function('fogFeatureOn', 'mapFog', 'gridForMap', 'fogMask', 'revealedCellList', 'core', 'inMask', cut('function fogDropIds(') + '\nreturn fogDropIds;')(
+            () => true, () => ({ on: true }), () => ({}), () => ({ mode: 'mask' }), () => [], () => ({ cellKey: c => c.k, cellOf: (x, y) => ({ k: x + ',' + y }) }), () => true);
+        const mapD = { type: 'map', whiteboard: [{ id: 'wb_other', waiting: 1, ownerId: 'u_b', x: 0, y: 0 }, { id: 'wb_mine', waiting: 1, ownerId: 'u_a', x: 0, y: 0 }, { id: 'tok_b', isChar: true, ownerId: 'u_b', x: 0, y: 0 }, { id: 'prop', type: 'circle', x: 0, y: 0 }] };
+        const drop = FD('u_a', {}, mapD) || {};
+        check('F1a fogDropIds: another player\'s waiting token inside fog is left out of this player\'s copy like a character token; their own always comes; a plain item is not a token',
+            drop.wb_other === 1 && drop.tok_b === 1 && !drop.wb_mine && !drop.prop, JSON.stringify(drop));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

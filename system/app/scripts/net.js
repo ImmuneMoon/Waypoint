@@ -114,6 +114,17 @@ function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || 
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
 // A display name a peer may show: control, bidi-override and zero-width characters out, trimmed, at most 40; 'Player' when blank.
 function cleanRosterName(v) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; return s || 'Player'; }
+// Onboarding F1a: a waiting token from the host, rebuilt from its own fields only (a player's copy never carries anything else: no
+// picture, no sheet, no character link — its face is read from the roster)
+function cleanWaitingItem(w) {
+    if (!w || typeof w !== 'object' || typeof w.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(w.id) || !validProfileId(w.ownerId)) return null;
+    var num = function(v, d, lo, hi) { v = Number(v); return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+    var o = { id: w.id, type: 'circle', waiting: 1, ownerId: w.ownerId, name: cleanRosterName(w.name), color: typeof w.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(w.color) ? w.color : '#4db3d3',
+              x: num(w.x, 15000, -30000, 60000), y: num(w.y, 15000, -30000, 60000), w: num(w.w, 60, 20, 400), h: num(w.h, 52, 20, 400), layer: 'middle' };
+    if (w.hidden === true) o.hidden = true;
+    if (w.locked === true) o.locked = true;   // the GM's lock: their app stops the drag too, as for any token
+    return o;
+}
 // [netcheck:helpers-end]
 // What a client accepts from a host, beyond the shape checks the wire already does.
 // [netcheck:rosterclean-start]
@@ -217,7 +228,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.type === 'text') w.text = sanitizeRichText(w.text); return w; }
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); return w; }
 function cleanHostMap(m) {
     if (!m || typeof m !== 'object') return m;
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
@@ -594,7 +605,27 @@ function currentStage() {
     return net.lastMapStageObj || null;
 }
 
+// Onboarding F1a: the Host panel's "Players without a character" (the hosted campaign's; stored only when not the default)
+function refreshNewPlayersBox() {
+    var sel = ui('netWaitingSelect'), sg = ui('netWaitingSight'), S = SC(), camp = getActiveCampaign(); if (!sel || !sg) return;
+    var r = camp && S && S.newPlayerRules ? S.newPlayerRules(camp) : { token: 'on', sight: false };
+    var notMine = net.active && net.role !== 'host';   // at someone else's table the box shows the table's rules, read-only
+    sel.value = r.token; sg.checked = r.sight; sel.disabled = notMine; sg.disabled = notMine || r.token === 'off';
+}
+function setNewPlayers(patch) {
+    if (net.active && net.role !== 'host') { refreshNewPlayersBox(); return; }   // a player never sets the table's rules (their copy follows the host's)
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.cleanNewPlayers) return;
+    var c = S.cleanNewPlayers(Object.assign(S.newPlayerRules(camp), patch));
+    if (c) camp.newPlayers = c; else delete camp.newPlayers;
+    save(); refreshNewPlayersBox();
+}
+var _waitSel = ui('netWaitingSelect');
+if (_waitSel) _waitSel.addEventListener('change', function() { setNewPlayers({ token: this.value === 'off' ? 'off' : 'on' }); toast(this.value === 'off' ? 'Players without a character get no token until you give them one.' : 'Players without a character get a waiting token.'); });
+var _waitSight = ui('netWaitingSight');
+if (_waitSight) _waitSight.addEventListener('change', function() { setNewPlayers({ sight: this.checked }); });
+
 function refreshStageSelect() {
+    refreshNewPlayersBox();
     var cSel = ui('netCampSelect');
     if (cSel) {
         cSel.innerHTML = Object.values(state.appState.campaigns).map(function(c) {
@@ -772,7 +803,7 @@ function applyClientItemFiltered(msg, profile) {
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
         if (!isFinite(wx) || !isFinite(wy) || !isFinite(wr) || !isFinite(wf)) return;
         w.x = Math.max(-30000, Math.min(60000, wx)); w.y = Math.max(-30000, Math.min(60000, wy)); w.rot = Math.max(-1e6, Math.min(1e6, wr)); w.front = Math.max(-1e6, Math.min(1e6, wf));   // bounded: a finite 1e300 is an "integer" the packer refuses
-        if (lw.isChar && typeof moveRefused === 'function') {   // turn-based combat T3: a map copy closes any drag of this token — a move a Refuse rule stops never lands this way (the token goes back where the drag began, for everyone), and one that lands counts against the turn
+        if ((lw.isChar || lw.waiting) && typeof moveRefused === 'function') {   // turn-based combat T3: a map copy closes any drag of this token — a move a Refuse rule stops never lands this way (the token goes back where the drag began, for everyone), and one that lands counts against the turn
             var dkP = msg.itemId + '|' + lw.id, frP = _dragFrom[dkP] || { x: Number(lw.x) || 0, y: Number(lw.y) || 0 }; delete _dragFrom[dkP];
             if (frP.x === w.x && frP.y === w.y) delete _refusedAt[dkP];
             else {
@@ -782,6 +813,7 @@ function applyClientItemFiltered(msg, profile) {
                 if (ntP && !seenP && typeof noteOwner === 'function') noteOwner(profile.id, ntP, lw.charId);   // their note, as the pos path gives it (once: not again for the drop it just refused)
             }
         }
+        if (lw.waiting) { if (lw.x !== w.x || lw.y !== w.y) { lw.x = w.x; lw.y = w.y; changed = true; } return; }   // Onboarding F1a: a waiting token only moves — through the same walls rule as a move — never a turn, facing or stance
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
             lw.x = w.x; lw.y = w.y; lw.rot = w.rot || 0; lw.front = w.front || 0;
             changed = true;
@@ -1050,6 +1082,7 @@ net.onLocalSave = function() {
         net.syncCampName(); // and its name (a rename reaches the players' top bar), the same way
         net.syncTurnRules(); // and who may press an effect's timer (turn-based combat T5b), the same way
         net.syncLibrary();   // and the library players may look through (Stage 6 library L3), the same way
+        net.syncNewPlayers(); // and the rules for players without a character (Onboarding F1a), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -1310,6 +1343,23 @@ net.syncTurnRules = function() {
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:turnrulessync-end]
+// Onboarding F1a: the campaign's rules for players without a character (a waiting token or none; its sight under fog) — in the snapshot
+// with the campaign (camp.newPlayers, stored only when not the default), and on a change mid-session once, admitted peers only; the host
+// then settles every player's waiting token. A host has NO branch for 'newPlayers': a client never sets the table's rules.
+// [netcheck:newplayerssync-start]
+net._lastNewPlayersSig = null;
+function newPlayersSig(m) { return m.campId + '|' + m.token + '|' + m.sight; }
+net.newPlayersMessage = function() { var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.newPlayerRules) return null; var r = S.newPlayerRules(camp); return { type: 'newPlayers', campId: camp.id, token: r.token, sight: r.sight }; };
+net.syncNewPlayers = function() {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.newPlayersMessage(); if (!msg) return;
+    var s = newPlayersSig(msg);
+    if (s === net._lastNewPlayersSig) return;
+    var first = net._lastNewPlayersSig === null; net._lastNewPlayersSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+    if (!first) net.tidyWaiting();
+};
+// [netcheck:newplayerssync-end]
 // [netcheck:libmansync-start]
 // Stage 6 library L3: the library players may look through — its visible packs, counted and hashed on the players' view (library.js
 // playerManifest) — sent to admitted players once per change; a campaign that never had one sends nothing
@@ -1851,7 +1901,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
 // A free top-left for a w×h token near (cx, cy): spiral outwards until it overlaps no other
 // character token (and, when given, stays off the portal's footprint).
 function freeSpotNear(map, cx, cy, w, h, avoidId, portal) {
-    var others = (map.whiteboard || []).filter(function(o) { return o.isChar && o.id !== avoidId; });
+    var others = (map.whiteboard || []).filter(function(o) { return (o.isChar || o.waiting) && o.id !== avoidId; });   // Onboarding F1a: a waiting token holds its spot too
     function seated(x, y) {   // where a token placed at (x, y) ends up after hex seating on this map
         if (!window.wpSeatHex) return { x: x, y: y };
         var tmp = { x: x, y: y, w: w, h: h, isChar: true };
@@ -2022,13 +2072,14 @@ function handlePos(msg, conn) {
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client motion is dropped
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
-        if (w.hidden || !w.isChar || (typeof pr.location === 'string' && msg.itemId !== pr.location)) return;   // the same Hide rule as patches (a final pos used to fire travel and room handouts), a character token only, on the map they are on
+        if (w.hidden || !(w.isChar || w.waiting) || (typeof pr.location === 'string' && msg.itemId !== pr.location)) return;   // the same Hide rule as patches (a final pos used to fire travel and room handouts), a character token only, on the map they are on
         msg.final = msg.final === true;   // one reading of final everywhere below (handouts and seating used to take any truthy value)
         if (w.locked) return;   // and the same lock rule: a token the GM locked is frozen for its player
         if (!allow('pos', { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;   // ~60 moves a second is a drag; more is a flood
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
         msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = Math.max(-1e6, Math.min(1e6, prot)); msg.front = Math.max(-1e6, Math.min(1e6, pfr));   // bounded (see the item gate)
+        if (w.waiting) { msg.rot = Number(w.rot) || 0; msg.front = Number(w.front) || 0; }   // Onboarding F1a: a waiting token only moves (the host's turn and facing stay)
         var dkW = msg.itemId + '|' + msg.wbId; if (!_dragFrom[dkW]) { if (Object.keys(_dragFrom).length > 400) _dragFrom = Object.create(null); _dragFrom[dkW] = { x: Number(w.x) || 0, y: Number(w.y) || 0 }; }   // a drag ends at its final pos, or at the map copy its client saves after it (the final can be lost to a redraw mid-drag)
         var frW = _dragFrom[dkW], wlM = moveMode(camp, 'walls');
         if (msg.final) delete _dragFrom[dkW];
@@ -2663,6 +2714,15 @@ function tokenFromChar(ch, pid) {
     if (ch.portrait) t.src = ch.portrait;
     return t;
 }
+// Where a new token goes on a map: beside `near` (a centre) when given, else on the landing room's whiteboard item, else at the map's home;
+// then the nearest free spot (never on another token, off the portal it landed by). avoidId: a token that is about to give way (not an obstacle)
+function spawnSpot(map, landRoomId, near, w, h, avoidId) {
+    var meta = map.meta || {}, landR = !near && landRoomId && (map.rooms || []).find(function(r) { return r.id === landRoomId; });
+    var landPt = landR && landingPoint(map, landR);
+    var sx = near ? near.x : (landPt && landPt.wbX != null) ? landPt.wbX : (meta.homeX || 15000);
+    var sy = near ? near.y : (landPt && landPt.wbY != null) ? landPt.wbY : (meta.homeY || 15000);
+    return freeSpotNear(map, sx, sy, w, h, avoidId, landPt && landPt.wbItemId ? (map.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
+}
 /* Host: player P's token on map M, through ONE resolver (systemcore tokenSourceFor) shared with Bring and the GM's walk through a portal:
    their own token of the character they play; else an unowned one of it, adopted; else a copy of theirs from another map (never another
    player's); else a token bound only by name, linked; else a new token from the character. Then ONE chooser (ownedTokenPlan) leaves one
@@ -2685,13 +2745,11 @@ function ensurePlayerToken(pid, mapId, landRoomId, opts) {
     else if (src.op === 'clone' || src.op === 'link') { nw = JSON.parse(JSON.stringify(src.tok)); delete nw.threats; delete nw.hidden; nw.id = 'wb' + Math.random().toString(36).slice(2, 10); nw.ownerId = pid; if (src.charId) nw.charId = src.charId; }   // 5h: threat marks belong to the map they were set on
     else if (src.op === 'spawn' && camp.chars && camp.chars[src.charId]) nw = tokenFromChar(camp.chars[src.charId], pid);
     if (nw) {
-        // beside the token they had (a give), else on the landing room's whiteboard item when there is one, else at home
-        var near = opts.near && isFinite(opts.near.x) && isFinite(opts.near.y) ? opts.near : null;
-        var landR = !near && landRoomId && (map.rooms || []).find(function(r) { return r.id === landRoomId; });
-        var landPt = landR && landingPoint(map, landR);
-        var sx = near ? near.x : (landPt && landPt.wbX != null) ? landPt.wbX : (map.meta.homeX || 15000);
-        var sy = near ? near.y : (landPt && landPt.wbY != null) ? landPt.wbY : (map.meta.homeY || 15000);
-        var spot = freeSpotNear(map, sx, sy, nw.w || 60, nw.h || 52, null, landPt && landPt.wbItemId ? (map.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null);
+        // beside the token they had (a give), else where their waiting token stands (it gives way: Onboarding F1a), else on the landing
+        // room's whiteboard item when there is one, else at home
+        var waitHere = S.waitingTokensOf ? S.waitingTokensOf(camp, pid).filter(function(x) { return x.mapId === mapId; })[0] : null;
+        var near = opts.near && isFinite(opts.near.x) && isFinite(opts.near.y) ? opts.near : waitHere ? { x: (Number(waitHere.w.x) || 0) + (waitHere.w.w || 60) / 2, y: (Number(waitHere.w.y) || 0) + (waitHere.w.h || 52) / 2 } : null;
+        var spot = spawnSpot(map, landRoomId, near, nw.w || 60, nw.h || 52, waitHere ? waitHere.w.id : null);
         nw.x = spot.x; nw.y = spot.y;
         if (window.wpSeatHex) window.wpSeatHex(nw, map);
         map.whiteboard.push(nw);
@@ -2703,14 +2761,113 @@ function ensurePlayerToken(pid, mapId, landRoomId, opts) {
         S.applyOwnerOps(camp, ops); changed = true;
         if (ops.some(function(o) { return !o.ownerId; })) toast('A second copy of ' + (pl.name || 'a player') + '\u2019s token on this map passes to GM control (still linked to the character).');
     }
+    var wMaps = settleWaiting(camp, pid, map, src.op, landRoomId, opts.near && isFinite(opts.near.x) && isFinite(opts.near.y) ? opts.near : null);   // Onboarding F1a: a waiting token when they have nothing here, gone once they have a token
+    if (wMaps.length) changed = true;
     if (changed) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
         net.broadcastItemFiltered(camp.id, mapId);
+        wMaps.forEach(function(id) { if (id !== mapId) net.broadcastItemFiltered(camp.id, id); });   // the map their waiting token left
         var myActive = getActiveCampaign();
-        if (myActive && myActive.activeItemId === mapId) render();
+        if (myActive && (myActive.activeItemId === mapId || wMaps.indexOf(myActive.activeItemId) >= 0)) render();
     }
     return changed;
 }
+
+/* ---------- Onboarding F1a: the waiting token ---------- */
+// [netcheck:waiting-start]
+// A connected player who has nothing on the map they are on gets a WAITING token: their face in a dashed circle they may move, which is
+// not a character (every character gate refuses it; the few places that take it name it). The host alone makes, moves and removes it:
+// one per player per campaign, moved from map to map (a fresh id on each: never two items with one id on a map), gone the moment they have a token, three minutes after they leave, at a
+// ban, a Forget and the end of the session — and never kept in a save, an export, an import or an undo. The GM's Remove (or Delete) keeps
+// it away for the rest of the session. No history barrier anywhere: the GM's undo stays whole.
+var _noWaiting = Object.create(null), _waitGrace = Object.create(null), WAIT_GRACE_MS = 180000;
+function waitingRosterOf(pid) { return Object.values(net.roster).find(function(p) { return p && p.id === pid; }) || null; }
+function removeFromMap(camp, mapId, wbId) { var m = own(camp.items, mapId) ? camp.items[mapId] : null; if (m && Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.filter(function(w) { return !(w && w.id === wbId); }); }
+function removeWaiting(camp, pid) {
+    var S = SC(), maps = [];
+    if (!S || !S.waitingTokensOf) return maps;
+    S.waitingTokensOf(camp, pid).forEach(function(x) { removeFromMap(camp, x.mapId, x.w.id); if (maps.indexOf(x.mapId) < 0) maps.push(x.mapId); });
+    return maps;
+}
+function placeWaiting(camp, pid, map, landRoomId, near) {
+    var S = SC(), mine = S.waitingTokensOf(camp, pid), maps = [], add = function(id) { if (maps.indexOf(id) < 0) maps.push(id); };
+    var keep = mine.filter(function(x) { return x.mapId === map.id; })[0] || mine[0] || null;
+    mine.forEach(function(x) { if (!keep || x.w !== keep.w) { removeFromMap(camp, x.mapId, x.w.id); add(x.mapId); } });   // never two
+    var pr = waitingRosterOf(pid), nm = cleanRosterName(pr && pr.name), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3';
+    if (keep && keep.mapId === map.id) { if (keep.w.name !== nm || keep.w.color !== col) { keep.w.name = nm; keep.w.color = col; add(map.id); } return maps; }   // already here: it stays where it stands
+    var w = keep ? keep.w : { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'circle', waiting: 1, ownerId: pid, w: 60, h: 52, layer: 'middle' };
+    if (keep) { removeFromMap(camp, keep.mapId, w.id); add(keep.mapId); w.id = 'wb' + Math.random().toString(36).slice(2, 10); }   // a fresh id on each map: never two items with one id there
+    w.name = nm; w.color = col;
+    var spot = spawnSpot(map, landRoomId, near || null, w.w || 60, w.h || 52, null);   // beside the token they lost (a give away), else the landing room or home
+    w.x = spot.x; w.y = spot.y;
+    if (window.wpSeatHex) window.wpSeatHex(w, map);
+    map.whiteboard = map.whiteboard || []; map.whiteboard.push(w); add(map.id);
+    if (!keep) { var t = nm + ' has no character yet \u2014 a waiting token on ' + ((map.meta || {}).title || 'a map'); toast(t + '.'); logEvent('char', t); }
+    return maps;
+}
+// After the resolver (op) or a tidy (null): place, move or remove player pid's waiting token for the map they are on. Returns the maps it changed.
+function settleWaiting(camp, pid, map, op, landRoomId, near) {
+    var S = SC(); if (!S || !S.waitingNeed) return [];
+    var need = S.waitingNeed(camp, pid, map.id, op, S.newPlayerRules(camp), !!_noWaiting[pid]);
+    return need === 'place' ? placeWaiting(camp, pid, map, landRoomId, near) : need === 'remove' ? removeWaiting(camp, pid) : [];
+}
+function waitingChanged(camp, maps) {
+    if (!maps || !maps.length) return;
+    if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step first (the ensurePlayerToken pattern)
+    net.applyingRemote = true; save(true); net.applyingRemote = false;
+    if (net.active && net.role === 'host') maps.forEach(function(id) { net.broadcastItemFiltered(camp.id, id); });
+    var a = getActiveCampaign(); if (a && maps.indexOf(a.activeItemId) >= 0) render();
+    if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+}
+function startWaitGrace(pid) {
+    if (_waitGrace[pid]) clearTimeout(_waitGrace[pid]);
+    _waitGrace[pid] = setTimeout(function() {
+        delete _waitGrace[pid];
+        if (!net.active || net.role !== 'host' || net.isConnected(pid)) return;
+        var camp = getActiveCampaign(); if (camp) waitingChanged(camp, removeWaiting(camp, pid));
+    }, WAIT_GRACE_MS);
+}
+// A ban or a kick: their waiting token goes at once, whether they are still here or inside the grace
+function dropWaitingFor(pid) {
+    if (_waitGrace[pid]) { clearTimeout(_waitGrace[pid]); delete _waitGrace[pid]; }
+    var camp = getActiveCampaign(); if (camp) waitingChanged(camp, removeWaiting(camp, pid));
+}
+function endWaiting(wasHost) {
+    Object.keys(_waitGrace).forEach(function(k) { clearTimeout(_waitGrace[k]); });
+    _waitGrace = Object.create(null); _noWaiting = Object.create(null);
+    var camp = wasHost ? getActiveCampaign() : null; if (!camp) return;
+    var any = false;
+    Object.keys(camp.items || {}).forEach(function(id) { var m = camp.items[id]; if (m && m.type === 'map' && Array.isArray(m.whiteboard)) { var n = m.whiteboard.length; m.whiteboard = m.whiteboard.filter(function(w) { return !(w && w.waiting); }); if (m.whiteboard.length !== n) any = true; } });
+    if (any) setTimeout(render, 0);
+}
+// Host, the GM's hands: Remove (it stays away this session), Delete or Cut (the same), a give (they may get one again), Hide or Show
+net.removeWaiting = function(pid) { if (!net.active || net.role !== 'host' || typeof pid !== 'string' || !pid) return false; var camp = getActiveCampaign(); if (!camp) return false; _noWaiting[pid] = 1; var ms = removeWaiting(camp, pid); waitingChanged(camp, ms); return ms.length > 0; };
+net.noWaiting = function(pid) { if (typeof pid === 'string' && pid) _noWaiting[pid] = 1; };
+net.allowWaiting = function(pid) { if (typeof pid === 'string') delete _noWaiting[pid]; };
+net.hideWaiting = function(pid, hide) {
+    if (!net.active || net.role !== 'host') return false;
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.waitingTokensOf) return false;
+    var maps = [];
+    S.waitingTokensOf(camp, pid).forEach(function(x) { if (!!x.w.hidden !== !!hide) { if (hide) x.w.hidden = true; else delete x.w.hidden; if (maps.indexOf(x.mapId) < 0) maps.push(x.mapId); } });
+    waitingChanged(camp, maps);
+    return maps.length > 0;
+};
+// A setting changed mid-session (Players without a character): every connected player's waiting token follows, and nothing else moves
+// o: { quiet (an undo: the caller saves and sends; returns the maps), mapId (only players on that map) }
+net.tidyWaiting = function(o) {
+    o = o || {};
+    if (!net.active || net.role !== 'host') return [];
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S) return [];
+    var maps = [], add = function(ids) { ids.forEach(function(id) { if (maps.indexOf(id) < 0) maps.push(id); }); };
+    if (S.newPlayerRules(camp).token === 'off') {   // off: every waiting token goes, an away player's too
+        var owners = [];
+        Object.keys(camp.items || {}).forEach(function(k) { var m = camp.items[k]; if (m && m.type === 'map' && Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) { if (w && w.waiting && typeof w.ownerId === 'string' && owners.indexOf(w.ownerId) < 0) owners.push(w.ownerId); }); });
+        owners.forEach(function(pid) { add(removeWaiting(camp, pid)); });
+    } else Object.values(net.roster).forEach(function(p) { var m = p && typeof p.location === 'string' && own(camp.items, p.location) ? camp.items[p.location] : null; if (m && m.type === 'map' && (!o.mapId || m.id === o.mapId)) add(settleWaiting(camp, p.id, m, null, null)); });
+    if (!o.quiet) waitingChanged(camp, maps);
+    return maps;
+};
+// [netcheck:waiting-end]
 
 /* ---------- join gate: password, session bans, GM approval ---------- */
 var bannedIds = {};        // profile id -> true, for this session only
@@ -2725,6 +2882,7 @@ function denyJoin(conn, reason) {
 
 function admitPlayer(conn, prof, provenKey) {
     if (!conn.open) return;
+    if (_waitGrace[prof.id]) { clearTimeout(_waitGrace[prof.id]); delete _waitGrace[prof.id]; }   // Onboarding F1a: back inside the grace, their waiting token is where they left it
     var issuedKey = null;
     var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
     prof.location = land.stage ? land.stage.itemId : null;
@@ -2766,6 +2924,7 @@ function admitPlayer(conn, prof, provenKey) {
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
     var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
+    var npm = net.newPlayersMessage(); if (npm) net._lastNewPlayersSig = newPlayersSig(npm);   // and the rules for players without a character (Onboarding F1a)
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
     var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers;   // and who may press an effect's timer
     var lbm = net.libManifestMessage(); if (lbm && lbm.packs.length) { try { conn.send(lbm); } catch (e) { sendFailed(e); } }   // L3: the library players may look through, to this peer only
@@ -2809,7 +2968,8 @@ net.kickPlayer = function(peerKey) {
     if (net.role !== 'host') return;
     var conn = net.conns.find(function(c) { return c.peer === peerKey; });
     var p = own(net.roster, peerKey) ? net.roster[peerKey] : null;
-    if (p) { bannedIds[p.id] = true; delete net.roster[peerKey]; renderRoster(); }   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
+    if (p) { bannedIds[p.id] = true; delete net.roster[peerKey]; renderRoster(); }
+    if (p) dropWaitingFor(p.id);   // Onboarding F1a: their waiting token goes with them   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
     if (conn) {
         try { conn.send({ type: 'kicked' }); } catch (e) { sendFailed(e); }
         setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
@@ -3428,6 +3588,18 @@ function handleMessage(msg, conn) {
         campTR.turnRules = Object.assign({}, campTR.turnRules && typeof campTR.turnRules === 'object' ? campTR.turnRules : {}, { timers: msg.timers });
         if (window.wpSheetsSync) window.wpSheetsSync();
         // [netcheck:turnrules-end]
+    } else if (msg.type === 'newPlayers' && net.role === 'client') {
+        // [netcheck:newplayers-start]
+        // the table's rules for players without a character changed mid-session (Onboarding F1a): from the synced host only, for the hosted
+        // campaign, cleaned here; fog follows (a waiting token's sight)
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campNP = campOf(msg.campId), SNP = SC(); if (!campNP || !SNP || !SNP.cleanNewPlayers) return;
+        var cNP = SNP.cleanNewPlayers({ token: msg.token, sight: msg.sight });
+        if (cNP) campNP.newPlayers = cNP; else delete campNP.newPlayers;
+        if (window.wpFog) window.wpFog.invalidateVision();
+        render();
+        // [netcheck:newplayers-end]
     } else if ((msg.type === 'sounds' || msg.type === 'sound') && net.role === 'client') {
         // the hosted campaign's sound list and its cues: only from the synced host, only after the snapshot, validated in sound.js.
         // A host has no branch for these: a player never triggers a sound on anyone.
@@ -3701,6 +3873,7 @@ function wireConn(conn) {
         if (net.role === 'host') {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
+            if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
             if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcast({ type: 'targets', targets: net.targets }, null); }
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();
@@ -3848,6 +4021,7 @@ function startHosting(forceFresh) {
     net._lastMusicSig = null;    // and the music library
     net._lastSystemSig = null;   // and the system
     net._lastDocStyleSig = null; // and the campaign's document look
+    net._lastNewPlayersSig = null; // and the rules for players without a character (Onboarding F1a)
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;
@@ -3988,6 +4162,7 @@ function leaveSession(silent) {
     if (window.wpSound) window.wpSound.tableLeft(wasClient);
     if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(wasClient);
     if (window.wpFx) window.wpFx.tableLeft();
+    endWaiting(wasHost);   // Onboarding F1a: waiting tokens live only while the session runs (the end's save writes them away)
     net.targets = {};
     net.combats = {}; combatAsked = {};
     net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
@@ -4566,6 +4741,7 @@ function forgetPlayer(camp, fid) {
         delete camp.players[fid];
         net.forgotten[fid] = true;
         delete approvedIds[fid];   // a one-time "go straight in" still waiting goes too: their next join is asked about
+        waitingChanged(camp, removeWaiting(camp, fid));   // Onboarding F1a: and their waiting token
         save();
         var keptC = SC() && SC().playableChars ? SC().playableChars(camp, fid).length : 0;   // Onboarding F0: their characters stay theirs until the GM unassigns them
         toast(nm + ' forgotten — they\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));
@@ -4596,6 +4772,7 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
         if (net.active && net.role === 'host') {
             var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === pid; });
             if (key) net.kickPlayer(key);
+            dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
         }
         save();
         toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');

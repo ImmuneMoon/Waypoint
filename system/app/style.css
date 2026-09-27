@@ -893,7 +893,7 @@
   #imgLibSearch::placeholder, #chatInput::placeholder { color: var(--dim); }
 
   /* Multiplayer panel dropdowns (campaign / arrival / first-timers' map / whisper) */
-  #netCampSelect, #netStageSelect, #netStageFallbackSelect, #chatTo {
+  #netCampSelect, #netStageSelect, #netStageFallbackSelect, #netWaitingSelect, #chatTo {
     appearance: none; -webkit-appearance: none;
     background-color: var(--panel); color: var(--ink);
     border: 1px solid var(--edge); border-radius: 6px;
@@ -903,9 +903,9 @@
     background-repeat: no-repeat; background-position: right 10px center;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  #netCampSelect:hover, #netStageSelect:hover, #netStageFallbackSelect:hover, #chatTo:hover { border-color: var(--gold); }
-  #netCampSelect:focus, #netStageSelect:focus, #netStageFallbackSelect:focus, #chatTo:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.15); }
-  #netCampSelect option, #netStageSelect option, #netStageFallbackSelect option, #chatTo option { background: var(--panel2); color: var(--ink); }
+  #netCampSelect:hover, #netStageSelect:hover, #netStageFallbackSelect:hover, #netWaitingSelect:hover, #chatTo:hover { border-color: var(--gold); }
+  #netCampSelect:focus, #netStageSelect:focus, #netStageFallbackSelect:focus, #netWaitingSelect:focus, #chatTo:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.15); }
+  #netCampSelect option, #netStageSelect option, #netStageFallbackSelect option, #netWaitingSelect option, #chatTo option { background: var(--panel2); color: var(--ink); }
 
   /* Multiplayer roster chips */
   #netRoster { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1050,6 +1050,11 @@
   .party-tok.here { border-color: var(--gold); opacity: 1; box-shadow: 0 0 0 2px rgba(212,175,55,0.35), 0 2px 6px rgba(0,0,0,0.5); }
   .party-tok.away { opacity: 0.4; filter: grayscale(0.7); }
   .party-tok.party-face { border-style: dashed; }
+  .party-tok.party-waiting { border-color: var(--gold); }   /* Onboarding F1a: a player waiting for a character */
+  .wb-item.wb-waiting { border: 2px dashed var(--gold); overflow: hidden; }
+  .wb-item.wb-waiting > .wait-face { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; pointer-events: none; }
+  .join-card { position: absolute; top: 62px; right: 224px; max-width: 300px; z-index: 8991; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 10px 30px 10px 12px; font-size: 12.5px; line-height: 1.45; color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .join-card > #joinCardClose { position: absolute; top: 4px; right: 4px; padding: 0 6px; }
   .party-tok.party-ini { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--ink); }
   .party-tok.paused { border-color: #7aa7ff; box-shadow: 0 0 0 2px rgba(122,167,255,0.9), 0 2px 6px rgba(0,0,0,0.55); opacity: 1; filter: grayscale(0.4); }   /* a player the GM paused individually */
   #sessionPauseBtn.paused { color: var(--gold); background: rgba(212,175,55,0.16); }

@@ -471,7 +471,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var g = map && map.meta && map.meta.gridType;
       if (!g && map === getActiveMap()) g = state.gridType;
       if (g !== 'hex') return false;
-      if (!force && !(item.isChar || item.type === 'hexagon' || item.shape === 'hexagon')) return false;
+      if (!force && !(item.isChar || item.waiting || item.type === 'hexagon' || item.shape === 'hexagon')) return false;
       var w = item.w || 0, h = item.h || 0;
       var hc = snapToHex(item.x + w / 2, item.y + h / 2, 30, 'center');
       var nx = hc.x - w / 2, ny = hc.y - h / 2;
@@ -700,7 +700,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
             if (modeStr !== 'visual') return;
             if (window.wpNet.paused || window.wpNet.selfPaused) return;   // table paused, or the GM paused me specifically
-            if (!(item.isChar && item.ownerId === window.wpNet.myId)) {
+            if (!((item.isChar || item.waiting) && item.ownerId === window.wpNet.myId)) {   // Onboarding F1a: their waiting token moves too
                 // Nothing else is draggable for a player, so anything covering their
                 // token (a text box, a note card, a trigger zone) must not trap it:
                 // hand the drag to their own token under the pointer, if there is one.
@@ -708,7 +708,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 var cpx = (e.clientX - wrC.left + wbWrap.scrollLeft) / state.zoomLevel;
                 var cpy = (e.clientY - wrC.top + wbWrap.scrollTop) / state.zoomLevel;
                 var mine = activeMap.whiteboard.find(function(cand) {
-                    return cand.isChar && cand.ownerId === window.wpNet.myId && cand.id !== item.id &&
+                    return (cand.isChar || cand.waiting) && cand.ownerId === window.wpNet.myId && cand.id !== item.id &&
                            cpx >= cand.x && cpx <= cand.x + (cand.w || 0) && cpy >= cand.y && cpy <= cand.y + (cand.h || 0);
                 });
                 var mineEl = mine && document.querySelector('.wb-item[data-id="' + mine.id + '"]');
@@ -928,14 +928,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               multiDrag.forEach(function(md) { md.item.x += sdxD; md.item.y += sdyD; var melD = md.el || state.els[md.item.id]; if (melD) { melD.style.left = md.item.x + 'px'; melD.style.top = md.item.y + 'px'; } });
               renderDataMap();
           }
-          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.isChar || md.item.type === 'hexagon' || md.item.shape === 'hexagon' || md.item.gridFit; })) {
+          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.isChar || md.item.waiting || md.item.type === 'hexagon' || md.item.shape === 'hexagon' || md.item.gridFit; })) {
               // Hex-shaped items and character tokens ALWAYS seat into a cell on hex
               // maps — every one in the drag, not just the one under the pointer.
               // One hex item in the drag is the reference (the one under the pointer if it is one, else the
               // first): it seats into its cell, every non-hex member (a text box grouped with a teleport
               // point, a floor, a prop) follows by the same correction, and the other hex items seat
               // into their own cells. The group never loosens, whichever member was dragged.
-              var isHexy = function(it) { return it.isChar || it.type === 'hexagon' || it.shape === 'hexagon' || it.gridFit; };   // gridFit images seat by centre too (forced below)
+              var isHexy = function(it) { return it.isChar || it.waiting || it.type === 'hexagon' || it.shape === 'hexagon' || it.gridFit; };   // gridFit images seat by centre too (forced below)
               var refMd = multiDrag.find(function(md) { return md.item === item && isHexy(item); }) || multiDrag.find(function(md) { return isHexy(md.item); });
               var seatBefore = { x: refMd.item.x, y: refMd.item.y };
               window.wpSeatHex(refMd.item, null, true);   // force: a fitted (non-char) image centres on its hex cell too

@@ -2077,7 +2077,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && (shF.match(/giveCharacter\(/g) || []).length >= 6 && /SCm\.applyOwnerOps\(c, SCm\.ownedTokenPlan\(c, \{ all: !sheetsOnM \}\)\)/.test(ioF) && /if \(SCm\.migrateBindings && !c\._foreign\)/.test(ioF) && /applyContent\(item, parsed\);\n\n\s*if \(item\.type === 'map' && window\.wpSheets && window\.wpSheets\.syncOwners\) window\.wpSheets\.syncOwners\(camp\);/.test(ioF)
             && /if \(campO && w\.charName && !linkedO\) \{/.test(inF) && /disabled title="An NPC/.test(inF)
             && /var pid = w\.ownerId, playing = activeCharOf\(camp, pid\)\.id, play = !playing;\n\s*giveCharacter\(pid, c\.id, \{ keep: w\.id, play: play, nearTok: w \}\);/.test(shF)
-            && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
+            && /if \(!c\.ownerId && !w\.ownerId\) return;\n\s*if \(!w\.ownerId\) \{ var nT = net\(\); if \(nT && nT\.noWaiting && !playableChars\(camp, c\.ownerId\)\.some\(function\(x\) \{ return x\.id !== c\.id; \}\)\) nT\.noWaiting\(c\.ownerId\); \}[^\n]*\n\s*giveCharacter\(w\.ownerId \|\| '', c\.id, \{ keep: w\.id \}\);/.test(shF) && (shF.match(/giveTokenChar\(camp, w, c\)/g) || []).length === 3);
     }
 
     /* ---- Stage 6 HUD frame (HF0): the section options dispatch by exact class token ---- */
@@ -4834,6 +4834,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(c0.changes[0]) === j({ id: 'u_1', kind: 'fact', f: 'f_sk', label: 'Skills: u_1', from: 'a', to: 'b', accept: true, held: false, row: 'w_a', facts: { lvl: 3 }, qty: 2 })
             && c0.changes[1].held === true && c0.changes[1].accept === false && j(c0.changes[2].ops) === j([{ op: 'add' }]) && c0.changes[3].accept === false && !('row' in c0.changes[3]) && c0.changes[3].label.length === 120
             && many.length === 20 && many[0].id === 'up_10' && j(S.cleanUploads('x')) === '[]' && j(S.cleanUploads(undefined)) === '[]', j(cq));
+    }
+    /* ---- Onboarding F1a: the rules for players without a character, and where a waiting token stands ---- */
+    {
+        check('F1a cleanNewPlayers: only a waiting token turned off and sight turned on are stored (the defaults and anything else are dropped); newPlayerRules fills the defaults (a waiting token on, no sight)',
+            j(S.cleanNewPlayers({ token: 'off', sight: true, x: 1 })) === j({ token: 'off', sight: true }) && S.cleanNewPlayers({ token: 'on', sight: false }) === null && S.cleanNewPlayers({ token: 'OFF', sight: 'yes' }) === null
+            && S.cleanNewPlayers('x') === null && S.cleanNewPlayers([]) === null && S.cleanNewPlayers(null) === null
+            && j(S.newPlayerRules({})) === j({ token: 'on', sight: false }) && j(S.newPlayerRules({ newPlayers: { token: 'off' } })) === j({ token: 'off', sight: false }) && j(S.newPlayerRules({ newPlayers: { sight: 1, token: 0 } })) === j({ token: 'on', sight: false }) && j(S.newPlayerRules(null)) === j({ token: 'on', sight: false }));
+        const tw = (id, pid, extra) => Object.assign({ id, type: 'circle', waiting: 1, ownerId: pid, x: 0, y: 0 }, extra || {});
+        const campW = () => ({ id: 'k', players: { u_a: { name: 'Ana' }, u_b: { name: 'Bo', charName: 'Old Bo' }, u_c: { name: 'Cy' } }, chars: { c_1: { id: 'c_1', name: 'Cyra', ownerId: 'u_c' } },
+            items: { m1: { id: 'm1', type: 'map', whiteboard: [tw('w1', 'u_a'), { id: 't_b', isChar: true, ownerId: 'u_b', x: 0, y: 0 }, tw('w9', 'u_z')] }, m2: { id: 'm2', type: 'map', whiteboard: [tw('w2', 'u_a')] }, p1: { id: 'p1', type: 'planner' } } });
+        const cw = campW(), mine = S.waitingTokensOf(cw, 'u_a');
+        const cwC = campW(); cwC.items.m2.whiteboard.push(tw('w3', 'u_a', { isChar: true }), tw('w4', 'u_a', { charId: 'c_1' }));
+        check('F1a waitingTokensOf: a player\'s waiting tokens on every play map (no one else\'s, no character token — one ticked Is Character or linked to a character is not a waiting token); nothing for a non-string player',
+            j(S.waitingTokensOf(cwC, 'u_a').map(x => x.w.id)) === j(['w1', 'w2']) && j(mine.map(x => [x.mapId, x.w.id])) === j([['m1', 'w1'], ['m2', 'w2']]) && S.waitingTokensOf(cw, 'u_b').length === 0 && S.waitingTokensOf(cw, 7).length === 0 && S.waitingTokensOf(cw, '').length === 0, j(mine));
+        const on = { token: 'on', sight: false }, need = (pid, map, op, rules, blocked) => S.waitingNeed(campW(), pid, map, op, rules === undefined ? on : rules, !!blocked);
+        check('F1a waitingNeed: an arrival that found a token removes the waiting one; one that found nothing places it — unless they hold a character token on that map, the table gives none, or the GM removed theirs this session',
+            need('u_a', 'm1', 'keep') === 'remove' && need('u_a', 'm1', 'spawn') === 'remove' && need('u_a', 'm1', 'none') === 'place' && need('u_b', 'm1', 'none') === 'remove'
+            && need('u_a', 'm1', 'none', { token: 'off', sight: false }) === 'remove' && need('u_a', 'm1', 'none', null) === 'remove' && need('u_a', 'm1', 'none', on, true) === 'remove' && need('u_a', 'nope', 'none') === 'remove' && need('u_a', 'p1', 'none') === 'remove' && need('', 'm1', 'none') === 'remove');
+        check('F1a waitingNeed (a tidy after a setting changed: nothing adopted, copied or made): a player with no character and no name binding gets one; one with a character in play or an old name binding is left as they are',
+            need('u_a', 'm2', null) === 'place' && need('u_c', 'm2', null) === 'leave' && need('u_b', 'm2', null) === 'leave' && need('u_c', 'm2', null, { token: 'off' }) === 'remove' && need('u_b', 'm1', null) === 'remove');
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

@@ -85,8 +85,9 @@ function visionOf(map) {
 }
 function viewersFor(map, camp, ownerId) {
     var turningOn = !window.wpVtt || window.wpVtt.on('turning'); var out = [], arc = turningOn ? visionOf(map).arc : 360;   // facing feature off ⇒ the cone falls back to all-around (nothing can aim it); host + client agree via the shared turning flag
+    var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);   // Onboarding F1a: a waiting token sees only when the campaign says so
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || !w.isChar || w.hidden) return;
+        if (!w || w.hidden || !(w.isChar || (w.waiting && waitSight))) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
         out.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, front: ((w.rot || 0) + (w.front || 0)), range: tokenSightCells(w, map, camp), arc: arc });   // world facing = rot + front, so the arc follows the token's rotation
     });
@@ -246,7 +247,7 @@ function fogDropIds(recipientId, camp, map) {
     var C = core(), keys = Object.create(null); list.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
     var drop = Object.create(null), any = false;
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || !w.isChar) return;
+        if (!w || !(w.isChar || w.waiting)) return;   // Onboarding F1a: another player's waiting token hides in fog like a character's
         if (w.ownerId === recipientId) return;                          // your own token is always yours
         var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
         if (inMask(mask, tk) && !keys[tk]) { drop[w.id] = 1; any = true; }   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible

@@ -256,6 +256,35 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && nodes.uploadHead.textContent.indexOf(T + 'Pat') === 0 && nodes.uploadModal.style.display === 'flex', JSON.stringify([htmlSet, rows.length, nodes.uploadHead.textContent]));
     }
 
+    /* ---- Onboarding F1a: a waiting token's face (whiteboard.js) — a picture from the roster only when it passes safeAvatar, a colour through cssColor ---- */
+    {
+        const netSrcW = read('net.js'), saLine = netSrcW.slice(netSrcW.indexOf('function safeAvatar('), netSrcW.indexOf('\n', netSrcW.indexOf('function safeAvatar(')));
+        const safeAvatar = new Function(saLine + '\nreturn safeAvatar;')();
+        const face = (avatar, color, name) => {
+            const kids = [], el = { dataset: {}, classList: { add() {}, toggle() {} }, set textContent(v) { kids.length = 0; }, set innerHTML(v) { throw new Error('innerHTML'); }, querySelector: () => kids[0] || null, appendChild(k) { kids.push(k); } };
+            const doc = { createElement: () => { const o = { attrs: {}, getAttribute(k) { return this.attrs[k] || null; } }; Object.defineProperty(o, 'src', { set(v) { o.attrs.src = String(v); }, get() { return o.attrs.src; } }); return o; } };
+            const win = { wpNet: { roster: { pA: { id: 'u_a', avatar, color } }, safeAvatar }, wpDefaultAvatar: c => 'DEFAULT(' + c + ')' };
+            new Function('item', 'el', 'window', 'document', 'cssColor', slice('whiteboard.js', 'waitingface'))({ waiting: 1, ownerId: 'u_a', name, color: '#112233' }, el, win, doc, SC.cssColor);
+            return { src: kids[0] && kids[0].attrs.src, tip: el.dataset.tip };
+        };
+        const ok = face('data:image/png;base64,AAAA', '#445566', 'Ana');
+        const bad = ['javascript:alert(1)', 'https://evil.example/x.png', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,AA" onerror="x', '//evil/x.png'].map(a => face(a, 'red;background:url(//evil/x)', '<img src=x onerror=alert(1)>'));
+        check('F1a waiting face: a roster picture reaches the token only when the whole string passes safeAvatar; anything else (a web or script address, an SVG, a quote-breaking tail) shows the silhouette, whose colour goes through cssColor; the name is only a tooltip (text, never markup)',
+            ok.src === 'data:image/png;base64,AAAA' && ok.tip === 'Ana \u2014 waiting for a character' && bad.every(r => /^DEFAULT\(/.test(r.src) && !/evil|url\(/.test(r.src)) && bad[0].tip === '<img src=x onerror=alert(1)> \u2014 waiting for a character', JSON.stringify([ok, bad]));
+    }
+    /* ---- Onboarding F1a (review): the GM's own screens for a waiting token — its Properties panel builds text nodes only; every delete route keeps it away; a hidden stub never keeps its tooltip; an item menu never sits beside a player's ---- */
+    {
+        const insp = read('inspector.js'), wbS = read('whiteboard.js');
+        const ia = insp.indexOf('            if (w.waiting) {'), ib = insp.indexOf('\n                return;\n            }\n', ia), panel = ia >= 0 && ib > ia ? insp.slice(ia, ib) : '';
+        check('F1a waiting token Properties: its own panel (Give a character, Hide or Show, Remove) built from text nodes — never innerHTML with its name — and none of the shape panel (no Is Character, Player Owner or plain Delete)',
+            panel.length > 200 && !/innerHTML|insertAdjacentHTML/.test(panel) && /wpH\.textContent = String\(w\.name \|\| 'A player'\)/.test(panel) && /inspector\.textContent = '';/.test(panel) && !/wbIsChar|wbOwner|wbDel/.test(panel), panel.slice(0, 200));
+        check('F1a every GM delete route of a waiting token keeps it away this session (the Properties multi-delete, the element list, the selection toolbar, the Delete key, Cut, the item menu)',
+            (insp.match(/window\.wpWaitingGone\(activeMap\.whiteboard\.filter\(/g) || []).length === 2 && /if \(window\.wpWaitingGone\) window\.wpWaitingGone\(its\);/.test(wbS) && /window\.wpWaitingGone = function\(items\) \{ \(items \|\| \[\]\)\.forEach\(function\(x\) \{ if \(x && x\.waiting && window\.wpNet && window\.wpNet\.noWaiting\) window\.wpNet\.noWaiting\(x\.ownerId\); \}\); \};/.test(wbS));
+        check('F1a a hidden waiting token\'s stub loses the ring and the tooltip; a right-click on a waiting token (or a chip) closes an item menu left open; Player Owner giving a token on the map a player is on settles their waiting token',
+            /el\.classList\.toggle\('wb-waiting', !!item\.waiting && !hideFromMe\);[^\n]*\n\s*if \(el\.dataset\.waitTip && \(!item\.waiting \|\| hideFromMe\)\) \{ delete el\.dataset\.tip; delete el\.dataset\.waitTip; \}/.test(wbS)
+            && /var cmOld = document\.getElementById\('contextMenu'\); if \(cmOld\) cmOld\.style\.display = 'none';/.test(wbS)
+            && /else if \(this\.value && window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'host' && window\.wpNet\.reconcilePresence && [^\n]*p\.location === activeMap\.id\)\) window\.wpNet\.reconcilePresence\(this\.value, \{\}\);/.test(insp) && /var cmWt = document\.getElementById\('contextMenu'\); if \(cmWt\) cmWt\.style\.display = 'none';/.test(wbS));
+    }
     delete global.window;
 
     summed = true;

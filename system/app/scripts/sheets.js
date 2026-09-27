@@ -3131,6 +3131,7 @@ function saveDraft() {
     reCleanChars(camp, clean);   // Stage 6: before the save and the sync (syncSystem re-sends every character after the system)
     stampRows(clean, camp.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id (its derived one would name the item)
     var reach = itemReach(prevSys, clean, camp.chars || {}), nR = net(); if (nR && nR.logEvent) reach.lines.forEach(function(l) { nR.logEvent('items', l); });   // Stage 6 F4c2: how far an edit to carried items reaches (after the re-check, so a removed stat's own values are gone), into the session log before the save
+    if (window.wpLibrary && window.wpLibrary.refreshCore) { try { if (window.wpLibrary.refreshCore(camp)) clean = camp.system; } catch (e) { console.error(e); } }   // Stage 6 library L1d: the core its formulas now address (the draft below carries it)
     draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
     save(true);
     var n = net(); if (n && n.syncSystem) n.syncSystem();

@@ -10,7 +10,7 @@
    classifyState offline. Dialogs are built here in the DOM; the app's markup is not needed. */
 
 var STUB_KEYS = { id: 1, type: 1, hidden: 1, x: 1, y: 1, w: 1, h: 1, rot: 1, layer: 1, locked: 1 };   // a sanitized hidden item (net.js sanitizeItem)
-var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog', 'pictures', 'imageCats', 'sounds'];   // never on the wire (imageCats here = the campaign's own categories; sounds = the sound index, 1.5.0)
+var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog', 'pictures', 'imageCats', 'sounds', 'library'];   // never on the wire (imageCats here = the campaign's own categories; sounds = the sound index, 1.5.0)
 var TUTORIAL_ID = 'camp_tutorial';          // one id on every install: never recorded, never judged by name
 var RECOVERED_ID = 'camp_recovered';        // where a removed campaign's planner pages land
 var NAME_RE = /^(data|keep)-[A-Za-z0-9_-]+\.json$/;   // the shell's own rule for backup names

@@ -77,6 +77,27 @@ const j = v => JSON.stringify(v);
         && cleanIndexRow(row.slice(0, 6)) === null && cleanIndexRow([...row, 'extra']) === null &&cleanIndexRow(['x', '', 'N', '', '', [], hP]) === null && cleanIndexRow(['i_a', '', 'N', '', '', [], 'zz']) === null
         && j(cleanIndexRow(['i_a', '1bad', 'N'.repeat(99), 'C\u0000at', '<b>', ['\u0007t'], hP])) === j(['i_a', '', 'N'.repeat(60), 'C at', '<b>', ['t'], hP]), j(row));
 
+    /* ---- L1c: the manifest's operations ---- */
+    {
+        const { addPack, removePack, nextRev, packMeta, manifestSig, cleanManifest: cm } = L;
+        let rr = 0; const rnd = () => { rr = (rr + 0.137) % 1; return rr; };
+        const a1 = addPack(undefined, '  Gear\u0000 ', rnd), a2 = addPack(a1.manifest, '', rnd);
+        check('a pack added: the first makes the library\'s folder; each gets a fresh p_ id, its name (default Pack), seen by all, not yet written (revision 0); the manifest stays a clean one',
+            /^l_[a-z0-9]{8}$/.test(a1.manifest.dir) && /^p_[a-z0-9]{8}$/.test(a1.id) && j(a1.manifest.packs[0]) === j({ id: a1.id, name: 'Gear', vis: 'all', rev: 0, count: 0, bytes: 0, hash: '' })
+            && a2.manifest.dir === a1.manifest.dir && a2.manifest.packs.length === 2 && a2.manifest.packs[1].name === 'Pack' && a2.id !== a1.id && j(cm(a2.manifest)) === j(a2.manifest));
+        const full = { dir: 'l_abcd1234', packs: Array.from({ length: LIB.packs }, (_, i) => ({ id: 'p_f' + i })) }, same = addPack({ dir: 'l_abcd1234', packs: [{ id: 'p_aaaaaaaa' }] }, 'X', () => 0);
+        check('no pack past ' + LIB.packs + '; an id already taken is never reused (a source that repeats itself gives none rather than a clash)', addPack(full, 'X') === null && same === null);
+        const m3 = { dir: 'l_abcd1234', packs: [{ id: 'p_a', rev: 4 }, { id: 'p_b', rev: 1e9 }] };
+        check('the next revision of a pack (none for one not listed, never past the cap); a pack removed leaves the others',
+            nextRev(m3, 'p_a') === 5 && nextRev(m3, 'p_b') === 1e9 && nextRev(m3, 'p_x') === 0 && nextRev(null, 'p_a') === 0 && j(removePack(m3, 'p_a').packs.map(p => p.id)) === j(['p_b']) && removePack(null, 'p_a') === null);
+        const ents = [{ id: 'i_a', name: 'A', gmNotes: 'one' }, { id: 'i_b', name: 'B' }], pl = libCtx(sys, F, false);
+        const mA = packMeta(ents, pl, 1234.9), mB = packMeta([{ id: 'i_a', name: 'A', gmNotes: 'two', damage: '9d9' }, { id: 'i_b', name: 'B' }], pl, 10), mC = packMeta([...ents, { id: 'i_s', name: 'Secret', vis: 'gm' }], pl, 10), mD = packMeta([{ id: 'i_a', name: 'A!' }, { id: 'i_b', name: 'B' }], pl, 10);
+        check('a pack\'s facts: its entry count, its size (whole bytes, capped), and a fingerprint of what players see of it — moved by a visible change only (not the GM\'s notes or damage, not a GM-only entry added)',
+            mA.count === 2 && mA.bytes === 1234 && /^[0-9a-f]{8}$/.test(mA.hash) && mB.hash === mA.hash && mC.hash === mA.hash && mC.count === 3 && mD.hash !== mA.hash && packMeta([], pl, 0).hash === '' && packMeta([], pl, 1e12).bytes === LIB.fileBytes);
+        check('a manifest\'s signature names the campaign, the folder and each pack\'s revision (what the GM machine reads again when it moves); none without a library',
+            manifestSig({ id: 'camp_1', library: m3 }) === 'camp_1|l_abcd1234|p_a.4,p_b.1000000000' && manifestSig({ id: 'c' }) === '' && manifestSig(null) === '');
+    }
+
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');
     check('under a window the module publishes itself as window.wpLibraryCore', !!(global.window.wpLibraryCore && global.window.wpLibraryCore.cleanPack && global.window.wpLibraryCore.VERSION === L2.VERSION));
     delete global.window;

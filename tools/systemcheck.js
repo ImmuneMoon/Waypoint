@@ -4381,6 +4381,33 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('L0 the import\'s notice names the items it kept and counts what it left out ("Left out (over the limits, or not valid): 5 items"), singular for one',
             /var dr = droppedCounts\(j, c\), drT = Object\.keys\(dr\)\.map\(function\(k\) \{ return dr\[k\] \+ ' ' \+ \(dr\[k\] === 1 \? k\.slice\(0, -1\) : k\); \}\)\.join\(', '\);/.test(shL) && /\(drT \? ' Left out \(over the limits, or not valid\): ' \+ drT \+ '\.' : ''\)/.test(shL) && /nN\(c\.fields\.length, 'field'\) \+ ', ' \+ nN\(c\.rolls\.length, 'roll'\)/.test(shL));
     }
+    /* ---- Stage 6 library L1c: the library lookup (rowDef, projections), a library row kept through cleaning, the runtime's wiring ---- */
+    {
+        const rawK = { v: 1, name: 'K', rolls: [], items: [{ id: 'i_own', name: 'Own', category: 'Gear' }], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }] };
+        const sK = cleanSystem(rawK, { F, gmView: true }), pK = cleanSystem(rawK, { F, gmView: false });
+        const libE = { id: 'i_lib', name: 'Rope', category: 'Gear', notes: '', vis: 'all', area: null, damage: '1d4', cost: '', throwSkill: '', stats: { Wt: 10 } }, snapE = { id: 'i_lib', name: 'Old rope', category: 'Old', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' };
+        const row = { id: 'w_1', defId: 'i_lib', qty: 2, ov: { name: 'My rope' }, snap: snapE };
+        const before = S.rowDef(sK, row);
+        S.setLibraryFind(id => (id === 'i_lib' ? libE : id === 'i_bad' ? 'text' : id === 'i_own' ? Object.assign({}, libE, { id: 'i_own', name: 'Shadow' }) : null));
+        const withLib = S.rowDef(sK, row), own = S.rowDef(sK, { id: 'w_2', defId: 'i_own', qty: 1 }), badLook = S.rowDef(sK, { id: 'w_3', defId: 'i_bad', qty: 1, snap: snapE });
+        S.setLibraryFind(null); const after = S.rowDef(sK, row); S.setLibraryFind('nope'); const notFn = S.rowDef(sK, row); S.setLibraryFind(null);
+        check('L1c rowDef reads the system\'s own items first, then the library this machine holds (its own values on top), then the row\'s copy; a lookup that answers no object, or none registered, leaves the copy',
+            before.src === 'lost' && before.def.name === 'My rope' && withLib.src === 'lib' && withLib.def.name === 'My rope' && withLib.base === libE && withLib.def.damage === '1d4' && own.src === 'lib' && own.base.id === 'i_own' && own.def.name === 'Own'
+            && badLook.src === 'lost' && after.src === 'lost' && notFn.src === 'lost', j([before.src, withLib.src, after.src]));
+        const projF = S.projectRows([row], pK, id => (id === 'i_lib' ? libE : null), null), projN = S.projectRows([row], pK, () => null, null), projM = S.projectRows([row], pK, { i_lib: libE }, null), projT = S.projectRows([row], pK, () => 'text', null);
+        check('L1c a projection takes the host\'s items as a lookup too (the library is never copied into a map): the entry inline for its owner with their values folded in and players\' fields only; nothing found, the copy; a map still works as before',
+            projF[0].lnk === 1 && projF[0].def.name === 'My rope' && projF[0].def.category === 'Gear' && !projF[0].def.damage && projN[0].def.category === 'Old' && projT[0].def.category === 'Old' && j(projM) === j(projF), j([projF, projN]));
+        const kept = S.cleanChar({ id: 'c_k', name: 'K', values: { f_inv: [row, { id: 'w_9', defId: 'i_gone', qty: 1 }] } }, sK);
+        check('L1c a row that points at a library entry keeps its copy through cleaning (the system\'s items never list library entries), so a save loaded before its library arrives loses nothing; one with no copy is dropped as before',
+            kept.values.f_inv.length === 1 && kept.values.f_inv[0].defId === 'i_lib' && kept.values.f_inv[0].snap.name === 'Old rope' && kept.values.f_inv[0].ov.name === 'My rope', j(kept.values.f_inv));
+        const lbSrc = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n'), ioK = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), hmK = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), stK = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8');
+        check('L1c the runtime (library.js): only on the GM\'s own machine; each pinned revision read through librarycore; a newer read wins over a stale one; a pack written as its next revision before the manifest pins it; a new pack undone if its first write fails; the last pack deleted leaves no library (and no folder); its lookup registered with systemcore; the manifest watched each second; an old core said once',
+            /function gmHere\(\) \{\n\s*var n = window\.wpNet; if \(n && n\.active && n\.role === 'client'\) return false; if \(n && \(n\.foreign \|\| n\.stream\)\) return false;/.test(lbSrc) && /fetch\('\/api\/library\?dir=' \+ m\.dir \+ '&pack=' \+ p\.id \+ '&rev=' \+ p\.rev\)/.test(lbSrc)
+            && /var rd = readPackFile\(await res\.text\(\), ctx, seen\); if \(cur !== mine\) return cur;/.test(lbSrc) && /if \(!res \|\| !res\.ok\) \{ if \(res && res\.status === 404\) oldCore\(\); return \{ error:/.test(lbSrc)
+            && lbSrc.indexOf("method: 'POST', body: body") < lbSrc.indexOf('p.rev = rev; p.count = meta.count;') && /if \(r\.error\) \{ if \(had\) camp\.library = had; else delete camp\.library; return r; \}/.test(lbSrc) && /var last = !m\.packs\.length; if \(last\) delete camp\.library; else camp\.library = m;/.test(lbSrc) && /\nsetLibraryFind\(entry\);\n/.test(lbSrc) && /if \(sig !== cur\.sig \|\| \(camp \? camp\.id : null\) !== cur\.campId\) load\(camp\); \}, 1000\);/.test(lbSrc)
+            && /if \(c\.library !== undefined && window\.wpLibraryCore && window\.wpLibraryCore\.cleanManifest\) \{ var lman = window\.wpLibraryCore\.cleanManifest\(c\.library\); if \(lman\) c\.library = lman; else delete c\.library; \}/.test(ioK)
+            && hmK.indexOf('scripts/librarycore.js') > hmK.indexOf('scripts/systemcore.js') && hmK.indexOf('scripts/librarycore.js') < hmK.indexOf('scripts/main.js') && hmK.indexOf('scripts/library.js') > 0 && /var SHELL_WANTED = '1\.5\.0';   \/\/ 1\.5\.0 adds \/api\/library/.test(stK));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

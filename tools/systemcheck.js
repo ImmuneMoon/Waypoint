@@ -5371,6 +5371,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /A picture you place yourself is framed when you ask: right-click a picture token for <b>Frame picture&hellip;<\/b>/.test(tuC) && !/Every picture chosen for a profile/.test(tuC) && /<b>New picture&hellip;<\/b> on your own token&rsquo;s right-click menu/.test(ixC) && /framed first: drag and zoom to the part that shows/.test(ixC)
             && !/images are shrunk to a small square automatically/.test(ixC) && /each open the <b>token creator<\/b> first/.test(tuC));
     }
+    /* ---- Help and the tour say what the app does now (the 1.5.0 notes check) ---- */
+    {
+        const ixH = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, NL), tuH = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, NL), cssH = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL);
+        const shH = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), vtH = fs.readFileSync(path.join(app, 'scripts', 'vtt.js'), 'utf8');
+        const labels = (vtH.slice(vtH.indexOf('var FEATURES = ['), vtH.indexOf('];', vtH.indexOf('var FEATURES = ['))).match(/label: '([^']+)'/g) || []).map(m => m.slice(8, -1));
+        const tourVtt = (tuH.match(/title: 'VTT features, per campaign',\n\s*html: '([^\n]*)'/) || ['', ''])[1];
+        check('Help and the tour say what the app does now: the sidebar headers\' actions are on a right-click menu (no "+ next to", no "file button beside +", no search buttons beside the headers); the blast tool takes a radius (no preset explosives); Cover from blockers is in the System editor, not Settings; every VTT feature is in the tour\'s list (and the Help lists name music, token facing and turn-based combat); the character file is .wpchar.json',
+            !/Press <b>\+<\/b> next to/.test(ixH) && !/file button beside <b>\+<\/b>/.test(ixH) && !/search buttons beside Planners/.test(tuH) && /Right-click <b>Maps<\/b> in the left sidebar, press <b>\+<\/b>/.test(ixH)
+            && !/Frag 12 ft|preset explosive types|Frag, Concussion/.test(ixH) && !/preset explosive types/.test(tuH) && /type a radius in feet/.test(ixH)
+            && !/Settings &#9656; System &#9656; Items/.test(ixH + tuH) && /Cover from blockers<\/b> for your system \(the <b>System<\/b> editor&rsquo;s <b>Items<\/b> tab/.test(ixH)
+            && labels.length === 11 && labels.every(l => tourVtt.indexOf('<b>' + l + '</b>') >= 0) && /fog of war, turn-based combat, and the VTT integration master/.test(ixH) && /token facing, the minimap, sound, music, dice, character sheets, visual effects, fog of war and turn-based combat\./.test(ixH)
+            && /item\('Character file \(\.wpchar\.json\)'/.test(shH), JSON.stringify(labels.filter(l => tourVtt.indexOf('<b>' + l + '</b>') < 0)));
+        check('the sheet\'s pop-out is not offered at someone else\'s table (it reads this machine\'s save, where a joined player has none of the GM\'s characters)',
+            /body\.net-client #sheetPop \{ display: none; \}/.test(cssH) && /var camp = getActiveCampaign\(\); if \(!camp \|\| !sheetOpen \|\| isClient\(\)\) return;/.test(shH));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

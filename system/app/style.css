@@ -1094,6 +1094,7 @@
   .wb-item.image.tok-pic-rect > img { border-radius: 4px; }
   .wb-item.image.tok-pic-circle > img { border-radius: 50%; }
   /* The token creator (owner, 2026-09-27): a picture framed to a square — drag, zoom, the grid's outline previewed over it */
+  body.net-client #sheetPop { display: none; }   /* the sheet pop-out reads this machine's save: not at someone else's table */
   .frame-modal { position: fixed; inset: 0; z-index: 100006; background: var(--overlay); display: flex; align-items: center; justify-content: center; }
   .frame-box { width: min(380px, 94vw); max-height: 94vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
   .frame-head { display: flex; align-items: center; gap: 8px; }

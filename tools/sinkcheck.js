@@ -236,6 +236,24 @@ const U = 'https://evil.example/beacon.png';        // a picture that calls out
     global.window = {};
     const SC2 = await import(modUrl('safecore.js') + '?w');
     check('window.wpSafeCore published with the API', !!(global.window.wpSafeCore && global.window.wpSafeCore.picRef && global.window.wpSafeCore.VERSION === SC2.VERSION));
+    /* ---- Stage 6 U3: the GM's review of a player's sheet upload (sheets.js openReview): every text of it came from a player's file ---- */
+    {
+        const SYC = await import(modUrl('systemcore.js'));
+        const made = [], htmlSet = [];
+        const fake = tag => { const e = { tag, children: [], style: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); return k; }, addEventListener() {} }; Object.defineProperty(e, 'innerHTML', { set(v) { htmlSet.push(v); }, get() { return ''; } }); made.push(e); return e; };
+        const nodes = { uploadModal: fake('div'), uploadHead: fake('h3'), uploadList: fake('div'), uploadApply: fake('button'), uploadReject: fake('button') };
+        const T = '<img src=x onerror=alert(1)>', queue = [{ id: 'up_a', charId: 'c_1', from: 'u_a', name: T + 'Pat', at: 1, changes: [{ id: 'u_1', kind: 'value', f: 'f_st', label: T, from: '"><script>x()</script>', to: '<b onmouseover=y()>', value: 1, accept: true }, { id: 'u_2', kind: 'explode', f: 'f_st', label: T }] }];
+        const camp = { uploads: queue, chars: { c_1: { id: 'c_1', name: T + 'Ana', values: {} } } };
+        const el = (tag, cls, text) => { const e = fake(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+        const openReview = new Function('ui', 'getActiveCampaign', 'uploadsOf', 'charById', 'isClient', 'el', 'systemOf', 'F', 'sbApplyProposal', 'afterCharChange', 'net', 'toast', 'save', 'renderViews', 'closeReview', 'var _review = null, lastChange = null;\n' + slice('sheets.js', 'uploadreview') + '\nreturn openReview;')(
+            id => nodes[id], () => camp, (cp, id) => SYC.cleanUploads(cp.uploads).filter(u => u.charId === id), (id, cp) => cp.chars[id] || null, () => false, el, () => null, () => null, () => ({}), () => {}, () => null, () => {}, () => {}, () => {}, () => {});
+        openReview('c_1');
+        const texts = made.map(e => e.textContent).filter(Boolean), rows = nodes.uploadList.children;
+        check('upload review: a player\'s names, labels and values reach the review as text only (never innerHTML); a change of an unknown kind is left out; the window opens',
+            htmlSet.length === 0 && !/innerHTML|insertAdjacentHTML|outerHTML/.test(slice('sheets.js', 'uploadreview')) && rows.length === 1 && texts.indexOf(T) >= 0 && texts.indexOf('"><script>x()</script>') >= 0 && texts.indexOf('<b onmouseover=y()>') >= 0
+            && nodes.uploadHead.textContent.indexOf(T + 'Pat') === 0 && nodes.uploadModal.style.display === 'flex', JSON.stringify([htmlSet, rows.length, nodes.uploadHead.textContent]));
+    }
+
     delete global.window;
 
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

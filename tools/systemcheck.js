@@ -2303,7 +2303,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(hudFor\(c\.id\)\) \{ var hudB = el\('button', 'tool ghost sys-btn', 'HUD'\); hudB\.dataset\.act = 'hud';/.test(sh3) && /if \(b\.dataset\.act === 'hud'\) \{ openHud\(ch\.id\); return; \}/.test(sh3), j({ iHud, iLayers, bad: incs.filter(x => 'menu-item cm-hud-own'.indexOf(x) >= 0) }));
         const css3b = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), blk3 = css3b.slice(css3b.indexOf('/* ---- Stage 6 HUD frame:'));
         check('HUD frame HF2b: the editor offers a HUD button on the sheet only once the system has a HUD, as one column with its own words and a HUD tab (checked before it is stored); its CSS lives in the HUD block; the tour and Help name every way in',
-            /if \(!hudOn && draftHasHud\(\)\) opts\.push\(\['k:hud', 'HUD button'\]\);/.test(sh3) && /id === 'stance' \|\| id === 'hud' \? 1 : 'row' \}; if \(id === 'heading' \|\| id === 'hud'\) pl\.text = '';/.test(sh3)
+            /if \(!hudOn && draftHasHud\(\)\) opts\.push\(\['k:hud', 'HUD button'\]\);/.test(sh3) && /id === 'stance' \|\| id === 'hud' \? 1 : 'row' \}; if \(id === 'heading' \|\| id === 'hud' \|\| id === 'text'\) pl\.text = '';/.test(sh3)
             && /if \(t\.classList\.contains\('sys-pl-hudtab'\)\) \{[^\n]*if \(plx && plx\.kind === 'hud'\) \{ if \(\/\^t_\[A-Za-z0-9_\]\{1,24\}\$\/\.test\(t\.value\)\) plx\.tab = t\.value; else delete plx\.tab;/.test(sh3) && /if \(pl\.kind === 'hud'\) return 'HUD button';/.test(sh3)
             && /\.sheet-hud-link \{ width: 100%;/.test(blk3) && /a <b>HUD button<\/b> placed on the sheet \(which can open it at one of its tabs\)/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /or a <b>HUD button<\/b> you place on the sheet/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
     }
@@ -4317,6 +4317,19 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('H12b the chips and links pass their character: a section\'s chip and a Handbook link open through openPageFor (never openPage directly any more)',
             /var chipNode = sec\.chip \? pageChip\(sec\.chip, c\) : null;/.test(shH) && /else if \(pl\.kind === 'link'\) node = linkNode\(pl, c\);/.test(shH) && /if \(ch\.closest\('#systemModal'\)\) return; openPageFor\(c, id\); \};/.test(shH) && /if \(b\.closest\('#systemModal'\)\) return; openPageFor\(c, pl\.page\); \}\);/.test(shH)
             && /or, when the character&rsquo;s HUD has a Handbook search, right there in it\./.test(hmH) && /\(hbHudTarget\(c\) \? 'in the HUD\\u2019s handbook search' : 'over the map'\)/.test(shH));
+    }
+    /* ---- Stage 6 HUD H11: a rules-text placement ---- */
+    {
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), hmR = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuR = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const rawR = { v: 1, name: 'R', fields: [], rolls: [], sheet: { sections: [{ id: 's_a', title: 'Manoeuvres', collapsible: true, fields: [
+            { kind: 'text', text: 'Move and Attack: move, then attack at \u22124.\r\nAll-Out Attack:\tno defence.' + String.fromCharCode(7) + '<b>x</b>' }, { kind: 'text', text: 'y'.repeat(2100) }, { kind: 'text' }, { kind: 'text', text: 42 }] }] } };
+        const gR = cleanSystem(rawR, { F, gmView: true }), pR = cleanSystem(rawR, { F, gmView: false }), fR = gR.sheet.sections[0].fields;
+        check('H11 a rules-text placement keeps its words as plain text (Windows line breaks made one, line breaks and tabs kept, other control characters out, 2000 at most; anything but text, or none, is empty) in both views: markup stays text',
+            fR[0].text === 'Move and Attack: move, then attack at \u22124.\nAll-Out Attack:\tno defence. <b>x</b>' && fR[1].text.length === 2000 && fR[2].text === '' && fR[3].text === '' && JSON.stringify(pR.sheet.sections[0].fields) === JSON.stringify(fR) && S.LIMITS.ruleText === 2000, JSON.stringify(fR.map(f => f.text.slice(0, 80))));
+        check('H11 drawn as text (textContent, pre-wrap), nothing when blank; the editor offers Rules text beside Heading, a textarea that keeps up to the limit; Help and the tour say so',
+            /else if \(pl\.kind === 'text'\) node = pl\.text && pl\.text\.trim\(\) \? el\('div', 'sheet-ruletext', pl\.text\) : null;/.test(shR) && /opts\.push\(\['k:heading', 'Heading'\], \['k:text', 'Rules text'\],/.test(shR)
+            && /else if \(plr && c\.indexOf\('sys-pl-rtext'\) >= 0\) \{ var plt = \(sec\.fields \|\| \[\]\)\[\+plr\.dataset\.pi\]; if \(plt\) plt\.text = t\.value\.slice\(0, LIMITS\.ruleText\); \}/.test(shR) && /if \(pl\.kind === 'text'\) return 'Rules text';/.test(shR)
+            && /A <b>Rules text<\/b> placement shows a block of your own words as written/.test(hmR) && /a <b>Rules text<\/b> placement shows your own words as written/.test(tuR) && /\.sheet-ruletext \{ white-space: pre-wrap;/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')) && /\.sheet-ruletext\.sheet-row \{ grid-column: 1 \/ -1; \}/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

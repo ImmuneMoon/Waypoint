@@ -28,6 +28,7 @@ var LIMITS = Object.freeze({
     identity: 12, ledger: 8,                 // Stage 5d: the header block — identity rows and ledger figures (read-only)
     icon: 8, unit: 8,                        // Stage 5g: a tab's or a section's icon (code points: an emoji or a glyph or two), a number's unit ("pts")
     caption: 200, captionExprs: 8,           // Stage 5g Fold B: a field's caption line and the {formula} values in it
+    ruleText: 2000,                          // Stage 6 HUD H11: a rules-text placement (plain text, its line breaks kept)
     labels: 10,                              // Stage 6: names for a number's values (a dropdown) or a formula's (shown instead of the number)
     effects: 100, effectRows: 30, effectMods: 12, effectAmount: 1e6, effectDur: 40,  // Stage 5h: the library, a character's list, changes per effect, a change's size, a duration note
     threats: 6                               // Stage 5h Fold 3: threat marks on a token (world bearings; the first is the active one)
@@ -37,7 +38,7 @@ var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle
 var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });   // effects (5h): a character's status effects — rows, never a number
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
-var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1, hud: 1, search: 1 });   // search (Stage 6 HUD H12): a handbook search over the viewer's own pages   // hud (HUD frame HF2b): a button that opens the character's HUD   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
+var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1, hud: 1, search: 1, text: 1 });   // text (H11): a block of rules text   // search (Stage 6 HUD H12): a handbook search over the viewer's own pages   // hud (HUD frame HF2b): a button that opens the character's HUD   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
 var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // Stage 5c: what the pinned band can hold — kinds that read in one row (text, notes, selects and item lists stay in sections)
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
 var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
@@ -806,6 +807,7 @@ function cleanSections(list, ctx) {
             else if (typeof p.roll === 'string' && rollIds[p.roll]) item = { roll: p.roll, w: w };
             else if (typeof p.kind === 'string' && LAYOUT[p.kind]) {
                 item = { kind: p.kind, w: w }; if (p.kind === 'heading') item.text = str(p.text, LIMITS.label).replace(CTRL_RE, ' ').trim();
+                if (p.kind === 'text') item.text = str(p.text, LIMITS.ruleText).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ');   // Stage 6 HUD H11: rules text — plain, line breaks and tabs kept (drawn as text)
                 if (p.kind === 'link') {   // Stage 5f: a handbook link — its own label (blank = the page's title when drawn) and the page; a link with no page yet is kept for the GM (nothing set is lost on Save), dropped from the players' view
                     item.text = str(p.text, LIMITS.label).replace(CTRL_RE_G, ' ').trim();
                     item.page = validPageId(p.page) ? p.page : '';

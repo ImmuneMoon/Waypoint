@@ -287,6 +287,18 @@ const j = v => JSON.stringify(v);
             && cleanPlayerManifest({ campId: 'k', packs: Array.from({ length: 80 }, (_, i) => ({ id: 'p_' + i, hash: '00000000' })) }).packs.length === LIB.packs, j(pm));
     }
 
+    /* ---- L3b: the players' picker ---- */
+    {
+        const fs = require('fs'), shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), pkB = fs.readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
+        const hmB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuB = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('L3b a player\'s "From the library…": offered when the host\'s manifest has a pack with entries; the picker loads it a page at a time and fetches an entry in full a moment after it is highlighted; a pick is fetched before it is sent (one that cannot be is said, never sent), on the character and field looked up again; Help and the tour say players get it',
+            /if \(!gm && window\.wpLibPicker && window\.wpNet && window\.wpNet\.libManifest\) \{ var lmP = window\.wpNet\.libManifest\(\); libOK = !!lmP && lmP\.packs\.some\(function\(p\) \{ return p\.count > 0; \}\); \}/.test(shB)
+            && /if \(isClient\(\)\) \{ openLibPickerPlayer\(anchor, c, f, spec\); return; \}/.test(shB) && /for \(var pid in byPack\) await N\.libGet\(pid, byPack\[pid\]\);/.test(shB)
+            && /if \(cp !== camp \|\| !ch \|\| !ff\) return;\n\s*var miss = 0; ids\.forEach\(function\(id\) \{ if \(!N\.libEntry\(id\)\) \{ miss\+\+; return; \} commitItem\(ch, ff, \{ op: 'add', defId: id, rowId: uid\('w_'\), qty: qty \}\); \}\);/.test(shB)
+            && /Promise\.resolve\(opts\.source\.load\(function\(\) \{ if \(st !== mine\) return;/.test(pkB) && /st\.getTimer = setTimeout\(function\(\) \{ if \(st !== mine\) return; src\.get\(x\.e, x\.p, function\(full\) \{ if \(st !== mine \|\| !full \|\| full\.id !== want\) return;/.test(pkB)
+            && /<b>Players<\/b> get the same picker on the lists they may change, over the packs you let them see/.test(hmB) && /players get it too, over the packs you let them see/.test(tuB));
+    }
+
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');
     check('under a window the module publishes itself as window.wpLibraryCore', !!(global.window.wpLibraryCore && global.window.wpLibraryCore.cleanPack && global.window.wpLibraryCore.VERSION === L2.VERSION));
     delete global.window;

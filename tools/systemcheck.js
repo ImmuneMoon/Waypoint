@@ -4757,6 +4757,15 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             j(fc1) === j({ rot: 120, threats: [-60, 60] }) && j(fc2) === j({ rot: 270, threats: [] }) && fc3 === null && j(fc4) === j({ rot: 60, threats: [180] })
             && /fc = sc && sc\.sbFacing && st\.on\('turning'\) \? sc\.sbFacing\(d, item\.front\) : null;/.test(sbSrc), j([fc1, fc2, fc3, fc4]));
     }
+
+    /* ---- Stage 6 F8: the roll outcomes option ---- */
+    {
+        const base = { v: 1, name: 'O', rolls: [], fields: [] };
+        const on = cleanSystem(Object.assign({}, base, { combat: { checks: 'under3d6' } }), { F, gmView: true }), off = cleanSystem(Object.assign({}, base, { combat: { checks: 'd20ish' } }), { F, gmView: true }), pv = cleanSystem(Object.assign({}, base, { combat: { checks: 'under3d6' } }), { F, gmView: false });
+        const shO = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        check('F8 the system\'s roll outcomes: 3d6 roll-under kept (the players\' view too), anything else left out (absent: success or failure by the margin, a system unchanged); the Combat card sets and clears it',
+            on.combat.checks === 'under3d6' && !('checks' in off.combat) && pv.combat.checks === 'under3d6' && /labeledSelect\('sys-combat-checks', 'Roll outcomes'/.test(shO) && /if \(t\.value === 'under3d6'\) draft\.combat\.checks = 'under3d6'; else delete draft\.combat\.checks;/.test(shO), JSON.stringify([on.combat, off.combat]));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

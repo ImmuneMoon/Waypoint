@@ -156,6 +156,29 @@ function scripted(list) { let i = 0; return () => { if (i >= list.length) throw 
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');
     check('window.wpDiceCore published', !!(global.window.wpDiceCore && global.window.wpDiceCore.cleanRoll && global.window.wpDiceCore.VERSION === D2.VERSION));
+    /* ---- Stage 6 F8: 3d6 roll-under criticals (a system's combat.checks 'under3d6') ---- */
+    {
+        const threeOf = t => { const a = Math.min(6, t - 2), r = t - a, b = Math.min(6, r - 1); return [a, b, r - b]; };   // three faces summing to t (3..18)
+        const want = (t, T) => (t <= 4 || (t === 5 && T >= 15) || (t === 6 && T >= 16)) ? { pass: true, crit: 'crit' } : (t === 18 || (t === 17 && T <= 15) || t - T >= 10) ? { pass: false, crit: 'fumble' } : { pass: t !== 17 && t <= T, crit: '' };
+        const bad = [];
+        for (let t = 3; t <= 18; t++) for (let T = 3; T <= 20; T++) {
+            const res = roll('3d6 <= ' + T, threeOf(t)), v = verdictOf(res, 'under3d6'), c = critOf(res, 'under3d6'), w = want(t, T);
+            if (!v || v.pass !== w.pass || (v.crit || '') !== w.crit || (c || '') !== w.crit) bad.push(t + ' vs ' + T + ': ' + JSON.stringify([v, c]));
+        }
+        check('F8 3d6 roll-under, every total 3-18 against every target 3-20: 3-4 a critical success, 5 at 15+, 6 at 16+; 17 a failure (critical at 15 or less); 18 or failing by 10+ a critical failure; otherwise the total against the target', !bad.length, bad.slice(0, 6));
+        const v17 = verdictOf(roll('3d6 <= 18', [6, 6, 5]), 'under3d6'), vPlain = verdictOf(roll('3d6 <= 18', [6, 6, 5])), v10 = verdictOf(roll('3d6 <= 12', [3, 3, 4]), 'under3d6');
+        check('F8 the verdict reads the rule (17 against 18 a failure by nothing, 10 against 12 a success by 2); without it the arithmetic stands (17 <= 18 a success)',
+            v17.pass === false && v17.text === 'failure' && vPlain.pass === true && v10.pass === true && v10.text === 'success by 2' && v10.crit === '', JSON.stringify([v17, vPlain, v10]));
+        const other = ['3d6 + 1 <= 12', '4d6 <= 12', '3d6 >= 10', '2d6 <= 12', '3d6r1 <= 12'].map(e => { const r = F.evaluate(e, { random: scripted([1, 1, 1, 6, 6, 6]) }); return D.under3d6(r); });
+        check('F8 the rule reads only a plain 3d6 on the left of "<=": something added, another count, a roll-over, a reroll that fired or another die read as ordinary checks', other.every(x => x === null) && critOf(roll('d20', [20]), 'under3d6') === 'crit', JSON.stringify(other));
+        const c18 = cardText(rec({ expr: '3d6 <= 12', draws: [6, 6, 6] }), roll('3d6 <= 12', [6, 6, 6]), F, { rule: 'under3d6' }), c17 = cardText(rec({ expr: '3d6 <= 18', draws: [6, 6, 5] }), roll('3d6 <= 18', [6, 6, 5]), F, { rule: 'under3d6' });
+        const c10 = cardText(rec({ expr: '3d6 <= 12', draws: [3, 3, 4] }), roll('3d6 <= 12', [3, 3, 4]), F, { rule: 'under3d6' }), c18p = cardText(rec({ expr: '3d6 <= 12', draws: [6, 6, 6] }), roll('3d6 <= 12', [6, 6, 6]), F, {});
+        check('F8 the log line states the rule\'s verdict in place of the arithmetic\'s (18: critical failure by 6; 17 against 18: failure; 10 against 12: success by 2), and without the rule the arithmetic\'s',
+            /= 18 <= 12: critical failure by 6$/.test(c18) && /<= 18: failure$/.test(c17) && /<= 12: success by 2$/.test(c10) && /<= 12: failure by 6$/.test(c18p), JSON.stringify([c18, c17, c10, c18p]));
+        const rf = n => require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', n), 'utf8'), diceJs = rf('dice.js'), netJs = rf('net.js');
+        check('F8 the card, the log and a roll\'s consequences all read the campaign\'s roll outcomes (the card: critical success / critical failure)',
+            /var v = verdictOf\(res, rule\), crit = critOf\(res, rule\)/.test(diceJs) && /parts\[parts\.length - 1\]\.replace\(/.test(diceJs) && /'critical success' : 'critical failure'/.test(diceJs) && /vdQ = Dq\.verdictOf\(resQ, ruleQ\)/.test(netJs) && /vdR = D\.verdictOf\(res, ruleR\)/.test(netJs) && /rule: ruleQ \}/.test(netJs) && /rule: ruleR \}/.test(netJs));
+    }
     delete global.window;
 
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

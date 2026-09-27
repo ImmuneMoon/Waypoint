@@ -7,7 +7,7 @@
    docs/STAGE_6_LIBRARY_BUILD.md. */
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex } from './librarycore.js';
+import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText } from './librarycore.js';
 import { setLibraryFind, coreOf, cleanSystem, libSnaps } from './systemcore.js';
 
 function map() { return Object.create(null); }
@@ -138,8 +138,32 @@ function entry(id) { var camp = getActiveCampaign(); return camp && cur.campId =
 function entriesOf(packId) { return (cur.packs[packId] || []).map(function(id) { return cur.byId[id]; }).filter(Boolean); }
 // L2a: a pack read for the campaign on screen (made, written or loaded): one still loading or unreadable is not, so nothing writes over it
 function ready(packId) { var camp = getActiveCampaign(); return !!camp && cur.campId === camp.id && typeof packId === 'string' && Object.prototype.hasOwnProperty.call(cur.packs, packId); }
+// L3: the library as players see it — for each pack they may see, its entries in the players' view (librarycore playerIndex), worked out
+// once per pack revision and players' fields; the manifest they get (visible packs, counted and hashed on that view: no folder, no
+// revision, no GM-only pack); an entry of it by id. The GM's machine only, the campaign on screen, packs it has read
+var _pidx = map();
+function plSysOf(camp) { try { return window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(camp) : null; } catch (e) { return null; } }
+function playerIndexOf(packId, plSys) {
+    var camp = getActiveCampaign(); if (!camp || !camp.library || !gmHere() || !ready(packId)) return null;
+    var p = camp.library.packs.filter(function(x) { return x.id === packId; })[0]; if (!p || p.vis === 'gm') return null;
+    plSys = plSys || plSysOf(camp); var fields = plSys && Array.isArray(plSys.fields) ? plSys.fields : [];
+    var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)), m = _pidx[packId]; if (m && m.sig === sig) return m;
+    var ix = playerIndex(entriesOf(packId), libCtx({ fields: fields }, F(), false)); ix.sig = sig; _pidx[packId] = ix;
+    return ix;
+}
+function playerManifest() {
+    var camp = getActiveCampaign(); if (!camp || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return null;
+    var pl = plSysOf(camp), packs = [];
+    (camp.library ? camp.library.packs : []).forEach(function(p) { var ix = playerIndexOf(p.id, pl); if (!ix) return; var o = { id: p.id, name: p.name, count: ix.rows.length, hash: ix.hash }; if (p.icon) o.icon = p.icon; packs.push(o); });
+    return { campId: camp.id, packs: packs };
+}
+function playerEntry(id) {
+    var camp = getActiveCampaign(); if (!camp || !camp.library || typeof id !== 'string') return null; var pl = plSysOf(camp);
+    for (var i = 0; i < camp.library.packs.length; i++) { var ix = playerIndexOf(camp.library.packs[i].id, pl); if (ix && Object.prototype.hasOwnProperty.call(ix.byId, id)) return ix.byId[id]; }
+    return null;
+}
 setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, playerIndexOf: playerIndexOf, playerManifest: playerManifest, playerEntry: playerEntry };

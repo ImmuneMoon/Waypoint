@@ -1463,8 +1463,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     if (q.op === 'add') {
         if (typeof q.defId !== 'string' || !ITEM_ID.test(q.defId)) return { ok: false, reason: 'value' };
         var ent = itemDef(sys, q.defId), fromLib = false;
-        if (!ent && !opts.player) { ent = libFind(q.defId); fromLib = !!ent; }   // Stage 6 library L2c: the GM's machine adds an entry of the library too (a player's pick of one comes with the wire, L3)
-        var inView = opts.player ? valueOpts(opts.view || null).items[q.defId] === 1 : !!ent;
+        if (!ent) { var lk = opts.player ? opts.lib : libFind, le = typeof lk === 'function' ? lk(q.defId) : null; if (isObj(le)) { ent = le; fromLib = true; } }   // Stage 6 library: the GM's machine reads its library (L2c); a player's pick only through opts.lib (L3: the host's entries of packs players may see, the client's own copies)
+        var inView = opts.player ? (fromLib || valueOpts(opts.view || null).items[q.defId] === 1) : !!ent;
         if (!ent || !inView || (opts.player && ent.vis === 'gm')) return { ok: false, reason: 'missing' };
         if (opts.player && spec && Array.isArray(spec.cats) && !catIn(spec.cats, ent.category)) return { ok: false, reason: 'missing' };   // F4b: outside the list's categories reads as gone
         var n = spec && spec.noQty ? 1 : clampNum((q.qty | 0) || 1, 1, LIMITS.maxQty), have = -1;

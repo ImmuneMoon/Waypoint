@@ -12,7 +12,9 @@ export var LIB = Object.freeze({
     packs: 64, entries: 10000, total: 50000,          // packs per campaign, entries per pack, entries per library
     desc: 4000, gmNotes: 2000, tags: 8, tag: 24, ref: 40, packName: 60,
     fileBytes: 16 * 1024 * 1024, keepRevs: 5,          // a pack file (or an import) at most; revisions of a pack kept on disk
-    reasons: 20                                        // the reasons an import lists (the rest counted)
+    reasons: 20,                                       // the reasons an import lists (the rest counted)
+    page: 400, getIds: 50, answerBytes: 48 * 1024,     // L3 on the wire: index rows a page, ids an ask, an answer's entries at most (behind them: dice and chat)
+    hostBudget: 64 * 1024 * 1024, clientBudget: 32 * 1024 * 1024, cache: 2000   // bytes a profile may draw from a host a session; a player takes; entries a player keeps
 });
 export var DIR_RE = /^l_[a-z0-9]{8}$/, PACK_RE = /^p_[A-Za-z0-9_]{1,24}$/, ITEM_RE = /^i_[A-Za-z0-9_]{1,24}$/, HASH_RE = /^[0-9a-f]{8}$/;
 var CTRL_LINE = /[\u0000-\u001f\u007f]/g, CTRL_TEXT = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
@@ -259,6 +261,42 @@ export function bulkMove(src, dst, ids, opts) {
     });
     return out;
 }
+// L3: a pack as players see it — its entries as the players' view holds them (a GM-only one gone), their index rows (what a picker
+// lists), by id, and a hash over the rows (a GM-only edit never moves it). { rows, byId, hash }
+export function playerIndex(entries, plCtx) {
+    var rows = [], byId = map();
+    (Array.isArray(entries) ? entries : []).forEach(function(e) { var c = cleanLibEntry(e, plCtx); if (!c || byId[c.id]) return; byId[c.id] = c; rows.push(indexRow(c)); });
+    return { rows: rows, byId: byId, hash: hashText(rows.map(function(r) { return r[6]; }).join(',')) };
+}
+// L3: one page of a pack's index for the wire (size rows at most); a page out of range (or not a whole number): null
+export function indexPage(rows, page, size) {
+    var n = Array.isArray(rows) ? rows.length : 0, pages = Math.max(1, Math.ceil(n / size));
+    if (typeof page !== 'number' || page !== Math.floor(page) || page < 0 || page >= pages) return null;
+    return { page: page, pages: pages, rows: rows.slice(page * size, page * size + size) };
+}
+// L3: the entries an ask may take (ids of that pack only, each once, at most LIB.getIds), in the order asked, within cap bytes — one
+// always goes; the rest are left for another ask
+export function getAnswer(byId, ids, cap) {
+    var out = [], bytes = 0, seen = map();
+    (Array.isArray(ids) ? ids : []).slice(0, LIB.getIds).forEach(function(id) {
+        if (typeof id !== 'string' || !ITEM_RE.test(id) || seen[id] || !byId || !own(byId, id)) return; seen[id] = 1;
+        var n = JSON.stringify(byId[id]).length; if (out.length && bytes + n > cap) return;
+        bytes += n; out.push(byId[id]);
+    });
+    return out;
+}
+// L3: the manifest a player takes from the host: the campaign it is for, at most LIB.packs packs, each an id, a name on one line, an
+// icon, a count and a hash (nothing else: no folder, no revision). null when it is not one
+export function cleanPlayerManifest(m) {
+    if (!isObj(m) || typeof m.campId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(m.campId) || !Array.isArray(m.packs)) return null;
+    var out = { campId: m.campId, packs: [] }, seen = map();
+    m.packs.forEach(function(p) {
+        if (out.packs.length >= LIB.packs || !isObj(p) || typeof p.id !== 'string' || !PACK_RE.test(p.id) || seen[p.id] || typeof p.hash !== 'string' || !HASH_RE.test(p.hash)) return;
+        seen[p.id] = 1; var o = { id: p.id, name: line(p.name, LIB.packName) || 'Pack', count: typeof p.count === 'number' && isFinite(p.count) ? Math.max(0, Math.min(LIB.entries, Math.floor(p.count))) : 0, hash: p.hash };
+        var ic = cleanIcon(p.icon); if (ic) o.icon = ic; out.packs.push(o);
+    });
+    return out;
+}
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host)
 export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
@@ -269,5 +307,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, queryWords: queryWords, entryHay: entryHay, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, queryWords: queryWords, entryHay: entryHay, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, playerIndex: playerIndex, indexPage: indexPage, getAnswer: getAnswer, cleanPlayerManifest: cleanPlayerManifest, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

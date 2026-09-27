@@ -106,6 +106,26 @@ export function packMeta(entries, plCtx, bytes) {
     var hs = []; (Array.isArray(entries) ? entries : []).forEach(function(e) { var p = cleanLibEntry(e, plCtx); if (p) hs.push(p.id + ':' + entryHash(p)); });
     return { count: Array.isArray(entries) ? entries.length : 0, bytes: typeof bytes === 'number' && bytes > 0 ? Math.min(LIB.fileBytes, Math.floor(bytes)) : 0, hash: hs.length ? hashText(hs.join('|')) : '' };
 }
+// L1c2: how an imported campaign's library lands here. A manifest from a file is used only with its pack files (a zip carries them as
+// library/<its dir>/<id>.<rev>.json). Into a campaign with no library it gets a fresh folder (never the file's, which may be one this
+// machine already uses); into one that has a library, its packs join that folder — a pack id already there takes a revision past both,
+// since a revision is never rewritten with other content. At most LIB.packs (the rest counted). A pack never written (revision 0) copies
+// nothing. { manifest, uploads: [{ dir, pack, rev, from }], left } or null when there is nothing to bring
+export function libImportPlan(existing, imported, rnd) {
+    var im = cleanManifest(imported); if (!im || !im.packs.length) return null;
+    var out = cleanManifest(existing) || { v: VERSION, dir: newDir(rnd), packs: [] }, uploads = [], left = 0;
+    im.packs.forEach(function(p) {
+        var from = 'library/' + im.dir + '/' + p.id + '.' + p.rev + '.json', have = out.packs.filter(function(q) { return q.id === p.id; })[0];
+        if (have) {
+            var rev = p.rev ? Math.min(1e9, Math.max(have.rev, p.rev) + 1) : have.rev;
+            if (p.rev) { have.name = p.name; have.vis = p.vis; if (p.icon) have.icon = p.icon; else delete have.icon; have.rev = rev; have.count = p.count; have.bytes = p.bytes; have.hash = p.hash; uploads.push({ dir: out.dir, pack: p.id, rev: rev, from: from }); }
+            return;
+        }
+        if (out.packs.length >= LIB.packs) { left++; return; }
+        out.packs.push(JSON.parse(JSON.stringify(p))); if (p.rev) uploads.push({ dir: out.dir, pack: p.id, rev: p.rev, from: from });
+    });
+    return { manifest: out, uploads: uploads, left: left };
+}
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host)
 export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
@@ -116,5 +136,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

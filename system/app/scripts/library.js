@@ -7,7 +7,7 @@
    docs/STAGE_6_LIBRARY_BUILD.md. */
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev } from './librarycore.js';
+import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan } from './librarycore.js';
 import { setLibraryFind } from './systemcore.js';
 
 function map() { return Object.create(null); }
@@ -80,10 +80,32 @@ async function deletePack(packId) {
     try { await fetch('/api/library?dir=' + dir + (last ? '' : '&pack=' + packId), { method: 'DELETE' }); } catch (e) {}   // its files go, the folder with the last (a backup keeps its own)
     return { ok: true };
 }
+// L1c2: an import's pack files copied beside the save — each cleaned like any pack read (never trusted as it came), written at the
+// revision its campaign's manifest now pins; the manifest watch waits until they are all there, then the library is read again.
+// jobs: [{ camp, uploads }], files: the zip's entries by name
+var busy = 0;
+async function importFiles(jobs, files) {
+    busy++; var ok = 0, bad = 0;
+    try {
+        for (var j = 0; j < jobs.length; j++) {
+            var camp = jobs[j].camp, ctx = libCtx(camp && camp.system, F(), true);
+            for (var k = 0; k < jobs[j].uploads.length; k++) {
+                var u = jobs[j].uploads[k], fe = files && Object.prototype.hasOwnProperty.call(files, u.from) ? files[u.from] : null;
+                var rd = fe ? readPackFile(new TextDecoder().decode(fe.data), ctx) : null; if (!rd || rd.error || rd.pack.id !== u.pack) { bad++; continue; }
+                rd.pack.rev = u.rev;
+                var res = null; try { res = await fetch('/api/library?dir=' + u.dir + '&pack=' + u.pack + '&rev=' + u.rev, { method: 'POST', body: JSON.stringify(rd.pack) }); } catch (e) { res = null; }
+                if (res && res.ok) ok++; else { bad++; if (res && res.status === 404) oldCore(); }
+            }
+        }
+    } finally { busy--; }
+    if (ok || bad) toast('Library packs copied: ' + ok + (bad ? ', ' + bad + ' could not be' : '') + '.');
+    load(getActiveCampaign());
+    return { ok: ok, bad: bad };
+}
 function entry(id) { var camp = getActiveCampaign(); return camp && cur.campId === camp.id && typeof id === 'string' && Object.prototype.hasOwnProperty.call(cur.byId, id) ? cur.byId[id] : null; }
 function entriesOf(packId) { return (cur.packs[packId] || []).map(function(id) { return cur.byId[id]; }).filter(Boolean); }
 setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
-setInterval(function() { var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
+setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan };

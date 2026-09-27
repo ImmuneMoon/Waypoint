@@ -1505,11 +1505,24 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
               (Array.isArray(listed) ? listed : []).forEach(function(im) { if (im && im.path && !/^journal(\/|$)/.test(im.folder || '') && (scope === 'all' || own[im.folder]) && paths.indexOf(im.path) < 0) paths.push(im.path); });
           } catch (e) {}
       }
-      if (!paths.length) return { name: base + '.json', text: json };
+      // Stage 6 library L1c2: a campaign export carries each pack file its manifest pins (library/<dir>/<id>.<rev>.json), so a campaign
+      // with a library always travels as a zip
+      var libFiles = [];
+      if (scope === 'campaign' || scope === 'all') {
+          var libCamps = Object.values(payload.campaigns || {}).filter(function(c) { return c && c.library && typeof c.library.dir === 'string' && Array.isArray(c.library.packs); });
+          for (var lc = 0; lc < libCamps.length; lc++) {
+              var lm = libCamps[lc].library;
+              for (var lp = 0; lp < lm.packs.length; lp++) {
+                  var pk = lm.packs[lp]; if (!pk || !pk.rev) continue;
+                  try { var lr = await fetch('/api/library?dir=' + encodeURIComponent(lm.dir) + '&pack=' + encodeURIComponent(pk.id) + '&rev=' + pk.rev); if (lr.ok) libFiles.push({ name: 'library/' + lm.dir + '/' + pk.id + '.' + pk.rev + '.json', data: new Uint8Array(await lr.arrayBuffer()) }); } catch (e) {}
+              }
+          }
+      }
+      if (!paths.length && !libFiles.length) return { name: base + '.json', text: json };
 
-      toast('Bundling ' + paths.length + ' image(s)\u2026');
+      toast('Bundling ' + paths.length + ' image(s)' + (libFiles.length ? ' and ' + libFiles.length + ' library pack(s)' : '') + '\u2026');
       var enc = new TextEncoder();
-      var entries = [{ name: 'data.json', data: enc.encode(json) }];
+      var entries = [{ name: 'data.json', data: enc.encode(json) }].concat(libFiles);
       var missing = 0;
       for (var k = 0; k < paths.length; k++) {
           try {
@@ -1519,7 +1532,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
           } catch(e) { missing++; }
       }
       var zip = await import('./zip.js');
-      return { name: base + '.zip', blob: zip.zipCreate(entries), images: entries.length - 1, missing: missing };
+      return { name: base + '.zip', blob: zip.zipCreate(entries), images: entries.length - 1 - libFiles.length, library: libFiles.length, missing: missing };
   }
   window.wpBuildExport = buildExport;
 

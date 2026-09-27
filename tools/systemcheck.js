@@ -810,7 +810,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && ackOf(hC).msg === 'A chill lingers' && gearS().some(r => r.hid === 1 && r.defId === 'i_sword') && !gearS().some(r => r.id === 'w_s1') && j(hC.notes) === j([['P', 'Sword', 'curse-drop']]) && hC.deltas.length === 1, j([hA.sent, hU.sent, hLate.sent, hR.sent, hC.sent, gr]));
         // the client's pending changes (sliced from net.js): a refusal goes back to the host's LAST copy, the changes still waiting worked out again on it
         const pend = netSrc4.slice(netSrc4.indexOf('// [netcheck:pending-start]'), netSrc4.indexOf('// [netcheck:pending-end]'));
-        const mkPend = new Function('getActiveCampaign', 'SC', 'window', 'toast', '_charPending', '_charHost', pend + '\nreturn { charPendingDone: charPendingDone, reapplyPending: reapplyPending, noteHostCopy: noteHostCopy };');
+        const mkPend = (...a) => new Function('getActiveCampaign', 'SC', 'window', 'toast', '_charPending', '_charHost', 'net', pend + '\nreturn { charPendingDone: charPendingDone, reapplyPending: reapplyPending, noteHostCopy: noteHostCopy };')(...a, { libEntry: () => null });   // L3b: the client's library (none here)
         const campP = { id: 'camp1', system: view4, chars: { c_1: { id: 'c_1', name: 'P', ownerId: 'u_p', npc: false, values: { f_gear: [{ defId: 'i_rope', qty: 1 }] } } } }, pendQ = {}, hostB = {}, seen = [];
         const PF = mkPend(() => campP, () => S, { wpFormula: F, wpSheets: { charChanged() {}, editResult: (rid, ok, reason, msg) => seen.push([rid, ok, reason, msg]) } }, m => seen.push(['toast', m]), pendQ, hostB);
         const cp = campP.chars.c_1, P4v = { player: true, view: view4 }; PF.noteHostCopy('c_1', cp.values);

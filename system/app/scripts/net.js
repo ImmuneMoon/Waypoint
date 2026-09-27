@@ -1324,6 +1324,86 @@ net.syncLibrary = function(force) {
 };
 var _libSpent = Object.create(null);   // L3: bytes of the library each profile has drawn this session (a reconnect does not start it again)
 // [netcheck:libmansync-end]
+// [netcheck:libclient-start]
+// Stage 6 library L3b: a player's side of the library — the manifest the host sent, for this session only (nothing of another table's
+// library is written to disk); each pack's index loaded a page at a time; entries fetched when they are wanted (a cache of LIB.cache);
+// at most LIB.clientBudget bytes taken a session. One ask in flight at the table (the host's rate limit spaces them): 20 s each, a busy
+// host asked again after 800 ms × n up to 5 times. Every answer is cleaned again — index rows (cleanIndexRow), entries (cleanLibEntry in
+// the players' view) — and only the answer to the ask in flight, for the pack and ids it asked about, is taken
+var _lib = { man: null, idx: Object.create(null), ent: new Map(), spent: 0, ask: null, queue: [] };
+function libLC() { return window.wpLibraryCore || null; }
+net.libReset = function() {
+    if (_lib.ask) { clearTimeout(_lib.ask.timer); _lib.ask.resolve({ err: 'gone' }); }
+    _lib.queue.forEach(function(q) { q.resolve({ err: 'gone' }); });
+    _lib = { man: null, idx: Object.create(null), ent: new Map(), spent: 0, ask: null, queue: [] };
+};
+net.libTake = function(mm) {
+    var old = _lib.man; _lib.man = mm;
+    if (!old || old.campId !== mm.campId) { _lib.idx = Object.create(null); _lib.ent = new Map(); }
+    else {
+        var now = Object.create(null); mm.packs.forEach(function(p) { now[p.id] = p.hash; });
+        Object.keys(_lib.idx).forEach(function(pid) { if (now[pid] !== _lib.idx[pid].hash) delete _lib.idx[pid]; });   // a pack that moved (or went) is read again
+        _lib.ent.forEach(function(v, id) { if (now[v.p] !== v.h) _lib.ent.delete(id); });
+    }
+};
+net.libManifest = function() { var m = _lib.man; return m && state.appState && m.campId === state.appState.activeCampaignId ? m : null; };
+net.libRows = function(packId) { var ix = _lib.idx[packId]; return ix ? ix.rows : []; };
+net.libLoaded = function(packId) { var ix = _lib.idx[packId]; return ix ? ix.rows.length : 0; };
+net.libEntry = function(id) { var v = typeof id === 'string' ? _lib.ent.get(id) : null; return v ? v.e : null; };   // what applyRowOp reads for a player's pick (opts.lib)
+function libSend(o) {
+    return new Promise(function(resolve) { _lib.queue.push({ o: o, resolve: resolve, tries: 0 }); libPump(); });
+}
+function libPump() {
+    if (_lib.ask || !_lib.queue.length) return;
+    var q = _lib.queue.shift(), c = net.conns[0];
+    if (!net.active || net.role !== 'client' || !c || !c.open || c.peer !== net.syncedPeer) { q.resolve({ err: 'gone' }); libPump(); return; }
+    q.o.rid = 'l' + Math.random().toString(36).slice(2, 12);
+    _lib.ask = q; q.timer = setTimeout(function() { if (_lib.ask !== q) return; _lib.ask = null; q.resolve({ err: 'timeout' }); libPump(); }, 20000);
+    try { c.send(q.o); } catch (e) { clearTimeout(q.timer); _lib.ask = null; q.resolve({ err: 'gone' }); libPump(); }
+}
+net.libAnswer = function(msg) {
+    var q = _lib.ask; if (!q || !msg || msg.rid !== q.o.rid || msg.type !== q.o.type + '-ans') return;   // only the answer to the ask in flight
+    clearTimeout(q.timer); _lib.ask = null;
+    if (msg.err === 'busy' && q.tries < 5) { q.tries++; setTimeout(function() { _lib.queue.unshift(q); libPump(); }, 800 * q.tries); return; }
+    var LC = libLC(), n = 0; try { n = JSON.stringify(msg).length; } catch (e) { n = Infinity; }
+    if (!LC || _lib.spent + n > LC.LIB.clientBudget) { q.resolve({ err: 'budget' }); libPump(); return; }
+    _lib.spent += n; q.resolve(msg); libPump();
+};
+// a pack's whole index, a page at a time (a pack that changes while it loads is read again, three times at most); progress() after each page
+net.libLoad = function(packId, progress) {
+    var m = net.libManifest(), LC = libLC(), p = m ? m.packs.filter(function(x) { return x.id === packId; })[0] : null; if (!p || !LC) return Promise.resolve(false);
+    var ix = _lib.idx[packId]; if (ix && ix.done) return Promise.resolve(true); if (ix && ix.loading) return ix.loading;
+    ix = _lib.idx[packId] = { hash: p.hash, rows: [], seen: Object.create(null), done: false, loading: null };
+    ix.loading = (async function() {
+        var page = 0, pages = 1, again = 0;
+        while (page < pages) {
+            var a = await libSend({ type: 'lib-idx', campId: m.campId, packId: packId, page: page });
+            if (_lib.idx[packId] !== ix) return false;   // dropped meanwhile (the manifest moved)
+            if (!a || a.err || a.packId !== packId || typeof a.hash !== 'string' || !LC.HASH_RE.test(a.hash) || a.page !== page || typeof a.pages !== 'number' || !Array.isArray(a.rows)) { ix.loading = null; ix.err = (a && a.err) || 'bad'; return false; }
+            if (page > 0 && a.hash !== ix.hash) { if (++again > 3) { ix.loading = null; ix.err = 'moving'; return false; } ix.rows = []; ix.seen = Object.create(null); page = 0; ix.hash = a.hash; continue; }
+            ix.hash = a.hash; pages = Math.max(1, Math.min(Math.floor(a.pages) || 1, Math.ceil(LC.LIB.entries / LC.LIB.page)));
+            a.rows.forEach(function(r) { var c = LC.cleanIndexRow(r); if (c && !ix.seen[c[0]] && ix.rows.length < LC.LIB.entries) { ix.seen[c[0]] = 1; ix.rows.push(c); } });
+            page++; if (typeof progress === 'function') try { progress(); } catch (e) {}
+        }
+        ix.done = true; ix.loading = null; return true;
+    })();
+    return ix.loading;
+};
+// entries of a pack by id — the cache first, the rest asked for (50 an ask; what an answer left out for size is asked again); the ones held
+net.libGet = async function(packId, ids) {
+    var m = net.libManifest(), LC = libLC(), camp = getActiveCampaign(); if (!m || !LC || !camp || !Array.isArray(ids)) return [];
+    var ctx = LC.libCtx(camp.system, window.wpFormula, false), once = Object.create(null), want = ids.filter(function(id) { if (typeof id !== 'string' || !LC.ITEM_RE.test(id) || _lib.ent.has(id) || once[id]) return false; once[id] = 1; return true; }).slice(0, 200), rounds = 0;
+    while (want.length && rounds++ < 20) {
+        var chunk = want.slice(0, LC.LIB.getIds), a = await libSend({ type: 'lib-get', campId: m.campId, packId: packId, ids: chunk });
+        if (!a || a.err || a.packId !== packId || typeof a.hash !== 'string' || !Array.isArray(a.entries)) break;
+        var asked = Object.create(null), got = 0; chunk.forEach(function(id) { asked[id] = 1; });
+        a.entries.forEach(function(e) { var c = LC.cleanLibEntry(e, ctx); if (!c || asked[c.id] !== 1) return; asked[c.id] = 2; got++; _lib.ent.delete(c.id); _lib.ent.set(c.id, { e: c, p: packId, h: a.hash }); while (_lib.ent.size > LC.LIB.cache) _lib.ent.delete(_lib.ent.keys().next().value); });
+        if (!got) break;
+        want = want.filter(function(id) { return asked[id] !== 2; });
+    }
+    return ids.map(function(id) { return net.libEntry(id); }).filter(Boolean);
+};
+// [netcheck:libclient-end]
 net._lastSystemSig = null;
 net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
 net.syncSystem = function(force) {
@@ -1509,7 +1589,7 @@ net.charItem = function(charId, fieldId, q) {
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (!camp.system) return { error: 'No system at this table.' };
-    var res = S.applyRowOp(camp.system, c, fieldId, q, window.wpFormula, { player: true, view: camp.system });   // a player's copy IS the players' view
+    var res = S.applyRowOp(camp.system, c, fieldId, q, window.wpFormula, { player: true, view: camp.system, lib: net.libEntry });   // a player's copy IS the players' view (L3b: a library entry, from what this player fetched)
     if (!res.ok) return { error: res.why === 'key' ? 'That key is already used in this list.' : res.why === 'badkey' ? 'Not a usable key: a letter, then letters, digits and _ (up to 40).' : res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.' };   // why (F4c3): the local answer's own (a key taken in what they can see, or not a key), never sent
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
@@ -1583,7 +1663,7 @@ function reapplyPending(charId) {
     mine.forEach(function(rid) {
         var p = _charPending[rid];
         if (p.q && S && camp.system && b) {
-            var o = { player: true, view: camp.system }, r = p.kind === 'fx' ? S.applyEffectOp(camp.system, c, p.fieldId, p.q, window.wpFormula, o) : S.applyRowOp(camp.system, c, p.fieldId, p.q, window.wpFormula, o);
+            var o = { player: true, view: camp.system, lib: net.libEntry }, r = p.kind === 'fx' ? S.applyEffectOp(camp.system, c, p.fieldId, p.q, window.wpFormula, o) : S.applyRowOp(camp.system, c, p.fieldId, p.q, window.wpFormula, o);
             if (r && r.ok) c.values[p.fieldId] = r.value;
             return;
         }
@@ -3253,6 +3333,19 @@ function handleMessage(msg, conn) {
         campNm.name = msg.name.slice(0, 200);
         renderWhere();
         // [netcheck:campname-end]
+    } else if (msg.type === 'libManifest' && net.role === 'client') {
+        // [netcheck:libman-start]
+        // Stage 6 library L3b: the library the host lets players look through — from the synced host only, for the hosted campaign, cleaned
+        // (librarycore cleanPlayerManifest: ids, names, icons, counts, hashes; nothing else); a pack whose hash moved is read again
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        var LCm = window.wpLibraryCore, mm = LCm ? LCm.cleanPlayerManifest(msg) : null;
+        if (!mm || mm.campId !== state.appState.activeCampaignId || !campOf(mm.campId)) return;
+        net.libTake(mm);
+        if (window.wpSheetsSync) window.wpSheetsSync();   // the sheets' "From the library…" follows
+        // [netcheck:libman-end]
+    } else if ((msg.type === 'lib-idx-ans' || msg.type === 'lib-get-ans') && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;   // L3b: from the synced host only; net.libAnswer takes only the answer to the ask in flight
+        net.libAnswer(msg);
     } else if (msg.type === 'turnRules' && net.role === 'client') {
         // [netcheck:turnrules-start]
         // who may press an effect's timer changed mid-session (turn-based combat T5b): from the synced host only, for the hosted campaign, the one
@@ -3817,6 +3910,7 @@ function leaveSession(silent) {
     net.syncedPeer = null;
     net.sounds = null; net.soundNow = null;   // transport memory, unlike the ceiling: the next table sends its own list
     net.music = null;                         // the music library too; wpMusic.tableLeft below stops any playback
+    net.libReset(); _libSpent = Object.create(null);   // Stage 6 library L3: a table's library and what its players drew, gone with the session
     resetAssetTransfers();                    // in-flight sound requests and their waiters die with the connection
     if (window.wpSound) window.wpSound.tableLeft(wasClient);
     if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(wasClient);

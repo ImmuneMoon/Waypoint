@@ -2793,6 +2793,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);            // the plain carried list (as before)
         var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
         var libOK = gm && !!window.wpLibPicker && !!(window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0);   // Stage 6 library L2c: the GM's machine offers the campaign's library too
+        if (!gm && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); libOK = !!lmP && lmP.packs.some(function(p) { return p.count > 0; }); }   // L3b: a player, the packs the host lets them see
         if (editable && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried);   // F4b: the list's categories, grouped
@@ -2809,12 +2810,37 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
 // Stage 6 library L2c: "From the library…" on the GM's machine — the picker over the campaign's packs (libpicker.js), filtered to the list's
 // categories; each pick is an ordinary add, the character and the field looked up again (the picker can stay open across renders)
 function openLibPicker(anchor, c, f, spec, carried) {
+    if (isClient()) { openLibPickerPlayer(anchor, c, f, spec); return; }
     var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
     var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) once[r.defId] = 1; }); }
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string') labels[s.key] = s.label || s.key; });
     LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true,
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
         onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { commitItem(ch, ff, { op: 'add', defId: id, rowId: uid('w_'), qty: qty }); }); } });
+}
+// Stage 6 library L3b: a player's "From the library…" — the same picker over the packs the host lets them see, loaded over the wire a page at
+// a time (wpNet.libLoad), an entry fetched in full for the preview and before it is added (the pick is judged by the host; what the player
+// predicts reads the entry fetched). The rows a player holds carry no library id, so a list that holds each once is left to the host
+function openLibPickerPlayer(anchor, c, f, spec) {
+    var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
+    var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
+    var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string') labels[s.key] = s.label || s.key; });
+    var asEntry = function(r) { return { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; };
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false,
+        source: {
+            packs: function() { return packs; },
+            entries: function(pid) { return N.libRows(pid).map(asEntry); },
+            load: async function(progress) { for (var i = 0; i < packs.length; i++) await N.libLoad(packs[i].id, progress); done = true; },
+            status: function() { if (done) return ''; var have = packs.reduce(function(n, p) { return n + N.libLoaded(p.id); }, 0); return 'Loading ' + have.toLocaleString() + ' of ' + total.toLocaleString() + '…'; },
+            get: function(e, p, back) { var hit = N.libEntry(e.id); if (hit) { back(hit); return; } N.libGet(p.id, [e.id]).then(function() { back(N.libEntry(e.id)); }); }
+        },
+        onAdd: async function(ids, qty, packOf) {
+            var byPack = {}; ids.forEach(function(id) { var pid = packOf && packOf[id]; if (pid) (byPack[pid] = byPack[pid] || []).push(id); });
+            for (var pid in byPack) await N.libGet(pid, byPack[pid]);
+            var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return;
+            var miss = 0; ids.forEach(function(id) { if (!N.libEntry(id)) { miss++; return; } commitItem(ch, ff, { op: 'add', defId: id, rowId: uid('w_'), qty: qty }); });
+            if (miss) toast(miss === 1 ? 'That entry could not be fetched from the GM.' : miss + ' entries could not be fetched from the GM.');
+        } });
 }
 // A roll from a sheet button: shift/alt-click opens the situational-modifier popover (Stage 5a); a plain click rolls straight away.
 function sheetRoll(e, charId, expr, label, opts) {

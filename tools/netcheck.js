@@ -2136,7 +2136,75 @@ pendingChecks.push((async () => {
         && denied(a2, 'a2') && denied(a3, 'a3') && denied(a4, 'a4') && denied(a5, 'a5') && campC.chars.c_1.values.f_wp.length === 1 && !/Cursed|1d4|bound|Tied/.test(J(a1.owner.concat(a1.mate, a1.answer))), J([a1, a2 && a2.answer, stored]));
 })());
 
+// Stage 6 library L3b: the library on the wire, player side — the manifest taken (the real handler), and the real client code (asks one at
+// a time, answers matched and cleaned again, a busy host asked again, a timeout, paging with a pack that changes mid-load, entries fetched
+// and cached, the budget), driven with a recording connection and hand-fired timers
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Lx = await import(url('librarycore.js')), J = JSON.stringify, tick = () => new Promise(r => setImmediate(r));
+    const lmSrc = between('// [netcheck:libman-start]', '// [netcheck:libman-end]', 'libman');
+    const runMan = (netC, msg, peer, active) => { const took = []; let drawn = 0; const st = { appState: { activeCampaignId: active || 'k', campaigns: { k: { id: 'k' } } } };
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', lmSrc)(Object.assign({ libTake: m => took.push(m) }, netC), { peer }, msg, st, id => (Object.prototype.hasOwnProperty.call(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpLibraryCore: Lx, wpSheetsSync: () => { drawn++; } });
+        return [took, drawn]; };
+    const cl = { foreign: true, syncedPeer: 'h', stream: false }, MAN = { type: 'libManifest', campId: 'k', dir: 'l_abcd1234', packs: [{ id: 'p_a', name: '<b>Gear</b>', count: 2, hash: 'aaaaaaaa', rev: 9, vis: 'all' }, { id: 'nope', hash: 'aaaaaaaa' }] };
+    const m1 = runMan(cl, MAN, 'h'), m2 = runMan(cl, MAN, 'x'), m3 = runMan(Object.assign({}, cl, { stream: true }), MAN, 'h'), m4 = runMan(cl, Object.assign({}, MAN, { campId: 'k2' }), 'h'), m5 = runMan(cl, MAN, 'h', 'k2'), m6 = runMan(cl, { type: 'libManifest', campId: 'k', packs: 'x' }, 'h');
+    check('L3b the manifest (player): taken from the synced host only, for the hosted campaign, cleaned (no folder, revision or visibility; a bad pack left out; a name stays text) and the sheets redrawn; anything else changes nothing',
+        J(m1) === J([[{ campId: 'k', packs: [{ id: 'p_a', name: '<b>Gear</b>', count: 2, hash: 'aaaaaaaa' }] }], 1]) && [m2, m3, m4, m5, m6].every(r => J(r) === J([[], 0]))
+        && /\} else if \(\(msg\.type === 'lib-idx-ans' \|\| msg\.type === 'lib-get-ans'\) && net\.role === 'client'\) \{\n\s*if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer \|\| net\.stream\) return;[^\n]*\n\s*net\.libAnswer\(msg\);/.test(src), J([m1, m2, m4]));
+
+    const lcSrc = between('// [netcheck:libclient-start]', '// [netcheck:libclient-end]', 'libclient');
+    const timers = [], fakeSet = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, fakeClear = id => { if (timers[id - 1]) timers[id - 1].fn = null; }, fire = ms => { const t = timers.filter(x => x.fn && x.ms === ms); t.forEach(x => { const f = x.fn; x.fn = null; f(); }); return t.length; };
+    const sent = [], conn = { peer: 'h', open: true, send: m => { packCheck(m); sent.push(JSON.parse(J(m))); } };
+    const netL = { active: true, role: 'client', syncedPeer: 'h', conns: [conn] }, stL = { appState: { activeCampaignId: 'k' } };
+    const sysP = Sx.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }] }, { F: Fx, gmView: false }), campL = { id: 'k', system: sysP };
+    const Lc = new Function('net', 'state', 'window', 'getActiveCampaign', 'setTimeout', 'clearTimeout', lcSrc + '\nreturn { lib: function() { return _lib; } };')(netL, stL, { wpLibraryCore: Lx, wpFormula: Fx }, () => campL, fakeSet, fakeClear);
+    const last = () => sent[sent.length - 1], ans = (o) => netL.libAnswer(Object.assign({ type: last().type + '-ans', rid: last().rid }, o));
+    netL.libTake({ campId: 'k', packs: [{ id: 'p_a', name: 'A', count: 3, hash: 'aaaaaaaa' }, { id: 'p_b', name: 'B', count: 1, hash: 'bbbbbbbb' }] });
+    const noMan = (() => { stL.appState.activeCampaignId = 'k2'; const r = netL.libManifest(); stL.appState.activeCampaignId = 'k'; return r; })();
+    const row = (id, name) => [id, '', name, 'Gear', '', [], '12345678'];
+    const loadA = netL.libLoad('p_a'); await tick();
+    const ask1 = J(last()), n1 = sent.length;
+    netL.libAnswer({ type: 'lib-idx-ans', rid: 'wrong', packId: 'p_a', hash: 'aaaaaaaa', page: 0, pages: 2, rows: [row('i_x', 'X')] }); await tick();
+    ans({ err: 'busy' }); await tick(); const afterBusy = sent.length; fire(800); await tick(); const retried = sent.length === afterBusy + 1 && last().rid !== JSON.parse(ask1).rid && last().page === 0;
+    ans({ packId: 'p_a', hash: 'aaaaaaaa', page: 0, pages: 2, rows: [row('i_1', 'One'), ['bad'], row('i_1', 'Dup'), row('i_2', '<img src=x>')] }); await tick();
+    const ask2 = last(); ans({ packId: 'p_a', hash: 'cccccccc', page: 1, pages: 2, rows: [row('i_3', 'Three')] }); await tick();   // the pack moved mid-load: read again from page 0
+    const ask3 = last(); ans({ packId: 'p_a', hash: 'cccccccc', page: 0, pages: 1, rows: [row('i_1', 'One'), ['bad'], row('i_1', 'Dup'), row('i_3', 'Three'), row('i_2', '<img src=x>'), 'x'] }); await tick();
+    const loadedA = await loadA;
+    check('L3b paging (player): one ask at a time; an answer to another ask is ignored; busy is asked again after 800 ms with a new id; each index row cleaned again (a malformed one and a repeated id left out, a name stays text); a pack that changes mid-load is read again from its first page',
+        n1 === 1 && JSON.parse(ask1).type === 'lib-idx' && JSON.parse(ask1).campId === 'k' && JSON.parse(ask1).packId === 'p_a' && JSON.parse(ask1).page === 0 && retried && ask2.page === 1 && ask3.page === 0 && loadedA === true
+        && J(netL.libRows('p_a').map(r => r[0])) === J(['i_1', 'i_3', 'i_2']) && netL.libRows('p_a')[0][2] === 'One' && netL.libRows('p_a')[2][2] === '<img src=x>' && netL.libLoaded('p_a') === 3, J([sent.map(s => [s.type, s.page]), netL.libRows('p_a')]));
+    const loadB = netL.libLoad('p_b'); await tick(); const nB = sent.length; fire(20000); await tick(); const loadedB = await loadB;
+    const loadX = await netL.libLoad('p_zz');
+    check('L3b a host that never answers: the ask gives up after 20 s (the load reports it, the next ask can go); a pack the manifest does not list is never asked for; another campaign on screen hides the manifest',
+        nB === sent.length && loadedB === false && loadX === false && noMan === null, J([loadedB, loadX]));
+    const getP = netL.libGet('p_a', ['i_1', 'i_3', 'bad id', 'i_1']); await tick();
+    const g1 = last(); ans({ packId: 'p_a', hash: 'cccccccc', entries: [{ id: 'i_1', name: 'One', category: 'Gear', gmNotes: 'secret', damage: '9d9', desc: 'Long', stats: { Wt: 2, Nope: 5 } }, { id: 'i_9', name: 'Not asked' }] }); await tick();
+    const g2 = last(); ans({ packId: 'p_a', hash: 'cccccccc', entries: [] }); await tick();
+    const got = await getP, e1 = netL.libEntry('i_1');
+    check('L3b entries (player): asked for 50 at a time (bad ids never asked, each once), what is held answered for each id asked, taken only if asked for, cleaned again in the players\' view (no GM notes or formula text, stats under the players\' keys only), what an answer left out asked for again once; the cache answers applyRowOp\'s lookup',
+        g1.type === 'lib-get' && J(g1.ids) === J(['i_1', 'i_3']) && J(g2.ids) === J(['i_3']) && J(got.map(e => e.id)) === J(['i_1', 'i_1']) && e1.name === 'One' && !('gmNotes' in e1) && e1.damage === '' && J(e1.stats) === J({ Wt: 2 }) && e1.desc === 'Long' && netL.libEntry('i_9') === null && netL.libEntry('toString') === null, J([g1, g2, e1]));
+    netL.libTake({ campId: 'k', packs: [{ id: 'p_a', name: 'A', count: 2, hash: 'dddddddd' }, { id: 'p_b', name: 'B', count: 1, hash: 'bbbbbbbb' }] });
+    const afterMove = [netL.libRows('p_a').length, netL.libEntry('i_1')];
+    Lc.lib().spent = Lx.LIB.clientBudget - 10; const getB = netL.libGet('p_a', ['i_1']); await tick(); ans({ packId: 'p_a', hash: 'dddddddd', entries: [{ id: 'i_1', name: 'One' }] }); await tick(); const overB = await getB;
+    netL.libTake({ campId: 'k9', packs: [] }); const afterCamp = Lc.lib().idx;
+    const pendR = netL.libLoad('p_zz'); netL.libTake({ campId: 'k', packs: [{ id: 'p_r', name: 'R', count: 1, hash: 'eeeeeeee' }] }); const loadR = netL.libLoad('p_r'); await tick(); netL.libReset(); const resetR = await loadR;
+    check('L3b a pack whose hash moves is read again (its index and entries dropped); past ' + (Lx.LIB.clientBudget / 1048576) + ' MB a session nothing more is taken; another campaign clears everything; leaving the table ends the asks waiting',
+        afterMove[0] === 0 && afterMove[1] === null && overB.length === 0 && netL.libEntry('i_1') === null && Object.keys(afterCamp).length === 0 && resetR === false && (await pendR) === false, J([afterMove, overB.length, resetR]));
+    netL.libTake({ campId: 'k', packs: [{ id: 'p_q', name: 'Q', count: 1, hash: 'ffffffff' }, { id: 'p_w', name: 'W', count: 1, hash: '11111111' }] });
+    const nQ0 = sent.length, lq = netL.libLoad('p_q'), lw = netL.libLoad('p_w'), gq = netL.libGet('p_q', ['i_q1']); await tick(); const oneAtATime = sent.length === nQ0 + 1 && last().packId === 'p_q';
+    for (let i = 1; i <= 5; i++) { ans({ err: 'busy' }); await tick(); fire(800 * i); await tick(); }
+    const asksQ = sent.slice(nQ0).filter(s => s.packId === 'p_q' && s.type === 'lib-idx').length; ans({ err: 'busy' }); await tick(); const gaveUp = (await lq) === false, nextWent = last().packId === 'p_w';
+    ans({ packId: 'p_w', hash: '11111111', page: 0, pages: 1, rows: [row('i_w1', 'W1')] }); await tick(); const lwOk = await lw; ans({ packId: 'p_q', hash: 'ffffffff', entries: [{ id: 'i_q1', name: 'Q1' }] }); await tick(); const gqOk = (await gq).length === 1;
+    check('L3b one ask in flight at the table (the rest wait their turn); a host still busy after five more tries is given up on and the next ask goes',
+        oneAtATime && asksQ === 6 && gaveUp && nextWent && lwOk === true && gqOk, J([oneAtATime, asksQ, gaveUp, nextWent, lwOk, gqOk]));
+    check('L3b a player\'s pick reads the entry they fetched (charItem and the changes worked out again pass the client\'s cache as opts.lib); the session end clears it and what players drew from the host',
+        /S\.applyRowOp\(camp\.system, c, fieldId, q, window\.wpFormula, \{ player: true, view: camp\.system, lib: net\.libEntry \}\)/.test(src) && /var o = \{ player: true, view: camp\.system, lib: net\.libEntry \}/.test(src) && /net\.libReset\(\); _libSpent = Object\.create\(null\);/.test(src));
+})());
+
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', () => { if (!summed) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
+    summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 });

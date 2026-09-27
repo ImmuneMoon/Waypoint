@@ -3,7 +3,9 @@
    categories only), the entries grouped by category in a list drawn only where it shows (thousands stay quick), a preview of the one
    highlighted (its stats under the list's labels, notes, description, tags, reference; the GM's notes to the GM), and a quantity with
    Add. Arrow keys move, Enter adds and closes, Shift+Enter adds and stays open, Ctrl-click picks several, double-click adds one. Built
-   with text nodes only. The caller hands it a source (packs and their entries) and what an add does; the rules are librarycore's. */
+   with text nodes only. The caller hands it a source (packs and their entries) and what an add does; the rules are librarycore's. A
+   player's source loads over the wire (L3b): load(progress) fills it a page at a time (the list grows as it comes, the search covers
+   what has come), get(entry, pack, done) fetches an entry's full text for the preview, status() says how far it has got. */
 import { entryHay, queryWords } from './librarycore.js';
 
 var ROW_H = 28, W = 580;
@@ -13,20 +15,19 @@ function map() { return Object.create(null); }
 function lc(s) { return String(s || '').toLowerCase(); }
 var byName = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : function(a, b) { return String(a).localeCompare(String(b)); };
 function isOpen() { return !!st; }
-function close() { if (!st) return; clearTimeout(st.timer); document.removeEventListener('mousedown', st.outside, true); if (st.pop.parentNode) st.pop.parentNode.removeChild(st.pop); var a = st.opts.anchor; st = null; if (a && a.isConnected) try { a.focus({ preventScroll: true }); } catch (e) {} }
+function close() { if (!st) return; clearTimeout(st.timer); clearTimeout(st.getTimer); document.removeEventListener('mousedown', st.outside, true); if (st.pop.parentNode) st.pop.parentNode.removeChild(st.pop); var a = st.opts.anchor; st = null; if (a && a.isConnected) try { a.focus({ preventScroll: true }); } catch (e) {} }
 function gmOnly(x) { return x.e.vis === 'gm' || x.p.vis === 'gm'; }
 
 // opts: { anchor, title, cats (the list's categories, or null), once (entry ids already carried on a list that holds each once), noQty,
 //         labels (stat key -> the list's label), gm, source: { packs() -> [{ id, name, icon, vis }], entries(packId) -> [entry] },
-//         onAdd(ids, qty) }
+//         onAdd(ids, qty, packOf) } — source may add load(progress) -> Promise, get(entry, pack, done), status() -> text (a player's, over the wire)
 function open(opts) {
     close();
     if (!opts || !opts.source || typeof opts.onAdd !== 'function') return;
-    var cats = Array.isArray(opts.cats) && opts.cats.length ? opts.cats.map(lc) : null, all = [];
-    (opts.source.packs() || []).forEach(function(p) { (opts.source.entries(p.id) || []).forEach(function(e) { if (!e || typeof e.id !== 'string') return; if (cats && cats.indexOf(lc(e.category)) < 0) return; all.push({ e: e, p: p, hay: entryHay(e) }); }); });
-    all.sort(function(a, b) { return byName(a.e.category || '', b.e.category || '') || byName(a.e.name, b.e.name); });
+    var cats = Array.isArray(opts.cats) && opts.cats.length ? opts.cats.map(lc) : null;
     var pop = el('div', 'lib-pick'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Add from the library');
-    st = { pop: pop, opts: opts, all: all, rows: [], hi: -1, picked: map(), q: '', pack: '', cat: null, timer: null, outside: null };   // cat: null every category ('' is "no category")
+    st = { pop: pop, opts: opts, cats: cats, all: [], rows: [], hi: -1, picked: map(), q: '', pack: '', cat: null, timer: null, outside: null, full: map(), getTimer: null };   // cat: null every category ('' is "no category"); full: entries fetched for the preview
+    buildAll();
     var head = el('div', 'lib-pick-head'); head.appendChild(el('b', null, opts.title || 'Add from the library'));
     var x = el('button', 'tool ghost lib-pick-x', '×'); x.type = 'button'; x.title = 'Close (Esc)'; x.addEventListener('click', close); head.appendChild(x); pop.appendChild(head);
     var search = el('input', 'field lib-pick-search'); search.type = 'text'; search.maxLength = 120; search.placeholder = 'Search names, keys, categories, tags…'; pop.appendChild(search);
@@ -51,8 +52,19 @@ function open(opts) {
     st.outside = function(e) { if (st && !st.pop.contains(e.target)) close(); };
     document.addEventListener('mousedown', st.outside, true);
     document.body.appendChild(pop); place(); chipsDraw(); filter();
+    if (typeof opts.source.load === 'function') {   // L3b: a player's library comes a page at a time — the list grows, the highlight stays
+        var mine = st; status();
+        Promise.resolve(opts.source.load(function() { if (st !== mine) return; var x = st.hi >= 0 ? st.rows[st.hi] : null; buildAll(); chipsDraw(); filter(x && !x.hdr ? x.e.id : null); status(); })).then(function() { if (st === mine) status(); }, function() { if (st === mine) status(); });
+    }
     try { search.focus({ preventScroll: true }); } catch (e) {}
 }
+function buildAll() {
+    var all = [], cats = st.cats, src = st.opts.source;
+    (src.packs() || []).forEach(function(p) { (src.entries(p.id) || []).forEach(function(e) { if (!e || typeof e.id !== 'string') return; if (cats && cats.indexOf(lc(e.category)) < 0) return; all.push({ e: e, p: p, hay: entryHay(e) }); }); });
+    all.sort(function(a, b) { return byName(a.e.category || '', b.e.category || '') || byName(a.e.name, b.e.name); });
+    st.all = all;
+}
+function status() { var t = typeof st.opts.source.status === 'function' ? st.opts.source.status() : ''; st.els.hint.textContent = t || 'Enter adds · Shift+Enter adds and stays open · Ctrl-click picks several'; }
 function place() {
     var pop = st.pop, a = st.opts.anchor, r = a && a.getBoundingClientRect ? a.getBoundingClientRect() : { left: 80, right: 80, top: 80, bottom: 80 };
     var w = Math.min(W, window.innerWidth - 16), h = Math.min(520, window.innerHeight - 16);
@@ -78,7 +90,7 @@ function chipsDraw() {
     box.style.display = box.childNodes.length ? '' : 'none';
 }
 // the rows shown: the entries that pass the chips and every word of the search, a header row before each category
-function filter() {
+function filter(keep) {   // keep: the entry to stay on (the list grew under it), else the first
     var words = queryWords(st.q), rows = [], last = null;
     st.all.forEach(function(x) {
         if (st.pack && x.p.id !== st.pack) return; if (st.cat !== null && (x.e.category || '') !== st.cat) return;
@@ -86,10 +98,12 @@ function filter() {
         var k = x.e.category || ''; if (k !== last) { rows.push({ hdr: k || 'No category' }); last = k; }
         rows.push(x);
     });
-    st.rows = rows; st.hi = -1; for (var i = 0; i < rows.length; i++) if (!rows[i].hdr && !isOnce(rows[i])) { st.hi = i; break; }
-    st.els.spacer.style.height = (rows.length * ROW_H) + 'px'; st.els.list.scrollTop = 0;
+    st.rows = rows; st.hi = -1; var kept = false;
+    if (keep) for (var k = 0; k < rows.length; k++) if (!rows[k].hdr && rows[k].e.id === keep) { st.hi = k; kept = true; break; }
+    if (!kept) for (var i = 0; i < rows.length; i++) if (!rows[i].hdr && !isOnce(rows[i])) { st.hi = i; break; }
+    st.els.spacer.style.height = (rows.length * ROW_H) + 'px'; if (!kept) st.els.list.scrollTop = 0;
     var old = st.els.list.querySelector('.lib-empty'); if (old) old.parentNode.removeChild(old);
-    if (!rows.length) st.els.list.appendChild(el('div', 'lib-empty', st.all.length ? 'Nothing matches.' : 'The library has nothing for this list' + (st.opts.cats ? ' (its categories: ' + st.opts.cats.join(', ') + ')' : '') + '.'));
+    if (!rows.length) st.els.list.appendChild(el('div', 'lib-empty', st.all.length ? 'Nothing matches.' : typeof st.opts.source.load === 'function' && typeof st.opts.source.status === 'function' && st.opts.source.status() ? 'Loading…' : 'The library has nothing for this list' + (st.opts.cats ? ' (its categories: ' + st.opts.cats.join(', ') + ')' : '') + '.'));
     draw(); preview(); addLabel();
 }
 function isOnce(x) { return !!(st.opts.once && st.opts.once[x.e.id] === 1); }
@@ -121,7 +135,12 @@ function line(box, label, value) { if (value === undefined || value === null || 
 function preview() {
     var box = st.els.prev, x = st.hi >= 0 ? st.rows[st.hi] : null; box.textContent = '';
     if (!x || x.hdr) { box.appendChild(el('div', 'lib-empty', 'Choose an entry to see it here.')); return; }
-    var e = x.e, h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
+    var src = st.opts.source, need = typeof src.get === 'function' && !st.full[x.e.id];
+    if (need) {   // L3b: a player's entry comes in full a moment after it is highlighted (the arrows running down a list ask for none on the way)
+        clearTimeout(st.getTimer); var mine = st, want = x.e.id;
+        st.getTimer = setTimeout(function() { if (st !== mine) return; src.get(x.e, x.p, function(full) { if (st !== mine || !full || full.id !== want) return; st.full[want] = full; var y = st.hi >= 0 ? st.rows[st.hi] : null; if (y && !y.hdr && y.e.id === want) preview(); }); }, 250);
+    }
+    var e = st.full[x.e.id] || x.e, h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
     box.appendChild(el('div', 'lib-pick-sub', [e.category || 'No category', x.p.name].join(' · ')));
     var labels = st.opts.labels || {}, stats = e.stats && typeof e.stats === 'object' ? e.stats : {};
     Object.keys(labels).forEach(function(k) { var key = Object.keys(stats).filter(function(s) { return lc(s) === lc(k); })[0]; if (key !== undefined) line(box, labels[k], String(stats[key])); });
@@ -133,13 +152,15 @@ function preview() {
     if (Array.isArray(e.tags) && e.tags.length) line(box, 'Tags', e.tags.join(', '));
     line(box, 'Reference', e.ref);
     if (st.opts.gm && e.gmNotes) { box.appendChild(el('div', 'lib-fsub', 'GM notes')); box.appendChild(el('div', 'lib-pick-desc', e.gmNotes)); }
+    if (need) box.appendChild(el('div', 'lib-pick-sub', 'Loading the rest…'));
 }
 function chosenIds() { var ids = Object.keys(st.picked).filter(function(id) { return st.all.some(function(x) { return x.e.id === id && !isOnce(x); }); }); if (ids.length) return ids; var x = st.hi >= 0 ? st.rows[st.hi] : null; return x && !x.hdr && !isOnce(x) ? [x.e.id] : []; }
 function addLabel() { var n = Object.keys(st.picked).length; st.els.add.textContent = n > 1 ? 'Add ' + n : 'Add'; st.els.add.disabled = !chosenIds().length; }
 function doAdd(stay) {
     var ids = chosenIds(); if (!ids.length) return;
     var q = st.opts.noQty ? 1 : Math.max(1, Math.min(99, parseInt(st.els.qty.value, 10) || 1));
-    var opts = st.opts; try { opts.onAdd(ids, q); } catch (e) { console.error(e); }
+    var opts = st.opts, packOf = {}; ids.forEach(function(id) { for (var i = 0; i < st.all.length; i++) if (st.all[i].e.id === id) { packOf[id] = st.all[i].p.id; break; } });
+    try { opts.onAdd(ids, q, packOf); } catch (e) { console.error(e); }
     if (!stay) { close(); return; }
     if (opts.once) ids.forEach(function(id) { opts.once[id] = 1; });   // a list that holds each once: what was just added greys out
     st.picked = map(); st.els.hint.textContent = 'Added ' + (ids.length === 1 ? 'one' : ids.length) + '. Enter adds · Shift+Enter adds and stays open';

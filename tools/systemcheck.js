@@ -4296,7 +4296,27 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             JSON.stringify(gH.sheet.sections[0].fields) === JSON.stringify([{ kind: 'search', w: 'row' }, { kind: 'search', w: 1 }]) && JSON.stringify(pH.sheet.sections[0].fields) === JSON.stringify(gH.sheet.sections[0].fields)
             && /else if \(pl\.kind === 'search'\) node = hbNode\(hbKey\(vctx, c, sec, pli\)\);/.test(shH) && /opts\.push\(\['k:link', 'Handbook link'\], \['k:search', 'Handbook search'\]\);/.test(shH) && /if \(pl\.kind === 'search'\) return 'Handbook search';/.test(shH)
             && /function renderInto\(body, it\) \{ renderPage\(body, it\); openSig = sigOf\(it\); \}/.test(hbC) && /window\.wpDocRenderPage = renderPage;/.test(hbC)
-            && /A <b>Handbook search<\/b> placement \(on a HUD&rsquo;s Handbook tab, say\) lists the pages the viewer can read and searches them/.test(hmH) && /and a <b>Handbook search<\/b> placement searches the rules and shows the page in place\./.test(tuH));
+            && /A <b>Handbook search<\/b> placement \(on a HUD&rsquo;s Handbook tab, say\) lists the pages the viewer can read and searches them/.test(hmH) && /and a <b>Handbook search<\/b> placement searches the rules and shows the page in place \(a chip then opens its page there\)\./.test(tuH));
+        // H12b: a chip or a Handbook link opens its page in the character's HUD search when the HUD has one (the reference's openHandbook)
+        const mkJ = o => {
+            const opened = [], huds = [], win = { wpDocRender: DRH, wpPopout: !!o.popout };
+            const sysJ = { sheet: { hud: { sections: o.secs } } };
+            const api = new Function('el', 'iconNode', 'getActiveCampaign', 'window', 'document', 'openPage', 'setTimeout', 'clearTimeout', 'hudFor', 'systemOf', 'openHud', hSrc + '\nreturn { hbHudTarget, openPageFor, state: _hb };')(
+                () => ({}), () => ({}), () => ({ items: {} }), win, {}, id => opened.push(id), () => 0, () => {}, id => o.may !== false && id === 'c_a', () => sysJ, (id, op) => huds.push([id, op]));
+            return { api, opened, huds };
+        };
+        const secsJ = [{ id: 's_top', tab: 't_act', fields: [{ id: 'f_hp' }, { kind: 'link', page: 'd_c' }] }, { id: 's_rules', tab: 't_hb', fields: [{ kind: 'heading' }, { kind: 'search', w: 'row' }] }, { id: 's_more', tab: 't_hb', fields: [{ kind: 'search' }] }];
+        const j1 = mkJ({ secs: secsJ }); j1.api.openPageFor({ id: 'c_a' }, 'd_c');
+        const j2 = mkJ({ secs: secsJ, may: false }); j2.api.openPageFor({ id: 'c_a' }, 'd_c');
+        const j3 = mkJ({ secs: [{ id: 's_x', tab: 't_a', fields: [{ kind: 'link' }] }] }); j3.api.openPageFor({ id: 'c_a' }, 'd_c');
+        const j4 = mkJ({ secs: secsJ, popout: true }); j4.api.openPageFor({ id: 'c_a' }, 'd_c');
+        const j5 = mkJ({ secs: [{ id: 's_n', fields: [{ kind: 'search' }] }] }); j5.api.openPageFor({ id: 'c_a' }, 'd_c');
+        check('H12b a chip or Handbook link (run for real): when the character\'s HUD (theirs to open) has a Handbook search, the first one takes the page (at its top, taken there once) and the HUD opens at its tab; otherwise — no HUD of theirs, no search in it, a pop-out sheet — the page opens as before; a search on no tab opens the HUD as it is',
+            JSON.stringify(j1.huds) === JSON.stringify([['c_a', { tab: 't_hb' }]]) && !j1.opened.length && JSON.stringify(j1.api.state['h-c_a-s_rules-1'].view) === JSON.stringify({ id: 'd_c', bi: -1 }) && j1.api.state['h-c_a-s_rules-1'].go === true && !('h-c_a-s_more-0' in j1.api.state)
+            && JSON.stringify(j2.opened) === '["d_c"]' && !j2.huds.length && JSON.stringify(j3.opened) === '["d_c"]' && !j3.huds.length && JSON.stringify(j4.opened) === '["d_c"]' && !j4.huds.length && JSON.stringify(j5.huds) === JSON.stringify([['c_a', null]]), JSON.stringify([j1.huds, j1.opened]));
+        check('H12b the chips and links pass their character: a section\'s chip and a Handbook link open through openPageFor (never openPage directly any more)',
+            /var chipNode = sec\.chip \? pageChip\(sec\.chip, c\) : null;/.test(shH) && /else if \(pl\.kind === 'link'\) node = linkNode\(pl, c\);/.test(shH) && /if \(ch\.closest\('#systemModal'\)\) return; openPageFor\(c, id\); \};/.test(shH) && /if \(b\.closest\('#systemModal'\)\) return; openPageFor\(c, pl\.page\); \}\);/.test(shH)
+            && /or, when the character&rsquo;s HUD has a Handbook search, right there in it\./.test(hmH) && /\(hbHudTarget\(c\) \? 'in the HUD\\u2019s handbook search' : 'over the map'\)/.test(shH));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

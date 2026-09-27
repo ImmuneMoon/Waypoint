@@ -87,12 +87,12 @@ function sheetRefsChanged() {
 }
 // A handbook chip for a section header (the owner's Foundry chips): a span, not a button, inside the <summary> of a collapsible
 // section — the click must not fold the section, so it prevents the default as well as stopping the bubble.
-function pageChip(id) {
+function pageChip(id, c) {   // c (H12b): the character whose view shows it — a HUD search of theirs opens the page
     var ref = pageRef(id); if (!ref) return null;
     var ch = el('span', 'sheet-sec-chip' + (ref.gmOnly ? ' sheet-chip-gm' : '')); ch.setAttribute('role', 'button'); ch.tabIndex = 0;
     ch.title = 'Open \u201c' + ref.title + '\u201d' + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this chip' : ''); ch.setAttribute('aria-label', ch.title);
     ch.appendChild(el('span', 'sheet-chip-ico', '\ud83d\udcd6')); ch.appendChild(el('span', 'sheet-chip-txt', ref.title));
-    var go = function(e) { e.preventDefault(); e.stopPropagation(); if (ch.closest('#systemModal')) return; openPage(id); };
+    var go = function(e) { e.preventDefault(); e.stopPropagation(); if (ch.closest('#systemModal')) return; openPageFor(c, id); };
     ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
     return ch;
 }
@@ -156,6 +156,20 @@ function hbResults(res, key, st) {
         if (q.length >= 3) { clearTimeout(st.timer); st.timer = setTimeout(function() { if (st.q.trim() === q && !st.deep && !st.view) hbDeep(key, st); }, HB_DEEP_MS); }   // no dead ends: the text by itself
     }
 }
+// H12b (the reference's openHandbook): where a character's HUD searches the handbook — the first Handbook search in the HUD this viewer
+// holds ({ tab, key }), or null (no HUD of theirs, no search in it). A chip or a Handbook link then opens its page there, else as before
+function hbHudTarget(c) {
+    if (!c || !hudFor(c.id)) return null;
+    var sys = systemOf(getActiveCampaign()), h = sys && sys.sheet && sys.sheet.hud, secs = h && Array.isArray(h.sections) ? h.sections : [];
+    for (var s = 0; s < secs.length; s++) { var fl = secs[s] && Array.isArray(secs[s].fields) ? secs[s].fields : []; for (var i = 0; i < fl.length; i++) if (fl[i] && fl[i].kind === 'search') return { tab: typeof secs[s].tab === 'string' ? secs[s].tab : '', key: hbKey({ view: 'hud' }, c, secs[s], i) }; }
+    return null;
+}
+function openPageFor(c, id) {
+    var t = window.wpPopout ? null : hbHudTarget(c);   // a pop-out sheet hands pages to the main window, as before
+    if (!t) { openPage(id); return; }
+    var st = hbState(t.key); st.view = { id: id, bi: -1 }; st.go = true;
+    openHud(c.id, t.tab ? { tab: t.tab } : null);
+}
 function hbReader(box, key, st) {
     var camp = getActiveCampaign(), items = (camp && camp.items) || {}, it = Object.prototype.hasOwnProperty.call(items, st.view.id) ? items[st.view.id] : null;
     if (!it || it.type !== 'doc') { st.view = null; hbDraw(box, key); return; }   // gone, or hidden from this player since
@@ -175,11 +189,11 @@ function hbReader(box, key, st) {
     }, 0);
 }
 // A handbook link placement: a button that opens its page; nothing at all when the page is not here
-function linkNode(pl) {
+function linkNode(pl, c) {
     var ref = pl.page ? pageRef(pl.page) : null; if (!ref) return null;
     var b = el('button', 'tool sheet-roll sheet-link' + (ref.gmOnly ? ' sheet-chip-gm' : ''), '\ud83d\udcd6 ' + (pl.text || ref.title)); b.type = 'button';
-    b.title = 'Open \u201c' + ref.title + '\u201d over the map' + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this button' : '');
-    b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openPage(pl.page); });
+    b.title = 'Open \u201c' + ref.title + '\u201d ' + (hbHudTarget(c) ? 'in the HUD\u2019s handbook search' : 'over the map') + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this button' : '');   // H12b: where it will open
+    b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openPageFor(c, pl.page); });
     var box = el('div', 'sheet-field sheet-kind-link'); box.appendChild(b); return box;
 }
 // [[id, label]] for the campaign's handbook pages (title order, GM-only marked) — the Layout tab's page pickers; an unknown current
@@ -1375,7 +1389,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             if (typeof mvv === 'object') { if (!mvv.error) { if (mvv.text != null && mvv.text !== '') metaText = String(mvv.text); else if (typeof mvv.value === 'number') metaText = mvv.value + (typeof mvv.max === 'number' ? ' / ' + mvv.max : ''); } }
             else metaText = String(mvv);
         }
-        var chipNode = sec.chip ? pageChip(sec.chip) : null;   // Stage 5f: a handbook chip
+        var chipNode = sec.chip ? pageChip(sec.chip, c) : null;   // Stage 5f: a handbook chip
         var pinCh = sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
         var rsCh = sec.resetAll === true ? resetChip(sec, pctx) : null;   // HUD frame (HF4b): its Reset all
         if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh) {   // a collapsible section always needs a summary to toggle from
@@ -1398,7 +1412,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c, sys, all.vars);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
-            else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
+            else if (pl.kind === 'link') node = linkNode(pl, c);   // Stage 5f
             else if (pl.kind === 'search') node = hbNode(hbKey(vctx, c, sec, pli));   // Stage 6 HUD H12
             else if (pl.kind === 'hud') node = hudButton(pl, c, sys, vctx);   // HUD frame (HF2b): opens this character's HUD
             else if (pl.kind === 'facing') node = facingNode(c, gm);   // 5h Fold 3

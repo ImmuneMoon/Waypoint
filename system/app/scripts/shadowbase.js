@@ -106,6 +106,8 @@ function seedStance(item, j) {
     var p = d.posture != null ? d.posture : j.posture, e = d.elevation != null ? d.elevation : j.elevation;
     if (p && st.on('posture')) st.setPosture(item, p);
     if (e != null && e !== '' && isFinite(Number(e)) && st.on('elevation')) st.setElevation(item, Number(e));
+    var sc = window.wpSystemCore, fc = sc && sc.sbFacing && st.on('turning') ? sc.sbFacing(d, item.front) : null;   // Stage 6 F7c2: its facing and, while engaged, its threats (token facing on)
+    if (fc) { item.rot = fc.rot; if (fc.threats.length) item.threats = fc.threats; else delete item.threats; }
 }
 export function attachSheet(item, file, done) {
     if (!file) return;

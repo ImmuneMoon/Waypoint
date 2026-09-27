@@ -4708,6 +4708,55 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('F7c sbTextBag reads gear text the website\'s way: the first stat a clause names wins (carry, DX, FP, ST, HP), a number in brackets, after an x or in a fraction is no bonus; anything not text reads as nothing',
             j(Object.assign({}, tb)) === j({ carryCapacity: 15, dexterity: -1, forcePoints: 2, strength: 1, hitPoints: 3 }) && j(Object.assign({}, tb2)) === '{}' && S.sbFpText('x1.5 Force points').mult === 1.5, j(Object.assign({}, tb)));
     }
+
+    /* ---- Stage 6 F7c2: weapons, explosives, vehicles, cybernetics, status effects and facing, from a dossier ---- */
+    {
+        const n = (id, key, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind: 'number', vis: 'all' }, extra || {});
+        const lst = (id, key, list) => ({ id: 'f_' + id, key, label: key, kind: 'item-list', vis: 'all', list });
+        const rawW = { v: 1, name: 'W', rolls: [], fields: [
+            n('dx', 'DX', { def: 10 }), n('dxrace', 'DXRace'), n('kd', 'KickDmg'), { id: 'f_fx', key: 'Effects', label: 'Fx', kind: 'effects', vis: 'all' },
+            lst('gear', 'Gear', { custom: true, multi: true, on: { label: 'Stowed' }, stats: [{ key: 'wt' }, { key: 'cr' }] }),
+            lst('arm', 'Armor', { custom: true, multi: true, on: { label: 'Equipped' }, stats: [{ key: 'wt' }, { key: 'cr' }, { key: 'drHead' }, { key: 'drFace' }] }),
+            lst('wp', 'Weapons', { cats: ['Ranged Weapon', 'Melee Weapon', 'Explosive'], custom: true, multi: true, on: { label: 'Readied' }, stats: [{ key: 'wsk', kind: 'pick', opts: [{ label: 'Guns', name: 'DX' }, { label: 'Shortsword', name: 'DX' }, { label: 'Thrown Weapon', name: 'DX' }] }, { key: 'acc' }, { key: 'pm' }, { key: 'minst' }, { key: 'wt' }, { key: 'cr' }, { key: 'dd' }, { key: 'da' }, { key: 'db' }] }),
+            lst('vh', 'Vehicles', { cats: ['Starship'], custom: true, multi: true, stats: [{ key: 'hp' }, { key: 'dr' }, { key: 'hnd' }, { key: 'spd' }, { key: 'cr' }] }),
+            lst('cy', 'Cyber', { cats: ['Implant', 'Cybernetic Limb', 'Cybernetic Upgrade'], custom: true, multi: true, on: { label: 'Installed' }, stats: [{ key: 'cp' }, { key: 'granted' }, { key: 'wt' }, { key: 'cr' }] })],
+            items: [{ id: 'i_rifle', name: 'Long Rifle', key: 'LongRifle', category: 'Ranged Weapon', stats: { wsk: 'Guns', acc: 5, wt: 10, cr: 1000, dd: 4 } }, { id: 'i_boom', name: 'Boom Ball', key: 'BoomBall', category: 'Explosive', stats: { wt: 1, cr: 50 } },
+                { id: 'i_hauler', name: 'Hauler', key: 'Hauler', category: 'Starship', stats: { hp: 80, dr: 8, cr: 120000 } }, { id: 'i_eye', name: 'Eye Chip', key: 'EyeChip', category: 'Implant', stats: { cp: 20, wt: 0.1, cr: 7000 } }, { id: 'i_tent', name: 'Tent', key: 'Tent', category: 'Camp', stats: { wt: 10, cr: 40 } }] };
+        const sW = cleanSystem(rawW, { F, gmView: true }), byN = {}; sW.items.forEach(e => { (byN[e.name.toLowerCase()] = byN[e.name.toLowerCase()] || []).push(e); });
+        const find = nm => byN[String(nm).trim().toLowerCase()] || [];
+        const dosW = { inventory: { general: [{ name: 'Tent', weight: 12, cost: 40 }],
+            weapons: { blasters: [{ customName: 'My Rifle', baseType: 'Long Rifle', finalWeight: 11, finalCost: 1400, equipped: true }, { customName: 'Old Cannon', baseType: 'Cannon', baseSkill: 'Guns (Heavy)', finalDamage: '5d6+1', finalAccuracy: 8, baseStrength: '12', baseWeight: 14, baseCost: 4500, finalWeight: 15 },
+                    { customName: 'Boxed Pistol', baseType: 'Pistol', finalWeight: 2, finalCost: 300, storageLocationId: 'b1' }],
+                melee: [{ customName: 'Short Sword', baseType: 'Shortsword', baseSkill: 'Shortsword', finalDamage: 'sw-2', finalParryMod: 0, finalStRequirement: 7, finalWeight: 2, finalCost: 400 }] },
+            explosives: [{ baseExplosiveName: 'Boom Ball', quantity: 3, finalWeight: 1, finalCost: 60 }, { baseExplosiveName: 'Sonic Ball', finalDamageEffect: '4d6 fat + Affliction (HT-2)', finalWeight: 0.5, finalCost: 500 }],
+            starships: [{ customName: 'Rustbucket', baseChassis: 'Hauler', finalCost: 115500 }, { customName: 'Skiff', baseHp: 30, baseDr: 3, baseHandling: '+2', baseSpeed: '12', finalCost: 9000 }],
+            armor: [{ name: 'Helm', slot: 'Head', pieceId: 'helm-1', drHead: 4, weight: 2, cost: 60, equipped: true }, { name: 'Sealed Helm', slot: 'Head', pieceId: 'helm-2', sealed: true, drHead: 5, weight: 3, cost: 90, equipped: true }],
+            implants: [{ name: 'Eye Chip', finalCp: 15, installed: true, baselinePoints: 5 }, { name: 'Leg Spring', finalCp: 10, effect: 'Grants +1 DX. +2 damage to all kicks.', installed: false, weight: 0.2, cost: 900 }],
+            cyberneticUpgrades: [{ name: 'Grip Pad', cost: 50, weight: 0.1, effect: '+1 DX', equipped: true }] },
+            statusEffects: [{ name: 'Shaken', type: 'debuff', duration: '3 turns', description: 'Rattled.', modifiers: { dexterity: -2 } }, { name: 'Stim', type: 'buff', phaseIndex: 2, phases: [{ modifiers: { dexterity: 2 } }, { modifiers: { dexterity: -1 } }], modifiers: { dexterity: 2 } }, { name: '' }] };
+        const ro = S.sbRowOps(dosW, sW, find), ch = { id: 'c_w', name: 'W', ownerId: '', npc: true, values: {} }, refused = [];
+        ro.ops.forEach(o => { const r = S.applyRowOp(sW, ch, o.f, o.q, F, {}); if (r.ok) ch.values[o.f] = r.value; else refused.push(o.q.op + ':' + r.reason); });
+        const rows = k => ch.values['f_' + k] || [], wp = rows('wp'), vh = rows('vh'), cy = rows('cy'), ar = rows('arm'), gr = rows('gear');
+        check('F7c2 weapons: matched by base type when their own name is not an entry (kept linked, that copy\'s own name and build held), readied as the switch; an older row with its own figures a custom row (dice and adds, accuracy, ST, skill); a melee row\'s swing; a stored one stowed gear; a cost is the final one (none: nothing); a gear copy holds its own weight over its entry\'s',
+            !refused.length && wp[0].defId === 'i_rifle' && wp[0].on === true && j(wp[0].ov) === j({ name: 'My Rifle', stats: { wt: 11, cr: 1400 }, held: ['wt', 'cr'] })
+            && j(wp[1].def.stats) === j({ wt: 15, cr: 0, wsk: 'Guns', acc: 8, minst: 12, dd: 5, da: 1 }) && wp[1].def.category === 'Ranged Weapon' && j(wp[2].def.stats) === j({ wt: 2, cr: 400, wsk: 'Shortsword', pm: 0, minst: 7, dd: 0, da: -2, db: 1 })
+            && gr.length === 2 && gr[0].defId === 'i_tent' && j(gr[0].ov) === j({ stats: { wt: 12 }, held: ['wt'] }) && gr[1].def.name === 'Boxed Pistol' && gr[1].on === true, j([refused, wp.map(r => [r.defId, r.ov, r.def && r.def.stats])]));
+        check('F7c2 explosives and vehicles: an explosive by its name (its quantity kept), else a custom row with the dice its effect reads as; a starship by its chassis (named its own, its final cost held), else a custom row with its hull, armour, handling and speed',
+            wp[3].defId === 'i_boom' && wp[3].qty === 3 && j(wp[3].ov) === j({ stats: { cr: 60 }, held: ['cr'] }) && j(wp[4].def.stats) === j({ wt: 0.5, cr: 500, wsk: 'Thrown Weapon', dd: 4 })
+            && vh[0].defId === 'i_hauler' && j(vh[0].ov) === j({ name: 'Rustbucket', stats: { cr: 115500 }, held: ['cr'] }) && j(vh[1].def.stats) === j({ hp: 30, dr: 3, hnd: 2, spd: 12, cr: 9000 }), j([wp.slice(3), vh]));
+        check('F7c2 cybernetics: installed (an upgrade: fitted) as the switch, a library copy holding its own CP and granted points; a custom one its CP, weight, cost and what its text reads as, working only while installed and never on a trait channel',
+            cy[0].defId === 'i_eye' && cy[0].on === true && j(cy[0].ov) === j({ stats: { cp: 15, granted: 5 }, held: ['cp', 'granted'] }) && cy[1].on === false && j(cy[1].def.stats) === j({ cp: 10, wt: 0.2, cr: 900 })
+            && j(cy[1].def.mods) === j([{ f: 'f_dx', op: 'add', v: 1 }, { f: 'f_kd', op: 'add', v: 2 }]) && cy[1].def.modsOn === true && cy[2].on === true && cy[2].def.category === 'Cybernetic Upgrade', j(cy));
+        check('F7c1 (owed) a catalogue helmet covers the face only when sealed', j(ar.map(r => r.def.stats)) === j([{ wt: 2, cr: 60, drHead: 4 }, { wt: 3, cr: 90, drHead: 5, drFace: 5 }]), j(ar.map(r => r.def.stats)));
+        const vW = aliasFromShadowBase(dosW, sW, F).values.f_fx, vNone = aliasFromShadowBase({ statusEffects: [] }, sW, F).values;
+        check('F7c2 status effects: ad hoc rows (name, buff or debuff, duration, description), the current phase\'s changes else the effect\'s own, on the attribute alone; a nameless one skipped; none on the sheet leaves the character\'s own',
+            vW.length === 2 && vW[0].name === 'Shaken' && vW[0].tone === 'debuff' && vW[0].dur === '3 turns' && vW[0].notes === 'Rattled.' && j(vW[0].mods) === j([{ f: 'f_dx', op: 'add', v: -2 }]) && j(vW[1].mods) === j([{ f: 'f_dx', op: 'add', v: -1 }]) && vW[1].tone === 'buff' && !('f_fx' in vNone), j([vW, vNone]));
+        const fc1 = S.sbFacing({ facing: 2, threatEngaged: true, incomingBearing: 5, additionalBearings: [1, 5, 'x', null] }, 0), fc2 = S.sbFacing({ facing: -1, threatEngaged: false, incomingBearing: 3 }, 30), fc3 = S.sbFacing({ facing: null }, 0), fc4 = S.sbFacing({ facing: 1, threatEngaged: true, incomingBearing: 3 }, 0);
+        const sbSrc = fs.readFileSync(path.join(app, 'scripts', 'shadowbase.js'), 'utf8');
+        check('F7c2 sbFacing: a sheet\'s hexside facing as the token\'s rotation (a side 60 degrees, less the art\'s own front), and while engaged its threats as world bearings (the active first, each side once); not engaged: none; no facing: nothing; the sheet seeds its token so while token facing is on',
+            j(fc1) === j({ rot: 120, threats: [-60, 60] }) && j(fc2) === j({ rot: 270, threats: [] }) && fc3 === null && j(fc4) === j({ rot: 60, threats: [180] })
+            && /fc = sc && sc\.sbFacing && st\.on\('turning'\) \? sc\.sbFacing\(d, item\.front\) : null;/.test(sbSrc), j([fc1, fc2, fc3, fc4]));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

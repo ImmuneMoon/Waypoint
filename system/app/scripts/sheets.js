@@ -3549,7 +3549,7 @@ function openDownloadMenu(anchor) {
     var c = sheetOpen ? charById(sheetOpen) : null; if (!c || c.partial || !canOpen(c.id)) return;
     var gm = !isClient(), cid = c.id, pop = el('div', 'sheet-dl-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
     var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); if (kind === 'print') printSheet(cid, gm && _dlGm); else downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); };
-    item('Character file (.json)', 'Every value on the sheet, to keep', 'json');
+    item('Character file (.wpchar.json)', 'Every value on the sheet, to keep', 'json');
     item('Readable page (.md)', 'The sheet as text \u2014 it imports as a handbook page', 'md');
     item('Print or save as PDF\u2026', 'Exactly as it shows, every tab in turn', 'print');
     if (gm) { var lb = el('label', 'sheet-dl-gm'), cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = _dlGm; cb.addEventListener('change', function() { _dlGm = cb.checked; }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' Include GM-only fields')); lb.title = 'Off: the sheet as its player sees it. On: your own copy, with every GM-only field and row (the file is named \u2026-gm)'; pop.appendChild(lb); }
@@ -4892,7 +4892,7 @@ window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: 
 (function wireSheetPopout() {
     var pop = document.getElementById('sheetPop');
     if (pop) pop.addEventListener('click', function() {
-        var camp = getActiveCampaign(); if (!camp || !sheetOpen) return;
+        var camp = getActiveCampaign(); if (!camp || !sheetOpen || isClient()) return;   // it reads this machine's save: at someone else's table there is nothing to show
         window.open(location.origin + '/?popout=sheet:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(sheetOpen), 'wpPopout_sheet_' + sheetOpen, 'width=840,height=1000');
         closeSheet();
     });

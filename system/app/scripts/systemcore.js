@@ -38,7 +38,7 @@ var KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle
 var STORED = Object.freeze({ number: 1, resource: 1, skill: 1, toggle: 1, text: 1, notes: 1, select: 1, 'item-list': 1, effects: 1 });   // effects (5h): a character's status effects — rows, never a number
 var NUMERIC = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // kinds a formula may name
 var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill: 'base' });   // a kind's definition formula (no dice allowed)
-var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1, hud: 1, search: 1, text: 1 });   // text (H11): a block of rules text   // search (Stage 6 HUD H12): a handbook search over the viewer's own pages   // hud (HUD frame HF2b): a button that opens the character's HUD   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
+var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1, hud: 1, search: 1, text: 1, roller: 1 });   // text (H11): a block of rules text; roller (H9): a custom roll box   // search (Stage 6 HUD H12): a handbook search over the viewer's own pages   // hud (HUD frame HF2b): a button that opens the character's HUD   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
 var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // Stage 5c: what the pinned band can hold — kinds that read in one row (text, notes, selects and item lists stay in sections)
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
 var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
@@ -807,6 +807,7 @@ function cleanSections(list, ctx) {
             else if (typeof p.roll === 'string' && rollIds[p.roll]) item = { roll: p.roll, w: w };
             else if (typeof p.kind === 'string' && LAYOUT[p.kind]) {
                 item = { kind: p.kind, w: w }; if (p.kind === 'heading') item.text = str(p.text, LIMITS.label).replace(CTRL_RE, ' ').trim();
+                if (p.kind === 'roller') { var rlt = cutText(p.text, LIMITS.label), rlf = cleanFormulaText(p.formula); if (rlt) item.text = rlt; if (rlf) item.formula = rlf; }   // Stage 6 HUD H9: its name on the card and the formula it starts with (both optional)
                 if (p.kind === 'text') item.text = str(p.text, LIMITS.ruleText).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ');   // Stage 6 HUD H11: rules text — plain, line breaks and tabs kept (drawn as text)
                 if (p.kind === 'link') {   // Stage 5f: a handbook link — its own label (blank = the page's title when drawn) and the page; a link with no page yet is kept for the GM (nothing set is lost on Save), dropped from the players' view
                     item.text = str(p.text, LIMITS.label).replace(CTRL_RE_G, ' ').trim();
@@ -924,7 +925,7 @@ function cleanSystem(sys, opts) {
     if (opts.pages !== undefined) { pages = map(); (Array.isArray(opts.pages) ? opts.pages : []).forEach(function(id) { if (validPageId(id)) pages[id] = 1; }); }
     out.sheet = cleanSheet(sys.sheet, fieldIds, rollIds, pages, gmView);
     if (!gmView && typeof showMention === 'function') [out.sheet, out.sheet && out.sheet.hud].forEach(function(lay) {   // Stage 6 HUD C8: a show-if naming a GM-only value goes (the part simply shows): whether it showed would tell the value
-        (lay && Array.isArray(lay.sections) ? lay.sections : []).forEach(function(s) { if (s.showIf && showMention(s.showIf)) delete s.showIf; (s.fields || []).forEach(function(p) { if (p.showIf && showMention(p.showIf)) delete p.showIf; }); });
+        (lay && Array.isArray(lay.sections) ? lay.sections : []).forEach(function(s) { if (s.showIf && showMention(s.showIf)) delete s.showIf; (s.fields || []).forEach(function(p) { if (p.showIf && showMention(p.showIf)) delete p.showIf; if (p.kind === 'roller' && p.formula && showMention(p.formula)) delete p.formula; }); });   // H9: a roller's starting formula naming a GM-only value goes too (the box starts empty)
     });
     var ss = cleanSheetStyle(sys.sheetStyle); if (ss) out.sheetStyle = ss;   // the sheet's own look (doc theming), players' view included
     return out;
@@ -2595,6 +2596,11 @@ function validateSystem(sys, F) {
             };
             chk(s.showIf, 'showIf');
             (Array.isArray(s.fields) ? s.fields : []).forEach(function(pl, i) { if (isObj(pl)) chk(pl.showIf, 'showIf.' + i); });
+            (Array.isArray(s.fields) ? s.fields : []).forEach(function(pl, i) {   // Stage 6 HUD H9: a custom roller's starting formula
+                if (!isObj(pl) || pl.kind !== 'roller' || typeof pl.formula !== 'string' || !pl.formula.trim()) return;
+                var p = F.parse(pl.formula); if (!p.ok) { warnings.push({ id: s.id, prop: 'formula.' + i, message: 'Custom roller: ' + p.error.message }); return; }
+                p.names.forEach(function(nm) { var tg = known[lower(nm)] || listT(nm); if (!tg) warnings.push({ id: s.id, prop: 'formula.' + i, message: 'Custom roller: unknown name "' + nm + '".' }); else if (tg.vis === 'gm' || gmP[tg.id] === 1 || tg.gmKey) warnings.push({ id: s.id, prop: 'formula.' + i, message: 'Custom roller: "' + nm + '" is GM only, so players\u2019 box starts empty.' }); });
+            });
         });
     });
     // loops: DFS over the definition graph

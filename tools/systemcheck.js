@@ -4331,6 +4331,45 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /else if \(plr && c\.indexOf\('sys-pl-rtext'\) >= 0\) \{ var plt = \(sec\.fields \|\| \[\]\)\[\+plr\.dataset\.pi\]; if \(plt\) plt\.text = t\.value\.slice\(0, LIMITS\.ruleText\); \}/.test(shR) && /if \(pl\.kind === 'text'\) return 'Rules text';/.test(shR)
             && /A <b>Rules text<\/b> placement shows a block of your own words as written/.test(hmR) && /a <b>Rules text<\/b> placement shows your own words as written/.test(tuR) && /\.sheet-ruletext \{ white-space: pre-wrap;/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')) && /\.sheet-ruletext\.sheet-row \{ grid-column: 1 \/ -1; \}/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')));
     }
+    /* ---- Stage 6 HUD H9: a custom roller placement ---- */
+    {
+        const shQ = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), hmQ = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuQ = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const rawQ = { v: 1, name: 'Q', fields: [{ id: 'f_dx', key: 'DX', kind: 'number', def: 12 }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 3, vis: 'gm' }], rolls: [], sheet: { sections: [{ id: 's_a', title: 'Rolls', fields: [
+            { kind: 'roller', text: '  Lockpicking  ', formula: ' 3d6 <= DX + 2 ' }, { kind: 'roller', formula: '1d20 + GMFig' }, { kind: 'roller', text: 7, formula: 5 }, { kind: 'roller', formula: 'x'.repeat(301) }, { kind: 'roller', formula: '2d6 +' }, { kind: 'roller', formula: 'Nope + 1d6' }] }] } };
+        const gQ = cleanSystem(rawQ, { F, gmView: true }), pQ = cleanSystem(rawQ, { F, gmView: false }), gf = gQ.sheet.sections[0].fields, pf = pQ.sheet.sections[0].fields;
+        check('H9 a custom roller keeps its name (trimmed, one line) and its starting formula (trimmed, 300 at most, text only) when set; in the players\' view a formula naming a GM-only value goes (their box starts empty), any other stays',
+            JSON.stringify(gf.slice(0, 4)) === JSON.stringify([{ kind: 'roller', w: 1, text: 'Lockpicking', formula: '3d6 <= DX + 2' }, { kind: 'roller', w: 1, formula: '1d20 + GMFig' }, { kind: 'roller', w: 1 }, { kind: 'roller', w: 1 }])
+            && pf[0].formula === '3d6 <= DX + 2' && !('formula' in pf[1]) && pf.length === gf.length, JSON.stringify([gf, pf]));
+        const wQ = S.validateSystem(gQ, F).warnings.filter(w => /^Custom roller/.test(w.message)).map(w => w.prop + ' ' + w.message);
+        check('H9 the editor warns on a starting formula that does not read (as the Layout tab shows it), names something unknown, or names a GM-only value (players\' box starts empty)',
+            wQ.some(x => /^formula\.1 Custom roller: "GMFig" is GM only/.test(x)) && wQ.some(x => /^formula\.4 Custom roller: /.test(x)) && wQ.some(x => /^formula\.5 Custom roller: unknown name "Nope"\./.test(x)) && !wQ.some(x => /^formula\.0 /.test(x)), JSON.stringify(wQ));
+        const rSrc = shQ.slice(shQ.indexOf('/* Stage 6 HUD H9: a custom roller'), shQ.indexOf('// A handbook link placement'));
+        const mkQ = o => {
+            o = o || {}; const rolls = [], toasts = [];
+            const E = (tag, cls, txt) => ({ tag, className: cls || '', textContent: txt === undefined ? '' : String(txt), children: [], dataset: {}, on: {}, value: '', title: '', placeholder: '', disabled: false, maxLength: 0, type: '',
+                appendChild(c) { this.children.push(c); return c; }, addEventListener(k, f) { this.on[k] = f; }, closest: q => (o.inModal && q === '#systemModal' ? {} : null) });
+            const inputQ = (cls, value, title, ph) => { const i = E('input', cls); i.value = value == null ? '' : String(value); i.title = title; i.placeholder = ph; return i; };
+            const win = { wpDice: { rollFor: (id, ex, lab, op) => rolls.push(['for', id, ex, lab, op.source]), rollWithMod: (id, ex, lab, op, anchor) => rolls.push(['mod', id, ex, lab, op.source, !!anchor]) } };
+            const api = new Function('el', 'input', 'canRoll', 'toast', 'window', 'LIMITS', rSrc + '\nreturn { rollerNode, state: _rl };')(E, inputQ, () => o.can !== false, m => toasts.push(m), win, S.LIMITS);
+            const parts = n => { const row = n.children[0]; return { fx: row.children[0], lb: row.children[1], go: row.children[2] }; };
+            return { api, rolls, toasts, parts };
+        };
+        const q1 = mkQ(), n1 = q1.api.rollerNode({ kind: 'roller', text: 'Lockpicking', formula: '3d6 <= DX + 2' }, { id: 'c_a', name: 'Bren' }, 'h-c_a-s_a-0'), p1 = q1.parts(n1);
+        const start = [p1.fx.value, p1.lb.placeholder, p1.fx.dataset.fid, p1.fx.dataset.part, p1.lb.dataset.part, p1.go.disabled, p1.go.title];
+        p1.go.on.click({}); p1.fx.value = '2d6 + 1'; p1.fx.on.input(); p1.lb.value = 'Smash'; p1.lb.on.input(); p1.go.on.click({ shiftKey: true }); p1.fx.on.keydown({ key: 'Enter', preventDefault() {} });
+        const n1b = q1.api.rollerNode({ kind: 'roller', text: 'Lockpicking', formula: '3d6 <= DX + 2' }, { id: 'c_a', name: 'Bren' }, 'h-c_a-s_a-0'), p1b = q1.parts(n1b);
+        check('H9 the roller (run for real): its box starts with the formula, its name box shows the name to use; Roll rolls it as the character with that name, the viewer\'s own formula and name once typed, shift-click through the modifier, Enter too; a repaint keeps what they typed',
+            JSON.stringify(start) === JSON.stringify(['3d6 <= DX + 2', 'Lockpicking', 'h-c_a-s_a-0', 'expr', 'label', false, 'Roll it as Bren \u00b7 shift-click to add a modifier'])
+            && JSON.stringify(q1.rolls) === JSON.stringify([['for', 'c_a', '3d6 <= DX + 2', 'Lockpicking', 'sheet'], ['mod', 'c_a', '2d6 + 1', 'Smash', 'sheet', true], ['for', 'c_a', '2d6 + 1', 'Smash', 'sheet']]) && p1b.fx.value === '2d6 + 1' && p1b.lb.value === 'Smash', JSON.stringify(q1.rolls));
+        const q2 = mkQ({ can: false }), p2 = q2.parts(q2.api.rollerNode({ kind: 'roller', formula: '1d6' }, { id: 'c_b', name: 'Ana' }, 'k2')); p2.go.on.click({}); p2.fx.on.keydown({ key: 'Enter', preventDefault() {} });
+        const q3 = mkQ(), p3 = q3.parts(q3.api.rollerNode({ kind: 'roller' }, { id: 'c_a', name: 'Bren' }, 'k3')); p3.go.on.click({}); p3.fx.value = '1d6'; p3.fx.on.input(); p3.go.on.click({});
+        const q4 = mkQ({ inModal: true }), p4 = q4.parts(q4.api.rollerNode({ kind: 'roller', formula: '1d6' }, { id: 'c_a', name: 'Bren' }, 'k4')); p4.go.on.click({});
+        check('H9 not theirs to roll (or dice off): Roll is disabled and says why, and rolls nothing; an empty box asks for a formula; with no name set the card says Custom roll; nothing rolls in the editor\'s preview',
+            p2.go.disabled === true && /dice are off here, or this is not your character/.test(p2.go.title) && !q2.rolls.length && JSON.stringify(q3.toasts) === JSON.stringify(['Type a formula to roll, for example 2d6 + 3.']) && JSON.stringify(q3.rolls) === JSON.stringify([['for', 'c_a', '1d6', 'Custom roll', 'sheet']]) && p3.lb.placeholder === 'Custom roll' && !q4.rolls.length);
+        check('H9 the section draws it keyed like the search; the editor offers Custom roller with a name and a starting formula; Help and the tour say so',
+            /else if \(pl\.kind === 'roller'\) node = rollerNode\(pl, c, hbKey\(vctx, c, sec, pli\)\);/.test(shQ) && /\['k:roller', 'Custom roller'\]/.test(shQ) && /else if \(plr && c\.indexOf\('sys-pl-rformula'\) >= 0\) \{ var plf = \(sec\.fields \|\| \[\]\)\[\+plr\.dataset\.pi\]; if \(plf\) plf\.formula = t\.value\.slice\(0, LIMITS\.formula\); \}/.test(shQ)
+            && /\.sheet-roller-row \.sheet-roller-go \{ flex: none; width: auto;/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')) && /A <b>Custom roller<\/b> placement is a formula box, a name and <b>Roll<\/b>/.test(hmQ) && /a <b>Custom roller<\/b> rolls any formula as the character/.test(tuQ));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

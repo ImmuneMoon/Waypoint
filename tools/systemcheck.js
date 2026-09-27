@@ -4766,6 +4766,49 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('F8 the system\'s roll outcomes: 3d6 roll-under kept (the players\' view too), anything else left out (absent: success or failure by the margin, a system unchanged); the Combat card sets and clears it',
             on.combat.checks === 'under3d6' && !('checks' in off.combat) && pv.combat.checks === 'under3d6' && /labeledSelect\('sys-combat-checks', 'Roll outcomes'/.test(shO) && /if \(t\.value === 'under3d6'\) draft\.combat\.checks = 'under3d6'; else delete draft\.combat\.checks;/.test(shO), JSON.stringify([on.combat, off.combat]));
     }
+
+    /* ---- Stage 6 U1: an upload as a proposed change list (sbProposal) and its approved changes applied (sbApplyProposal) ---- */
+    {
+        const n = (id, key, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind: 'number', vis: 'all' }, extra || {});
+        const lst = (id, key, list) => ({ id: 'f_' + id, key, label: key, kind: 'item-list', vis: 'all', list });
+        const rawU = { v: 1, name: 'U', rolls: [], fields: [n('st', 'ST', { def: 10 }), { id: 'f_hp', key: 'HP', label: 'Hit Points', kind: 'resource', vis: 'all', maxFormula: 'ST' }, { id: 'f_pl', key: 'Player', label: 'Player', kind: 'text', vis: 'all' },
+            lst('sk', 'Skills', { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr', labels: ['ST', 'DX', 'IQ'] }, { key: 'diff' }, { key: 'fix' }, { key: 'granted' }, { key: 'free' }] }),
+            lst('ad', 'Advantages', { cats: ['Advantage'], noQty: true, custom: true, lvl: { label: 'Level', min: 0, max: 100, def: 0 }, stats: [{ key: 'bp' }, { key: 'per' }, { key: 'granted' }] }),
+            lst('gr', 'Gear', { custom: true, multi: true, on: { label: 'Stowed' }, stats: [{ key: 'wt' }, { key: 'cr' }] })],
+            items: [{ id: 'i_climb', name: 'Climbing', key: 'Climbing', category: 'Skill', stats: { attr: 1, diff: 1 } }, { id: 'i_lore', name: 'Lore', key: 'Lore', category: 'Skill', stats: { attr: 2, diff: 2 } }, { id: 'i_rope', name: 'Rope', key: 'Rope', category: 'Gear', stats: { wt: 1, cr: 10 } }] };
+        const sU = cleanSystem(rawU, { F, gmView: true }), byN = {}; sU.items.forEach(e => { (byN[e.name.toLowerCase()] = byN[e.name.toLowerCase()] || []).push(e); });
+        const find = nm => byN[String(nm).trim().toLowerCase()] || [];
+        const A = { player: 'Pat', attributes: { strength: { value: 12 } }, characteristics: { hitPoints: { current: 12 } }, skills: [{ name: 'Climbing', level: '12', relativeLevel: 'DX/Average' }, { name: 'Lore', level: 11, relativeLevel: 'IQ/Hard' }, { name: 'Cooking', level: '10', relativeLevel: 'IQ/Easy' }],
+            traits: { advantages: [{ name: 'Tough', points: 10 }] }, inventory: { general: [{ name: 'Rope', weight: 1, cost: 10, quantity: 2 }, { name: 'Lamp', weight: 2, cost: 5 }] } };
+        const copyOf = json => { const r = aliasFromShadowBase(json, sU, F), ro = S.sbRowOps(json, sU, find), ch = { id: 'c_u', name: 'U', ownerId: 'u_p', npc: false, values: Object.assign({}, r.values) }; ro.ops.forEach(o => { const res = S.applyRowOp(sU, ch, o.f, o.q, F, {}); if (res.ok) ch.values[o.f] = res.value; }); return ch; };
+        const ch = copyOf(A), p0 = S.sbProposal(sU, ch, A, F, find);
+        // the GM set Lore's difficulty on this copy (held), and keeps a curse on the character
+        const lore = ch.values.f_sk.find(r => r.defId === 'i_lore'); lore.ov = { stats: { diff: 3 }, held: ['diff'] };
+        ch.values.f_gr.push({ id: 'w_curse', qty: 1, hid: 1, def: { name: 'Cursed Idol', category: '', icon: '', notes: '', vis: 'gm' } });
+        const B = JSON.parse(j(A)); B.attributes.strength.value = 13; B.skills[0].level = '14'; B.skills[0].name = 'Climbing (Cliffs)'; B.skills[1].relativeLevel = 'IQ/Average'; B.skills.pop(); B.skills.push({ name: 'Acrobatics', level: '11', relativeLevel: 'DX/Hard' });
+        B.traits.advantages[0].points = 15; B.inventory.general[0].quantity = 5; B.inventory.general.pop();
+        const p1 = S.sbProposal(sU, ch, B, F, find), by = k => p1.changes.filter(x => x.kind === k).map(x => x.label + ' | ' + x.from + ' -> ' + x.to);
+        check('U1 proposing the file a character was copied from changes nothing', p0.changes.length === 0, j(p0.changes));
+        check('U1 an edited file proposes its edits: a value (ST), a row\'s facts (a skill\'s level, a stack\'s quantity), a library copy\'s own values (its specialty name; a value the GM set on it kept by default), a custom row\'s numbers, a new row, and removals offered but not ticked (never a kept curse)',
+            j(by('value')) === j(['ST | 12 -> 13']) && by('fact').length === 2 && by('fact').some(x => /Climbing \| level 12 -> level 14/.test(x)) && by('fact').some(x => /Rope \| \u00d72 -> \u00d75/.test(x))
+            && p1.changes.some(x => x.kind === 'stat' && /Climbing/.test(x.label) && x.accept === true && x.ov.name === 'Climbing (Cliffs)') && p1.changes.some(x => x.kind === 'stat' && /Lore/.test(x.label) && x.accept === false && x.held === true && x.ov.stats.diff === 1)
+            && j(by('def')) === j(['Advantages: Tough | {"bp":10} -> {"bp":15}']) && j(by('add')) === j(['Skills: Acrobatics | — -> Acrobatics 11'])
+            && j(p1.changes.filter(x => x.kind === 'remove').map(x => [x.label, x.accept])) === j([['Skills: Cooking', false], ['Gear: Lamp', false]]), j(p1.changes.map(x => [x.kind, x.label, x.from, x.to, x.accept])));
+        const accAll = {}, accDef = {}; p1.changes.forEach(x => { accAll[x.id] = true; if (x.accept) accDef[x.id] = true; });
+        const apAll = S.sbApplyProposal(sU, ch, p1, accAll, F), after = Object.assign({}, ch, { values: apAll.values }), p2 = S.sbProposal(sU, after, B, F, find);
+        const apDef = S.sbApplyProposal(sU, ch, p1, accDef, F), p3 = S.sbProposal(sU, Object.assign({}, ch, { values: apDef.values }), B, F, find);
+        check('U1 applying every change leaves nothing to propose (the kept curse stays); applying the default ticks leaves exactly the GM\'s held value and the offered removals; the character itself is never touched',
+            apAll.failed === 0 && apAll.done === p1.changes.length && p2.changes.length === 0 && apAll.values.f_gr.some(r => r.id === 'w_curse')
+            && j(p3.changes.map(x => x.kind + ':' + x.label).sort()) === j(['remove:Gear: Lamp', 'remove:Skills: Cooking', 'stat:Skills: Lore']) && ch.values.f_sk.length === 3 && ch.values.f_pl === 'Pat', j([apAll.done, apAll.failed, p2.changes, p3.changes.map(x => x.kind + ':' + x.label)]));
+        const bad = { changes: [{ id: 'u_x', kind: 'remove', f: 'f_gr', row: 'w_nope' }, { id: 'u_y', kind: 'value', f: 'f_st', value: 'x' }, { id: 'u_z', kind: 'value', f: 'f_gone', value: 1 }, { id: 'u_w', kind: 'stat', f: 'f_gr', row: 'w_nope', ov: {} }] };
+        const apBad = S.sbApplyProposal(sU, ch, bad, { u_x: true, u_y: true, u_z: true, u_w: true }, F);
+        check('U1 a change that no longer applies (a row gone, a value its field refuses, a field gone) is counted as failed and changes nothing', apBad.done === 0 && apBad.failed === 4 && j(apBad.values) === j(ch.values), j(apBad));
+        const half = { changes: [{ id: 'u_h', kind: 'add', f: 'f_ad', ops: [{ op: 'custom', rowId: 'w_zz', def: { name: 'Half' } }, { op: 'set', rowId: 'w_zz', facts: { lvl: 'bad' } }] }] }, apHalf = S.sbApplyProposal(sU, ch, half, { u_h: true }, F);
+        const A2 = JSON.parse(j(A)); A2.skills.push({ name: 'Climbing (Walls)', level: '9', relativeLevel: 'DX/Average' }); const ch2 = copyOf(A2), B2 = JSON.parse(j(A2)); B2.skills[3].level = '10'; B2.skills.unshift(B2.skills.pop()); B2.traits.advantages = [];   // the file lists the specialties in another order
+        const p4 = S.sbProposal(sU, ch2, B2, F, find), walls = ch2.values.f_sk.find(r => r.ov && r.ov.name === 'Climbing (Walls)');
+        check('U1 a change is all or nothing (a new row whose facts are refused leaves no row); two copies of one entry pair by their own names (only the one the file changed moves); a list the file carries empty offers its rows\' removal',
+            apHalf.failed === 1 && !(apHalf.values.f_ad || []).some(r => r.id === 'w_zz') && j(p4.changes.map(x => [x.kind, x.label, x.row || null, x.to])) === j([['fact', 'Skills: Climbing (Walls)', walls && walls.id, 'level 10'], ['remove', 'Advantages: Tough', ch2.values.f_ad[0].id, 'removed']]), j([apHalf, p4.changes.map(x => [x.kind, x.label, x.row, x.to])]));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

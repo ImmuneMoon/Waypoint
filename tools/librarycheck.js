@@ -116,6 +116,68 @@ const j = v => JSON.stringify(v);
             capped.manifest.packs.length === LIB.packs && capped.left === 2 && libImportPlan(null, null) === null && libImportPlan(null, { dir: 'l_import01', packs: [] }) === null && libImportPlan(null, { dir: '../x', packs: [{ id: 'p_a' }] }) === null);
     }
 
+    /* ---- L2a: the Library window's rules ---- */
+    {
+        const { searchEntries, entryFromForm, newEntryId, keyClashes, setPackMeta } = L;
+        const es = [{ id: 'i_1', name: 'Rope of Climbing', key: 'Rope', category: 'Gear', tags: ['Tool'], ref: 'PHB 152' }, { id: 'i_2', name: '\u00c9p\u00e9e', key: 'Epee', category: 'Weapon' }, { id: 'i_3', name: 'Lantern', category: 'Gear', tags: ['Light'] }, null];
+        check('L2a searchEntries: every word, in any order, in the name, key, category, tags or reference (case and accents aside); nothing typed lists everything',
+            j(searchEntries(es, 'gear rope').map(e => e.id)) === j(['i_1']) && j(searchEntries(es, 'EPEE').map(e => e.id)) === j(['i_2']) && j(searchEntries(es, 'light').map(e => e.id)) === j(['i_3']) && j(searchEntries(es, '152 phb').map(e => e.id)) === j(['i_1'])
+            && searchEntries(es, '  ').length === 4 && searchEntries(es, null).length === 4 && searchEntries(es, undefined).length === 4 && searchEntries([{ id: 'i_n', name: 'null' }], null).length === 1 && searchEntries(es, 'nothing').length === 0 && searchEntries(null, 'x').length === 0);
+        const form = { id: 'i_1', name: 'Rope', key: ' Rope ', category: 'Gear', vis: 'gm', tags: 'Tool, Climbing, ,', lvl: ' 2 ', stats: { Wt: '10', Cost: '2.5', Kind: 'Hemp', Nope: '' }, areaFt: '15', areaShape: 'square', areaName: 'Snare', damage: '1d4', gmNotes: 'x' };
+        const ef = entryFromForm(form), efc = cleanLibEntry(ef, gm);
+        check('L2a entryFromForm: the form as typed becomes an entry — the key trimmed, tags split at commas (blanks gone), a whole level, a stat a number when it reads as one (else a choice\'s name; blank: none), an area only with a size; then cleaned like any entry',
+            ef.key === 'Rope' && j(ef.tags) === j(['Tool', 'Climbing']) && ef.lvl === 2 && j(ef.stats) === j({ Wt: 10, Cost: 2.5, Kind: 'Hemp' }) && j(ef.area) === j({ ft: 15, shape: 'square', name: 'Snare' }) && ef.vis === 'gm'
+            && entryFromForm({ areaFt: '5' }).area.shape === 'circle' && cleanLibEntry(Object.assign(entryFromForm({ areaFt: '5', areaShape: 'nonagon' }), { id: 'i_sq', name: 'Sq' }), gm).area.shape === 'circle' && !('area' in entryFromForm({ areaFt: '0' })) && !('lvl' in entryFromForm({ lvl: '1.5' })) && !('stats' in entryFromForm({ stats: { Wt: '' } })) && efc.id === 'i_1' && j(efc.stats) === j({ Wt: 10, Cost: 2.5 }) && efc.damage === '1d4', j([ef, efc]));
+        let r2 = 0; const seq = () => { r2 = (r2 + 0.61) % 1; return r2; };
+        const idA = newEntryId({ i_x: 1 }, seq), idB = newEntryId(id => id !== 'i_zzzzzzzz', () => 0.9999), idC = newEntryId(() => true);
+        check('L2a newEntryId: a fresh i_ id none of the library uses (a map or a test), none when it cannot find one', /^i_[a-z0-9]{8}$/.test(idA) && idB === '' && idC === '' && /^i_[A-Za-z0-9_]{1,24}$/.test(idA), j([idA, idB, idC]));
+        check('L2a keyClashes: the other entries with the same key, case aside (the entry itself never); none without a key',
+            j(keyClashes([{ id: 'i_1', key: 'Rope' }, { id: 'i_2', key: 'rope' }, { id: 'i_3', key: 'Lamp' }], { id: 'i_1', key: 'ROPE' }).map(e => e.id)) === j(['i_2']) && keyClashes([{ id: 'i_2', key: 'x' }], { id: 'i_1' }).length === 0);
+        const man0 = { dir: 'l_abcd1234', packs: [{ id: 'p_a', name: 'A', icon: '\u2694' }, { id: 'p_b' }] }, m1 = setPackMeta(man0, 'p_a', { name: ' Weapons\u0000 ', vis: 'gm', icon: '' }), m2 = setPackMeta(man0, 'p_b', { name: '' });
+        check('L2a setPackMeta: a pack\'s name (one line; blank: Pack), who may see it and its icon (blank: none) change in a clean manifest; an unknown pack or no manifest: none',
+            j(m1.packs[0]) === j({ id: 'p_a', name: 'Weapons', vis: 'gm', rev: 0, count: 0, bytes: 0, hash: '' }) && m2.packs[1].name === 'Pack' && setPackMeta(man0, 'p_x', {}) === null && setPackMeta(null, 'p_a', {}) === null, j([m1, m2]));
+    }
+
+    /* ---- L2a: the library by key (the core), and the Library window ---- */
+    {
+        const { keyIndex, entryFromForm } = L;
+        const man = { packs: [{ id: 'p_a', vis: 'all' }, { id: 'p_g', vis: 'gm' }, { id: 'p_none' }] };
+        const ents = { p_a: [{ id: 'i_1', key: 'Stealth', name: 'S1' }, { id: 'i_2', name: 'NoKey' }, { id: 'i_3', key: 'stealth', name: 'S3', vis: 'gm' }], p_g: [{ id: 'i_4', key: 'Climb', name: 'C' }, { id: 'i_5', key: 'STEALTH', name: 'S5', vis: 'gm' }] };
+        const ki = keyIndex(man, id => ents[id]);
+        check('L2a keyIndex: the library by key (case aside) in the manifest\'s pack order, an entry without a key left out; a GM-only pack\'s entries count as GM-only (as copies: the pack\'s own are unchanged); no manifest or lookup: nothing',
+            j(Object.keys(ki).sort()) === j(['climb', 'stealth']) && j(ki.stealth.map(e => e.id)) === j(['i_1', 'i_3', 'i_5']) && ki.climb[0].vis === 'gm' && !('vis' in ents.p_g[0]) && ki.stealth[0] === ents.p_a[0] && ki.stealth[2] === ents.p_g[1]
+            && Object.getPrototypeOf(ki) === null && Object.keys(keyIndex(null, id => ents[id])).length === 0 && Object.keys(keyIndex(man, null)).length === 0, j(ki));
+        const sysK = { v: 1, name: 'K', rolls: [{ id: 'r_c', name: 'Climb', formula: '3d6 <= Skills.Climb.Rank + Skills.Stealth.Rank' }], fields: [{ id: 'f_sk', key: 'Skills', kind: 'item-list', list: { stats: [{ key: 'Rank', label: 'Rank' }] } }] };
+        const coK = S.coreOf(sysK, k => ki[k] || []), withK = Object.assign({}, sysK, { core: coK.core });
+        const gmK = S.cleanSystem(withK, { F, gmView: true }), plK = S.cleanSystem(withK, { F, gmView: false });
+        check('L2a a formula addressing an entry of a GM-only pack: the GM\'s core holds it, the players\' view of the system never does (an entry of a visible pack reaches both)',
+            j(coK.core.map(e => e.id)) === j(['i_4', 'i_1']) && j((gmK.core || []).map(e => e.id)) === j(['i_4', 'i_1']) && j((plK.core || []).map(e => e.id)) === j(['i_1']) && JSON.stringify(plK).indexOf('i_4') < 0, j([coK.core, plK.core]));
+        const fs = require('fs');
+        const winS = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), lbS = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
+        const hmS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), tuS = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const fk = /var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = (\[[^\]]*\]);/.exec(winS), FK = fk ? JSON.parse(fk[1].replace(/'/g, '"')) : [];
+        const full = entryFromForm({ id: 'i_z', name: 'n', key: 'K', category: 'c', icon: 'x', vis: 'gm', lvl: '1', stats: { Rank: '2' }, notes: 'n', desc: 'd', tags: 't', ref: 'r', damage: '1', cost: '1', throwSkill: 'T', areaFt: '5', gmNotes: 'g' });
+        check('L2a the Library window: text nodes only (nothing from an entry, a pack name or a file becomes markup); it never writes a pack it has not read (still loading or unreadable: writing it would leave nothing); a save replaces every field the form holds (each one entryFromForm makes) and keeps the rest (a bound item\'s secrets); it acts on the campaign it opened on',
+            !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\('on/.test(winS)
+            && /if \(!packById\(pid\) \|\| !ready\(pid\)\) \{ delete st\.dirty\[pid\]; continue; \}/.test(winS)
+            && /function saveEntry\(\) \{\n\s*var e = current\(\); if \(!e \|\| !st\.packId \|\| !ready\(st\.packId\)\) return;/.test(winS) && /if \(ready\(packId\)\) st\.work\[packId\] = list;/.test(winS)
+            && /var out = clone\(e\); FORM_KEYS\.forEach\(function\(k\) \{ delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(winS)
+            && Object.keys(full).filter(k => k !== 'id').every(k => FK.includes(k)) && FK.length === Object.keys(full).length - 1
+            && /function camp\(\) \{ var c = getActiveCampaign\(\); return c && c\.id === st\.campId \? c : null; \}/.test(winS) && /function ready\(packId\) \{ return !!\(camp\(\) && LB\(\) && LB\(\)\.ready && LB\(\)\.ready\(packId\)\); \}/.test(winS), j([FK, Object.keys(full)]));
+        check('L2a the store: a pack is ready only once read for the campaign on screen; a pack\'s name, icon or visibility changes in the manifest, is saved and works the core out again; the core is drawn through keyIndex; an open window hears when the library has been read',
+            /function ready\(packId\) \{ var camp = getActiveCampaign\(\); return !!camp && cur\.campId === camp\.id && typeof packId === 'string' && Object\.prototype\.hasOwnProperty\.call\(cur\.packs, packId\); \}/.test(lbS)
+            && /var m = setPackMeta\(camp\.library, packId, meta\); if \(!m\) return \{ error: 'No such pack\.' \};\n\s*camp\.library = m; cur\.sig = manifestSig\(camp\);\n\s*save\(true\); after\(\);/.test(lbS)
+            && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = byKey\(camp\), res = coreOf\(/.test(lbS)
+            && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n\s*return mine;/.test(lbS)
+            && /refreshCore: refreshCore, ready: ready, setMeta: setMeta \};/.test(lbS));
+        const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };
+        check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help and the tour describe it',
+            zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
+            && hmS.indexOf('scripts/librarywin.js') > hmS.indexOf('scripts/library.js') && hmS.indexOf('scripts/library.js') > 0
+            && /<div id="sysItems"[\s\S]*?id="sysOpenLibrary"[\s\S]*?<div id="sysItemRows"/.test(hmS)
+            && /<div id="helpModal"[\s\S]*<li><b>&#128218; Library&hellip;<\/b> \(on the Items tab\)/.test(hmS) && /<b>&#128218; Library&hellip;<\/b> opens the campaign&rsquo;s <b>library<\/b>/.test(tuS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
+    }
+
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');
     check('under a window the module publishes itself as window.wpLibraryCore', !!(global.window.wpLibraryCore && global.window.wpLibraryCore.cleanPack && global.window.wpLibraryCore.VERSION === L2.VERSION));
     delete global.window;

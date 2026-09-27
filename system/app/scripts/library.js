@@ -7,7 +7,7 @@
    docs/STAGE_6_LIBRARY_BUILD.md. */
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan } from './librarycore.js';
+import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex } from './librarycore.js';
 import { setLibraryFind, coreOf, cleanSystem } from './systemcore.js';
 
 function map() { return Object.create(null); }
@@ -22,10 +22,10 @@ function F() { return window.wpFormula; }
 function oldCore() { if (!saidOld) { saidOld = true; toast('This Waypoint core cannot store a library yet: update Waypoint to use it.'); } }
 // L1d: the system's core — the library entries its formulas address by key (systemcore coreOf), recomputed after the library or the
 // system changes on the GM's machine; stored (and so sent to the table) only when it changed
-function byKey() { var m = map(); Object.keys(cur.byId).forEach(function(id) { var e = cur.byId[id], k = e && typeof e.key === 'string' ? e.key.toLowerCase() : ''; if (k) (m[k] = m[k] || []).push(e); }); return m; }
+function byKey(camp) { return keyIndex(camp && camp.library, entriesOf); }   // L2a: in the manifest's pack order; a GM-only pack's entries count as GM-only
 function refreshCore(camp) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return false;
-    var idx = byKey(), res = coreOf(camp.system, function(k) { return idx[k] || []; }), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
+    var idx = byKey(camp), res = coreOf(camp.system, function(k) { return idx[k] || []; }), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
     if (before === nowT) return false;
     if (res.core.length) camp.system.core = res.core; else delete camp.system.core;
     var clean = F() ? cleanSystem(camp.system, { F: F(), gmView: true }) : null; if (clean) camp.system = clean;   // cleaned as any system is
@@ -57,6 +57,7 @@ async function load(camp) {
     mine.state = bad.length ? 'partial' : 'ready';
     if (bad.length) { mine.error = 'Could not read: ' + bad.join(', '); toast('The library could not read ' + bad.join(', ') + '.'); }
     after();
+    if (window.wpLibraryWin && window.wpLibraryWin.refresh) { try { window.wpLibraryWin.refresh(); } catch (e) { console.error(e); } }   // L2a: an open Library window shows what was loading
     return mine;
 }
 // Write a pack's entries as its next revision; the manifest pins it and the save follows. { ok } or { error }
@@ -94,6 +95,15 @@ async function deletePack(packId) {
     try { await fetch('/api/library?dir=' + dir + (last ? '' : '&pack=' + packId), { method: 'DELETE' }); } catch (e) {}   // its files go, the folder with the last (a backup keeps its own)
     return { ok: true };
 }
+// L2a: a pack's name, icon and who may see it — the manifest only (no file is written); saved, and the core worked out again (a GM-only
+// pack's entries leave the players' view at once). { ok } or { error }
+function setMeta(packId, meta) {
+    var camp = getActiveCampaign(); if (!camp || !camp.library || !gmHere()) return { error: 'No library here.' };
+    var m = setPackMeta(camp.library, packId, meta); if (!m) return { error: 'No such pack.' };
+    camp.library = m; cur.sig = manifestSig(camp);
+    save(true); after();
+    return { ok: true };
+}
 // L1c2: an import's pack files copied beside the save — each cleaned like any pack read (never trusted as it came), written at the
 // revision its campaign's manifest now pins; the manifest watch waits until they are all there, then the library is read again.
 // jobs: [{ camp, uploads }], files: the zip's entries by name
@@ -118,8 +128,10 @@ async function importFiles(jobs, files) {
 }
 function entry(id) { var camp = getActiveCampaign(); return camp && cur.campId === camp.id && typeof id === 'string' && Object.prototype.hasOwnProperty.call(cur.byId, id) ? cur.byId[id] : null; }
 function entriesOf(packId) { return (cur.packs[packId] || []).map(function(id) { return cur.byId[id]; }).filter(Boolean); }
+// L2a: a pack read for the campaign on screen (made, written or loaded): one still loading or unreadable is not, so nothing writes over it
+function ready(packId) { var camp = getActiveCampaign(); return !!camp && cur.campId === camp.id && typeof packId === 'string' && Object.prototype.hasOwnProperty.call(cur.packs, packId); }
 setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, ready: ready, setMeta: setMeta };

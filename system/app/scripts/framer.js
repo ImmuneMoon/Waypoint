@@ -4,7 +4,9 @@
    nothing. The saved file is always the square — the chips only preview the outline each map's grid cuts it to. window.wpFrame.
    open(source, opts, cb): source = a File or Blob, or a picture the app may show (safecore picRef); opts = { px: the saved side at most,
    as: 'data' (a data URL within opts.max characters) | 'blob' (a PNG), title, guide: { shape, w, h }, start: { x, y, s }, keep: true|false
-   (the GM's "Keep the original" choice, shown only when given) }; cb({ data | blob, rect, w, h, keep }) on OK only. */
+   (the GM's "Keep the original" choice, shown only when given), onCancel, onError, maxInput (a larger cap for the GM's own local file) };
+   cb({ data | blob, rect, w, h, keep }) on OK only; onCancel when it ends without a picture (Cancel, x, Escape, another framing opened over
+   it, or a picture it could not read when there is no onError); onError when the picture could not be read. */
 import { clampRect, zoomAt, panBy, zoomOf, setZoom, outSide, firstFit, guidePath, defaultRect, ENCODE, wheelFactor } from './framecore.js';
 import { picRef } from './safecore.js';
 import { getActiveMap } from './models.js';
@@ -12,6 +14,8 @@ import { getActiveMap } from './models.js';
 var MAX_INPUT = 8 * 1024 * 1024;
 var SVGNS = 'http://www.w3.org/2000/svg';
 var st = null;   // the open framing: { img, w, h, r, opts, cb, url, own, opener, pointers, pinch, shape, gw, gh, g0, busy }
+var gen = 0;      // the latest open: an older framing, open or still loading, ends as a cancel
+function end(f) { if (typeof f === 'function') f(); }
 function ui(id) { return document.getElementById(id); }
 function toast(t) { if (window.appToast) window.appToast(t); }
 
@@ -62,21 +66,23 @@ function pickShape(sh) {
 }
 
 function open(source, opts, cb) {
-    if (st) close();
+    if (st) cancel();
     opts = opts || {};
     var url = '', own = false;
     if (source && typeof source === 'object' && typeof source.size === 'number' && typeof source.type === 'string') {   // a File or a Blob
         if (source.type.indexOf('image/') !== 0) { toast('That file is not an image.'); return false; }
-        if (source.size > MAX_INPUT) { toast('Image is too large — please pick one under 8 MB.'); return false; }
+        var cap = typeof opts.maxInput === 'number' && opts.maxInput > 0 ? opts.maxInput : MAX_INPUT;
+        if (source.size > cap) { toast('Image is too large — please pick one under ' + Math.round(cap / 1048576) + ' MB.'); return false; }
         url = URL.createObjectURL(source); own = true;
     } else if (typeof source === 'string') {
         var ref = picRef(source); if (!ref) { toast('That picture cannot be framed.'); return false; }
         url = /^(data|blob):/i.test(ref) ? ref : encodeURI(ref);   // a raw saves path may hold spaces (the library encodes it the same way)
     } else return false;
-    var img = new Image();
+    var my = ++gen, img = new Image();
     img.onload = function() {
+        if (my !== gen) { if (own) URL.revokeObjectURL(url); end(opts.onCancel); return; }   // another framing was opened meanwhile
         var w = img.naturalWidth, h = img.naturalHeight;
-        if (!(w > 0 && h > 0)) { if (own) URL.revokeObjectURL(url); toast('Could not read that image.'); return; }
+        if (!(w > 0 && h > 0)) { if (own) URL.revokeObjectURL(url); toast('Could not read that image.'); end(opts.onError || opts.onCancel); return; }
         var S = window.wpSystemCore, am = null;
         try { am = getActiveMap(); } catch (er) { am = null; }   // the open map's grid names the default outline
         var g = opts.guide && typeof opts.guide === 'object' ? opts.guide : null, cell = S && S.tokenCell ? S.tokenCell(am) : { type: 'circle', w: 60, h: 52 };
@@ -95,7 +101,7 @@ function open(source, opts, cb) {
         draw();
         try { ui('frameOk').focus(); } catch (er) {}
     };
-    img.onerror = function() { if (own) URL.revokeObjectURL(url); toast('Could not read that image.'); };
+    img.onerror = function() { if (own) URL.revokeObjectURL(url); if (my !== gen) { end(opts.onCancel); return; } toast('Could not read that image.'); end(opts.onError || opts.onCancel); };
     img.src = url;
     return true;
 }

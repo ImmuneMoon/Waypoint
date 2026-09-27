@@ -473,6 +473,193 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rf = winH.wpHist && winH.wpHist.refs;
         check('token creator review: the GM\'s undo says whether a step still shows a picture (io.js wpHist.refs, run for real) — the current state, an undo or a redo step of any item; nothing for a name none has, or no name',
             !!rf && rf('token-w1-q1.png') === true && rf('token-w1-q2.png') === true && rf('token-w1-q3.png') === true && rf('token-w1-q4.png') === false && rf('') === false && rf(null) === false && typeof winH.wpHist.peek === 'function');
+
+        /* ---- the token creator, the GM's side (fold 2), run for real ---- */
+        const jj = JSON.stringify, SCf = SCc, SAFE = await import(modUrl('safecore.js'));
+        const wbF = read('whiteboard.js'), gfS = slice('whiteboard.js', 'gmframe'), tgA = wbF.indexOf('function tokenGuide('), tgB = wbF.indexOf('\n', wbF.indexOf('window.wpTokenGuide = tokenGuide;'));
+        const tgWin = { wpSystemCore: SCf }, tokenGuideF = new Function('window', wbF.slice(tgA, tgB) + '\nreturn tokenGuide;')(tgWin);
+        check('token creator (GM): the outline guide is published as window.wpTokenGuide (the roster portrait and the ShadowBase import frame against it)',
+            tgWin.wpTokenGuide === tokenGuideF && jj(tgWin.wpTokenGuide({ isChar: true, type: 'image', src: 'x', w: 60, h: 52 }, { meta: { gridType: 'hex' } })) === jj({ shape: 'hexagon', w: 60, h: 52 }));
+        const mkGm = (o) => {
+            o = o || {}; const out = { opened: [], toasts: [], calls: [] };
+            const win = { wpSystemCore: SCf, wpFrame: o.noFrame ? undefined : { open(src, opts, cb) { out.opened.push({ src, opts }); if (o.errFirst && out.opened.length === 1) { if (typeof opts.onError === 'function') opts.onError(); return true; } if (o.answer) cb(o.answer); return true; } },
+                wpSheets: o.noAppliers ? {} : { applyCharFrame(cid, plan) { out.calls.push(['char', cid, plan]); return Promise.resolve(true); }, applyTokenFrame(mid, ids, plan) { out.calls.push(['tok', mid, ids, plan]); return Promise.resolve(o.tokOk !== false); } } };
+            if (!o.noPersistHook) win.wpCanPersistLocal = () => o.away !== true;
+            const api = new Function('window', 'picRef', 'getActiveCampaign', 'toast', 'tokenGuide', gfS + '\nreturn { frameSourceOf, frameGmPicture };')(win, SAFE.picRef, () => o.camp, t => out.toasts.push(t), tokenGuideF);
+            return { api, out };
+        };
+        const fr0 = { src: '/saves/images/lib/big photo.png', x: 10, y: 20, s: 300, of: '/saves/images/portraits/token-w1-k1.png' };
+        const campG = { id: 'k', chars: { c_1: { id: 'c_1', name: 'Ana', portrait: '/saves/images/portraits/portrait-c_1-p1.png', frame: { src: '/saves/images/lib/ana.png', x: 1, y: 2, s: 200, of: '/saves/images/portraits/portrait-c_1-p1.png' } }, c_2: { id: 'c_2', name: 'Bo', portrait: fr0.of } } };
+        const G0 = mkGm({ camp: campG }).api, fs = t => G0.frameSourceOf(t, campG), kept0 = { src: fr0.src, start: { x: 10, y: 20, s: 300 } };
+        const src1 = fs({ type: 'image', src: '/saves/images/lib/x.png' }), src2 = fs({ type: 'image', src: fr0.of, frame: fr0 }), src3 = fs({ type: 'image', src: '/saves/images/other.png', frame: fr0 });
+        const src4 = fs({ type: 'image', src: fr0.of, frame: Object.assign({}, fr0, { src: 'https://evil.example/x.png' }) }), src5 = fs({ type: 'image', src: 'https://evil.example/t.png' }), src6 = fs({ type: 'image', src: '//evil.example/t.png' });
+        const src7 = fs({ type: 'image', src: '/saves/images/portraits/portrait-c_1-p1.png', charId: 'c_1', frame: fr0 }), src8 = fs({ type: 'image', src: '/saves/images/tutorial/orc_hex.png' }), src9 = fs({ type: 'circle', src: '/saves/images/x.png' });
+        const src10 = fs({ type: 'image', src: fr0.of, charId: '__proto__', frame: fr0 }), src11 = fs({ type: 'image', src: fr0.of, frame: Object.assign({}, fr0, { src: '/saves/images/../data.json' }) });
+        const srcA = fs({ type: 'image', src: 'assets/tutorial/orc_hex.png' }), srcB = fs({ type: 'image', src: fr0.of, charId: 'c_2', frame: fr0 }), srcC = fs({ type: 'image', src: fr0.of, charId: 'c_1', frame: fr0 });
+        check('token creator (GM): Frame picture… frames from the kept original while the token still wears what was framed from it — its character\'s while its tokens wear that, else the token\'s own (one framed before it had a character) — else the picture it wears (a bundled hexagon from its square twin); a kept original that is not a saved picture, and a picture that is not the app\'s own, are never opened; only a picture token; a charId that is a prototype key is no character',
+            jj(src1) === jj({ src: '/saves/images/lib/x.png', start: null }) && jj(src2) === jj(kept0) && jj(src3) === jj({ src: '/saves/images/other.png', start: null })
+            && jj(src4) === jj({ src: fr0.of, start: null }) && src5 === null && src6 === null && jj(src7) === jj({ src: '/saves/images/lib/ana.png', start: { x: 1, y: 2, s: 200 } })
+            && jj(src8) === jj({ src: 'assets/tutorial/orc_sq.jpg', start: null }) && jj(srcA) === jj({ src: 'assets/tutorial/orc_sq.jpg', start: null }) && src9 === null && jj(src10) === jj(kept0) && jj(src11) === jj({ src: fr0.of, start: null })
+            && jj(srcB) === jj(kept0) && jj(srcC) === jj(kept0), jj([src1, src2, src3, src4, src7, src8, src10, src11, srcA, srcB, srcC]));
+        const hexM = { id: 'm1', type: 'map', meta: { gridType: 'hex' }, whiteboard: [{ id: 'w1', isChar: true, type: 'image', src: fr0.of, shape: 'hexagon', w: 60, h: 52, frame: fr0 }, { id: 'w2', isChar: true, type: 'image', src: '/saves/images/portraits/portrait-c_1-p1.png', charId: 'c_1', w: 60, h: 52, shape: 'hexagon' },
+            { id: 'wp', isChar: true, type: 'image', src: '/saves/images/lib/x.png', charId: '__proto__' }, { id: 'wq', isChar: true, type: 'image', src: '/saves/images/lib/x.png', charId: 'c_9' }] };
+        const ans = { blob: { size: 9 }, rect: { x: 5, y: 6, s: 70 }, w: 400, h: 300, keep: true }, ansNo = Object.assign({}, ans, { keep: false }), tick = () => new Promise(r => setTimeout(r, 0));
+        const g1 = mkGm({ camp: campG, answer: ans }); g1.api.frameGmPicture(hexM, ['w1', 'w9']); await tick();
+        const g2 = mkGm({ camp: campG, answer: ansNo }); g2.api.frameGmPicture(hexM, ['w2']); await tick();
+        const g3 = mkGm({ camp: campG, away: true, answer: ans }); const r3 = g3.api.frameGmPicture(hexM, ['w1']);
+        const g4 = mkGm({ camp: campG, answer: ans, tokOk: false }); g4.api.frameGmPicture(hexM, ['w1']); await tick();
+        const g5 = mkGm({ camp: campG }); const r5 = g5.api.frameGmPicture({ id: 'm1', type: 'map', whiteboard: [{ id: 'w5', type: 'image', src: 'https://evil.example/x.png' }] }, ['w5']);
+        const g6 = mkGm({ camp: campG, answer: ans, errFirst: true }); g6.api.frameGmPicture(hexM, ['w1']); await tick();
+        const g7 = mkGm({ camp: campG, answer: ans, noFrame: true }), r7 = g7.api.frameGmPicture(hexM, ['w1']), g8 = mkGm({ camp: campG, answer: ans, noAppliers: true }), r8 = g8.api.frameGmPicture(hexM, ['w1']), g9 = mkGm({ camp: campG, answer: ans, noPersistHook: true }), r9 = g9.api.frameGmPicture(hexM, ['w1']);
+        const g10 = mkGm({ camp: campG, answer: ans }), r10 = g10.api.frameGmPicture(hexM, ['wp']), g11 = mkGm({ camp: campG, answer: ans }), r11 = g11.api.frameGmPicture(hexM, ['wq']); await tick();
+        const o1 = g1.out.opened[0] || {}, c1 = g1.out.calls[0] || [], c2 = g2.out.calls[0] || [], c6 = g6.out.calls[0] || [];
+        check('token creator (GM, run for real): Frame picture… opens the creator on the source (256 px, a PNG blob, the token\'s outline, the kept square, Keep the original offered) and hands OK to the character (every token of it, scope tokens) or to the selected plain tokens, with what they wore and the kept original only when ticked; a kept original that is gone falls back to the picture it wears (from the middle, it the new original); never at someone else\'s table, without the creator or the appliers, on a picture that is not the app\'s own, or for a charId that is no character of this campaign; a failed save says so',
+            o1.src === fr0.src && o1.opts.px === 256 && o1.opts.as === 'blob' && o1.opts.keep === true && jj(o1.opts.start) === jj({ x: 10, y: 20, s: 300 }) && jj(o1.opts.guide) === jj({ shape: 'hexagon', w: 60, h: 52 }) && typeof o1.opts.onError === 'function'
+            && c1[0] === 'tok' && c1[1] === 'm1' && jj(c1[2]) === jj(['w1', 'w9']) && c1[3].was === fr0.of && c1[3].blob === ans.blob && jj(c1[3].frame) === jj({ src: fr0.src, x: 5, y: 6, s: 70 }) && jj(g1.out.toasts) === jj(['The picture is framed.'])
+            && c2[0] === 'char' && c2[1] === 'c_1' && c2[2].scope === 'tokens' && c2[2].frame === null && c2[2].was === '/saves/images/portraits/portrait-c_1-p1.png' && g2.out.opened[0].src === '/saves/images/lib/ana.png'
+            && g6.out.opened.length === 2 && g6.out.opened[1].src === fr0.of && g6.out.opened[1].opts.start === null && g6.out.opened[1].opts.onError === null && c6[0] === 'tok' && jj(c6[3].frame) === jj({ src: fr0.of, x: 5, y: 6, s: 70 }) && /kept original is gone/.test(g6.out.toasts[0])
+            && r3 === false && g3.out.opened.length === 0 && g3.out.toasts.length === 1 && g4.out.toasts.length === 1 && /Nothing was framed/.test(g4.out.toasts[0]) && r5 === false && g5.out.opened.length === 0 && jj(g5.out.toasts) === jj(['That picture cannot be framed.'])
+            && [[r7, g7], [r8, g8], [r9, g9]].every(([r, g]) => r === false && g.out.opened.length === 0 && g.out.calls.length === 0)
+            && [[r10, g10], [r11, g11]].every(([r, g]) => r === false && g.out.opened.length === 0 && g.out.calls.length === 0 && jj(g.out.toasts) === jj(['That picture cannot be framed.'])), jj([o1, c1, c2, g6.out, g3.out, g4.out.toasts]));
+
+        // applyCharFrame, run for real with the real charsOf / charById / tokensOfChar (own keys only)
+        const shF = read('sheets.js'), lineAt = (src, k) => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
+        const cLines = [lineAt(shF, 'function charsOf('), lineAt(shF, 'function charById('), lineAt(shF, 'function tokensOfChar(')].join('\n');
+        const cfRun = async (o) => {
+            o = o || {};
+            const toks = [Object.assign({ id: 't1', isChar: true, charId: 'c_1', type: 'image', src: '/saves/images/old.png', w: 60, h: 52, x: 0, y: 0 }, o.t1 || {}), Object.assign({ id: 't2', isChar: true, charId: 'c_1', type: 'image', src: '/saves/images/art.png', w: 60, h: 52, x: 0, y: 0 }, o.t2 || {}), { id: 't3', isChar: true, charId: 'c_2', type: 'image', src: '/saves/images/old.png' }, { id: 't4', isChar: true, type: 'image', src: '/saves/images/old.png' }];
+            const camp = { id: 'k', chars: { c_1: Object.assign({ id: 'c_1', name: 'Ana', portrait: '/saves/images/old.png', face: 'x' }, o.char || {}) }, items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'hex' }, whiteboard: toks } } };
+            let cur = camp;
+            const out = { uploads: [], prunes: [], after: 0, remote: null, sent: [], toasts: [], flush: 0, barrier: null }, netF = { active: true, role: 'host', applyingRemote: false, broadcastItemFiltered: (c, m) => out.sent.push(m) };
+            const api = new Function('getActiveCampaign', 'isClient', 'canWrite', 'uploadExact', 'window', 'net', 'afterCharChange', 'prunePics', 'toast', cLines + '\n' + slice('sheets.js', 'charframe') + '\nreturn applyCharFrame;')(
+                () => cur, () => !!o.client, () => o.write !== false, (rel, b) => { out.uploads.push([rel, b]); if (o.during) o.during(camp); if (o.switchCamp) cur = { id: 'k2', chars: { c_1: camp.chars.c_1 }, items: {} }; return o.upFail ? Promise.reject(new Error('x')) : Promise.resolve('/saves/' + rel); },
+                { wpSystemCore: SCf, wpHistFlush() { out.flush++; }, wpHistBarrier(ids) { out.barrier = ids.slice(); } }, () => netF, () => { out.after++; out.remote = netF.applyingRemote; }, (p, k) => { out.prunes.push([p, k]); }, t => out.toasts.push(t));
+            const r = await api(o.cid || 'c_1', Object.assign({ blob: new Blob(['x']), scope: 'tokens', was: '/saves/images/old.png', frame: { src: '/saves/images/lib/big.png', x: 1, y: 2, s: 50 } }, o.plan || {}));
+            return { r, camp, toks, out, netF };
+        };
+        const protoBefore = jj(Object.getOwnPropertyNames(Object.prototype).sort());
+        const A1 = await cfRun(), A2 = await cfRun({ plan: { scope: 'portrait', frame: null }, char: { frame: { src: '/saves/images/lib/was.png', x: 0, y: 0, s: 9, of: '/saves/images/old.png' } } }), A3 = await cfRun({ char: { portrait: '/saves/images/face.png' } }), A4 = await cfRun({ plan: { was: '/saves/images/nobody.png' } });
+        const A5 = await cfRun({ client: true }), A6 = await cfRun({ write: false }), A7 = await cfRun({ plan: { blob: 'data:image/png;base64,AAAA' } }), A8 = await cfRun({ plan: { scope: 'all' } }), A9 = await cfRun({ upFail: true }), A10 = await cfRun({ plan: { frame: { src: 'https://evil.example/x.png', x: 1, y: 2, s: 50 } } });
+        const u1 = A1.camp.chars.c_1.portrait, u2 = A2.camp.chars.c_1.portrait;
+        check('token creator (GM, applyCharFrame run for real): Frame picture… on a character\'s token gives every token of it the framed picture (a fresh portrait-<id> name; another character\'s untouched), its portrait too when it was that picture, and keeps the original only when asked (a web address never); Portrait… sets the portrait, and the tokens that wore the old one follow; a portrait of its own stays; never on a player\'s machine, at someone else\'s table, with anything but a picture file, an unknown scope or a token no longer wearing it; never a step of the GM\'s undo (their pending edit written first), and a barrier on the maps it changed; pruned',
+            A1.r === true && /^\/saves\/images\/portraits\/portrait-c_1-[a-z0-9]{4,12}\.png$/.test(u1) && A1.toks[0].src === u1 && A1.toks[1].src === u1 && A1.toks[2].src === '/saves/images/old.png' && A1.toks[3].src === '/saves/images/old.png' && !('face' in A1.camp.chars.c_1)
+            && jj(A1.camp.chars.c_1.frame) === jj({ src: '/saves/images/lib/big.png', x: 1, y: 2, s: 50, of: u1 }) && A1.out.remote === true && A1.netF.applyingRemote === false && jj(A1.out.sent) === jj(['m1']) && jj(A1.out.prunes) === jj([['portrait-c_1', [u1, '/saves/images/old.png', '/saves/images/old.png']]])
+            && A1.out.flush === 1 && jj(A1.out.barrier) === jj(['m1']) && jj(A2.out.barrier) === jj(['m1'])
+            && A2.r === true && A2.toks[0].src === u2 && A2.toks[1].src === '/saves/images/art.png' && !('frame' in A2.camp.chars.c_1)
+            && A3.r === true && A3.camp.chars.c_1.portrait === '/saves/images/face.png' && A3.toks[0].src === A3.toks[1].src && A3.toks[0].src !== '/saves/images/old.png'
+            && [A4, A5, A6, A7, A8].every(x => x.r === false && x.out.uploads.length === 0 && x.camp.chars.c_1.portrait === '/saves/images/old.png') && A9.r === false && A9.toks[0].src === '/saves/images/old.png' && A9.out.toasts.length === 1 && A10.r === true && !('frame' in A10.camp.chars.c_1),
+            jj([A1.camp.chars.c_1, A1.toks, A2.toks, A3.toks, A1.out.prunes, A1.out.barrier]));
+        const A11 = await cfRun({ char: { portrait: '' } }), A12 = await cfRun({ t2: { type: 'circle', face: 'x', color: '#f00', src: undefined } }), A13 = await cfRun({ plan: { scope: 'portrait', frame: null }, t2: { type: 'circle', src: '/saves/images/old.png' } });
+        const A14 = await cfRun({ cid: 'c_9' }), A15 = await cfRun({ switchCamp: true }), A16 = await cfRun({ during: cp => { cp.items.m1.whiteboard.forEach(w => { if (w.charId === 'c_1') w.src = '/saves/images/pp.png'; }); cp.chars.c_1.portrait = '/saves/images/pp.png'; } });
+        const keptA = { src: '/saves/images/lib/big.png', x: 1, y: 2, s: 50, of: '/saves/images/art.png' };
+        const A17 = await cfRun({ plan: { scope: 'portrait' }, char: { portrait: '/saves/images/face.png', frame: keptA }, t1: { src: '/saves/images/art.png' } }), A18 = await cfRun({ plan: { scope: 'portrait', frame: null }, char: { portrait: '/saves/images/face.png', frame: keptA }, t1: { src: '/saves/images/art.png' } });
+        const A19 = await cfRun({ plan: { scope: 'portrait' }, char: { portrait: '/saves/images/face.png' } }), A20 = await cfRun({ cid: '__proto__' }), A21 = await cfRun({ cid: 'constructor' });
+        const A22 = await cfRun({ plan: { scope: 'portrait' }, char: { id: 'c_other' } }), A23 = await cfRun({ plan: { scope: 'portrait' }, switchCamp: true });
+        const hlp = new Function('getActiveCampaign', cLines + '\nreturn { charById, tokensOfChar };')(() => null);
+        const campH = { chars: { c_1: { id: 'c_1' } }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'a', isChar: true, charId: 'c_1' }, { id: 'b', isChar: true }, { id: 'c', isChar: true, charId: '' }] } } };
+        check('token creator (GM): a character is found by its own key only (never a prototype name), and a character with no id has no tokens (a token with no character is never one of its)',
+            hlp.charById('c_1', campH) === campH.chars.c_1 && ['__proto__', 'constructor', 'toString', 'hasOwnProperty', '', null, 5].every(k => hlp.charById(k, campH) === null)
+            && jj(hlp.tokensOfChar(campH, 'c_1').map(t => t.w.id)) === jj(['a']) && hlp.tokensOfChar(campH, undefined).length === 0 && hlp.tokensOfChar(campH, '').length === 0 && hlp.tokensOfChar(campH, null).length === 0);
+        check('token creator (GM, applyCharFrame run for real): a character stored under another key than its id, or a campaign switched while its portrait was saved, is never written (Portrait…, which has no token to recheck)',
+            A22.r === false && A22.out.uploads.length === 0 && A22.camp.chars.c_1.portrait === '/saves/images/old.png' && A23.r === false && A23.camp.chars.c_1.portrait === '/saves/images/old.png' && A23.out.after === 0);
+        const protoAfter = jj(Object.getOwnPropertyNames(Object.prototype).sort());
+        check('token creator (GM, applyCharFrame run for real): a character with no portrait takes the framed one; its tokens become pictures (no face, no fill) cut to their map\'s cell; Portrait… moves only picture tokens that wore the old portrait; refused and nothing written: an unknown character, a campaign switched or a token changed while the picture was saved; a kept original its tokens still wear stays through a Portrait… none of them followed; no barrier when no map changed; a prototype key is no character (nothing on Object.prototype, no token touched)',
+            A11.r === true && A11.camp.chars.c_1.portrait === A11.toks[0].src && !('face' in A11.camp.chars.c_1) && A12.toks[1].type === 'image' && A12.toks[1].color === 'transparent' && !('face' in A12.toks[1]) && A12.toks[0].shape === 'hexagon' && A12.toks[1].shape === 'hexagon'
+            && A13.r === true && A13.toks[1].type === 'circle' && A13.toks[1].src === '/saves/images/old.png' && A14.r === false && A14.out.uploads.length === 0
+            && A15.r === false && A15.toks[0].src === '/saves/images/old.png' && A15.out.sent.length === 0 && A15.out.prunes.length === 0
+            && A16.r === false && A16.toks[0].src === '/saves/images/pp.png' && A16.camp.chars.c_1.portrait === '/saves/images/pp.png' && !('frame' in A16.camp.chars.c_1) && A16.out.after === 0
+            && A17.r === true && A17.camp.chars.c_1.portrait !== '/saves/images/face.png' && A17.toks[0].src === '/saves/images/art.png' && A17.toks[1].src === '/saves/images/art.png' && jj(A17.camp.chars.c_1.frame) === jj(keptA) && A18.r === true && jj(A18.camp.chars.c_1.frame) === jj(keptA)
+            && A19.r === true && A19.out.barrier === null && [A20, A21].every(x => x.r === false && x.out.uploads.length === 0 && x.toks.every(t => /old|art/.test(t.src))) && protoAfter === protoBefore && ({}).portrait === undefined && ({}).frame === undefined,
+            jj([A11.camp.chars.c_1, A12.toks, A13.toks, A16.toks, A17.camp.chars.c_1, A19.out]));
+
+        // applyTokenFrame, run for real
+        const tfRun = async (o) => {
+            o = o || {};
+            const wb = [{ id: 'w1', isChar: true, type: 'image', src: '/saves/images/lib/x.png' }, { id: 'w2', isChar: true, type: 'image', src: '/saves/images/lib/x.png' }, { id: 'w3', isChar: true, type: 'image', src: '/saves/images/lib/x.png' }, { id: 'w4', isChar: true, type: 'image', src: '/saves/images/lib/x.png', charId: 'c_1' }, { id: 'w5', isChar: true, type: 'image', src: '/saves/images/lib/x.png', waiting: 1 }, { id: 'w6', isChar: true, type: 'image', src: '/saves/images/lib/y.png', frame: { src: '/saves/images/a.png', x: 0, y: 0, s: 5, of: '/saves/images/lib/y.png' } },
+                { id: 'w7', type: 'rect', src: '/saves/images/lib/x.png' }, { id: '../x', isChar: true, type: 'image', src: '/saves/images/lib/x.png' }];
+            const camp = { id: 'k', items: { m1: { id: 'm1', type: 'map', whiteboard: wb }, d1: { id: 'd1', type: 'page' } } };
+            let active = camp; const out = { uploads: [], prunes: [], saves: 0, toasts: [] };
+            const api = new Function('getActiveCampaign', 'isClient', 'canWrite', 'uploadExact', 'window', 'save', 'prunePics', 'toast', slice('sheets.js', 'tokframe') + '\nreturn applyTokenFrame;')(
+                () => active, () => !!o.client, () => o.write !== false, (rel, b) => { out.uploads.push(rel); if (o.during) { const nx = o.during(wb, camp); if (nx) active = nx; } return Promise.resolve('/saves/' + rel); }, { wpSystemCore: SCf }, () => { out.saves++; }, (p, k) => { out.prunes.push([p, k]); }, t => out.toasts.push(t));
+            const r = await api(o.map || 'm1', o.ids || ['w1', 'w2', 'w4', 'w5', 'w6'], Object.assign({ blob: new Blob(['x']), was: '/saves/images/lib/x.png', frame: { src: '/saves/images/lib/x.png', x: 3, y: 4, s: 90 } }, o.plan || {}));
+            return { r, wb, out, camp };
+        };
+        const T1 = await tfRun(), T2 = await tfRun({ plan: { frame: null }, ids: ['w6'], }), T3 = await tfRun({ ids: ['../x', 'w1'] }), T4 = await tfRun({ map: 'd1' }), T5 = await tfRun({ map: '__proto__' }), T6 = await tfRun({ client: true }), T7 = await tfRun({ plan: { was: '' } });
+        const T8 = await tfRun({ ids: ['w6'], plan: { was: '/saves/images/lib/y.png', frame: null } });
+        const tu = T1.wb[0].src;
+        check('token creator (GM, applyTokenFrame run for real): the selected plain tokens still wearing the picture take the framed one (one file named after the first, a step of the GM\'s undo — saved like any edit); unselected, a character\'s or a waiting token and one wearing something else keep theirs; the kept original is set (or cleared when not kept); refused: a bad id first, a page or a prototype key for a map, a player\'s machine, nothing it wore',
+            T1.r === true && /^\/saves\/images\/portraits\/token-w1-[a-z0-9]{4,12}\.png$/.test(tu) && T1.wb[1].src === tu && T1.wb[2].src === '/saves/images/lib/x.png' && T1.wb[3].src === '/saves/images/lib/x.png' && T1.wb[4].src === '/saves/images/lib/x.png' && T1.wb[5].src === '/saves/images/lib/y.png'
+            && jj(T1.wb[0].frame) === jj({ src: '/saves/images/lib/x.png', x: 3, y: 4, s: 90, of: tu }) && T1.wb[0].frame !== T1.wb[1].frame && T1.out.saves === 1 && jj(T1.out.prunes) === jj([['token-w1', [tu, '/saves/images/lib/x.png']]]) && T1.out.uploads.length === 1
+            && T2.r === false && [T3, T4, T5, T6, T7].every(x => x.r === false && x.out.uploads.length === 0 && x.out.saves === 0) && T8.r === true && !('frame' in T8.wb[5]) && T8.wb[5].src !== '/saves/images/lib/y.png', jj([T1.wb, T1.out, T8.wb[5]]));
+        const T9 = await tfRun({ write: false }), T10 = await tfRun({ plan: { blob: 'data:image/png;base64,AAAA' } }), T11 = await tfRun({ ids: ['w1', 'w7'] }), T12 = await tfRun({ ids: ['w1', '../x'] });
+        const T13 = await tfRun({ during: wb => { wb[0].src = '/saves/images/other.png'; } }), T13b = await tfRun({ ids: ['w1'], during: wb => { wb[0].src = '/saves/images/other.png'; } });
+        const T14 = await tfRun({ ids: ['w1'], during: (wb, cp) => { delete cp.items.m1; } }), T15 = await tfRun({ ids: ['w1'], during: (wb, cp) => JSON.parse(JSON.stringify(cp)) });
+        const T16 = await tfRun({ plan: { frame: { src: 'https://evil.example/x.png', x: 1, y: 2, s: 3 } } });
+        check('token creator (GM, applyTokenFrame run for real): refused with nothing uploaded at someone else\'s table or with anything but a picture file; a shape that is not a picture and an id that is not one keep theirs; the tokens are picked again once the picture is saved (one that changed meanwhile keeps its own; none left, a map gone or the campaign switched: nothing written); a kept original that is not a saved picture is never kept',
+            T9.r === false && T9.out.uploads.length === 0 && T9.out.saves === 0 && T10.r === false && T10.out.uploads.length === 0 && T11.r === true && T11.wb[6].src === '/saves/images/lib/x.png' && T12.r === true && T12.wb[7].src === '/saves/images/lib/x.png'
+            && T13.r === true && T13.wb[0].src === '/saves/images/other.png' && T13.wb[1].src !== '/saves/images/lib/x.png' && T13b.r === false && T13b.out.saves === 0 && T14.r === false && T14.out.saves === 0 && T15.r === false && T15.out.saves === 0 && T15.wb[0].src === '/saves/images/lib/x.png'
+            && T16.r === true && !('frame' in T16.wb[0]), jj([T11.wb[6], T12.wb[7], T13.wb.slice(0, 2), T16.wb[0]]));
+
+        // the Image Library counts a kept original (a token's, a character's) and a character's portrait as used (whiteboard.js buildImgIndexFor / imgUsage, run for real)
+        const pkL = lineAt(wbF, 'function pathKeys('), ixS = wbF.slice(wbF.indexOf('function buildImgIndexFor('), wbF.indexOf('function buildImgIndex()')), usS = wbF.slice(wbF.indexOf('function imgUsage('), wbF.indexOf('function scopeChip('));
+        const bIdx = new Function(pkL + '\n' + ixS + '\nreturn buildImgIndexFor;')();
+        const dataI = { campaigns: { k: { name: 'K', items: { m1: { id: 'm1', meta: { title: 'Hall' }, whiteboard: [{ id: 'w', src: '/saves/images/a.png', frame: { src: '/saves/images/orig one.png' } }] } }, chars: { c_1: { portrait: '/saves/images/p.png', frame: { src: '/saves/images/corig.png' } }, c_2: null } }, k2: { name: 'K2', items: {}, chars: '__proto__' } } };
+        const idxI = bIdx(dataI), useI = new Function('state', pkL + '\n' + usS + '\nreturn imgUsage;')({ appState: dataI });
+        const uT = useI('/saves/images/orig one.png'), uC = useI('/saves/images/corig.png'), uP = useI('/saves/images/p.png'), uN = useI('/saves/images/none.png');
+        check('token creator (GM): the Image Library counts a token\'s kept original, a character\'s kept original and its portrait as the campaign\'s and as used (its Delete warns), whatever else a campaign file holds there',
+            jj(idxI.refs['/saves/images/orig one.png']) === jj(['k']) && jj(idxI.refs['/saves/images/orig%20one.png']) === jj(['k']) && jj(idxI.refs['/saves/images/corig.png']) === jj(['k']) && jj(idxI.refs['/saves/images/p.png']) === jj(['k'])
+            && uT.count === 1 && jj(uT.maps) === jj(['Hall']) && uC.count === 1 && jj(uC.maps) === jj(['the characters of K']) && uP.count === 1 && uN.count === 0, jj([idxI.refs, uT, uC, uP]));
+
+        // the ShadowBase import (shadowbase.js importCharacterToken, run for real): the token art framed from the sheet's portrait
+        const sbBody = slice('shadowbase.js', 'sbimport').replace('export function importCharacterToken(', 'function importCharacterToken(').split("(await import('./state.js'))").join('(await __imp())');
+        const sbRun = (o) => new Promise(resolve => {
+            o = o || {}; const opened = [], uploads = [], toasts = []; let saves = 0;
+            const map = { id: 'm1', type: 'map', meta: { gridType: 'hex' }, whiteboard: [] };
+            const win = { wpSystemCore: SCf, wpTokenGuide: tokenGuideF, appRender() {}, wpSeatCell() {},
+                wpFrame: o.noFrame ? undefined : { open(src, opts, cb) { opened.push({ src, opts }); if (o.mode === 'refuse') return false; if (o.mode === 'cancel') opts.onCancel(); else cb({ blob: 'FRAMED', rect: { x: 4, y: 5, s: 60 }, w: 100, h: 100, keep: o.keep !== false }); return true; } } };
+            const fetchS = (u, opt) => { if (/^data:image\//.test(u)) return Promise.resolve({ blob: async () => 'WHOLE' }); const nm = new URL('http://x' + u).searchParams.get('filename'); uploads.push([nm, opt.body]); return Promise.resolve({ json: async () => ({ url: '/saves/images/m1/' + nm }) }); };
+            const done = () => resolve({ opened, uploads, toasts, saves, map });
+            const fn = new Function('window', 'document', 'fetch', 'toast', 'save', 'canPersistLocal', 'getActiveCampaign', 'getActiveMap', 'isCharFile', 'loadImage', 'toPortrait', 'seedStance', '__imp', 'buildStatsLine', sbBody + '\nreturn importCharacterToken;')(
+                win, { getElementById: () => null }, fetchS, t => { toasts.push(t); setTimeout(done, 0); }, () => { saves++; }, () => true, () => ({ id: 'k', activeItemId: 'm1' }), () => map, () => false, async () => ({}),
+                o.portraitThrows ? () => { throw new Error('x'); } : () => 'data:image/png;base64,NORM', () => {}, async () => ({ state: {} }), () => '');
+            fn({ name: 'ana.json', text: async () => JSON.stringify({ name: 'Ana', type: 'character', portrait: 'data:image/png;base64,ORIG' }) });
+        });
+        const S1 = await sbRun({}), S2 = await sbRun({ keep: false }), S3 = await sbRun({ mode: 'cancel' }), S4 = await sbRun({ mode: 'refuse' }), S5 = await sbRun({ portraitThrows: true }), S6 = await sbRun({ noFrame: true });
+        const it1 = S1.map.whiteboard[0] || {}, gpI = tokenGuideF({ isChar: true, type: 'image', src: 'x', w: 60, h: 52 }, S1.map);
+        check('token creator (GM, the ShadowBase import run for real): the creator opens on the sheet\'s normalised portrait (256 px, a PNG blob, the map\'s cell as the outline, Keep the original ticked); OK places the token wearing the framed square and, kept, the whole portrait as its original; not kept: the square alone; Cancel imports nothing; a portrait the creator cannot take, or no creator, gives the whole portrait as before; a portrait that cannot be read: a token with no art',
+            !/import\(/.test(sbBody) && S1.opened.length === 1 && S1.opened[0].src === 'data:image/png;base64,NORM' && S1.opened[0].opts.px === 256 && S1.opened[0].opts.as === 'blob' && S1.opened[0].opts.keep === true && typeof S1.opened[0].opts.onCancel === 'function' && jj(S1.opened[0].opts.guide) === jj(gpI) && gpI.shape === 'hexagon'
+            && jj(S1.uploads) === jj([['Ana - token.png', 'FRAMED'], ['Ana - portrait.png', 'WHOLE']]) && it1.src === '/saves/images/m1/Ana - token.png' && jj(it1.frame) === jj({ src: '/saves/images/m1/Ana - portrait.png', x: 4, y: 5, s: 60, of: it1.src }) && S1.saves === 1
+            && jj(S2.uploads) === jj([['Ana - token.png', 'FRAMED']]) && !('frame' in S2.map.whiteboard[0]) && jj(S3.toasts) === jj(['Import cancelled.']) && S3.uploads.length === 0 && S3.map.whiteboard.length === 0 && S3.saves === 0
+            && jj(S4.uploads) === jj([['Ana - token.png', 'WHOLE']]) && !('frame' in S4.map.whiteboard[0]) && jj(S6.uploads) === jj([['Ana - token.png', 'WHOLE']])
+            && S5.opened.length === 0 && S5.uploads.length === 0 && S5.map.whiteboard.length === 1 && !S5.map.whiteboard[0].src && !('portrait' in S5.map.whiteboard[0].sheet), jj([S1.opened.map(x => x.src), S1.uploads, it1.frame, S3.toasts, S4.uploads, S5.map.whiteboard]));
+
+        // New character sheet… from a framed token (sheets.js newFromToken, run for real): its kept original goes with its picture
+        const nfA = shF.indexOf('function newFromToken('), nfB = shF.indexOf('\nfunction charSelectHtml(');
+        const nfRun = w => { const made = { id: 'c_n' }; const fn = new Function('getActiveCampaign', 'newCharacter', 'giveTokenChar', 'afterCharChange', 'window', shF.slice(nfA, nfB) + '\nreturn newFromToken;')(() => ({ id: 'k' }), o => Object.assign(made, o), () => {}, () => {}, { wpSystemCore: SCf }); return fn(w); };
+        const frT = { src: '/saves/images/lib/big.png', x: 1, y: 2, s: 30, of: '/saves/images/portraits/token-w1-k.png' };
+        const N1 = nfRun({ id: 'w1', src: frT.of, frame: frT }), N2 = nfRun({ id: 'w2', src: '/saves/images/other.png', frame: frT }), N3 = nfRun({ id: 'w3', src: frT.of, frame: Object.assign({}, frT, { src: 'https://evil.example/x.png' }) });
+        check('token creator (GM): New character sheet… on a framed token gives the new character the token\'s kept original (so Frame picture… and Portrait… still reopen it); not one for another picture, nor one that is not a saved picture',
+            nfA > 0 && nfB > nfA && jj(N1.frame) === jj(frT) && N1.portrait === frT.of && !('frame' in N2) && !('frame' in N3));
+
+        // the room roster's portrait (inspector.js, run for real): framed first; Keep the original only with a linked token to hold it
+        const rpBody = slice('inspector.js', 'rosterportrait');
+        const rpRun = async (o) => {
+            o = o || {}; const uploads = [], opened = []; let n = 0, saves = 0;
+            const toks = (o.toks || [{ id: 't1', isChar: true, type: 'hexagon', w: 60, h: 52, x: 0, y: 0, frame: { src: '/saves/images/stale.png', x: 0, y: 0, s: 5, of: '/saves/images/x.png' } }, { id: 't2', isChar: true, type: 'hexagon', w: 60, h: 52, x: 0, y: 0 }]);
+            const c = { name: 'Ana' }, f = Object.assign({ name: 'Ana.jpg', type: 'image/jpeg' }, o.f || {}), am = { id: 'm', meta: { gridType: 'hex' } };
+            let ltCalls = 0; const ltStub = () => (o.goneAfterOpen && ltCalls++ > 0 ? [] : toks);
+            const fetchR = (u, opt) => { n++; uploads.push({ name: new URL('http://x' + u).searchParams.get('filename'), body: opt.body }); const k = n; return Promise.resolve({ json: () => Promise.resolve({ url: '/saves/images/m/up' + k + '.png' }) }); };
+            const win = { wpSystemCore: SCf, wpTokenGuide: tokenGuideF, wpFrame: o.noFrame ? undefined : { open(src, opts, cb) { opened.push(opts); if (o.refuse) return false; cb({ blob: 'BLOB', rect: { x: 1, y: 2, s: 30 }, w: 256, h: 256, keep: typeof opts.keep === 'boolean' ? o.keep !== false : false }); return true; } } };
+            new Function('getActiveCampaign', 'fetch', 'toast', 'c', 'f', 'activeMap', 'linkedTokens', 'window', 'save', 'render', rpBody)(() => ({ activeItemId: 'm' }), fetchR, () => {}, c, f, am, ltStub, win, () => { saves++; }, () => {});
+            await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
+            return { uploads, opened, toks, c, saves };
+        };
+        const P7 = await rpRun({ goneAfterOpen: true }), P1 = await rpRun({}), P2 = await rpRun({ keep: false }), P3 = await rpRun({ toks: [] }), P4 = await rpRun({ refuse: true, f: { type: 'image/heic' } }), P5 = await rpRun({ refuse: true, f: { type: '' } }), P6 = await rpRun({ noFrame: true });
+        check('token creator (GM, the roster portrait run for real): framed first (256 px, a PNG blob, the linked token\'s outline, the GM\'s own file up to 64 MB); kept: the framed square and the whole file uploaded, every linked token wears the square and holds its own copy of the kept original; not kept: one upload, a stale kept original dropped; no linked token: Keep the original not offered, one upload; a picture the creator refuses goes up as it is (a file that is no image does not); no creator: as before',
+            P1.opened.length === 1 && P1.opened[0].px === 256 && P1.opened[0].as === 'blob' && P1.opened[0].keep === true && P1.opened[0].maxInput === 64 * 1024 * 1024 && jj(P1.opened[0].guide) === jj({ shape: 'hexagon', w: 60, h: 52 })
+            && jj(P1.uploads.map(u => [u.name, u.body === 'BLOB' ? 'BLOB' : 'FILE'])) === jj([['Ana - framed.png', 'BLOB'], ['Ana.jpg', 'FILE']]) && P1.c.portrait === '/saves/images/m/up1.png' && P1.toks.every(t => t.src === '/saves/images/m/up1.png' && jj(t.frame) === jj({ src: '/saves/images/m/up2.png', x: 1, y: 2, s: 30, of: '/saves/images/m/up1.png' })) && P1.toks[0].frame !== P1.toks[1].frame && P1.saves === 1
+            && P2.uploads.length === 1 && P2.toks.every(t => !('frame' in t)) && P3.opened[0].keep === undefined && P3.uploads.length === 1
+            && jj(P4.uploads.map(u => u.name)) === jj(['Ana.jpg']) && P5.uploads.length === 0 && jj(P6.uploads.map(u => u.name)) === jj(['Ana.jpg']) && P7.opened[0].keep === true && jj(P7.uploads.map(u => u.name)) === jj(['Ana - framed.png']), jj([P1.opened[0], P1.uploads.map(u => u.name), P1.toks, P2.toks, P3.opened, P4.uploads.map(u => u.name)]));
     }
     delete global.window;
 

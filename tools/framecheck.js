@@ -72,12 +72,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const doc = { getElementById: id => els[id] || null, createElement: t => t === 'canvas' ? canvas() : null, querySelectorAll: () => [], activeElement: null, body: { contains: () => true } };
         const win = { addEventListener(t, f) { (log.listeners[t] = log.listeners[t] || []).push(f); }, removeEventListener(t, f) { log.listeners[t] = (log.listeners[t] || []).filter(x => x !== f); }, appToast: t => log.toasts.push(t), wpSystemCore: SC };
         const URLs = { createObjectURL: () => { log.created++; return 'blob:pic'; }, revokeObjectURL: () => { log.revoked++; } };
-        class Img { set src(v) { this._s = v; if (this.onload) this.onload(); } get naturalWidth() { return cfg.w || 400; } get naturalHeight() { return cfg.h || 200; } }
+        class Img { set src(v) { this._s = v; if (cfg.defer) { (cfg.pending = cfg.pending || []).push(this); return; } if (cfg.err) { if (this.onerror) this.onerror(); return; } if (this.onload) this.onload(); } get naturalWidth() { return cfg.bad ? 0 : cfg.w || 400; } get naturalHeight() { return cfg.h || 200; } }
         const picRef = v => typeof v === 'string' && v.indexOf('/saves/') === 0 ? v : '';
         const api = new Function('clampRect', 'zoomAt', 'panBy', 'zoomOf', 'setZoom', 'outSide', 'firstFit', 'guidePath', 'defaultRect', 'ENCODE', 'wheelFactor', 'picRef', 'getActiveMap', 'document', 'window', 'URL', 'Image',
             frS.slice(fA, fB) + '\nreturn { open, close, finish, cancel, onKey, block, pickShape, isOpen: function() { return !!st; } };')(
             F.clampRect, F.zoomAt, F.panBy, F.zoomOf, F.setZoom, F.outSide, F.firstFit, F.guidePath, F.defaultRect, F.ENCODE, F.wheelFactor, picRef, () => cfg.map || null, doc, win, URLs, Img);
-        return { api, log, els, live: t => (log.listeners[t] || []).length };
+        return { api, log, els, cfg, live: t => (log.listeners[t] || []).length };
     };
     const FILE = { type: 'image/png', size: 1000 };
     const enc = (cfg, opts) => { const f = mkFramer(cfg), got = []; f.api.open(FILE, Object.assign({ px: 96, as: 'data', max: 102400 }, opts || {}), r => got.push(r)); f.api.finish(); return { got, f, types: f.log.encoded.map(e => e[0]), data: got[0] && got[0].data }; };
@@ -117,6 +117,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('the creator (run for real): the outline chips preview what each grid\'s one-cell token shows of the square — Square the whole square (a 50x50 cell), Hexagon and Circle a 60x52 band — and the chip it opened with gives back the box it opened with (a sized-up 100x88 token\'s, not a cell\'s); the default outline is the open map\'s grid; anything else is no chip',
         g4e === F.guidePath('hexagon', 100, 88) && g4b === g4e && g4e !== F.guidePath('hexagon', 60, 52) && gHex === F.guidePath('hexagon', 60, 52) && gRect === 'M0 0H100V100H0Z' && gCirc === F.guidePath('circle', 60, 52) && gBack === gHex && gNope === gHex
         && g2e === 'M0 0H100V100H0Z' && g2h === F.guidePath('hexagon', 60, 52) && g3e === 'M0 0H100V100H0Z' && g3b === 'M0 0H100V100H0Z' && g1.els.frameDim.attrs.d === 'M0 0H100V100H0Z' + gHex, j([gHex, gRect, gCirc, g2e, g2h]));
+    const lf1 = mkFramer({ bad: true }); let lfC = 0; const lr1 = lf1.api.open(FILE, { onCancel: () => { lfC++; } }, () => { lfC += 10; });
+    const lf2 = mkFramer({ err: true }); let lfE = 0; lf2.api.open('/saves/images/x.png', { onCancel: () => { lfE++; } }, () => { lfE += 10; });
+    check('the creator (run for real): a picture it cannot read ends the framing — a toast, onCancel once, never OK, the file it read freed — so a caller waiting on it (the ShadowBase import) goes on',
+        lr1 === true && lfC === 1 && lf1.log.revoked === 1 && !lf1.api.isOpen() && lf1.log.toasts.length === 1 && lfE === 1 && !lf2.api.isOpen() && lf2.log.toasts.length === 1);
+    const lf3 = mkFramer({ err: true }); let lfErr = 0, lfCan = 0; lf3.api.open(FILE, { onError: () => { lfErr++; }, onCancel: () => { lfCan++; } }, () => {});
+    check('the creator (run for real): a picture it cannot read ends as onError when the caller gives one (the GM\'s Frame picture… then frames the picture the token wears), else as onCancel',
+        lfErr === 1 && lfCan === 0);
+    const ro = mkFramer(); let roC = 0, roA = 0, roB = 0;
+    ro.api.open(FILE, { onCancel: () => { roC++; } }, () => { roA++; }); ro.api.open(FILE, {}, () => { roB++; }); ro.api.finish();
+    const rd = mkFramer({ defer: true }); let rdC = 0, rdA = 0, rdB = 0;
+    rd.api.open(FILE, { onCancel: () => { rdC++; } }, () => { rdA++; }); rd.api.open(FILE, {}, () => { rdB++; }); rd.cfg.pending[0].onload(); const rdOpenA = rd.api.isOpen(); rd.cfg.pending[1].onload(); const rdOpenB = rd.api.isOpen(); rd.api.finish();
+    check('the creator (run for real): a framing opened over another ends the first as a cancel — its onCancel once, never its OK, its file freed — whether it was open or its picture still loading; the second frames as usual (a caller waiting on the first, the ShadowBase import, goes on)',
+        roC === 1 && roA === 0 && roB === 1 && ro.log.revoked === 2 && !ro.api.isOpen() && rdC === 1 && rdA === 0 && !rdOpenA && rdOpenB && rdB === 1 && rd.log.revoked === 2);
+    const bigF = { type: 'image/png', size: 10 * 1024 * 1024 }, mb1 = mkFramer(), mbR1 = mb1.api.open(bigF, {}, () => {}), mb2 = mkFramer(), mbR2 = mb2.api.open(bigF, { maxInput: 64 * 1024 * 1024 }, () => {}), mb3 = mkFramer(), mbR3 = mb3.api.open({ type: 'image/png', size: 65 * 1024 * 1024 }, { maxInput: 64 * 1024 * 1024 }, () => {});
+    check('the creator (run for real): a file past 8 MB is refused unless the caller raises the cap (the GM\'s own local file: 64 MB), and the refusal names the cap',
+        mbR1 === false && /under 8 MB/.test(mb1.log.toasts[0]) && mbR2 === true && mb2.api.isOpen() && mbR3 === false && /under 64 MB/.test(mb3.log.toasts[0]));
     const kp1 = mkFramer(), kpGot = []; kp1.api.open(FILE, { keep: true, title: 'X'.repeat(200) }, r => kpGot.push(r)); const kpShow = kp1.els.frameKeepRow.style.display, kpTitle = kp1.els.frameTitle.textContent.length; kp1.api.finish();
     const kp2 = mkFramer(), kp2Got = []; kp2.api.open(FILE, {}, r => kp2Got.push(r)); kp2.els.frameKeep.checked = true; const kp2Show = kp2.els.frameKeepRow.style.display; kp2.api.finish();
     check('the creator (run for real): "Keep the original" shows only when the caller offers it (as it was set) and is reported only then; the title is text, at most 80 characters',

@@ -204,6 +204,7 @@ export async function exportCharacterJson(item, campName) {
    whiteboard: the sheet's portrait becomes the token art (saved as a normal
    image asset so multiplayer asset-sync serves it), the character name and a
    player-safe stats line are filled in, and the sheet rides attached. */
+// [sinkcheck:sbimport-start]
 export function importCharacterToken(file) {
     if (!file) return;
     if (!/\.json$/i.test(file.name)) { toast('Pick a ShadowBase character .json file.'); return; }
@@ -219,19 +220,27 @@ export function importCharacterToken(file) {
             toast('That does not look like a ShadowBase character JSON.');
             return;
         }
-        // token art: the sheet's portrait, saved as a real image asset
-        var src = null;
+        // token art: the sheet's portrait, framed first (the token creator: Cancel stops the import), saved as a real image asset; Keep the
+        // original also saves the whole portrait (the GM's: reopened by Frame picture…)
+        var src = null, keepSrc = null, framed = null;
         if (typeof j.portrait === 'string' && /^data:image\//.test(j.portrait)) {
             var img = await loadImage(j.portrait);
             if (img) {
-                try {
-                    j.portrait = toPortrait(img, 512);   // normalize what stays on the sheet
-                    var blob = await (await fetch(j.portrait)).blob();
-                    var fname = ((j.name || 'character').replace(/[^\w\- ]+/g, '').trim() || 'character') + ' - token.png';
-                    var up = await fetch('/api/upload?mapId=' + encodeURIComponent(camp.activeItemId) + '&filename=' + encodeURIComponent(fname), { method: 'POST', body: blob });
-                    var res = await up.json();
-                    if (res && res.url) src = res.url;
-                } catch (e) { /* portrait upload failed — token ships without art */ }
+                try { j.portrait = toPortrait(img, 512); } catch (e) { delete j.portrait; }   // normalize what stays on the sheet
+                if (j.portrait && window.wpFrame) {
+                    var gp = { isChar: true, type: 'image', src: 'x', w: 60, h: 52 };
+                    framed = await new Promise(function(done) { if (!window.wpFrame.open(j.portrait, { px: 256, as: 'blob', title: 'Frame ' + (j.name || 'the character') + '\u2019s token', guide: window.wpTokenGuide ? window.wpTokenGuide(gp, map) : null, keep: true, onCancel: function() { done(null); } }, done)) done(false); });
+                    if (framed === null) { toast('Import cancelled.'); return; }
+                }
+                if (j.portrait) {
+                    try {
+                        var base = (j.name || 'character').replace(/[^\w\- ]+/g, '').trim() || 'character';
+                        var upTo = async function(body, fname) { var up = await fetch('/api/upload?mapId=' + encodeURIComponent(camp.activeItemId) + '&filename=' + encodeURIComponent(fname), { method: 'POST', body: body }); var res = await up.json(); return res && res.url ? res.url : null; };
+                        var whole = await (await fetch(j.portrait)).blob();
+                        src = await upTo(framed && framed.blob ? framed.blob : whole, base + ' - token.png');
+                        if (src && framed && framed.keep) keepSrc = await upTo(whole, base + ' - portrait.png');
+                    } catch (e) { /* portrait upload failed — token ships without art */ }
+                }
             } else delete j.portrait;
         }
         var st0 = (await import('./state.js')).state;
@@ -252,6 +261,7 @@ export function importCharacterToken(file) {
             sheet: j
         };
         if (src) item.src = src;
+        if (src && keepSrc && framed && framed.rect && window.wpSystemCore && window.wpSystemCore.cleanFrame) { var frI = window.wpSystemCore.cleanFrame({ src: keepSrc, x: framed.rect.x, y: framed.rect.y, s: framed.rect.s, of: src }); if (frI) item.frame = frI; }   // the kept original (GM-only)
         seedStance(item, j);
         if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(item, map);   // grid-shaped tokens: the map's cell shape
         if (window.wpSeatCell) window.wpSeatCell(item, map);
@@ -265,6 +275,7 @@ export function importCharacterToken(file) {
         toast(item.charName + ' imported — token placed' + (src ? '' : ' (no portrait in file)') + '. Set a Player Owner to hand it over.');
     }).catch(function() { toast('Could not read that file.'); });
 }
+// [sinkcheck:sbimport-end]
 
 // Player-safe tooltip line: species/points only — never GM secrets.
 function buildStatsLine(j) {

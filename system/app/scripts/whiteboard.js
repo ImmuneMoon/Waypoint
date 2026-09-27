@@ -85,14 +85,20 @@ function ownPicOk(tok) {
     if (tok.charId) { var S = window.wpSheets, c = S && S.charById ? S.charById(tok.charId) : null; return !!(n.charPic && c && !c.partial && !c.npc && S.canOpen && S.canOpen(tok.charId)); }   // what char-pic takes: their own whole character, sheets on for them
     return !!n.tokPic;
 }
+// The outline a token's framed picture will show (the creator's guide): what the save makes of it — a picture, cut to this map's cell when it
+// is one cell (a copy: the token itself is untouched); a sized-up token its own outline; one with none shows the whole square
+function tokenGuide(tok, am) {
+    var SC = window.wpSystemCore, p = Object.assign({}, tok, { type: 'image', src: 'x' });
+    if (SC && SC.shapeStandIn) SC.shapeStandIn(p, am);
+    return p.shape === 'hexagon' || p.shape === 'rect' || p.shape === 'circle' ? { shape: p.shape, w: p.w, h: p.h } : { shape: 'rect', w: 1, h: 1 };
+}
+window.wpTokenGuide = tokenGuide;   // the roster portrait and the ShadowBase import frame against it too
 function newOwnPicture(tok) {
     var n = window.wpNet, am = getActiveMap(); if (!ownPicOk(tok) || !am) return;
     var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*';
     fi.addEventListener('change', function() {
         var f = fi.files && fi.files[0]; if (!f) return;
-        var SC = window.wpSystemCore, p = Object.assign({}, tok, { type: 'image', src: 'x' });   // what the save makes of it: a picture, cut to this map's cell when it is one cell (a copy: the token is untouched)
-        if (SC && SC.shapeStandIn) SC.shapeStandIn(p, am);
-        var guide = p.shape === 'hexagon' || p.shape === 'rect' || p.shape === 'circle' ? { shape: p.shape, w: p.w, h: p.h } : { shape: 'rect', w: 1, h: 1 };   // no outline (a sized-up token with none): it shows the whole square
+        var guide = tokenGuide(tok, am);
         window.wpProcessAvatar(f, function(data) {
             var answer = function(a) { toast(a.error || 'Your token\u2019s picture is changed.'); };
             var r = tok.charId ? n.charPic(tok.charId, '', data, answer) : n.tokPic(am.id, tok.id, data, answer);
@@ -117,6 +123,38 @@ function showStanceMenu(e, tok) {
     var ownPic = cMenu.querySelector('.cm-pic-own'); if (ownPic) ownPic.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; newOwnPicture(tok); });
     wireStanceMenu(cMenu, [tok], function() { save(); render(); });
 }
+
+// [sinkcheck:gmframe-start]
+// The token creator, the GM's side (owner, 2026-09-27): Frame picture… on a picture token — its kept original (Keep the original: the whole
+// picture reopened at the square chosen last, while the token still wears what was framed from it) or the picture it wears (a bundled one
+// from its square twin). OK: a character's token changes its character (every token of it); plain tokens, the selected ones still wearing it
+function frameSourceOf(tok, camp) {
+    if (!tok || tok.type !== 'image' || typeof tok.src !== 'string' || !tok.src) return null;
+    var SC = window.wpSystemCore, c = tok.charId && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, tok.charId) ? camp.chars[tok.charId] : null;
+    var worn = function(v) { var f = SC && SC.cleanFrame ? SC.cleanFrame(v) : null; return f && f.of === tok.src ? f : null; }, fr = (c && worn(c.frame)) || worn(tok.frame);   // framed from it and still worn: the character's, else the token's own (framed before it had a character)
+    var bm = /^(?:[/]saves[/]images|assets)[/]tutorial[/]([a-z_]{1,40})_hex[.]png$/.exec(tok.src);
+    var src = fr ? fr.src : bm ? 'assets/tutorial/' + bm[1] + '_sq.jpg' : tok.src;
+    return picRef(src) ? { src: src, start: fr ? { x: fr.x, y: fr.y, s: fr.s } : null } : null;
+}
+function frameGmPicture(am, ids) {
+    var camp = getActiveCampaign(), S = window.wpSheets, first = am && Array.isArray(am.whiteboard) && Array.isArray(ids) ? am.whiteboard.find(function(x) { return x && x.id === ids[0]; }) : null;
+    if (!camp || !first || !window.wpFrame || !S || !S.applyTokenFrame || !S.applyCharFrame) return false;
+    if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\u2019re at someone else\u2019s table.'); return false; }
+    var fs0 = frameSourceOf(first, camp), charId = !first.charId ? '' : camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, first.charId) ? first.charId : null;
+    if (!fs0 || charId === null) { toast('That picture cannot be framed.'); return false; }   // a charId that is none of this campaign's characters: never dispatched
+    var was = first.src, mapId = am.id;
+    var go = function(src, start, canFall) {   // the kept original, else (it is gone) the picture it wears
+        return window.wpFrame.open(src, { px: 256, as: 'blob', title: 'Frame the picture', guide: tokenGuide(first, am), start: start, keep: true,
+            onError: canFall ? function() { toast('The kept original is gone: framing the picture it wears.'); go(was, null, false); } : null }, function(res) {
+            var plan = { blob: res.blob, was: was, frame: res.keep ? { src: src, x: res.rect.x, y: res.rect.y, s: res.rect.s } : null };
+            Promise.resolve(charId ? S.applyCharFrame(charId, Object.assign(plan, { scope: 'tokens' })) : S.applyTokenFrame(mapId, ids, plan)).then(function(ok) {
+                if (ok) toast('The picture is framed.'); else toast('Nothing was framed (the token changed meanwhile, or the picture was not saved).');
+            });
+        });
+    };
+    return go(fs0.src, fs0.start, fs0.src !== was && !!picRef(was));
+}
+// [sinkcheck:gmframe-end]
 
 // In a session, clients resolve campaign images through the host-fed cache
 // A text box with no color of its own: light ink on a dark plate, dark ink on a light one,
@@ -3628,12 +3666,13 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           Object.keys(camp.items || {}).forEach(function(id) {
               var it = camp.items[id]; if (!it || typeof it !== 'object') return;
               if (!titles[id]) titles[id] = { title: (it.meta && it.meta.title) || id, campId: cid, camp: camp.name || cid };
-              (it.whiteboard || []).forEach(function(w) { if (w) add(w.src, cid); });
+              (it.whiteboard || []).forEach(function(w) { if (w) { add(w.src, cid); if (w.frame && typeof w.frame === 'object') add(w.frame.src, cid); } });   // a token's kept original (the token creator) is the campaign's too
               (it.rooms || []).forEach(function(r) { if (!r) return; add(r.image, cid); (r.characters || []).forEach(function(ch) { if (ch) add(ch.portrait, cid); }); });
               (it.blocks || []).forEach(function(b) { if (b) add(b.src, cid); });
           });
           Object.values(camp.handouts || {}).forEach(function(h) { if (h) add(h.src, cid); });
           Object.values(camp.cast || {}).forEach(function(c) { if (c) add(c.src, cid); });
+          Object.values(camp.chars && typeof camp.chars === 'object' ? camp.chars : {}).forEach(function(c) { if (c && typeof c === 'object') { add(c.portrait, cid); if (c.frame && typeof c.frame === 'object') add(c.frame.src, cid); } });   // characters' portraits and kept originals
           (Array.isArray(camp.pictures) ? camp.pictures : []).forEach(function(p) { add(p, cid); });
       });
       return { refs: refs, titles: titles };
@@ -3753,12 +3792,13 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       Object.values(state.appState.campaigns || {}).forEach(function(camp) {
           Object.values(camp.items || {}).forEach(function(it) {
               var name = (it.meta && it.meta.title) || it.id;
-              (it.whiteboard || []).forEach(function(w) { if (w && hit(w.src)) { n++; maps[name] = 1; } });
+              (it.whiteboard || []).forEach(function(w) { if (w && (hit(w.src) || (w.frame && typeof w.frame === 'object' && hit(w.frame.src)))) { n++; maps[name] = 1; } });
               (it.rooms || []).forEach(function(r) { if (hit(r.image)) { n++; maps[name] = 1; } (r.characters || []).forEach(function(ch) { if (hit(ch.portrait)) { n++; maps[name] = 1; } }); });
               (it.blocks || []).forEach(function(b) { if (b && hit(b.src)) { n++; maps[name] = 1; } });
           });
           Object.values(camp.handouts || {}).forEach(function(h) { if (hit(h.src)) { n++; maps['handouts'] = 1; } });
           Object.values(camp.cast || {}).forEach(function(c) { if (hit(c.src)) { n++; maps['the cast of ' + (camp.name || 'a campaign')] = 1; } });
+          Object.values(camp.chars && typeof camp.chars === 'object' ? camp.chars : {}).forEach(function(c) { if (c && typeof c === 'object' && (hit(c.portrait) || (c.frame && typeof c.frame === 'object' && hit(c.frame.src)))) { n++; maps['the characters of ' + (camp.name || 'a campaign')] = 1; } });
           if ((Array.isArray(camp.pictures) ? camp.pictures : []).some(hit)) { n++; maps['brought into ' + (camp.name || 'a campaign')] = 1; }
       });
       return { count: n, maps: Object.keys(maps) };
@@ -5910,6 +5950,7 @@ document.addEventListener('contextmenu', function(e) {
             }
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
             if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
+            if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';   // the token creator: the selected tokens (a character's change together)
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(firstItem.ownerId)) {
                 var pausedTok = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(firstItem.ownerId);
                 html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '&#9654;&#65039; Resume this player' : '&#9208;&#65039; Pause this player') + '</div>';
@@ -6049,6 +6090,10 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-pulse')) {
                     var itPu = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     if (itPu && window.wpFx) window.wpFx.play({ kind: 'pulse', mapId: am.id, tok: itPu.id });
+                    return;
+                } else if (action.includes('cm-frame-pic')) {   // the token creator, the GM's side
+                    cMenu.style.display = 'none';
+                    frameGmPicture(am, selectedIds.slice());
                     return;
                 } else if (action.includes('cm-sheet')) {
                     var itS = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });

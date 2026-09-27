@@ -2793,6 +2793,16 @@ pendingChecks.push((async () => {
         j(f2) === j({ x: 100, y: 200 }) && f1.x % 50 === 0 && f1.y % 50 === 0 && Math.max(Math.abs(f1.x - 100), Math.abs(f1.y - 200)) === 50 && j(f3) === j({ x: 112, y: 216 })
         && f4.x % 50 === 0 && f4.y % 50 === 0 && Math.max(Math.abs(f4.x - 100), Math.abs(f4.y - 200)) === 150 && j(f5) === j({ x: 250, y: 250 }), j([f1, f2, f3, f4, f5]));
 })());
+{   // the token creator (fold 2): a token's kept original never leaves the host (sanitizeItem, run for real)
+    const sN = src.replace(/\r\n/g, '\n'), siA = sN.indexOf('function sanitizeItem('), siB = sN.indexOf('\n}\n', siA) + 2, wn = (sN.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0];
+    const siF = new Function('window', wn + '\n' + sN.slice(siA, siB) + '\nreturn sanitizeItem;')({});
+    const frK = { src: '/saves/images/lib/a.png', x: 1, y: 2, s: 3, of: '/saves/images/portraits/token-w1-k1.png' };
+    const mapF = { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'w1', type: 'image', isChar: true, src: frK.of, frame: frK, gmInfo: 'secret', sheet: { a: 1 } }, { id: 'w2', type: 'image', src: '/saves/images/x.png', frame: { src: 'a' } }, { id: 'w3', hidden: true, type: 'image', frame: { src: 'b' }, x: 1, y: 2, w: 3, h: 4 }, { id: 'w4', type: 'rect', x: 0 }] };
+    const outF = siF(mapF);
+    check('token creator: a token\'s kept original (frame) never reaches a player — sanitizeItem (run for real) strips it with the attached sheet and the GM note from every token (a hidden one is only a stub); the rest of the token travels; the GM\'s own map keeps it',
+        siA > 0 && outF.whiteboard.length === 4 && outF.whiteboard.every(w => !('frame' in w) && !('gmInfo' in w) && !('sheet' in w)) && outF.whiteboard[0].src === frK.of && outF.whiteboard[0].isChar === true && outF.whiteboard[3].x === 0
+        && j(Object.keys(outF.whiteboard[2]).sort()) === j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y']) && j(mapF.whiteboard[0].frame) === j(frK) && !!mapF.whiteboard[1].frame, j(outF.whiteboard));
+}
 // The token creator (owner, 2026-09-27): a player's framed picture for their own plain token — the host's tok-pic (the [netcheck:tokpic]
 // slice, run for real) and the player's sender
 pendingChecks.push((async () => {

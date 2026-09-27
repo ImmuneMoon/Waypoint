@@ -6,6 +6,7 @@ const { app, BrowserWindow, shell } = require('electron');
 // that need a newer shell fall back to the installer download.
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
+const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
 const SHELL_VERSION = require('./package.json').version;
 const http = require('http');
 const fs = require('fs');
@@ -46,8 +47,9 @@ function backupOnLaunch() {
         if (!fs.existsSync(bkDir)) fs.mkdirSync(bkDir, { recursive: true });
         const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
         fs.copyFileSync(dataFile, path.join(bkDir, 'data-' + stamp + '.json'));
+        libstore.snapshot(savesDir, bkDir, 'data-' + stamp);   // and the library's files as they are (L1b)
         const old = fs.readdirSync(bkDir).filter(f => /^data-.*\.json$/.test(f)).sort().reverse().slice(10);
-        old.forEach(f => fs.unlinkSync(path.join(bkDir, f)));
+        old.forEach(f => { fs.unlinkSync(path.join(bkDir, f)); libstore.dropSnapshot(bkDir, f.replace(/\.json$/, '')); });
     } catch (e) { /* backups must never block startup */ }
 }
 backupOnLaunch();
@@ -186,6 +188,7 @@ const server = http.createServer((req, res) => {
             if (!fs.existsSync(bkDir)) fs.mkdirSync(bkDir, { recursive: true });
             const f = 'keep-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.json';
             fs.copyFileSync(dataFile, path.join(bkDir, f));
+            libstore.snapshot(savesDir, bkDir, f.replace(/\.json$/, ''));   // and the library's files as they are (L1b)
             res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: true, file: f }));
         } catch (e) { res.writeHead(500); return res.end('{"error":"snapshot failed"}'); }
     }
@@ -198,17 +201,19 @@ const server = http.createServer((req, res) => {
                 if (!/^(data|keep)-[A-Za-z0-9_-]+\.json$/.test(file)) { res.writeHead(400); return res.end('{"error":"bad name"}'); }
                 const bkDir = path.join(savesDir, 'backups'), src = path.join(bkDir, file);
                 if (!fs.existsSync(src)) { res.writeHead(404); return res.end('{"error":"no such snapshot"}'); }
-                if (url.pathname === '/api/delete-backup') { fs.unlinkSync(src); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
+                if (url.pathname === '/api/delete-backup') { fs.unlinkSync(src); libstore.dropSnapshot(bkDir, file.replace(/\.json$/, '')); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
                 const text = fs.readFileSync(src, 'utf8');
                 JSON.parse(text);   // a snapshot that does not parse is not restored
-                if (fs.existsSync(dataFile) && fs.statSync(dataFile).size > 2) fs.copyFileSync(dataFile, path.join(bkDir, 'keep-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '-before-restore.json'));
+                if (fs.existsSync(dataFile) && fs.statSync(dataFile).size > 2) { const bf = 'keep-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '-before-restore'; fs.copyFileSync(dataFile, path.join(bkDir, bf + '.json')); libstore.snapshot(savesDir, bkDir, bf); }
                 fs.writeFileSync(dataFile + '.tmp', text, 'utf8');
                 fs.renameSync(dataFile + '.tmp', dataFile);
+                libstore.restore(savesDir, bkDir, file.replace(/\.json$/, ''));   // the library files that save pins, where they are gone (L1b)
                 res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
             } catch (e) { res.writeHead(500); res.end('{"error":"restore failed"}'); }
         });
         return;
     }
+    if (url.pathname === '/api/library') { libstore.handle(req, res, url, savesDir); return; }   // Stage 6 library L1b: pack files beside the save (libstore.js)
     if (url.pathname === '/api/data') {
         if (req.method === 'GET') {
             let json = '{}';

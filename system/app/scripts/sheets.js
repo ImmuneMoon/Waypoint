@@ -240,7 +240,7 @@ function pageOptions(cur, none) {
 }
 function charsOf(camp) { camp = camp || getActiveCampaign(); if (!camp) return {}; if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {}; return camp.chars; }
 function charList(camp) { return Object.values(charsOf(camp)).filter(function(c) { return c && typeof c === 'object'; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); }); }
-function charById(id, camp) { var cs = charsOf(camp); return id && cs[id] && typeof cs[id] === 'object' ? cs[id] : null; }
+function charById(id, camp) { var cs = charsOf(camp); return typeof id === 'string' && id && Object.prototype.hasOwnProperty.call(cs, id) && cs[id] && typeof cs[id] === 'object' ? cs[id] : null; }   // own keys only: a '__proto__' charId from a file is no character
 function playerNames(camp) {
     var out = Object.create(null);   // keyed by player ids (the host's roster on a player): never a prototype hit
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) { out[pid] = camp.players[pid].name || pid; });
@@ -372,6 +372,7 @@ function linkToken(w, charId) {
 function newFromToken(w) {
     var camp = getActiveCampaign(); if (!camp || !w) return null;
     var c = newCharacter({ name: w.charName || w.name || 'Character', portrait: w.src && /^[/]saves[/]images[/]/.test(w.src) ? w.src : '' });
+    var frN = window.wpSystemCore && window.wpSystemCore.cleanFrame ? window.wpSystemCore.cleanFrame(w.frame) : null; if (frN && c.portrait && frN.of === c.portrait) c.frame = frN;   // the token creator: the token's kept original goes with its picture
     w.charId = c.id;
     if (w.ownerId) giveTokenChar(camp, w, c); else afterCharChange(c, true);
     return c;
@@ -3146,7 +3147,7 @@ function revertLast() {
 // them — and becomes its portrait and the art of every token of it; a face (an emoji, the default) is kept on the character and drawn on its
 // tokens. From then on the picture is the character's own: changing a profile never rewrites it. replace: also when it already has a picture
 // or a face (the owner's own change); a give never overwrites one.
-function tokensOfChar(camp, cid) { var out = []; Object.keys(camp.items || {}).forEach(function(k) { var m = camp.items[k]; if (m && m.type === 'map' && Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) { if (w && w.isChar && w.charId === cid) out.push({ m: m, w: w }); }); }); return out; }
+function tokensOfChar(camp, cid) { var out = []; if (typeof cid !== 'string' || !cid) return out; Object.keys(camp.items || {}).forEach(function(k) { var m = camp.items[k]; if (m && m.type === 'map' && Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) { if (w && w.isChar && w.charId === cid) out.push({ m: m, w: w }); }); }); return out; }
 // [sinkcheck:charpng-start]
 function pngOf(dataUrl) {   // a square PNG of at most 256 pixels, cropped from the middle: a picture from the wire is never drawn larger, nor at all past 4096 a side
     return new Promise(function(res, rej) {
@@ -3228,6 +3229,71 @@ function applyCharFace(charId, plan, replace) {
     return Promise.resolve(false);
 }
 // [sinkcheck:charface-end]
+// [sinkcheck:charframe-start]
+// The token creator, the GM's side: a framed picture (a PNG blob) for a character, saved under a fresh name — from Portrait… (scope
+// 'portrait': its portrait; a token that wore the old portrait follows) or Frame picture… on one of its tokens (scope 'tokens': every token
+// of it, a character's tokens change together, while one still wears what was framed (was); the portrait follows when it was that picture
+// or it had none). frame: the kept original ({ src, x, y, s }, GM-only) or null — a kept original its tokens still wear stays when Portrait…
+// moved none of them. Never a step of the GM's undo, and a barrier on the maps it changed: no earlier step brings the old picture back
+function applyCharFrame(charId, plan) {
+    var camp = getActiveCampaign(), c = charById(charId, camp);
+    if (isClient() || !canWrite() || !camp || !c || c.id !== charId || !plan || typeof Blob === 'undefined' || !(plan.blob instanceof Blob) || (plan.scope !== 'portrait' && plan.scope !== 'tokens')) return Promise.resolve(false);
+    var was = typeof plan.was === 'string' ? plan.was : '', prevP = typeof c.portrait === 'string' ? c.portrait : '';
+    if (plan.scope === 'tokens' && !(was && tokensOfChar(camp, c.id).some(function(t) { return t.w.src === was; }))) return Promise.resolve(false);
+    return uploadExact('images/portraits/portrait-' + c.id + '-' + Date.now().toString(36) + '.png', plan.blob).then(function(url) {
+        var camp2 = getActiveCampaign(), c2 = charById(charId, camp2); if (!c2 || camp2 !== camp || !/^[/]saves[/]images[/]/.test(String(url))) return false;
+        if (plan.scope === 'tokens' && !tokensOfChar(camp2, c2.id).some(function(t) { return t.w.src === was; })) return false;   // a token changed while the picture was saved (as applyTokenFrame picks again)
+        if (window.wpHistFlush) window.wpHistFlush();
+        var old = typeof c2.portrait === 'string' ? c2.portrait : '', maps = [];
+        tokensOfChar(camp2, c2.id).forEach(function(t) {
+            var w = t.w; if (plan.scope === 'portrait' && !(old && w.type === 'image' && w.src === old)) return;
+            w.type = 'image'; w.src = url; w.color = 'transparent'; delete w.face;
+            if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(w, t.m)) { if (window.wpSeatCell) window.wpSeatCell(w, t.m); else if (window.wpSeatHex) window.wpSeatHex(w, t.m); }
+            if (maps.indexOf(t.m.id) < 0) maps.push(t.m.id);
+        });
+        if (maps.length && window.wpHistBarrier) window.wpHistBarrier(maps);   // an undo or a redo never brings the old picture back on one map only (the change spans maps and the portrait)
+        if (plan.scope === 'portrait' || !old || old === was) { c2.portrait = url; delete c2.face; }
+        var SC = window.wpSystemCore, fr = plan.frame && SC && SC.cleanFrame ? SC.cleanFrame(Object.assign({}, plan.frame, { of: url })) : null, frOld = SC && SC.cleanFrame ? SC.cleanFrame(c2.frame) : null;
+        if (!(frOld && frOld.of !== url && tokensOfChar(camp2, c2.id).some(function(t) { return t.w.src === frOld.of; }))) { if (fr) c2.frame = fr; else delete c2.frame; }   // a kept original its tokens still wear stays (Portrait… none of them followed)
+        var n = net(), wasR = n ? n.applyingRemote : false;
+        if (n) n.applyingRemote = true;
+        try { afterCharChange(c2, true); } finally { if (n) n.applyingRemote = wasR; }
+        if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) maps.forEach(function(id) { n.broadcastItemFiltered(camp2.id, id); });
+        prunePics('portrait-' + c2.id, [url, prevP, was]);
+        return true;
+    }).catch(function() { toast('That picture could not be saved.'); return false; });
+}
+// [sinkcheck:charframe-end]
+// [sinkcheck:tokframe-start]
+// ... and for plain tokens (Frame picture…): the selected ones still wearing what was framed (was) take the framed picture (one file, named
+// after the first); frame: the kept original (GM-only) or null. A step of the GM's undo, like any edit of theirs
+function applyTokenFrame(mapId, ids, plan) {
+    var camp = getActiveCampaign(), idOk = function(v) { return typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v); };
+    if (isClient() || !canWrite() || !camp || !plan || typeof Blob === 'undefined' || !(plan.blob instanceof Blob) || typeof plan.was !== 'string' || !plan.was || !Array.isArray(ids) || !idOk(ids[0])) return Promise.resolve(false);
+    var pick = function(m) { return m && m.type === 'map' && Array.isArray(m.whiteboard) ? m.whiteboard.filter(function(w) { return w && idOk(w.id) && ids.indexOf(w.id) >= 0 && w.type === 'image' && w.src === plan.was && !w.charId && !w.waiting; }) : []; };
+    var m0 = Object.prototype.hasOwnProperty.call(camp.items || {}, mapId) ? camp.items[mapId] : null; if (!pick(m0).length) return Promise.resolve(false);
+    return uploadExact('images/portraits/token-' + ids[0] + '-' + Date.now().toString(36) + '.png', plan.blob).then(function(url) {
+        var camp2 = getActiveCampaign(); if (camp2 !== camp || !/^[/]saves[/]images[/]/.test(String(url))) return false;
+        var hit = pick(Object.prototype.hasOwnProperty.call(camp2.items || {}, mapId) ? camp2.items[mapId] : null); if (!hit.length) return false;
+        var SC = window.wpSystemCore, fr = plan.frame && SC && SC.cleanFrame ? SC.cleanFrame(Object.assign({}, plan.frame, { of: url })) : null;
+        hit.forEach(function(w) { w.src = url; if (fr) w.frame = Object.assign({}, fr); else delete w.frame; });
+        save();
+        if (window.appRender) window.appRender();
+        prunePics('token-' + ids[0], [url, plan.was]);
+        return true;
+    }).catch(function() { toast('That picture could not be saved.'); return false; });
+}
+// [sinkcheck:tokframe-end]
+// Portrait… (the Characters tab): the chosen library picture is framed first (at the square chosen last when it is the kept original)
+function framePortrait(ch, src) {
+    if (!window.wpFrame) { ch.portrait = src; delete ch.face; afterCharChange(ch, true); renderAll(); }   // no creator here: as before
+    else {
+        var SC = window.wpSystemCore, fr = SC && SC.cleanFrame ? SC.cleanFrame(ch.frame) : null, id = ch.id;
+        window.wpFrame.open(src, { px: 256, as: 'blob', title: 'Frame the portrait', start: fr && fr.src === src ? { x: fr.x, y: fr.y, s: fr.s } : null, keep: true }, function(res) {
+            applyCharFrame(id, { blob: res.blob, scope: 'portrait', frame: res.keep ? { src: src, x: res.rect.x, y: res.rect.y, s: res.rect.s } : null }).then(function(ok) { if (ok) { toast('The portrait is framed.'); renderAll(); } });
+        });
+    }
+}
 // The owner's "Picture…" on their own sheet: the face picker, with a picture of their own to upload (a second click closes it)
 function pickCharPicture(anchor) {
     var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || c.partial || c.ownerId !== myId() || !window.wpFaces || !n || !n.charPic) return;
@@ -3940,7 +4006,7 @@ function charRow(c, camp) {
     var active = c.ownerId && !c.npc ? activeCharOf(camp, c.ownerId).id : null, several = !!c.ownerId && !c.npc && playableChars(camp, c.ownerId).length > 1;
     if (several) { var plL = el('label', 'sys-hover sys-char-playsl'); var pl = el('input'); pl.type = 'radio'; pl.name = 'sys-plays-' + c.ownerId; pl.className = 'sys-char-plays'; pl.checked = active === c.id; plL.appendChild(pl); plL.appendChild(document.createTextNode(' In play')); plL.title = 'The character this player plays now: their token follows them from map to map. Their other characters are kept: the sheets stay theirs, and you move those tokens.'; top.appendChild(plL); }
     var npcL = el('label', 'sys-hover'); var npc = el('input'); npc.type = 'checkbox'; npc.className = 'sys-char-npc'; npc.checked = !!c.npc; npcL.appendChild(npc); npcL.appendChild(document.createTextNode(' NPC')); npcL.title = 'An NPC has no player and never reaches players'; top.appendChild(npcL);
-    var por = el('button', 'tool ghost sys-btn sys-char-portrait', c.portrait ? 'Portrait ✓' : 'Portrait…'); por.title = c.portrait ? c.portrait + ' (click to change, right-click to clear)' : 'Pick a picture from the Image Library'; por.dataset.act = 'portrait'; top.appendChild(por);
+    var por = el('button', 'tool ghost sys-btn sys-char-portrait', c.portrait ? 'Portrait ✓' : 'Portrait…'); por.title = c.portrait ? c.portrait + ' (click to change, right-click to clear)' : 'Pick a picture from the Image Library (then frame it)'; por.dataset.act = 'portrait'; top.appendChild(por);
     var openB = el('button', 'tool ghost sys-btn', 'Open sheet'); openB.dataset.act = 'open'; openB.title = 'Open this character\'s sheet over the play map'; top.appendChild(openB);
     if (hudFor(c.id)) { var hudB = el('button', 'tool ghost sys-btn', 'HUD'); hudB.dataset.act = 'hud'; hudB.title = 'Open this character\'s HUD over the play map (the saved system\'s)'; top.appendChild(hudB); }   // HUD frame (HF2b)
     top.appendChild(btnRow([['delchar', 'Delete this character (tokens keep their name, lose the link)', '&times;']]));
@@ -4597,7 +4663,7 @@ function onClick(e) {
         if (b.dataset.act === 'open') { openSheet(ch.id); return; }
         if (b.dataset.act === 'hud') { openHud(ch.id); return; }
         if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return; }
-        if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { ch.portrait = src; delete ch.face; afterCharChange(ch, true); renderAll(); } }); return; }
+        if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) framePortrait(ch, src); }); return; }   // the token creator frames it first
         return;
     }
     var erow = b.closest('.sys-fx-row');   // 5h: a library effect's buttons
@@ -4817,7 +4883,7 @@ setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
-    sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace,
+    sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

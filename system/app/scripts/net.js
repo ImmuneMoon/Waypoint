@@ -526,7 +526,7 @@ function sanitizeItem(item) {
     m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor; }).map(function(w) {
         if (!w.hidden) {
             // attached character sheets are GM bookkeeping (and heavy) — never on the wire
-            if (w.sheet || w.gmInfo) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; }   // attached sheets AND the per-token GM note/dialogue are GM prep — never on the wire
+            if (w.sheet || w.gmInfo || w.frame) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; delete w.frame; }   // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep — never on the wire
             return w;
         }
         return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };

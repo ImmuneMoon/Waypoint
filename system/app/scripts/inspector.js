@@ -517,23 +517,36 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
                   if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
 
+                  // [sinkcheck:rosterportrait-start]
+                  // The token creator frames it first; Keep the original also saves the whole file (the GM's: reopened by Frame picture…)
+                  var upOne = function(body, name) { return fetch('/api/upload?mapId=' + encodeURIComponent(getActiveCampaign().activeItemId) + '&filename=' + encodeURIComponent(name), { method: 'POST', body: body }).then(function(res) { return res.json(); }); };
+                  var put = function(body, name, rect) {
+
                   toast('Uploading portrait...');
 
-                  fetch('/api/upload?mapId=' + encodeURIComponent(getActiveCampaign().activeItemId) + '&filename=' + encodeURIComponent(f.name), { method: 'POST', body: f })
+                  Promise.all([upOne(body, name), rect && linkedTokens(c, activeMap).length ? upOne(f, f.name) : null])
 
-                  .then(function(res) { return res.json(); })
+                  .then(function(rs) {
 
-                  .then(function(data) {
-
+                      var data = rs[0] || {};
                       if (!data.url) return;
                       c.portrait = data.url;
                       // The stand-in token becomes the portrait
                       linkedTokens(c, activeMap).forEach(function(t) { if (t.type !== 'image') { t.type = 'image'; t.color = 'transparent'; } t.src = data.url; if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(t, activeMap)) { if (window.wpSeatCell) window.wpSeatCell(t, activeMap); else if (window.wpSeatHex) window.wpSeatHex(t, activeMap); } });
+                      var frT = rect && rs[1] && rs[1].url && window.wpSystemCore && window.wpSystemCore.cleanFrame ? window.wpSystemCore.cleanFrame({ src: rs[1].url, x: rect.x, y: rect.y, s: rect.s, of: data.url }) : null;
+                      linkedTokens(c, activeMap).forEach(function(t) { if (frT) t.frame = Object.assign({}, frT); else delete t.frame; });   // the kept original (GM-only, never on the wire)
                       save(); render(); toast('Portrait set' + (linkedTokens(c, activeMap).length ? ' — the token now wears it.' : '.'));
 
                   })
 
                   .catch(function() { toast('Portrait upload failed.'); });
+
+                  };
+                  if (!window.wpFrame) { put(f, f.name, null); return; }
+                  var lt = linkedTokens(c, activeMap)[0];   // Keep the original only with a token to hold it (a room character's own entry reaches players)
+                  var opened = window.wpFrame.open(f, { px: 256, as: 'blob', title: 'Frame the portrait', guide: lt && window.wpTokenGuide ? window.wpTokenGuide(lt, activeMap) : null, keep: lt ? true : undefined, maxInput: 64 * 1024 * 1024 }, function(res) { put(res.blob, (String(f.name).replace(/[.][^.]*$/, '') || 'portrait') + ' - framed.png', res.keep ? res.rect : null); });
+                  if (!opened && /^image[/]/.test(String(f.type))) put(f, f.name, null);   // the creator could not take it: the picture as it is, as before
+                  // [sinkcheck:rosterportrait-end]
 
               });
 

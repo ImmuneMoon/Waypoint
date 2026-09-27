@@ -4610,6 +4610,56 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('F3 the validator: a key only the library\'s core holds is a known row (no "reads as not carried" warning); a key nothing holds still warns',
             !vC.warnings.some(w => /key "Lib"/.test(w.message)) && vC.warnings.some(w => /key "Nope"/.test(w.message)), j(vC.warnings));
     }
+
+    /* ---- Stage 6 F7b: a dossier's rows as the row ops a GM's hand makes (sbRowOps), and its modifier bags as changes (sbMods) ---- */
+    {
+        const n = (id, key, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind: 'number', vis: 'all' }, extra || {});
+        const lst = (id, key, list) => ({ id: 'f_' + id, key, label: key, kind: 'item-list', vis: 'all', list });
+        const rawR = { v: 1, name: 'R', rolls: [], fields: [
+            n('st', 'ST', { def: 10 }), n('strace', 'STRace'), n('per', 'Per', { def: 10 }), n('perrace', 'PerRace'), n('dodge', 'Dodge'), n('mm', 'MoveMult', { def: 1, step: 0.1 }), { id: 'f_fi', key: 'FrightImmune', label: 'FI', kind: 'toggle', vis: 'all' },
+            { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', maxFormula: 'ST' },
+            lst('sk', 'Skills', { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr', labels: ['ST', 'DX', 'IQ'] }, { key: 'diff', labels: ['E', 'A', 'H', 'VH'] }, { key: 'fix' }, { key: 'granted' }, { key: 'free' }] }),
+            lst('ad', 'Advantages', { cats: ['Advantage'], noQty: true, custom: true, lvl: { label: 'Level', min: 0, max: 100, def: 0 }, stats: [{ key: 'bp' }, { key: 'per' }, { key: 'granted' }] }),
+            lst('pw', 'Powers', { cats: ['Power'], noQty: true, custom: true, lvl: { label: 'Level', min: 1, max: 4, def: 1 }, stats: [{ key: 'cpA' }, { key: 'cpC' }, { key: 'cpK' }, { key: 'fpP' }, { key: 'epP' }, { key: 'al' }, { key: 'psk', kind: 'pick', opts: [{ label: 'Lore', name: 'Per' }] }] }),
+            lst('lg', 'Languages', { noQty: true, custom: true, lvl: { label: 'Fluency', labels: ['Native', 'Broken', 'Accented', 'Fluent'], def: 3 }, on: { label: 'Compr.' }, stats: [{ key: 'free' }] })],
+            items: [{ id: 'i_climb', name: 'Climbing', key: 'Climbing', category: 'Skill', stats: { attr: 1, diff: 1 } }, { id: 'i_lore', name: 'Lore', key: 'Lore', category: 'Skill', stats: { attr: 2, diff: 2 } },
+                { id: 'i_tough', name: 'Tough', key: 'Tough', category: 'Advantage', lvl: 1, stats: { bp: 0, per: 5 } }, { id: 'i_rank2', name: 'Rank 2', key: 'Rank2', category: 'Advantage', stats: { bp: 15 } },
+                { id: 'i_blast', name: 'Blast', key: 'Blast', category: 'Power', lvl: 1, stats: { cpA: 10, cpC: 10, cpK: 5 } }] };
+        const sR = cleanSystem(rawR, { F, gmView: true }), byN = {}; sR.items.forEach(e => { (byN[e.name.toLowerCase()] = byN[e.name.toLowerCase()] || []).push(e); });
+        const find = nm => byN[String(nm).trim().toLowerCase()] || [];
+        const dosR = { skills: [{ name: 'Climbing (Cliffs)', level: '13', relativeLevel: 'DX/Average', baselinePoints: 2 }, { name: 'Lore', level: 12, relativeLevel: 'IQ/Average' }, { name: 'Swimming', level: '0', relativeLevel: 'Native' }, { name: 'Cooking', level: '11', relativeLevel: 'IQ/Easy+1' }, null, { name: '' }, { name: 'Climbing (Walls)', level: '9', relativeLevel: 'Native' }],
+            traits: { advantages: [{ name: 'Tough', level: 3, points: 15 }, { name: 'Tough', level: 2, points: 12, modifiers: { strength: 1 } }, { name: 'Rank', level: 2, points: 15, baselinePoints: 15 }, { name: 'Keen Eyes', points: 0, modifiers: { perception: 1, dodge: 1, moveMultiplier: 0.5, frightImmune: true, hitPoints: 2, nothing: 4 } }], disadvantages: [{ name: 'Cursed', points: -10 }] },
+            abilities: { forcePowers: [{ name: 'Blast', level: 3, cpCost: 35 }, { name: 'Blast', level: 2, cpCost: 25, fpCost: 3, epCost: 1, alignment: 'LS', baseSkill: 'Lore (IQ/Hard) or Will' }] },
+            languageEntries: [{ tongue: 'Common', tier: 'native' }, { tongue: 'Old Tongue', tier: 'accented', comprehensionOnly: true, granted: true }] };
+        const ro = S.sbRowOps(dosR, sR, find), q = ro.ops.map(o => o.q);
+        const ch = { id: 'c_r', name: 'R', ownerId: '', npc: true, values: {} }, refused = [];
+        ro.ops.forEach(o => { const r = S.applyRowOp(sR, ch, o.f, o.q, F, {}); if (r.ok) ch.values[o.f] = r.value; else refused.push(o.q.op + ':' + r.reason); });
+        const rows = k => ch.values['f_' + k] || [], def = (k, i) => S.rowDef(sR, rows(k)[i]) || {};
+        const sk = rows('sk'), ad = rows('ad'), pw = rows('pw'), lg = rows('lg');
+        check('F7b skills: matched on the base name and kept linked, the specialty and a differing attribute held as that copy\'s own values (granted points too, the GM\'s, so held); an unreadable relative level ("Native") costs nothing, on a linked copy too; a second specialty of one skill is a row of its own (a list taking an item more than once); no entry: a custom row keyed on its name, its fixed modifier kept; nameless or broken rows skipped',
+            !refused.length && sk.length === 5 && sk[4].defId === 'i_climb' && sk[4].lvl === 9 && j(sk[4].ov) === j({ name: 'Climbing (Walls)', stats: { free: 1 }, held: ['free'] }) && sk[0].defId === 'i_climb' && sk[0].lvl === 13 && j(sk[0].ov) === j({ name: 'Climbing (Cliffs)', stats: { granted: 2 }, held: ['granted'] }) && sk[1].defId === 'i_lore' && j(sk[1].ov) === j({ stats: { diff: 1 }, held: ['diff'] })
+            && sk[2].def.name === 'Swimming' && j(sk[2].def.stats) === j({ free: 1 }) && sk[2].lvl === 0 && sk[3].def.key === 'Cooking' && j(sk[3].def.stats) === j({ attr: 2, diff: 0, fix: 1 }), j([refused, sk]));
+        check('F7b traits: a library entry only when its points at the row\'s level are the row\'s (Tough 3 = 15), a level\'s own entry first (Rank 2), granted points held on the copy; otherwise a custom row with the row\'s own points, level and changes (the attribute and its trait channel, a pool\'s max, a switch on, a multiplier as its step; an unknown channel left out); a list the system lacks is named',
+            ad.length === 4 && ad[0].defId === 'i_tough' && ad[0].lvl === 3 && !ad[1].defId && ad[1].def.stats.bp === 12 && ad[1].lvl === 2 && j(ad[1].def.mods) === j([{ f: 'f_st', op: 'add', v: 1 }, { f: 'f_strace', op: 'add', v: 1 }])
+            && ad[2].defId === 'i_rank2' && j(ad[2].ov) === j({ stats: { granted: 15 }, held: ['granted'] }) && j(ad[3].def.mods) === j([{ f: 'f_per', op: 'add', v: 1 }, { f: 'f_perrace', op: 'add', v: 1 }, { f: 'f_dodge', op: 'add', v: 1 }, { f: 'f_mm', op: 'add', v: -0.5 }, { f: 'f_fi', op: 'on' }, { f: 'f_hp', op: 'add', v: 2, part: 'max' }])
+            && j(ro.skipped) === j(['disadvantages']), j([ad, ro.skipped]));
+        check('F7b powers: a library entry when its CP at the row\'s level is the row\'s (Blast 3 = 35); else a custom row keeping its level, its own CP, FP and EP the same at every level, its alignment, and the choice naming a skill its text mentions; languages: custom rows with the tier as the level, comprehension only as the switch, granted as free',
+            pw.length === 2 && pw[0].defId === 'i_blast' && pw[0].lvl === 3 && !pw[1].defId && pw[1].lvl === 2 && j(pw[1].def.stats) === j({ cpA: 25, fpP: 3030303, epP: 1010101, al: 2, psk: 'Lore' })
+            && lg.length === 2 && lg[0].lvl === 0 && lg[0].on === false && lg[1].lvl === 2 && lg[1].on === true && j(lg[1].def.stats) === j({ free: 1 }) && ro.rows === 13 && q.filter(x => x.op === 'add' || x.op === 'custom').length === 13, j([pw, lg]));
+        const bagP = JSON.parse('{"__proto__": {"x": 1}, "constructor": 3, "toString": 2, "strength": 1e9, "health": "2"}'), many = {}; ['strength', 'dexterity', 'iq', 'health', 'will', 'perception', 'dodge', 'parry', 'block'].forEach(k => { many[k] = 1; });
+        const sysAll = cleanSystem({ v: 1, name: 'A', rolls: [], fields: ['ST', 'STRace', 'DX', 'DXRace', 'IQ', 'IQRace', 'HT', 'HTRace', 'Will', 'WillRace', 'Per', 'PerRace', 'Dodge', 'ParryBonus', 'BlockBonus'].map((k, i) => n('a' + i, k)) }, { F, gmView: true });
+        check('F7b sbMods: a prototype name, a text, a number past the effect cap or a channel the system lacks changes nothing; at most 12 changes (an effect\'s cap); no finder: every row a custom one; no dossier: no rows',
+            j(S.sbMods(bagP, S.keyIndex(sR))) === '[]' && S.sbMods(many, S.keyIndex(sysAll)).length === 12 && S.sbRowOps(dosR, sR, null).rows === 13 && !S.sbRowOps(dosR, sR, null).ops.some(o => o.q.op === 'add') && S.sbRowOps(null, sR, find).rows === 0, j(S.sbMods(bagP, S.keyIndex(sR))));
+        const rawW = { v: 1, name: 'W', rolls: [], fields: [n('a', 'A'), n('b', 'B'),
+            lst('l1', 'One', { stats: [{ key: 'pk', kind: 'pick', opts: [{ label: 'Ay', name: 'A' }] }] }), lst('l2', 'Two', { stats: [{ key: 'PK', kind: 'pick', opts: [{ label: 'Bee', name: 'B' }] }] }), lst('l3', 'Three', { stats: [{ key: 'pk', kind: 'pick', opts: [{ label: 'ay', name: 'A' }] }] })] };
+        const wW = validateSystem(cleanSystem(rawW, { F, gmView: true }), F).warnings.filter(w => /is a choice on One too/.test(w.message));
+        check('F7 the validator warns when two lists share a choice key with other options (an item holds one choice under a key, read against the first list\'s options); the same options, in any case, say nothing',
+            wW.length === 1 && wW[0].id === 'f_l2' && /Give this list its own key/.test(wW[0].message), j(wW));
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('F7b the copy applies the rows as the GM\'s own hand would (applyRowOp), replacing each list the sheet fills but keeping a kept curse, and says how many rows came and what did not',
+            /ro\.lists\.forEach\(function\(fid\) \{ c\.values\[fid\] = \(Array\.isArray\(c\.values\[fid\]\) \? c\.values\[fid\] : \[\]\)\.filter\(function\(x\) \{ return x && x\.hid === 1; \}\); \}\);/.test(shF)
+            && /ro\.ops\.forEach\(function\(o\) \{ var a = applyRowOp\(sys, c, o\.f, o\.q, F\(\), \{\}\);/.test(shF) && /not carried over: /.test(shF));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

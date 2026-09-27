@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -3118,18 +3118,30 @@ function revertLast() {
 }
 // The ShadowBase bridge (decision 10g, copy once): the sheet attached to a token gives its attributes, resources and
 // skills to a campaign character through the alias table; a token without a character gets one named after it
+// Stage 6 F7: the GM's own entries by name — the system's items, then the library's packs in their order (lower-case name -> entries)
+function sbFinder(camp, sys) {
+    var by = Object.create(null), add = function(e) { if (e && typeof e.name === 'string' && typeof e.id === 'string') { var k = e.name.trim().toLowerCase(); (by[k] = by[k] || []).push(e); } };
+    (Array.isArray(sys.items) ? sys.items : []).forEach(add);
+    var L = window.wpLibrary, packs = camp && camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
+    if (L && L.entriesOf) packs.forEach(function(p) { (L.entriesOf(p.id) || []).forEach(add); });
+    return function(name) { return by[String(name).trim().toLowerCase()] || []; };
+}
 function fromShadowBase(w) {
     var camp = getActiveCampaign(), sys = systemOf(camp);
     if (!w || !w.sheet) return { error: 'No ShadowBase sheet on this token.' };
     if (!sys || !F()) return { error: 'The campaign has no system yet (System in the Campaign pill).' };
-    var r = aliasFromShadowBase(w.sheet, sys, F());
-    if (!r.matched) return { error: 'Nothing on the sheet matches the system\'s keys (ST or STR, DX or DEX, HT or CON, IQ or INT, HP, FP, Will, Per, Dodge, Parry, skills by name).' };
+    var r = aliasFromShadowBase(w.sheet, sys, F()), ro = sbRowOps(w.sheet, sys, sbFinder(camp, sys));   // Stage 6 F7: its rows too
+    if (!r.matched && !ro.rows) return { error: 'Nothing on the sheet matches the system\'s keys (ST or STR, DX or DEX, HT or CON, IQ or INT, HP, FP, Will, Per, Dodge, Parry, skills by name).' };
     var c = w.charId ? charById(w.charId, camp) : null;
     if (!c) { c = newCharacter({ name: w.charName || w.name || w.sheet.name || 'Character' }); linkToken(w, c.id); }
     c.values = c.values || {}; Object.keys(r.values).forEach(function(k) { c.values[k] = r.values[k]; });
+    ro.lists.forEach(function(fid) { c.values[fid] = (Array.isArray(c.values[fid]) ? c.values[fid] : []).filter(function(x) { return x && x.hid === 1; }); });   // a list the sheet fills is replaced (a kept curse, the GM's secret, stays)
+    var rowsIn = 0, rowsOut = 0;
+    ro.ops.forEach(function(o) { var a = applyRowOp(sys, c, o.f, o.q, F(), {}); var mk = o.q.op === 'add' || o.q.op === 'custom'; if (a.ok) { c.values[o.f] = a.value; if (mk) rowsIn++; } else if (mk) rowsOut++; });   // as the GM's own hand makes them
     afterCharChange(c, true);
-    toast(r.matched + ' value' + (r.matched === 1 ? '' : 's') + ' copied into ' + c.name + '\'s sheet.');
-    return { ok: true, charId: c.id, matched: r.matched };
+    var nN = function(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }, left = ro.skipped.slice(); if (rowsOut) left.unshift(nN(rowsOut, 'row'));
+    toast(nN(r.matched, 'value') + (rowsIn ? ' and ' + nN(rowsIn, 'row') : '') + ' copied into ' + c.name + '\'s sheet' + (left.length ? '; not carried over: ' + left.join(', ') + ' (no such list here).' : '.'));
+    return { ok: true, charId: c.id, matched: r.matched, rows: rowsIn, missed: rowsOut, skipped: ro.skipped };
 }
 // net.js hooks: a character arrived, changed or went
 function charChanged(id) {

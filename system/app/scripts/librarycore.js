@@ -5,7 +5,7 @@
    (gmNotes: never in the players' view). Everything that enters goes through here — a pack file read from disk, an imported
    .wppack.json, a manifest in a loaded save, and later (L3) every message on the wire — and comes out as plain arrays and objects
    (prototype-free maps inside). Build plan: docs/STAGE_6_LIBRARY_BUILD.md. */
-import { cleanItemDef, statKeys, statPicks, cleanIcon } from './systemcore.js';
+import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds } from './systemcore.js';
 
 export var VERSION = 1;
 export var LIB = Object.freeze({
@@ -30,10 +30,10 @@ export function hashText(s) { s = String(s); var h = 0x811c9dc5; for (var i = 0;
 // An entry, cleaned for a view: the item definition (the view's stat keys and choices), then the library's own text. The players'
 // view never holds a GM-only entry, its GM-only parts (cleanItemDef's), or gmNotes. ctx = { F, gmView, sys } (sys: the view the
 // stats are read against; none: the key rule alone). Keys absent from the source stay absent (a plain item stays byte-identical).
-export function libCtx(sys, F, gmView) { var fields = isObj(sys) && Array.isArray(sys.fields) ? sys.fields : null; return { F: F, gmView: !!gmView, keys: fields ? statKeys(fields) : undefined, picks: fields ? statPicks(fields) : undefined }; }
+export function libCtx(sys, F, gmView) { var fields = isObj(sys) && Array.isArray(sys.fields) ? sys.fields : null; return { F: F, gmView: !!gmView, keys: fields ? statKeys(fields) : undefined, picks: fields ? statPicks(fields) : undefined, kinds: fields ? fieldKinds(sys) : undefined }; }
 export function cleanLibEntry(e, ctx) {
     ctx = ctx || {};
-    var out = cleanItemDef(e, ctx.F, !!ctx.gmView, ctx.keys, ctx.picks); if (!out) return null;
+    var out = cleanItemDef(e, ctx.F, !!ctx.gmView, ctx.keys, ctx.picks, ctx.kinds); if (!out) return null;
     var d = prose(e.desc, LIB.desc); if (d.trim()) out.desc = d;
     if (Array.isArray(e.tags)) { var seen = map(), tg = []; e.tags.forEach(function(t) { var x = line(t, LIB.tag); if (x && !seen[x.toLowerCase()] && tg.length < LIB.tags) { seen[x.toLowerCase()] = 1; tg.push(x); } }); if (tg.length) out.tags = tg; }
     var r = line(e.ref, LIB.ref); if (r) out.ref = r;
@@ -149,6 +149,7 @@ export function entryFromForm(f) {
     var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)
     if (f.rm === 'bound' || f.rm === 'curse') { out.rm = f.rm; if (s(f.rmMsg).trim()) out.rmMsg = s(f.rmMsg); }   // L2b: a player's removal (bound / curse on contact) and its message, as the Items tab has them
     if (f.eq === 'bound' || f.eq === 'curse') { out.eq = f.eq; if (s(f.eqMsg).trim()) out.eqMsg = s(f.eqMsg); }   // and switching it off
+    if (Array.isArray(f.mods) && f.mods.length) out.mods = JSON.parse(JSON.stringify(f.mods)); if (f.modsOn === true) out.modsOn = true;   // F6: its changes to the character (cleaned as an entry's are)
     return out;
 }
 export function newEntryId(taken, rnd) {

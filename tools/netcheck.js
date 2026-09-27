@@ -431,8 +431,8 @@ const j = JSON.stringify;
     let at = -1; const inOrder = order.every(s => { const p = fxR.indexOf(s, at + 1); if (p < 0) return false; at = p; return true; });
     check('char-effect (host): shape, pause, rate, feature, existence and ownership are checked in that order before the list\'s own rules; then store, ack, sync (behaviour: systemcheck runs this slice)', fxR.length > 0 && inOrder);
     check('char-effect (host): every projection carries the full library (a GM-only effect reaches its owner inline, never as a bare id); the probe that decides who sees a field is marked',
-        /S\.charFor\(src, view, pid, \{ lib: libD, items: itD \}\)/.test(src) && /S\.charFor\(probe, view, pid, \{ probe: true \}\)/.test(src) && /charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt \}\)/.test(src) && /SQ\.charFor\(srcQ, viewQ, pidQ, \{ lib: fxLib\(campQ\.system\), items: itemLib\(campQ\.system\) \}\)/.test(src)
-        && /S\.charFor\(camp\.chars\[charId\], view, recipientId, \{ lib: lib, items: items \}\)/.test(src) && /S\.charFor\(src, view, src\.ownerId, \{ lib: lib \|\| null, items: items \|\| null \}\)/.test(src));
+        /S\.charFor\(src, view, pid, \{ lib: libD, items: itD, full: camp\.system \}\)/.test(src) && /S\.charFor\(probe, view, pid, \{ probe: true \}\)/.test(src) && /charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(src) && /SQ\.charFor\(srcQ, viewQ, pidQ, \{ lib: fxLib\(campQ\.system\), items: itemLib\(campQ\.system\), full: campQ\.system \}\)/.test(src)
+        && /S\.charFor\(camp\.chars\[charId\], view, recipientId, \{ lib: lib, items: items, full: camp\.system \}\)/.test(src) && /S\.charFor\(src, view, src\.ownerId, \{ lib: lib \|\| null, items: items \|\| null, full: full \|\| null \}\)/.test(src));
     const ciR = (() => { const i = src.indexOf('// [netcheck:charitem-start]'), k = src.indexOf('// [netcheck:charitem-end]'); return i >= 0 && k > i ? src.slice(i, k) : ''; })();
     const ciOrder = ['Si.cleanCharItem(msg); if (!qi) return;', "denyI('paused')", "denyI('slow')", "denyI('off')", "denyI('missing')", "denyI('owner')", 'Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view:', "{ type: 'char-ack', rid: qi.rid }", 'net.syncCharDelta(qi.charId, dI);'];
     let ciAt = -1; const ciIn = ciOrder.every(s => { const p = ciR.indexOf(s, ciAt + 1); if (p < 0) return false; ciAt = p; return true; });
@@ -2199,6 +2199,42 @@ pendingChecks.push((async () => {
         oneAtATime && asksQ === 6 && gaveUp && nextWent && lwOk === true && gqOk, J([oneAtATime, asksQ, gaveUp, nextWent, lwOk, gqOk]));
     check('L3b a player\'s pick reads the entry they fetched (charItem and the changes worked out again pass the client\'s cache as opts.lib); the session end clears it and what players drew from the host',
         /S\.applyRowOp\(camp\.system, c, fieldId, q, window\.wpFormula, \{ player: true, view: camp\.system, lib: net\.libEntry \}\)/.test(src) && /var o = \{ player: true, view: camp\.system, lib: net\.libEntry \}/.test(src) && /net\.libReset\(\); _libSpent = Object\.create\(null\);/.test(src));
+})());
+
+// Stage 6 F6 (owner, 2026-09-27): a kept curse keeps working, nameless — the real char-item handler drops a cursed item (it stays on the
+// character, hidden), the real delta carries the owner's nameless changes with the list, and the real client handler takes them onto the
+// owner's own copy only (cleaned again); nothing of it names the item
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), J = JSON.stringify;
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); return src.slice(i, k); })();
+    const sysU = Sx.cleanSystem({ v: 1, name: 'U', rolls: [], fields: [{ id: 'f_dx', key: 'DX', kind: 'number', def: 10, vis: 'all' }, { id: 'f_gm', key: 'Luck', kind: 'number', vis: 'gm' }, { id: 'f_rg', key: 'Rings', label: 'Rings', kind: 'item-list', edit: 'owner', vis: 'all' }],
+        items: [{ id: 'i_cur', name: 'Cursed ring', category: 'Ring', rm: 'curse', rmMsg: 'A chill lingers', mods: [{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_gm', op: 'add', v: -5 }] }] }, { F: Fx, gmView: true });
+    const campU = { id: 'k', system: sysU, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_rg: [{ id: 'w_r', defId: 'i_cur', qty: 1 }] } } } };
+    const outU = { owner: [], mate: [] };
+    const netU = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); outU.owner.push(JSON.parse(J(m))); } }, { peer: 'pM', open: true, send: m => { packCheck(m); outU.mate.push(JSON.parse(J(m))); } }], roster: { pA: { id: 'u_a' }, pM: { id: 'u_m' } } };
+    const winU = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+    const HU = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n} };')(
+        netU, () => Sx, winU, () => false, () => campU, () => {}, e => { throw e; }, c => (netU.roster[c.peer] ? netU.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+    const ans = []; HU.handle({ type: 'char-item', rid: 'd1', charId: 'c_1', fieldId: 'f_rg', op: 'setQty', rowId: 'w_r', qty: 0 }, { peer: 'pA', send: m => { packCheck(m); ans.push(JSON.parse(J(m))); } });
+    const kept = campU.chars.c_1.values.f_rg[0], delta = outU.owner.find(m => m.type === 'charDelta');
+    check('F6 a cursed item dropped (host, the real handlers): it stays on the character hidden; the owner\'s delta carries their list without it and the curse\'s changes as nameless amounts on the fields they can see (DX −2; a GM-only field\'s never); nothing sent names or points at the item',
+        ans[0].type === 'char-ack' && kept.hid === 1 && kept.defId === 'i_cur' && !!delta && J(delta.values.f_rg) === '[]' && J(delta.unseen) === J([{ f: 'f_dx', op: 'add', v: -2 }])
+        && !/Cursed|i_cur|f_gm|w_r|Luck/.test(J(outU.owner.concat(outU.mate))) && outU.mate.every(m => !('unseen' in m)), J([ans, delta, outU.mate]));
+    const inSrc = between('// [netcheck:charin-start]', '// [netcheck:charin-end]', 'charin');
+    const view = Sx.cleanSystem(sysU, { F: Fx, gmView: false });
+    const runIn = (chars, msg, peer) => { const st = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', system: view, chars } } } };
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', '_charPending', '_charHost', 'charPendingDone', 'reapplyPending', 'noteHostCopy', inSrc)({ foreign: true, syncedPeer: 'h', stream: false, myId: 'u_a' }, { peer }, msg, st, id => st.appState.campaigns[id] || null, { wpSystemCore: Sx, wpSheets: { charChanged() {}, charGone() {} } }, {}, {}, () => {}, () => {}, () => {});
+        return st.appState.campaigns.k.chars; };
+    const mine = () => ({ c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_rg: [] }, partial: false }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {}, partial: true } });
+    const D = (id, unseen) => ({ type: 'charDelta', campId: 'k', id, values: { f_dx: 10 }, unseen });
+    const c1 = runIn(mine(), D('c_1', [{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_gm', op: 'add', v: 9 }, { f: 'f_dx', op: 'add', v: 'x' }, { f: 'f_dx', op: 'add', v: 1, name: 'Leak' }]), 'h');
+    const c2 = runIn(mine(), D('c_2', [{ f: 'f_dx', op: 'add', v: -2 }]), 'h'), c3 = (() => { const m0 = mine(); m0.c_1.unseen = [{ f: 'f_dx', op: 'add', v: -2 }]; return runIn(m0, D('c_1', []), 'h'); })(), c4 = runIn(mine(), D('c_1', [{ f: 'f_dx', op: 'add', v: -2 }]), 'x');
+    check('F6 a player takes nameless changes onto their own copy only, cleaned again (fields of their view, amounts only, nothing else kept); an empty list clears them; a teammate\'s copy and anyone but the synced host change nothing',
+        J(c1.c_1.unseen) === J([{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_dx', op: 'add', v: 1 }]) && !('unseen' in c2.c_2) && !('unseen' in c3.c_1) && !('unseen' in c4.c_1)
+        && /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(src) && (src.match(/full: camp[AQ]?\.system \}/g) || []).length >= 5, J([c1.c_1, c2.c_2, c3.c_1]));
 })());
 
 let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure

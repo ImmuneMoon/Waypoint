@@ -504,12 +504,12 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.music;    // the music library (1.5.0): likewise travels only as the validated 'music' message, never raw in the snapshot
         delete camp.library;  // the item library's manifest (Stage 6 L1c): the GM's; a player holds only the copies the host puts on their rows
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
-        var libFx = fxLib(camp.system), libIt = itemLib(camp.system);   // 5h / Stage 6: the full libraries, before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
+        var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
             var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [] }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
-            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt }), camp.chars[id], camp.system, libFx, libIt); if (v) outCh[id] = v; }); camp.chars = outCh;
+            var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt, full: fullSys }), camp.chars[id], camp.system, libFx, libIt, fullSys); if (v) outCh[id] = v; }); camp.chars = outCh;
         } else delete camp.chars;
         // fog of war (1.5.0 FV2): the sight-field mapping + default travel for the hosted campaign, so a client resolves
         // its own sight the same way the host does (character sheets already travel per recipient above)
@@ -1424,6 +1424,7 @@ var _rowGrace = {};    // Stage 6 (host): a pickup's Undo window, 'charId|fieldI
 function SC() { return window.wpSystemCore || null; }
 function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id : null; }
 // [netcheck:chardelta-start]
+var _unseenSent = Object.create(null);   // Stage 6 F6: the nameless changes each owner last had, by peer and character
 // 5h: the full status-effect library by id (host-local, never sent): a GM-only effect applied to a PC reaches its owner inline through it
 function fxLib(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }
 // Stage 6 F4a: the full item library by id (host-local, never sent): a GM-only item on a PC reaches its owner inline through it (players' fields only)
@@ -1431,9 +1432,9 @@ function fxLib(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.eff
 function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = typeof window !== 'undefined' ? window.wpLibrary : null; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : L.entry(id); } : lib; }
 // 5h: a teammate's copy (partial: hover fields only) cannot work out a hover line whose formula reads a field it does not hold (HP max from
 // ST read the default: "HP 9 / 10" where the owner saw "9 / 14"), so the host sends the lines it works out from the owner's own view.
-function withHoverLines(v, src, view, lib, items) {
+function withHoverLines(v, src, view, lib, items, full) {   // full (F6): the GM's system, so the owner's view counts what rows they cannot see change
     var S = SC(); if (!v || !v.partial || !S || !window.wpFormula || !src) return v;
-    var ownV = S.charFor(src, view, src.ownerId, { lib: lib || null, items: items || null }); if (!ownV) return v;
+    var ownV = S.charFor(src, view, src.ownerId, { lib: lib || null, items: items || null, full: full || null }); if (!ownV) return v;
     var ln = []; try { ln = S.hoverLines(view, ownV, window.wpFormula); } catch (e) {}
     v.lines = ln.slice(0, 12).map(function(s) { return String(s).slice(0, 120); });   // always, even [] — the owner's "no lines" is the answer; a teammate never falls back to its own defaults
     return v;
@@ -1442,7 +1443,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !camp.chars || !camp.chars[charId] || !window.wpSheets) return null;
     var view = window.wpSheets.playerSystem(camp); if (!view) return null;
     var lib = fxLib(camp.system), items = itemLib(camp.system);
-    return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items }), camp.chars[charId], view, lib, items);
+    return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items, full: camp.system }), camp.chars[charId], view, lib, items, camp.system);
 }
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
 function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; _charHost = {}; _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); }
@@ -1500,11 +1501,13 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
             var whole = charViewFor(id, pid); if (whole) { try { c.send({ type: 'char', campId: camp.id, char: whole }); } catch (e) { sendFailed(e); } }
             return;
         }
-        var fields = Object.keys(values).filter(function(f) { return allowed.values[f] !== undefined; }); if (!fields.length) return;
-        var proj = S.charFor(src, view, pid, { lib: libD, items: itD }), sub = {};   // 5h: each value as this peer's own projection holds it (effects rows differ per peer)
+        var fields = Object.keys(values).filter(function(f) { return allowed.values[f] !== undefined; });
+        var proj = S.charFor(src, view, pid, { lib: libD, items: itD, full: camp.system }), sub = {};   // 5h: each value as this peer's own projection holds it (effects rows differ per peer)
         fields.forEach(function(f) { if (values[f] === null) sub[f] = null; else if (proj && proj.values[f] !== undefined) sub[f] = proj.values[f]; });   // Stage 6: fail closed — a value with no projection is never sent raw
-        if (!Object.keys(sub).length) return;
-        try { c.send({ type: 'charDelta', campId: camp.id, id: id, values: sub }); } catch (e) { sendFailed(e); }
+        var unJ = JSON.stringify((proj && proj.unseen) || []), unK = pid + '|' + id, unMove = (_unseenSent[unK] || '[]') !== unJ;   // F6: the owner's nameless changes (a kept curse, a list they cannot see), sent when they move
+        if (!Object.keys(sub).length && !unMove) return;
+        var msgD = { type: 'charDelta', campId: camp.id, id: id, values: sub }; if (unMove || unJ !== '[]') msgD.unseen = (proj && proj.unseen) || []; _unseenSent[unK] = unJ;
+        try { c.send(msgD); } catch (e) { sendFailed(e); }
     });
 };
 // [netcheck:chardelta-end]
@@ -2324,7 +2327,7 @@ function turnMoveStart(mapId, c) {
     var S = SC(), F = window.wpFormula, ch = camp.chars && typeof w.charId === 'string' && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     if (!S || !F || !camp.system || !ch || ch.npc || ch.ownerId !== w.ownerId || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp), t = view && view.combat && view.combat.turn; if (!t || !t.move) return;
-    var chv = S.charFor(ch, view, w.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system) }); if (!chv) return;
+    var chv = S.charFor(ch, view, w.ownerId, { lib: fxLib(camp.system), items: itemLib(camp.system), full: camp.system }); if (!chv) return;
     var vt = window.wpVtt, rl = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)); };
     var tc = S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation') }), c);
     var r = F.evaluate(t.move, { vars: S.makeResolver(view, chv, F, tc) }); if (!r.ok || typeof r.value !== 'number' || !isFinite(r.value)) return;
@@ -3062,6 +3065,7 @@ function handleMessage(msg, conn) {
         if (typeof msg.id !== 'string' || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;
         var tgt = campC.chars[msg.id], hb = _charHost[msg.id] || null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
         Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });
+        if (Array.isArray(msg.unseen) && !tgt.partial) { var unD = SC2.cleanChar({ id: tgt.id, name: 'x', ownerId: tgt.ownerId, values: {}, unseen: msg.unseen }, sysC); if (unD && unD.unseen) tgt.unseen = unD.unseen; else delete tgt.unseen; }   // F6: a kept curse's changes, nameless, on the owner's own copy only
         reapplyPending(msg.id);
         if (window.wpSheets) window.wpSheets.charChanged(msg.id);
         // [netcheck:charin-end]
@@ -3132,7 +3136,7 @@ function handleMessage(msg, conn) {
         var campA = getActiveCampaign(), chA = campA && campA.chars && campA.chars[qa.charId];
         if (!campA || !campA.system || !chA) { denyA('missing'); return; }
         var profA = net.roster[conn.peer]; if (chA.npc || !chA.ownerId || !profA || chA.ownerId !== profA.id) { denyA('owner'); return; }
-        var viewA = window.wpSheets ? window.wpSheets.playerSystem(campA) : null, chvA = viewA ? Sa.charFor(chA, viewA, profA.id, { lib: fxLib(campA.system), items: itemLib(campA.system) }) : null;
+        var viewA = window.wpSheets ? window.wpSheets.playerSystem(campA) : null, chvA = viewA ? Sa.charFor(chA, viewA, profA.id, { lib: fxLib(campA.system), items: itemLib(campA.system), full: campA.system }) : null;
         if (!viewA || !chvA) { denyA('missing'); return; }
         var actA = null, rowGmA = false;
         if (qa.row) (Array.isArray(viewA.fields) ? viewA.fields : []).forEach(function(f) { if (f && f.id === qa.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lr = f.list.rolls[qa.row.i]; if (lr && Array.isArray(lr.apply)) actA = lr; } });   // HUD H7b: a list's action, as their view has the list
@@ -3395,7 +3399,7 @@ function handleMessage(msg, conn) {
         if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = campQ && campQ.chars && campQ.chars[q.charId];
             if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || !SQ || !campQ.system) { denyQ('char'); return; }
-            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system) }) : null;
+            var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null;
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on
             var vtQ = window.wpVtt, ruleQ = function(k) { return !vtQ || (vtQ.rulesOn ? vtQ.rulesOn(k) : vtQ.on(k)); };

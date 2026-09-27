@@ -156,7 +156,7 @@ const j = v => JSON.stringify(v);
         const winS = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), lbS = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
         const hmS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), tuS = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         const fk = /var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = (\[[^\]]*\]);/.exec(winS), FK = fk ? JSON.parse(fk[1].replace(/'/g, '"')) : [];
-        const full = entryFromForm({ id: 'i_z', name: 'n', key: 'K', category: 'c', icon: 'x', vis: 'gm', lvl: '1', stats: { Rank: '2' }, notes: 'n', desc: 'd', tags: 't', ref: 'r', damage: '1', cost: '1', throwSkill: 'T', areaFt: '5', gmNotes: 'g', rm: 'bound', rmMsg: 'm', eq: 'curse', eqMsg: 'e' });
+        const full = entryFromForm({ id: 'i_z', name: 'n', key: 'K', category: 'c', icon: 'x', vis: 'gm', lvl: '1', stats: { Rank: '2' }, notes: 'n', desc: 'd', tags: 't', ref: 'r', damage: '1', cost: '1', throwSkill: 'T', areaFt: '5', gmNotes: 'g', rm: 'bound', rmMsg: 'm', eq: 'curse', eqMsg: 'e', mods: [{ f: 'f_x', op: 'add', v: 1 }], modsOn: true });
         check('L2a the Library window: text nodes only (nothing from an entry, a pack name or a file becomes markup); it never writes a pack it has not read (still loading or unreadable: writing it would leave nothing); a save replaces every field the form holds (each one entryFromForm makes) and keeps the rest (a bound item\'s secrets); it acts on the campaign it opened on',
             !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\('on/.test(winS)
             && /if \(!packById\(pid\) \|\| !ready\(pid\)\) \{ delete st\.dirty\[pid\]; continue; \}/.test(winS)
@@ -342,6 +342,20 @@ const j = v => JSON.stringify(v);
             && /var ITEMS_PACK = 'p_items', KEEP_ITEMS = \['i_tut_firepot'\]/.test(lbM) && /if \(mine\.state === 'ready'\) migrateItems\(camp\);/.test(lbM));
     }
 
+    /* ---- F6: the item-mods editors ---- */
+    {
+        const sysG = S.cleanSystem({ v: 1, name: 'G', rolls: [], fields: [{ id: 'f_dx', key: 'DX', kind: 'number' }, { id: 'f_gm', key: 'Luck', kind: 'number', vis: 'gm' }] }, { F, gmView: true }), eMod = { id: 'i_m', name: 'M', mods: [{ f: 'f_dx', op: 'add', v: 1 }, { f: 'f_gm', op: 'add', v: 2 }] };
+        const plG = cleanLibEntry(eMod, libCtx(S.cleanSystem(sysG, { F, gmView: false }), F, false)), gmG = cleanLibEntry(eMod, libCtx(sysG, F, true)), ixG = L.playerIndex([eMod], libCtx(S.cleanSystem(sysG, { F, gmView: false }), F, false));
+        check('F6 a library entry\'s changes in the players\' view name their fields only (what lib-get sends never points at a GM-only field); the GM\'s view keeps them all',
+            j(plG.mods) === j([{ f: 'f_dx', op: 'add', v: 1 }]) && j(gmG.mods) === j(eMod.mods) && !/f_gm/.test(j(ixG.byId.i_m)), j([plG.mods, gmG.mods]));
+        const fs = require('fs'), shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), wnF = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), hmF = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const ef = L.entryFromForm({ id: 'i_m', name: 'M', mods: [{ f: 'f_dx', op: 'add', v: -1, lvl: true }], modsOn: true }), eg = L.entryFromForm({ id: 'i_m', name: 'M', mods: [] });
+        check('F6 the entry form carries an item\'s changes and "only while switched on" (cleaned as any entry\'s when saved); the form keeps a working copy while it is open, a checkbox it does not show keeps the entry\'s own; the Items tab edits them (+ Change, amount, per level, remove, only while switched on); Help describes it',
+            j(ef.mods) === j([{ f: 'f_dx', op: 'add', v: -1, lvl: true }]) && ef.modsOn === true && !('mods' in eg) && !('modsOn' in eg)
+            && /mods: st\.fmFor === e\.id && st\.fm \? st\.fm : e\.mods, modsOn: ui\('libF_modsOn'\) \? ui\('libF_modsOn'\)\.checked : e\.modsOn === true/.test(wnF) && /if \(st\.fmFor !== e\.id \|\| !st\.fm\) \{ st\.fm = clone\(Array\.isArray\(e\.mods\) \? e\.mods : \[\]\); st\.fmFor = e\.id; \}/.test(wnF) && !/innerHTML/.test(wnF)
+            && /row\.appendChild\(itemModsBox\(it, anyL, anyO\)\);/.test(shF) && /else if \(iact === 'itemmodadd'\)/.test(shF) && /else if \(iact === 'itemmoddel'\)/.test(shF) && /if \(c\.indexOf\('sys-item-mtarget'\) >= 0\)/.test(shF) && /if \(c\.indexOf\('sys-item-modson'\) >= 0\) \{ if \(t\.checked\) iit\.modsOn = true; else delete iit\.modsOn;/.test(shF)
+            && /An item can also <b>change the character carrying it<\/b>/.test(hmF) && /&ldquo;an unseen effect&rdquo;, never the item/.test(hmF));
+    }
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');
     check('under a window the module publishes itself as window.wpLibraryCore', !!(global.window.wpLibraryCore && global.window.wpLibraryCore.cleanPack && global.window.wpLibraryCore.VERSION === L2.VERSION));
     delete global.window;

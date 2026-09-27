@@ -3433,9 +3433,10 @@ function handleMessage(msg, conn) {
         if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
-        logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars }));
+        var ruleQ = campQ && campQ.system && campQ.system.combat && campQ.system.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the system's roll outcomes
+        logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }));
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
-            var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ), thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ);   // R3: a malfunction is a failure, with its own changes
+            var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ, ruleQ), thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ);   // R3: a malfunction is a failure, with its own changes
             var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, varsQ, Fq, tcQ, q.row ? { f: q.row.f, r: q.row.r } : null) : null;   // R2b: a list roll may move its row's counters
             if (taQ && taQ.ok) { chQ.values = chQ.values || {}; Object.keys(taQ.values).forEach(function(k) { chQ.values[k] = taQ.values[k]; }); chQ.updated = Date.now(); saveRemoteSoon(); net.syncCharDelta(q.charId, taQ.values); if (window.wpSheets) window.wpSheets.charChanged(q.charId); }
         }
@@ -4251,9 +4252,10 @@ net.diceRoll = function(expr, o) {
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     if (hosting && scope === 'global') sendTable(rec, null);
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
-    logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName }));
+    var ruleR = campR && campR.system && campR.system.combat && campR.system.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8
+    logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }));
     if (entR && entR.then && chR && SR && campR && campR.system) {   // Stage 6 HUD R1/R2b: the GM's own roll's consequences, here (a player's are the host's); a list's roll may move its row's counters
-        var mfHitR = mfR !== null && D.naturalOf(res) >= mfR, vdR = D.verdictOf(res), thR = SR.thenChanges(entR, mfHitR ? false : (vdR && vdR.kind === 'check' ? vdR.pass : null), mfHitR);   // R3
+        var mfHitR = mfR !== null && D.naturalOf(res) >= mfR, vdR = D.verdictOf(res, ruleR), thR = SR.thenChanges(entR, mfHitR ? false : (vdR && vdR.kind === 'check' ? vdR.pass : null), mfHitR);   // R3
         var taR = thR.length ? SR.applyAct(campR.system, chR, { apply: thR }, varsR, F, null, o.row ? { f: o.row.f, r: o.row.r } : null) : null;
         if (taR && taR.ok) { chR.values = chR.values || {}; Object.keys(taR.values).forEach(function(k) { chR.values[k] = taR.values[k]; }); chR.updated = Date.now(); save(true); if (hosting && net.syncCharDelta) net.syncCharDelta(chR.id, taR.values); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chR.id); }
     }

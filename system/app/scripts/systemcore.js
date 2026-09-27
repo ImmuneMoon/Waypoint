@@ -477,6 +477,7 @@ function cleanCombat(c, resIds) {
     var out = { blastAuto: BLAST_AUTO[c.blastAuto] ? c.blastAuto : 'full', blastRoller: c.blastRoller === 'gm' ? 'gm' : 'owner', hpResource: '', cover: cleanCover(c.cover) };
     if (typeof c.hpResource === 'string' && resIds && resIds[c.hpResource]) out.hpResource = c.hpResource;
     var tn = cleanTurn(c.turn); if (tn) out.turn = tn;   // turn-based combat T1: the system's turn rules (absent: none)
+    if (c.checks === 'under3d6') out.checks = 'under3d6';   // Stage 6 F8: 3d6 roll-under criticals (absent: success or failure by the margin)
     return out;
 }
 // Stage 6 F4c2: the system's rules for item lists (the Lists tab's Rules box) — ownerStats: players may change the stats of their own copies

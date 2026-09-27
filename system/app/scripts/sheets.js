@@ -3789,6 +3789,7 @@ function renderCombat() {
     box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? '— none —' : '— add a resource field —']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
     box.appendChild(labeledSelect('sys-combat-cover-on', 'Cover from blockers', [['off', 'Off'], ['on', 'On — show cover on the ruler']], cm.cover.on ? 'on' : 'off', 'When on, dragging the ruler between two character tokens shows the cover between them, read from the map\'s sight-blockers (walls, pillars, closed doors, filled cells). Advisory only — you apply the effect by hand.'));
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for D&D-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
+    box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
 }
 // Turn-based combat T1: the system's turn rules on the Combat card — how far a character moves in one turn (a formula and its unit), how a
@@ -4029,6 +4030,7 @@ function onChange(e) {
     if (onTurnChange(t)) return;   // turn-based combat T1
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
+    if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-on') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.on = t.value === 'on'; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-style') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.style = t.value === 'binary' ? 'binary' : 'graded'; markDirty(); patchErrors(); return; }

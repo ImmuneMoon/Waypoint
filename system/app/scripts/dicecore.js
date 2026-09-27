@@ -248,9 +248,25 @@ function parseCommand(text) {
     var word = m[1].toLowerCase(), expr = (m[2] || '').trim() || 'd20';
     return { cmd: word === 'gmroll' || word === 'gr' ? 'gmroll' : 'roll', expr: expr };
 }
-// The top-level check of a result, or its value
-function verdictOf(res) {
+// Stage 6 F8: 3d6 roll-under (a system's combat.checks 'under3d6') — when a roll's top check is "<=" and its left side is exactly one kept 3d6
+// (the natural total, nothing added): 3-4 are a critical success, 5 one at a target of 15 or more, 6 at 16 or more; 17 fails (critically at a
+// target of 15 or less), 18 always fails critically, and so does failing by 10 or more. { total, target, pass, crit: 'crit' | 'fumble' | '' } or null
+function under3d6(res) {
+    if (!res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || res.breakdown.dice.length !== 1) return null;
+    var top = null, checks = Array.isArray(res.breakdown.checks) ? res.breakdown.checks : []; for (var i = 0; i < checks.length; i++) if (checks[i] && checks[i].top) top = checks[i];
+    if (!top || top.op !== '<=' || typeof top.left !== 'number' || typeof top.right !== 'number' || !isFinite(top.right)) return null;
+    var rec = res.breakdown.dice[0]; if (!rec || rec.count !== 3 || rec.faces !== 6 || rec.cs || !Array.isArray(rec.dice) || rec.dice.length !== 3) return null;
+    if (rec.dice.some(function(d) { return !d || !d.kept || (Array.isArray(d.hist) && d.hist.length > 1) || (Array.isArray(d.chain) && d.chain.length > 1); })) return null;
+    var t = rec.total, T = top.right; if (typeof t !== 'number' || top.left !== t) return null;   // something added to the dice: an ordinary check
+    if (t <= 4 || (t === 5 && T >= 15) || (t === 6 && T >= 16)) return { total: t, target: T, pass: true, crit: 'crit' };
+    if (t === 18 || (t === 17 && T <= 15) || t - T >= 10) return { total: t, target: T, pass: false, crit: 'fumble' };
+    return { total: t, target: T, pass: t !== 17 && t <= T, crit: '' };
+}
+// The top-level check of a result, or its value; rule 'under3d6' (F8): a 3d6 roll-under check reads its criticals (crit: 'crit' | 'fumble')
+function verdictOf(res, rule) {
     if (!res || !res.ok) return null;
+    var u = rule === 'under3d6' ? under3d6(res) : null;
+    if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; return { kind: 'check', pass: u.pass, text: (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''), crit: u.crit }; }
     var top = null, checks = res.breakdown && res.breakdown.checks ? res.breakdown.checks : [];
     for (var i = 0; i < checks.length; i++) if (checks[i].top) top = checks[i];
     if (top) {
@@ -265,8 +281,10 @@ function fmtNum(v) {
     if (Math.floor(v) === v) return String(v);
     var s = String(Number(v.toFixed(4))); return s === '-0' ? '0' : s;
 }
-// Exactly one plain d20, kept, no reroll, no explosion, no success counting: 20 = crit, 1 = fumble
-function critOf(res) {
+// Exactly one plain d20, kept, no reroll, no explosion, no success counting: 20 = crit, 1 = fumble; rule 'under3d6' (F8): a 3d6 roll-under
+// check's own criticals first
+function critOf(res, rule) {
+    var u3 = rule === 'under3d6' ? under3d6(res) : null; if (u3) return u3.crit || null;
     if (!res || !res.ok || !res.breakdown || !Array.isArray(res.breakdown.dice) || res.breakdown.dice.length !== 1) return null;
     var rec = res.breakdown.dice[0];
     if (!rec || rec.count !== 1 || rec.faces !== 20 || !Array.isArray(rec.dice) || rec.dice.length !== 1 || rec.cs) return null;
@@ -288,6 +306,8 @@ function cardText(rec, res, F, opts) {
     var who = rec && rec.from ? (rec.from.gm ? 'GM' : rec.from.name) : 'Someone';
     var body = res && res.ok && F && F.describe ? F.describe(res, { maxChars: opts && opts.maxChars > 0 ? opts.maxChars : LIMITS.cardChars }) : (rec ? 'a roll that could not be read' : '');
     var as = rec && rec.as && (!rec.from || rec.as !== rec.from.name) ? ' as ' + rec.as : '';
+    var u = opts && opts.rule === 'under3d6' ? under3d6(res) : null;   // F8: the rule's verdict in place of the arithmetic's (17 against 18 fails)
+    if (u) { var by = u.pass ? u.target - u.total : u.total - u.target; body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (u.crit ? 'critical ' : '') + (u.pass ? 'success' : 'failure') + (by > 0 ? ' by ' + fmtNum(by) : ''); }
     return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body + (malfOf(rec, res) ? ' \u2014 malfunction (Malf ' + rec.malf + ')' : '');   // R3
 }
 // Stage 6 HUD R3: a roll's natural total — the dice alone, every term's kept total (3d6 <= Skill: the three dice; d20 + Hit: the d20) — and
@@ -314,6 +334,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf };
+export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf };

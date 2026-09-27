@@ -38,12 +38,14 @@ function renderCard(m) {
     }
     var exprLine = el('div', 'roll-expr', rec.label ? rec.label + String.fromCharCode(32, 183, 32) + rec.expr : rec.expr); exprLine.title = rec.expr; wrap.appendChild(exprLine);
     var brk = el('div', 'roll-break');
+    var sy = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, rule = sy && sy.combat && sy.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the campaign's roll outcomes
+    var v = verdictOf(res, rule), crit = critOf(res, rule), mf = malfOf(rec, res);   // R3: a malfunction is a failure, whatever the test said
     var parts = typeof Fm.parts === 'function' ? Fm.parts(res, 40) : [Fm.describe(res, { maxChars: LIMITS.cardChars })];
+    if (v && v.crit !== undefined && parts.length && typeof parts[parts.length - 1] === 'string') parts[parts.length - 1] = parts[parts.length - 1].replace(/:\s*(success|failure)( by [^:]*)?$/, '');   // F8: the rule's verdict is the line below (never the arithmetic's)
     parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
     wrap.appendChild(brk);
-    var v = verdictOf(res), crit = critOf(res), mf = malfOf(rec, res);   // R3: a malfunction is a failure, whatever the test said
     var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
-    if (crit) total.appendChild(el('span', 'roll-' + crit, crit === 'crit' ? 'natural 20' : 'natural 1'));
+    if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
     wrap.appendChild(total);
     return wrap;
 }

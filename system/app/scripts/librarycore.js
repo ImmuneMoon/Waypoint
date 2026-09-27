@@ -164,6 +164,99 @@ export function keyIndex(manifest, entriesOf) {
     packs.forEach(function(p) { if (!isObj(p)) return; var list = entriesOf(p.id); (Array.isArray(list) ? list : []).forEach(function(e) { var k = isObj(e) && typeof e.key === 'string' ? e.key.toLowerCase() : ''; if (!k) return; (m[k] = m[k] || []).push(p.vis === 'gm' && e.vis !== 'gm' ? Object.assign({}, e, { vis: 'gm' }) : e); }); });
     return m;
 }
+// L2a2: a pack as a file to share (.wppack.json): its name, icon and entries, each as the given view holds it — the GM's copy as held
+// (with who may see the pack), a players' copy as the players' view holds it (no GM-only entry, no GM notes, no formula text; a
+// GM-only pack's entries count as GM-only, so its players' copy is empty). One entry per id, at most LIB.entries
+export function packFile(meta, entries, ctx) {
+    meta = isObj(meta) ? meta : {}; ctx = ctx || {};
+    var out = { format: 'waypoint-pack', v: VERSION, id: typeof meta.id === 'string' && PACK_RE.test(meta.id) ? meta.id : 'p_pack', name: line(meta.name, LIB.packName) || 'Pack' };
+    var ic = cleanIcon(meta.icon); if (ic) out.icon = ic;
+    if (ctx.gmView && meta.vis === 'gm') out.vis = 'gm';
+    var seen = map(), list = !ctx.gmView && meta.vis === 'gm' ? [] : Array.isArray(entries) ? entries : [];
+    out.entries = list.map(function(e) { return cleanLibEntry(e, ctx); }).filter(function(c) { if (!c || seen[c.id]) return false; seen[c.id] = 1; return true; }).slice(0, LIB.entries);
+    return out;
+}
+// L2a2: a .wppack.json (or a pack file from disk) read to import — at most LIB.fileBytes, JSON, a pack (its own id is not needed);
+// its entries cleaned in the GM's view, one per id, the rest counted with reasons. { name, icon?, vis, entries, dropped, reasons } or { error }
+export function readPackImport(text, ctx) {
+    if (typeof text !== 'string') return { error: 'That is not a pack file.' };
+    if (text.length > LIB.fileBytes) return { error: 'That file is too large (16 MB at most).' };
+    var j = null; try { j = JSON.parse(text); } catch (e) { return { error: 'That file is not JSON.' }; }
+    if (!isObj(j) || (j.format !== undefined && j.format !== 'waypoint-pack') || !Array.isArray(j.entries)) return { error: 'That file is not a Waypoint pack.' };
+    var cp = cleanPack({ format: 'waypoint-pack', id: 'p_import', rev: 0, entries: j.entries }, ctx);
+    var out = { name: line(j.name, LIB.packName) || 'Imported pack', vis: j.vis === 'gm' ? 'gm' : 'all', entries: cp.pack.entries, dropped: cp.dropped, reasons: cp.reasons };
+    var ic = cleanIcon(j.icon); if (ic) out.icon = ic;
+    return out;
+}
+// L2a2: the dry run of an import: what it would do, nothing changed. library: every pack as { id, name, entries } (the target among
+// them); incoming: readPackImport's result; mode 'id' merges by id into the target (the entry of that id replaced; an id another pack
+// holds is skipped), 'key' merges by key (case aside) into the target (the entry of that key replaced, keeping its own id), 'new' adds
+// every entry as a new pack. An added entry whose id the library already uses gets a fresh one; the target holds at most LIB.entries.
+// { entries (the target's after), add, update, same, skip, invalid, clash (imported entries whose key another entry also has), reasons }
+export function packImportPlan(library, targetId, incoming, mode, rnd) {
+    var packs = (Array.isArray(library) ? library : []).filter(function(p) { return isObj(p) && Array.isArray(p.entries); }), inc = isObj(incoming) && Array.isArray(incoming.entries) ? incoming : { entries: [] };
+    mode = mode === 'key' || mode === 'new' ? mode : 'id';
+    var where = map(), taken = map(), target = null;
+    packs.forEach(function(p) { p.entries.forEach(function(e) { if (isObj(e) && typeof e.id === 'string') { where[e.id] = p; taken[e.id] = 1; } }); if (mode !== 'new' && p.id === targetId) target = p; });
+    var res = { entries: target ? target.entries.slice() : [], add: 0, update: 0, same: 0, skip: 0, invalid: inc.dropped > 0 ? inc.dropped | 0 : 0, clash: 0, reasons: (Array.isArray(inc.reasons) ? inc.reasons : []).slice(0, LIB.reasons) };
+    var why = function(r) { res.skip++; if (res.reasons.length < LIB.reasons) res.reasons.push(r); };
+    if (mode !== 'new' && !target) { inc.entries.forEach(function(e) { why((isObj(e) ? e.name : '') + ': no pack to merge into'); }); return res; }
+    var at = map(), byKey = map(), mine = map(), lk = function(e) { return isObj(e) && typeof e.key === 'string' ? e.key.toLowerCase() : ''; };
+    res.entries.forEach(function(e, i) { at[e.id] = i; var k = lk(e); if (k && byKey[k] === undefined) byKey[k] = i; });
+    inc.entries.forEach(function(e) {
+        if (!isObj(e) || typeof e.id !== 'string') return;
+        var k = lk(e), i = mode === 'id' && at[e.id] !== undefined ? at[e.id] : mode === 'key' && k && byKey[k] !== undefined ? byKey[k] : -1;
+        if (i >= 0) {
+            var old = res.entries[i], d = mode === 'key' ? Object.assign({}, e, { id: old.id }) : e;
+            if (entryHash(d) === entryHash(old)) res.same++; else { res.entries[i] = d; res.update++; }
+            mine[old.id] = 1; return;
+        }
+        if (mode === 'id' && where[e.id]) { why(e.name + ': its id is already in the pack ' + where[e.id].name); return; }
+        if (res.entries.length >= LIB.entries) { why(e.name + ': past ' + LIB.entries + ' entries in one pack'); return; }
+        var d2 = e; if (taken[e.id]) { var id = newEntryId(taken, rnd); if (!id) { why(e.name + ': no free id'); return; } d2 = Object.assign({}, e, { id: id }); }
+        taken[d2.id] = 1; at[d2.id] = res.entries.length; if (k && byKey[k] === undefined) byKey[k] = res.entries.length; res.entries.push(d2); mine[d2.id] = 1; res.add++;
+    });
+    var keys = map(), count = function(e) { var k = lk(e); if (k) keys[k] = (keys[k] || 0) + 1; };
+    packs.forEach(function(p) { if (p !== target) p.entries.forEach(count); }); res.entries.forEach(count);
+    res.entries.forEach(function(e) { var k = lk(e); if (mine[e.id] && k && keys[k] > 1) res.clash++; });
+    return res;
+}
+// L2a2: a bulk change to a pack's chosen entries (ids): a category, tags added or replacing theirs, who may see them — each entry
+// cleaned again (ctx), the others untouched. { entries, changed }
+export function bulkSet(entries, ids, change, ctx) {
+    var pick = map(), n = 0; (Array.isArray(ids) ? ids : []).forEach(function(id) { pick[id] = 1; }); change = isObj(change) ? change : {};
+    var list = (Array.isArray(entries) ? entries : []).map(function(e) {
+        if (!isObj(e) || !pick[e.id]) return e;
+        var d = JSON.parse(JSON.stringify(e));
+        if (typeof change.category === 'string') d.category = change.category;
+        if (change.vis === 'gm' || change.vis === 'all') d.vis = change.vis;
+        if (Array.isArray(change.tags)) d.tags = change.tags.slice(); else if (Array.isArray(change.addTags)) d.tags = (Array.isArray(d.tags) ? d.tags : []).concat(change.addTags);
+        var c = cleanLibEntry(d, ctx); if (!c) return e;
+        if (JSON.stringify(c) !== JSON.stringify(e)) n++;
+        return c;
+    });
+    return { entries: list, changed: n };
+}
+// L2a2: the chosen entries (ids) of one pack moved or copied to another (or copied within it): a move keeps their ids; a copy gets fresh
+// ones none of taken uses, no key (a copy would share it) and the name suffix given; at most LIB.entries in the target — the rest are
+// left where they are, counted. opts { copy, taken, rnd, suffix }. { src, dst, done, left }
+export function bulkMove(src, dst, ids, opts) {
+    opts = isObj(opts) ? opts : {}; var pick = map(), has = map(), out = { src: [], dst: (Array.isArray(dst) ? dst : []).slice(), done: 0, left: 0 };
+    (Array.isArray(ids) ? ids : []).forEach(function(id) { pick[id] = 1; });
+    if (isObj(opts.taken)) Object.keys(opts.taken).forEach(function(k) { has[k] = 1; });
+    var room = LIB.entries - out.dst.length;
+    (Array.isArray(src) ? src : []).forEach(function(e) {
+        var chosen = isObj(e) && pick[e.id] === 1;
+        if (chosen && room > 0) {
+            if (!opts.copy) { out.dst.push(e); room--; out.done++; return; }
+            var id = newEntryId(has, opts.rnd);
+            if (id) { has[id] = 1; var d = JSON.parse(JSON.stringify(e)); d.id = id; delete d.key; if (typeof opts.suffix === 'string' && opts.suffix) d.name = (d.name + opts.suffix).slice(0, 60); out.dst.push(d); room--; out.done++; }
+            else out.left++;
+        } else if (chosen) out.left++;
+        out.src.push(e);
+    });
+    return out;
+}
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host)
 export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
@@ -174,5 +267,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

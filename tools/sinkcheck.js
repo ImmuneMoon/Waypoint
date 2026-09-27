@@ -60,6 +60,8 @@ const T = '<img src=x onerror=alert(1)>';          // a tag
 const P = 'x" onmouseover="alert(1)" y="';          // an attribute breakout
 const U = 'https://evil.example/beacon.png';        // a picture that calls out
 
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     const SC = await import(modUrl('safecore.js'));
     const DR = await import(modUrl('docrender.js'));
@@ -256,6 +258,7 @@ const U = 'https://evil.example/beacon.png';        // a picture that calls out
 
     delete global.window;
 
+    summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })().catch(function(e) { console.log('FAIL      the suite threw: ' + (e && e.stack || e)); process.exit(1); });

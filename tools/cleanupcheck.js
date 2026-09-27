@@ -106,6 +106,8 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
 function tiersOf(cls) { return Object.keys(cls.tiers).sort().map(id => id + ':' + cls.tiers[id]).join(' '); }
 function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length > 0 && ids.every(id => cls.tiers[id] === tier); }
 
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
     const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, cleanImport, cleanImportItems } = await import(url);
@@ -554,6 +556,7 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
         } catch (e) { check('saves/data.json parses', false, e.message); }
     } else console.log('skip      saves/data.json not present');
 
+    summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

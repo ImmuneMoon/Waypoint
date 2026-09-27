@@ -22,6 +22,8 @@ function seeded(seed) {                                       // mulberry32
 function counting(inner) { const f = faces => { f.calls++; return inner(faces); }; f.calls = 0; return f; }
 function throwing() { return () => { throw new Error('no draws allowed'); }; }
 
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     /* ---- group 11a: the guard — the module must load with no window at all ---- */
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
@@ -326,6 +328,7 @@ function throwing() { return () => { throw new Error('no draws allowed'); }; }
 
     const ms = Date.now() - t0;
     check('the whole run stays under 2 seconds (' + ms + ' ms)', ms < 2000);
+    summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      harness error ->', e && e.stack || e); process.exit(1); });

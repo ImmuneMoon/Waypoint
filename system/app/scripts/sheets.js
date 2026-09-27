@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -632,6 +632,8 @@ function renderSheet() {
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
+    var upB = ui('sheetUpload'); if (upB) upB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes)
+    var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
@@ -3118,6 +3120,73 @@ function revertLast() {
 }
 // The ShadowBase bridge (decision 10g, copy once): the sheet attached to a token gives its attributes, resources and
 // skills to a campaign character through the alias table; a token without a character gets one named after it
+/* ---------- Stage 6 U3: a player's sheet upload — their Import JSON, the GM's review ---------- */
+function uploadsOf(camp, charId) { return cleanUploads(camp && camp.uploads).filter(function(u) { return !charId || u.charId === charId; }); }
+function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes)
+    var c = sheetOpen ? charById(sheetOpen) : null; if (!c || !isClient() || c.partial || c.ownerId !== myId()) return;
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.addEventListener('change', function() {
+        var file = inp.files && inp.files[0]; if (!file) return;
+        if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
+        file.text().then(function(txt) {
+            var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+            if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) { toast('That does not look like a ShadowBase character JSON.'); return; }
+            var n = net(); if (!n || !n.charUpload) return;
+            var r = n.charUpload(c.id, j, function(a) {
+                if (a.error) { toast(a.error); return; }
+                toast(a.n ? 'Sent to the GM: ' + a.n + (a.n === 1 ? ' change' : ' changes') + ' to review' + (a.auto ? ' (' + a.auto + ' applied at once)' : '') + '.' : a.auto ? a.auto + (a.auto === 1 ? ' change' : ' changes') + ' applied.' : 'Nothing to change: your sheet already matches.');
+            });
+            if (r && r.error) toast(r.error); else toast('Sending your sheet to the GM\u2026');
+        });
+    });
+    inp.click();
+}
+var _review = null;   // { upId }
+function closeReview() { var m = ui('uploadModal'); if (m) m.style.display = 'none'; _review = null; }
+// [sinkcheck:uploadreview-start]
+function openReview(charId) {
+    var camp = getActiveCampaign(), up = uploadsOf(camp, charId)[0], m = ui('uploadModal'); if (!up || !m || isClient()) return;
+    var c = charById(up.charId, camp); if (!c) return;
+    _review = { upId: up.id }; var ticks = {};
+    up.changes.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
+    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = up.name + '\u2019s sheet update for ' + c.name + ' \u2014 ' + up.changes.length + (up.changes.length === 1 ? ' change' : ' changes');
+    list.textContent = '';
+    var KIND = { value: 'Value', add: 'New row', fact: 'Row', stat: 'Its own values', def: 'Its numbers', remove: 'Not in the file' };
+    up.changes.forEach(function(ch) {
+        var row = el('label', 'upl-row' + (ch.kind === 'remove' ? ' upl-remove' : '') + (ch.held ? ' upl-held' : ''));
+        var box = el('input'); box.type = 'checkbox'; box.checked = ticks[ch.id]; box.addEventListener('change', function() { ticks[ch.id] = box.checked; count(); });
+        row.appendChild(box);
+        row.appendChild(el('span', 'upl-kind', KIND[ch.kind] || ch.kind));
+        row.appendChild(el('span', 'upl-label', ch.label));
+        row.appendChild(el('span', 'upl-from', ch.from || ''));
+        row.appendChild(el('span', 'upl-arrow', '\u2192'));
+        row.appendChild(el('span', 'upl-to', ch.to || ''));
+        if (ch.held) row.appendChild(el('span', 'upl-note', 'you set this'));
+        list.appendChild(row);
+    });
+    var apply = ui('uploadApply'), rej = ui('uploadReject');
+    var count = function() { var n = Object.keys(ticks).filter(function(k) { return ticks[k]; }).length; apply.textContent = 'Apply ' + n + (n === 1 ? ' change' : ' changes'); apply.disabled = !n; };
+    count();
+    apply.onclick = function() {
+        var cmp = getActiveCampaign(), sys = systemOf(cmp), ch2 = charById(up.charId, cmp); if (!sys || !ch2 || !F()) return;
+        var acc = {}; Object.keys(ticks).forEach(function(k) { if (ticks[k]) acc[k] = true; });
+        var r = sbApplyProposal(sys, ch2, up, acc, F());
+        ch2.values = r.values; lastChange = null;   // the values are replaced whole: no single field to Revert
+        cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
+        afterCharChange(ch2, true);
+        var n2 = net(); if (n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, up.changes.length);
+        toast(r.done + ' of ' + up.changes.length + ' changes applied to ' + ch2.name + (r.failed ? ' (' + r.failed + ' no longer applied)' : '') + '.');
+        closeReview();
+    };
+    rej.onclick = function() {
+        var cmp = getActiveCampaign(); cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
+        save(true); var n2 = net(); if (n2 && n2.uploadDone) n2.uploadDone(up.charId, 0, up.changes.length);
+        toast('Kept ' + c.name + ' as it was.'); closeReview(); renderViews(c.id);
+    };
+    m.style.display = 'flex';
+}
+// [sinkcheck:uploadreview-end]
+function uploadsChanged(charId) { renderViews(typeof charId === 'string' ? charId : null); }   // the Review button on its sheet
 // Stage 6 F7: the GM's own entries by name — the system's items, then the library's packs in their order (lower-case name -> entries)
 function sbFinder(camp, sys) {
     var by = Object.create(null), add = function(e) { if (e && typeof e.name === 'string' && typeof e.id === 'string') { var k = e.name.trim().toLowerCase(); (by[k] = by[k] || []).push(e); } };
@@ -3616,7 +3685,7 @@ function itemStatsBox(it, defs) {
 function renderLists() {
     var box = ui('sysListRows'); if (!box) return; box.textContent = '';
     var lists = (draft.fields || []).filter(function(f) { return f.kind === 'item-list'; }), rules = ui('sysListRules');
-    if (rules) { rules.textContent = ''; if (lists.length) rules.appendChild(labeledSelect('sys-listrules-stats', 'Item stats on players’ sheets', [['', 'GM only'], ['owner', 'Players may change them']], draft.listRules && draft.listRules.ownerStats === true ? 'owner' : '', 'Players may change the stats of their own copies with ✎ (a dot marks each; Follow the library takes them back; a stat you set on a copy holds). Turning it off keeps what they set')); }   // Stage 6 F4c2: the Rules box (Setting A), per system
+    if (rules) { rules.textContent = ''; if (lists.length) rules.appendChild(labeledSelect('sys-listrules-stats', 'Item stats on players’ sheets', [['', 'GM only'], ['owner', 'Players may change them']], draft.listRules && draft.listRules.ownerStats === true ? 'owner' : '', 'Players may change the stats of their own copies with ✎ (a dot marks each; Follow the library takes them back; a stat you set on a copy holds). Turning it off keeps what they set')); if (lists.length) rules.appendChild(labeledSelect('sys-listrules-upload', 'A player’s sheet upload', [['', 'Everything waits for you'], ['facts', 'Their row facts apply at once']], draft.listRules && draft.listRules.uploadFacts === true ? 'facts' : '', 'When a player sends their sheet file (Import JSON on their sheet): everything waits for your review, or the levels, switches and quantities of rows they already carry apply at once (the rest still waits)')); }   // Stage 6 F4c2: the Rules box (Setting A), per system
     if (!lists.length) { box.appendChild(el('div', 'sys-empty', 'No item lists yet. Add an Item list field in Fields (Skills, Weapons, Gear\u2026), then shape it here.')); return; }
     var cats = [], seen = Object.create(null);
     (draft.items || []).forEach(function(it) { var cc = String((it && it.category) || '').trim(); if (cc && !seen[cc.toLowerCase()]) { seen[cc.toLowerCase()] = 1; cats.push(cc); } });
@@ -4034,7 +4103,7 @@ function onChange(e) {
     if (c.indexOf('sys-combat-hp') >= 0) { draft.combat.hpResource = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-on') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.on = t.value === 'on'; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-cover-style') >= 0) { if (!draft.combat.cover) draft.combat.cover = { on: false, style: 'graded' }; draft.combat.cover.style = t.value === 'binary' ? 'binary' : 'graded'; markDirty(); patchErrors(); return; }
-    if (c.indexOf('sys-listrules-stats') >= 0) { if (t.value === 'owner') draft.listRules = { ownerStats: true }; else delete draft.listRules; markDirty(); patchErrors(); return; }   // Stage 6 F4c2: Setting A
+    if (c.indexOf('sys-listrules-stats') >= 0 || c.indexOf('sys-listrules-upload') >= 0) { var lr = Object.assign({}, draft.listRules || {}); if (c.indexOf('sys-listrules-stats') >= 0) { if (t.value === 'owner') lr.ownerStats = true; else delete lr.ownerStats; } else { if (t.value === 'facts') lr.uploadFacts = true; else delete lr.uploadFacts; } if (Object.keys(lr).length) draft.listRules = lr; else delete draft.listRules; markDirty(); patchErrors(); return; }   // Stage 6: settings A and B   // Stage 6 F4c2: Setting A
     var fxc = fxOfRow(t);   // 5h: a library effect's selects
     if (fxc) {
         if (c.indexOf('sys-fx-tone') >= 0) { fxc.tone = t.value; markDirty(); patchErrors(); return; }
@@ -4326,6 +4395,9 @@ function importFile(file) {
     var rv = ui('sheetRevert'); if (rv) rv.addEventListener('click', revertLast);
     var pk = ui('sheetPick'); if (pk) pk.addEventListener('change', function() { if (pk.value) openSheet(pk.value); });
     var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });
+    var upBt = ui('sheetUpload'); if (upBt) upBt.addEventListener('click', importJson);   // Stage 6 U3
+    var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
+    var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
     var dpn = ui('docPanel');   // the doc panel (docpanel.js, not edited here) comes forward when clicked or shown — only while a HUD is open
@@ -4359,6 +4431,7 @@ setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 window.wpSheets = { bellNote: bellNote, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+    sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

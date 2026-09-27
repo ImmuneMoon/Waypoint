@@ -503,6 +503,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
         delete camp.music;    // the music library (1.5.0): likewise travels only as the validated 'music' message, never raw in the snapshot
         delete camp.library;  // the item library's manifest (Stage 6 L1c): the GM's; a player holds only the copies the host puts on their rows
+        delete camp.uploads;  // Stage 6 U2: the GM's queue of players' sheet uploads to review
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
@@ -1466,6 +1467,7 @@ function itemNotice(ch, name, what) {
     if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('items', t);
 }
+var _uploadAt = {}, UPLOAD_GAP_MS = 10000;   // Stage 6 U2: host: peer -> when their last upload was read (one every 10 s)
 var _triedSaid = {}, TRY_QUIET_MS = 30000;   // host: 'charId|item|kind' -> { at, more } — the last said refused attempt (memory only)
 net.syncChars = function() {   // every character, per peer (after the system changed)
     if (!net.active || net.role !== 'host') return;
@@ -1622,6 +1624,26 @@ net.charEffect = function(charId, fieldId, q) {
     if (q.op === 'add') m.ref = q.ref; if (q.op === 'on') m.on = q.on === true; if (q.op === 'timer') m.act = String(q.act);   // T5b
     try { net.conns[0].send(m); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
+};
+// Stage 6 U2: a player sends their own character's sheet file to the GM as proposed changes (the host works them out on its full system
+// and library and keeps them for the GM; under the system's setting B their own row facts apply at once). done({ n, auto } | { error })
+var _uploadPending = {};
+net.charUpload = function(charId, sheet, done) {
+    var S = SC(), camp = getActiveCampaign();
+    if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
+    var c = camp.chars && camp.chars[charId]; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    var m = S.cleanCharUpload({ rid: 'e' + Math.random().toString(36).slice(2, 10), charId: charId, sheet: sheet }); if (!m) return { error: 'That file is too large, or not a sheet.' };
+    _uploadPending[m.rid] = { done: done, timer: setTimeout(function() { var p = _uploadPending[m.rid]; delete _uploadPending[m.rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM.' }); }, 20000) };
+    try { net.conns[0].send({ type: 'char-upload', rid: m.rid, charId: m.charId, sheet: m.sheet }); } catch (e) { clearTimeout(_uploadPending[m.rid].timer); delete _uploadPending[m.rid]; return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
+// U2: the host tells a character's owner what the GM did with their upload (applied so many of so many)
+net.uploadDone = function(charId, done, of) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(), ch = camp && camp.chars && camp.chars[charId]; if (!ch || !ch.ownerId) return;
+    net.conns.forEach(function(c) { var p = net.roster[c.peer]; if (c.open && p && p.id === ch.ownerId) { try { c.send({ type: 'char-upload-done', charId: charId, done: Math.max(0, done | 0), of: Math.max(0, of | 0) }); } catch (e) { sendFailed(e); } } });
 };
 // A player throws an item from their sheet: the host validates ownership + the carried item and places/shares the blast
 // (the thrower sees nothing until the host's broadcast returns — no optimistic placement, the host is the authority).
@@ -3034,6 +3056,15 @@ function handleMessage(msg, conn) {
         var nm = ui('netModal');
         if (nm) nm.style.display = 'flex';
         toast('The GM ended the session — restoring your own campaign.');
+    } else if (msg.type === 'char-upload-ans' && net.role === 'client') {   // Stage 6 U2: the host's answer to our upload
+        if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_uploadPending, msg.rid)) return;
+        var pU = _uploadPending[msg.rid]; delete _uploadPending[msg.rid]; clearTimeout(pU.timer);
+        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.' };
+        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: UP_WHY[msg.reason] || 'The GM could not read it.' } : { n: typeof msg.n === 'number' && isFinite(msg.n) ? Math.max(0, msg.n | 0) : 0, auto: typeof msg.auto === 'number' && isFinite(msg.auto) ? Math.max(0, msg.auto | 0) : 0 });
+    } else if (msg.type === 'char-upload-done' && net.role === 'client') {   // U2: what the GM did with it
+        var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
+        var dn = typeof msg.done === 'number' && isFinite(msg.done) ? Math.max(0, msg.done | 0) : 0, ofN = typeof msg.of === 'number' && isFinite(msg.of) ? Math.max(0, msg.of | 0) : 0;
+        toast(dn ? 'The GM applied ' + dn + ' of ' + ofN + ' changes from your sheet' + (chD ? ' to ' + chD.name : '') + '.' : 'The GM kept ' + (chD ? chD.name + ' as it was' : 'your character as it was') + ' (' + ofN + (ofN === 1 ? ' change' : ' changes') + ' not taken).');
     } else if ((msg.type === 'chars' || msg.type === 'char' || msg.type === 'charDelta' || msg.type === 'charGone' || msg.type === 'char-ack' || msg.type === 'char-deny') && net.role === 'client') {
         // [netcheck:charin-start]
         // characters from the synced host only (character sheets, 1.5.0): copies are replaced, never merged; every value re-cleaned against the system on hand
@@ -3175,6 +3206,43 @@ function handleMessage(msg, conn) {
         if (!tokT || !tokT.isChar || !tokT.ownerId || tokT.ownerId !== prT.id) return;
         net.combatStep(msg.mapId, 1);
         // [netcheck:turnend-end]
+    } else if (msg.type === 'char-upload' && net.role === 'host') {
+        // [netcheck:charupload-start]
+        // Stage 6 U2: a player's own sheet file as proposed changes — an admitted player, their own whole character, one upload every 10 s, the
+        // file cleaned (its size, its portrait) and read on the host's full system and library; their own row facts apply at once when the system
+        // allows it (setting B), the rest wait for the GM (camp.uploads: the GM's, never sent). The answer: how many wait, how many applied
+        var Su = SC(), Fu = window.wpFormula; if (!Su || !Fu) return;
+        var qu = Su.cleanCharUpload(msg); if (!qu) return;
+        var ansU = function(o) { o.type = 'char-upload-ans'; o.rid = qu.rid; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        if (net.paused || peerPaused(conn.peer)) { ansU({ reason: 'paused' }); return; }
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { ansU({ reason: 'off' }); return; }
+        var nowU = Date.now(); if (_uploadAt[conn.peer] && nowU - _uploadAt[conn.peer] < UPLOAD_GAP_MS) { ansU({ reason: 'slow' }); return; }
+        var campU = getActiveCampaign(), chU = campU && campU.chars && campU.chars[qu.charId];
+        if (!campU || !campU.system || !chU) { ansU({ reason: 'missing' }); return; }
+        var profU = net.roster[conn.peer]; if (chU.npc || !chU.ownerId || !profU || chU.ownerId !== profU.id) { ansU({ reason: 'owner' }); return; }
+        _uploadAt[conn.peer] = nowU;
+        var findU = window.wpSheets && window.wpSheets.sbFinder ? window.wpSheets.sbFinder(campU, campU.system) : null;
+        var prU = Su.sbProposal(campU.system, chU, qu.sheet, Fu, findU), autoU = 0;
+        if (campU.system.listRules && campU.system.listRules.uploadFacts === true) {   // setting B: their own row facts at once, each as their own hand would make it (a list they cannot change, a locked switch, a row kept from them: it waits for the GM)
+            var optU = { player: true, view: window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campU) : null }, valsU = chU.values, doneU = {};
+            prU.changes.forEach(function(ch) { if (ch.kind !== 'fact') return; var oneU = {}; oneU[ch.id] = true; var rU = Su.sbApplyProposal(campU.system, Object.assign({}, chU, { values: valsU }), prU, oneU, Fu, optU); if (rU.done === 1) { valsU = rU.values; doneU[ch.id] = true; autoU++; } });
+            if (autoU) {
+                var dU = {}; Object.keys(valsU).forEach(function(k) { if (JSON.stringify(valsU[k]) !== JSON.stringify((chU.values || {})[k])) dU[k] = valsU[k]; });
+                if (Object.keys(dU).length) { chU.values = valsU; chU.updated = nowU; net.syncCharDelta(qu.charId, dU); if (window.wpSheets) window.wpSheets.charChanged(qu.charId); }
+            }
+            prU.changes = prU.changes.filter(function(ch) { return doneU[ch.id] !== true; });
+        }
+        if (prU.changes.length) {
+            var upsU = (Array.isArray(campU.uploads) ? campU.uploads : []).filter(function(u) { return u && u.charId !== qu.charId; });   // a newer upload of the same character replaces the older
+            upsU.push({ id: 'up_' + nowU.toString(36) + Math.random().toString(36).slice(2, 6), charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes });
+            campU.uploads = upsU.slice(-Su.LIMITS.uploads);
+            var tU = (profU.name || 'A player') + ' sent a sheet update for ' + (chU.name || 'their character') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (Review on the character\u2019s sheet).';
+            toast(tU); logEvent('char', tU);
+            if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(qu.charId);
+        }
+        saveRemoteSoon();
+        ansU({ n: prU.changes.length, auto: autoU });
+        // [netcheck:charupload-end]
     } else if (msg.type === 'char-item' && net.role === 'host') {
         // [netcheck:charitem-start]
         // a player's change of a carried list on their own character: same gates as char-edit, then applyRowOp reads every definition from the system

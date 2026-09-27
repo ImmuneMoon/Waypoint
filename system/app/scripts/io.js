@@ -162,6 +162,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         // at this moment (the 1.4.6 keys for an upgrading user). Not a fix(): no "save upgraded" toast,
         // the fill persists with the next ordinary save.
         if (window.wpVtt) window.wpVtt.fill(c);
+        if (c.uploads !== undefined && window.wpSystemCore && window.wpSystemCore.cleanUploads) { var cups = window.wpSystemCore.cleanUploads(c.uploads); if (cups.length) c.uploads = cups; else delete c.uploads; }   // Stage 6 U2: players' sheet uploads waiting for the GM (the review reads them the same way)
         if (c.library !== undefined && window.wpLibraryCore && window.wpLibraryCore.cleanManifest) { var lman = window.wpLibraryCore.cleanManifest(c.library); if (lman) c.library = lman; else delete c.library; }   // Stage 6 library L1c: the manifest of the pack files beside the save (librarycore; never dropped for want of the cleaner)
         if (c.system !== undefined && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): a system from a file is cleaned like one off the wire
             var csys = c.system ? window.wpSystemCore.cleanSystem(c.system, { F: window.wpFormula, gmView: true }) : null;

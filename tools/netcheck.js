@@ -2239,6 +2239,72 @@ pendingChecks.push((async () => {
 
 let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
 process.on('exit', () => { if (!summed) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
+// Stage 6 U2: a player's sheet upload (the [netcheck:charupload] slice, run for real with the real systemcore): their own character only, one
+// every 10 s, oversize dropped; the proposal waits for the GM in camp.uploads (never in a snapshot); under setting B their own row facts apply
+// at once and are synced to them. And the player's machine (net.charUpload, sliced) sends the file without its portrait, only for their own
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const upSrc = between('// [netcheck:charupload-start]', '// [netcheck:charupload-end]', 'charupload');
+    const lst = { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr', labels: ['ST', 'DX', 'IQ'] }, { key: 'diff' }] } };
+    const sysU = (rules, gmList) => Sx.cleanSystem(Object.assign({ v: 1, name: 'U', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 }, gmList ? Object.assign({}, lst, { edit: 'gm' }) : lst], items: [{ id: 'i_climb', name: 'Climbing', key: 'Climbing', category: 'Skill', stats: { attr: 1, diff: 1 } }] }, rules ? { listRules: rules } : {}), { F: Fx, gmView: true });
+    const find = s => nm => s.items.filter(e => e.name.toLowerCase() === String(nm).trim().toLowerCase());
+    const dossier = (st, lvl) => ({ name: 'Ana', attributes: { strength: { value: st } }, skills: [{ name: 'Climbing', level: String(lvl), relativeLevel: 'DX/Average' }] });
+    const host = (o) => {
+        o = o || {}; const sys = sysU(o.rules, o.gmList), ch = { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: !!o.npc, values: { f_st: 12, f_sk: [Object.assign({ id: 'w_c', defId: 'i_climb', qty: 1, lvl: 12 }, o.hid ? { hid: 1 } : {})] } };
+        const camp = { id: 'k', system: sys, chars: { c_1: ch, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } };
+        if (o.queue) camp.uploads = o.queue;
+        const out = { answer: [], deltas: [], toasts: [], logs: [], told: [], saves: 0, camp }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: o.from || 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: !!o.paused, conns: [], roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } }, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+        const win = { wpFormula: Fx, wpVtt: { on: k => !(o.off && k === 'sheets') }, wpSheets: { sbFinder: (cp, s) => find(s), charChanged() {}, uploadsChanged: id => out.told.push(id), playerSystem: cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false }) } };
+        const msg = Object.assign({ type: 'char-upload', rid: 'e1', charId: 'c_1', sheet: dossier(13, 14) }, o.msg || {});
+        const at = o.at || {};
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', upSrc)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), at, 10000);
+        out.at = at; out.ch = ch; return out;
+    };
+    const kinds = r => (r.camp.uploads || []).map(u => [u.charId, u.from, u.name, u.changes.map(c => c.kind + ':' + c.label).join('|')]);
+    const own = host(), mate = host({ from: 'pB' }), slow = host({ at: { pA: Date.now() - 2000 } }), later = host({ at: { pA: Date.now() - 11000 } }), npc = host({ npc: true });
+    const big = host({ msg: { sheet: { name: 'Ana', notes: 'a'.repeat(1048577) } } }), badRid = host({ msg: { rid: 'e 1' } }), paused = host({ paused: true }), off = host({ off: true }), gone = host({ msg: { charId: 'c_9' } });
+    const same = host({ msg: { sheet: { name: 'Ana', attributes: { strength: { value: 12 } }, skills: [{ name: 'Climbing', level: '12', relativeLevel: 'DX/Average' }] } } });
+    const untouched = r => r.ch.values.f_st === 12 && r.ch.values.f_sk[0].lvl === 12 && r.deltas.length === 0;
+    const denied = (r, why) => j(r.answer) === j([{ reason: why, type: 'char-upload-ans', rid: 'e1' }]) && !r.camp.uploads && r.saves === 0 && r.toasts.length === 0 && untouched(r);
+    check('U2 on the wire (host): the owner\'s file becomes a proposal kept for the GM (camp.uploads: who, which character, its changes; a toast, a log line, the sheet told) and answered with its count; the character itself unchanged until the GM applies it',
+        j(own.answer) === j([{ n: 2, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(kinds(own)) === j([['c_1', 'u_a', 'Pat', 'value:ST|fact:Skills: Climbing']]) && /^up_[a-z0-9]+$/.test(own.camp.uploads[0].id)
+        && own.toasts.length === 1 && /Pat sent a sheet update for Ana: 2 changes to review/.test(own.toasts[0]) && j(own.logs) === j([['char', own.toasts[0]]]) && j(own.told) === j(['c_1']) && own.saves === 1 && untouched(own), j([own.answer, kinds(own), own.toasts]));
+    check('U2 on the wire (host): refused and answered why — a teammate\'s upload of another\'s character (owner), an NPC (owner), a second upload within 10 s (slow; after it, read), a paused table, sheets off, a character gone; nothing kept, saved or said',
+        denied(mate, 'owner') && denied(npc, 'owner') && denied(slow, 'slow') && denied(paused, 'paused') && denied(off, 'off') && denied(gone, 'missing') && later.answer[0].n === 2 && mate.at.pB === undefined && own.at.pA > 0,
+        j([mate.answer, npc.answer, slow.answer, paused.answer, off.answer, gone.answer]));
+    check('U2 on the wire (host): an oversize file or a malformed request is dropped unanswered; a file matching the sheet answers 0 and keeps nothing',
+        big.answer.length === 0 && !big.camp.uploads && badRid.answer.length === 0 && j(same.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && !same.camp.uploads && same.toasts.length === 0 && same.saves === 1);
+    const b = host({ rules: { uploadFacts: true } }), bOnly = host({ rules: { uploadFacts: true }, msg: { sheet: dossier(12, 15) } }), bGm = host({ rules: { uploadFacts: true }, gmList: true }), bHid = host({ rules: { uploadFacts: true }, hid: true });
+    const old = [{ id: 'up_old', charId: 'c_1', from: 'u_a', name: 'Pat', at: 1, changes: [] }, { id: 'up_bo', charId: 'c_2', from: 'u_b', name: 'Bea', at: 1, changes: [] }], rep = host({ queue: old });
+    check('U2 setting B (host): the owner\'s own row facts apply at once (a skill\'s level), synced to them as a delta, and answered as applied; the rest (a value) still waits; with only facts, nothing waits and the GM is not asked',
+        j(b.answer) === j([{ n: 1, auto: 1, type: 'char-upload-ans', rid: 'e1' }]) && b.ch.values.f_sk[0].lvl === 14 && b.ch.values.f_st === 12 && j(b.deltas.map(d => [d[0], Object.keys(d[1])])) === j([['c_1', ['f_sk']]]) && j(kinds(b)) === j([['c_1', 'u_a', 'Pat', 'value:ST']])
+        && j(bOnly.answer) === j([{ n: 0, auto: 1, type: 'char-upload-ans', rid: 'e1' }]) && bOnly.ch.values.f_sk[0].lvl === 15 && !bOnly.camp.uploads && bOnly.toasts.length === 0 && bOnly.saves === 1 && own.ch.values.f_sk[0].lvl === 12,
+        j([b.answer, b.ch.values, kinds(b), bOnly.answer]));
+    check('U2 setting B applies only what the owner could do by hand: on a list only the GM changes the fact waits for the GM with the rest; a row the GM keeps from them is never touched by their file',
+        j(bGm.answer) === j([{ n: 2, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && bGm.ch.values.f_sk[0].lvl === 12 && bGm.deltas.length === 0 && j(kinds(bGm)) === j([['c_1', 'u_a', 'Pat', 'value:ST|fact:Skills: Climbing']])
+        && bHid.ch.values.f_sk[0].lvl === 12 && bHid.deltas.length === 0 && !/fact:/.test(j(kinds(bHid))), j([bGm.answer, kinds(bGm), bHid.answer, kinds(bHid)]));
+    check('U2 a newer upload of a character replaces its older one in the queue (another character\'s stays); the players\' snapshot drops the queue beside the library',
+        j(rep.camp.uploads.map(u => u.id === 'up_old' ? 'old' : u.charId)) === j(['c_2', 'c_1']) && /        delete camp\.library;[^\n]*\n        delete camp\.uploads;/.test(src), j(rep.camp.uploads.map(u => u.id)));
+    const cs = src.replace(/\r\n/g, '\n'), cA = cs.indexOf('var _uploadPending = {};'), cB = cs.indexOf('// U2: the host tells a character\'s owner'), dB = cs.indexOf('// A player throws an item from their sheet');
+    const client = (charId, sheet, o) => {
+        o = o || {}; const sent = [], answered = [], camp = { id: 'k', chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: {} }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} }, c_p: { id: 'c_p', name: 'P', ownerId: 'u_a', partial: true } } };
+        const net = { active: true, role: o.role || 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } }] };
+        new Function('net', 'SC', 'getActiveCampaign', 'window', 'setTimeout', 'clearTimeout', cs.slice(cA, cB))(net, () => Sx, () => camp, { wpVtt: { on: () => !o.off } }, () => 0, () => {});
+        return { r: net.charUpload(charId, sheet, a => answered.push(a)), sent };
+    };
+    const cOk = client('c_1', { name: 'Ana', portrait: 'data:image/png;base64,AAAA', skills: [] }), cMate = client('c_2', { name: 'Bo' }), cPart = client('c_p', { name: 'P' }), cBig = client('c_1', { name: 'A', notes: 'a'.repeat(1048577) }), cGm = client('c_1', {}, { role: 'host' }), cOff = client('c_1', {}, { off: true });
+    const told = []; const hostNet = { active: true, role: 'host', roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, conns: [{ peer: 'pA', open: true, send: m => told.push(['pA', m]) }, { peer: 'pB', open: true, send: m => told.push(['pB', m]) }, { peer: 'pC', open: false, send: m => told.push(['pC', m]) }] };
+    new Function('net', 'getActiveCampaign', 'sendFailed', cs.slice(cB, dB))(hostNet, () => ({ chars: { c_1: { id: 'c_1', ownerId: 'u_a' } } }), () => {});
+    hostNet.uploadDone('c_1', 3, 5); hostNet.uploadDone('c_9', 1, 1);
+    check('U2 on the wire (player): their own whole character\'s file is sent as { type, rid, charId, sheet } without its portrait; another\'s, a hover-only copy, an oversize file, the GM\'s own machine or sheets off send nothing and say why; the GM\'s verdict reaches the owner\'s machines only',
+        cA > 0 && cB > cA && dB > cB && cOk.r.ok === true && cOk.sent.length === 1 && j(Object.keys(cOk.sent[0]).sort()) === j(['charId', 'rid', 'sheet', 'type']) && j(cOk.sent[0].sheet) === j({ name: 'Ana', skills: [] }) && cOk.sent[0].type === 'char-upload'
+        && [cMate, cPart].every(c => c.r.error === 'That character is not yours.' && c.sent.length === 0) && cBig.r.error === 'That file is too large, or not a sheet.' && cBig.sent.length === 0 && cGm.r.error === 'Not at a table.' && cOff.r.error === 'Character sheets are off here.' && cOff.sent.length === 0
+        && j(told) === j([['pA', { type: 'char-upload-done', charId: 'c_1', done: 3, of: 5 }]]), j([cOk, cMate.r, cPart.r, cBig.r, cGm.r, told]));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

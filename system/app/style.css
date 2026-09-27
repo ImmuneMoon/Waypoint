@@ -1728,6 +1728,14 @@
   .sys-turn-act input, .sys-turn-tu input { flex: 1 1 90px; min-width: 0; }
   .sys-turn-act input[type=number], .sys-turn-tu input[type=number] { flex: 0 1 80px; }   /* Stage 6 HUD R3: a malfunction */
   .sys-row-main input.sys-roll-malf { flex: 0 1 110px; font-family: ui-monospace, Consolas, monospace; } .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-malf { flex: 0 1 120px; font-family: ui-monospace, Consolas, monospace; }
+  .upl-box { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; }   /* Stage 6 U3: the GM's review of a sheet upload */
+  .upl-list { overflow: auto; display: flex; flex-direction: column; gap: 2px; min-height: 80px; }
+  .upl-row { display: grid; grid-template-columns: 18px 92px minmax(120px, 1.2fr) minmax(60px, 1fr) 14px minmax(60px, 1fr) auto; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+  .upl-row:hover { background: var(--panel); }
+  .upl-kind { color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .upl-from, .upl-to { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .upl-from { color: var(--dim); } .upl-arrow { color: var(--dim); }
+  .upl-remove .upl-to { color: var(--red); } .upl-note { font-size: 10.5px; color: var(--gold); }
+  .sheet-review { color: var(--gold); border-color: var(--gold); }
   .roll-crit, .roll-fumble { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 10px; color: #fff; }
   .roll-crit { background: var(--green); } .roll-fumble { background: var(--red); }
   .roll-bad { color: var(--dim); font-style: italic; font-size: 12px; }

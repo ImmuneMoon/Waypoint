@@ -1047,6 +1047,7 @@ function cleanChar(c, sys, opts) {
     // unlocked: the host sends them to the owner alone)
     if (opts && opts.state && out.ownerId && c.partial !== true) {
         if (c.making === 1 || c.making === true) out.making = 1; else if (c.unlocked === 1 || c.unlocked === true) out.unlocked = 1;
+        if (out.making === 1 && (c.invited === 1 || c.invited === true)) out.invited = 1;   // invited (F3b): the GM asked for it — on Done it goes into play (its owner knows)
         if (opts.state === 'host') { if (c.review === 1 || c.review === true) out.review = 1; if (c.made === 1 || c.made === true) out.made = 1; }
     }
     return out;
@@ -2189,9 +2190,9 @@ function tokenSourceFor(camp, pid, mapId, opts) {
     }
     if ((t = find(wb, function(w) { return w.isChar && w.ownerId === pid; }))) return { op: 'keep', tok: t, mapId: m.id };
     if (prefer && prefer.isChar && prefer.ownerId === pid && !prefer.charId) return { op: 'clone', tok: prefer, mapId: null };
-    var rec = playerRec(camp, pid), nm = rec && typeof rec.charName === 'string' ? rec.charName : '';
+    var rec = playerRec(camp, pid), nm = rec && typeof rec.charName === 'string' ? rec.charName : '', chose = !!nm && rec.charMade === nm;   // Onboarding F3b: a name its player chose (Just a token) finds only tokens they hold — never a GM's namesake (owner: same names allowed)
     if (!nm) return { op: 'none' };
-    var legacy = function(w) { return w.isChar && w.charName === nm && (!w.charId || w.ownerId === pid) && (!w.ownerId || w.ownerId === pid); };
+    var legacy = function(w) { return w.isChar && w.charName === nm && (!w.charId || w.ownerId === pid) && (!w.ownerId || w.ownerId === pid) && (!chose || w.ownerId === pid); };
     if ((t = find(wb, function(w) { return legacy(w) && !w.ownerId && !w.hidden; }))) return { op: 'adopt', tok: t, mapId: m.id };
     if ((e = elsewhere(function(w) { return legacy(w) && w.ownerId === pid; }) || elsewhere(legacy))) return { op: 'clone', tok: e.tok, mapId: e.mapId };
     return { op: 'none' };
@@ -2911,7 +2912,7 @@ function charView(c, sys, own, opts) {
     sys.fields.forEach(function(f) { if (!STORED[f.kind] || f.vis !== 'all') return; if (f.kind === 'item-list' && !own) return; if (!own && !f.hover) return; if (c.values && c.values[f.id] !== undefined) { var cv = c.values[f.id]; if (!probe && !fitsKind(f.kind, cv)) return; values[f.id] = (f.kind === 'item-list' && Array.isArray(cv) && !probe) ? projectRows(cv, sys, itemsFull, f.list || null) : (f.kind === 'effects' && Array.isArray(cv) && !probe) ? projectEffects(cv, sys, own, libFull) : cv; } });   // 5h: effects rows projected per recipient   // a carried list never travels to another player, hover flag or not
     var outC = { id: c.id, name: c.name, ownerId: c.ownerId, portrait: c.portrait || '', npc: false, values: values, updated: c.updated || 0, partial: !own };
     var faceF = cleanFace(c.face); if (faceF && faceF !== 'photo' && !outC.portrait) outC.face = faceF;   // Onboarding F1c: its own face (everyone sees it on its tokens anyway)
-    if (own && !probe) { if (c.making === 1) outC.making = 1; else if (c.unlocked === 1) outC.unlocked = 1; }   // Onboarding F3: its state, to its owner alone (the review and the made mark are the GM's)
+    if (own && !probe) { if (c.making === 1) { outC.making = 1; if (c.invited === 1) outC.invited = 1; } else if (c.unlocked === 1) outC.unlocked = 1; }   // Onboarding F3: its state, to its owner alone (the review and the made mark are the GM's)
     if (own && !probe) { var un = unseenMods(c, sys, opts && opts.full); if (un) outC.unseen = un; }   // F6 (owner, 2026-09-27): what rows they cannot see change, nameless
     return outC;
 }

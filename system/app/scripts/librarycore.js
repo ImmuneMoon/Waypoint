@@ -126,6 +126,44 @@ export function libImportPlan(existing, imported, rnd) {
     });
     return { manifest: out, uploads: uploads, left: left };
 }
+// L2a: the Library window's rules, pure. A search matches when every word appears in an entry's name, key, category, tags or reference
+// (case and accents aside); an entry is built from the window's form as typed text (tags comma-separated, a stat a number or a choice's
+// name) and then cleaned like any entry; a new entry gets a fresh i_ id; a key another entry of the library also uses is reported
+// (a warning: a key only has to be unique within the lists that draw on it); a pack's name, icon and who may see it change in the manifest
+function fold(s) { s = s == null ? '' : String(s); return (s.normalize ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s).toLowerCase(); }
+export function searchEntries(entries, q) {
+    var list = Array.isArray(entries) ? entries : [], words = fold(q).split(/\s+/).filter(Boolean).slice(0, 12); if (!words.length) return list.slice();
+    return list.filter(function(e) { if (!isObj(e)) return false; var hay = fold([e.name, e.key, e.category, (e.tags || []).join(' '), e.ref].join(' ')); return words.every(function(w) { return hay.indexOf(w) >= 0; }); });
+}
+export function entryFromForm(f) {
+    f = isObj(f) ? f : {}; var s = function(v) { return typeof v === 'string' ? v : v == null ? '' : String(v); };
+    var out = { id: s(f.id), name: s(f.name), key: s(f.key).trim(), category: s(f.category), icon: s(f.icon), vis: f.vis === 'gm' ? 'gm' : 'all', notes: s(f.notes), desc: s(f.desc), ref: s(f.ref), gmNotes: s(f.gmNotes), damage: s(f.damage), cost: s(f.cost), throwSkill: s(f.throwSkill).trim() };
+    var tags = s(f.tags).split(',').map(function(t) { return t.trim(); }).filter(Boolean); if (tags.length) out.tags = tags;
+    var lv = s(f.lvl).trim(); if (/^-?\d+$/.test(lv)) out.lvl = Number(lv);
+    if (isObj(f.stats)) { var st = {}, n = 0; Object.keys(f.stats).forEach(function(k) { var v = s(f.stats[k]).trim(); if (!v) return; st[k] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v; n++; }); if (n) out.stats = st; }
+    var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)
+    return out;
+}
+export function newEntryId(taken, rnd) {
+    rnd = rnd || Math.random; var has = typeof taken === 'function' ? taken : function(id) { return !!(taken && taken[id]); };
+    for (var k = 0; k < 50; k++) { var id = 'i_'; for (var i = 0; i < 8; i++) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(rnd() * 36) % 36); if (!has(id)) return id; }
+    return '';
+}
+export function keyClashes(entries, entry) { var k = isObj(entry) && typeof entry.key === 'string' ? entry.key.toLowerCase() : ''; if (!k) return []; return (Array.isArray(entries) ? entries : []).filter(function(e) { return isObj(e) && e.id !== entry.id && typeof e.key === 'string' && e.key.toLowerCase() === k; }); }
+export function setPackMeta(manifest, id, meta) {
+    var m = cleanManifest(manifest); if (!m || !isObj(meta)) return null; var p = m.packs.filter(function(x) { return x.id === id; })[0]; if (!p) return null;
+    if (meta.name !== undefined) p.name = line(meta.name, LIB.packName) || 'Pack';
+    if (meta.vis !== undefined) p.vis = meta.vis === 'gm' ? 'gm' : 'all';
+    if (meta.icon !== undefined) { var ic = cleanIcon(meta.icon); if (ic) p.icon = ic; else delete p.icon; }
+    return m;
+}
+// L2a: the library by key (lower case) for the core (systemcore coreOf): each pack's entries in the manifest's order; a GM-only pack's
+// entries count as GM-only (copies marked so: the players' view of the core drops them, as it drops any GM-only entry)
+export function keyIndex(manifest, entriesOf) {
+    var m = map(), packs = isObj(manifest) && Array.isArray(manifest.packs) ? manifest.packs : []; if (typeof entriesOf !== 'function') return m;
+    packs.forEach(function(p) { if (!isObj(p)) return; var list = entriesOf(p.id); (Array.isArray(list) ? list : []).forEach(function(e) { var k = isObj(e) && typeof e.key === 'string' ? e.key.toLowerCase() : ''; if (!k) return; (m[k] = m[k] || []).push(p.vis === 'gm' && e.vis !== 'gm' ? Object.assign({}, e, { vis: 'gm' }) : e); }); });
+    return m;
+}
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host)
 export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
@@ -136,5 +174,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

@@ -2554,6 +2554,23 @@
   @media (prefers-reduced-motion: reduce) { .hud-hist-new { animation: none; } }
   .hud-hist-chev { width: 11px; height: 11px; margin-left: auto; color: var(--dim); }
   .hud-hist-tools { display: flex; align-items: center; gap: 6px; flex: none; }
+  .hud-bell-btn { margin-left: auto; position: relative; flex: none; padding: 4px 6px; }   /* the bell: the character's notes on this machine */
+  .hud-bell-count { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--sheet-accent, var(--gold)); color: var(--bg); font-size: 9.6px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+  .hud-bell { flex: none; max-height: 16rem; display: flex; flex-direction: column; border-bottom: 1px solid var(--edge); }
+  .hud-bell-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px 4px; font-size: 11px; }
+  .hud-bell-title { font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em; }
+  .hud-bell-head .hud-bell-clear { margin-left: auto; padding: 2px 8px; font-size: 11px; }
+  .hud-bell-head .hud-bell-pins { flex: 1; }
+  .hud-panel .hud-bell-head select.hud-bell-depth { width: auto; padding: 2px 4px; font-size: 11.5px; }
+  .hud-bell-list { overflow-y: auto; min-height: 0; padding: 4px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .hud-bell-note { padding: 6px 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--edge) 50%, transparent); background: color-mix(in srgb, var(--panel2) 15%, transparent); }
+  .hud-bell-note.hud-bell-pinned { border-color: color-mix(in srgb, var(--sheet-accent, var(--gold)) 40%, transparent); }
+  .hud-bell-note.hud-bell-bad { border-left: 3px solid var(--red); }
+  .hud-bell-row { display: flex; align-items: center; gap: 4px; }
+  .hud-bell-ntitle { flex: 1; min-width: 0; font-size: 11.2px; font-weight: 700; overflow-wrap: anywhere; }
+  .hud-bell-ago { font-size: 9px; color: var(--dim); white-space: nowrap; }
+  .hud-bell-note .tool { padding: 1px 4px; min-width: 0; font-size: 10px; }
+  .hud-bell-text { margin-top: 2px; font-size: 10.6px; line-height: 1.4; overflow-wrap: anywhere; }
   .hud-hist-tools .hud-hist-clear { padding: 2px 8px; font-size: 11px; }
   .hud-panel .hud-hist-tools select.hud-hist-depth { width: auto; padding: 2px 4px; font-size: 11.5px; }
   .hud-hist-list { max-height: 18rem; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }

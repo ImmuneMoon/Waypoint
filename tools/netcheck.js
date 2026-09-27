@@ -984,6 +984,39 @@ pendingChecks.push((async () => {
         j(tOk) === j([{ walls: 'warn', timers: 'gm' }, 1]) && [tBad, tOther, tCamp, tStream, tProto].every(r => j(r) === j([{ walls: 'warn' }, 0])), j([tOk, tBad, tOther, tCamp, tStream, tProto]));
 })());
 
+// The bell (the HUD's notes, 2026-09-26): the feeds on this machine, no wire change — an apply card (the host's postApply for the character it
+// moved; a player's applyin by the name it carries) and a reminder (the host's postDue; a player's duein) each hand the character's bell a note
+// through bellOut (sliced as they are, run with a recording bellOut)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Dx = await import(url('dicecore.js'));
+    const paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), aiSrc = between('// [netcheck:applyin-start]', '// [netcheck:applyin-end]', 'applyin');
+    const pdSrc = between('// [netcheck:postdue-start]', '// [netcheck:postdue-end]', 'postdue'), diSrc = between('// [netcheck:duein-start]', '// [netcheck:duein-end]', 'duein');
+    const bells = [], bellOut = (cid, note, as) => bells.push([cid, note, as === undefined ? null : as]);
+    const netH = { active: true, role: 'host', conns: [], roster: {} };
+    const rec = { type: 'apply', id: 'r_a1', from: { id: 'u_gm', name: 'GM', gm: true }, lines: [{ n: 'HP', d: -3, v: 7 }], ts: 1, label: 'Hit', as: 'Pat' };
+    const postApply = new Function('net', 'sendTable', 'sendFailed', 'peerProfileId', 'pushChat', 'logEvent', 'applyLine', 'bellOut', paSrc + '\nreturn postApply;')(netH, () => {}, e => { throw e; }, () => null, () => {}, () => {}, () => '', bellOut);
+    postApply(Object.assign({}, rec), 'owner', { id: 'c_p', name: 'Pat', ownerId: 'u_a' }, null); postApply(Object.assign({}, rec), 'table', null, null);
+    const hostApply = bells.splice(0);
+    new Function('msg', 'conn', 'net', 'DC', 'pushChat', 'bellOut', aiSrc)(rec, { peer: 'H' }, { foreign: true, syncedPeer: 'H', stream: false }, () => Dx, () => {}, bellOut);
+    new Function('msg', 'conn', 'net', 'DC', 'pushChat', 'bellOut', aiSrc)(Object.assign({}, rec, { as: undefined }), { peer: 'H' }, { foreign: true, syncedPeer: 'H', stream: false }, () => Dx, () => {}, bellOut);
+    new Function('msg', 'conn', 'net', 'DC', 'pushChat', 'bellOut', aiSrc)(rec, { peer: 'X' }, { foreign: true, syncedPeer: 'H', stream: false }, () => Dx, () => {}, bellOut);
+    const cliApply = bells.splice(0);
+    check('The bell (wire feeds): the host\'s apply card hands the bell of the character it moved a note carrying the card (a card with no character: none); a player\'s machine hands its bell the cleaned card and the name it carries (none without a name, or from a peer that is not its host)',
+        hostApply.length === 1 && hostApply[0][0] === 'c_p' && hostApply[0][1].apply.label === 'Hit' && cliApply.length === 1 && cliApply[0][0] === '' && cliApply[0][2] === 'Pat' && j(cliApply[0][1].apply.lines) === j(rec.lines) && cliApply[0][1].apply.from.gm === true, j([hostApply, cliApply]));
+    const due = { type: 'due', id: 'r_d1', charId: 'c_p', act: 'r_re', why: 'turn', round: 2, ts: 1, from: { id: 'u_gm', name: 'GM', gm: true }, label: 'Regenerate' };
+    new Function('rec', 'ch', 'toOwner', 'net', 'peerProfileId', 'sendFailed', 'pushChat', 'bellOut', pdSrc + '\npostDue(rec, ch, toOwner);')(Object.assign({}, due), { id: 'c_p', ownerId: 'u_a' }, false, netH, () => null, e => { throw e; }, () => {}, bellOut);
+    const hostDue = bells.splice(0);
+    const din = (m, peer) => new Function('msg', 'conn', 'net', 'DC', 'pushChat', 'bellOut', diSrc)(m, { peer: peer || 'host1' }, { foreign: true, syncedPeer: 'host1', stream: false }, () => Dx, () => {}, bellOut);
+    din(due); din(Object.assign({}, due, { theirs: 1 })); din(due, 'other'); din(Object.assign({}, due, { charId: '../x' }));
+    const cliDue = bells.splice(0);
+    check('The bell (wire feeds): a reminder hands its character\'s bell a note on the host (the one it posted) and on a player\'s machine (the cleaned one; not the GM\'s copy marked theirs, not from another peer, not a malformed one)',
+        hostDue.length === 1 && hostDue[0][0] === 'c_p' && hostDue[0][1].due.label === 'Regenerate' && cliDue.length === 1 && cliDue[0][0] === 'c_p' && cliDue[0][1].due.why === 'turn', j([hostDue, cliDue]));
+    check('The bell (source): bellOut hands sheets.js the note (a failure never breaks the message path); the feeds are guarded so a harness without it runs as before',
+        /function bellOut\(cid, note, as\) \{ try \{ if \(window\.wpSheets && window\.wpSheets\.bellNote\) window\.wpSheets\.bellNote\(cid, note, as\); \} catch \(e\) \{ console\.error\(e\); \} \}/.test(src)
+        && (src.match(/typeof bellOut === 'function'/g) || []).length === 4);
+})());
+
 // Stage 6 HUD H7: the apply action on the wire. The host's char-apply (sliced, run for real with the real systemcore, formula engine, the host's
 // per-peer sync and the card's delivery, also sliced): the owner's press is worked out through THEIR view (a GM-only action, one naming a GM-only
 // value, or one moving a GM-only pool is not there) and applied all or nothing whatever the pool's edit setting (owner, 2026-09-26); the card

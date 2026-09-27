@@ -603,7 +603,7 @@ function makeHud(charId) {
     var p = tpl.content.firstElementChild.cloneNode(true); p.dataset.cid = charId;
     var q = function(cls) { return p.querySelector('.' + cls); };
     var v = { charId: charId, panel: p, head: q('hud-head'), body: q('hud-body'), name: q('hud-name'), sub: q('hud-sub'), por: q('hud-portrait'), dialSig: '', dialStale: false, dialOn: null, roundSig: '', redraw: null };
-    v.foot = q('hud-foot'); v.histOpen = false;   // HF3: the roll history drawer, closed on a new window (as the reference)
+    v.foot = q('hud-foot'); v.histOpen = false; v.bellOpen = false;   // HF3: the roll history drawer, closed on a new window (as the reference)
     layer.appendChild(p);
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeHud(charId); } });
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
@@ -657,6 +657,133 @@ function renderHud(charId) {
     renderHudFoot(v);
     try { syncEndTurn(); } catch (e) {}   // turn-based combat T2: a HUD opened on its turn
 }
+/* The bell (the reference's footer bell, 2026-09-26): a character's notes this session on THIS machine — apply-action results, effects
+   applied, suspended, resumed or ended, start-of-turn reminders — newest first, kept to a depth (a pref: 12, 25 or 50); pinned notes are
+   never dropped and float to the top (at most depth \u2212 1); one can be removed; Clear keeps the pins. Pins are saved here, per campaign
+   and character (owner, 2026-09-26: never on the character, so a GM's pin of a private line never reaches a player). Text only. */
+var BELL_DEPTHS = [12, 25, 50], _bell = Object.create(null), _fxSeen = Object.create(null);
+function bellDepth() { var d = parseInt(pref('wp_hudBellDepth', '12'), 10); return BELL_DEPTHS.indexOf(d) >= 0 ? d : 12; }
+function bellText(s, n) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n); }
+function bellPinsRead(campId) {   // this machine's saved pins for a campaign: { charId: [note] }, each checked (a hand-edited store is read like any file)
+    var out = Object.create(null), raw = null;
+    try { raw = JSON.parse(pref('wp_bellPins.' + campId, 'null')); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    Object.keys(raw).slice(0, 500).forEach(function(cid) {
+        if (!HUD_CID.test(cid) || !Array.isArray(raw[cid])) return;
+        var list = [];
+        raw[cid].slice(0, BELL_DEPTHS[BELL_DEPTHS.length - 1] - 1).forEach(function(p) {
+            if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !/^n[0-9]{1,9}$/.test(p.id) || typeof p.at !== 'number' || !isFinite(p.at)) return;
+            var t = bellText(p.title, 60), x = bellText(p.text, 300); if (!t && !x) return;
+            list.push({ id: p.id, title: t, text: x, bad: p.bad === 1 ? 1 : 0, at: p.at, pinned: true });
+        });
+        if (list.length) out[cid] = list;
+    });
+    return out;
+}
+function bellPinsWrite(campId, cid, log) {
+    var all = bellPinsRead(campId), store = {}, shape = function(r) { var o = { id: r.id, title: r.title, text: r.text, at: r.at }; if (r.bad) o.bad = 1; return o; };
+    all[cid] = log.recs.filter(function(r) { return r.pinned; });
+    Object.keys(all).forEach(function(k) { if (all[k].length) store[k] = all[k].map(shape); });
+    setPref('wp_bellPins.' + campId, JSON.stringify(store));
+}
+function bellLog(cid) {   // this session's log for a character of the campaign on screen, its saved pins restored the first time
+    var camp = getActiveCampaign(); if (!camp || !HUD_CID.test(String(cid))) return null;
+    var k = camp.id + '|' + cid, log = _bell[k];
+    if (!log) {
+        var pins = (bellPinsRead(camp.id)[cid] || []).slice(0, bellDepth() - 1), seq = 0;
+        pins.forEach(function(p) { var n = parseInt(p.id.slice(1), 10); if (n > seq) seq = n; });
+        log = _bell[k] = { campId: camp.id, recs: pins, seq: seq };
+    }
+    return log;
+}
+function bellCap(log) { var lim = bellDepth(); for (var i = log.recs.length - 1; i >= 0 && log.recs.length > lim; i--) if (!log.recs[i].pinned) log.recs.splice(i, 1); }
+// a note for a character's bell: { title, text, bad } or a card ({ apply } / { due }); cid '' finds the one character of this player's named as
+// (an apply card carries a name). Only a character whose HUD this viewer can open; its HUD's foot repaints
+function bellNote(cid, note, as) {
+    if (!note || typeof note !== 'object') return null;
+    var camp = getActiveCampaign(), DCb = window.wpDiceCore; if (!camp) return null;
+    if (!cid) {
+        if (!isClient() || typeof as !== 'string' || !as) return null;
+        var mine = Object.keys(camp.chars || {}).filter(function(id) { var x = camp.chars[id]; return x && !x.partial && x.ownerId === myId() && rollName(x) === as; });
+        if (mine.length !== 1) return null; cid = mine[0];
+    }
+    if (!HUD_CID.test(String(cid)) || !canOpen(cid)) return null;
+    var t = note.title, x = note.text, bad = !!note.bad;
+    if (note.apply) { t = note.apply.label || 'Applied'; x = DCb && DCb.applyChanges ? DCb.applyChanges(note.apply) : ''; bad = false; }
+    else if (note.due) { t = 'Reminder'; x = DCb && DCb.dueText ? DCb.dueText(note.due) : ''; bad = false; }
+    t = bellText(t, 60); x = bellText(x, 300); if (!t && !x) return null;
+    var log = bellLog(cid); if (!log) return null;
+    var rec = { id: 'n' + (++log.seq), title: t, text: x, bad: bad ? 1 : 0, at: Date.now(), pinned: false };
+    log.recs.unshift(rec); bellCap(log);
+    if (huds[cid]) renderHudFoot(huds[cid]);
+    return rec;
+}
+function bellPin(cid, id) {   // true pinned, false refused (the limit), null not there
+    var log = bellLog(cid); if (!log) return null;
+    var r = log.recs.filter(function(x) { return x.id === id; })[0]; if (!r) return null;
+    if (!r.pinned && log.recs.filter(function(x) { return x.pinned; }).length >= bellDepth() - 1) { toast('At most ' + (bellDepth() - 1) + ' notes can be pinned.'); return false; }
+    r.pinned = !r.pinned; bellPinsWrite(log.campId, cid, log);
+    return r.pinned;
+}
+function bellDrop(cid, id) { var log = bellLog(cid); if (!log) return; var was = log.recs.some(function(x) { return x.id === id && x.pinned; }); log.recs = log.recs.filter(function(x) { return x.id !== id; }); if (was) bellPinsWrite(log.campId, cid, log); }
+function bellClear(cid) { var log = bellLog(cid); if (log) log.recs = log.recs.filter(function(x) { return x.pinned; }); }
+function bellAgo(at, now) { var s = Math.max(0, Math.round((now - at) / 1000)); if (s < 45) return 'just now'; var m = Math.round(s / 60); if (m < 60) return m + 'm ago'; var h = Math.round(m / 60); if (h < 24) return h + 'h ago'; return Math.round(h / 24) + 'd ago'; }
+function bellBtn(v, log) {
+    var n = log.recs.length, pc = log.recs.filter(function(r) { return r.pinned; }).length, b = el('button', 'tool ghost hud-bell-btn'); b.type = 'button';
+    b.setAttribute('aria-expanded', v.bellOpen ? 'true' : 'false');
+    b.title = n ? n + (n === 1 ? ' note' : ' notes') + ' kept' + (pc ? ', ' + pc + ' pinned' : '') : 'Notes: none yet this session';
+    b.appendChild(iconNode('icon:bell', 'hud-bell-ico'));
+    if (n) b.appendChild(el('span', 'hud-bell-count', String(n)));
+    b.addEventListener('click', function() { v.bellOpen = !v.bellOpen; renderHudFoot(v); });
+    return b;
+}
+function bellPanel(v, c, log, top) {   // opens above the bar (the reference's), newest first with the pinned on top
+    var p = el('div', 'hud-bell'), head = el('div', 'hud-bell-head'), pc = log.recs.filter(function(r) { return r.pinned; }).length, lim = bellDepth() - 1, now = Date.now();
+    head.appendChild(el('span', 'hud-bell-title', 'Notes'));
+    head.appendChild(el('span', 'hud-bell-pins notepad-who', pc + ' of ' + lim + ' pinned'));
+    if (log.recs.length > pc) { var clr = el('button', 'tool ghost hud-bell-clear', 'Clear'); clr.type = 'button'; clr.title = 'Remove the notes that are not pinned'; clr.addEventListener('click', function() { bellClear(v.charId); renderHudFoot(v); }); head.appendChild(clr); }
+    var sel = el('select', 'field hud-bell-depth'); sel.title = 'How many notes to keep';
+    BELL_DEPTHS.forEach(function(d) { var o = el('option', null, String(d)); o.value = String(d); sel.appendChild(o); });
+    sel.value = String(bellDepth());
+    sel.addEventListener('change', function() { var d = parseInt(sel.value, 10); if (BELL_DEPTHS.indexOf(d) < 0) return; setPref('wp_hudBellDepth', d); Object.keys(_bell).forEach(function(k) { bellCap(_bell[k]); }); Object.keys(huds).forEach(function(id) { renderHudFoot(huds[id]); }); });
+    head.appendChild(sel);
+    p.appendChild(head);
+    var list = el('div', 'hud-bell-list');
+    if (!log.recs.length) list.appendChild(el('div', 'hud-bell-empty notepad-who', 'No notes for ' + c.name + ' yet this session.'));
+    log.recs.filter(function(r) { return r.pinned; }).concat(log.recs.filter(function(r) { return !r.pinned; })).forEach(function(r) {
+        var it = el('div', 'hud-bell-note' + (r.pinned ? ' hud-bell-pinned' : '') + (r.bad ? ' hud-bell-bad' : '')), row = el('div', 'hud-bell-row');
+        row.appendChild(el('span', 'hud-bell-ntitle', r.title || 'Note'));
+        row.appendChild(el('span', 'hud-bell-ago', bellAgo(r.at, now)));
+        var pin = el('button', 'tool ghost hud-bell-pin'); pin.type = 'button'; pin.appendChild(iconNode(r.pinned ? 'icon:thumbtack-slash' : 'icon:thumbtack', 'hud-bell-pico'));
+        pin.title = r.pinned ? 'Unpin' : pc >= lim ? 'At most ' + lim + ' notes can be pinned' : 'Pin: kept here, on this computer, until you unpin it';
+        if (!r.pinned && pc >= lim) pin.disabled = true;
+        pin.addEventListener('click', function() { bellPin(v.charId, r.id); renderHudFoot(v); });
+        var rm = el('button', 'tool ghost hud-bell-rm'); rm.type = 'button'; rm.appendChild(iconNode('icon:xmark', 'hud-bell-pico')); rm.title = 'Remove this note';
+        rm.addEventListener('click', function() { bellDrop(v.charId, r.id); renderHudFoot(v); });
+        row.appendChild(pin); row.appendChild(rm); it.appendChild(row);
+        if (r.text) it.appendChild(el('div', 'hud-bell-text', r.text));
+        list.appendChild(it);
+    });
+    p.appendChild(list); list.scrollTop = top || 0;
+    return p;
+}
+// The bell's effects feed: every character's effect rows as last seen here, compared at each repaint of a character's views (and each
+// second) — one applied, suspended, resumed or ended makes a note, whoever did it (the GM, its player, a timer). The first sight of a
+// character only records what it has
+function bellFx(charId) {
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !featureOn()) return;
+    var fx = (sys.fields || []).filter(function(f) { return f && f.kind === 'effects'; }); if (!fx.length) return;
+    var lib = Object.create(null); (sys.effects || []).forEach(function(d) { if (d && typeof d.id === 'string') lib[d.id] = d; });
+    (charId == null ? Object.keys(camp.chars || {}) : [charId]).forEach(function(id) {
+        var c = charById(id, camp); if (!c) return;
+        var k = camp.id + '|' + id, was = _fxSeen[k], now = Object.create(null);
+        fx.forEach(function(f) { var rows = c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : []; rows.forEach(function(r) { if (!r || typeof r.id !== 'string') return; var d = typeof r.ref === 'string' ? lib[r.ref] : r; now[f.id + ':' + r.id] = { n: String((d && d.name) || r.name || 'An effect'), on: r.on !== false, bad: !!(d && d.tone === 'debuff') }; }); });
+        _fxSeen[k] = now;
+        if (!was || !canOpen(id)) return;
+        Object.keys(now).forEach(function(rk) { var a = was[rk], b = now[rk]; if (!a) bellNote(id, { title: 'Effect applied', text: b.n, bad: b.bad }); else if (a.on !== b.on) bellNote(id, { title: b.on ? 'Effect resumed' : 'Effect suspended', text: b.n }); });
+        Object.keys(was).forEach(function(rk) { if (!now[rk]) bellNote(id, { title: 'Effect ended', text: was[rk].n }); });
+    });
+}
 /* HF3: the docked roll history at the HUD's foot — the reference's footer drawer. It lists what THIS machine saw of the rolls made as the
    character this session (net.rollsFor: tagged locally, or another machine's roll made as its name), newest first, drawn by the dice's
    own textContent-only card. Nothing is built (the foot hides) when the table cannot roll or the system the viewer holds has nothing to
@@ -667,13 +794,17 @@ function sysRolls(sys) { return !!sys && ((Array.isArray(sys.rolls) && sys.rolls
 function rollName(c) { var DL = window.wpDiceCore && window.wpDiceCore.LIMITS; return String((c && c.name) || '').slice(0, (DL && DL.label) || 60); }   // as a roll's "as" carries it
 function renderHudFoot(v) {
     var foot = v && v.foot; if (!foot) return;
-    var fa = document.activeElement, fcls = fa && foot.contains(fa) ? ['hud-hist-toggle', 'hud-hist-clear', 'hud-hist-depth'].filter(function(k) { return fa.classList.contains(k); })[0] || '' : '';
-    var old = foot.querySelector('.hud-hist-list'), top = old ? old.scrollTop : 0;
+    var fa = document.activeElement, fcls = fa && foot.contains(fa) ? ['hud-hist-toggle', 'hud-hist-clear', 'hud-hist-depth', 'hud-bell-btn', 'hud-bell-clear', 'hud-bell-depth'].filter(function(k) { return fa.classList.contains(k); })[0] || '' : '';
+    var old = foot.querySelector('.hud-hist-list'), top = old ? old.scrollTop : 0, oldB = foot.querySelector('.hud-bell-list'), topB = oldB ? oldB.scrollTop : 0;
     foot.textContent = '';
     var camp = getActiveCampaign(), c = charById(v.charId, camp), n = net(), D = window.wpDice;
-    if (!c || !n || typeof n.rollsFor !== 'function' || !D || typeof D.renderCard !== 'function' || (window.wpVtt && !window.wpVtt.on('dice')) || !sysRolls(systemOf(camp))) return;
+    var canRoll = !!(n && typeof n.rollsFor === 'function' && D && typeof D.renderCard === 'function' && !(window.wpVtt && !window.wpVtt.on('dice')) && sysRolls(systemOf(camp)));
+    var bl = c && typeof bellLog === 'function' ? bellLog(v.charId) : null;   // the bell: always beside the history, alone once it holds a note
+    if (!c || (!canRoll && !(bl && bl.recs.length))) return;
+    var bar = el('div', 'hud-hist-bar');
+    if (canRoll) {
     var rolls = n.rollsFor(v.charId, rollName(c), _histCleared[v.charId] || 0, histDepth());
-    var bar = el('div', 'hud-hist-bar'), tg = el('button', 'hud-hist-toggle'); tg.type = 'button';
+    var tg = el('button', 'hud-hist-toggle'); tg.type = 'button';
     tg.setAttribute('aria-expanded', v.histOpen ? 'true' : 'false'); tg.title = v.histOpen ? 'Hide the roll history' : 'Show this session\u2019s rolls as ' + c.name;
     var ib = el('span', 'hud-hist-icobox'); ib.appendChild(iconNode('icon:clock-rotate-left', 'hud-hist-ico')); tg.appendChild(ib);
     tg.appendChild(el('span', 'hud-hist-title', 'Roll history'));
@@ -695,14 +826,17 @@ function renderHudFoot(v) {
         tools.appendChild(sel);
         bar.appendChild(tools);
     }
+    }
+    if (bl) bar.appendChild(bellBtn(v, bl));
+    if (bl && v.bellOpen) foot.appendChild(bellPanel(v, c, bl, topB));
     foot.appendChild(bar);
-    if (v.histOpen) {
+    if (canRoll && v.histOpen) {
         var list = el('div', 'hud-hist-list');
         if (rolls.length) rolls.forEach(function(m) { list.appendChild(D.renderCard(m)); });
         else list.appendChild(el('div', 'hud-hist-empty notepad-who', 'No rolls as ' + c.name + ' yet this session.'));
         foot.appendChild(list); list.scrollTop = top;
     }
-    if (fcls) { var back = foot.querySelector('.' + fcls) || foot.querySelector('.hud-hist-toggle'); if (back) back.focus(); }
+    if (fcls) { var back = foot.querySelector('.' + fcls) || foot.querySelector('.hud-hist-toggle') || foot.querySelector('.hud-bell-btn'); if (back) back.focus(); }
 }
 // net.js's hook: a roll landed (m) made as cid (its local tag; '' when this machine cannot tell) — repaint the FOOT of each HUD of that
 // character (by tag, or untagged by name for the GM's roll or this machine's own, as net.rollsFor lists it); m null (the join's history,
@@ -718,6 +852,7 @@ function rolled(m, cid) {
 // One refresh path for every view of a character: the sheet when it shows charId (any when null), then every HUD of it (all when null) —
 // never the body that just painted itself (skip)
 function renderViews(charId, skip) {
+    if (typeof bellFx === 'function') { try { bellFx(charId); } catch (e) { console.error(e); } }   // the bell's effects feed: what changed since this machine last looked
     var any = charId == null;
     if (sheetOpen && (any || sheetOpen === charId) && ui('sheetBody') !== skip) renderSheet();
     Object.keys(huds).forEach(function(id) { var v = huds[id]; if (v && (any || id === charId) && v.body !== skip) renderHud(id); });
@@ -3967,10 +4102,10 @@ function sync() {
     else renderViews(null);
 }
 var _lastCamp = null;
-setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; }, 1000);
+setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
-window.wpSheets = { open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

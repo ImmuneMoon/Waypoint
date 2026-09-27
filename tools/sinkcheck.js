@@ -303,13 +303,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             o = o || {};
             const tokA = Object.assign({ id: 't1', isChar: true, charId: 'c_1', type: 'circle', color: '#112233' }, o.tok || {}), other = { id: 't2', isChar: true, charId: 'c_2', type: 'circle' };
             const camp = { id: 'k', chars: { c_1: Object.assign({ id: 'c_1', name: 'Ana', ownerId: 'u_a', portrait: '' }, o.char || {}) }, items: { m1: { id: 'm1', type: 'map', whiteboard: [tokA, other] } } };
-            const out = { after: 0, sent: [], toasts: [], uploads: [], flush: 0, remoteAtSave: null };
+            const out = { after: 0, sent: [], toasts: [], uploads: [], flush: 0, remoteAtSave: null, prunes: [] };
             const netF = { active: true, role: 'host', applyingRemote: false, roster: { pA: { id: 'u_a', color: '#445566' } }, cleanFace: hC.cleanFace, safeAvatar: hC.safeAvatar, FACE_PICS: hC.FACE_PICS, broadcastItemFiltered: (c, m) => out.sent.push(m) };
-            const api = new Function('getActiveCampaign', 'charById', 'net', 'afterCharChange', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', shS.slice(tcA, tcB) + '\n' + slice('sheets.js', 'charface') + '\nreturn applyCharFace;')(
+            const api = new Function('getActiveCampaign', 'charById', 'net', 'afterCharChange', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', 'prunePics', shS.slice(tcA, tcB) + '\n' + slice('sheets.js', 'charface') + '\nreturn applyCharFace;')(
                 () => camp, (id, cp) => (cp || camp).chars[id] || null, () => netF, () => { out.after++; out.remoteAtSave = netF.applyingRemote; }, t => out.toasts.push(t),
                 { wpHistFlush: () => { out.flush++; } },
                 () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_hex.png' }),
-                (rel) => { out.uploads.push(rel); return Promise.resolve(o.url || '/saves/' + rel); });
+                (rel) => { out.uploads.push(rel); return Promise.resolve(o.url || '/saves/' + rel); }, (p, k) => { out.prunes.push([p, k]); return Promise.resolve(0); });
             return { api, camp, tok: tokA, other, out, netF };
         };
         const A = mkC(), B = mkC(), C = mkC(), D = mkC({ char: { portrait: '/saves/images/x.png' } }), E = mkC({ tok: { type: 'image', src: '/saves/images/art.png', color: 'transparent' } }), F = mkC({ url: 'https://evil.example/x.png' }), G = mkC(), H2 = mkC();
@@ -319,17 +319,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('F1c applyCharFace (run for real): an emoji face is drawn on the character\'s own tokens (none else) and its portrait stays bare; a bundled picture and a saved photo become its portrait and its tokens\' art; a give never overwrites a picture it has (its portrait or a token\'s art), an owner\'s change does (back to a circle in their colour); a saved address that is not the app\'s own, a bundled name off the list or a refused face changes nothing',
             rA === true && A.tok.face === '\u{1F409}' && !('face' in A.other) && A.camp.chars.c_1.portrait === '' && A.out.after === 1 && j(A.out.sent) === j(['m1'])
             && rB === true && B.camp.chars.c_1.portrait === '/saves/images/tutorial/orc_sq.jpg' && B.tok.type === 'image' && B.tok.src === '/saves/images/tutorial/orc_hex.png'
-            && rC === true && C.camp.chars.c_1.portrait === '/saves/images/portraits/portrait-c_1-a.png' && C.tok.src === C.camp.chars.c_1.portrait && j(C.out.uploads) === j(['images/portraits/portrait-c_1-a.png'])
+            && rC === true && /^\/saves\/images\/portraits\/portrait-c_1-[a-z0-9]{4,12}\.png$/.test(C.camp.chars.c_1.portrait) && C.tok.src === C.camp.chars.c_1.portrait && j(C.out.uploads) === j([C.camp.chars.c_1.portrait.slice(7)])
+            && j(C.out.prunes) === j([['portrait-c_1', [C.camp.chars.c_1.portrait, '']]]) && A.out.prunes.length === 0 && B.out.prunes.length === 0 && F.out.prunes.length === 0 && D.out.prunes.length === 0
             && rD === false && D.camp.chars.c_1.portrait === '/saves/images/x.png' && !('face' in D.tok) && rE === true && E.tok.type === 'circle' && !('src' in E.tok) && E.tok.color === '#445566' && E.tok.face === '\u{1F409}'
             && rF === false && F.camp.chars.c_1.portrait === '' && !F.tok.src && rG === false && G.tok.type === 'circle' && rH === false && !('face' in H2.tok), JSON.stringify([rA, A.tok, rB, B.tok, rC, C.camp.chars.c_1.portrait, rD, rE, E.tok, rF, rG, rH]));
         {   // Onboarding F1c review: applyCharFace keeps the face on the character, a give never overwrites a face, the picture names take turns, never the GM's undo step
             const I = mkC({ tok: { face: '\u{1F408}' } }), J = mkC({ char: { face: 'default' } }), K = mkC({ char: { portrait: '/saves/images/portraits/portrait-c_1-a.png' } }), L = mkC({ char: { face: '\u{1F409}' } }), M = mkC();
             const rI = await I.api('c_1', { kind: 'face', face: '\u{1F409}' }, false), rJ = await J.api('c_1', { kind: 'face', face: '\u{1F409}' }, false), rK = await K.api('c_1', { kind: 'picture', data: 'data:image/png;base64,AAAA' }, true), rL = await L.api('c_1', { kind: 'bundled', name: 'orc' }, true);
             const rM = await M.api('c_1', { kind: 'face', face: '\u{1F409}' }, false);
-            check('F1c applyCharFace keeps the face on the character (a token made later wears it; a picture clears it); a give never overwrites a face it has (its own or a token\'s); a new picture takes the other of its two file names; the change is never a step of the GM\'s undo (their pending edit is recorded first)',
-                rI === false && I.tok.face === '\u{1F408}' && rJ === false && J.camp.chars.c_1.face === 'default' && !('face' in J.tok) && rK === true && K.camp.chars.c_1.portrait === '/saves/images/portraits/portrait-c_1-b.png' && j(K.out.uploads) === j(['images/portraits/portrait-c_1-b.png'])
+            const kFirst = K.camp.chars.c_1.portrait, nowK = Date.now; let rK2;   // a second picture a moment later: another fresh name (a constant one would pass the pattern)
+            try { Date.now = () => nowK() + 5000; rK2 = await K.api('c_1', { kind: 'picture', data: 'data:image/png;base64,AAAA' }, true); } finally { Date.now = nowK; }
+            const kSecond = K.camp.chars.c_1.portrait;
+            check('F1c applyCharFace keeps the face on the character (a token made later wears it; a picture clears it); a give never overwrites a face it has (its own or a token\'s); a new picture takes a fresh file name every time (a player\'s machine keeps a picture per address for the session); the change is never a step of the GM\'s undo (their pending edit is recorded first)',
+                rI === false && I.tok.face === '\u{1F408}' && rJ === false && J.camp.chars.c_1.face === 'default' && !('face' in J.tok) && rK === true && /^\/saves\/images\/portraits\/portrait-c_1-[a-z0-9]{4,12}\.png$/.test(kFirst) && kFirst !== '/saves/images/portraits/portrait-c_1-a.png' && rK2 === true && /^\/saves\/images\/portraits\/portrait-c_1-[a-z0-9]{4,12}\.png$/.test(kSecond) && kSecond !== kFirst && j(K.out.uploads) === j([kFirst.slice(7), kSecond.slice(7)])
+                && j(K.out.prunes) === j([['portrait-c_1', [kFirst, '/saves/images/portraits/portrait-c_1-a.png']], ['portrait-c_1', [kSecond, kFirst]]])
                 && rL === true && !('face' in L.camp.chars.c_1) && rM === true && M.camp.chars.c_1.face === '\u{1F409}' && M.out.flush === 1 && M.out.remoteAtSave === true && M.netF.applyingRemote === false && K.out.remoteAtSave === true && K.netF.applyingRemote === false,
-                j([rI, rJ, rK, K.out.uploads, rL, L.camp.chars.c_1, rM, M.out]));
+                j([rI, rJ, rK, rK2, K.out.uploads, K.out.prunes, rL, L.camp.chars.c_1, rM, M.out]));
         }
         {   // pngOf: a square of at most 256 pixels from the middle; past 4096 a side, refused before it is drawn
             const png = async (w, h) => { const calls = [];
@@ -420,8 +425,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const tokA = Object.assign({ id: 't1', isChar: true, charId: 'c_1', type: 'circle', color: '#112233', x: 100, y: 200, w: 60, h: 52 }, tok || {});
             const camp = { id: 'k', chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', portrait: '' } }, items: { m1: { id: 'm1', type: 'map', meta: grid ? { gridType: grid } : {}, whiteboard: [tokA] } } };
             const netF = { active: true, role: 'host', applyingRemote: false, roster: { pA: { id: 'u_a', color: '#445566' } }, cleanFace: hG.cleanFace, safeAvatar: hG.safeAvatar, FACE_PICS: hG.FACE_PICS, broadcastItemFiltered() {} };
-            const api = new Function('getActiveCampaign', 'charById', 'net', 'afterCharChange', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', shG.slice(tcA, tcB) + '\n' + slice('sheets.js', 'charface') + '\nreturn applyCharFace;')(
-                () => camp, (id, cp) => (cp || camp).chars[id] || null, () => netF, () => {}, () => {}, { wpHistFlush() {}, wpSystemCore: SCc }, () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_sq.jpg' }), rel => Promise.resolve('/saves/' + rel));
+            const api = new Function('getActiveCampaign', 'charById', 'net', 'afterCharChange', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', 'prunePics', shG.slice(tcA, tcB) + '\n' + slice('sheets.js', 'charface') + '\nreturn applyCharFace;')(
+                () => camp, (id, cp) => (cp || camp).chars[id] || null, () => netF, () => {}, () => {}, { wpHistFlush() {}, wpSystemCore: SCc }, () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_sq.jpg' }), rel => Promise.resolve('/saves/' + rel), () => Promise.resolve(0));
             await api('c_1', plan, !!replace); return tokA;
         };
         const fBH = await faceRun('hex', null, { kind: 'bundled', name: 'orc' }), fBS = await faceRun('square', null, { kind: 'bundled', name: 'orc' }), fBO = await faceRun(null, null, { kind: 'bundled', name: 'orc' });
@@ -432,17 +437,42 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // applyTokenFace with the grid (sheets.js, run for real): a Just a token picture is cut to its map's cell once it is saved, and seated
         const tfA = shG.indexOf('function applyTokenFace('), tfB = shG.indexOf('\nfunction keepMade(');
         const tokFaceRun = async (grid, plan) => {
-            const w = { id: 'w1', isChar: true, type: 'circle', color: '#112233', x: 100, y: 200, w: 60, h: 52 }, seats = [];
+            const w = { id: 'w1', isChar: true, type: 'circle', color: '#112233', x: 100, y: 200, w: 60, h: 52 }, seats = [], prunes = [];
             const camp = { id: 'k', items: { m1: { id: 'm1', type: 'map', meta: grid ? { gridType: grid } : {}, whiteboard: [w] } } };
             const netF = { active: true, role: 'host', applyingRemote: false, safeAvatar: hG.safeAvatar, FACE_PICS: hG.FACE_PICS, broadcastItemFiltered() {} };
-            const api = new Function('getActiveCampaign', 'net', 'isClient', 'save', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', shG.slice(tfA, tfB) + '\nreturn applyTokenFace;')(
-                () => camp, () => netF, () => false, () => {}, () => {}, { wpHistFlush() {}, wpSystemCore: SCc, wpSeatCell: (it, m) => { seats.push(m.id); return false; } }, () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_sq.jpg' }), rel => Promise.resolve('/saves/' + rel));
-            const r = await api('m1', 'w1', plan); return { r, w, seats };
+            const api = new Function('getActiveCampaign', 'net', 'isClient', 'save', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', 'prunePics', shG.slice(tfA, tfB) + '\nreturn applyTokenFace;')(
+                () => camp, () => netF, () => false, () => {}, () => {}, { wpHistFlush() {}, wpSystemCore: SCc, wpSeatCell: (it, m) => { seats.push(m.id); return false; } }, () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_sq.jpg' }), rel => Promise.resolve('/saves/' + rel), (p, k) => { prunes.push([p, k]); return Promise.resolve(0); });
+            const r = await api('m1', 'w1', plan); return { r, w, seats, prunes };
         };
         const tfH = await tokFaceRun('hex', { kind: 'bundled', name: 'orc' }), tfS = await tokFaceRun('square', { kind: 'picture', data: 'data:image/png;base64,iVBORw0KGgo=' }), tfO = await tokFaceRun(null, { kind: 'bundled', name: 'orc' });
-        check('grid shape: Just a token\'s picture (applyTokenFace, run for real) is cut to its map\'s cell once saved and seated there — hex: a hexagon 60x52, a square grid: a square 50x50 (the photo saved as token-<id>.png), no grid: round at its size',
-            tfA > 0 && tfB > tfA && tfH.r === true && tfH.w.type === 'image' && tfH.w.src === '/saves/images/tutorial/orc_sq.jpg' && tfH.w.shape === 'hexagon' && tfH.w.w === 60 && tfS.r === true && tfS.w.shape === 'rect' && tfS.w.w === 50 && tfS.w.src === '/saves/images/portraits/token-w1.png' && j(tfS.seats) === j(['m1'])
+        check('grid shape: Just a token\'s picture (applyTokenFace, run for real) is cut to its map\'s cell once saved and seated there — hex: a hexagon 60x52, a square grid: a square 50x50 (the photo saved as token-<id>-<fresh>.png), no grid: round at its size',
+            tfA > 0 && tfB > tfA && tfH.r === true && tfH.w.type === 'image' && tfH.w.src === '/saves/images/tutorial/orc_sq.jpg' && tfH.w.shape === 'hexagon' && tfH.w.w === 60 && tfS.r === true && tfS.w.shape === 'rect' && tfS.w.w === 50 && /^\/saves\/images\/portraits\/token-w1-[a-z0-9]{4,12}\.png$/.test(tfS.w.src) && j(tfS.seats) === j(['m1']) && j(tfS.prunes) === j([['token-w1', [tfS.w.src, '']]]) && tfH.prunes.length === 0
             && tfO.w.shape === 'circle' && tfO.w.w === 60 && tfH.seats.length === 1, j([tfH, tfS, tfO]));
+        // The token creator's review: a character's and a token's pictures kept few (sheets.js prunePics, run for real)
+        const prS = slice('sheets.js', 'prunepics');
+        const prRun = async (o) => {
+            const del = [], asked = [];
+            const fetchS = (u, opt) => { asked.push(u); if (o.fail) return Promise.reject(new Error('net')); if (u === '/api/list-images') return Promise.resolve({ ok: true, json: () => Promise.resolve(o.list) }); del.push(JSON.parse(opt.body).path); return Promise.resolve({ ok: o.delOk !== false }); };
+            const fn = new Function('isClient', 'fetch', 'state', 'window', prS + '\nreturn prunePics;')(() => !!o.client, fetchS, { appState: o.app || { campaigns: {} } }, { wpHist: o.noHist ? undefined : { refs: nm => (o.hist || []).indexOf(nm) >= 0 } });
+            const n = await fn(o.prefix || 'portrait-c_1', o.keep || []); return { n, del, asked };
+        };
+        const PP = nm => '/saves/images/portraits/' + nm, im = (nm, t) => ({ path: PP(nm), mtime: t });
+        const L1 = [im('portrait-c_1-k4.png', 50), im('portrait-c_1-k3.png', 40), im('portrait-c_1-k2.png', 30), im('portrait-c_1-k1.png', 20), im('portrait-c_1-a.png', 10), im('portrait-c_1-k0.png', 5),
+            im('portrait-c_12-z1.png', 1), im('portrait-c_1-x.jpg', 1), { path: '/saves/images/other/portrait-c_1-k9.png', mtime: 1 }, im('portrait-c_1-K9.png', 1), im('portrait-c_1-k9.png.png', 1), im('portrait-c_1-b-c1.png', 1), null, { path: 5 }];
+        const pr1 = await prRun({ list: L1, keep: [PP('portrait-c_1-k4.png'), PP('portrait-c_1-k3.png')], app: { campaigns: { other: { chars: { c_9: { portrait: PP('portrait-c_1-k1.png') } } } } }, hist: ['portrait-c_1-k2.png'] });
+        const pr2 = await prRun({ list: [im('portrait-c_1-n4.png', 7), im('portrait-c_1-n1.png', 10), im('portrait-c_1-n3.png', 8), im('portrait-c_1-n2.png', 9)], keep: [PP('portrait-c_1-n3.png')] });
+        const pr3 = await prRun({ client: true, list: L1 }), pr4 = await prRun({ prefix: 'portrait-../x', list: L1 }), pr4b = await prRun({ prefix: 'x-c_1', list: L1 }), pr4c = await prRun({ prefix: 5, list: L1 });
+        const pr5 = await prRun({ prefix: 'token-w1', list: [im('token-w1-a1.png', 3), im('token-w1-a2.png', 2), im('token-w1-a3.png', 1), im('token-w1-b-c1.png', 0), im('token-w12-a4.png', 0)] });
+        const pr6 = await prRun({ fail: true, list: L1 }), pr6b = await prRun({ list: { length: 3 } }), pr7 = await prRun({ noHist: true, list: L1 }), pr8 = await prRun({ delOk: false, list: [im('portrait-c_1-q1.png', 3), im('portrait-c_1-q2.png', 2), im('portrait-c_1-q3.png', 1)] });
+        check('token creator review: a character\'s and a plain token\'s pictures are kept few (prunePics, run for real) — the two newest files (one may still be on its way onto the token), the one it wears and the one before it, and any a campaign or a step of the GM\'s undo still shows stay; the rest are deleted; never a file of another id, another folder, not a PNG or not a name the app makes; never on a player\'s machine, with a prefix that is not ours, or with no undo to ask; a failure resolves quietly',
+            j(pr1.del) === j([PP('portrait-c_1-a.png'), PP('portrait-c_1-k0.png')]) && pr1.n === 2 && j(pr2.del) === j([PP('portrait-c_1-n4.png')])
+            && pr3.asked.length === 0 && pr3.n === 0 && pr4.asked.length === 0 && pr4b.asked.length === 0 && pr4c.asked.length === 0 && j(pr5.del) === j([PP('token-w1-a3.png')])
+            && pr6.n === 0 && pr6.del.length === 0 && pr6b.n === 0 && pr6b.del.length === 0 && pr7.del.length === 0 && pr8.n === 0 && j(pr8.del) === j([PP('portrait-c_1-q3.png')]), j([pr1, pr2, pr5, pr7, pr8]));
+        const ioH = read('io.js').split(/\r?\n/).find(l => l.startsWith('window.wpHist = {')), winH = {};
+        new Function('histories', 'window', ioH)({ a: { last: '{"src":"/saves/images/portraits/token-w1-q1.png"}', undo: ['x', '{"src":"/saves/images/portraits/token-w1-q2.png"}'], redo: [] }, b: { last: '', undo: [], redo: ['<img src=\"/saves/images/portraits/token-w1-q3.png\">'] } }, winH);
+        const rf = winH.wpHist && winH.wpHist.refs;
+        check('token creator review: the GM\'s undo says whether a step still shows a picture (io.js wpHist.refs, run for real) — the current state, an undo or a redo step of any item; nothing for a name none has, or no name',
+            !!rf && rf('token-w1-q1.png') === true && rf('token-w1-q2.png') === true && rf('token-w1-q3.png') === true && rf('token-w1-q4.png') === false && rf('') === false && rf(null) === false && typeof winH.wpHist.peek === 'function');
     }
     delete global.window;
 

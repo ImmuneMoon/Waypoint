@@ -81,3 +81,6 @@ jobs:
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js
+      - name: framecheck — the token creator's pure core
+        if: ${{ !cancelled() }}
+        run: node tools/framecheck.js

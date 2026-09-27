@@ -52,7 +52,7 @@ function open(anchor, current, prof, onPick, opts) {
         pics.forEach(function(nm) { opt('pic:' + nm, title(nm), function(b) { drawInto(b, 'pic:' + nm, prof); }); });
         if (opts.upload && window.wpProcessAvatar) {   // Onboarding F1c: a picture of their own (shrunk and checked before it is sent)
             var up = mk('button', 'tool ghost face-opt face-upload', '\u2B06'); up.type = 'button'; up.title = 'Upload a picture'; var fi = mk('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true;
-            fi.addEventListener('change', function() { var f = fi.files && fi.files[0]; if (!f) return; window.wpProcessAvatar(f, function(data) { close(); if (typeof onPick === 'function') onPick('', data); }); });
+            fi.addEventListener('change', function() { var f = fi.files && fi.files[0]; if (!f) return; close(); window.wpProcessAvatar(f, function(data) { if (typeof onPick === 'function') onPick('', data); }, { px: 256, max: 200000, title: 'Frame the picture' }); });   // the token creator: the picker closes first, a character's picture at 256
             up.addEventListener('click', function(e) { e.preventDefault(); fi.click(); }); grid.appendChild(up); grid.appendChild(fi);
         }
     };

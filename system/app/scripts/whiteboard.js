@@ -77,18 +77,44 @@ function wireStanceMenu(cMenu, items, onChange) {
     var sel = cMenu.querySelector('.stance-post');
     if (sel) { sel.addEventListener('click', function(ce) { ce.stopPropagation(); }); sel.addEventListener('change', function() { var v = this.value; items.forEach(function(t) { setTokenPosture(t, v); }); onChange(); }); }
 }
+// The token creator (owner, 2026-09-27): a player's new picture for their own token — a picture they choose, framed first. A character's token
+// changes through its character (char-pic: every token of it), a plain one through tok-pic. Their original is never kept (owner): to change
+// it again they pick a picture again
+function ownPicOk(tok) {
+    var n = window.wpNet; if (!tok || tok.locked || !n || !window.wpProcessAvatar) return false;
+    if (tok.charId) { var S = window.wpSheets, c = S && S.charById ? S.charById(tok.charId) : null; return !!(n.charPic && c && !c.partial && !c.npc && S.canOpen && S.canOpen(tok.charId)); }   // what char-pic takes: their own whole character, sheets on for them
+    return !!n.tokPic;
+}
+function newOwnPicture(tok) {
+    var n = window.wpNet, am = getActiveMap(); if (!ownPicOk(tok) || !am) return;
+    var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*';
+    fi.addEventListener('change', function() {
+        var f = fi.files && fi.files[0]; if (!f) return;
+        var SC = window.wpSystemCore, p = Object.assign({}, tok, { type: 'image', src: 'x' });   // what the save makes of it: a picture, cut to this map's cell when it is one cell (a copy: the token is untouched)
+        if (SC && SC.shapeStandIn) SC.shapeStandIn(p, am);
+        var guide = p.shape === 'hexagon' || p.shape === 'rect' || p.shape === 'circle' ? { shape: p.shape, w: p.w, h: p.h } : { shape: 'rect', w: 1, h: 1 };   // no outline (a sized-up token with none): it shows the whole square
+        window.wpProcessAvatar(f, function(data) {
+            var answer = function(a) { toast(a.error || 'Your token\u2019s picture is changed.'); };
+            var r = tok.charId ? n.charPic(tok.charId, '', data, answer) : n.tokPic(am.id, tok.id, data, answer);
+            if (r && r.error) toast(r.error);
+        }, { px: 256, max: 200000, title: 'Frame your token\u2019s picture', guide: guide });
+    });
+    fi.click();
+}
 // A player's own token: the one edit menu they get (same permission line as moving it)
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
     var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
     var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;</div>' : '';   // HUD frame (HF2b)
-    if (!rows && !sheetRow && !hudRow) return;
-    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + rows.replace('<div class="menu-divider"></div>', '');
+    var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own">&#128444;&#65039; New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
+    if (!rows && !sheetRow && !hudRow && !picRow) return;
+    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
     placeMenu(cMenu, e);
     var ownSheet = cMenu.querySelector('.cm-sheet-own'); if (ownSheet) ownSheet.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openSheet(tok.charId); });
     var ownHud = cMenu.querySelector('.cm-hud-own'); if (ownHud) ownHud.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openHud(tok.charId); });
+    var ownPic = cMenu.querySelector('.cm-pic-own'); if (ownPic) ownPic.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; newOwnPicture(tok); });
     wireStanceMenu(cMenu, [tok], function() { save(); render(); });
 }
 
@@ -5749,7 +5775,7 @@ document.addEventListener('contextmenu', function(e) {
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
-                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownPicOk(tokO))) { e.preventDefault(); showStanceMenu(e, tokO); }
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;

@@ -1645,7 +1645,7 @@ window.wpResetHistory = resetHistory;
 window.wpHistFlush = flushHistory;     // net.js: before a player's change lands in a map
 window.wpHistBarrier = historyBarrier; // net.js / whiteboard.js: after a write that spans two maps
 // Dev/console: the per-item undo picture, { 'campId/itemId': { undo, redo, bytes } }, for sandbox checks
-window.wpHist = { peek: function() { var out = {}; Object.keys(histories).forEach(function(k) { var h = histories[k]; out[k] = { undo: h.undo.length, redo: h.redo.length, bytes: h.bytes }; }); return out; } };
+window.wpHist = { refs: function(s) { s = String(s || ''); if (!s) return false; var inS = function(x) { return typeof x === 'string' && x.indexOf(s) >= 0; }; return Object.keys(histories).some(function(k) { var h = histories[k]; return inS(h.last) || h.undo.some(inS) || h.redo.some(inS); }); }, peek: function() { var out = {}; Object.keys(histories).forEach(function(k) { var h = histories[k]; out[k] = { undo: h.undo.length, redo: h.redo.length, bytes: h.bytes }; }); return out; } };
 
 
 

@@ -2640,12 +2640,19 @@ pendingChecks.push((async () => {
         dRef('notmaking', {}, { charId: 'c_f' }) && dRef('owner', {}, { charId: 'c_o' }) && dRef('owner', { chars: Object.assign({}, mkC, { c_n: { id: 'c_n', name: 'N', ownerId: 'u_a', npc: true, making: 1, values: {} } }) }, { charId: 'c_n' }) && dRef('missing', {}, { charId: 'c_9' }) && dRef('missing', {}, { charId: 'constructor' })
         && dRef('paused', { paused: true }) && dRef('paused', { peerPaused: true }) && dRef('slow', { slow: 'chardone' }) && dn({}, { rid: 'd 1' }).answer.length === 0);
     // the player's side: the answers, the GM's verdict
-    const mkWhy = lineOf('var MK_WHY = {'), ansSrc = between('// [netcheck:charmakeans-start]', '// [netcheck:charmakeans-end]', 'charmakeans');
-    const mkAns = msg => { const got = [], pend = { k1: { done: a => got.push(a), timer: 1 } }; let cleared = 0; new Function('msg', '_mkPending', 'clearTimeout', mkWhy + '\n' + ansSrc)(msg, pend, () => { cleared++; }); return { got, left: Object.keys(pend).length, cleared }; };
+    const mkWhy = lineOf('var MK_WHY = {') + '\n' + lineOf('var TOK_WHY = {'), ansSrc = between('// [netcheck:charmakeans-start]', '// [netcheck:charmakeans-end]', 'charmakeans');
+    const mkAns = (msg, kind) => { const got = [], pend = { k1: { kind, done: a => got.push(a), timer: 1 } }; let cleared = 0; new Function('msg', '_mkPending', 'clearTimeout', mkWhy + '\n' + ansSrc)(msg, pend, () => { cleared++; }); return { got, left: Object.keys(pend).length, cleared }; };
     const aOk = mkAns({ rid: 'k1', ok: true, charId: 'c_ab12' }), aBadId = mkAns({ rid: 'k1', ok: true, charId: '<img>' }), aHave = mkAns({ rid: 'k1', reason: 'have' }), aProto = ['__proto__', 'constructor', 'toString', 'nope', 5].map(r => mkAns({ rid: 'k1', reason: r }).got[0].error), aNo = mkAns({ rid: 'k9', ok: true }), aProtoRid = mkAns({ rid: '__proto__', ok: true }), aKept = mkAns({ rid: 'k1', ok: true, kept: true }), aKeptStr = mkAns({ rid: 'k1', ok: true, kept: 'yes' });
     check('F3a char-make / char-name / char-done answers (player, run for real): ok with a well-formed id only (else none), a reason of ours in words, a prototype-named or unknown reason a plain refusal; an answer to no question of ours does nothing',
         j(aOk.got) === j([{ ok: true, charId: 'c_ab12' }]) && aOk.left === 0 && aOk.cleared === 1 && j(aBadId.got) === j([{ ok: true, charId: null }]) && aHave.got[0].error === 'You already play a character here.' && aProto.every(e => e === 'The GM could not do that.')
-        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans' \|\| msg\.type === 'char-token-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
+        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans' \|\| msg\.type === 'char-token-ans' \|\| msg\.type === 'tok-pic-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
+    {   // the token creator's review: tok-pic's answers read in a token's words (the table chosen by what we asked, never by the host)
+        const tw = r => mkAns({ rid: 'k1', reason: r }, 'tok-pic').got[0].error, cw = r => mkAns({ rid: 'k1', reason: r }).got[0].error, ckw = r => mkAns({ rid: 'k1', reason: r }, 'char-make').got[0].error;
+        check('token creator review: tok-pic answers (player, run for real) read as a token\'s — gone (it may have moved to another map), not yours, locked, a picture that could not be used, the GM cannot take pictures, could not save it, a moment between pictures — the same reasons to char-make still read as a character\'s; a prototype-named reason a plain refusal either way; ok is ok',
+            tw('missing') === 'That token is no longer here (it may have moved to another map).' && tw('tokowner') === 'That token is not yours.' && tw('locked') === 'The GM has locked that token.' && tw('bad') === 'That picture could not be used.' && tw('off') === 'The GM cannot take pictures here.' && tw('failed') === 'The GM could not save that picture.' && tw('slow') === 'A moment between pictures, please.' && tw('paused') === 'The table is paused.'
+            && cw('missing') === 'That character is gone.' && cw('bad') === 'That name cannot be used.' && ckw('off') === 'Character sheets are off here.' && cw('tokowner') === 'The GM could not do that.' && tw('have') === 'The GM could not do that.' && tw('__proto__') === 'The GM could not do that.' && tw('constructor') === 'The GM could not do that.'
+            && j(mkAns({ rid: 'k1', ok: true }, 'tok-pic').got) === j([{ ok: true, charId: null }]), j([tw('missing'), cw('missing')]));
+    }
     const rvSrc = between('// [netcheck:charreview-start]', '// [netcheck:charreview-end]', 'charreview');
     const review = (msg, o) => { o = o || {}; const t = []; new Function('msg', 'conn', 'net', 'toast', 'cleanCharName', rvSrc)(msg, { peer: o.peer || 'h' }, { foreign: o.foreign !== false, stream: !!o.stream, syncedPeer: 'h' }, x => t.push(x), cleanCharName); return t; };
     check('F3a char-review (player, run for real): the GM\'s verdict from their own GM only — sent back (to fill in, Done again), removed, locked — its name and note cleaned (control and bidi characters out, 300 at most); an unknown or prototype-named outcome, another peer, a stream or no table: nothing',
@@ -2785,6 +2792,42 @@ pendingChecks.push((async () => {
     check('grid shape: the free spot on a square grid is a whole cell (a 50x50 lands on the lattice) and a neighbouring cell (no cell skipped: past a taken 5x5 block the nearest free ring) is found when that one is taken; a sized-up token\'s corner lands on the lattice; with no grid nothing is rounded',
         j(f2) === j({ x: 100, y: 200 }) && f1.x % 50 === 0 && f1.y % 50 === 0 && Math.max(Math.abs(f1.x - 100), Math.abs(f1.y - 200)) === 50 && j(f3) === j({ x: 112, y: 216 })
         && f4.x % 50 === 0 && f4.y % 50 === 0 && Math.max(Math.abs(f4.x - 100), Math.abs(f4.y - 200)) === 150 && j(f5) === j({ x: 250, y: 250 }), j([f1, f2, f3, f4, f5]));
+})());
+// The token creator (owner, 2026-09-27): a player's framed picture for their own plain token — the host's tok-pic (the [netcheck:tokpic]
+// slice, run for real) and the player's sender
+pendingChecks.push((async () => {
+    const tpS = between('// [netcheck:tokpic-start]', '// [netcheck:tokpic-end]', 'tokpic');
+    const PIC = 'data:image/png;base64,iVBORw0KGgo=';
+    const tp = async (o) => {
+        o = o || {};
+        const tok = Object.assign({ id: 'wt', isChar: true, charName: 'Vex', ownerId: 'u_a', type: 'circle', x: 0, y: 0, w: 60, h: 52 }, o.tok || {});
+        const camp = { id: 'k', items: { m1: { id: 'm1', type: 'map', whiteboard: 'board' in o ? o.board : [tok] }, d1: { id: 'd1', type: 'page' } } };
+        const out = { answer: [], faces: [], toasts: [], logs: [], allowed: [] };
+        const conn = { peer: o.peer || 'pA', send: m => { packCheck(m); out.answer.push(JSON.parse(JSON.stringify(m))); } };
+        const netT = { active: true, role: 'host', paused: !!o.paused, roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } } };
+        const win = { wpSheets: o.noSheets ? {} : { applyTokenFace: (m, w, plan, rep) => { out.faces.push([m, w, plan.kind, plan.data === PIC, rep]); return Promise.resolve(o.fail ? false : true); } } };
+        new Function('msg', 'conn', 'net', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'toast', 'logEvent', 'own', 'allow', 'safeAvatar', tpS)(
+            Object.assign({ type: 'tok-pic', rid: 'p1', mapId: 'm1', wbId: 'wt', img: PIC }, o.msg || {}), conn, netT, win, () => !!o.peerPaused, () => camp, e => { throw e; }, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), H.own,
+            k => { out.allowed.push(k); return o.slow !== k; }, H.safeAvatar);
+        await new Promise(r => setTimeout(r, 0));
+        return out;
+    };
+    const ok = await tp();
+    const why = async (o, reason) => { const r = await tp(o); return j(r.answer) === j([{ reason, type: 'tok-pic-ans', rid: 'p1' }]) && r.faces.length === 0 && r.toasts.length === 0; };
+    const refusals = [await why({ peer: 'pB' }, 'tokowner'), await why({ tok: { charId: 'c_1' } }, 'tokowner'), await why({ tok: { waiting: 1 } }, 'tokowner'), await why({ tok: { isChar: false } }, 'tokowner'),
+        await why({ tok: { locked: true } }, 'locked'), await why({ tok: { hidden: true } }, 'locked'), await why({ msg: { wbId: 'nope' } }, 'missing'), await why({ msg: { mapId: 'd1' } }, 'missing'), await why({ msg: { mapId: '__proto__' } }, 'missing'), await why({ board: {} }, 'missing'), await why({ board: null }, 'missing'),
+        await why({ msg: { img: 'data:image/svg+xml;base64,PHN2Zz4=' } }, 'bad'), await why({ msg: { img: 'https://evil/x.png' } }, 'bad'), await why({ msg: { img: 'data:image/png;base64,' + 'A'.repeat(200001) } }, 'bad'),
+        await why({ paused: true }, 'paused'), await why({ peerPaused: true }, 'paused'), await why({ slow: 'charpic' }, 'slow'), await why({ noSheets: true }, 'off')];
+    const unnamed = await tp({ tok: { charName: '' } }), failed = await tp({ fail: true }), badRid = await tp({ msg: { rid: 'p 1' } }), stranger = await tp({ peer: 'pZ' });
+    check('token creator: tok-pic (host, run for real) — a player\'s framed picture for their OWN plain token is saved over its picture (applyTokenFace, replace) and answered ok, the GM told; refused and answered why, nothing saved: another\'s token, a character\'s token (its picture goes through char-pic), a waiting token (even one marked a character) or no token at all (tokowner), locked or hidden (locked), a token or map that is not there, not a map or a board that is not a list (missing), a picture that is not a whole safe picture — SVG, a web address, past 200,000 characters (bad), paused, the rate — one budget with char-pic, every picture saved on the GM\'s disk counted together (slow), no sheets module (off); a token with no name is "their token" to the GM; a failed save answers failed; a malformed request id or a peer not admitted: no answer',
+        j(ok.answer) === j([{ ok: true, type: 'tok-pic-ans', rid: 'p1' }]) && j(ok.faces) === j([['m1', 'wt', 'picture', true, true]]) && j(ok.toasts) === j(['Pat changed the picture of their token (Vex).']) && j(ok.logs) === j([['char', 'Pat changed the picture of their token (Vex)']]) && j(ok.allowed) === j(['charpic'])
+        && j(unnamed.toasts) === j(['Pat changed the picture of their token (their token).']) && refusals.every(Boolean) && j(failed.answer) === j([{ reason: 'failed', type: 'tok-pic-ans', rid: 'p1' }]) && failed.toasts.length === 0 && badRid.answer.length === 0 && stranger.answer.length === 0 && stranger.faces.length === 0, j([ok, refusals]));
+    const ps = src.replace(/\r\n/g, '\n'), mkA = ps.indexOf('var _mkPending = {};'), mkB = ps.indexOf('// Onboarding F1b: a player\'s changed face reaches the host');
+    const sendTP = (img, o) => { o = o || {}; const sent = []; const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', paused: false, selfPaused: false, myId: 'u_a', conns: [{ peer: 'h', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) }] };
+        const pend = new Function('net', 'safeAvatar', 'cleanCharName', 'setTimeout', 'clearTimeout', ps.slice(mkA, mkB) + '\nreturn _mkPending;')(netC, H.safeAvatar, v => String(v), () => 0, () => {}); return { r: netC.tokPic(o.map || 'm1', o.wb || 'wt', img, () => {}), sent, kinds: Object.keys(pend).map(k => pend[k].kind) }; };
+    const sOk = sendTP(PIC), sBad = sendTP('https://evil/x.png');
+    check('token creator: the player\'s tok-pic sender — only a whole safe picture travels, as { type, rid, mapId, wbId, img }; anything else is refused before it is sent; it remembers what it asked (its answer read in a token\'s words)',
+        mkA > 0 && mkB > mkA && sOk.r.ok === true && sOk.sent.length === 1 && j(Object.keys(sOk.sent[0]).sort()) === j(['img', 'mapId', 'rid', 'type', 'wbId']) && sOk.sent[0].type === 'tok-pic' && j(sOk.kinds) === j(['tok-pic']) && sBad.r.error === 'That picture cannot be used.' && sBad.sent.length === 0 && sBad.kinds.length === 0, j([sOk, sBad.r]));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

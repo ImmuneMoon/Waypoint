@@ -21,16 +21,21 @@ function saveProfile(p) {
 }
 
 /* ---------- avatar processing ----------
-   Any image is accepted up to 8MB, then center-cropped and shrunk to a 96px
-   square. The stored data URL is capped at ~100KB (a 96px square is far below
+   Any image is accepted up to 8MB, then framed (the token creator, framer.js: the part
+   they choose; the centre when it is missing) and shrunk to a 96px square (opts.px: a character's 256). The stored data URL is capped at ~100KB (a 96px square is far below
    that in practice), so profiles stay tiny on the wire. */
 var AVATAR_PX = 96;
 var AVATAR_MAX_INPUT = 8 * 1024 * 1024;
 var AVATAR_MAX_STORED = 100 * 1024;
 
-function processAvatar(file, cb) {
+function processAvatar(file, cb, opts) {
     if (!file || !file.type || file.type.indexOf('image/') !== 0) { toast('That file is not an image.'); return; }
     if (file.size > AVATAR_MAX_INPUT) { toast('Image is too large — please pick one under 8 MB.'); return; }
+    opts = opts || {};
+    if (window.wpFrame && window.wpFrame.open) {   // the token creator (owner, 2026-09-27): they choose the part that shows (OK untouched keeps the middle, as below)
+        window.wpFrame.open(file, { px: opts.px || AVATAR_PX, as: 'data', max: opts.max || AVATAR_MAX_STORED, title: opts.title || 'Frame your picture', guide: opts.guide || null }, function(res) { if (res && res.data) cb(res.data); });
+        return;
+    }
     var img = new Image();
     var url = URL.createObjectURL(file);
     img.onload = function() {

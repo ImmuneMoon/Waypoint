@@ -2958,12 +2958,13 @@ net.charPic = function(charId, face, img, done) {
 // say it is done (it goes live; an unlocked one locks again). done({ ok, charId? } | { error }); a GM whose Waypoint has none of this never answers
 var _mkPending = {};
 var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
+var TOK_WHY = { paused: 'The table is paused.', slow: 'A moment between pictures, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', bad: 'That picture could not be used.', off: 'The GM cannot take pictures here.', failed: 'The GM could not save that picture.' };   // tok-pic's answers, read by what we asked
 function mkSend(type, m, done) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     if (net.paused || net.selfPaused) return { error: 'The table is paused.' };
     var rid = 'k' + Math.random().toString(36).slice(2, 10);
-    _mkPending[rid] = { done: done, timer: setTimeout(function() { var p = _mkPending[rid]; delete _mkPending[rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM (their Waypoint may not have this yet).' }); }, 20000) };
+    _mkPending[rid] = { kind: type, done: done, timer: setTimeout(function() { var p = _mkPending[rid]; delete _mkPending[rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM (their Waypoint may not have this yet).' }); }, 20000) };
     m.type = type; m.rid = rid;
     try { net.conns[0].send(m); } catch (e) { clearTimeout(_mkPending[rid].timer); delete _mkPending[rid]; return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
@@ -2973,6 +2974,8 @@ net.charName = function(charId, name, done) { var nm = cleanCharName(name); if (
 net.charDone = function(charId, done) { return mkSend('char-done', { charId: String(charId) }, done); };
 // Onboarding F3b: Just a token — a name and their face, and they play at once (sheets on: an empty character, unlocked; off: a plain token)
 net.charToken = function(name, done) { return mkSend('char-token', { name: cleanCharName(name) }, done); };
+// The token creator (owner, 2026-09-27): a player's framed picture for their own plain token (a character's goes through char-pic)
+net.tokPic = function(mapId, wbId, img, done) { if (!safeAvatar(img)) return { error: 'That picture cannot be used.' }; return mkSend('tok-pic', { mapId: String(mapId), wbId: String(wbId), img: img }, done); };
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
     if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
@@ -3383,13 +3386,13 @@ function handleMessage(msg, conn) {
         var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
-    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-token-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
+    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
         // [netcheck:charmakeans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_mkPending, msg.rid)) return;
         var pK = _mkPending[msg.rid]; delete _mkPending[msg.rid]; clearTimeout(pK.timer);
         if (typeof pK.done !== 'function') return;
         if (msg.ok === true) { var aK = { ok: true, charId: typeof msg.charId === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId) ? msg.charId : null }; if (msg.kept === true) aK.kept = true; pK.done(aK); }
-        else pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(MK_WHY, msg.reason) ? MK_WHY[msg.reason] : 'The GM could not do that.' });
+        else { var WK = pK.kind === 'tok-pic' ? TOK_WHY : MK_WHY; pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(WK, msg.reason) ? WK[msg.reason] : 'The GM could not do that.' }); }   // in the words of what we asked
         // [netcheck:charmakeans-end]
     } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
         // [netcheck:charreview-start]
@@ -3921,6 +3924,28 @@ function handleMessage(msg, conn) {
         toast(tJ + '.'); logEvent('char', tJ);
         ansJ({ ok: true });
         // [netcheck:chartoken-end]
+    } else if (msg.type === 'tok-pic' && net.role === 'host') {
+        // [netcheck:tokpic-start]
+        // The token creator (owner, 2026-09-27): a player's new picture for their own plain token (a Just a token token; a character's goes through
+        // char-pic) — framed on their machine, checked whole here, saved as a PNG under a fresh name (applyTokenFace); the GM is told
+        var ridP = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridP) return;
+        var ansP = function(o) { o.type = 'tok-pic-ans'; o.rid = ridP; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prP2 = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prP2) return;
+        if (net.paused || peerPaused(conn.peer)) { ansP({ reason: 'paused' }); return; }
+        var campP2 = getActiveCampaign(), mP2 = campP2 && typeof msg.mapId === 'string' && own(campP2.items, msg.mapId) ? campP2.items[msg.mapId] : null;
+        var wP2 = mP2 && mP2.type === 'map' && Array.isArray(mP2.whiteboard) && typeof msg.wbId === 'string' ? mP2.whiteboard.find(function(w) { return w && w.id === msg.wbId; }) : null;
+        if (!wP2) { ansP({ reason: 'missing' }); return; }
+        if (!wP2.isChar || wP2.charId || wP2.waiting || wP2.ownerId !== prP2.id) { ansP({ reason: 'tokowner' }); return; }
+        if (wP2.locked || wP2.hidden) { ansP({ reason: 'locked' }); return; }
+        var imP2 = typeof msg.img === 'string' && safeAvatar(msg.img) ? msg.img : ''; if (!imP2) { ansP({ reason: 'bad' }); return; }
+        if (!window.wpSheets || !window.wpSheets.applyTokenFace) { ansP({ reason: 'off' }); return; }
+        if (!allow('charpic', { perMs: 3000, burst: 2, windowMs: 30000, table: 12 }, conn.peer)) { ansP({ reason: 'slow' }); return; }   // one budget with char-pic: every picture saved on the GM's disk counted together
+        var nmP2 = wP2.charName || 'their token';
+        Promise.resolve(window.wpSheets.applyTokenFace(mP2.id, wP2.id, { kind: 'picture', data: imP2 }, true)).then(function(ok) {
+            ansP(ok ? { ok: true } : { reason: 'failed' });
+            if (ok) { var tP2 = (prP2.name || 'A player') + ' changed the picture of their token (' + nmP2 + ')'; toast(tP2 + '.'); logEvent('char', tP2); }
+        });
+        // [netcheck:tokpic-end]
     } else if (msg.type === 'my-look' && net.role === 'host') {
         // [netcheck:mylook-start]
         // Onboarding F1b: an admitted player changes their token face mid-session — cleaned, about one change a second (a burst of five), not

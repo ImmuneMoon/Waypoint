@@ -3172,6 +3172,26 @@ function copyBundled(name) {
     return Promise.all(fs2.map(function(f) { return fetch('assets/tutorial/' + f).then(function(r) { if (!r.ok) throw new Error('asset'); return r.blob(); }).then(function(b) { return uploadExact('images/tutorial/' + f, b); }); }))
         .then(function(u) { return { portrait: u[0], token: u[0] }; });
 }
+// [sinkcheck:prunepics-start]
+// Every new picture takes a fresh name (above), so each character's pictures (portrait-<id>-...) and each plain token's (token-<id>-...) are
+// kept few: the two newest files (one may still be on its way onto the token), the one it wears, the one before it, and any a campaign or a
+// step of the GM's undo still shows stay; the rest are deleted. The host's own saves folder only; a failure never fails the change. Resolves
+// to how many went
+function prunePics(prefix, keep) {
+    try {
+        if (isClient() || !/^(?:portrait|token)-[A-Za-z0-9_-]{1,40}$/.test(String(prefix))) return Promise.resolve(0);
+        var re = new RegExp('^/saves/images/portraits/' + prefix + '-[a-z0-9]{1,12}\\.png$'), hold = (Array.isArray(keep) ? keep : []).filter(function(k) { return typeof k === 'string' && k; });
+        return fetch('/api/list-images').then(function(r) { return r.ok ? r.json() : []; }).then(function(list) {
+            var mine = (Array.isArray(list) ? list : []).filter(function(im) { return im && typeof im.path === 'string' && re.test(im.path); });
+            mine.sort(function(a, b) { return (Number(b.mtime) || 0) - (Number(a.mtime) || 0); });
+            var used = JSON.stringify(state.appState || {}), refs = window.wpHist && window.wpHist.refs ? window.wpHist.refs : function() { return true; };   // no undo to ask: nothing goes
+            var go = mine.slice(2).map(function(im) { return im.path; }).filter(function(p) { var nm = p.slice(p.lastIndexOf('/') + 1); return hold.indexOf(p) < 0 && used.indexOf(nm) < 0 && !refs(nm); });
+            return Promise.all(go.map(function(p) { return fetch('/api/delete-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: p }) }).then(function(r) { return r.ok ? 1 : 0; }, function() { return 0; }); }))
+                .then(function(a) { return a.reduce(function(s, x) { return s + x; }, 0); });
+        }).catch(function() { return 0; });
+    } catch (e) { return Promise.resolve(0); }
+}
+// [sinkcheck:prunepics-end]
 // [sinkcheck:charface-start]
 function applyCharFace(charId, plan, replace) {
     var camp = getActiveCampaign(), c = charById(charId, camp); if (!camp || !c || !plan || typeof plan.kind !== 'string') return Promise.resolve(false);
@@ -3201,8 +3221,9 @@ function applyCharFace(charId, plan, replace) {
     if (plan.kind === 'face') { var fcl = net() && net().cleanFace ? net().cleanFace(plan.face) : ''; return Promise.resolve(fcl ? dress('', null, fcl) : false); }
     if (plan.kind === 'bundled') return (net() && net().FACE_PICS && net().FACE_PICS.indexOf(plan.name) >= 0 ? copyBundled(plan.name) : Promise.reject(new Error('name'))).then(function(u) { return dress(u.portrait, u.token, null); }).catch(function() { toast('That picture could not be copied.'); return false; });
     if (plan.kind === 'picture') {
-        var nmP = 'portrait-' + c.id + (/-a\.png$/.test(c.portrait || '') ? '-b' : '-a') + '.png';   // two names in turn: a change is a new address (never a stale cached picture), and a character keeps two files at most
-        return (net() && net().safeAvatar && net().safeAvatar(plan.data) ? pngOf(plan.data) : Promise.reject(new Error('picture'))).then(function(b) { return uploadExact('images/portraits/' + nmP, b); }).then(function(url) { return /^[/]saves[/]images[/]/.test(String(url)) ? dress(url, url, null) : false; }).catch(function() { toast('That picture could not be saved.'); return false; });
+        var nmP = 'portrait-' + c.id + '-' + Date.now().toString(36) + '.png', prevP = typeof c.portrait === 'string' ? c.portrait : '';   // a fresh name each time: a player's machine keeps a picture per address for the session, so a reused name would show them the old one
+        return (net() && net().safeAvatar && net().safeAvatar(plan.data) ? pngOf(plan.data) : Promise.reject(new Error('picture'))).then(function(b) { return uploadExact('images/portraits/' + nmP, b); })
+            .then(function(url) { if (!/^[/]saves[/]images[/]/.test(String(url))) return false; var okP = dress(url, url, null); if (okP) prunePics('portrait-' + c.id, [url, prevP]); return okP; }).catch(function() { toast('That picture could not be saved.'); return false; });
     }
     return Promise.resolve(false);
 }
@@ -3279,22 +3300,24 @@ function inviteMaking(pid) {
 }
 // Onboarding F3b: a plain token a player took (Just a token, no sheets): its picture from their face — a bundled one copied, their photo saved
 // as a PNG — put on it when saved (it wears the silhouette until then); never on a token that has a picture meanwhile
-function applyTokenFace(mapId, wbId, plan) {
+function applyTokenFace(mapId, wbId, plan, replace) {   // replace (the token creator: a player's new picture for their own token): over a picture it has
     var n = net(); if (isClient() || !plan || (plan.kind !== 'bundled' && plan.kind !== 'picture') || !/^[A-Za-z0-9_-]{1,40}$/.test(String(wbId))) return Promise.resolve(false);
     var camp = getActiveCampaign();
     var p = plan.kind === 'bundled' ? (n && n.FACE_PICS && n.FACE_PICS.indexOf(plan.name) >= 0 ? copyBundled(plan.name).then(function(u) { return u.token; }) : Promise.reject(new Error('name')))
-        : (n && n.safeAvatar && n.safeAvatar(plan.data) ? pngOf(plan.data).then(function(b) { return uploadExact('images/portraits/token-' + wbId + '.png', b); }) : Promise.reject(new Error('picture')));
+        : (n && n.safeAvatar && n.safeAvatar(plan.data) ? pngOf(plan.data).then(function(b) { return uploadExact('images/portraits/token-' + wbId + '-' + Date.now().toString(36) + '.png', b); }) : Promise.reject(new Error('picture')));
     return p.then(function(url) {
         var camp2 = getActiveCampaign(); if (!camp2 || camp2 !== camp || !/^[/]saves[/]images[/]/.test(String(url))) return false;
         var m = Object.prototype.hasOwnProperty.call(camp2.items, mapId) ? camp2.items[mapId] : null, w = m && Array.isArray(m.whiteboard) ? m.whiteboard.find(function(x) { return x && x.id === wbId; }) : null;
-        if (!w || !w.isChar || w.src) return false;
+        if (!w || !w.isChar || (w.src && !replace)) return false;
         if (window.wpHistFlush) window.wpHistFlush();
+        var prevT = typeof w.src === 'string' ? w.src : '';
         w.type = 'image'; w.src = url; w.color = 'transparent'; delete w.face;
         if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(w, m)) { if (window.wpSeatCell) window.wpSeatCell(w, m); else if (window.wpSeatHex) window.wpSeatHex(w, m); }   // its map's cell shape (the picture cut to it), seated in its cell
         var wasR = n ? n.applyingRemote : false; if (n) n.applyingRemote = true;   // never a step of the GM's undo
         try { save(true); } finally { if (n) n.applyingRemote = wasR; }
         if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) n.broadcastItemFiltered(camp2.id, mapId);
         if (window.appRender) window.appRender();
+        if (plan.kind === 'picture') prunePics('token-' + wbId, [url, prevT]);
         return true;
     }).catch(function() { toast('That picture could not be saved.'); return false; });
 }

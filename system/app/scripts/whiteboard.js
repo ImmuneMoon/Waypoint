@@ -1974,15 +1974,22 @@ window.wpFitToGrid = fitToGrid;
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
           });
       }
-      var sig = list.map(function(c) { return c.key + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
+      // Onboarding F3 (the GM's): by the chip's player — one of theirs waiting for Keep it, one unlocked for them, one they are making (the
+      // flagged character may be kept, with no token of its own, while the chip is the token of the one they play: the tip names it)
+      if (hosting && camp.chars) list.forEach(function(c) {
+          var hit = function(k) { var found = null; if (c.ownerId) Object.keys(camp.chars).some(function(id) { var x = camp.chars[id]; if (x && typeof x === 'object' && !x.npc && x.ownerId === c.ownerId && x[k] === 1) { found = x; return true; } return false; }); return found; };
+          var fx = hit('review'), fl = fx ? 'review' : (fx = hit('unlocked')) ? 'unlocked' : (fx = hit('making')) ? 'making' : '';
+          c.flag = fl; c.flagName = fx && typeof fx.name === 'string' ? fx.name : '';
+      });
+      var sig = list.map(function(c) { return c.key + (c.flag ? '~' + c.flag + '~' + c.flagName : '') + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
       strip.innerHTML = list.map(function(c) {
           var here = c.mapId === am.id;
           var away = atTable && c.ownerId && !present[c.ownerId];
           var pausedC = hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId);
-          var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '') + (pausedC ? ' paused' : '') + (c.waiting ? ' party-waiting' : '');
-          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.noToken ? (c.waiting ? ' \u2014 waiting for a character' : ' \u2014 no token yet') : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
+          var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '') + (pausedC ? ' paused' : '') + (c.waiting ? ' party-waiting' : '') + (c.flag ? ' party-' + c.flag : '');
+          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.flag === 'making' ? ' \u2014 making ' + (c.flagName || 'a character') : c.flag === 'review' ? ' \u2014 ' + (c.flagName || 'a character') + ' is new: review it on its sheet' : c.flag === 'unlocked' ? ' \u2014 ' + (c.flagName || 'a character') + ' is unlocked for its player' : '') + (c.noToken ? (c.waiting ? ' \u2014 waiting for a character' : ' \u2014 no token yet') : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
           if (c.emoji) return '<span class="' + cls + ' party-face party-emoji" data-key="' + esc(c.key) + '" data-tip="' + esc(tip) + '">' + esc(c.emoji) + '</span>';   // Onboarding F1b: an emoji face (pictographic only, net.js cleanFace)
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
@@ -1995,17 +2002,42 @@ window.wpFitToGrid = fitToGrid;
   window.wpWaitingGone = function(items) { (items || []).forEach(function(x) { if (x && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); }); };
   // Onboarding F1a: the join card (index.html #joinCard) — status only for now (text through textContent)
   (function() {
-      var had = false, dismissed = false;
+      var had = '', dismissed = false;
       function mine() { var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !window.wpSystemCore || !window.wpSystemCore.waitingTokensOf) return null; return window.wpSystemCore.waitingTokensOf(camp, n.myId)[0] || null; }
-      function text(t) { var st = document.getElementById('joinCardStatus'), camp = getActiveCampaign(), m = camp && camp.items[t.mapId]; if (st) st.textContent = 'You don\u2019t have a character yet. Your token is waiting on ' + ((m && m.meta && m.meta.title) || 'the map') + ' \u2014 move it about; your GM will give you a character.'; }
-      function show() { var card = document.getElementById('joinCard'), t = mine(); if (!card) return; if (!t) { card.style.display = 'none'; return; } text(t); dismissed = false; card.style.display = ''; }   // their right-click: always
-      function check() {
-          var t = mine(), card = document.getElementById('joinCard'); if (!card) return;
-          if (!t) { card.style.display = 'none'; had = false; dismissed = false; return; }   // no waiting token (a character, or none given): the next one shows the card again
-          text(t);   // the map it waits on, kept current
-          if (!had) { had = true; if (!dismissed) card.style.display = ''; }
+      // Onboarding F3: the character they are making (their own copy), and whether making one is open to them here (the GM's rules)
+      function making() { var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !camp.chars) return null; var id = Object.keys(camp.chars).find(function(k) { var c = camp.chars[k]; return c && c.ownerId === n.myId && !c.partial && c.making === 1; }); return id ? camp.chars[id] : null; }
+      function canMake() { var camp = getActiveCampaign(), S = window.wpSystemCore; if (!camp || !camp.system || !S || !S.newCharRules || !window.wpSheets || !window.wpSheets.startMaking) return false; var on = !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false; return S.newCharRules(camp, on).create === 'live'; }
+      // Onboarding F3: with no waiting token (the GM's rule gives none, or removed theirs) a player who has no character of theirs and no token
+      // may still make one; the card then shows by itself only where the rule gives no waiting token (a Remove never brings it back unasked)
+      function bare() {
+          var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !canMake()) return false;
+          var cs = camp.chars || {}; if (Object.keys(cs).some(function(k) { var c = cs[k]; return c && c.ownerId === n.myId && !c.partial && !c.npc; })) return false;
+          return !Object.keys(camp.items || {}).some(function(id) { var m = camp.items[id]; return m && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return w && w.isChar && w.ownerId === n.myId; }); });
       }
-      window.wpJoinCard = { show: show, check: check };
+      function bareAuto() { var camp = getActiveCampaign(), S = window.wpSystemCore; return !!(camp && S && S.newPlayerRules && S.newPlayerRules(camp).token === 'off'); }
+      function text(t, mk) {
+          var st = document.getElementById('joinCardStatus'), camp = getActiveCampaign(), m = t && camp && camp.items[t.mapId], mkOk = !mk && canMake();
+          if (st) st.textContent = mk ? 'You are making ' + mk.name + ' \u2014 open it to fill it in, then press Done on its sheet.' : !t ? 'You don\u2019t have a character yet \u2014 ' + (mkOk ? 'make one, or wait for your GM to give you one.' : 'your GM will give you one.') : 'You don\u2019t have a character yet. Your token is waiting on ' + ((m && m.meta && m.meta.title) || 'the map') + ' \u2014 move it about; ' + (mkOk ? 'make a character, or wait for your GM to give you one.' : 'your GM will give you a character.');
+          var bm = document.getElementById('joinCardMake'), bo = document.getElementById('joinCardOpen'), bf = document.getElementById('joinCardFaceBtn');
+          if (bm) bm.style.display = mkOk ? '' : 'none';
+          if (bo) { bo.style.display = mk ? '' : 'none'; if (mk) bo.textContent = 'Open ' + mk.name; }
+          if (bf) bf.style.display = t ? '' : 'none';   // its face is the waiting token's
+      }
+      function has() { return !!(mine() || making() || bare()); }
+      function show() { var card = document.getElementById('joinCard'), t = mine(), mk = making(); if (!card) return; if (!t && !mk && !bare()) { card.style.display = 'none'; return; } text(t, mk); dismissed = false; card.style.display = ''; }   // their right-click or their chip's menu: always
+      function check() {
+          var t = mine(), mk = making(), card = document.getElementById('joinCard'); if (!card) return;
+          var key = mk ? 'm:' + mk.id : t ? 'w' : bare() ? 'n' : '';
+          if (!key) { card.style.display = 'none'; had = ''; dismissed = false; return; }   // nothing waiting, nothing being made, nothing to make: the next one shows the card again
+          text(t, mk);   // the map it waits on, the name it is made under, kept current
+          if (had !== key) { had = key; dismissed = false; if (key !== 'n' || bareAuto()) card.style.display = ''; }
+      }
+      window.wpJoinCard = { show: show, check: check, has: has };
+      document.addEventListener('click', function(e) {
+          var tg = e.target; if (!tg || !tg.closest) return;
+          if (tg.closest('#joinCardMake')) { if (window.wpSheets && window.wpSheets.startMaking) window.wpSheets.startMaking(); return; }
+          if (tg.closest('#joinCardOpen')) { var mk = making(); if (mk && window.wpSheets && window.wpSheets.openSheet) window.wpSheets.openSheet(mk.id); }
+      });
       document.addEventListener('click', function(e) { if (e.target.closest && e.target.closest('#joinCardClose')) { var card = document.getElementById('joinCard'); if (card) card.style.display = 'none'; dismissed = true; } });
   })();
   // Onboarding F1a: a player's waiting token, for their chip ('p:' key) — { map, tok } or null
@@ -2170,6 +2202,7 @@ window.wpFitToGrid = fitToGrid;
           if (loc && loc.tok && loc.tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(loc.tok.charId)) items.push({ act: 'hud', label: '\u3030 HUD\u2026' });   // HUD frame (HF2b)
           if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', label: '\uD83C\uDFAD Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
           if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
+          if (isClientM && ownerId && ownerId === window.wpNet.myId && window.wpJoinCard && window.wpJoinCard.has && window.wpJoinCard.has()) items.push({ act: 'joinCard', label: '\uD83D\uDC64 My character\u2026' });   // Onboarding F3: their own card again (a waiting token, one they are making, or one to make)
           fillPartyMenu(items, key);
           menu.classList.add('show');
           window.wpClampMenu(menu, cx, cy);
@@ -2187,7 +2220,7 @@ window.wpFitToGrid = fitToGrid;
           var S = window.wpSystemCore; if (!S || !S.activeCharOf || !camp || !camp.chars) return [];
           var act = S.activeCharOf(camp, pid).id, names = {}, out = [];
           Object.keys(camp.players || {}).forEach(function(k) { var r = camp.players[k]; if (r && typeof r.name === 'string') names[k] = r.name; });
-          var cs = Object.keys(camp.chars).map(function(k) { return camp.chars[k]; }).filter(function(c) { return c && typeof c === 'object' && !c.npc && !c.draft; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
+          var cs = Object.keys(camp.chars).map(function(k) { return camp.chars[k]; }).filter(function(c) { return c && typeof c === 'object' && !c.npc && c.making !== 1; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
           var live = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(pid));
           cs.forEach(function(c) { if (c.ownerId !== pid) return; if (c.id !== act) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' (theirs, kept) \u2014 play it now' }); else if (live) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' (plays) \u2014 put its token on their map' }); });   // putting it back needs them at the table
           cs.forEach(function(c) { if (!c.ownerId) out.push({ act: 'giveTo', cid: c.id, label: c.name }); });
@@ -2218,6 +2251,7 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'waitRemove') { if (window.wpNet.removeWaiting && window.wpNet.removeWaiting(key.slice(2))) toast('Waiting token removed for this session \u2014 Give a character\u2026 still works.'); }
           else if (act === 'pausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), true); }
           else if (act === 'unpausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), false); }
+          else if (act === 'joinCard') { if (window.wpJoinCard) window.wpJoinCard.show(); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
           else if (act === 'sheet') { var campS = getActiveCampaign(), locS = locateCharacter(campS, key, campS && campS.activeItemId); if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
           else if (act === 'hud') { var campH = getActiveCampaign(), locH = locateCharacter(campH, key, campH && campH.activeItemId); if (locH && locH.tok && locH.tok.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(locH.tok.charId); }   // HUD frame (HF2b)

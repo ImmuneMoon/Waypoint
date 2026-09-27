@@ -130,7 +130,7 @@ function syncRoleLabels() {
 function syncChars() {
     var s = ui('diceChar'); if (!s) return;
     var sh = window.wpSheets, list = sh && sh.charList ? sh.charList() : [], n = net(), me = n ? n.myId : null;
-    if (isClient()) list = list.filter(function(c) { return c.ownerId && c.ownerId === me && !c.partial && !c.npc; });
+    if (isClient()) list = list.filter(function(c) { return c.ownerId && c.ownerId === me && !c.partial && !c.npc && c.making !== 1; });   // Onboarding F3: not one still in the making
     var was = s.value; s.textContent = '';
     var none = el('option', null, 'No character'); none.value = ''; s.appendChild(none);
     list.forEach(function(c) { var o = el('option', null, c.name + (c.npc ? ' (NPC)' : '')); o.value = c.id; s.appendChild(o); });

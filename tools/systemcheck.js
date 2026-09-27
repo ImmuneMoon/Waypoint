@@ -358,7 +358,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sh5 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
         const hb5 = sh5.slice(sh5.indexOf('function headerBlocks('), sh5.indexOf('function buildSections('));
         check('Stage 5g: a ledger number is a live box only for whoever may edit it (the section\'s own rule, never on another player\'s copy or an error) and commits like the section\'s; the portrait comes through imgSrc; nothing reaches innerHTML',
-            /if \(ledger && f\.kind === 'number' && !f\.labels && !en\.error && !c\.partial && \(gm \|\| \(own && f\.edit === 'owner' && f\.vis === 'all'\)\)\)[\s\S]{0,900}?inp\.addEventListener\('change', function\(\) \{ commit\(c, f, Number\(inp\.value\)\); \}\);/.test(hb5)
+            /if \(ledger && f\.kind === 'number' && !f\.labels && !en\.error && !c\.partial && \(gm \|\| \(own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)\)\)\)[\s\S]{0,900}?inp\.addEventListener\('change', function\(\) \{ commit\(c, f, Number\(inp\.value\)\); \}\);/.test(hb5)
             && /inp\.dataset\.part = 'hdr';/.test(hb5) && /im\.src = imgSrc\(c\.portrait\);/.test(hb5) && !/innerHTML/.test(hb5) && /block\(sh\.identity, 'sheet-identity', 'sheet-identity-item', false\);/.test(hb5));
         check('Stage 5g: the head and the frame take the sheet look\'s colours through --sheet-ink/--sheet-bg, removed again when the look has none; the accent is a variable set only when the look has one',
             /pair = !!\(style && HEXC\.test\(style\.textColor \|\| ''\) && HEXC\.test\(style\.bgColor \|\| ''\)\);\s*if \(pair\) \{ node\.style\.setProperty\('--sheet-ink', style\.textColor\); node\.style\.setProperty\('--sheet-bg', style\.bgColor\);[\s\S]{0,200}?else \{ node\.style\.removeProperty\('--sheet-ink'\); node\.style\.removeProperty\('--sheet-bg'\); node\.style\.removeProperty\('--sheet-dim'\); \}/.test(sh5)
@@ -1980,14 +1980,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                      c_b: { id: 'c_b', name: 'Mira', ownerId: 'u_b', npc: false, values: {}, updated: 1 }, c_n: { id: 'c_n', name: 'Guard', ownerId: '', npc: true, values: {}, updated: 1 } },
             players: { u_a: { name: 'Alice', charName: 'Brakka', lastMap: 'm1' }, u_b: { name: 'Bob' } },
             items: { m1: { id: 'm1', type: 'map', whiteboard: [] }, m2: { id: 'm2', type: 'map', whiteboard: [] }, d1: { id: 'd1', type: 'doc' } } });
-        // activeCharOf: the record, the only one, the guess (old name, then a token on their last map, then the most recent); NPCs and drafts never
+        // activeCharOf: the record, the only one, the guess (old name, then a token on their last map, then the most recent); NPCs and ones in the making never
         const a1 = base(); a1.players.u_a.charId = 'c_w';
         const a2 = base(); a2.players.u_a.charId = 'c_b';   // names another player's character: not theirs
         const a3 = base(); delete a3.players.u_a.charName; a3.items.m1.whiteboard.push(tok('t1', { charId: 'c_a', ownerId: 'u_a' }));
         const a4 = base(); delete a4.players.u_a.charName;
-        const a5 = base(); a5.chars.c_a.draft = true; a5.chars.c_w.npc = true;
+        const a5 = base(); a5.chars.c_a.making = 1; a5.chars.c_w.npc = true;
         const r = [S.activeCharOf(a1, 'u_a'), S.activeCharOf(a2, 'u_a'), S.activeCharOf(a3, 'u_a'), S.activeCharOf(a4, 'u_a'), S.activeCharOf(base(), 'u_b'), S.activeCharOf(a5, 'u_a'), S.activeCharOf(base(), 'u_z'), S.activeCharOf(base(), '__proto__')];
-        check('onboarding F0: activeCharOf — the record when it still names one of theirs; else their only one; else a guess (their old name, then a token they hold on their last map, then the most recently changed); never an NPC, a draft or another player\'s; nobody for a player with none',
+        check('onboarding F0: activeCharOf — the record when it still names one of theirs; else their only one; else a guess (their old name, then a token they hold on their last map, then the most recently changed); never an NPC, one in the making or another player\'s; nobody for a player with none',
             j(r) === j([{ id: 'c_w', how: 'record' }, { id: 'c_a', how: 'guess' }, { id: 'c_a', how: 'guess' }, { id: 'c_w', how: 'guess' }, { id: 'c_b', how: 'only' }, { id: null, how: 'none' }, { id: null, how: 'none' }, { id: null, how: 'none' }]), j(r));
         // ownedTokenPlan: one owned token per character per map, only for the character in play; keep, then already held, then topmost
         const p1 = base(); p1.players.u_a.charId = 'c_a';
@@ -3354,7 +3354,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('look L3: validateSystem warns when a field the header edits is also placed in a section (and only then)', vw.length === 1 && vw[0].id === 'f_t' && /edited in the header and placed again in Details/.test(vw[0].message), j(vw));
         const sh3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), hb3 = sh3.slice(sh3.indexOf('function headerBlocks('), sh3.indexOf('function buildSections(')), idn = sh3.slice(sh3.indexOf('function idnControl('), sh3.indexOf('function accentInk('));
         check('look L3: the header edits a row in place only for whoever may edit the field (the section\'s rule, never on a teammate\'s copy) and never on an error, after the ledger branch; every control is data-part "idn" and goes through commit; nothing in the header uses innerHTML',
-            idn.length > 0 && hb3.indexOf('function idnControl(') > 0 && !/innerHTML/.test(hb3) && /var idnOk = function\(f\) \{ return !c\.partial && \(gm \|\| \(own && f\.edit === 'owner' && f\.vis === 'all'\)\); \};/.test(hb3)
+            idn.length > 0 && hb3.indexOf('function idnControl(') > 0 && !/innerHTML/.test(hb3) && /var idnOk = function\(f\) \{ return !c\.partial && \(gm \|\| \(own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)\)\); \};/.test(hb3)
             && /it\.appendChild\(ed\); box\.appendChild\(it\); return;\s*\n\s*\}\s*\n\s*if \(!ledger && IDN_EDIT\[f\.kind\] === 1 && !en\.error && idnOk\(f\)\) \{ it\.appendChild\(idnControl\(f, c, all\[f\.id\], tone\)\);/.test(hb3)
             && /ctl\.dataset\.fid = f\.id; ctl\.dataset\.part = 'idn';/.test(idn) && (idn.match(/commit\(c, f, /g) || []).length === 5);
         const css3 = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), tut3 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
@@ -5054,6 +5054,161 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /^  #sheetPrint \{ position: absolute; left: -30000px; top: 0; visibility: hidden; pointer-events: none;/m.test(cssP) && /body\.print-sheet #sheetPrint \{ display: block !important; position: relative !important; left: auto !important; visibility: visible !important;/.test(cssP)
             && /\.sheet-print-text \{ display: block; white-space: pre-wrap; overflow-wrap: anywhere;/.test(cssP) && /#sheetPrint \.sheet-section, #sheetPrint \.sheet-item, #sheetPrint tr, #sheetPrint \.sheet-field \{ break-inside: avoid; \}/.test(cssP) && /#sheetPrint \.sheet-items-table \{ overflow: visible !important; \}/.test(cssP) && /#sheetPrint \.sheet-hdr-val \{ white-space: pre-wrap; overflow: visible; text-overflow: clip; \}/.test(cssP) && /#sheetPrint input\.field, #sheetPrint select\.field, #sheetPrint textarea\.field/.test(cssP) && /#popoutBody\.sheet-view \.field, #sheetPrint \.field \{ margin-bottom: 0; \}/.test(cssP) && /#sheetPrintBody:has\(> \.sheet-frame\)/.test(cssP) && /#sheetPrint \.sheet-idn-edit \.field/.test(cssP) && /#sheetPrint \.sheet-hdr-edit input\.field/.test(cssP));
         check('F2b Help and the tour say it', /<b>Print or save as PDF<\/b>: the sheet exactly as it shows/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')) && /or prints it exactly as it shows \(every tab in turn\)/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')));
+    }
+
+    /* ---- Onboarding F3a: a character a player makes ---- */
+    {
+        const sysF = cleanSystem({ v: 1, name: 'F3', rolls: [], fields: [
+            { id: 'f_own', key: 'Own', label: 'Own', kind: 'number', edit: 'owner', vis: 'all', hover: true },
+            { id: 'f_lvl', key: 'Lvl', label: 'Lvl', kind: 'number', edit: 'gm', vis: 'all' },
+            { id: 'f_sec', key: 'Sec', label: 'Sec', kind: 'number', edit: 'owner', vis: 'gm' },
+            { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', edit: 'gm', vis: 'all', max: '10' },
+            { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'gm', vis: 'all' },
+            { id: 'f_go', key: 'Pack', label: 'Pack', kind: 'item-list', edit: 'owner', vis: 'all' },
+            { id: 'f_fx', key: 'Fx', label: 'Fx', kind: 'effects', edit: 'gm', vis: 'all' }],
+            items: [{ id: 'i_ring', name: 'Ring', rm: 'bound' }, { id: 'i_rope', name: 'Rope' }], effects: [{ id: 'e_rage', name: 'Rage' }] }, { F, gmView: true });
+        const pvF = cleanSystem(sysF, { F, gmView: false }), PF = { player: true, view: pvF };
+        const chF = st => Object.assign({ id: 'c_f', name: 'Vex', ownerId: 'u_p', values: { f_own: 1, f_lvl: 2, f_sec: 3, f_g: [], f_go: [{ id: 'w_r', defId: 'i_ring', qty: 1 }] } }, st || {});
+        check('F3a LIMITS.makingMax is 12; openChar reads making before unlocked, anything else (true, a string, none) as closed',
+            LIMITS.makingMax === 12 && S.openChar(chF({ making: 1 })) === 'making' && S.openChar(chF({ unlocked: 1 })) === 'unlocked' && S.openChar(chF({ making: 1, unlocked: 1 })) === 'making'
+            && S.openChar(chF({ making: true })) === '' && S.openChar(chF({ unlocked: '1' })) === '' && S.openChar(chF()) === '' && S.openChar(null) === '');
+        const raw = chF({ making: true, unlocked: 1, review: true, made: 1 }), cN = cleanChar(raw, sysF), cO = cleanChar(raw, sysF, { state: 'owner' }), cH = cleanChar(raw, sysF, { state: 'host' });
+        const cU = cleanChar(chF({ unlocked: true, review: 1 }), sysF, { state: 'host' }), cNo = cleanChar(Object.assign(chF({ making: 1, review: 1, made: 1 }), { ownerId: '' }), sysF, { state: 'host' });
+        const cPart = cleanChar(Object.assign(chF({ making: 1 }), { partial: true, lines: [] }), sysF, { state: 'owner' });
+        check('F3a cleanChar: the state keys go only where the caller keeps state — none by default (a wire copy, an import cleaned bare); a player\'s own copy keeps making or unlocked (making wins), never the GM\'s review or made mark; the GM\'s load keeps all four (true read as 1); an unowned character or a teammate\'s partial copy keeps none',
+            [cN.making, cN.unlocked, cN.review, cN.made].every(v => v === undefined) && cO.making === 1 && cO.unlocked === undefined && cO.review === undefined && cO.made === undefined
+            && cH.making === 1 && cH.unlocked === undefined && cH.review === 1 && cH.made === 1 && cU.unlocked === 1 && cU.review === 1 && cU.making === undefined
+            && [cNo.making, cNo.review, cNo.made].every(v => v === undefined) && cPart.making === undefined, j([cN, cO, cH, cU, cNo]));
+        const mk = chF({ making: 1, review: 1, made: 1 }), ul = chF({ unlocked: 1, review: 1, made: 1 });
+        const vOwn = charFor(mk, sysF, 'u_p'), vOther = charFor(mk, sysF, 'u_q'), vProbe = charFor(mk, sysF, 'u_p', { probe: true }), uOwn = charFor(ul, sysF, 'u_p'), uOther = charFor(ul, sysF, 'u_q');
+        check('F3a charFor: a character in the making is its owner\'s alone — no copy for anyone else (not even hover lines); the owner\'s copy says making, the probe (which fields a delta may carry) does not; an unlocked one reaches teammates as ever, its unlocked mark to its owner only; review and made never leave the host',
+            vOwn && vOwn.making === 1 && vOther === null && vProbe && vProbe.making === undefined && uOwn && uOwn.unlocked === 1 && uOther && uOther.partial === true && uOther.unlocked === undefined
+            && [vOwn, uOwn, uOther].every(v => v.review === undefined && v.made === undefined), j([vOwn, vOther, uOwn, uOther]));
+        const ed = (c, fid, v) => S.applyEdit(sysF, c, fid, v, F, PF);
+        check('F3a applyEdit (the owner\'s rights, owner D3 = a): a GM-set field refuses its player on a finished character, and takes their value while it is in the making or unlocked; a GM-only field refuses them either way; the GM is unchanged',
+            ed(chF(), 'f_lvl', 5).reason === 'field' && ed(chF({ making: 1 }), 'f_lvl', 5).ok && ed(chF({ unlocked: 1 }), 'f_lvl', 5).ok && ed(chF({ making: 1 }), 'f_sec', 5).reason === 'field' && ed(chF({ unlocked: 1 }), 'f_sec', 5).reason === 'field'
+            && ed(chF(), 'f_own', 5).ok && S.applyEdit(sysF, chF(), 'f_lvl', 5, F, {}).ok);
+        const ro = (c, fid, q) => S.applyRowOp(sysF, c, fid, q, F, PF);
+        const rP = ro(chF(), 'f_g', { op: 'add', defId: 'i_rope' }), rM = ro(chF({ making: 1 }), 'f_g', { op: 'add', defId: 'i_ring', rowId: 'w_n1' }), rU = ro(chF({ unlocked: 1 }), 'f_g', { op: 'add', defId: 'i_ring', rowId: 'w_n1' });
+        const dM = ro(chF({ making: 1 }), 'f_go', { op: 'remove', rowId: 'w_r' }), dU = ro(chF({ unlocked: 1 }), 'f_go', { op: 'remove', rowId: 'w_r' }), dP = ro(chF(), 'f_go', { op: 'remove', rowId: 'w_r' });
+        check('F3a applyRowOp: a GM-edit list refuses its player on a finished character and opens in the making or unlocked; in the making a bound item is no lock and no pickup notice (it is not in play yet), unlocked it is both (owner: field rights only)',
+            rP.reason === 'field' && rM.ok && rM.note === undefined && rU.ok && rU.note === 'bound' && dM.ok && !dU.ok && !dP.ok && dU.reason === dP.reason, j([rP, rM, rU, dM, dU, dP]));
+        const fo = (c, q) => S.applyEffectOp(sysF, c, 'f_fx', q, F, PF);
+        check('F3a applyEffectOp: a GM-edit effects list opens to its player in the making or unlocked, not on a finished character',
+            fo(chF(), { op: 'add', rowId: 'x_1', ref: 'e_rage' }).reason === 'field' && fo(chF({ making: 1 }), { op: 'add', rowId: 'x_1', ref: 'e_rage' }).ok && fo(chF({ unlocked: 1 }), { op: 'add', rowId: 'x_1', ref: 'e_rage' }).ok);
+        const secF = { fields: [{ id: 'f_hp' }] }, rtP = S.resetTargets(sysF, chF(), secF, F, { own: true }), rtM = S.resetTargets(sysF, chF({ making: 1 }), secF, F, { own: true }), rtU = S.resetTargets(sysF, chF({ unlocked: 1 }), secF, F, { own: true });
+        check('F3a resetTargets: a GM-set pool resets for its owner only while the character is in the making or unlocked', rtP.allowed === 0 && rtM.allowed === 1 && rtU.allowed === 1, j([rtP, rtM, rtU]));
+        const cmp = (c, sheets) => j(S.newCharRules(c, sheets));
+        check('F3a newCharRules (owner: Just a token follows making): live by default (from a file too, just a token too); invite: no just-a-token; off: neither a file nor just a token; fromFile false keeps making live without a file; sheets off or no system: making off, just a token always',
+            cmp({ system: sysF }, true) === j({ create: 'live', fromFile: true, justToken: true }) && cmp({ system: sysF, newPlayers: { create: 'invite' } }, true) === j({ create: 'invite', fromFile: true, justToken: false })
+            && cmp({ system: sysF, newPlayers: { create: 'off' } }, true) === j({ create: 'off', fromFile: false, justToken: false }) && cmp({ system: sysF, newPlayers: { fromFile: false } }, true) === j({ create: 'live', fromFile: false, justToken: true })
+            && cmp({ system: sysF, newPlayers: { create: 'invite' } }, false) === j({ create: 'off', fromFile: false, justToken: true }) && cmp({}, true) === j({ create: 'off', fromFile: false, justToken: true }) && cmp(null, true) === j({ create: 'off', fromFile: false, justToken: true })
+            && cmp({ system: sysF, newPlayers: { create: 'live!' } }, true) === j({ create: 'live', fromFile: true, justToken: true }));
+        check('F3a cleanNewPlayers keeps create (invite, off) and fromFile false beside token and sight, drops anything else, and stays null at the defaults',
+            j(S.cleanNewPlayers({ token: 'off', create: 'invite', fromFile: false, sight: true })) === j({ token: 'off', sight: true, create: 'invite', fromFile: false }) && S.cleanNewPlayers({ create: 'live', fromFile: true }) === null
+            && S.cleanNewPlayers({ create: 'OFF', fromFile: 0, x: 1 }) === null && j(S.cleanNewPlayers({ create: 'off' })) === j({ create: 'off' }));
+        const campC = { chars: { c_a: { id: 'c_a', name: 'Vex' }, c_b: { id: 'c_b', name: '  vex ' }, c_c: { id: 'c_c', name: 'Ada' } },
+            items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't1', isChar: true, charName: 'VEX' }, { id: 't2', isChar: true, charName: 'Ada', charId: 'c_c' }, { id: 't3', charName: 'Bo' }], rooms: [{ id: 'r1', characters: [{ id: 'rc1', name: 'ada' }] }] } } };
+        check('F3a charClash (owner: the same name is allowed; the GM is told): another character (case and spaces aside), a token bound by name (not one bound by id, not a non-token), a room\'s character; never the character itself; nothing for an empty name',
+            j(S.charClash(campC, 'vex', 'c_a')) === j(['character', 'token']) && j(S.charClash(campC, 'Ada', 'c_c')) === j(['room']) && j(S.charClash(campC, 'Bo', 'c_x')) === j([]) && j(S.charClash(campC, ' ', 'c_x')) === j([])
+            && j(S.charClash(campC, 'Vex', 'c_x')) === j(['character', 'token']) && j(S.charClash(null, 'Vex')) === j([]));
+        const campP = { players: { u_p: {} }, chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_p', making: 1 }, c_g: { id: 'c_g', name: 'Gil', ownerId: 'u_q' } }, items: {} };
+        check('F3a a character in the making is not in play: not among its player\'s playable characters, so they have none in play (and a GM\'s give meanwhile is)',
+            S.playableChars(campP, 'u_p').length === 0 && S.activeCharOf(campP, 'u_p').id === null && S.activeCharOf(Object.assign({}, campP, { chars: Object.assign({}, campP.chars, { c_k: { id: 'c_k', name: 'Kit', ownerId: 'u_p' } }) }), 'u_p').id === 'c_k');
+        const campT = made => ({ players: { u_p: {} }, chars: { c_v: Object.assign({ id: 'c_v', name: 'Vex', ownerId: 'u_p' }, made ? { made: 1 } : {}) }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tv', isChar: true, charName: 'Vex' }, { id: 'tm', isChar: true, charName: 'Vex', ownerId: 'u_p' }] } } });
+        const campT2 = made => { const c = campT(made); c.items.m1.whiteboard.pop(); return c; };
+        check('F3a tokenSourceFor: a character its player made never takes a GM\'s unowned token by its name (owner: same names allowed) — it gets one of its own; their own token of that name is still linked; a GM\'s character still links the namesake',
+            S.tokenSourceFor(campT2(true), 'u_p', 'm1').op === 'spawn' && S.tokenSourceFor(campT2(false), 'u_p', 'm1').op === 'link' && S.tokenSourceFor(campT(true), 'u_p', 'm1').tok.id === 'tm');
+        const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), wbF = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL);
+        const gvF = shF.slice(shF.indexOf('function giveCharacter('), shF.indexOf('function spotOnPlayersMap('));
+        check('F3a sheets.js: a new owner gets a finished, locked character (the four marks go when the owner changes); rolls and applies wait until it is finished; the owner edits every field they can see while it is open (the three places); a deleted one in the making is gone from its player alone',
+            /var prev = c\.ownerId \|\| '', was = [^\n]*\n\s*if \(prev !== pid\) \{ delete c\.making; delete c\.unlocked; delete c\.review; delete c\.made; \}/.test(gvF)
+            && (shF.match(/return !!\(c\.ownerId && c\.ownerId === myId\(\) && !c\.partial && !c\.npc && c\.making !== 1\);/g) || []).length === 2
+            && (shF.match(/own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)/g) || []).length === 3 && !/own && f\.edit === 'owner' && f\.vis === 'all'/.test(shF)
+            && /n\.syncCharGone\(id, c\.making === 1 \? prev : ''\);/.test(shF));
+        const rmF = shF.slice(shF.indexOf('function removeMade('), shF.indexOf('/* ---------- Onboarding F2a'));
+        check('F3a removeMade (the GM\'s Remove): the spot of its token on its player\'s map first, every token of it goes (a non-token loses the link), the name unbound (a name its player chose, even on a token they still hold), an undo barrier on those maps, saved, the maps pushed, gone from everyone, its player told, a waiting token allowed again and placed where it stood',
+            /spot = pid \? tokenSpotOf\(camp, pid, id\) : null/.test(rmF) && /return !\(w && w\.isChar && w\.charId === id\);/.test(rmF) && /if \(w && w\.charId === id\) delete w\.charId;/.test(rmF) && /if \(pid\) \{ unbindStale\(camp, pid, c\); unbindMade\(camp, pid, c\.name\); syncOwners\(camp\); \}/.test(rmF)
+            && /if \(maps\.length && window\.wpHistBarrier\) window\.wpHistBarrier\(maps\);\s*[^\n]*\n\s*save\(true\);/.test(rmF) && /n\.pushItems\(maps\); n\.syncCharGone\(id\); if \(n\.charReview\) n\.charReview\(pid, id, c\.name, 'removed', note\);/.test(rmF)
+            && /n\.allowWaiting\(pid\);/.test(rmF) && /n\.reconcilePresence\(pid, \{ near: spot \}\);/.test(rmF) && rmF.indexOf('tokenSpotOf') < rmF.indexOf('m.whiteboard = m.whiteboard.filter') && !/innerHTML/.test(rmF));
+        const rvS = shF.slice(shF.indexOf('function keepMade('), shF.indexOf('function removeMadeAsk('));
+        const rvRun = (chars, act, id, answer) => {
+            const camp = { chars }, sent = [], prompts = [], changed = [], nR = { charReview: (...a) => sent.push(a), logEvent: () => {} };
+            const f = new Function('getActiveCampaign', 'charById', 'isClient', 'save', 'net', 'renderSheet', 'window', 'showPrompt', 'afterCharChange', 'playerNames', rvS + '\nreturn { keepMade: keepMade, sendBackMade: sendBackMade, unlockChar: unlockChar };')(
+                () => camp, (i, cp) => (cp || camp).chars[i], () => false, () => changed.push('save'), () => nR, () => {}, {}, (q, d, cb) => { prompts.push(q); cb(answer); }, (c, whole) => changed.push(['sync', c.id, !!whole]), () => ({ u_a: 'Ana' }));
+            f[act](id); return { c: chars[id], sent, prompts, changed };
+        };
+        const rvC = x => ({ c_m: Object.assign({ id: 'c_m', name: 'Vex', ownerId: 'u_a' }, x) });
+        const rvK = rvRun(rvC({ made: 1, review: 1 }), 'keepMade', 'c_m'), rvB = rvRun(rvC({ made: 1, review: 1 }), 'sendBackMade', 'c_m', 'Fix ST'), rvBx = rvRun(rvC({ made: 1, review: 1 }), 'sendBackMade', 'c_m', null);
+        const rvL = rvRun(rvC({ unlocked: 1 }), 'unlockChar', 'c_m'), rvU = rvRun(rvC({}), 'unlockChar', 'c_m', ''), rvMk = rvRun(rvC({ making: 1, made: 1 }), 'unlockChar', 'c_m', '');
+        check('F3a the GM\'s review actions (run for real): Keep it drops the review mark only (saved, nothing sent); Send back drops it, unlocks, syncs the whole character and tells its player with the note (a cancel changes nothing); Lock on an unlocked one locks at once and tells its player; Unlock on a finished one is Send back; nothing on one in the making',
+            j(rvK.c) === j({ id: 'c_m', name: 'Vex', ownerId: 'u_a', made: 1 }) && j(rvK.changed) === j(['save']) && rvK.sent.length === 0
+            && !('review' in rvB.c) && rvB.c.unlocked === 1 && j(rvB.changed) === j([['sync', 'c_m', true]]) && j(rvB.sent) === j([['u_a', 'c_m', 'Vex', 'back', 'Fix ST']]) && rvBx.c.review === 1 && !('unlocked' in rvBx.c) && rvBx.sent.length === 0
+            && !('unlocked' in rvL.c) && rvL.prompts.length === 0 && j(rvL.changed) === j([['sync', 'c_m', true]]) && j(rvL.sent) === j([['u_a', 'c_m', 'Vex', 'locked', '']])
+            && rvU.c.unlocked === 1 && rvU.prompts.length === 1 && j(rvU.sent) === j([['u_a', 'c_m', 'Vex', 'back', '']]) && rvMk.c.making === 1 && !('unlocked' in rvMk.c) && rvMk.prompts.length === 0 && rvMk.sent.length === 0, j([rvK, rvB, rvL, rvU, rvMk]));
+        const ubLine = shF.slice(shF.indexOf('function unbindMade('), shF.indexOf('\n', shF.indexOf('function unbindMade(')));
+        const campUb = { players: { u_p: { charName: 'Strahd' } }, chars: {}, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tp', isChar: true, charName: 'Strahd', ownerId: 'u_p' }] }, m2: { id: 'm2', type: 'map', whiteboard: [{ id: 'tg', isChar: true, charName: 'Strahd' }] } } };
+        const beforeUb = S.tokenSourceFor(campUb, 'u_p', 'm2').op;
+        new Function('playerRecOf', ubLine + '\nreturn unbindMade;')((camp, pid) => camp.players[pid])(campUb, 'u_p', 'Strahd');
+        check('F3a a name its player chose never binds them to a GM\'s token once that character is gone from them (deleted, removed or given away), even while they hold a token of that name: the record forgets it (a GM\'s namesake elsewhere is no longer adopted)',
+            beforeUb === 'adopt' && !('charName' in campUb.players.u_p) && S.tokenSourceFor(campUb, 'u_p', 'm2').op === 'none' && S.tokenSourceFor(campUb, 'u_p', 'm1').op === 'keep'
+            && /if \(prev\) \{ unbindStale\(camp, prev, c\); if \(c\.made === 1\) unbindMade\(camp, prev, c\.name\); syncOwners\(camp\);/.test(shF) && /if \(prev && prev !== pid\) \{ unbindStale\(camp, prev, c\); if \(wasMade\) unbindMade\(camp, prev, c\.name\); \}/.test(gvF) && /wasMade = c\.made === 1;\n\s*if \(prev !== pid\) \{ delete c\.making;/.test(gvF));
+        const sysMk = cleanSystem({ v: 1, name: 'Mk', rolls: [], fields: [{ id: 'f_w', key: 'Worn', label: 'Worn', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', def: true }, multi: true } }],
+            items: [{ id: 'i_ring', name: 'Ring', eq: 'bound', eqMsg: 'Stuck' }, { id: 'i_band', name: 'Band', rm: 'bound', rmMsg: 'Bound band' }] }, { F, gmView: true });
+        const PMk = { player: true, view: cleanSystem(sysMk, { F, gmView: false }) }, roMk = (st, rows, q) => S.applyRowOp(sysMk, Object.assign({ id: 'c_m', ownerId: 'u_p', values: { f_w: JSON.parse(JSON.stringify(rows || [])) } }, st || {}), 'f_w', q, F, PMk);
+        const mkRun = st => ({ add: roMk(st, [], { op: 'add', defId: 'i_ring', rowId: 'w_n' }), on: roMk(st, [{ id: 'w_1', defId: 'i_ring', qty: 1, on: false }], { op: 'set', rowId: 'w_1', facts: { on: true } }),
+            off: roMk(st, [{ id: 'w_1', defId: 'i_ring', qty: 1, on: true }], { op: 'set', rowId: 'w_1', facts: { on: false } }), qty: roMk(st, [{ id: 'w_2', defId: 'i_band', qty: 1 }], { op: 'setQty', rowId: 'w_2', qty: 2 }) });
+        const mkA = mkRun({ making: 1 }), mkU = mkRun({ unlocked: 1 }), mkP = mkRun({});
+        check('F3a applyRowOp in the making: an equip-locked item picked up worn, put on or taken off, and a raised bound quantity hold no lock and tell nobody; unlocked or finished they still do (owner: field rights only)',
+            mkA.add.ok && mkA.add.eqNote === undefined && mkA.add.onRow === undefined && mkA.on.ok && mkA.on.eqNote === undefined && mkA.off.ok && mkA.qty.ok && mkA.qty.note === undefined
+            && [mkU, mkP].every(r => r.add.eqNote === 'bound' && r.add.onRow === 'w_n' && r.on.eqNote === 'bound' && !r.off.ok && r.off.reason === 'stays' && r.qty.note === 'bound'), j([mkA, mkU, mkP]));
+        const campOt = () => ({ players: { u_p: {} }, chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_p', making: 1 } }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tm', isChar: true, charName: 'Vex', charId: 'c_m', ownerId: 'u_p' }, { id: 'tn', isChar: true, charName: 'Vex', charId: 'c_m' }] } } });
+        check('F3a ownedTokenPlan: a character in the making holds no token, sheets on or off — one its player holds passes to the GM (still linked), an unowned one stays the GM\'s',
+            j(S.ownedTokenPlan(campOt(), { all: true })) === j([{ mapId: 'm1', wbId: 'tm', ownerId: '' }]) && j(S.ownedTokenPlan(campOt(), {})) === j([{ mapId: 'm1', wbId: 'tm', ownerId: '' }]));
+        const mkS = shF.slice(shF.indexOf('function startMaking('), shF.indexOf('// The GM\'s side: a character a player made'));
+        check('F3a the player\'s side: Make asks for a name (their table name to start with) and opens the sheet the host sends; Name… only while in the making; Done confirms (in the making: into play; unlocked: locks again) — each a client call answered by a toast; the head shows Done to the owner of an open character, Name… in the making only, Upload never in the making, Unlock/Lock to the GM on a finished player character',
+            /n\.charMake\(String\(nm\), function\(a\) \{ if \(a\.error\) \{ toast\(a\.error\); return; \} if \(a\.charId\) openSheet\(a\.charId\); \}\);/.test(mkS) && /if \(!c \|\| !isClient\(\) \|\| c\.making !== 1 \|\| !n \|\| !n\.charName\) return;/.test(mkS)
+            && /if \(!c \|\| !isClient\(\) \|\| !\(c\.making === 1 \|\| c\.unlocked === 1\) \|\| !n \|\| !n\.charDone\) return;/.test(mkS) && /showConfirm\(mk \?/.test(mkS)
+            && /other = Object\.keys\(cs\)\.some\(function\(k\) \{ var x = cs\[k\]; return x && x\.id !== id && x\.ownerId === me && !x\.npc && !x\.partial && x\.making !== 1; \}\);/.test(mkS) && /\(a\.kept \? nm \+ ' is finished and kept: you go on playing the character your GM gave you\.' : nm \+ ' is in play\.'\)/.test(mkS)
+            && /\(c\.making === 1 \? ' · making' : c\.unlocked === 1 \? ' · unlocked' : ''\)/.test(shF)
+            && /var dnOn = isClient\(\) && own && !c\.partial && \(c\.making === 1 \|\| c\.unlocked === 1\);/.test(shF) && /nmB\.style\.display = isClient\(\) && own && !c\.partial && c\.making === 1 \? '' : 'none';/.test(shF)
+            && /upB\.style\.display = isClient\(\) && own && !c\.partial && c\.making !== 1 \? '' : 'none';/.test(shF) && /var ulOn = gm && !!c\.ownerId && !c\.npc && c\.making !== 1 && c\.review !== 1;/.test(shF) && /renderReviewBar\(c, camp, gm\);/.test(shF));
+        const jcA = wbF.indexOf("  (function() {\n      var had = '', dismissed = false;"), jcB = wbF.indexOf('  })();', jcA) + 7;
+        const card = o => {
+            const els = {}; ['joinCard', 'joinCardStatus', 'joinCardMake', 'joinCardOpen', 'joinCardFaceBtn'].forEach(id => { els[id] = { id, style: { display: /^joinCard(Make|Open)?$/.test(id) ? 'none' : '' }, textContent: '' }; });
+            const camp = Object.assign({ id: 'k', system: { fields: [] }, chars: {}, items: { m1: { id: 'm1', type: 'map', meta: { title: 'Dock' }, whiteboard: [] } } }, o.camp || {});
+            if (o.wait) camp.items.m1.whiteboard.push({ id: 'w1', type: 'circle', waiting: 1, ownerId: 'u_a' });
+            if (o.tok) camp.items.m1.whiteboard.push({ id: 't1', isChar: true, charName: 'Bo', ownerId: 'u_a' });
+            const win = { wpNet: { active: true, role: o.role || 'client', myId: 'u_a' }, wpSystemCore: S, wpSheets: { startMaking() {}, openSheet() {} }, wpVtt: { rulesOn: k => !(k === 'sheets' && o.sheetsOff) } };
+            new Function('window', 'document', 'getActiveCampaign', wbF.slice(jcA, jcB))(win, { getElementById: id => els[id] || null, addEventListener() {} }, () => camp);
+            win.wpJoinCard.check();
+            const seen = () => ({ on: els.joinCard.style.display === '', text: els.joinCardStatus.textContent, make: els.joinCardMake.style.display === '', open: els.joinCardOpen.style.display === '' ? els.joinCardOpen.textContent : null, face: els.joinCardFaceBtn.style.display === '' });
+            const first = seen(); win.wpJoinCard.show(); return { first, shown: seen(), has: win.wpJoinCard.has() };
+        };
+        const kW = card({ wait: true }), kInv = card({ wait: true, camp: { newPlayers: { create: 'invite' } } }), kMk = card({ wait: true, camp: { chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_a', making: 1 } } } });
+        const kOff = card({ camp: { newPlayers: { token: 'off' } } }), kRem = card({}), kHave = card({ camp: { chars: { c_k: { id: 'c_k', name: 'Kit', ownerId: 'u_a' } } } }), kTok = card({ tok: true, camp: { newPlayers: { token: 'off' } } });
+        const kSheets = card({ sheetsOff: true, camp: { newPlayers: { token: 'off' } } }), kGm = card({ role: 'host', wait: true }), kMkBare = card({ camp: { chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_a', making: 1 } }, newPlayers: { token: 'off' } } });
+        const NOCH = 'You don\u2019t have a character yet \u2014 make one, or wait for your GM to give you one.';
+        check('F3a the join card (run for real): with a waiting token it shows by itself — Make where making is live (not on invite), its face button; while making, Open <name> (no Make); with no waiting token (the rule gives none) it shows by itself with Make and no face button; after a Remove it waits to be asked (the chip\'s My character…); a player with a character, a token of their own, sheets off, or the GM: nothing',
+            kW.first.on && kW.first.make && kW.first.face && /Your token is waiting on Dock/.test(kW.first.text) && kInv.first.on && !kInv.first.make && /your GM will give you a character\./.test(kInv.first.text)
+            && kMk.first.on && !kMk.first.make && kMk.first.open === 'Open Vex' && /^You are making Vex/.test(kMk.first.text) && kMkBare.first.on && kMkBare.first.open === 'Open Vex' && !kMkBare.first.face
+            && kOff.first.on && kOff.first.make && !kOff.first.face && kOff.first.text === NOCH && kOff.has && !kRem.first.on && kRem.has && kRem.shown.on && kRem.shown.text === NOCH
+            && [kHave, kTok, kSheets, kGm].every(k => !k.first.on && !k.shown.on && !k.has) && jcA > 0 && /else if \(act === 'joinCard'\) \{ if \(window\.wpJoinCard\) window\.wpJoinCard\.show\(\); \}/.test(wbF)
+            && /if \(isClientM && ownerId && ownerId === window\.wpNet\.myId && window\.wpJoinCard && window\.wpJoinCard\.has && window\.wpJoinCard\.has\(\)\) items\.push\(\{ act: 'joinCard'/.test(wbF), j([kW, kInv, kMk, kOff, kRem, kHave.first, kTok.first, kSheets.first, kGm.first, kMkBare.first]));
+        const flA = wbF.indexOf('      if (hosting && camp.chars) list.forEach(function(c) {\n          var hit'), flB = wbF.indexOf('      });', flA) + 9;
+        const flagRun = flA < 0 ? null : (() => { const list = [{ key: 'o:u_a', ownerId: 'u_a', charId: 'c_k' }, { key: 'o:u_b', ownerId: 'u_b', charId: 'c_b' }, { key: 'p:u_c', ownerId: 'u_c', noToken: true }, { key: 'o:u_d', ownerId: 'u_d', charId: 'c_d' }];
+            const camp = { chars: { c_k: { id: 'c_k', name: 'Kit', ownerId: 'u_a' }, c_y: { id: 'c_y', name: 'Yul', ownerId: 'u_a', review: 1, made: 1 }, c_b: { id: 'c_b', name: 'Bo', ownerId: 'u_b', unlocked: 1 }, c_c: { id: 'c_c', name: 'Cy', ownerId: 'u_c', making: 1 }, c_d: { id: 'c_d', name: 'Di', ownerId: 'u_d' }, c_n: { id: 'c_n', name: 'Npc', ownerId: 'u_d', npc: true, review: 1 } } };
+            new Function('hosting', 'camp', 'list', wbF.slice(flA, flB))(true, camp, list); return list; })();
+        check('F3a the GM\'s chips (the flags run for real): by the chip\'s player — one of theirs waiting for Keep it (even kept, with no token, while the chip is the one they play), one unlocked, one they are making; the tip names it; a class each, part of the redraw signature; the Give list and the dice picker never offer one in the making',
+            flagRun && j(flagRun.map(c => [c.key, c.flag, c.flagName])) === j([['o:u_a', 'review', 'Yul'], ['o:u_b', 'unlocked', 'Bo'], ['p:u_c', 'making', 'Cy'], ['o:u_d', '', '']])
+            && /return c\.key \+ \(c\.flag \? '~' \+ c\.flag \+ '~' \+ c\.flagName : ''\)/.test(wbF) && /c\.flag === 'review' \? ' \\u2014 ' \+ \(c\.flagName \|\| 'a character'\) \+ ' is new: review it on its sheet'/.test(wbF) && /\(c\.flag \? ' party-' \+ c\.flag : ''\)/.test(wbF) && /!c\.npc && c\.making !== 1; \}\)/.test(wbF) && !/!c\.draft/.test(wbF)
+            && /!c\.partial && !c\.npc && c\.making !== 1; \}\);/.test(fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8')));
+        const ioF = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8'), mainA = fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8');
+        check('F3a the GM\'s own load and imports keep the marks (a reload never puts an unfinished character in play)', /cleanChar\(c\.chars\[id\], c\.system, \{ state: 'host' \}\)/.test(ioF) && (mainA.match(/cleanChar\(ic\.chars\[id\], (ic|existing)\.system, \{ state: 'host' \}\)/g) || []).length === 2 && !/cleanChar\(ic\.chars\[id\], (ic|existing)\.system\)/.test(mainA));
+        const ixF = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuF = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('F3a Help and the tour say it (both sides), and the head, the review bar and the join card have their places',
+            /<b>Make a character&hellip;<\/b> on that card \(or <b>My character&hellip;<\/b> on your own chip, when there is no waiting token\) starts one of your own/.test(ixF) && /no other player sees it until you press <b>Done<\/b> \(your GM can\)/.test(ixF) && /\(unless you gave them a character meanwhile: that one stays in play and theirs is kept\)/.test(ixF) && /then in play at once \(unless you gave them one meanwhile\)/.test(tuF) && /A player can also make a character of their own/.test(ixF) && /a player can also <b>make a character<\/b> of their own from their card/.test(tuF)
+            && /id="sheetDone"/.test(ixF) && /id="sheetName"/.test(ixF) && /id="sheetUnlock"/.test(ixF) && /<div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"><\/div><div id="sheetBody"/.test(ixF) && /id="joinCardMake"/.test(ixF) && /id="joinCardOpen"/.test(ixF));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

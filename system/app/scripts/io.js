@@ -171,7 +171,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
         if (c.chars && typeof c.chars === 'object' && window.wpSystemCore) {   // characters (1.5.0): cleaned against the system, owners stamped on their tokens
             if (!c.system) delete c.chars;
             else {
-                var outCh = {}; Object.keys(c.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(c.chars[id], c.system); if (cc && cc.id === id) outCh[id] = cc; }); c.chars = outCh;
+                var outCh = {}; Object.keys(c.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(c.chars[id], c.system, { state: 'host' }); if (cc && cc.id === id) outCh[id] = cc; }); c.chars = outCh;
                 // Onboarding F0: players follow their characters by id — the one in play written down once, tokens they hold bound only by name
                 // linked (systemcore migrateBindings) — then ONE chooser (ownedTokenPlan, shared with syncOwners and every arrival path) says which
                 // token each player holds: one per character per map, and a kept character's are the GM's. Persists with the next ordinary save.

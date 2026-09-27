@@ -556,7 +556,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
               state.appState.campaigns[ic.id] = ic;
               takeImportedLibrary(ic, ic, null);   // Stage 6 library L1c2: a fresh folder for its packs
               if (ic.system && window.wpSystemCore && window.wpFormula) { var nsys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true }); if (nsys) ic.system = nsys; else delete ic.system; }   // character sheets (1.5.0)
-              if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore) { if (!ic.system) delete ic.chars; else { var nch = {}; Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], ic.system); if (cc && cc.id === id) nch[id] = cc; }); ic.chars = nch; if (window.wpSystemCore.migrateBindings) { var rbN = window.wpSystemCore.migrateBindings(ic); if ((rbN.bound || rbN.linked) && window.wpNoteBindings) window.wpNoteBindings([{ camp: ic, r: rbN }]); window.wpSystemCore.applyOwnerOps(ic, window.wpSystemCore.ownedTokenPlan(ic, { all: !!(window.wpVtt && window.wpVtt.campaignOn('sheets', ic) === false) })); } } }   // Onboarding F0: bound by id, one owned token per character
+              if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore) { if (!ic.system) delete ic.chars; else { var nch = {}; Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], ic.system, { state: 'host' }); if (cc && cc.id === id) nch[id] = cc; }); ic.chars = nch; if (window.wpSystemCore.migrateBindings) { var rbN = window.wpSystemCore.migrateBindings(ic); if ((rbN.bound || rbN.linked) && window.wpNoteBindings) window.wpNoteBindings([{ camp: ic, r: rbN }]); window.wpSystemCore.applyOwnerOps(ic, window.wpSystemCore.ownedTokenPlan(ic, { all: !!(window.wpVtt && window.wpVtt.campaignOn('sheets', ic) === false) })); } } }   // Onboarding F0: bound by id, one owned token per character
 
               Object.keys(ic.items).forEach(function(id) {
                   var it = ic.items[id];
@@ -590,7 +590,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           }
           if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore && existing.system) {   // characters (1.5.0): union by id, each cleaned against the system now in place
               existing.chars = existing.chars && typeof existing.chars === 'object' ? existing.chars : {};
-              Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], existing.system); if (cc && cc.id === id) existing.chars[id] = cc; });
+              Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], existing.system, { state: 'host' }); if (cc && cc.id === id) existing.chars[id] = cc; });
               if (window.wpSystemCore.stampRows) window.wpSystemCore.stampRows(existing.system, existing.chars);   // Stage 6: a legacy row of a GM-only item gets its own id
               if (window.wpSystemCore.migrateBindings) { var rbM = window.wpSystemCore.migrateBindings(existing); if ((rbM.bound || rbM.linked) && window.wpNoteBindings) window.wpNoteBindings([{ camp: existing, r: rbM }]); }   // Onboarding F0: bound by id, tokens bound by name linked (the chooser runs below)
           }

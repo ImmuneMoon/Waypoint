@@ -387,6 +387,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(fe) === j(['span:\u{1F409}']) && fd.length === 1 && /^img:DEFAULT\(/.test(fd[0]) && !/url\(|evil/.test(fd[0]) && fb.length === 0
             && /var ownerAv = \(!wItem\.src && wItem\.face && window\.wpNet && window\.wpNet\.faceView\)/.test(wbC) && !/return x && x\.id === wItem\.ownerId; \}\); return p && window\.wpNet\.safeAvatar/.test(wbC) && !/ownerAvLive/.test(wbC), JSON.stringify([fe, fd, fb]));
     }
+    {   // Onboarding F3a: the GM's review bar on a character a player made — every word through textContent (a player's name from the table, the clash labels), buttons of its own
+        const j = JSON.stringify, SCr = await import(modUrl('systemcore.js')), rbSrc = slice('sheets.js', 'reviewbar');
+        const node = (tag, cls, text) => { const o = { tag, className: cls || '', kids: [], style: {}, on: {}, appendChild(k) { this.kids.push(k); }, addEventListener(k, f) { this.on[k] = f; } }; let t = text === undefined ? '' : String(text); Object.defineProperty(o, 'textContent', { get() { return t; }, set(v) { t = String(v); o.kids.length = 0; } }); return o; };
+        const called = [];
+        const draw = (c, gm, names) => { const bar = node('div'); bar.style.display = 'none'; new Function('ui', 'el', 'playerNames', 'window', 'keepMade', 'sendBackMade', 'removeMadeAsk', rbSrc + '\nreturn renderReviewBar;')(id => id === 'sheetReviewBar' ? bar : null, node, () => names || {}, { wpSystemCore: SCr }, id => called.push(['keep', id]), id => called.push(['back', id]), id => called.push(['remove', id]))(c, { chars: { c_m: c, c_x: { id: 'c_x', name: c.name } }, items: {} }, gm); return bar; };
+        const evil = '<img src=x onerror=alert(1)>', bM = draw({ id: 'c_m', name: 'Vex', ownerId: 'u_a', review: 1, made: 1 }, true, { u_a: evil }), bF = draw({ id: 'c_m', name: 'Vex', ownerId: 'u_a', review: 1 }, true, {}), bP = draw({ id: 'c_m', name: 'Vex', ownerId: 'u_a', review: 1, made: 1 }, false, {}), bN = draw({ id: 'c_m', name: 'Vex', ownerId: 'u_a' }, true, {});
+        const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k), noHtml = b => !has(b, 'innerHTML') && b.kids.every(k => !has(k, 'innerHTML') && !has(k, 'outerHTML'));
+        bM.kids.forEach(k => { if (k.on.click) k.on.click(); });
+        check('F3a the GM\'s review bar (renderReviewBar, run for real): a player\'s name from the table and the name clash are text in a span, never markup; Keep it, Send back… and Remove… (Remove only on one a player made) call their own actions with the character\'s id; nothing for a player, or a character not waiting for review; no innerHTML anywhere',
+            bM.style.display === '' && bM.kids[0].tag === 'span' && bM.kids[0].textContent === evil + ' made this character \u00b7 the name is also another character\u2019s.' && j(bM.kids.slice(1).map(k => [k.tag, k.textContent, k.type])) === j([['button', 'Keep it', 'button'], ['button', 'Send back\u2026', 'button'], ['button', 'Remove\u2026', 'button']])
+            && j(called) === j([['keep', 'c_m'], ['back', 'c_m'], ['remove', 'c_m']]) && bF.kids[0].textContent === 'A player finished this sheet \u00b7 the name is also another character\u2019s.' && bF.kids.length === 3 && bP.style.display === 'none' && bP.kids.length === 0 && bN.style.display === 'none'
+            && [bM, bF, bP, bN].every(noHtml) && !/innerHTML/.test(rbSrc), j([bM.kids.map(k => k.textContent), bF.kids.map(k => k.textContent)]));
+    }
     delete global.window;
 
     summed = true;

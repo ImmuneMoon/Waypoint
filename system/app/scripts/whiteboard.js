@@ -334,7 +334,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       }
                       // built from nodes (1.5.0): a portrait, the name, the (capped) stats line, the sheet's hover fields, the stance line
                       var ttRoot = document.createElement('div'); ttRoot.className = 'room'; ttRoot.style.cssText = 'border-left-color:var(--gold); margin:0; pointer-events:none;';
-                      var ownerAv = (!wItem.src && wItem.ownerId && window.wpNet && window.wpNet.roster) ? (function() { var p = Object.keys(window.wpNet.roster).map(function(k) { return window.wpNet.roster[k]; }).find(function(x) { return x && x.id === wItem.ownerId; }); return p && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar) ? p.avatar : null; })() : null;
+                      var ownerAv = (!wItem.src && wItem.face && window.wpNet && window.wpNet.faceView) ? (window.wpNet.faceView({ face: wItem.face }, cssColor((wItem.color && wItem.color !== 'transparent') ? wItem.color : '#4db3d3')).img || null) : null;   // Onboarding F1c: the character's own face (an emoji face has no picture: the silhouette), never its owner's live profile picture
                       var portrait = wItem.src ? resolveImg(wItem.src) : (ownerAv || (window.wpDefaultAvatar ? window.wpDefaultAvatar((wItem.color && wItem.color !== 'transparent') ? wItem.color : ('hsl(' + wbHashHue(wItem.charName || wItem.id) + ',55%,55%)')) : null));   // character image → owner profile picture → color-tinted silhouette default
                       if (portrait) { var ttImg = document.createElement('img'); ttImg.src = portrait; ttImg.loading = 'lazy'; ttImg.decoding = 'async'; ttImg.style.cssText = 'width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;'; ttRoot.appendChild(ttImg); }   // fixed height so the card measures the same before/after the image loads (matches the room card)
                       var ttName = document.createElement('div'); ttName.className = 'rn'; ttName.textContent = cname; ttRoot.appendChild(ttName);
@@ -704,9 +704,16 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               // [sinkcheck:waitingface-end]
           } else if (item.isChar && (item.type === 'circle' || item.type === 'rect' || item.type === 'diamond' || item.type === 'hexagon')) {
 
+              // [sinkcheck:charface-tok-start]
+              var cfv = item.face && window.wpNet && window.wpNet.faceView && window.wpNet.cleanFace && window.wpNet.cleanFace(item.face) ? window.wpNet.faceView({ face: item.face }, cssColor(item.color || '#4db3d3')) : null;   // a face the rule refuses: the initials stay   // Onboarding F1c: the character's own face (net.js faceView), in place of initials
+              if (cfv && cfv.emoji) { var feS = el.querySelector(':scope > span.token-face'); if (!feS) { el.textContent = ''; feS = document.createElement('span'); feS.className = 'token-initials token-face'; el.appendChild(feS); } if (feS.textContent !== cfv.emoji) feS.textContent = cfv.emoji; el.dataset.ini = 'face'; }   // drawn again whenever it is missing (a rebuilt token) or changed
+              else if (cfv && cfv.img) { var fiI = el.querySelector(':scope > img.token-face-img'); if (!fiI) { el.textContent = ''; fiI = document.createElement('img'); fiI.className = 'token-face-img'; fiI.alt = ''; fiI.draggable = false; el.appendChild(fiI); } if (fiI.getAttribute('src') !== cfv.img) fiI.src = cfv.img; el.dataset.ini = 'face'; }   // compared whole: a new colour is a new picture
+              // [sinkcheck:charface-tok-end]
+              else {
               // Stand-in token: initials until a portrait arrives
               var ini = String(item.charName || '?').trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase() || '?';
               if (el.dataset.ini !== ini || !el.querySelector(':scope > .token-initials')) { el.textContent = ''; var iniS = document.createElement('span'); iniS.className = 'token-initials'; iniS.textContent = ini; el.appendChild(iniS); el.dataset.ini = ini; }
+              }
 
           } else if(item.type === 'path') {
 
@@ -1945,6 +1952,9 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), am = getActiveMap();
       if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual') { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
       var list = characterList(camp, true, am.id);
+      // [sinkcheck:partyface-start]
+      list.forEach(function(c) { if (c.src || !c.face || !window.wpNet || !window.wpNet.faceView || !window.wpNet.cleanFace || !window.wpNet.cleanFace(c.face)) return; var fvT = window.wpNet.faceView({ face: c.face }, cssColor(c.tcolor || '#4db3d3')); if (fvT.emoji) c.emoji = fvT.emoji; else if (fvT.img) { c.src = fvT.img; c.avatar = true; } });   // Onboarding F1c: a character's own face (an emoji, a bundled picture, the default in its token's colour)
+      // [sinkcheck:partyface-end]
       var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
       var atTable = window.wpNet && window.wpNet.active && (hosting || window.wpNet.role === 'client');   // players see the party too, read-only
       var present = {};
@@ -2172,6 +2182,7 @@ window.wpFitToGrid = fitToGrid;
       }
       // Onboarding F0: what the GM can give a player — their own characters first (the one they play: its token onto their map; a kept one:
       // play it now), then the unassigned ones, then other players' (a reassignment). Never an NPC.
+      var _givePic = true;   // Onboarding F1c: a character with no picture takes a copy of its player's face (the GM may untick it)
       function giveList(camp, pid) {
           var S = window.wpSystemCore; if (!S || !S.activeCharOf || !camp || !camp.chars) return [];
           var act = S.activeCharOf(camp, pid).id, names = {}, out = [];
@@ -2187,12 +2198,13 @@ window.wpFitToGrid = fitToGrid;
           var b = e.target.closest && e.target.closest('.party-menu-item'); if (!b) return;
           e.stopPropagation();
           var key = b.dataset.key, act = b.dataset.act;
-          if (act === 'give') { var campG = getActiveCampaign(); fillPartyMenu(giveList(campG, key.slice(2)).concat([{ act: 'none', label: 'The one you give is the one they play; the one they played before stays theirs (kept).', dim: true }]), key); var rG = menu.getBoundingClientRect(); if (rG.bottom > window.innerHeight - 6) menu.style.top = Math.max(6, window.innerHeight - rG.height - 6) + 'px'; if (rG.right > window.innerWidth - 6) menu.style.left = Math.max(6, window.innerWidth - rG.width - 6) + 'px'; return; }   // the list replaces the menu in place, kept inside the window
+          if (act === 'givePic') { _givePic = !_givePic; act = 'give'; }   // Onboarding F1c: the toggle keeps the list open
+          if (act === 'give') { var campG = getActiveCampaign(), glG = giveList(campG, key.slice(2)); if (glG.length && window.wpNet && window.wpNet.isConnected && window.wpNet.isConnected(key.slice(2))) glG.unshift({ act: 'givePic', label: (_givePic ? '\u2611 ' : '\u2610 ') + 'Use their face for a character with no picture' }); fillPartyMenu(glG.concat([{ act: 'none', label: 'The one you give is the one they play; the one they played before stays theirs (kept).', dim: true }]), key); var rG = menu.getBoundingClientRect(); if (rG.bottom > window.innerHeight - 6) menu.style.top = Math.max(6, window.innerHeight - rG.height - 6) + 'px'; if (rG.right > window.innerWidth - 6) menu.style.left = Math.max(6, window.innerWidth - rG.width - 6) + 'px'; return; }   // the list replaces the menu in place, kept inside the window
           closePartyMenu();
           if (act === 'giveTo') {
               var campT = getActiveCampaign(), pidT = key.slice(2), cidT = b.dataset.cid, chT = campT && campT.chars && Object.prototype.hasOwnProperty.call(campT.chars, cidT) ? campT.chars[cidT] : null;
               if (!chT || !window.wpSheets) return;
-              var doGive = function() { if (window.wpSheets.giveCharacter(pidT, cidT)) toast(chT.name + ' given.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
+              var doGive = function() { if (window.wpSheets.giveCharacter(pidT, cidT, { pic: _givePic })) toast(chT.name + ' given.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
               if (chT.ownerId && chT.ownerId !== pidT) showConfirm('Give ' + chT.name + ' to this player? Their current player loses it: its sheet closes for them, and its tokens go to the new player.', function(yes) { if (yes) doGive(); });
               else doGive();
               return;

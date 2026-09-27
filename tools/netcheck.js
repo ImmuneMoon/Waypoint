@@ -45,7 +45,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + 
 
 /* ---- the sliced code, built once ---- */
 const storage = (() => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, clear: () => { m = {}; } }; })();
-const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem, cleanFace, faceView, FACE_PICS };')(storage, globalThis.crypto);
+const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem, cleanFace, faceView, FACE_PICS, charFacePlan };')(storage, globalThis.crypto);
 const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
 
 const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'approvedIds', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed'];
@@ -338,7 +338,7 @@ const j = JSON.stringify;
     check('avatar sinks: no profile picture is pasted raw into markup anywhere (renderRoster and Maps presence escape it after the whole-URL check; the party strip and hover card use the same check)',
         !/\+ p\.avatar \+/.test(src) && /var avOk = safeAvatar\(p\.avatar\);/.test(src) && /src="' \+ escTextRoster\(p\.avatar\) \+ '"/.test(src)
         && /net\.safeAvatar\(p\.avatar\)/.test(sbSrc) && /src="' \+ esc\(p\.avatar\) \+ '"/.test(sbSrc) && !/src="' \+ p\.avatar/.test(sbSrc)
-        && (wbSrc2.match(/window\.wpNet\.safeAvatar\(p\.avatar\)/g) || []).length === 2 && !/base64,\/\.test\(p\.avatar\)/.test(wbSrc2));
+        && (wbSrc2.match(/window\.wpNet\.safeAvatar\(p\.avatar\)/g) || []).length === 1 && !/base64,\/\.test\(p\.avatar\)/.test(wbSrc2));   // one: the party strip (Onboarding F1c: the hover card no longer reads a profile picture at all)
     check('attribute sinks: roster ids and peer keys are escaped (the Properties owner picker, the whisper list, summon/kick, the Players panel)',
         /'<option value="'\+esc\(pid\)\+'"'/.test(inSrc) && /data-summon="' \+ escTextRoster\(peerKey\)/.test(src) && /data-kick="' \+ escTextRoster\(peerKey\)/.test(src) && /'<option value="' \+ escTextRoster\(e\[0\]\) \+ '">Whisper: '/.test(src)
         && !/data-(un)?ban="' \+ pid \+/.test(src) && !/data-forget="' \+ pid \+/.test(src));
@@ -2476,6 +2476,64 @@ pendingChecks.push((async () => {
     check('F1b my-look (host, run for real): an admitted player\'s clean face is stored on their roster entry and their waiting token (the GM keeps seeing it while they are away) and sent to everyone (the roster redrawn); \'\' clears it; about one change a second (a burst of five); a refused face, a paused table or player, a flood, a stranger, no string or no change (which costs no allowance) changes nothing',
         lOk.face === '\u{1F43A}' && lOk.bc === 1 && lOk.rd === 1 && lOk.wface === '\u{1F43A}' && j(lOk.lim) === j({ perMs: 1000, burst: 5, windowMs: 10000 }) && lClr.face === undefined && lClr.wface === undefined && lClr.bc === 1 && lBad.face === 'pic:orc' && lBad.bc === 0 && lPause.face === undefined && lPP.bc === 0 && lRate.bc === 0 && lStranger.bc === 0 && lSame.bc === 0 && lSame.allows === 0 && lShape.bc === 0
         && /net\.sendMyLook = function\(\) \{\n\s*if \(!net\.active \|\| net\.role !== 'client' \|\| net\.paused \|\| net\.selfPaused \|\| !net\.syncedPeer/.test(src.replace(/\r\n/g, '\n')), j([lOk, lClr, lBad, lPause, lRate]));
+}
+// Onboarding F1c: a character's own picture — the plan (charFacePlan), char-pic on the host (run for real) and the player's sender
+{
+    const av = 'data:image/png;base64,AAAA';
+    const plan = (f, a) => j(H.charFacePlan(f, a));
+    check('F1c charFacePlan: their photo becomes a picture to save (only one that passes whole); a bundled picture by name; an emoji or the default is drawn on the tokens; no face chosen means their photo when they have one, else the default; anything the face rule refuses counts as no face',
+        plan('photo', av) === j({ kind: 'picture', data: av }) && plan('photo', 'javascript:x') === j({ kind: 'face', face: 'default' }) && plan('pic:orc', av) === j({ kind: 'bundled', name: 'orc' }) && plan('\u{1F409}', av) === j({ kind: 'face', face: '\u{1F409}' })
+        && plan('default', av) === j({ kind: 'face', face: 'default' }) && plan('', av) === j({ kind: 'picture', data: av }) && plan(undefined, undefined) === j({ kind: 'face', face: 'default' }) && plan('pic:../x', undefined) === j({ kind: 'face', face: 'default' }) && plan('<b>', av) === j({ kind: 'picture', data: av }));
+    const cpSrc = between('// [netcheck:charpic-start]', '// [netcheck:charpic-end]', 'charpic');
+    const pic = async (msg, o) => {   // the answer comes once applyCharFace settles: it is read after the promise queue drains
+        o = o || {}; const out = { ans: [], applied: [], toasts: [], logs: [], cfg: null, syncOk: 0 };
+        const camp = { id: 'k', chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: {} }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', values: {} }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: {} } } };
+        const net = { paused: !!o.paused, roster: { pA: { id: 'u_a', name: 'Pat', avatar: o.avatar } } };
+        const win = { wpVtt: { on: () => !o.off }, wpSheets: o.noSheets ? {} : { applyCharFace: (id, p, rep) => { out.applied.push([id, p, rep]); return o.reject ? Promise.reject(new Error('disk')) : Promise.resolve(o.result === undefined ? true : o.result); } } };
+        new Function('msg', 'conn', 'net', 'own', 'peerPaused', 'cleanFace', 'safeAvatar', 'charFacePlan', 'allow', 'getActiveCampaign', 'window', 'toast', 'logEvent', 'sendFailed', cpSrc)(
+            Object.assign({ type: 'char-pic', rid: 'p1', charId: 'c_1' }, msg), { peer: o.peer || 'pA', send: m => out.ans.push(JSON.parse(JSON.stringify(m))) }, net, H.own, () => !!o.peerPaused, H.cleanFace, H.safeAvatar, H.charFacePlan, (name, cfg) => { out.cfg = cfg; return o.allow !== false; }, () => camp, win, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), e => { throw e; });
+        out.syncOk = out.ans.filter(a => a.ok).length + out.toasts.length;
+        await new Promise(r => setImmediate(r));
+        return out;
+    };
+    const why = r => r.ans.length === 1 ? (r.ans[0].reason || (r.ans[0].ok ? 'ok' : '?')) : 'none:' + r.ans.length;
+    pendingChecks.push((async () => {
+        const pOk = await pic({ face: 'pic:orc' }), pPhoto = await pic({ face: 'photo' }, { avatar: av }), pImg = await pic({ face: '', img: av }), pEmoji = await pic({ face: '\u{1F409}' });
+        const denied = [];
+        for (const [m, o] of [[{ face: 'pic:orc', charId: 'c_2' }], [{ face: 'pic:orc', charId: 'c_n' }], [{ face: 'pic:orc' }, { paused: true }], [{ face: 'pic:orc' }, { peerPaused: true }], [{ face: 'pic:orc' }, { off: true }], [{ face: 'pic:orc' }, { noSheets: true }],
+            [{ face: 'pic:orc', charId: 'c_9' }], [{ face: '<b>' }], [{ face: '', img: 'data:image/svg+xml;base64,AA' }], [{ face: 'pic:orc', img: 'https://e/x.png' }], [{ face: 'pic:orc' }, { allow: false }]]) denied.push(await pic(m, o));
+        const pFail = await pic({ face: 'pic:orc' }, { result: false }), pRej = await pic({ face: 'pic:orc' }, { reject: true }), pX = await pic({ face: 'pic:orc' }, { peer: 'pX' }), pRid = await pic({ face: 'pic:orc', rid: 'a b' });
+        check('F1c char-pic (host, run for real): the owner\'s face or uploaded picture reaches applyCharFace as a plan (\'photo\' reads the picture on their roster entry), replacing its picture; the answer, the GM\'s toast and the Session Log line wait until it is saved, and one that could not be saved is answered so, told to no one; another\'s character, an NPC, a paused table or player, sheets off, a missing character, a face the rule refuses, a picture that fails the whole-string check (with a good face too) or a flood (per player and table-wide) is refused and answered why; a stranger or a bad rid gets nothing',
+            why(pOk) === 'ok' && pOk.syncOk === 0 && j(pOk.applied) === j([['c_1', { kind: 'bundled', name: 'orc' }, true]]) && j(pPhoto.applied[0][1]) === j({ kind: 'picture', data: av }) && j(pImg.applied[0][1]) === j({ kind: 'picture', data: av }) && j(pEmoji.applied[0][1]) === j({ kind: 'face', face: '\u{1F409}' })
+            && pOk.toasts.length === 1 && /Pat changed Ana\u2019s picture/.test(pOk.toasts[0]) && pOk.logs.length === 1 && pOk.logs[0][0] === 'char' && pOk.cfg && pOk.cfg.table > 0 && pOk.cfg.table <= 30
+            && j(denied.map(why)) === j(['owner', 'owner', 'paused', 'paused', 'off', 'off', 'missing', 'bad', 'bad', 'bad', 'slow']) && denied.every(r => r.applied.length === 0 && r.toasts.length === 0)
+            && why(pFail) === 'failed' && why(pRej) === 'failed' && [pFail, pRej].every(r => r.applied.length === 1 && r.toasts.length === 0 && r.logs.length === 0)
+            && pX.ans.length === 0 && pRid.ans.length === 0, j([why(pOk), pOk.syncOk, denied.map(why), why(pFail), why(pRej)]));
+    })());
+    const cpaSrc = between('// [netcheck:charpicans-start]', '// [netcheck:charpicans-end]', 'charpicans');
+    const picAns = (msg) => { const got = [], pend = { p1: { done: a => got.push(a), timer: 1 } }; let cleared = 0; new Function('msg', '_picPending', 'clearTimeout', cpaSrc)(msg, pend, () => { cleared++; }); return { got, left: Object.keys(pend).length, cleared }; };
+    const aOk = picAns({ rid: 'p1', ok: true }), aWhy = picAns({ rid: 'p1', reason: 'failed' }), aProto = ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'nope'].map(r => picAns({ rid: 'p1', reason: r }).got[0].error), aNum = picAns({ rid: 'p1', reason: 7 }).got[0].error, aNo = picAns({ rid: 'zz', ok: true }), aProtoRid = picAns({ rid: '__proto__', ok: true });
+    check('F1c char-pic answer (player, run for real): ok, or one of our own reasons in words; a reason naming a prototype key, or anything else, reads as a plain refusal; an answer to no question of ours does nothing',
+        j(aOk.got) === j([{ ok: true }]) && aOk.left === 0 && aOk.cleared === 1 && aWhy.got[0].error === 'The GM could not save that picture.' && aProto.every(e => e === 'The GM could not take it.') && aNum === 'The GM could not take it.'
+        && aNo.got.length === 0 && aNo.left === 1 && aNo.cleared === 0 && aProtoRid.got.length === 0, j([aOk, aWhy, aProto, aNum]));
+    const ps = src.replace(/\r\n/g, '\n'), psA = ps.indexOf('var _picPending = {};'), psB = ps.indexOf('// Onboarding F1b: a player\'s changed face reaches the host');
+    const sendPic = (charId, face, img, o) => { o = o || {}; const sent = [], camp = { id: 'k', chars: { c_1: { id: 'c_1', ownerId: 'u_a', values: {} }, c_2: { id: 'c_2', ownerId: 'u_b', values: {} }, c_p: { id: 'c_p', ownerId: 'u_a', partial: true } } };
+        const netS = { active: true, role: 'client', stream: false, paused: !!o.paused, selfPaused: false, syncedPeer: 'h', myId: 'u_a', conns: [{ peer: 'h', open: true, send: m => sent.push(JSON.parse(JSON.stringify(m))) }] };
+        new Function('net', 'getActiveCampaign', 'own', 'cleanFace', 'safeAvatar', 'window', 'setTimeout', 'clearTimeout', ps.slice(psA, psB))(netS, () => camp, H.own, H.cleanFace, H.safeAvatar, { wpVtt: { on: () => true } }, () => 0, () => {});
+        return { r: netS.charPic(charId, face, img, () => {}), sent }; };
+    const sOk = sendPic('c_1', 'pic:orc', ''), sImg = sendPic('c_1', '', av), sBadImg = sendPic('c_1', '', 'https://e/x.png'), sMate = sendPic('c_2', 'pic:orc', ''), sPart = sendPic('c_p', 'pic:orc', ''), sPause = sendPic('c_1', 'pic:orc', '', { paused: true }), sNone = sendPic('c_1', '<b>', '');
+    check('F1c char-pic (player): only their own whole character, not while paused; a clean face, or a picture that passes whole, and nothing else travels',
+        sOk.r.ok && j(Object.keys(sOk.sent[0]).sort()) === j(['charId', 'face', 'rid', 'type']) && sOk.sent[0].face === 'pic:orc' && sImg.sent[0].img === av && sImg.sent[0].face === ''
+        && [sBadImg, sMate, sPart, sPause, sNone].every(x => x.r.error && x.sent.length === 0), j([sOk, sImg.sent, sBadImg.r, sMate.r, sPart.r, sPause.r, sNone.r]));
+    const tfA = ps.indexOf('function tokenFromChar('), tfB = ps.indexOf('\n}\n', tfA) + 2;
+    const tfc = new Function('net', 'cleanFace', ps.slice(tfA, tfB) + '\nreturn tokenFromChar;')({ roster: { pA: { id: 'u_a', color: '#123456' } } }, H.cleanFace);
+    const tF = tfc({ id: 'c_1', name: 'Ana', portrait: '', face: '\u{1F409}' }, 'u_a'), tPo = tfc({ id: 'c_1', name: 'Ana', portrait: '/saves/images/x.png', face: '\u{1F409}' }, 'u_a'), tBad = tfc({ id: 'c_1', name: 'Ana', face: '<b>x</b>' }, 'u_a');
+    check('F1c a token made for a character wears its own face (its picture wins; a face the rule refuses is left off)',
+        tfA > 0 && tF.face === '\u{1F409}' && tF.type === 'circle' && tF.color === '#123456' && !('face' in tPo) && tPo.src === '/saves/images/x.png' && !('face' in tBad), j([tF, tPo, tBad]));
+    const scF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8').replace(/\r\n/g, '\n');
+    const faceRule = s => { const a = s.indexOf('var FACE_PICS = ['), b = s.indexOf('function cleanFace(v) {'), e = s.indexOf('\n}\n', b); return a < 0 || b < 0 || e < 0 ? null : s.slice(a, s.indexOf('\n', a)) + '\n' + s.slice(b, e + 2); };
+    check('F1c the face rule is one rule: systemcore.js (a character\'s face, on load and from the wire) carries net.js cleanFace and its picture list word for word',
+        faceRule(scF) !== null && faceRule(scF) === faceRule(ps));
 }
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

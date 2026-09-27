@@ -140,6 +140,16 @@ function faceView(p, color, def) {
     if (f !== 'default' && p && safeAvatar(p.avatar)) return { img: p.avatar };
     return { img: typeof def === 'function' ? def(color) : '' };
 }
+// Onboarding F1c: what a character's picture becomes from a player's face (and their profile picture): { kind: 'picture', data } — their photo
+// (a data URL that passes safeAvatar whole), to be saved as a PNG; { kind: 'bundled', name } — one of the bundled pictures, copied; { kind:
+// 'face', face } — an emoji or the default, drawn on its tokens. No face chosen: their photo when they have one, else the default.
+function charFacePlan(face, avatar) {
+    var f = cleanFace(face || '');
+    if (!f) f = safeAvatar(avatar) ? 'photo' : 'default';
+    if (f === 'photo') return safeAvatar(avatar) ? { kind: 'picture', data: avatar } : { kind: 'face', face: 'default' };
+    if (f.slice(0, 4) === 'pic:') return { kind: 'bundled', name: f.slice(4) };
+    return { kind: 'face', face: f };
+}
 // Onboarding F1a: a waiting token from the host, rebuilt from its own fields only (a player's copy never carries anything else: no
 // picture, no sheet, no character link — its face is read from the roster)
 function cleanWaitingItem(w) {
@@ -153,7 +163,7 @@ function cleanWaitingItem(w) {
     return o;
 }
 // [netcheck:helpers-end]
-net.cleanFace = cleanFace; net.FACE_PICS = FACE_PICS.slice(); net.faceView = function(p, color) { return faceView(p, color, window.wpDefaultAvatar); };   // Onboarding F1b: faces, one rule for every screen (after the helpers: FACE_PICS is only assigned there)
+net.charFacePlan = charFacePlan; net.cleanFace = cleanFace; net.FACE_PICS = FACE_PICS.slice(); net.faceView = function(p, color) { return faceView(p, color, window.wpDefaultAvatar); };   // Onboarding F1b: faces, one rule for every screen (after the helpers: FACE_PICS is only assigned there)
 // What a client accepts from a host, beyond the shape checks the wire already does.
 // [netcheck:rosterclean-start]
 function validKey(k) { return typeof k === 'string' && k.length > 0 && k.length <= 160 && !(k in Object.prototype); }   // an id used as an object key: never a prototype key
@@ -2744,6 +2754,7 @@ function tokenFromChar(ch, pid) {
     var pr = Object.values(net.roster).find(function(p) { return p && p.id === pid; }), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3';
     var t = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: ch.portrait ? 'image' : 'circle', w: 60, h: 52, color: ch.portrait ? 'transparent' : col, layer: 'middle', isChar: true, charName: ch.name, name: ch.name, charId: ch.id, charStats: '', ownerId: pid };
     if (ch.portrait) t.src = ch.portrait;
+    else { var fcT = cleanFace(ch.face); if (fcT) t.face = fcT; }   // Onboarding F1c: the character's own face (a token made after it was chosen wears it too)
     return t;
 }
 // Where a new token goes on a map: beside `near` (a centre) when given, else on the landing room's whiteboard item, else at the map's home;
@@ -2874,6 +2885,25 @@ function endWaiting(wasHost) {
     if (any) setTimeout(render, 0);
 }
 // Host, the GM's hands: Remove (it stays away this session), Delete or Cut (the same), a give (they may get one again), Hide or Show
+// Onboarding F1c: the owner changes their character's picture: a face (as the picker offers) or a picture they upload (a small data URL,
+// checked whole). The GM's machine saves it; every token of the character follows. done({ ok } | { error })
+var _picPending = {};
+net.charPic = function(charId, face, img, done) {
+    var camp = getActiveCampaign();
+    if (!camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    if (net.paused || net.selfPaused) return { error: 'The table is paused.' };
+    if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
+    var c = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    var f = cleanFace(face || ''), im = typeof img === 'string' ? img : '';
+    if (im && !safeAvatar(im)) return { error: 'That picture could not be used.' };
+    if (!f && !im) return { error: 'Choose a face or a picture.' };
+    var rid = 'p' + Math.random().toString(36).slice(2, 10);
+    _picPending[rid] = { done: done, timer: setTimeout(function() { var p = _picPending[rid]; delete _picPending[rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM.' }); }, 20000) };
+    var m = { type: 'char-pic', rid: rid, charId: charId, face: f }; if (im) m.img = im;
+    try { net.conns[0].send(m); } catch (e) { clearTimeout(_picPending[rid].timer); delete _picPending[rid]; return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
     if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
@@ -3270,6 +3300,13 @@ function handleMessage(msg, conn) {
         var pU = _uploadPending[msg.rid]; delete _uploadPending[msg.rid]; clearTimeout(pU.timer);
         var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.' };
         if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: UP_WHY[msg.reason] || 'The GM could not read it.' } : { n: typeof msg.n === 'number' && isFinite(msg.n) ? Math.max(0, msg.n | 0) : 0, auto: typeof msg.auto === 'number' && isFinite(msg.auto) ? Math.max(0, msg.auto | 0) : 0 });
+    } else if (msg.type === 'char-pic-ans' && net.role === 'client') {   // Onboarding F1c: the host's answer to our picture
+        // [netcheck:charpicans-start]
+        if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_picPending, msg.rid)) return;
+        var pP = _picPending[msg.rid]; delete _picPending[msg.rid]; clearTimeout(pP.timer);
+        var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
+        if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
+        // [netcheck:charpicans-end]
     } else if (msg.type === 'char-upload-done' && net.role === 'client') {   // U2: what the GM did with it
         var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
         var dn = typeof msg.done === 'number' && isFinite(msg.done) ? Math.max(0, msg.done | 0) : 0, ofN = typeof msg.of === 'number' && isFinite(msg.of) ? Math.max(0, msg.of | 0) : 0;
@@ -3637,6 +3674,29 @@ function handleMessage(msg, conn) {
         campTR.turnRules = Object.assign({}, campTR.turnRules && typeof campTR.turnRules === 'object' ? campTR.turnRules : {}, { timers: msg.timers });
         if (window.wpSheetsSync) window.wpSheetsSync();
         // [netcheck:turnrules-end]
+    } else if (msg.type === 'char-pic' && net.role === 'host') {
+        // [netcheck:charpic-start]
+        // Onboarding F1c: the owner changes their character's picture — a face (as the picker offers; 'photo' is the picture on their roster
+        // entry) or a small picture they upload (checked whole) — an admitted player, their own whole character, not while paused, a couple a
+        // half-minute; the GM's machine saves it and every token of the character follows; the GM is told
+        var ridP = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridP) return;
+        var ansP = function(o) { o.type = 'char-pic-ans'; o.rid = ridP; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prP = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prP) return;
+        if (net.paused || peerPaused(conn.peer)) { ansP({ reason: 'paused' }); return; }
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { ansP({ reason: 'off' }); return; }
+        var campP = getActiveCampaign(), chP = campP && campP.chars && typeof msg.charId === 'string' && own(campP.chars, msg.charId) ? campP.chars[msg.charId] : null;
+        if (!chP) { ansP({ reason: 'missing' }); return; }
+        if (chP.npc || !chP.ownerId || chP.ownerId !== prP.id) { ansP({ reason: 'owner' }); return; }
+        var fP = typeof msg.face === 'string' ? cleanFace(msg.face) : '', imP = typeof msg.img === 'string' && safeAvatar(msg.img) ? msg.img : '';
+        if ((msg.img !== undefined && !imP) || (!fP && !imP)) { ansP({ reason: 'bad' }); return; }
+        if (!allow('charpic', { perMs: 3000, burst: 2, windowMs: 30000, table: 12 }, conn.peer)) { ansP({ reason: 'slow' }); return; }   // table: every player's together (each is a picture saved on the GM's disk)
+        if (!window.wpSheets || !window.wpSheets.applyCharFace) { ansP({ reason: 'off' }); return; }
+        var tP = (prP.name || 'A player') + ' changed ' + (chP.name || 'their character') + '\u2019s picture';
+        Promise.resolve(window.wpSheets.applyCharFace(chP.id, imP ? { kind: 'picture', data: imP } : charFacePlan(fP, prP.avatar), true)).then(function(okP) {   // answered once it is saved (or could not be)
+            if (okP !== true) { ansP({ reason: 'failed' }); return; }
+            toast(tP + '.'); logEvent('char', tP); ansP({ ok: true });
+        }, function() { ansP({ reason: 'failed' }); });
+        // [netcheck:charpic-end]
     } else if (msg.type === 'my-look' && net.role === 'host') {
         // [netcheck:mylook-start]
         // Onboarding F1b: an admitted player changes their token face mid-session — cleaned, about one change a second (a burst of five), not

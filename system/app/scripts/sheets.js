@@ -307,6 +307,7 @@ function giveCharacter(pid, charId, o) {
         if (pid) n.reconcilePresence(pid, { mode: 'give', keep: o.keep, near: nearNew });
         if (prev && prev !== pid) n.reconcilePresence(prev, { mode: 'give', near: nearPrev });
     }
+    if (pid && o.pic !== false && !c.portrait && !c.face && n && n.charFacePlan) { var rpF = Object.values(n.roster || {}).find(function(x) { return x && x.id === pid; }); if (rpF) applyCharFace(c.id, n.charFacePlan(rpF.face, rpF.avatar), false); }   // Onboarding F1c: a character with no picture takes a copy of its player's face (the GM can untick it in the Give list)
     if (prev !== pid && n && n.logEvent) n.logEvent('char', c.name + ': ' + (prev ? playerNames(camp)[prev] || 'a player' : 'unassigned') + ' \u2192 ' + (pid ? playerNames(camp)[pid] || 'a player' : 'unassigned'));
     else if (pid && o.play !== false && was && was !== c.id && n && n.logEvent) { var wasC = charById(was, camp); n.logEvent('char', (playerNames(camp)[pid] || 'A player') + ' plays ' + c.name + (wasC ? '; ' + wasC.name + ' is kept' : '')); }   // a switch within one player
     return true;
@@ -634,6 +635,7 @@ function renderSheet() {
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var upB = ui('sheetUpload'); if (upB) upB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes)
+    var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
@@ -3121,6 +3123,83 @@ function revertLast() {
 }
 // The ShadowBase bridge (decision 10g, copy once): the sheet attached to a token gives its attributes, resources and
 // skills to a campaign character through the alias table; a token without a character gets one named after it
+/* ---------- Onboarding F1c: a character's own picture ---------- */
+// The picture of a character comes from a plan (net.js charFacePlan): a picture is saved into the campaign's pictures — a PNG made from the
+// player's photo (a square of at most 256 pixels), or a bundled picture copied into the tutorial folder where the Image Library already keeps
+// them — and becomes its portrait and the art of every token of it; a face (an emoji, the default) is kept on the character and drawn on its
+// tokens. From then on the picture is the character's own: changing a profile never rewrites it. replace: also when it already has a picture
+// or a face (the owner's own change); a give never overwrites one.
+function tokensOfChar(camp, cid) { var out = []; Object.keys(camp.items || {}).forEach(function(k) { var m = camp.items[k]; if (m && m.type === 'map' && Array.isArray(m.whiteboard)) m.whiteboard.forEach(function(w) { if (w && w.isChar && w.charId === cid) out.push({ m: m, w: w }); }); }); return out; }
+// [sinkcheck:charpng-start]
+function pngOf(dataUrl) {   // a square PNG of at most 256 pixels, cropped from the middle: a picture from the wire is never drawn larger, nor at all past 4096 a side
+    return new Promise(function(res, rej) {
+        var im = new Image();
+        im.onload = function() {
+            try {
+                var w = im.naturalWidth, h = im.naturalHeight; if (!(w > 0 && h > 0) || w > 4096 || h > 4096) { rej(new Error('size')); return; }
+                var s = Math.min(w, h), side = Math.min(256, s), cv = document.createElement('canvas'); cv.width = side; cv.height = side;
+                cv.getContext('2d').drawImage(im, Math.floor((w - s) / 2), Math.floor((h - s) / 2), s, s, 0, 0, side, side);
+                cv.toBlob(function(b) { if (b) res(b); else rej(new Error('png')); }, 'image/png');
+            } catch (e) { rej(e); }
+        };
+        im.onerror = function() { rej(new Error('image')); };
+        im.src = dataUrl;
+    });
+}
+// [sinkcheck:charpng-end]
+function uploadExact(rel, body) {   // a file saved at exactly images/<...> (the server keeps it inside saves/images); resolves to its address in the app
+    return fetch('/api/upload-exact?path=' + encodeURIComponent(rel), { method: 'POST', body: body }).then(function(r) { if (!r.ok) throw new Error('upload'); return '/saves/' + rel; });
+}
+function copyBundled(name) {
+    var fs2 = [name + '_sq.jpg', name + '_hex.png'];
+    return Promise.all(fs2.map(function(f) { return fetch('assets/tutorial/' + f).then(function(r) { if (!r.ok) throw new Error('asset'); return r.blob(); }).then(function(b) { return uploadExact('images/tutorial/' + f, b); }); }))
+        .then(function(u) { return { portrait: u[0], token: u[1] }; });
+}
+// [sinkcheck:charface-start]
+function applyCharFace(charId, plan, replace) {
+    var camp = getActiveCampaign(), c = charById(charId, camp); if (!camp || !c || !plan || typeof plan.kind !== 'string') return Promise.resolve(false);
+    var toks = tokensOfChar(camp, c.id);
+    if (!replace && (c.portrait || c.face || toks.some(function(t) { return !!t.w.src || !!t.w.face; }))) return Promise.resolve(false);   // it has a picture or a face of its own: kept
+    var owner = c.ownerId && net() ? Object.values(net().roster || {}).find(function(p) { return p && p.id === c.ownerId; }) : null;
+    var col = owner && typeof owner.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(owner.color) ? owner.color : '#4db3d3';
+    var dress = function(portrait, art, face) {
+        var camp2 = getActiveCampaign(), c2 = charById(charId, camp2); if (!c2 || camp2 !== camp) return false;   // the campaign changed while a picture was saved
+        if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step first
+        c2.portrait = portrait || '';
+        if (face) c2.face = face; else delete c2.face;   // the face is the character's own: a token made later wears it too
+        var maps = [];
+        tokensOfChar(camp2, c2.id).forEach(function(t) {
+            var w = t.w;
+            if (art) { w.type = 'image'; w.src = art; w.color = 'transparent'; delete w.face; }
+            else { if (w.type === 'image') { w.type = 'circle'; delete w.src; w.color = col; } w.face = face; }
+            if (maps.indexOf(t.m.id) < 0) maps.push(t.m.id);
+        });
+        var n = net(), wasR = n ? n.applyingRemote : false;
+        if (n) n.applyingRemote = true;   // never a step of the GM's undo (a player's change, or what a give brought)
+        try { afterCharChange(c2, true); } finally { if (n) n.applyingRemote = wasR; }
+        if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) maps.forEach(function(id) { n.broadcastItemFiltered(camp2.id, id); });
+        return true;
+    };
+    if (plan.kind === 'face') { var fcl = net() && net().cleanFace ? net().cleanFace(plan.face) : ''; return Promise.resolve(fcl ? dress('', null, fcl) : false); }
+    if (plan.kind === 'bundled') return (net() && net().FACE_PICS && net().FACE_PICS.indexOf(plan.name) >= 0 ? copyBundled(plan.name) : Promise.reject(new Error('name'))).then(function(u) { return dress(u.portrait, u.token, null); }).catch(function() { toast('That picture could not be copied.'); return false; });
+    if (plan.kind === 'picture') {
+        var nmP = 'portrait-' + c.id + (/-a\.png$/.test(c.portrait || '') ? '-b' : '-a') + '.png';   // two names in turn: a change is a new address (never a stale cached picture), and a character keeps two files at most
+        return (net() && net().safeAvatar && net().safeAvatar(plan.data) ? pngOf(plan.data) : Promise.reject(new Error('picture'))).then(function(b) { return uploadExact('images/portraits/' + nmP, b); }).then(function(url) { return /^[/]saves[/]images[/]/.test(String(url)) ? dress(url, url, null) : false; }).catch(function() { toast('That picture could not be saved.'); return false; });
+    }
+    return Promise.resolve(false);
+}
+// [sinkcheck:charface-end]
+// The owner's "Picture…" on their own sheet: the face picker, with a picture of their own to upload (a second click closes it)
+function pickCharPicture(anchor) {
+    var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || c.partial || c.ownerId !== myId() || !window.wpFaces || !n || !n.charPic) return;
+    if (window.wpFaces.isOpen && window.wpFaces.isOpen()) { window.wpFaces.close(); return; }
+    var prof = n.getProfile ? n.getProfile() : {};
+    var send = function(face, img) {
+        if (face === 'photo' && !img && n.safeAvatar && n.safeAvatar(prof.avatar)) img = prof.avatar;   // "My picture" is the one they see here (the GM's copy of it may be older)
+        var r = n.charPic(c.id, face || '', img || '', function(a) { toast(a.error || 'Your character\u2019s picture is changed.'); }); if (r && r.error) toast(r.error);
+    };
+    window.wpFaces.open(anchor, '', prof, function(face, img) { send(face, img); }, { upload: true });
+}
 /* ---------- Stage 6 U3: a player's sheet upload — their Import JSON, the GM's review ---------- */
 function uploadsOf(camp, charId) { return cleanUploads(camp && camp.uploads).filter(function(u) { return !charId || u.charId === charId; }); }
 function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes)
@@ -4218,7 +4297,7 @@ function onClick(e) {
         if (b.dataset.act === 'open') { openSheet(ch.id); return; }
         if (b.dataset.act === 'hud') { openHud(ch.id); return; }
         if (b.dataset.act === 'delchar') { showConfirm('Delete ' + ch.name + '? Its values are gone; tokens keep their name and lose the link.', function(yes) { if (yes) { deleteCharacter(ch.id); renderAll(); } }); return; }
-        if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { ch.portrait = src; afterCharChange(ch, true); renderAll(); } }); return; }
+        if (b.dataset.act === 'portrait') { if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { ch.portrait = src; delete ch.face; afterCharChange(ch, true); renderAll(); } }); return; }
         return;
     }
     var erow = b.closest('.sys-fx-row');   // 5h: a library effect's buttons
@@ -4398,6 +4477,7 @@ function importFile(file) {
     var pk = ui('sheetPick'); if (pk) pk.addEventListener('change', function() { if (pk.value) openSheet(pk.value); });
     var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });
     var upBt = ui('sheetUpload'); if (upBt) upBt.addEventListener('click', importJson);   // Stage 6 U3
+    var picBt = ui('sheetPic'); if (picBt) picBt.addEventListener('click', function(e) { e.stopPropagation(); pickCharPicture(picBt); });   // Onboarding F1c
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
@@ -4433,7 +4513,7 @@ setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 window.wpSheets = { bellNote: bellNote, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
-    sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET,
+    sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };

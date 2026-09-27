@@ -338,7 +338,7 @@ export function characterList(camp, ownedOnly, preferMapId) {
             if (!w.isChar || w.hidden) return;
             if (ownedOnly && !w.ownerId) return;
             var key = w.ownerId ? 'o:' + w.ownerId : 'i:' + w.id;
-            var entry = { key: key, ownerId: w.ownerId || null, tokId: w.id, name: w.charName || w.name || 'Unnamed', src: w.src || null,
+            var entry = { key: key, ownerId: w.ownerId || null, tokId: w.id, name: w.charName || w.name || 'Unnamed', src: w.src || null, face: !w.src && typeof w.face === 'string' ? w.face : null, tcolor: typeof w.color === 'string' ? w.color : null,
                           mapId: m.id, map: (m.meta && m.meta.title) || m.id, x: w.x, y: w.y, w: w.w, h: w.h, cid: w.charId ? 1 : 0 };
             // one chip per player: a token on the preferred map first, then one of a character (the one they play owns it) before a pet or a leftover
             var rank = function(e) { return (preferMapId && e.mapId === preferMapId ? 2 : 0) + e.cid; };

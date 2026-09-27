@@ -294,6 +294,99 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /var cmOld = document\.getElementById\('contextMenu'\); if \(cmOld\) cmOld\.style\.display = 'none';/.test(wbS)
             && /else if \(this\.value && window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'host' && window\.wpNet\.reconcilePresence && [^\n]*p\.location === activeMap\.id\)\) window\.wpNet\.reconcilePresence\(this\.value, \{\}\);/.test(insp) && /var cmWt = document\.getElementById\('contextMenu'\); if \(cmWt\) cmWt\.style\.display = 'none';/.test(wbS));
     }
+    /* ---- Onboarding F1c: a character's own picture (sheets.js applyCharFace, run for real) and its face on the token (whiteboard.js) ---- */
+    {
+        const j = JSON.stringify;
+        const netSrcC = read('net.js'), hC = new Function('localStorage', 'crypto', netSrcC.slice(netSrcC.indexOf('// [netcheck:helpers-start]'), netSrcC.indexOf('// [netcheck:helpers-end]')) + '\nreturn { safeAvatar, cleanFace, faceView, charFacePlan, FACE_PICS };')({ getItem: () => null, setItem() {} }, globalThis.crypto);
+        const shS = read('sheets.js'), tcA = shS.indexOf('function tokensOfChar('), tcB = shS.indexOf('\n', tcA);
+        const mkC = (o) => {
+            o = o || {};
+            const tokA = Object.assign({ id: 't1', isChar: true, charId: 'c_1', type: 'circle', color: '#112233' }, o.tok || {}), other = { id: 't2', isChar: true, charId: 'c_2', type: 'circle' };
+            const camp = { id: 'k', chars: { c_1: Object.assign({ id: 'c_1', name: 'Ana', ownerId: 'u_a', portrait: '' }, o.char || {}) }, items: { m1: { id: 'm1', type: 'map', whiteboard: [tokA, other] } } };
+            const out = { after: 0, sent: [], toasts: [], uploads: [], flush: 0, remoteAtSave: null };
+            const netF = { active: true, role: 'host', applyingRemote: false, roster: { pA: { id: 'u_a', color: '#445566' } }, cleanFace: hC.cleanFace, safeAvatar: hC.safeAvatar, FACE_PICS: hC.FACE_PICS, broadcastItemFiltered: (c, m) => out.sent.push(m) };
+            const api = new Function('getActiveCampaign', 'charById', 'net', 'afterCharChange', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', shS.slice(tcA, tcB) + '\n' + slice('sheets.js', 'charface') + '\nreturn applyCharFace;')(
+                () => camp, (id, cp) => (cp || camp).chars[id] || null, () => netF, () => { out.after++; out.remoteAtSave = netF.applyingRemote; }, t => out.toasts.push(t),
+                { wpHistFlush: () => { out.flush++; } },
+                () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_hex.png' }),
+                (rel) => { out.uploads.push(rel); return Promise.resolve(o.url || '/saves/' + rel); });
+            return { api, camp, tok: tokA, other, out, netF };
+        };
+        const A = mkC(), B = mkC(), C = mkC(), D = mkC({ char: { portrait: '/saves/images/x.png' } }), E = mkC({ tok: { type: 'image', src: '/saves/images/art.png', color: 'transparent' } }), F = mkC({ url: 'https://evil.example/x.png' }), G = mkC(), H2 = mkC();
+        const rA = await A.api('c_1', { kind: 'face', face: '\u{1F409}' }, false), rB = await B.api('c_1', { kind: 'bundled', name: 'orc' }, false), rC = await C.api('c_1', { kind: 'picture', data: 'data:image/png;base64,AAAA' }, false);
+        const rD = await D.api('c_1', { kind: 'face', face: '\u{1F409}' }, false), rE = await E.api('c_1', { kind: 'face', face: '\u{1F409}' }, true), rF = await F.api('c_1', { kind: 'picture', data: 'data:image/png;base64,AAAA' }, false);
+        const rG = await G.api('c_1', { kind: 'bundled', name: '../../etc' }, false), rH = await H2.api('c_1', { kind: 'face', face: '<img src=x>' }, false);
+        check('F1c applyCharFace (run for real): an emoji face is drawn on the character\'s own tokens (none else) and its portrait stays bare; a bundled picture and a saved photo become its portrait and its tokens\' art; a give never overwrites a picture it has (its portrait or a token\'s art), an owner\'s change does (back to a circle in their colour); a saved address that is not the app\'s own, a bundled name off the list or a refused face changes nothing',
+            rA === true && A.tok.face === '\u{1F409}' && !('face' in A.other) && A.camp.chars.c_1.portrait === '' && A.out.after === 1 && j(A.out.sent) === j(['m1'])
+            && rB === true && B.camp.chars.c_1.portrait === '/saves/images/tutorial/orc_sq.jpg' && B.tok.type === 'image' && B.tok.src === '/saves/images/tutorial/orc_hex.png'
+            && rC === true && C.camp.chars.c_1.portrait === '/saves/images/portraits/portrait-c_1-a.png' && C.tok.src === C.camp.chars.c_1.portrait && j(C.out.uploads) === j(['images/portraits/portrait-c_1-a.png'])
+            && rD === false && D.camp.chars.c_1.portrait === '/saves/images/x.png' && !('face' in D.tok) && rE === true && E.tok.type === 'circle' && !('src' in E.tok) && E.tok.color === '#445566' && E.tok.face === '\u{1F409}'
+            && rF === false && F.camp.chars.c_1.portrait === '' && !F.tok.src && rG === false && G.tok.type === 'circle' && rH === false && !('face' in H2.tok), JSON.stringify([rA, A.tok, rB, B.tok, rC, C.camp.chars.c_1.portrait, rD, rE, E.tok, rF, rG, rH]));
+        {   // Onboarding F1c review: applyCharFace keeps the face on the character, a give never overwrites a face, the picture names take turns, never the GM's undo step
+            const I = mkC({ tok: { face: '\u{1F408}' } }), J = mkC({ char: { face: 'default' } }), K = mkC({ char: { portrait: '/saves/images/portraits/portrait-c_1-a.png' } }), L = mkC({ char: { face: '\u{1F409}' } }), M = mkC();
+            const rI = await I.api('c_1', { kind: 'face', face: '\u{1F409}' }, false), rJ = await J.api('c_1', { kind: 'face', face: '\u{1F409}' }, false), rK = await K.api('c_1', { kind: 'picture', data: 'data:image/png;base64,AAAA' }, true), rL = await L.api('c_1', { kind: 'bundled', name: 'orc' }, true);
+            const rM = await M.api('c_1', { kind: 'face', face: '\u{1F409}' }, false);
+            check('F1c applyCharFace keeps the face on the character (a token made later wears it; a picture clears it); a give never overwrites a face it has (its own or a token\'s); a new picture takes the other of its two file names; the change is never a step of the GM\'s undo (their pending edit is recorded first)',
+                rI === false && I.tok.face === '\u{1F408}' && rJ === false && J.camp.chars.c_1.face === 'default' && !('face' in J.tok) && rK === true && K.camp.chars.c_1.portrait === '/saves/images/portraits/portrait-c_1-b.png' && j(K.out.uploads) === j(['images/portraits/portrait-c_1-b.png'])
+                && rL === true && !('face' in L.camp.chars.c_1) && rM === true && M.camp.chars.c_1.face === '\u{1F409}' && M.out.flush === 1 && M.out.remoteAtSave === true && M.netF.applyingRemote === false && K.out.remoteAtSave === true && K.netF.applyingRemote === false,
+                j([rI, rJ, rK, K.out.uploads, rL, L.camp.chars.c_1, rM, M.out]));
+        }
+        {   // pngOf: a square of at most 256 pixels from the middle; past 4096 a side, refused before it is drawn
+            const png = async (w, h) => { const calls = [];
+                class Img { set src(v) { setTimeout(() => this.onload && this.onload(), 0); } get naturalWidth() { return w; } get naturalHeight() { return h; } }
+                const doc = { createElement: () => { const cv = { width: 0, height: 0, getContext: () => ({ drawImage: (...a) => calls.push(a.slice(1)) }), toBlob: cb => cb({ w: cv.width, h: cv.height }) }; return cv; } };
+                const fn = new Function('Image', 'document', slice('sheets.js', 'charpng') + '\nreturn pngOf;')(Img, doc);
+                try { return { b: await fn('data:image/png;base64,AAAA'), calls }; } catch (e) { return { err: e.message, calls }; } };
+            const pBig = await png(8192, 8192), pTall = await png(100, 5000), pWide = await png(1000, 500), pSmall = await png(50, 80), pZero = await png(0, 0);
+            check('F1c a player\'s picture is saved as a square of at most 256 pixels cropped from its middle; one larger than 4096 on a side (or empty) is refused before it is drawn',
+                pBig.err === 'size' && pBig.calls.length === 0 && pTall.err === 'size' && pZero.err === 'size' && j(pWide.b) === j({ w: 256, h: 256 }) && j(pWide.calls[0]) === j([250, 0, 500, 500, 0, 0, 256, 256]) && j(pSmall.b) === j({ w: 50, h: 50 }) && j(pSmall.calls[0]) === j([0, 15, 50, 50, 0, 0, 50, 50]),
+                j([pBig, pTall, pWide, pSmall, pZero]));
+        }
+        {   // the owner's Picture button
+            const pcA = shS.indexOf('function pickCharPicture('), pcB = shS.indexOf('\n}\n', pcA) + 2, av2 = 'data:image/png;base64,QUJD';
+            const pickRun = (face, img, avatar, isOpen) => { const sent = []; let opened = null, closed = 0;
+                const wf = { isOpen: () => !!isOpen, close: () => { closed++; }, open: (a, cur, prof, cb, o) => { opened = o; cb(face, img); } };
+                const n = { charPic: (id, f, i) => { sent.push([id, f, i]); return { ok: true }; }, getProfile: () => ({ avatar }), safeAvatar: hC.safeAvatar };
+                new Function('sheetOpen', 'charById', 'net', 'isClient', 'myId', 'toast', 'window', shS.slice(pcA, pcB) + '\nreturn pickCharPicture;')('c_1', () => ({ id: 'c_1', ownerId: 'u_a' }), () => n, () => true, () => 'u_a', () => {}, { wpFaces: wf })({});
+                return { sent, opened, closed }; };
+            const kPhoto = pickRun('photo', '', av2), kBad = pickRun('photo', '', 'data:image/svg+xml;base64,AA'), kEmoji = pickRun('\u{1F409}', '', av2), kUp = pickRun('', av2, ''), kOpen = pickRun('photo', '', av2, true);
+            check('F1c the owner\'s Picture button: "My picture" sends the picture they see (their own, when it passes whole), anything else as picked; a second click closes the picker',
+                pcA > 0 && j(kPhoto.sent) === j([['c_1', 'photo', av2]]) && j(kBad.sent) === j([['c_1', 'photo', '']]) && j(kEmoji.sent) === j([['c_1', '\u{1F409}', '']]) && j(kUp.sent) === j([['c_1', '', av2]]) && kPhoto.opened && kPhoto.opened.upload === true && kOpen.closed === 1 && kOpen.sent.length === 0 && kOpen.opened === null,
+                j([kPhoto, kBad, kEmoji, kUp, kOpen]));
+        }
+        {   // the party strip: a character's own face
+            const pf = list => { new Function('list', 'window', 'cssColor', slice('whiteboard.js', 'partyface'))(list, { wpNet: { cleanFace: hC.cleanFace, faceView: (p, c) => hC.faceView(p, c, cc => 'DEFAULT(' + cc + ')') } }, SC.cssColor); return list; };
+            const pl = pf([{ key: 'o:u_a', face: '\u{1F409}', src: null, tcolor: '#112233' }, { key: 'o:u_b', face: 'default', src: null, tcolor: 'red;x:url(//evil)' }, { key: 'o:u_c', face: 'pic:orc', src: null }, { key: 'o:u_d', face: '<img src=x>', src: null }, { key: 'o:u_e', face: '\u{1F409}', src: '/saves/images/a.png' }, { key: 'o:u_f', face: null, src: null }]);
+            check('F1c the party strip shows a character\'s own face: an emoji as text, a bundled picture or the default (its colour through cssColor) as a picture; a face the rule refuses, a token with art or no face is left as it was',
+                pl[0].emoji === '\u{1F409}' && !pl[0].src && /^DEFAULT\(/.test(pl[1].src) && !/evil|url\(/.test(pl[1].src) && pl[1].avatar === true && pl[2].src === 'assets/tutorial/orc_sq.jpg' && !pl[3].src && !pl[3].emoji && pl[4].src === '/saves/images/a.png' && !pl[4].emoji && !pl[5].src && !pl[5].emoji
+                && /if \(c\.emoji\) return '<span class="' \+ cls \+ ' party-face party-emoji" data-key="' \+ esc\(c\.key\) \+ '" data-tip="' \+ esc\(tip\) \+ '">' \+ esc\(c\.emoji\) \+ '<\/span>';/.test(read('whiteboard.js')), j(pl));
+        }
+        {   // characterList carries a token's own face and colour (the party strip draws from it); the GM's own portrait pick clears a face; the picker's own button toggles it
+            const mdS = read('models.js'), clA = mdS.indexOf('export function characterList('), clB = mdS.indexOf('\n}\n', clA) + 2;
+            const cl = new Function(mdS.slice(clA + 'export '.length, clB) + '\nreturn characterList;')();
+            const campL = { items: { m1: { id: 'm1', type: 'map', meta: { title: 'M' }, whiteboard: [{ id: 't1', isChar: true, ownerId: 'u_a', charId: 'c_1', charName: 'Ana', type: 'circle', color: '#112233', face: '\u{1F409}', x: 0, y: 0, w: 60, h: 52 },
+                { id: 't2', isChar: true, ownerId: 'u_b', charName: 'Bo', type: 'image', src: '/saves/images/a.png', color: 'transparent', face: '\u{1F409}', x: 0, y: 0, w: 60, h: 52 }, { id: 't3', isChar: true, ownerId: 'u_c', charName: 'Cy', type: 'circle', color: '#445566', x: 0, y: 0, w: 60, h: 52 }] } } };
+            const lst = cl(campL, true, 'm1'), fcS = read('faces.js');
+            check('F1c the party list carries a token\'s own face (none under art) and its colour; the GM\'s own portrait pick clears a character\'s face; the picker\'s own button closes it (a click there is not an outside click)',
+                clA > 0 && j(lst.map(e => [e.name, e.face, e.tcolor])) === j([['Ana', '\u{1F409}', '#112233'], ['Bo', null, 'transparent'], ['Cy', null, '#445566']])
+                && /\{ ch\.portrait = src; delete ch\.face; afterCharChange\(ch, true\); renderAll\(\); \}/.test(shS)
+                && /window\.wpFaces = \{ open: open, close: close, isOpen: function\(\) \{ return !!pop; \},/.test(fcS)
+                && /function outside\(e\) \{ if \(pop && !pop\.contains\(e\.target\) && [^\n]*!\(pop\._anchor && pop\._anchor\.contains && pop\._anchor\.contains\(e\.target\)\)\) close\(\); \}/.test(fcS), j(lst));
+        }
+        const mkEl = () => { const kids = []; return { dataset: {}, kids, set textContent(v) { kids.length = 0; }, appendChild(k) { kids.push(k); }, querySelector: sel => { const m = /(span|img)\.([\w-]+)$/.exec(sel); return m ? kids.find(k => k.tag === m[1] && String(k.className).split(' ').indexOf(m[2]) >= 0) || null : null; } }; };
+        const docF = { createElement: (t) => { const o2 = { tag: t, attrs: {}, className: '' }; Object.defineProperty(o2, 'src', { set(v) { o2.attrs.src = String(v); }, get() { return o2.attrs.src; } }); o2.getAttribute = k => o2.attrs[k] === undefined ? null : o2.attrs[k]; return o2; } };
+        const drawFace = (el, face, color) => { new Function('item', 'el', 'window', 'document', 'cssColor', slice('whiteboard.js', 'charface-tok') + '\nreturn cfv;')({ isChar: true, charName: 'Ana', face, color }, el, { wpNet: { cleanFace: hC.cleanFace, faceView: (p, c) => hC.faceView(p, c, cc => 'DEFAULT(' + cc + ')') } }, docF, SC.cssColor); return el.kids.map(k => k.tag + ':' + (k.textContent || k.attrs.src || '')); };
+        const tokFace = face => drawFace(mkEl(), face, 'red;background:url(//evil)');
+        const fe = tokFace('\u{1F409}'), fd = tokFace('default'), fb = tokFace('<img src=x onerror=alert(1)>');
+        const elR = mkEl(); drawFace(elR, '\u{1F409}', '#112233'); elR.textContent = ''; const reb = drawFace(elR, '\u{1F409}', '#112233');   // the token was emptied (rebuilt) while its mark stayed
+        const elC = mkEl(), c1 = drawFace(elC, 'default', '#112233'), c2 = drawFace(elC, 'default', '#445566'), sw = drawFace(elC, '\u{1F409}', '#445566'), back = drawFace(elC, 'default', '#445566');
+        check('F1c a character token\'s face is drawn again whenever it is missing (a rebuilt token) or changed: a new colour of the default, an emoji for a picture and back',
+            j(reb) === j(['span:\u{1F409}']) && j(c1) === j(['img:DEFAULT(#112233)']) && j(c2) === j(['img:DEFAULT(#445566)']) && j(sw) === j(['span:\u{1F409}']) && j(back) === j(['img:DEFAULT(#445566)']), j([reb, c1, c2, sw, back]));
+        const wbC = read('whiteboard.js');
+        check('F1c a character token\'s face: an emoji is text in a span; the default is the silhouette with its colour through cssColor; a face the rule refuses draws nothing of it (initials stay); the hover card reads the character\'s own face, never its owner\'s live picture',
+            j(fe) === j(['span:\u{1F409}']) && fd.length === 1 && /^img:DEFAULT\(/.test(fd[0]) && !/url\(|evil/.test(fd[0]) && fb.length === 0
+            && /var ownerAv = \(!wItem\.src && wItem\.face && window\.wpNet && window\.wpNet\.faceView\)/.test(wbC) && !/return x && x\.id === wItem\.ownerId; \}\); return p && window\.wpNet\.safeAvatar/.test(wbC) && !/ownerAvLive/.test(wbC), JSON.stringify([fe, fd, fb]));
+    }
     delete global.window;
 
     summed = true;

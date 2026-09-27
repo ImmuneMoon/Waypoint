@@ -29,10 +29,11 @@ function drawInto(box, face, prof) {
 var pop = null;
 function close() { if (pop) { pop.remove(); pop = null; document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', onKey, true); } }
 function onKey(e) { if (pop && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); var a = pop._anchor; close(); try { if (a) a.focus(); } catch (er) {} } }
-function outside(e) { if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.face-btn'))) close(); }
+function outside(e) { if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.face-btn')) && !(pop._anchor && pop._anchor.contains && pop._anchor.contains(e.target))) close(); }   // its own button toggles it
 function title(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }); }
 // The picker: Pictures (their picture, the default, the bundled token pictures) and Emoji (search). onPick(face) with the chosen value
-function open(anchor, current, prof, onPick) {
+function open(anchor, current, prof, onPick, opts) {
+    opts = opts || {};
     close();
     var n = wpNet(), clean = n && n.cleanFace ? n.cleanFace : function() { return ''; }, pics = n && n.FACE_PICS ? n.FACE_PICS : [];
     pop = mk('div', 'face-pop'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Token face');
@@ -49,6 +50,11 @@ function open(anchor, current, prof, onPick) {
         if (hasPic) opt('photo', 'My picture', function(b) { drawInto(b, 'photo', prof); });
         opt('default', 'The plain default', function(b) { drawInto(b, 'default', prof); });
         pics.forEach(function(nm) { opt('pic:' + nm, title(nm), function(b) { drawInto(b, 'pic:' + nm, prof); }); });
+        if (opts.upload && window.wpProcessAvatar) {   // Onboarding F1c: a picture of their own (shrunk and checked before it is sent)
+            var up = mk('button', 'tool ghost face-opt face-upload', '\u2B06'); up.type = 'button'; up.title = 'Upload a picture'; var fi = mk('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true;
+            fi.addEventListener('change', function() { var f = fi.files && fi.files[0]; if (!f) return; window.wpProcessAvatar(f, function(data) { close(); if (typeof onPick === 'function') onPick('', data); }); });
+            up.addEventListener('click', function(e) { e.preventDefault(); fi.click(); }); grid.appendChild(up); grid.appendChild(fi);
+        }
     };
     var showEmoji = function() {
         tE.classList.add('sel'); tP.classList.remove('sel'); q.style.display = ''; grid.textContent = '';
@@ -88,4 +94,4 @@ function wire() {
     paintRows();
 }
 wire();
-window.wpFaces = { open: open, close: close, drawInto: drawInto, paintRows: paintRows, FACE_EMOJI: FACE_EMOJI };
+window.wpFaces = { open: open, close: close, isOpen: function() { return !!pop; }, drawInto: drawInto, paintRows: paintRows, FACE_EMOJI: FACE_EMOJI };

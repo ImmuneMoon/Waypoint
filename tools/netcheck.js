@@ -1014,7 +1014,7 @@ pendingChecks.push((async () => {
         hostDue.length === 1 && hostDue[0][0] === 'c_p' && hostDue[0][1].due.label === 'Regenerate' && cliDue.length === 1 && cliDue[0][0] === 'c_p' && cliDue[0][1].due.why === 'turn', j([hostDue, cliDue]));
     check('The bell (source): bellOut hands sheets.js the note (a failure never breaks the message path); the feeds are guarded so a harness without it runs as before',
         /function bellOut\(cid, note, as\) \{ try \{ if \(window\.wpSheets && window\.wpSheets\.bellNote\) window\.wpSheets\.bellNote\(cid, note, as\); \} catch \(e\) \{ console\.error\(e\); \} \}/.test(src)
-        && (src.match(/typeof bellOut === 'function'/g) || []).length === 4);
+        && (src.match(/typeof bellOut === 'function'/g) || []).length === 9);
 })());
 
 // Stage 6 HUD H7: the apply action on the wire. The host's char-apply (sliced, run for real with the real systemcore, formula engine, the host's
@@ -1435,12 +1435,12 @@ pendingChecks.push((async () => {
 {
     const posW = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), tnW = between('// [netcheck:turnnote-start]', '// [netcheck:turnnote-end]', 'turnnote');
     const runW = (mode, moves, o) => {
-        o = o || {}; const w = { id: 't1', isChar: true, ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, map = { type: 'map', whiteboard: [w] }, camp = { items: { m1: map }, turnRules: mode === undefined ? undefined : { walls: mode } };
-        const out = { bcast: [], dom: [], toasts: [], sent: [], asked: [] }, conn = { peer: 'pA', send: m => out.sent.push(m) };
+        o = o || {}; const w = { id: 't1', isChar: true, charId: 'c_w', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, map = { type: 'map', whiteboard: [w] }, camp = { items: { m1: map }, turnRules: mode === undefined ? undefined : { walls: mode } };
+        const out = { bcast: [], dom: [], toasts: [], sent: [], asked: [], bells: [] }, conn = { peer: 'pA', send: m => out.sent.push(m) };
         const env = { net: { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' } }, tokenDropped() {} }, campOf: () => camp, validKey: k => k === 'm1', peerPaused: () => false, allow: () => true, checkRoomHandouts() {},
             applyPosToDom: m => out.dom.push(m), broadcastPos: (m, ex) => out.bcast.push([m.x, m.y, m.final, ex === null ? 'all' : 'others']), toast: t => out.toasts.push(t), saveRemoteSoon() {}, sendFailed: e => { throw e; },
-            window: { wpFog: { moveBlocked: (mp, tok, fx, fy, tx, ty) => { out.asked.push([fx, fy, tx, ty]); return tx >= 200 && fx < 200; } } }, setTimeout: f => f() };
-        const run = new Function('env', 'msg', 'conn', 'var net = env.net, campOf = env.campOf, validKey = env.validKey, peerPaused = env.peerPaused, allow = env.allow, checkRoomHandouts = env.checkRoomHandouts, applyPosToDom = env.applyPosToDom, broadcastPos = env.broadcastPos, toast = env.toast, saveRemoteSoon = env.saveRemoteSoon, sendFailed = env.sendFailed, window = env.window, setTimeout = env.setTimeout;\n' + posW + '\nreturn function(m, c) { return handlePos(m, c); };')(env);
+            window: { wpFog: { moveBlocked: (mp, tok, fx, fy, tx, ty) => { out.asked.push([fx, fy, tx, ty]); return tx >= 200 && fx < 200; } } }, setTimeout: f => f(), bellOut: (cid, note) => out.bells.push([cid, note.title, note.text]) };
+        const run = new Function('env', 'msg', 'conn', 'var net = env.net, campOf = env.campOf, validKey = env.validKey, peerPaused = env.peerPaused, allow = env.allow, checkRoomHandouts = env.checkRoomHandouts, applyPosToDom = env.applyPosToDom, broadcastPos = env.broadcastPos, toast = env.toast, saveRemoteSoon = env.saveRemoteSoon, sendFailed = env.sendFailed, window = env.window, setTimeout = env.setTimeout, bellOut = env.bellOut;\n' + posW + '\nreturn function(m, c) { return handlePos(m, c); };')(env);
         moves.forEach(mv => run(Object.assign({ type: 'pos', campId: 'c', itemId: 'm1', wbId: 't1' }, mv), conn));
         out.at = [w.x, w.y]; return out;
     };
@@ -1452,9 +1452,17 @@ pendingChecks.push((async () => {
     check('walls: warn lets the move through with a note to the mover and the GM; off never asks; a move clear of the wall goes through untouched; each drop begins the next drag from where it landed',
         j(wn.at) === j([300, 0]) && wn.sent.length === 1 && /went through a wall/.test(wn.sent[0].text) && wn.toasts.length === 1 && j(of.at) === j([300, 0]) && !of.asked.length && !of.sent.length
         && j(ok.at) === j([150, 0]) && !ok.sent.length && j(two.at) === j([100, 0]) && j(two.asked.map(a => a[0])) === j([0, 100, 100]), j([wn, of.asked, two]));
-    const runTN = (msg, o) => { o = o || {}; const t = []; new Function('msg', 'conn', 'net', 'toast', tnW)(msg, { peer: o.peer || 'h' }, { foreign: true, syncedPeer: 'h', stream: false }, x => t.push(x)); return t; };
+    const runTN = (msg, o) => { o = o || {}; const t = []; new Function('msg', 'conn', 'net', 'toast', 'bellOut', tnW)(msg, { peer: o.peer || 'h' }, { foreign: true, syncedPeer: 'h', stream: false }, x => t.push(x), (cid, note) => (o.bells || []).push([cid, note.title, note.text])); return t; };
     check('turn-note (client, run for real): the synced host\'s note shows as one plain line (controls and bidi marks out, 200 at most); nothing from another peer or that is not text',
         j(runTN({ type: 'turn-note', text: 'A wall\u202e\u0007 is <b>here</b>' + 'x'.repeat(300) })) === j(['A wall   is <b>here</b>' + 'x'.repeat(177)]) && !runTN({ type: 'turn-note', text: 'x' }, { peer: 'o' }).length && !runTN({ type: 'turn-note', text: 5 }).length);
+    const tb = [], tbN = []; runTN({ type: 'turn-note', text: 'Your \u202eturn', charId: 'c_p' }, { bells: tb }); runTN({ type: 'turn-note', text: 'x', charId: '../c' }, { bells: tbN }); runTN({ type: 'turn-note', text: 'x', charId: 5 }, { bells: tbN }); runTN({ type: 'turn-note', text: 'x' }, { bells: tbN }); runTN({ type: 'turn-note', text: ' ', charId: 'c_p' }, { bells: tbN }); runTN({ type: 'turn-note', text: 'x', charId: 'c_p' }, { peer: 'o', bells: tbN });
+    const tnS = (() => { const T = src.replace(/\r\n/g, '\n'), i = T.indexOf('function turnNote(conn, text, cid) {'); return i < 0 ? '' : T.slice(i, T.indexOf('\n}\n', i) + 2); })();
+    const tnSent = [], tnC = { send: m => tnSent.push(m) }, TNf = new Function('sendFailed', tnS + '\nreturn turnNote;')(e => { throw e; });
+    TNf(tnC, 'a', 'c_p'); TNf(tnC, 'b', '../x'); TNf(tnC, 'c'); TNf(tnC, 'd', 5); TNf(tnC, 'e', 'c_' + 'x'.repeat(30)); TNf(null, 'f', 'c_p');
+    check('The bell (Bell-b): turnNote (net.js, run for real) adds the character only when it is a well-formed id (a path, a number, none, one too long: the note alone); no connection, nothing',
+        j(tnSent) === j([{ type: 'turn-note', text: 'a', charId: 'c_p' }, { type: 'turn-note', text: 'b' }, { type: 'turn-note', text: 'c' }, { type: 'turn-note', text: 'd' }, { type: 'turn-note', text: 'e' }]), j(tnSent));
+    check('The bell (Bell-b): a turn note naming a character goes to that character\'s bell as its cleaned line (sheets.js takes the player\'s own only); none for a bad or missing id, an empty line or another peer; on the host the walls\' notes name the token\'s character and Warn also notes it in the GM\'s bell',
+        j(tb) === j([['c_p', 'Turn', 'Your  turn']]) && !tbN.length && rf.sent.every(m => m.charId === 'c_w') && wn.sent[0].charId === 'c_w' && j(wn.bells) === j([['c_w', 'Turn', 'Moved through a wall.']]) && !rf.bells.length && !of.bells.length, j([tb, tbN, rf.sent, wn.sent, wn.bells]));
 }
 
 // Turn-based combat T3b (D2, D3, D5): the move limit and the out-of-turn lock on the host — the real pos gate and the real patch path together (a
@@ -1473,12 +1481,12 @@ pendingChecks.push((async () => {
         const pat = { id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, orc = { id: 't_o', isChar: true, charId: 'c_o', x: 500, y: 0, w: 50, h: 50 }, free = { id: 't_f', isChar: true, charId: 'c_f', ownerId: 'u_a', x: 0, y: 500, w: 50, h: 50 };
         const map = { type: 'map', meta: { gridType: 'square' }, whiteboard: [pat, orc, free] };
         const camp = { id: 'c1', items: { m1: map }, system: o.system || sysT, turnRules: o.rules || {}, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: {} }, c_o: { id: 'c_o', name: 'Orc', npc: true, values: {} } } };
-        const out = { bcast: [], notes: [], toasts: [], sent: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, conn2 = { peer: 'pA2', open: true, send: m => out.sent.push(Object.assign({ to: 'pA2' }, m)) };
+        const out = { bcast: [], notes: [], toasts: [], sent: [], bells: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, conn2 = { peer: 'pA2', open: true, send: m => out.sent.push(Object.assign({ to: 'pA2' }, m)) };
         const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' } }, conns: [conn, conn2], tokenDropped() {}, combats: { m1: { round: 1, turn: o.turn === undefined ? 1 : o.turn, rows: [{ id: 'r_o', tokId: 't_o' }, { id: 'r_p', tokId: 't_p' }] } } };
         const win = { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true, campaignOn: () => true }, wpFog: { moveBlocked: (mp, w, fx, fy, tx, ty) => tx >= 1000, moveCells: (mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50 }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpFormula: Fx };
-        const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign',
+        const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign', 'bellOut',
             clT + ownKeySrc + helpT + posT + '\n' + patT + '\n' + tmT + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m) { return applyClientItemFiltered(m, { id: "u_a" }); }, start: turnMoveStart };')(
-            { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, (m, ex) => out.bcast.push([m.wbId, m.x, m.y, ex === null ? 'all' : 'others']), t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp);
+            { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, (m, ex) => out.bcast.push([m.wbId, m.x, m.y, ex === null ? 'all' : 'others']), t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp, (cid, note) => out.bells.push([cid, note.title, note.text]));
         if (o.allow !== undefined) net.turnMove = { m1: { rowId: 'r_p', tokId: 't_p', moved: o.moved || 0, allow: o.allow } };
         const P = (wb, x, y, fin) => api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: wb, x, y, final: !!fin }, conn);
         const C = (wb, x, y) => { const copy = JSON.parse(JSON.stringify(map.whiteboard)); copy.find(w => w.id === wb).x = x; copy.find(w => w.id === wb).y = y; api.patch({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: copy } }); };
@@ -1498,6 +1506,11 @@ pendingChecks.push((async () => {
         b.pat.x === 0 && b.out.bcast.some(x => x[1] === 0 && x[3] === 'all') && j(b.out.notes()) === j(['That is 5 squares (25 ft); you have 4 squares (20 ft) left.', 'pA2:That is 5 squares (25 ft); you have 4 squares (20 ft) left.'])
         && b2.pat.x === 150 && b2.net.turnMove.m1.moved === 3 && j(b2.out.notes()) === j(['Moved 3 squares (15 ft); 1 square (5 ft) left.', 'pA2:Moved 3 squares (15 ft); 1 square (5 ft) left.']), j([b.out.notes(), b2.out.notes(), b2.net.turnMove]));
     const w = mkT({ allow: 4, rules: { move: 'warn' } }); w.P('t_p', 300, 0, true);
+    const bo = mkT({ turn: 0, rules: { order: 'warn' } }); bo.P('t_p', 50, 0, true); const br = mkT({ turn: 0 }); br.P('t_p', 50, 0, true);
+    const bp = mkT({ allow: 4 }); bp.P('t_p', 50, 0); bp.C('t_p', 250, 0); const bs = mkT(); bs.api.start('m1', bs.net.combats.m1);
+    check('The bell (Bell-b): every turn note of the move gates names the token\'s character — Your turn, a counted or refused move, out of turn, and the map copy\'s note to each of the player\'s connections; Warn past the move or out of turn also notes it in the GM\'s bell; a refusal does not',
+        [w, bo, br, bp, bs].every(x => { const tn = x.out.sent.filter(m => m.type === 'turn-note'); return tn.length > 0 && tn.every(m => m.charId === 'c_p'); }) && bp.out.sent.filter(m => m.type === 'turn-note').length === 2
+        && j(w.out.bells) === j([['c_p', 'Turn', 'Moved 2 squares (10 ft) past the move.']]) && j(bo.out.bells) === j([['c_p', 'Turn', 'Moved out of turn.']]) && !br.out.bells.length && !bp.out.bells.length, j([w.out.bells, bo.out.bells, bs.out.sent]));
     const f = mkT({ allow: 4, rules: { move: 'off' } }); f.P('t_p', 300, 0, true);
     const g = mkT({ allow: 4 }); g.P('t_f', 400, 500, true);
     const nt = mkT({ allow: 4, turns: false }); nt.P('t_p', 300, 0, true);
@@ -1537,10 +1550,10 @@ pendingChecks.push((async () => {
         o = o || {};
         const map = { type: 'map', whiteboard: [{ id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a' }, { id: 't_o', isChar: true, charId: 'c_o' }, { id: 't_q', isChar: true, charId: 'c_q', ownerId: 'u_a' }] };
         const camp = { id: 'c1', items: { m1: map }, turnRules: o.rules || {}, system: { combat: { turn: { acts: o.acts || [{ key: 'Action', n: 1 }, { key: 'Bonus', label: 'Bonus action', n: 2 }] } } }, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a' }, c_o: { id: 'c_o', name: 'Orc', npc: true }, c_q: { id: 'c_q', name: 'Quin', ownerId: 'u_a' } } };
-        const out = { sent: [], toasts: [] }, mk = p => ({ peer: p, open: true, send: m => out.sent.push(Object.assign({ to: p }, m)) }), conns = [mk('pA'), mk('pA2'), mk('pB')];
+        const out = { sent: [], toasts: [], bells: [] }, mk = p => ({ peer: p, open: true, send: m => out.sent.push(Object.assign({ to: p }, m)) }), conns = [mk('pA'), mk('pA2'), mk('pB')];
         const net = { role: 'host', conns, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' } }, combats: { m1: { round: 1, turn: 1, rows: [{ id: 'r_o', tokId: 't_o' }, { id: 'r_p', tokId: 't_p' }] } } };
-        const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'toast', 'sendFailed', 'applyPosToDom', 'broadcastPos', pidA + posA + '\n' + taA + '\nreturn { spend: actSpend, start: turnActsStart, end: turnActsEnd };')(
-            net, { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), t => out.toasts.push(t), e => { throw e; }, () => {}, () => {});
+        const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'toast', 'sendFailed', 'applyPosToDom', 'broadcastPos', 'bellOut', pidA + posA + '\n' + taA + '\nreturn { spend: actSpend, start: turnActsStart, end: turnActsEnd };')(
+            net, { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), t => out.toasts.push(t), e => { throw e; }, () => {}, () => {}, (cid, note) => out.bells.push([cid, note.title, note.text]));
         const sp = (cost, ch) => api.spend(camp, ch || 'c_p', net.roster.pA, cost, conns[0], 'Pat');
         out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => m.text);
         out.left = () => out.sent.filter(m => m.type === 'acts-left').map(m => m.to + ':' + JSON.stringify(m.left) + ':' + m.mode);
@@ -1555,6 +1568,8 @@ pendingChecks.push((async () => {
     const nq = mkA(); const nq1 = nq.sp('Action', 'c_q');
     const nt = mkA({ turns: false }); nt.sp('Action'); const nt2 = nt.sp('Action');
     const nk = mkA(); const nk1 = nk.sp('Nope'), nk2 = nk.sp('');
+    check('The bell (Bell-b): an action\'s turn note names its character (what is left, and past it under Warn), and Warn also notes it in the GM\'s bell; a spend within the count does not',
+        w.out.sent.filter(m => m.type === 'turn-note').length === 2 && w.out.sent.filter(m => m.type === 'turn-note').every(m => m.charId === 'c_p') && j(w.out.bells) === j([['c_p', 'Turn', 'Used a Action past what a turn allows.']]), j([w.out.sent, w.out.bells]));
     check('T4 actSpend\'s modes and reach: Warn lets a press past the count through with a note to them and the GM (it still counts); Off neither counts nor notes; a character not in the combat, turn-based combat off, a cost naming no action or none: free',
         w2 === '' && w.net.turnSpent.c_p.Action === 2 && /used past what a turn allows/.test(w.out.notes()[1]) && w.out.toasts.length === 1 && j(w.out.left().pop()) === j('pA2:{"Action":0,"Bonus":2}:warn')
         && f1 === '' && f2 === '' && !f.out.sent.length && !('c_p' in f.net.turnSpent) && nq1 === '' && !('c_q' in nq.net.turnSpent) && nt2 === '' && !nt.out.sent.length && nk1 === '' && nk2 === '' && !nk.out.sent.length, j([w.net.turnSpent, w.out.notes(), f.out.sent]));

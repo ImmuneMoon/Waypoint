@@ -131,9 +131,11 @@ export function libImportPlan(existing, imported, rnd) {
 // name) and then cleaned like any entry; a new entry gets a fresh i_ id; a key another entry of the library also uses is reported
 // (a warning: a key only has to be unique within the lists that draw on it); a pack's name, icon and who may see it change in the manifest
 function fold(s) { s = s == null ? '' : String(s); return (s.normalize ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s).toLowerCase(); }
+export function queryWords(q) { return fold(q).split(/\s+/).filter(Boolean).slice(0, 12); }   // L2c: what a search looks for (the picker folds each entry once: entryHay)
+export function entryHay(e) { return isObj(e) ? fold([e.name, e.key, e.category, (Array.isArray(e.tags) ? e.tags : []).join(' '), e.ref].join(' ')) : ''; }
 export function searchEntries(entries, q) {
-    var list = Array.isArray(entries) ? entries : [], words = fold(q).split(/\s+/).filter(Boolean).slice(0, 12); if (!words.length) return list.slice();
-    return list.filter(function(e) { if (!isObj(e)) return false; var hay = fold([e.name, e.key, e.category, (e.tags || []).join(' '), e.ref].join(' ')); return words.every(function(w) { return hay.indexOf(w) >= 0; }); });
+    var list = Array.isArray(entries) ? entries : [], words = queryWords(q); if (!words.length) return list.slice();
+    return list.filter(function(e) { if (!isObj(e)) return false; var hay = entryHay(e); return words.every(function(w) { return hay.indexOf(w) >= 0; }); });
 }
 export function entryFromForm(f) {
     f = isObj(f) ? f : {}; var s = function(v) { return typeof v === 'string' ? v : v == null ? '' : String(v); };
@@ -267,5 +269,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, queryWords: queryWords, entryHay: entryHay, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

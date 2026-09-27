@@ -169,7 +169,7 @@ const j = v => JSON.stringify(v);
             && /var m = setPackMeta\(camp\.library, packId, meta\); if \(!m\) return \{ error: 'No such pack\.' \};\n\s*camp\.library = m; cur\.sig = manifestSig\(camp\);\n\s*save\(true\); after\(\);/.test(lbS)
             && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = byKey\(camp\), res = coreOf\(/.test(lbS)
             && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n\s*return mine;/.test(lbS)
-            && /refreshCore: refreshCore, ready: ready, setMeta: setMeta \};/.test(lbS));
+            && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta \};/.test(lbS));
         const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };
         check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help and the tour describe it',
             zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
@@ -236,6 +236,25 @@ const j = v => JSON.stringify(v);
         check('L2a2 Help and the tour describe choosing several, import with its dry run and export; the window has its Import button and a list that takes the keys',
             /id="libImport"/.test(hmT) && /<div id="libList" class="lib-list" tabindex="0">/.test(hmT) && /<b>Import&hellip;<\/b> reads a <code>\.wppack\.json<\/code> file and shows what it would do before anything changes/.test(hmT) && /<b>Ctrl-click<\/b>, <b>Shift-click<\/b> or <b>Ctrl\+A<\/b> chooses several entries/.test(hmT)
             && /packs import and export as <code>\.wppack\.json<\/code> files/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')));
+    }
+
+    /* ---- L2c: the picker — its search, its safety, the sheet's option ---- */
+    {
+        const fs = require('fs'), { queryWords, entryHay, searchEntries } = L;
+        const eH = { id: 'i_1', name: 'Épée courte', key: 'Epee', category: 'Weapon', tags: ['Light', 'Finesse'], ref: 'Core 12' };
+        check('L2c queryWords + entryHay: the words a search looks for (case and accents aside, at most 12) and an entry\'s folded text; together they match exactly as searchEntries does',
+            j(queryWords('  ÉPÉE  finesse ')) === j(['epee', 'finesse']) && queryWords(null).length === 0 && queryWords('a b c d e f g h i j k l m n').length === 12 && entryHay(eH) === 'epee courte epee weapon light finesse core 12' && entryHay(null) === ''
+            && queryWords('core epee').every(w => entryHay(eH).indexOf(w) >= 0) && searchEntries([eH], 'core epee').length === 1, j([queryWords('  ÉPÉE  finesse '), entryHay(eH)]));
+        const pkS = fs.readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n'), shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cssS = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), zP = Number((/\.lib-pick \{ position: fixed; z-index: (\d+);/.exec(cssS) || [])[1]);
+        check('L2c the picker: text nodes only; its keys stay its own; only the list\'s categories are offered; an entry already on a list that holds each once is never added; a click outside, Esc or × closes it; it sits over every sheet window (9000) and under the app\'s questions (100000)',
+            !/innerHTML|outerHTML|insertAdjacentHTML/.test(pkS) && /pop\.addEventListener\('keydown', function\(e\) \{\n\s*e\.stopPropagation\(\);/.test(pkS)
+            && /if \(cats && cats\.indexOf\(lc\(e\.category\)\) < 0\) return;/.test(pkS) && /function chosenIds\(\) \{ var ids = Object\.keys\(st\.picked\)\.filter\(function\(id\) \{ return st\.all\.some\(function\(x\) \{ return x\.e\.id === id && !isOnce\(x\); \}\); \}\);[^\n]*return x && !x\.hdr && !isOnce\(x\) \? \[x\.e\.id\] : \[\]; \}/.test(pkS)
+            && /st\.outside = function\(e\) \{ if \(st && !st\.pop\.contains\(e\.target\)\) close\(\); \};/.test(pkS) && zP > 9000 && zP < 100000, zP);
+        check('L2c the sheet offers "From the library…" only on the GM\'s machine with a library loaded; each pick is an ordinary add with a fresh row id, the character and field looked up again (never another campaign\'s)',
+            /var libOK = gm && !!window\.wpLibPicker && !!\(window\.wpLibrary && window\.wpLibrary\.size && window\.wpLibrary\.size\(\) > 0\);/.test(shS) && /if \(libOK\) add\.appendChild\(opt\('__lib', /.test(shS) && /if \(add\.value === '__lib'\) \{ add\.value = ''; openLibPicker\(add, c, f, specI, carried\); return; \}/.test(shS)
+            && /if \(cp !== camp \|\| !ch \|\| !ff\) return; ids\.forEach\(function\(id\) \{ commitItem\(ch, ff, \{ op: 'add', defId: id, rowId: uid\('w_'\), qty: qty \}\); \}\);/.test(shS)
+            && /scripts\/libpicker\.js/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')) && /<b>&#128218; From the library&hellip;<\/b>: a picker over the campaign&rsquo;s library packs/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
     }
 
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');

@@ -641,6 +641,35 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
         j(conns[0].sent) === '[{"type":"hb"}]' && j(conns[1].sent) === '[{"type":"hb"}]' && conns[2].sent.length === 0 && bc.every(m => m.type !== 'hb'), j([conns.map(c => c.sent), bc]));
 }
 
+// Onboarding F2b: a side about to freeze in a print dialog asks the other to wait (the hold), capped; the next word from it ends the wait
+{
+    const hSrc = between('// [netcheck:hold-start]', '// [netcheck:hold-end]', 'hold');
+    const runHold = (role, ms) => { const st = { holdUntil: {}, hostHoldUntil: 0 }; new Function('msg', 'conn', 'net', 'holdUntil', 'HOLD_MAX', 'st', hSrc.replace('hostHoldUntil = Date.now() + msH', 'st.hostHoldUntil = Date.now() + msH'))({ type: 'hold', ms }, { peer: 'pA' }, { role }, st.holdUntil, 180000, st); return st; };
+    const t0 = Date.now(), hOk = runHold('host', 60000), hBig = runHold('host', 1e12), hBad = runHold('host', 'x'), hStr = runHold('host', '60000'), hTrue = runHold('host', true), hNeg = runHold('host', -5), cOk = runHold('client', 30000);
+    check('F2b the hold (run for real): the host waits for that player the time asked (3 minutes at most; nothing for a malformed or negative one); a player waits for their GM the same way',
+        hOk.holdUntil.pA - t0 >= 59000 && hOk.holdUntil.pA - t0 <= 61000 && hBig.holdUntil.pA - t0 <= 181000 && hBig.holdUntil.pA - t0 >= 179000 && Math.abs(hBad.holdUntil.pA - Date.now()) < 1000 && Math.abs(hStr.holdUntil.pA - Date.now()) < 1000 && Math.abs(hTrue.holdUntil.pA - Date.now()) < 1000 && Math.abs(hNeg.holdUntil.pA - Date.now()) < 1000 && cOk.hostHoldUntil - t0 >= 29000 && !('pA' in cOk.holdUntil), j([hOk, cOk]));
+    const hbSrcH = fnSrc('function hbTick() {', '\n// Where each player was last seen', 'hbTick');
+    const tickHost = (seenAgo, holdFor) => { const conns = [mkConn('pA')], closed = []; conns[0].close = () => closed.push('pA'); const net = { active: true, role: 'host', conns, roster: { pA: { id: 'u_a', name: 'Pat' } } }, now = Date.now(), toasts = [];
+        new Function('net', 'setIndicator', 'lastSeen', 'HB_DEAD', 'HB_STALE', 'toast', 'renderRoster', 'sendFailed', 'broadcast', 'holdUntil', hbSrcH + '\nreturn hbTick();')(net, () => {}, { pA: now - seenAgo }, 20000, 8000, t => toasts.push(t), () => {}, () => {}, () => {}, holdFor ? { pA: now + holdFor } : {});
+        return { closed, toasts, stale: !!net.roster.pA.stale }; };
+    const quiet = tickHost(30000, 0), held = tickHost(30000, 60000), heldOver = tickHost(30000, -1);
+    check('F2b the host waits for a player who said they would freeze: silent 30 s, held — not dropped (marked not responding); not held, or the hold run out — dropped',
+        quiet.closed.length === 1 && held.closed.length === 0 && held.stale === true && held.toasts.length === 0 && heldOver.closed.length === 1, j([quiet, held, heldOver]));
+    const hpSrc = between('// [netcheck:holdpeers-start]', '// [netcheck:holdpeers-end]', 'holdpeers');
+    const peers = (role) => { const conns = [mkConn('pA'), mkConn('pWait'), mkConn('pShut', false)], ticks = [], ls = { pA: 1, pWait: 1 }, st = { hostLastSeen: 1 };
+        const net = { active: true, role, conns, roster: { pA: { id: 'u_a' } } };
+        new Function('net', 'own', 'HOLD_MAX', 'sendFailed', 'lastSeen', 'hbTick', 'st', hpSrc.replace('hostLastSeen = now;', 'st.hostLastSeen = now;'))(net, H.own, 180000, () => {}, ls, () => ticks.push(1), st);
+        const r1 = net.holdPeers(999999); net.heldDone(); return { conns, ticks, ls, st, r1 }; };
+    const pH = peers('host'), pC = peers('client');
+    check('F2b holdPeers: the host tells its admitted players only (a waiting one hears nothing but the heartbeat), a player tells their GM; the time capped; after the dialog this side\'s clocks restart and a heartbeat goes at once',
+        j(pH.conns[0].sent) === j([{ type: 'hold', ms: 180000 }]) && pH.conns[1].sent.length === 0 && pH.conns[2].sent.length === 0 && pH.ticks.length === 1 && pH.ls.pA > 1 && pH.ls.pWait > 1 && pH.st.hostLastSeen > 1
+        && j(pC.conns[0].sent) === j([{ type: 'hold', ms: 180000 }]) && pC.conns[1].sent.length === 0 && pC.r1 === true, j([pH.conns.map(c => c.sent), pC.conns.map(c => c.sent)]));
+    const ns = src.replace(/\r\n/g, '\n'), ioS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('F2b (source): any word from the other side ends its hold, and a player waits for a GM who said so; Save PDF holds the table too',
+        /function noteSeen\(peerId\) \{ var now = Date\.now\(\); lastSeen\[peerId\] = now; delete holdUntil\[peerId\]; if \(net\.role === 'client'\) \{ hostLastSeen = now; hostHoldUntil = 0; \} \}/.test(ns) && /if \(age0 > HB_DEAD && !\(hostHoldUntil > now\)\) \{/.test(ns) && /hbTimer = null; lastSeen = \{\}; hostLastSeen = 0; holdUntil = \{\}; hostHoldUntil = 0;/.test(ns)
+        && /if \(nP && nP\.holdPeers\) nP\.holdPeers\(180000\); try \{ window\.print\(\); \} finally \{ if \(nP && nP\.heldDone\) nP\.heldDone\(\); \}/.test(ioS));
+}
+
 // Stage 6 HUD frame (HF3): the HUDs' roll history — a local ring of what this machine saw, tagged here with the character; no wire change
 {
     const rtSrc = between('// [netcheck:rolltag-start]', '// [netcheck:rolltag-end]', 'rolltag');

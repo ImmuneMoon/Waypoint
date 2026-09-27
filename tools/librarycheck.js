@@ -230,7 +230,7 @@ const j = v => JSON.stringify(v);
             && /var plan = planFor\(im\), pid = im\.target; if \(!plan\.add && !plan\.update\) return;/.test(winT) && /\} else if \(!ready\(pid\)\) return;\n\s*st\.work\[pid\] = plan\.entries;/.test(winT) && /pid = r\.id; LB\(\)\.setMeta\(pid, \{ icon: im\.data\.icon \|\| '', vis: im\.data\.vis \}\); plan = planFor\(im\);/.test(winT)
             && /var file = packFile\(p, workOf\(p\.id\), players \? libCtx\(pv \|\| \{ fields: \[\] \}, F\(\), false\) : gmCtx\(\)\);/.test(winT) && /window\.wpSheets\.playerSystem\(c\)/.test(winT) && /if \(p\.vis === 'gm'\) ex\.options\[2\]\.disabled = true;/.test(winT)
             && /function chosen\(\) \{ return st\.shown\.filter\(function\(e\) \{ return st\.sel\[e\.id\]; \}\)\.map\(function\(e\) \{ return e\.id; \}\); \}/.test(winT)
-            && /var pid = st\.packId, ids = chosen\(\); if \(!ids\.length \|\| !ready\(pid\)\) return;\n\s*var r = bulkSet\(/.test(winT) && /if \(!ids\.length \|\| !ready\(src\) \|\| !ready\(dst\) \|\| src === dst\) return;/.test(winT)
+            && /var pid = st\.packId, ids = chosen\(\); if \(!ids\.length \|\| !ready\(pid\)\) return;\n\s*var before = workOf\(pid\), r = bulkSet\(/.test(winT) && /if \(!ids\.length \|\| !ready\(src\) \|\| !ready\(dst\) \|\| src === dst\) return;/.test(winT)
             && /if \(!yes \|\| !st\.open \|\| !ready\(pid\)\) return; var gone = map\(\);/.test(winT) && !/innerHTML|outerHTML|insertAdjacentHTML/.test(winT));
         const hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('L2a2 Help and the tour describe choosing several, import with its dry run and export; the window has its Import button and a list that takes the keys',

@@ -1365,7 +1365,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // sheets.js or imported by it, and every name it imports from systemcore must be exported there (the browser would refuse the module)
         const imported4 = new Set(); (shS.match(/^import \{[^}]*\} from '[^']+';$/gm) || []).forEach(l => l.replace(/^import \{|\} from .*$/g, '').split(',').forEach(n => { const t = n.trim(); if (t) imported4.add(t); }));
         const declared4 = n => new RegExp('(^|\\n)[^\\n]*?(function ' + n + '\\(|var ' + n + '\\b|, ' + n + ' =)').test(shS);
-        const injected4 = [...new Set(['iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', '_fxLive', 'renderViews', 'closeHud', 'closeSheet', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS'].concat(deps4, irDeps, reDeps, ['el', 'input', 'numField', 'LIMITS', 'cleanRowDef', 'playerSystem', 'projectRows', 'getActiveCampaign', 'systemOf', 'isClient', 'charById', 'afterCharChange', 'toast', 'clone', 'fieldById', 'ownerSeesSame']))].filter(n => n !== 'document' && n !== 'window');
+        const injected4 = [...new Set(['iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', '_fxLive', 'renderViews', 'closeHud', 'closeSheet', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS'].concat(deps4, irDeps, reDeps, ['el', 'input', 'numField', 'LIMITS', 'cleanRowDef', 'playerSystem', 'projectRows', 'getActiveCampaign', 'systemOf', 'isClient', 'charById', 'afterCharChange', 'toast', 'clone', 'fieldById', 'ownerSeesSame', 'fxLibOf', 'itemLibOf', 'tokenCtxFor', 'canOpen', 'charForView', 'cleanChar', 'cleanSystem', 'resolveAll', 'playerSystem', 'charById', 'isClient', 'exportView', 'closeDownloadMenu', 'pageRef', 'itemCellText']))].filter(n => n !== 'document' && n !== 'window');
         const missing4 = injected4.filter(n => !imported4.has(n) && !declared4(n)), scImp = ((shS.match(/^import \{([^}]*)\} from '\.\/systemcore\.js';$/m) || [])[1] || '').split(',').map(x => x.trim()).filter(Boolean);
         const apiLine = (fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8').match(/^var API = \{[^\n]*\};/m) || [''])[0], notExp = scImp.filter(n => !(n in S)), notApi = ['STAT_KEY', 'statKey', 'cleanEntryStats', 'rowStats', 'rowStat', 'rowPaid', 'cleanListSpec', 'cleanListRules', 'cleanOv', 'mergeOv', 'itemReach', 'OV_LOCK'].filter(n => !(n in S) || !new RegExp('[{,] ' + n + ': ' + n + '[,}\\s]').test(apiLine));
         check('F4c1 (critic 3): every name a sheets.js slice runs with is declared in sheets.js or imported by it, every name it imports from systemcore is exported there, and the new reads are in both the export list and the window API',
@@ -2824,7 +2824,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /_dialOn = JSON\.stringify\(tokenFlags\(\)\); _roundSig = roundSigOf\(c, camp\);/.test(sh9) && /v\.dialOn = JSON\.stringify\(tokenFlags\(\)\); v\.roundSig = roundSigOf\(c, camp\);/.test(sh9) && /dialOn: null, roundSig: '', redraw: null \}/.test(sh9)
             && /swapTokenControls\(p, c, camp\);\n        \}\n        var rsS = roundSigOf\(c, camp\); if \(rsS !== _roundSig\) \{ _roundSig = rsS; _dialStale = true; \}[^\n]*\n        if \(final && _dialStale\)/.test(sh9)
             && /swapTokenControls\(v\.panel, c, camp\);\n    \}\n    var rs = roundSigOf\(c, camp\); if \(rs !== v\.roundSig\) \{ v\.roundSig = rs; v\.dialStale = true; \}[^\n]*\n    if \(final && v\.dialStale\)/.test(sh9)
-            && /import \{[^}]*labelNames, withRound, rowLvl, rowOn, cleanItemKey \} from '\.\/systemcore\.js';/.test(sh9)
+            && /import \{[^}]*labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView \} from '\.\/systemcore\.js';/.test(sh9)
             && /elevation: ruleQ\('elevation'\) \}\);[^\n]*\n            tcQ = SQ\.withRound\(tcQ, mapQ && own\(net\.combats, locQ\) \? net\.combats\[locQ\] : null\);[^\n]*\n            chQ = srcQ; varsQ = SQ\.makeResolver\(viewQ, chvQ, Fq, tcQ\);/.test(nt9)
             && !/\bfin\(/.test(nt9) && !/\bfin\(/.test(sh9)
             && /net\.combats = \{\}; combatAsked = \{\};\n[^\n]*\n[^\n]*\n    if \(window\.wpSheets && window\.wpSheets\.tokenTurned\) setTimeout\(function\(\) \{ window\.wpSheets\.tokenTurned\(null, true\); \}, 0\);/.test(nt9)
@@ -4862,6 +4862,161 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /if \(pid && o\.pic !== false && !c\.portrait && !c\.face && n && n\.charFacePlan\) \{ var rpF = [^\n]*applyCharFace\(c\.id, n\.charFacePlan\(rpF\.face, rpF\.avatar\), false\); \}/.test(shG));
         check('F1a waitingNeed (a tidy after a setting changed: nothing adopted, copied or made): a player with no character and no name binding gets one; one with a character in play or an old name binding is left as they are',
             need('u_a', 'm2', null) === 'place' && need('u_c', 'm2', null) === 'leave' && need('u_b', 'm2', null) === 'leave' && need('u_c', 'm2', null, { token: 'off' }) === 'remove' && need('u_b', 'm1', null) === 'remove');
+    }
+    /* ---- Onboarding F2a: a character to take away (sheetexport.js, run for real) ---- */
+    {
+        const X = await import(url('sheetexport.js')), DM = await import(url('docmd.js'));
+        const fxt = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
+        const rowsR = fxt('rows-d20'), raw = fxt('look-d20');
+        raw.fields = raw.fields.concat([
+            { id: 'f_leak', key: 'Leak', label: 'Leak', kind: 'formula', vis: 'all', formula: 'GMFig + 1' },
+            { id: 'f_chain', key: 'Chain', label: 'Chain', kind: 'formula', vis: 'all', formula: 'Leak * 2' },
+            { id: 'f_notes', key: 'Notes', label: 'Notes', kind: 'notes', vis: 'all', edit: 'owner' },
+            { id: 'f_mana', key: 'Mana', label: 'Mana', kind: 'resource', vis: 'all', maxFormula: 'GMFig * 2' },
+            rowsR.fields.find(f => f.id === 'f_wpn')]);
+        raw.items = (raw.items || []).concat(rowsR.items);
+        raw.effects = (raw.effects || []).concat([{ id: 'e_hex', name: 'Hexed', tone: 'debuff', vis: 'gm', mods: [{ f: 'f_str', op: 'add', v: -1 }] }]);
+        raw.sheet.sections = [{ id: 's_dash', title: 'Dashboard', cols: 1, pinned: true, fields: [{ id: 'f_level', w: 1 }] }].concat(raw.sheet.sections, [
+            { id: 's_misc', title: 'Misc', tab: 't_gear', cols: 1, fields: [{ id: 'f_leak', w: 1 }, { id: 'f_chain', w: 1 }, { id: 'f_notes', w: 'row' }, { id: 'f_mana', w: 1 }, { id: 'f_wpn', w: 'row' }] },
+            { id: 's_kid', title: 'Details', parent: 's_misc', cols: 1, fields: [{ kind: 'heading', text: 'Sub heading', w: 'row' }, { id: 'f_class', w: 1 }] },
+            { id: 's_hide', title: 'Hidden Section', tab: 't_gear', cols: 1, showIf: '1 > 2', fields: [{ id: 'f_str', w: 1 }] }]);
+        const gmSys = cleanSystem(raw, { F, gmView: true }), view = cleanSystem(raw, { F, gmView: false });
+        const evil = '<img src=x onerror=alert(1)> *x*';
+        const c = cleanChar({ id: 'c_1', name: 'Pat', ownerId: 'u_a', values: { f_str: 14, f_gmfig: 7, f_class: 'Fighter', f_notes: '## not a heading' + NL + '1. not a list' + NL + '---' + NL + '| a | b |',
+            f_fx: [{ id: 'x_1', ref: 'e_ward', on: true, t: { left: 30, at: 5, p: 1 } }, { id: 'x_2', ref: 'e_hex', on: true }],
+            f_wpn: [{ id: 'w_a', defId: 'i_longsword', qty: 1, on: true, note: 'my blade' }, { id: 'w_b', defId: 'i_vorpal', qty: 1 }, { id: 'w_c', qty: 2, def: { name: evil, category: 'Weapon', vis: 'all', stats: { bonus: 1 } }, own: 1 }] } }, gmSys);
+        const lib = {}, items = {}; gmSys.effects.forEach(d => { lib[d.id] = d; }); gmSys.items.forEach(d => { items[d.id] = d; });
+        const pv = cleanChar(S.charFor(c, view, 'u_a', { lib, items, full: gmSys }), view);   // the player's own copy, as their app keeps it
+        const allP = resolveAll(view, pv, F, null), jP = X.charToJson(view, pv, allP, { exported: '2026-09-27T00:00:00.000Z' }), tP = JSON.stringify(jP);
+        const cfv = S.charForView(c, view, { lib, items, full: gmSys }), cfo = S.charFor(c, view, 'u_a', { lib, items, full: gmSys });
+        const npc = Object.assign({}, c, { npc: true, ownerId: '' }), nv = S.charForView(npc, view, { lib, items, full: gmSys });
+        check('F2a charForView: the owner\'s own projection of any character — an owned one\'s is charFor\'s for its owner exactly; an NPC\'s (charFor: none) holds the players\' fields only, never a GM-only value',
+            j(cfv) === j(cfo) && S.charFor(npc, view, 'u_a') === null && !!nv && !('f_gmfig' in nv.values) && nv.values.f_str === 14 && S.charForView(null, view) === null && S.charForView(c, null) === null, j([cfv && Object.keys(cfv.values), nv && Object.keys(nv.values)]));
+        check('F2a charToJson (a player\'s own copy): the format, the view\'s stored fields and values, the numbers worked out on that view — never a GM-only field, its value, a GM-only item\'s GM parts or a pool whose max is the GM\'s; a value read from a hidden one reads "GM only" (a chain too); a countdown never; a full pool stays absent; the same inputs give the same file',
+            jP.format === 'waypoint-character' && jP.v === 1 && jP.exported === '2026-09-27T00:00:00.000Z' && jP.name === 'Pat' && !('gm' in jP) && !('ownerId' in jP) && !('portrait' in jP) && !('unseen' in jP) && !('picture' in jP)
+            && !/GMFig|GM figure|1d8 \+ 3|Mana|f_mana|"f_gmfig"/.test(tP) && jP.computed.Leak === 'GM only' && jP.computed.Chain === 'GM only' && jP.computed.STR === 13 && !('f_hp' in jP.values)
+            && jP.values.f_fx.every(r => !('t' in r)) && jP.values.f_wpn.some(r => r.lnk === 1 && r.def && r.def.name === 'Vorpal Sword' && !('damage' in r.def)) && jP.values.f_wpn.some(r => r.note === 'my blade')
+            && jP.system.fields.f_str.key === 'STR' && !('f_leak' in jP.system.fields) && j(X.charToJson(view, pv, allP, { exported: '2026-09-27T00:00:00.000Z' })) === tP, tP.slice(0, 900));
+        const vG = cleanChar(c, gmSys), allG = resolveAll(gmSys, vG, F, null), jG = X.charToJson(gmSys, vG, allG, { exported: 'x', gm: true });
+        const okPic = 'data:image/png;base64,' + 'A'.repeat(100), picOf = p => X.charToJson(view, pv, allP, { picture: p }).picture;
+        check('F2a charToJson: the GM\'s own copy says so and holds the GM-only fields; a picture only as a small inline PNG, JPEG or WebP (never an address, markup or one past 200,000 characters); the system\'s sig follows its stored fields (id, key, kind) and nothing else',
+            jG.gm === true && jG.values.f_gmfig === 7 && jG.computed.GMFig === 7 && jG.system.fields.f_gmfig.kind === 'number' && typeof jG.computed.Leak === 'number'
+            && picOf(okPic) === okPic && picOf('data:image/jpeg;base64,QUJD') === 'data:image/jpeg;base64,QUJD' && picOf('https://e.x/a.png') === undefined && picOf('data:image/svg+xml;base64,QUJD') === undefined && picOf('data:image/png;base64,AA" onerror="x') === undefined && picOf('data:image/png;base64,' + 'A'.repeat(200000)) === undefined
+            && /^[0-9a-f]{8}$/.test(X.systemSig(view)) && X.systemSig(view) !== X.systemSig(gmSys) && X.systemSig({ fields: view.fields.slice().reverse() }) === X.systemSig(view)
+            && X.systemSig({ fields: view.fields.filter(f => f.kind !== 'formula') }) === X.systemSig(view) && X.systemSig({ fields: view.fields.map(f => f.id === 'f_str' ? Object.assign({}, f, { key: 'Str2' }) : f) }) !== X.systemSig(view), j([jG.gm, jG.values.f_gmfig]));
+        const mdP = X.sheetToMarkdown(view, pv, allP, { F, sub: 'Generic', pageTitle: () => null }), mdG = X.sheetToMarkdown(gmSys, vG, allG, { F, gm: true });
+        const tableHead = mdP.split(NL).find(l => /^\| Item \|/.test(l)) || '', backP = DM.markdownToBlocks(mdP, { kind: 'doc' });
+        const txt = backP.blocks.filter(b => b.type === 'text').map(b => b.content).join(NL);
+        check('F2a sheetToMarkdown (a player\'s own copy): the handbook\'s dialect — front matter, the name, the dashboard, the band as one line, then every tab and its sections, a nested one as a bold line; a section whose show-if is false left out; GM only for a value read from a hidden one; nothing GM-only; an item table of at most 8 columns with its quantity',
+            /^---\ntitle: Pat\nsubtitle: Generic\n---\n\n# Pat\n\*Generic\*/.test(mdP) && mdP.indexOf('### Dashboard') > 0 && mdP.indexOf('### Dashboard') < mdP.indexOf('**At a glance:**') && mdP.indexOf('**At a glance:**') < mdP.indexOf('## Main')
+            && /## Main[\s\S]*## Spells[\s\S]*## Gear/.test(mdP) && /\*\*Details\*\*/.test(mdP) && !/Hidden Section/.test(mdP) && /- \*\*Leak:\*\* GM only/.test(mdP) && /- \*\*Chain:\*\* GM only/.test(mdP)
+            && !/GMFig|GM figure|Mana/.test(mdP) && /Hexed \u2014 STR \u22121/.test(mdP) &&/Warded \u2014 Armour class \+2/.test(mdP) && /- \*\*STR:\*\* 13 \(base 14\)/.test(mdP) && tableHead.split('|').length - 2 <= 8 && /\| Qty \|/.test(tableHead) && /- \*\*Class:\*\* Fighter/.test(mdP), mdP.slice(0, 1400));
+        check('F2a sheetToMarkdown reads back as a handbook page as it was written: notes lines that look like a heading, a numbered list, a rule or a table row stay text; a name with markup stays text; the GM\'s copy is a GM-only page with its GM-only fields',
+            backP.blocks[0].type === 'h1' && backP.blocks[0].title === 'Pat' && !backP.blocks.some(b => b.type === 'rule' || (b.type === 'h2' && b.title === 'not a heading') || (b.type === 'table' && b.title !== 'Weapons'))
+            && txt.indexOf('## not a heading') >= 0 && txt.indexOf('1. not a list') >= 0 && txt.indexOf('\\1') < 0 && txt.indexOf('---') >= 0 && txt.indexOf('| a | b |') >= 0 && !/(^|[^\\])<img/.test(mdP) &&/\\<img src=x onerror=alert\(1\)\\> \\\*x\\\*/.test(mdP)
+            && /^---\ntitle: Pat\nplayers: false\n---/.test(mdG) && /The GM\u2019s copy/.test(mdG) && /GM figure/.test(mdG) && DM.markdownToBlocks(mdG, { kind: 'doc' }).meta.players === false, j(backP.blocks.map(b => b.type + ':' + (b.title || String(b.content || '').slice(0, 40)))));
+        check('F2a fileBase: a character\'s name as a file name — letters, digits, space, _ and - only (no path, drive, control or reserved character survives), 40 at most, never a Windows device name; nothing left: the fallback',
+            X.fileBase('Pat Player') === 'Pat_Player' && X.fileBase('../..\\evil:name*?"<>|') === 'evilname' && X.fileBase('CON') === 'CON_' && X.fileBase('nul') === 'nul_' && X.fileBase('com1') === 'com1_' && X.fileBase('lpt9') === 'lpt9_' && X.fileBase('Connor') === 'Connor'
+            && X.fileBase('\u65e5\u672c') === 'character' && X.fileBase('a'.repeat(60)).length === 40 && X.fileBase(' \u0000x\u202e\u200b ') === 'x' && X.fileBase(null) === 'character' && X.fileBase('', 'sheet') === 'sheet' && X.fileBase('.. ..') === 'character');
+        check('F2a isCharFile and gmOnlyError: a character file by its format only; "GM only" as the players\' view reports it, alone or at the end of a chain',
+            X.isCharFile({ format: 'waypoint-character' }) && !X.isCharFile([]) && !X.isCharFile(null) && !X.isCharFile({ format: 'x' }) && !X.isCharFile({ type: 'character', name: 'A' })
+            && X.gmOnlyError('GM only') && X.gmOnlyError('Leak: GM only') && X.gmOnlyError('A: B: GM only') && !X.gmOnlyError('not GM only') && !X.gmOnlyError('GM only!') && !X.gmOnlyError(null));
+        // the formatters the page shares with the sheet: alike (sheets.js statFmt / statText / fxChangeText, sliced and run)
+        const shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), lineOf = name => { const a = shX.indexOf('function ' + name + '('); return shX.slice(a, shX.indexOf(NL, a)); };
+        const SH = new Function('fmtNum', lineOf('statFmt') + NL + lineOf('statText') + NL + lineOf('fxChangeText') + NL + 'return { statFmt, statText, fxChangeText };')(S.fmtNum);
+        const nums = [0.0001, 1234567.891, -0.5, 12.5, 1 / 3, 0, -2, 7, NaN, 'x'], sts = [{ labels: ['E', 'A', 'H'] }, null, { labels: [] }], mods = [{ f: 'f_a', op: 'add', v: 2 }, { f: 'f_a', op: 'add', v: -1.5, part: 'max' }, { f: 'f_b', op: 'on' }, { f: 'zz', op: 'add', v: 0 }];
+        check('F2a the page\'s formatters are the sheet\'s: a list stat and an effect\'s change read the same in the file as on the sheet',
+            nums.every(v => X.statFmt(v) === SH.statFmt(v)) && sts.every(st => [0, 1, 2, 5, 0.5, '', 'Big'].every(v => X.statText(st, v) === SH.statText(st, v))) && mods.every(m => X.fxChangeText(m, { f_a: 'ST', f_b: 'Prone' }) === SH.fxChangeText(m, { f_a: 'ST', f_b: 'Prone' })));
+        // the sheet's export view (sheets.js exportView, run for real): the GM's players'-view file is the owner's projection over the players' view
+        const evA = shX.indexOf('function exportView('), evB = shX.indexOf('function saveTextFile(');
+        const evRun = (o) => { const camp = { id: 'k', system: raw, chars: { c_1: Object.assign({}, c, o.char || {}) } }; const calls = [];
+            const fn = new Function('getActiveCampaign', 'charById', 'canOpen', 'isClient', 'playerSystem', 'cleanChar', 'cleanSystem', 'F', 'charForView', 'fxLibOf', 'itemLibOf', 'tokenCtxFor', 'resolveAll', shX.slice(evA, evB) + NL + 'return exportView;')(
+                () => camp, (id, cp) => (cp || camp).chars[id] || null, () => o.canOpen !== false, () => !!o.client, () => { calls.push('playerSystem'); return cleanSystem(raw, { F, gmView: false }); }, cleanChar,
+                (s, op) => { calls.push('cleanSystem:' + op.gmView); return cleanSystem(s, op); }, () => F, (ch, s, op) => { calls.push('charForView'); return S.charForView(ch, s, op); }, fxLib => ({}), s => items, () => null, (s, v, f, t) => { calls.push('resolveAll'); return resolveAll(s, v, f, t); });
+            return { r: fn('c_1', o.gmAll), calls }; };
+        const eOff = evRun({}), eOn = evRun({ gmAll: true }), eCli = evRun({ client: true, gmAll: true }), ePart = evRun({ char: { partial: true } }), eShut = evRun({ canOpen: false });
+        check('F2a the sheet\'s export view (run for real): the GM\'s file is the owner\'s projection over the players\' view (an NPC\'s too) with its numbers worked out on that view — or, ticked, the GM\'s own full copy; a player\'s is their own copy on the players\' view, never the GM\'s even if asked; a partial copy or one they cannot open gives nothing',
+            eOff.r && !eOff.r.gm && !('f_gmfig' in eOff.r.view.values) && !('f_gmfig' in eOff.r.all) && j(eOff.calls) === j(['playerSystem', 'charForView', 'resolveAll'])
+            && eOn.r && eOn.r.gm === true && eOn.r.view.values.f_gmfig === 7 && j(eOn.calls) === j(['cleanSystem:true', 'resolveAll'])
+            && eCli.r && eCli.r.gm === false && !('f_gmfig' in eCli.r.view.values) && j(eCli.calls) === j(['playerSystem', 'resolveAll']) && ePart.r === null && eShut.r === null, j([eOff.calls, eOn.calls, eCli.calls]));
+        check('F2a (source): a character file is refused by Import before the ShadowBase check (never sent to the GM as a dossier); the head\'s Download shows for whoever may open the whole sheet; the file\'s name goes through fileBase; the menu sits on the page and Escape closes it before the panel does',
+            /if \(isCharFile\(j\)\) \{ toast\([^\n]*\); return; \}[^\n]*\n\s*if \(!j \|\| typeof j !== 'object' \|\| Array\.isArray\(j\) \|\| \(j\.type && j\.type !== 'character'\)/.test(shX)
+            && /var dlB = ui\('sheetDownload'\); if \(dlB\) dlB\.style\.display = canOpen\(c\.id\) && !c\.partial \? '' : 'none';/.test(shX)
+            && /var base = fileBase\(X\.view\.name\) \+ \(X\.gm \? '-gm' : ''\);/.test(shX) && (shX.match(/saveTextFile\(base \+ '/g) || []).length === 2 && !/a\.download = (?!name)/.test(shX.slice(shX.indexOf('function saveTextFile('), shX.indexOf('function pictureData(')))
+            && /document\.body\.appendChild\(pop\); _dlPop = pop;/.test(shX) && /document\.addEventListener\('keydown', dlKey, true\);/.test(shX) && /function closeSheet\(\) \{ closeDownloadMenu\(\);/.test(shX)
+            && /import \{ fileBase, charToJson, sheetToMarkdown, isCharFile \} from '\.\/sheetexport\.js';/.test(shX) && /id="sheetDownload"/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+        // F2a review: the export view with the sheet's own lookups — the GM's players'-view file is the player's own file
+        const libF = new Function('window', lineOf('fxLibOf') + NL + lineOf('itemLibOf') + NL + 'return { fxLibOf, itemLibOf };')({});
+        const evRun2 = (o) => { const camp = { id: 'k', system: raw, chars: { c_1: Object.assign({}, c, o.char || {}) } }; const calls = [];
+            const fn = new Function('getActiveCampaign', 'charById', 'canOpen', 'isClient', 'playerSystem', 'cleanChar', 'cleanSystem', 'F', 'charForView', 'fxLibOf', 'itemLibOf', 'tokenCtxFor', 'resolveAll', shX.slice(evA, evB) + NL + 'return exportView;')(
+                () => camp, (id, cp) => (cp || camp).chars[id] || null, () => true, () => !!o.client, () => cleanSystem(raw, { F, gmView: false }), cleanChar, cleanSystem, () => F, S.charForView, libF.fxLibOf, libF.itemLibOf, () => { calls.push('tctx'); return o.tctx || null; }, resolveAll);
+            return { r: fn('c_1', o.gmAll), calls }; };
+        const canon = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o2, kk) => { o2[kk] = x[kk]; return o2; }, {}) : x);
+        const g1 = evRun2({}), jGo = X.charToJson(g1.r.sys, g1.r.view, g1.r.all, { exported: '2026-09-27T00:00:00.000Z' });
+        const npcR = evRun2({ char: { npc: true, ownerId: '' } }), unR = evRun2({ char: { ownerId: '' } }), pcT = evRun2({ tctx: { stance: { posture: 3, elevation: 2 } } });
+        check('F2a the GM\'s players\'-view file is the player\'s own file (the same values and numbers: a GM-only effect they carry counts); an NPC\'s and an unassigned character\'s come out on the players\' view and read no token (the GM\'s pick could be a hidden one); a PC\'s reads its token',
+            canon(jGo.values) === canon(jP.values) && canon(jGo.computed) === canon(jP.computed) && jGo.computed.STR === 13
+            && !!npcR.r && !('f_gmfig' in npcR.r.view.values) && npcR.r.tctx === null && npcR.calls.indexOf('tctx') < 0 && !!unR.r && unR.r.tctx === null && unR.calls.indexOf('tctx') < 0 && pcT.calls.indexOf('tctx') >= 0, canon([jGo.computed, jP.computed]).slice(0, 700));
+        // a table wider than the dialect holds
+        const wideRaw = { v: 1, name: 'W', rolls: [], fields: [{ id: 'f_w', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Gear'], on: { label: 'Worn' }, price: 'cost', stats: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map(k => ({ key: k, label: k.toUpperCase(), show: true })).concat([{ key: 'cost', label: 'Cost' }]) } }],
+            items: [{ id: 'i_g', name: 'Gizmo', category: 'Gear', vis: 'all', key: 'Gizmo', stats: { a: 1, cost: 5 } }], sheet: { tabs: [], sections: [{ id: 's_1', title: 'Kit', cols: 1, fields: [{ id: 'f_w', w: 'row' }] }] } };
+        const wSys = cleanSystem(wideRaw, { F, gmView: true }), wC = cleanChar({ id: 'c_w', name: 'W', values: { f_w: [{ id: 'w_1', defId: 'i_g', qty: 3 }] } }, wSys);
+        const wMd = X.sheetToMarkdown(wSys, wC, resolveAll(wSys, wC, F, null), { F }), wHead = (wMd.split(NL).find(l => /^\| Item \|/.test(l)) || '').split('|').slice(1, -1).map(x => x.trim());
+        check('F2a an item table wider than the dialect holds keeps 8 columns: the name first, then its columns in the sheet\'s order, the quantity and what was paid last',
+            wHead.length === 8 && wHead[0] === 'Item' && wHead[1] === 'A' && wHead[6] === 'Qty' && wHead[7] === 'Paid' && DM.markdownToBlocks(wMd, { kind: 'doc' }).notes.length === 0, j(wHead));
+        // the sheet's layout rules
+        const layRaw = { v: 1, name: 'L', rolls: [], fields: [
+            { id: 'f_a', key: 'A', label: 'Alpha value', kind: 'number', vis: 'all', edit: 'owner', def: 3 },
+            { id: 'f_t', key: 'T', label: 'Title', kind: 'text', vis: 'all', edit: 'owner' },
+            { id: 'f_m', key: 'M', label: 'Total', kind: 'formula', vis: 'all', formula: 'A * 2' },
+            { id: 'f_b', key: 'B', label: 'Beta value', kind: 'number', vis: 'all', edit: 'owner', def: 1 }, { id: 'f_c', key: 'C', label: 'Gamma value', kind: 'number', vis: 'all', edit: 'owner', def: 2 }, { id: 'f_d', key: 'D', label: 'Delta value', kind: 'number', vis: 'all', edit: 'owner', def: 4 },
+            { id: 'f_k', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', table: { columns: ['damage', 'cost', 'area', 'notes'] }, list: { cats: ['Gear'], counters: [{ key: 'ch', label: 'Charges', def: 2, max: '5' }] } },
+            { id: 'f_g', key: 'Gun', label: 'Gun', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Gear'] } }],
+            items: [{ id: 'i_b', name: 'Bomb', category: 'Gear', vis: 'all', key: 'Bomb', damage: '2d6', cost: '10', area: { ft: 10, shape: 'cone' } }],
+            sheet: { tabs: [{ id: 't_a', label: 'Alpha' }, { id: 't_b', label: 'Beta' }, { id: 't_c', label: 'Gamma' }], identity: [{ id: 'f_t' }], sections: [
+                { id: 's_loose', title: 'Loose', cols: 1, fields: [{ id: 'f_a', w: 1 }] },
+                { id: 's_meta', title: 'Counted', tab: 't_a', cols: 1, meta: 'f_m', fields: [{ id: 'f_m', w: 1 }] },
+                { id: 's_bare', title: '', tab: 't_a', cols: 1, fields: [{ kind: 'facing', w: 1 }, { kind: 'stance', w: 1 }] },
+                { id: 's_beta', title: 'Only if', tab: 't_b', cols: 1, showIf: 'A > 100', fields: [{ id: 'f_b', w: 1 }] },
+                { id: 's_arms', title: 'Arms', tab: 't_c', cols: 1, fields: [{ id: 'f_g', w: 'row', on: true }, { id: 'f_k', w: 'row' }] },
+                { id: 's_orp', title: 'Orphan parent', tab: 't_c', parent: 's_gone', cols: 1, fields: [{ id: 'f_c', w: 1 }] },
+                { id: 's_orc', title: 'Orphan child', tab: 't_c', parent: 's_orp', cols: 1, fields: [{ id: 'f_t', w: 1 }] },
+                { id: 's_kidbare', title: '', parent: 's_arms', tab: 't_c', cols: 1, fields: [{ id: 'f_d', w: 1 }] }] } };   // one placement per field, as the sheet keeps it
+        const lSys = cleanSystem(layRaw, { F, gmView: true });
+        const lC = cleanChar({ id: 'c_l', name: 'Lay', values: { f_t: 'Captain', f_g: [{ id: 'w_g', defId: 'i_b', qty: 1 }], f_k: [{ id: 'w_k', defId: 'i_b', qty: 2, note: 'spare' }, { id: 'w_h', defId: 'i_b', qty: 1, hid: 1 }] } }, lSys);
+        const lMd = X.sheetToMarkdown(lSys, lC, resolveAll(lSys, lC, F, null), { F, gm: true, tctx: { facing: { deg: 90, sides: 6, threats: [0, 180] }, stance: { posture: 1, elevation: 2 } } });
+        const lB = DM.markdownToBlocks(lMd, { kind: 'doc' }), kitHead = lMd.split(NL).find(l => /^\| Item \| Damage/.test(l)) || '', at = s => lMd.indexOf(s);
+        check('F2a the page keeps the sheet\'s layout rules: a section with no tab (or a gone one) on the first tab, a tab that shows nothing left out, a section\'s count in its title, an untitled section with no heading (nor a stray rule), the token\'s facing and stance, the header rows first, one level of nesting by the sheet\'s rule (a parent that has a parent, even a gone one, holds none)',
+            at('- **Title:** Captain') > 0 && at('- **Title:** Captain') < at('## Alpha') && at('## Alpha') < at('### Loose') && at('### Loose') < at('## Gamma') && at('## Beta') < 0 && at('Only if') < 0 && /### Counted \u2014 6/.test(lMd)
+            && !/^#{1,6} *$/m.test(lMd) && !lB.blocks.some(b => b.type === 'rule' || ((b.type === 'h3' || b.type === 'h2') && !b.title)) && /- \*\*Facing:\*\* 90\u00b0 \u00b7 2 threats marked/.test(lMd) && /- \*\*Posture:\*\* Crouching/.test(lMd) && /- \*\*Elevation:\*\* 2 yd/.test(lMd)
+            && /### Orphan parent\n\n- \*\*Gamma value:\*\* 2/.test(lMd) && /### Orphan child/.test(lMd) && at('**Orphan child**') < 0 && /- \*\*Bomb:\*\* spare\n\n- \*\*Delta value:\*\* 4\n\n### Orphan parent/.test(lMd), lMd.slice(0, 1600));
+        check('F2a an item list as the sheet draws it: "only switched on" means nothing once the list has no switch (every row shows); a table\'s own columns (damage, cost, the blast) and each row\'s counters; the blast beside the name; a kept curse marked on the GM\'s copy; a row\'s note',
+            at('**Gun:** none') < 0 && /\| Bomb 10 ft \| 2d6 \| 10 \| 10 ft \| 2\/5 \| 2 \|/.test(lMd) && kitHead === '| Item | Damage | Cost | Area | Charges | Qty |' && /\| Bomb 10 ft \(hidden from the player\) \| 2d6 \| 10 \| 10 ft \|  \| 1 \|/.test(lMd) && /- \*\*Bomb:\*\* spare/.test(lMd), lMd.slice(lMd.indexOf('## Gamma'), lMd.indexOf('## Gamma') + 700));
+        check('F2a the GM\'s own copy carries no countdown either (the clock is the GM\'s), and a character\'s face travels in its file',
+            jG.values.f_fx.length === 2 && jG.values.f_fx.every(r => !('t' in r)) && X.charToJson(view, Object.assign({}, pv, { face: '\u{1F409}' }), allP).face === '\u{1F409}' && !('face' in jP));
+        // a control character in a name
+        const crName = 'Spy' + '\r\r\r---\rplayers: true\r', crC = cleanChar({ id: 'c_cr', name: crName, values: { f_gmfig: 7 } }, gmSys);
+        const crMd = X.sheetToMarkdown(gmSys, crC, resolveAll(gmSys, crC, F, null), { F, gm: true, sub: 'Sys\r---\rplayers: true' }), crBack = DM.markdownToBlocks(crMd, { kind: 'doc' });
+        const crRaw = X.sheetToMarkdown(gmSys, { id: 'c_cr', name: crName, values: {} }, {}, { F, gm: true, sub: 'a\rb' });
+        check('F2a a control character in a name never ends the page\'s front matter: the cleaners take every one (not the first only) and the page writes none, so the GM\'s copy stays a GM-only page',
+            !/[\u0000-\u001f]/.test(crC.name) && !/[\u0000-\u001f]/.test(cleanSystem(Object.assign({}, raw, { name: 'A\r\rB' }), { F, gmView: true }).name) && crBack.meta.players === false && /GM figure/.test(crMd) && !/\r/.test(crMd) && !/\r/.test(crRaw) && DM.markdownToBlocks(crRaw, { kind: 'doc' }).meta.players === false, j([crC.name, crBack.meta]));
+        const cellA = shX.indexOf('function itemCellText('), SH2 = new Function(shX.slice(cellA, shX.indexOf(NL + '}' + NL, cellA) + 2) + NL + 'return itemCellText;')();
+        const defsC = [{}, { category: 'G', cost: '5', damage: '1d6', area: { ft: 10, shape: 'cone' } }, { area: { ft: 5 } }, { area: { ft: 5, shape: 'circle' } }];
+        check('F2a the page\'s table cells are the sheet\'s (itemCellText alike)', ['category', 'cost', 'damage', 'area', 'notes', 'x'].every(k => defsC.every(d => X.itemCellText(k, d) === SH2(k, d))));
+        // a curse on a list the players' view drops still counts, nameless (F6) — only with the full system passed along
+        const rawU = { v: 1, name: 'U', rolls: [], fields: [{ id: 'f_s', key: 'S', label: 'S', kind: 'number', vis: 'all', edit: 'owner', def: 10 }, { id: 'f_hl', key: 'Hexes', label: 'Hexes', kind: 'item-list', vis: 'gm', edit: 'gm', list: { cats: ['Hex'] } }, { id: 'f_nt', key: 'Log', label: 'Log', kind: 'notes', vis: 'all', edit: 'owner' }],
+            items: [{ id: 'i_curse', name: 'Curse', category: 'Hex', vis: 'all', key: 'Curse', mods: [{ f: 'f_s', op: 'add', v: -2 }] }], sheet: { tabs: [], sections: [{ id: 's_1', title: 'Main', cols: 1, fields: [{ id: 'f_s', w: 1 }, { id: 'f_nt', w: 'row' }] }] } };
+        const cU = cleanChar({ id: 'c_u', name: 'U', ownerId: 'u_a', values: { f_hl: [{ id: 'w_x', defId: 'i_curse', qty: 1 }] } }, cleanSystem(rawU, { F, gmView: true }));
+        const evU = new Function('getActiveCampaign', 'charById', 'canOpen', 'isClient', 'playerSystem', 'cleanChar', 'cleanSystem', 'F', 'charForView', 'fxLibOf', 'itemLibOf', 'tokenCtxFor', 'resolveAll', shX.slice(evA, evB) + NL + 'return exportView;')(
+            () => ({ id: 'k', system: rawU, chars: { c_u: cU } }), (id, cp) => (cp || { chars: { c_u: cU } }).chars[id] || null, () => true, () => false, () => cleanSystem(rawU, { F, gmView: false }), cleanChar, cleanSystem, () => F, S.charForView, libF.fxLibOf, libF.itemLibOf, () => null, resolveAll)('c_u');
+        const vU2 = Object.assign({}, evU.view, { values: Object.assign({}, evU.view.values, { f_nt: 'first' + String.fromCharCode(13) + 'second' }) }), mdU = X.sheetToMarkdown(evU.sys, vU2, resolveAll(evU.sys, vU2, F, null), { F });
+        check('F2a the GM\'s players\'-view file counts a curse on a list the players do not see, nameless, as their own sheet does (the full system passed along); a notes line broken by a lone CR stays two lines',
+            evU.all.f_s.value === 8 && !('f_hl' in evU.view.values) && !/Curse|Hexes/.test(JSON.stringify(X.charToJson(evU.sys, evU.view, evU.all, {}))) && /first {2}\nsecond/.test(mdU), j([evU.all.f_s, evU.view.unseen, mdU.slice(0, 300)]));
+        const sbX = fs.readFileSync(path.join(app, 'scripts', 'shadowbase.js'), 'utf8').replace(/\r\n/g, NL);
+        check('F2a (source): the menu keeps its keys (the map never sees an arrow or Delete pressed in it) and its arrows move between its choices; switching the sheet closes it; the players\' view of an NPC reads no token; a character file is refused as a dossier by both ShadowBase entries (Attach JSON, Import character)',
+            /pop\.addEventListener\('keydown', function\(e\) \{[^\n]*\n\s*e\.stopPropagation\(\);\n\s*if \(e\.key !== 'ArrowDown' && e\.key !== 'ArrowUp'\) return;/.test(shX) && /if \(sheetOpen !== charId\) closeDownloadMenu\(\);/.test(shX)
+            && /var tctx = gm \|\| isClient\(\) \|\| \(c0\.ownerId && !c0\.npc\) \? tokenCtxFor\(c0\.id, camp\) : null;/.test(shX) && !/sinkcheck:exportview/.test(shX)
+            && (sbX.match(/if \(isCharFile\(j\)\) \{ toast\([^\n]*\); return; \}[^\n]*\n\s*if \(!j \|\| typeof j !== 'object'/g) || []).length === 2 && /import \{ isCharFile \} from '\.\/sheetexport\.js';/.test(sbX));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

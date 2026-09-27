@@ -11,6 +11,7 @@
 
 import { toast, save, canPersistLocal } from './io.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
+import { isCharFile } from './sheetexport.js';
 
 function dl(name, text) {
     try {
@@ -115,6 +116,7 @@ export function attachSheet(item, file, done) {
     file.text().then(function(txt) {
         var j;
         try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+        if (isCharFile(j)) { toast('That is a character file from a sheet\u2019s Download, not a ShadowBase one.'); return; }   // Onboarding F2a
         if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) {
             toast('That does not look like a ShadowBase character JSON.');
             return;
@@ -212,6 +214,7 @@ export function importCharacterToken(file) {
     file.text().then(async function(txt) {
         var j;
         try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+        if (isCharFile(j)) { toast('That is a character file from a sheet\u2019s Download, not a ShadowBase one.'); return; }   // Onboarding F2a
         if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) {
             toast('That does not look like a ShadowBase character JSON.');
             return;

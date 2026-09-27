@@ -220,6 +220,7 @@ function markdownToBlocks(text, opts) {
         fm[1].split('\n').forEach(function(l) {
             var m = /^([A-Za-z_]+)\s*:\s*(.*)$/.exec(l); if (!m) return;
             var k = m[1].toLowerCase(), v = m[2].replace(/(\s{2,}|\t)#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2');   // "value   # a comment" as the template shows
+            var qm = /^"(?:[^"\\]|\\.)*"/.exec(m[2].trim()); if (qm) { try { v = String(JSON.parse(qm[0])); } catch (e) {} }   // F2a: a double-quoted value as yamlStr writes it (\" \u003c \r …)
             if (k === 'title' || k === 'subtitle') meta[k] = v;
             else if (k === 'status') { if (kind === 'planner' && /^(next|played|skipped)$/.test(v)) meta.status = v; else notes.push('Front matter "status" is for planners; ignored.'); }
             else if (k === 'players') { if (kind === 'doc') meta.players = !/^(false|no|off|0)$/i.test(v); else notes.push('Front matter "players" is for handbook pages; ignored.'); }
@@ -354,12 +355,18 @@ function markdownToBlocks(text, opts) {
 }
 
 /* ---------- blocks → Markdown ---------- */
-function mdEscapeText(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/^(\s*)([#>+\-]|\d+[.)])(\s)/, '$1\\$2$3'); }
+// A text run as plain text in the dialect: its marks escaped (and an & that would read as an entity), and — where the run starts a line — a
+// line start that would open a block: a heading (#, ##…), a list or a rule (-, +, ---), a table row (|), a prose fence or a table's
+// separator (:), a number list (1. → 1\.). Each reads back exactly as written (inline() unescapes \ before # + - . ) |, and &#58; is a colon;
+// a backslash before a digit or a colon it would keep)
+function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
+function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
+function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
 // Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a)
 function htmlToMarkdown(html) {
-    var out = '', hrefs = [], lists = [], inPre = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
+    var out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
     while ((m = re.exec(html))) {
-        if (m[4] !== undefined) { var t = unent(m[4]); out += inPre ? t : mdEscapeText(t.replace(/\s+/g, ' ')); continue; }
+        if (m[4] !== undefined) { var t = unent(m[4]); if (inPre) { out += t; continue; } var tx = t.replace(/\s+/g, ' '); out += inCode ? tx : (!out || /\n$/.test(out)) ? mdEscapeText(tx) : mdEscapeMarks(tx); continue; }   // F2a: a code span is read back raw (no escapes in it); a line start only where the run starts a line
         var close = !!m[1], tag = m[2].toLowerCase();
         if (inPre) { if (tag === 'pre' && close) { inPre = false; out += '\n```\n\n'; } continue; }
         switch (tag) {
@@ -369,7 +376,7 @@ function htmlToMarkdown(html) {
             case 'i': case 'em': out += '*'; break;
             case 's': case 'strike': out += '~~'; break;
             case 'u': out += close ? '</u>' : '<u>'; break;
-            case 'code': out += '`'; break;
+            case 'code': out += '`'; inCode = !close; break;
             case 'pre': inPre = true; out += '\n```\n'; break;
             case 'ul': case 'ol': if (!close) { lists.push({ t: tag, n: 0 }); if (lists.length === 1 && out && !/\n$/.test(out)) out += '\n'; } else { lists.pop(); if (!lists.length) out += '\n'; } break;
             case 'li': if (!close) { var L = lists[lists.length - 1] || { t: 'ul', n: 0 }; L.n++; if (out && !/\n$/.test(out)) out += '\n'; out += new Array(Math.max(0, lists.length - 1) + 1).join('  ') + (L.t === 'ol' ? L.n + '. ' : '- '); } else if (!/\n$/.test(out)) out += '\n'; break;
@@ -381,7 +388,7 @@ function htmlToMarkdown(html) {
 }
 function quoteLines(md) { return md.split('\n').map(function(l) { return '> ' + l; }).join('\n'); }
 function cellText(s) { return String(s == null ? '' : s).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim(); }
-function yamlStr(s) { s = String(s == null ? '' : s); return /[:#\[\]{}"'\n]|^\s|\s$/.test(s) ? JSON.stringify(s) : s; }
+function yamlStr(s) { s = String(s == null ? '' : s); return /[:#\[\]{}"'<>&\u0000-\u001f\u007f]|^\s|\s$/.test(s) ? JSON.stringify(s).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') : s; }   // F2a: a control character (a CR would end the front matter early), and markup, always quoted and escaped
 function layoutTail(l, forPage) {
     if (!l || typeof l !== 'object') return '';
     var parts = [];
@@ -536,4 +543,4 @@ var TEMPLATE = [
 
 var API = { VERSION: VERSION, LIMITS: LIMITS, PLANNER_BLOCKS: PLANNER_BLOCKS.slice(), DOC_BLOCKS: DOC_BLOCKS.slice(), markdownToBlocks: markdownToBlocks, docToMarkdown: docToMarkdown, htmlToMarkdown: htmlToMarkdown, flowchartFromMermaid: flowchartFromMermaid, flowchartToMermaid: flowchartToMermaid, parseAttrs: parseAttrs, detectBundle: detectBundle, TEMPLATE: TEMPLATE };
 if (typeof window !== 'undefined') window.wpDocMd = API;
-export { VERSION, LIMITS, PLANNER_BLOCKS, markdownToBlocks, docToMarkdown, htmlToMarkdown, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE };
+export { VERSION, LIMITS, PLANNER_BLOCKS, markdownToBlocks, docToMarkdown, htmlToMarkdown, mdEscapeText, mdEscapeMarks, yamlStr, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE };

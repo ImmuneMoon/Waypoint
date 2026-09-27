@@ -3298,8 +3298,8 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-upload-ans' && net.role === 'client') {   // Stage 6 U2: the host's answer to our upload
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_uploadPending, msg.rid)) return;
         var pU = _uploadPending[msg.rid]; delete _uploadPending[msg.rid]; clearTimeout(pU.timer);
-        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.' };
-        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: UP_WHY[msg.reason] || 'The GM could not read it.' } : { n: typeof msg.n === 'number' && isFinite(msg.n) ? Math.max(0, msg.n | 0) : 0, auto: typeof msg.auto === 'number' && isFinite(msg.auto) ? Math.max(0, msg.auto | 0) : 0 });
+        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.', file: 'That is a character file, not a ShadowBase one.' };
+        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: Object.prototype.hasOwnProperty.call(UP_WHY, msg.reason) ? UP_WHY[msg.reason] : 'The GM could not read it.' } : { n: typeof msg.n === 'number' && isFinite(msg.n) ? Math.max(0, msg.n | 0) : 0, auto: typeof msg.auto === 'number' && isFinite(msg.auto) ? Math.max(0, msg.auto | 0) : 0 });
     } else if (msg.type === 'char-pic-ans' && net.role === 'client') {   // Onboarding F1c: the host's answer to our picture
         // [netcheck:charpicans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_picPending, msg.rid)) return;
@@ -3460,6 +3460,7 @@ function handleMessage(msg, conn) {
         var Su = SC(), Fu = window.wpFormula; if (!Su || !Fu) return;
         var qu = Su.cleanCharUpload(msg); if (!qu) return;
         var ansU = function(o) { o.type = 'char-upload-ans'; o.rid = qu.rid; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        if (qu.sheet && typeof qu.sheet === 'object' && qu.sheet.format === 'waypoint-character') { ansU({ reason: 'file' }); return; }   // Onboarding F2a: a character file is never read as a dossier
         if (net.paused || peerPaused(conn.peer)) { ansU({ reason: 'paused' }); return; }
         if (window.wpVtt && !window.wpVtt.on('sheets')) { ansU({ reason: 'off' }); return; }
         var nowU = Date.now(); if (_uploadAt[conn.peer] && nowU - _uploadAt[conn.peer] < UPLOAD_GAP_MS) { ansU({ reason: 'slow' }); return; }

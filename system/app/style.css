@@ -2554,6 +2554,9 @@
   @media (prefers-reduced-motion: reduce) { .hud-hist-new { animation: none; } }
   .hud-hist-chev { width: 11px; height: 11px; margin-left: auto; color: var(--dim); }
   .hud-hist-tools { display: flex; align-items: center; gap: 6px; flex: none; }
+  .sheet-ruletext { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; line-height: 1.5; padding: 2px 0 2px 10px; border-left: 2px solid color-mix(in srgb, var(--sheet-accent, var(--gold)) 45%, transparent); }   /* Stage 6 HUD H11: rules text */
+  .sheet-ruletext.sheet-row { grid-column: 1 / -1; }
+  .sys-pl-rtext { width: 100%; min-height: 4.5em; resize: vertical; font: inherit; }
   .sheet-hb { display: flex; flex-direction: column; gap: 6px; min-width: 0; }   /* Stage 6 HUD H12: the handbook search */
   .sheet-hb-bar { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .sheet-hb-bar .sheet-hb-q { flex: 1; min-width: 0; }

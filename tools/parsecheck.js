@@ -8,6 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const dir = path.join(__dirname, '..', 'system', 'app', 'scripts');
 const files = process.argv.length > 2 ? process.argv.slice(2) : fs.readdirSync(dir).filter(f => f.endsWith('.js')).map(f => path.join(dir, f));
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     let bad = 0;
     for (const f of files) {
@@ -19,5 +21,6 @@ const files = process.argv.length > 2 ? process.argv.slice(2) : fs.readdirSync(d
         }
     }
     if (bad) { console.log('\n' + bad + ' module(s) would not load in the browser.'); process.exit(1); }
+    summed = true;
     console.log('\nAll modules parse.');
 })();

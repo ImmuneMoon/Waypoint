@@ -11,6 +11,8 @@ let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } }
 const j = v => JSON.stringify(v);
 
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     let S = null, F = null, err = null;
     try { S = await import(url('systemcore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
@@ -162,6 +164,7 @@ const j = v => JSON.stringify(v);
         return !!sec && sec.fields.some(p => p.id === 'f_kit' && p.w === 'row') && sec.fields.some(p => p.id === 'f_gmkit');
     })());
 
+    summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     process.exit(fail ? 1 : 0);
 })();

@@ -43,6 +43,8 @@ let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail ? '-> ' + detail : ''); } }
 const j = o => JSON.stringify(o);
 
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
     await import(url);
@@ -347,6 +349,7 @@ const j = o => JSON.stringify(o);
     const d = V.debug();
     check('debug() carries the fields the sandbox reads', ['mode', 'campaign', 'global', 'ceiling', 'tableKey', 'localOff', 'effective', 'sig', 'seen', 'pending'].every(k => k in d) && d.mode === 'client');
 
+    summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      harness error ->', e && e.stack || e); process.exit(1); });

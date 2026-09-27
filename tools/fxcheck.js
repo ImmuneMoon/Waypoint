@@ -8,6 +8,8 @@ const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 
 let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } }
 
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     let X = null, err = null;
     try { X = await import(url('fxcore.js')); } catch (e) { err = e; }
@@ -90,6 +92,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
     check('window.wpFxCore published', !!(global.window.wpFxCore && global.window.wpFxCore.cleanFx && global.window.wpFxCore.VERSION === X2.VERSION));
     delete global.window;
 
+    summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

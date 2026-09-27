@@ -460,11 +460,15 @@ function all(cls, tier) { const ids = Object.keys(cls.tiers); return ids.length 
         const scripts = path.join(__dirname, '..', 'system', 'app', 'scripts'), surl = f => 'file:///' + path.resolve(path.join(scripts, f)).replace(/\\/g, '/');
         const readSrc = f => fs.readFileSync(path.join(scripts, f), 'utf8').replace(/\r\n/g, '\n');
         const ioSrc = readSrc('io.js'), mainSrc = readSrc('main.js'), netSrc = readSrc('net.js');
-        const S = await import(surl('systemcore.js')), F = await import(surl('formula.js'));
+        const S = await import(surl('systemcore.js')), F = await import(surl('formula.js')), LBC = await import(surl('librarycore.js'));
         // the REAL load normaliser (io.js migrateAppState) and the REAL rich-text sanitiser (net.js; under node it keeps text only), sliced, never copied
         const mi = ioSrc.indexOf('  function hexCenterFlat('), mk = ioSrc.indexOf('  // What the cleanup (scripts/cleanup.js) may do');
         const migrate = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')(
-            { wpSystemCore: S, wpFormula: F }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+            { wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+        const libLoad = migrate({ activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: {}, library: { dir: 'l_abcd1234', packs: [{ id: 'p_a', name: 'Gear\u0000', rev: 2, count: 3, secret: 'x' }, { id: '../x' }] } }, cM: { id: 'cM', name: 'M', items: {}, library: { dir: '../../saves', packs: [] } } } });
+        const keepNoCore = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')({ wpSystemCore: S, wpFormula: F }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }))({ activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: {}, library: { dir: 'l_abcd1234', packs: [] } } } });
+        check('L1c the load cleans a campaign\'s library manifest (its folder a generated name, each pack once, nothing else riding along) and drops one that names a path; with its cleaner not loaded it leaves the manifest as it is (never lost)',
+            JSON.stringify(libLoad.campaigns.cL.library) === JSON.stringify({ v: 1, dir: 'l_abcd1234', packs: [{ id: 'p_a', name: 'Gear', vis: 'all', rev: 2, count: 3, bytes: 0, hash: '' }] }) && !('library' in libLoad.campaigns.cM) && keepNoCore.campaigns.cL.library.dir === 'l_abcd1234', JSON.stringify([libLoad.campaigns.cL.library, libLoad.campaigns.cM.library]));
         const si = netSrc.indexOf('function escAttr('), sk = netSrc.indexOf('net.sanitizeRichText = sanitizeRichText;');
         const sanitize = new Function(netSrc.slice(si, sk) + '\nreturn sanitizeRichText;')();
         const deps = { migrate, DR: DOC, sanitize };

@@ -502,6 +502,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         delete camp.pictures; delete camp.imageCats;   // the picture library's per-campaign bookkeeping (1.5.0)
         delete camp.sounds;   // the sound index (1.5.0): the hosted campaign's playable list goes as its own message, validated on arrival
         delete camp.music;    // the music library (1.5.0): likewise travels only as the validated 'music' message, never raw in the snapshot
+        delete camp.library;  // the item library's manifest (Stage 6 L1c): the GM's; a player holds only the copies the host puts on their rows
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system);   // 5h / Stage 6: the full libraries, before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
@@ -1330,7 +1331,8 @@ function peerProfileId(c) { var p = net.roster[c.peer]; return p && p.id ? p.id 
 // 5h: the full status-effect library by id (host-local, never sent): a GM-only effect applied to a PC reaches its owner inline through it
 function fxLib(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }
 // Stage 6 F4a: the full item library by id (host-local, never sent): a GM-only item on a PC reaches its owner inline through it (players' fields only)
-function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }
+// Stage 6 library L1c: with a library on this machine, a lookup (the system's items first, then the library) rather than a map of thousands
+function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = typeof window !== 'undefined' ? window.wpLibrary : null; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : L.entry(id); } : lib; }
 // 5h: a teammate's copy (partial: hover fields only) cannot work out a hover line whose formula reads a field it does not hold (HP max from
 // ST read the default: "HP 9 / 10" where the owner saw "9 / 14"), so the host sends the lines it works out from the owner's own view.
 function withHoverLines(v, src, view, lib, items) {

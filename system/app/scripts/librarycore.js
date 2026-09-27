@@ -87,6 +87,25 @@ export function newDir(rnd) { rnd = rnd || Math.random; var s = 'l_'; for (var i
 // a pack file's name on disk for a revision
 export function packFileName(packId, rev) { return PACK_RE.test(String(packId)) && typeof rev === 'number' && rev >= 0 && rev <= 1e9 && Math.floor(rev) === rev ? packId + '.' + rev + '.json' : ''; }
 
+// The manifest's operations (L1c), pure: a campaign's manifest with a new empty pack (its folder made the first time), without one, and
+// a pack's facts once written — how many entries, the file's size, and the fingerprint of what players see of it (their view of each
+// entry, a GM-only one left out: adding a hidden entry never moves it)
+export function manifestSig(camp) { var m = isObj(camp) ? camp.library : null; return isObj(m) && Array.isArray(m.packs) ? String(camp.id) + '|' + m.dir + '|' + m.packs.map(function(p) { return p.id + '.' + p.rev; }).join(',') : ''; }
+export function addPack(manifest, name, rnd) {
+    rnd = rnd || Math.random;
+    var m = cleanManifest(manifest) || { v: VERSION, dir: newDir(rnd), packs: [] }; if (m.packs.length >= LIB.packs) return null;
+    var id = '', taken = map(); m.packs.forEach(function(p) { taken[p.id] = 1; });
+    for (var k = 0; k < 20 && (!id || taken[id]); k++) { id = 'p_'; for (var i = 0; i < 8; i++) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(rnd() * 36) % 36); }
+    if (taken[id]) return null;
+    m.packs.push({ id: id, name: line(name, LIB.packName) || 'Pack', vis: 'all', rev: 0, count: 0, bytes: 0, hash: '' });
+    return { manifest: m, id: id };
+}
+export function removePack(manifest, id) { var m = cleanManifest(manifest); if (!m) return null; m.packs = m.packs.filter(function(p) { return p.id !== id; }); return m; }
+export function nextRev(manifest, id) { var m = cleanManifest(manifest), p = m ? m.packs.filter(function(x) { return x.id === id; })[0] : null; return p ? Math.min(1e9, p.rev + 1) : 0; }
+export function packMeta(entries, plCtx, bytes) {
+    var hs = []; (Array.isArray(entries) ? entries : []).forEach(function(e) { var p = cleanLibEntry(e, plCtx); if (p) hs.push(p.id + ':' + entryHash(p)); });
+    return { count: Array.isArray(entries) ? entries.length : 0, bytes: typeof bytes === 'number' && bytes > 0 ? Math.min(LIB.fileBytes, Math.floor(bytes)) : 0, hash: hs.length ? hashText(hs.join('|')) : '' };
+}
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host)
 export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
@@ -97,5 +116,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

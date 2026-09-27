@@ -669,6 +669,7 @@ function refreshNewPlayersBox() {
     var r = camp && S && S.newPlayerRules ? S.newPlayerRules(camp) : { token: 'on', sight: false };
     var notMine = net.active && net.role !== 'host';   // at someone else's table the box shows the table's rules, read-only
     sel.value = r.token; sg.checked = r.sight; sel.disabled = notMine; sg.disabled = notMine || r.token === 'off';
+    var mkSel = ui('netMakeSelect'); if (mkSel) { var nC = camp && S && S.cleanNewPlayers ? S.cleanNewPlayers(camp.newPlayers) || {} : {}; mkSel.value = nC.create || 'live'; mkSel.disabled = notMine; }   // Onboarding F3b: whether players make their own
 }
 function setNewPlayers(patch) {
     if (net.active && net.role !== 'host') { refreshNewPlayersBox(); return; }   // a player never sets the table's rules (their copy follows the host's)
@@ -681,6 +682,8 @@ var _waitSel = ui('netWaitingSelect');
 if (_waitSel) _waitSel.addEventListener('change', function() { setNewPlayers({ token: this.value === 'off' ? 'off' : 'on' }); toast(this.value === 'off' ? 'Players without a character get no token until you give them one.' : 'Players without a character get a waiting token.'); });
 var _waitSight = ui('netWaitingSight');
 if (_waitSight) _waitSight.addEventListener('change', function() { setNewPlayers({ sight: this.checked }); });
+var _makeSel = ui('netMakeSelect');
+if (_makeSel) _makeSel.addEventListener('change', function() { var v = this.value === 'invite' || this.value === 'off' ? this.value : 'live'; setNewPlayers({ create: v }); toast(v === 'off' ? 'Players never make a character of their own here.' : v === 'invite' ? 'Players make a character only when you ask them (their chip \u25B8 Let them make a character).' : 'Players may make a character of their own.'); });
 
 function refreshStageSelect() {
     refreshNewPlayersBox();
@@ -1636,7 +1639,7 @@ function sendCharTo(pid, id) {
 net.sendCharTo = sendCharTo;
 // Onboarding F3 (host): what the GM did with a player's character, to that player — sent back (unlocked to fill in), removed, locked
 net.charReview = function(pid, charId, name, outcome, note) {
-    if (!net.active || net.role !== 'host' || (outcome !== 'back' && outcome !== 'removed' && outcome !== 'locked')) return;
+    if (!net.active || net.role !== 'host' || (outcome !== 'back' && outcome !== 'removed' && outcome !== 'locked' && outcome !== 'invited')) return;
     var m = { type: 'char-review', charId: String(charId), name: cleanCharName(name), outcome: outcome }, nt = String(note || '').replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300); if (nt) m.note = nt;   // the note: text only, 300 at most
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) { try { c.send(m); } catch (e) { sendFailed(e); } } });
 };
@@ -2942,7 +2945,7 @@ net.charPic = function(charId, face, img, done) {
 // Onboarding F3: a player's own character — start one (in the making: theirs alone, every field they can see theirs to set), name it while it is,
 // say it is done (it goes live; an unlocked one locks again). done({ ok, charId? } | { error }); a GM whose Waypoint has none of this never answers
 var _mkPending = {};
-var MK_WHY = { paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
+var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
 function mkSend(type, m, done) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
@@ -2956,6 +2959,8 @@ function mkSend(type, m, done) {
 net.charMake = function(name, done) { return mkSend('char-make', { name: cleanCharName(name) }, done); };
 net.charName = function(charId, name, done) { var nm = cleanCharName(name); if (!nm) return { error: 'That name cannot be used.' }; return mkSend('char-name', { charId: String(charId), name: nm }, done); };
 net.charDone = function(charId, done) { return mkSend('char-done', { charId: String(charId) }, done); };
+// Onboarding F3b: Just a token — a name and their face, and they play at once (sheets on: an empty character, unlocked; off: a plain token)
+net.charToken = function(name, done) { return mkSend('char-token', { name: cleanCharName(name) }, done); };
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
     if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
@@ -3366,7 +3371,7 @@ function handleMessage(msg, conn) {
         var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
-    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
+    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-token-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
         // [netcheck:charmakeans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_mkPending, msg.rid)) return;
         var pK = _mkPending[msg.rid]; delete _mkPending[msg.rid]; clearTimeout(pK.timer);
@@ -3377,10 +3382,10 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
         // [netcheck:charreview-start]
         if (!net.foreign || net.stream || conn.peer !== net.syncedPeer) return;
-        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM locked ' };
+        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM locked ', invited: 'Your GM asked you to make a character: ' }, TAIL_R = { back: ' to fill in (press Done when it is finished)', invited: ' \u2014 open it from your card' };
         if (typeof msg.outcome !== 'string' || !Object.prototype.hasOwnProperty.call(OUT_R, msg.outcome)) return;
         var nmR = cleanCharName(msg.name) || 'your character', ntR = typeof msg.note === 'string' ? msg.note.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
-        toast(OUT_R[msg.outcome] + nmR + (msg.outcome === 'back' ? ' to fill in (press Done when it is finished)' : '') + (ntR ? ': ' + ntR : '.'));
+        toast(OUT_R[msg.outcome] + nmR + (Object.prototype.hasOwnProperty.call(TAIL_R, msg.outcome) ? TAIL_R[msg.outcome] : '') + (ntR ? ': ' + ntR : '.'));
         // [netcheck:charreview-end]
     } else if (msg.type === 'char-upload-done' && net.role === 'client') {   // U2: what the GM did with it
         var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
@@ -3839,7 +3844,7 @@ function handleMessage(msg, conn) {
         if (window.wpHistFlush) window.wpHistFlush();
         var wasRD = net.applyingRemote; net.applyingRemote = true;
         try {
-            if (stD === 'making') { var playD = !SD.activeCharOf(campD, prD.id).id; delete chD.making; chD.review = 1; window.wpSheets.giveCharacter(prD.id, chD.id, { play: playD, pic: true }); }   // asked while it is still in the making: does the GM's give (a character they play) stand?
+            if (stD === 'making') { var playD = !SD.activeCharOf(campD, prD.id).id || chD.invited === 1; delete chD.making; delete chD.invited; chD.review = 1; window.wpSheets.giveCharacter(prD.id, chD.id, { play: playD, pic: true }); }   // asked while it is still in the making: does the GM's give (a character they play) stand?
             else { delete chD.unlocked; chD.review = 1; chD.updated = Date.now(); save(true); net.syncChar(chD.id); }
         } finally { net.applyingRemote = wasRD; }
         var tD = (prD.name || 'A player') + (stD === 'making' ? ' finished making ' : ' finished the sheet of ') + chD.name + (clD.length ? ' (the name is also ' + clD.map(function(k) { return CLW[k]; }).join(' and ') + ')' : '');
@@ -3848,6 +3853,60 @@ function handleMessage(msg, conn) {
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chD.id);
         if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
         // [netcheck:chardone-end]
+    } else if (msg.type === 'char-token' && net.role === 'host') {
+        // [netcheck:chartoken-start]
+        // Onboarding F3b: Just a token — a player with nothing of their own takes a name and their face and plays at once (the GM's rules: where
+        // making is live, or always without sheets). Sheets on and a system: an EMPTY character of theirs, made, unlocked and in play at once (its
+        // token where their waiting token stood), with the GM's review bar. Otherwise a plain token of theirs where their waiting token stood
+        // (the waiting token becomes it) or at the landing spot, bound by its name; a picture from their face is saved when it has one
+        var ridJ = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridJ) return;
+        var ansJ = function(o) { o.type = 'char-token-ans'; o.rid = ridJ; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prJ = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prJ) return;
+        if (net.paused || peerPaused(conn.peer)) { ansJ({ reason: 'paused' }); return; }
+        var campJ = getActiveCampaign(), SJ = SC(), shJ = !!campJ && sheetsOnFor(campJ);
+        if (!campJ || !SJ || !SJ.newCharRules(campJ, shJ).justToken) { ansJ({ reason: 'closed' }); return; }
+        var nmJ = cleanCharName(msg.name) || cleanRosterName(prJ.name), csJ = campJ.chars && typeof campJ.chars === 'object' ? campJ.chars : null;
+        var tJ = (prJ.name || 'A player') + ' took just a token (' + nmJ + ')';
+        if (shJ && campJ.system && typeof campJ.system === 'object') {
+            if (csJ && Object.keys(csJ).some(function(k) { var x = csJ[k]; return x && x.ownerId === prJ.id && x.making === 1; })) { ansJ({ reason: 'making' }); return; }
+            if (SJ.activeCharOf(campJ, prJ.id).id) { ansJ({ reason: 'have' }); return; }
+            if (!window.wpSheets || !window.wpSheets.giveCharacter) { ansJ({ reason: 'off' }); return; }
+            if (!allow('chartoken', { perMs: 10000, burst: 2, windowMs: 60000, table: 30 }, conn.peer)) { ansJ({ reason: 'slow' }); return; }
+            if (!csJ) csJ = campJ.chars = {};
+            var chJ = { id: SJ.uid('c_'), name: nmJ, ownerId: prJ.id, portrait: '', npc: false, values: {}, updated: Date.now(), made: 1, unlocked: 1, review: 1 };
+            while (Object.prototype.hasOwnProperty.call(csJ, chJ.id)) chJ.id = SJ.uid('c_');
+            csJ[chJ.id] = chJ;
+            if (window.wpHistFlush) window.wpHistFlush();
+            var wasRJ = net.applyingRemote; net.applyingRemote = true;
+            try { window.wpSheets.giveCharacter(prJ.id, chJ.id, { play: true, pic: true }); } finally { net.applyingRemote = wasRJ; }
+            toast(tJ + ' \u2014 review it on its sheet.'); logEvent('char', tJ);
+            ansJ({ ok: true, charId: chJ.id });
+            if (window.wpSheets.charChanged) window.wpSheets.charChanged(chJ.id);
+            if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+            return;
+        }
+        if (SJ.activeCharOf(campJ, prJ.id).id || Object.keys(campJ.items || {}).some(function(id) { var m = campJ.items[id]; return m && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return w && w.isChar && w.ownerId === prJ.id; }); })) { ansJ({ reason: 'have' }); return; }   // a character of theirs (sheets off: the GM places its token) or a token of their own already
+        var mJ = typeof prJ.location === 'string' && own(campJ.items, prJ.location) ? campJ.items[prJ.location] : null;
+        if (!mJ || mJ.type !== 'map') { ansJ({ reason: 'nomap' }); return; }
+        if (!allow('chartoken', { perMs: 10000, burst: 2, windowMs: 60000, table: 30 }, conn.peer)) { ansJ({ reason: 'slow' }); return; }
+        var wJ = SJ.waitingTokensOf(campJ, prJ.id).filter(function(x) { return x.mapId === mJ.id; })[0], tokJ;
+        if (wJ) { tokJ = wJ.w; delete tokJ.waiting; }   // the waiting token becomes theirs where it stands
+        else {
+            tokJ = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'circle', ownerId: prJ.id, w: 60, h: 52, layer: 'middle' };
+            var spJ = spawnSpot(mJ, null, null, 60, 52, null); tokJ.x = spJ.x; tokJ.y = spJ.y;
+            if (window.wpSeatHex) window.wpSeatHex(tokJ, mJ);
+            mJ.whiteboard = Array.isArray(mJ.whiteboard) ? mJ.whiteboard : []; mJ.whiteboard.push(tokJ);
+        }
+        var planJ = charFacePlan(prJ.face, prJ.avatar);
+        tokJ.type = 'circle'; tokJ.isChar = true; tokJ.charName = nmJ; tokJ.name = nmJ; tokJ.charStats = ''; tokJ.ownerId = prJ.id;
+        tokJ.color = typeof prJ.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prJ.color) ? prJ.color : '#4db3d3';
+        if (planJ.kind === 'face') tokJ.face = planJ.face; else delete tokJ.face;
+        if (campJ.players && own(campJ.players, prJ.id)) { campJ.players[prJ.id].charName = nmJ; campJ.players[prJ.id].charMade = nmJ; }   // bound by its name — one THEY chose: their next arrival finds it, never a GM's namesake
+        waitingChanged(campJ, [mJ.id].concat(removeWaiting(campJ, prJ.id)));   // any other waiting token of theirs goes
+        if (planJ.kind !== 'face' && window.wpSheets && window.wpSheets.applyTokenFace) window.wpSheets.applyTokenFace(mJ.id, tokJ.id, planJ);
+        toast(tJ + '.'); logEvent('char', tJ);
+        ansJ({ ok: true });
+        // [netcheck:chartoken-end]
     } else if (msg.type === 'my-look' && net.role === 'host') {
         // [netcheck:mylook-start]
         // Onboarding F1b: an admitted player changes their token face mid-session — cleaned, about one change a second (a burst of five), not
@@ -5011,12 +5070,14 @@ function renderPlayersPanel() {
 function forgetPlayer(camp, fid) {
     if (!camp || !camp.players || !own(camp.players, fid)) return;
     var nm = camp.players[fid].name || 'Player', here = Object.values(net.roster).some(function(p) { return p && p.id === fid; });
-    showConfirm('Forget ' + nm + '? Their history in this campaign goes, and they\'ll need your approval to join again.' + (here ? ' They stay at the table for now.' : ''), function(yes) {
+    var mkIds = function() { return Object.keys(camp.chars || {}).filter(function(k) { var x = camp.chars[k]; return x && x.ownerId === fid && x.making === 1; }); };   // Onboarding F3b: a character they are still making was theirs alone: it goes with them
+    showConfirm('Forget ' + nm + '? Their history in this campaign goes, and they\'ll need your approval to join again.' + (mkIds().length ? ' The character they are still making goes too.' : '') + (here ? ' They stay at the table for now.' : ''), function(yes) {
         if (!yes || getActiveCampaign() !== camp || !camp.players || !own(camp.players, fid)) { renderPlayersPanel(); return; }
         delete camp.players[fid];
         net.forgotten[fid] = true;
         delete approvedIds[fid];   // a one-time "go straight in" still waiting goes too: their next join is asked about
         waitingChanged(camp, removeWaiting(camp, fid));   // Onboarding F1a: and their waiting token
+        mkIds().forEach(function(k) { delete camp.chars[k]; net.syncCharGone(k, fid); });
         save();
         var keptC = SC() && SC().playableChars ? SC().playableChars(camp, fid).length : 0;   // Onboarding F0: their characters stay theirs until the GM unassigns them
         toast(nm + ' forgotten — they\'ll need approval to join again.' + (keptC ? ' Their character' + (keptC === 1 ? ' stays' : 's stay') + ' assigned: unassign ' + (keptC === 1 ? 'it' : 'them') + ' in System \u25B8 Characters if they aren\u2019t coming back.' : ''));

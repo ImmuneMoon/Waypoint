@@ -2006,24 +2006,37 @@ window.wpFitToGrid = fitToGrid;
       function mine() { var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !window.wpSystemCore || !window.wpSystemCore.waitingTokensOf) return null; return window.wpSystemCore.waitingTokensOf(camp, n.myId)[0] || null; }
       // Onboarding F3: the character they are making (their own copy), and whether making one is open to them here (the GM's rules)
       function making() { var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !camp.chars) return null; var id = Object.keys(camp.chars).find(function(k) { var c = camp.chars[k]; return c && c.ownerId === n.myId && !c.partial && c.making === 1; }); return id ? camp.chars[id] : null; }
-      function canMake() { var camp = getActiveCampaign(), S = window.wpSystemCore; if (!camp || !camp.system || !S || !S.newCharRules || !window.wpSheets || !window.wpSheets.startMaking) return false; var on = !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false; return S.newCharRules(camp, on).create === 'live'; }
+      function rules() { var camp = getActiveCampaign(), S = window.wpSystemCore; if (!camp || !S || !S.newCharRules) return null; var on = !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false; return S.newCharRules(camp, on); }
+      function canMake() { var r = rules(); return !!(r && r.create === 'live' && window.wpSheets && window.wpSheets.startMaking); }
+      function canToken() { var r = rules(); return !!(r && r.justToken && window.wpNet && window.wpNet.charToken); }   // Onboarding F3b: Just a token (it follows making; always without sheets)
       // Onboarding F3: with no waiting token (the GM's rule gives none, or removed theirs) a player who has no character of theirs and no token
       // may still make one; the card then shows by itself only where the rule gives no waiting token (a Remove never brings it back unasked)
       function bare() {
-          var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !canMake()) return false;
+          var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !(canMake() || canToken())) return false;
           var cs = camp.chars || {}; if (Object.keys(cs).some(function(k) { var c = cs[k]; return c && c.ownerId === n.myId && !c.partial && !c.npc; })) return false;
           return !Object.keys(camp.items || {}).some(function(id) { var m = camp.items[id]; return m && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return w && w.isChar && w.ownerId === n.myId; }); });
       }
       function bareAuto() { var camp = getActiveCampaign(), S = window.wpSystemCore; return !!(camp && S && S.newPlayerRules && S.newPlayerRules(camp).token === 'off'); }
       function text(t, mk) {
-          var st = document.getElementById('joinCardStatus'), camp = getActiveCampaign(), m = t && camp && camp.items[t.mapId], mkOk = !mk && canMake();
-          if (st) st.textContent = mk ? 'You are making ' + mk.name + ' \u2014 open it to fill it in, then press Done on its sheet.' : !t ? 'You don\u2019t have a character yet \u2014 ' + (mkOk ? 'make one, or wait for your GM to give you one.' : 'your GM will give you one.') : 'You don\u2019t have a character yet. Your token is waiting on ' + ((m && m.meta && m.meta.title) || 'the map') + ' \u2014 move it about; ' + (mkOk ? 'make a character, or wait for your GM to give you one.' : 'your GM will give you a character.');
-          var bm = document.getElementById('joinCardMake'), bo = document.getElementById('joinCardOpen'), bf = document.getElementById('joinCardFaceBtn');
+          var st = document.getElementById('joinCardStatus'), camp = getActiveCampaign(), m = t && camp && camp.items[t.mapId], mkOk = !mk && canMake(), jtOk = !mk && canToken();
+          if (st) st.textContent = mk ? 'You are making ' + mk.name + ' \u2014 open it to fill it in, then press Done on its sheet.' : (t ? 'You don\u2019t have a character yet. Your token is waiting on ' + ((m && m.meta && m.meta.title) || 'the map') + ' \u2014 move it about; ' : 'You don\u2019t have a character yet \u2014 ') + (mkOk ? (t ? 'make a character' : 'make one') + ', or wait for your GM to give you one.' : jtOk ? 'take a token of your own, or wait for your GM to give you one.' : t ? 'your GM will give you a character.' : 'your GM will give you one.');
+          var bm = document.getElementById('joinCardMake'), bo = document.getElementById('joinCardOpen'), bf = document.getElementById('joinCardFaceBtn'), bj = document.getElementById('joinCardToken');
           if (bm) bm.style.display = mkOk ? '' : 'none';
+          if (bj) bj.style.display = jtOk ? '' : 'none';
           if (bo) { bo.style.display = mk ? '' : 'none'; if (mk) bo.textContent = 'Open ' + mk.name; }
           if (bf) bf.style.display = t ? '' : 'none';   // its face is the waiting token's
       }
       function has() { return !!(mine() || making() || bare()); }
+      // Onboarding F3b: Just a token — a name (their table name to start with); they play at once with the face they chose
+      function justToken() {
+          var n = window.wpNet; if (!n || !n.charToken) return;
+          var prof = n.getProfile ? n.getProfile() : {};
+          showPrompt('A name for your token', (prof && typeof prof.name === 'string' && prof.name) || '', function(nm) {
+              if (nm === null || nm === undefined) return;
+              var r = n.charToken(String(nm), function(a) { toast(a.error || (a.charId ? 'You play at once \u2014 its sheet is yours to fill in when you like (press Done when it is finished).' : 'You play at once with your own token.')); });
+              if (r && r.error) toast(r.error);
+          });
+      }
       function show() { var card = document.getElementById('joinCard'), t = mine(), mk = making(); if (!card) return; if (!t && !mk && !bare()) { card.style.display = 'none'; return; } text(t, mk); dismissed = false; card.style.display = ''; }   // their right-click or their chip's menu: always
       function check() {
           var t = mine(), mk = making(), card = document.getElementById('joinCard'); if (!card) return;
@@ -2036,6 +2049,7 @@ window.wpFitToGrid = fitToGrid;
       document.addEventListener('click', function(e) {
           var tg = e.target; if (!tg || !tg.closest) return;
           if (tg.closest('#joinCardMake')) { if (window.wpSheets && window.wpSheets.startMaking) window.wpSheets.startMaking(); return; }
+          if (tg.closest('#joinCardToken')) { justToken(); return; }
           if (tg.closest('#joinCardOpen')) { var mk = making(); if (mk && window.wpSheets && window.wpSheets.openSheet) window.wpSheets.openSheet(mk.id); }
       });
       document.addEventListener('click', function(e) { if (e.target.closest && e.target.closest('#joinCardClose')) { var card = document.getElementById('joinCard'); if (card) card.style.display = 'none'; dismissed = true; } });
@@ -2202,6 +2216,7 @@ window.wpFitToGrid = fitToGrid;
           if (loc && loc.tok && loc.tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(loc.tok.charId)) items.push({ act: 'hud', label: '\u3030 HUD\u2026' });   // HUD frame (HF2b)
           if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', label: '\uD83C\uDFAD Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
           if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
+          if (!isClient && ownerId && window.wpSheets && window.wpSheets.inviteMaking && camp && camp.system && window.wpSystemCore && window.wpSystemCore.newCharRules && window.wpSystemCore.newCharRules(camp, !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false).create !== 'off' && !Object.keys(camp.chars || {}).some(function(k) { var x = camp.chars[k]; return x && x.ownerId === ownerId && x.making === 1; })) items.push({ act: 'invite', label: '\u270D\uFE0F Let them make a character' });   // Onboarding F3b: the GM's invite (or a replacement for one they play)
           if (isClientM && ownerId && ownerId === window.wpNet.myId && window.wpJoinCard && window.wpJoinCard.has && window.wpJoinCard.has()) items.push({ act: 'joinCard', label: '\uD83D\uDC64 My character\u2026' });   // Onboarding F3: their own card again (a waiting token, one they are making, or one to make)
           fillPartyMenu(items, key);
           menu.classList.add('show');
@@ -2252,6 +2267,7 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'pausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), true); }
           else if (act === 'unpausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), false); }
           else if (act === 'joinCard') { if (window.wpJoinCard) window.wpJoinCard.show(); }
+          else if (act === 'invite') { if (window.wpSheets && window.wpSheets.inviteMaking) window.wpSheets.inviteMaking(key.slice(2)); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
           else if (act === 'sheet') { var campS = getActiveCampaign(), locS = locateCharacter(campS, key, campS && campS.activeItemId); if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
           else if (act === 'hud') { var campH = getActiveCampaign(), locH = locateCharacter(campH, key, campH && campH.activeItemId); if (locH && locH.tok && locH.tok.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(locH.tok.charId); }   // HUD frame (HF2b)

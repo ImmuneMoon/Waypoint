@@ -1209,7 +1209,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         if (campO && w.charName && !linkedO) {
                             campO.players = campO.players || {};
                             campO.players[this.value] = campO.players[this.value] || { name: this.value };
-                            campO.players[this.value].charName = w.charName;
+                            campO.players[this.value].charName = w.charName; delete campO.players[this.value].charMade;   // the GM's binding (Onboarding F3b: it may take the GM's tokens by name again)
                         }
                     } else { var wasO = w.ownerId; delete w.ownerId; if (wasO && !linkedO && campO && window.wpSheets && window.wpSheets.unbindName) window.wpSheets.unbindName(campO, wasO, w.charName || ''); }   // taken back: the name binding goes once they hold no other copy of it
                     save(); toast(this.value ? 'Token assigned — this player now plays ' + (w.charName || 'this character') + ' everywhere.' : 'Token set to GM control.');

@@ -274,16 +274,16 @@ function sheetsOnIn(camp) { return !window.wpVtt || !window.wpVtt.campaignOn || 
 function okPid(pid) { return typeof pid === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(pid) && !(pid in Object.prototype); }
 function playerRecOf(camp, pid, make) { if (!okPid(pid)) return null; camp.players = camp.players || {}; if (!Object.prototype.hasOwnProperty.call(camp.players, pid)) { if (!make) return null; camp.players[pid] = { name: pid }; } return camp.players[pid]; }
 // The character a player plays from now on (host-only record; the old name binding kept in step for older builds and generated campaigns)
-function setInPlay(camp, c) { var r = playerRecOf(camp, c.ownerId, true); if (!r) return; r.charId = c.id; r.charName = c.name; }
+function setInPlay(camp, c) { var r = playerRecOf(camp, c.ownerId, true); if (!r) return; r.charId = c.id; r.charName = c.name; delete r.charMade; }
 // A renamed character keeps its player's name binding in step, but only when it is the one they play (renaming a kept one re-points nothing)
 function nameInStep(camp, c) { var r = c.ownerId ? playerRecOf(camp, c.ownerId, false) : null; if (r && r.charId === c.id) r.charName = c.name; }
 function ownsTokenNamed(camp, pid, name) { return Object.values(camp.items || {}).some(function(m) { return m && m.type === 'map' && (m.whiteboard || []).some(function(w) { return w && w.isChar && w.ownerId === pid && w.charName === name; }); }); }
 // A character left its player (reassigned, unassigned, made an NPC, deleted, taken by the GM): their record stops naming it, and their old name
 // binding goes too once they hold no token of that name (so a stale name never hands them a token the GM took back). Runs AFTER the chooser.
 function unbindStale(camp, pid, c) { var r = playerRecOf(camp, pid, false); if (!r) return; if (r.charId === c.id) delete r.charId; unbindName(camp, pid, c.name); }
-function unbindName(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name && !ownsTokenNamed(camp, pid, name)) delete r.charName; }
+function unbindName(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name && !ownsTokenNamed(camp, pid, name)) { delete r.charName; delete r.charMade; } }
 // Onboarding F3: a name its player chose never binds them to a token by name once that character is gone from them (even one they still hold)
-function unbindMade(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name) delete r.charName; }
+function unbindMade(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name) { delete r.charName; delete r.charMade; } }
 // Where a player's token stood on their current map, so a new one appears beside it
 function tokenSpotOf(camp, pid, charId) {
     var n = net(), p = n && n.active && n.role === 'host' ? Object.values(n.roster || {}).find(function(x) { return x && x.id === pid; }) : null;
@@ -302,6 +302,7 @@ function giveCharacter(pid, charId, o) {
     var nearNew = pid && o.nearTok ? spotOnPlayersMap(camp, pid, o.nearTok) : pid && was && was !== c.id ? tokenSpotOf(camp, pid, was) : null, nearPrev = prev && prev !== pid ? tokenSpotOf(camp, prev, c.id) : null;
     c.ownerId = pid; if (pid) c.npc = false;
     if (pid && o.play !== false) setInPlay(camp, c);
+    if (pid && o.play !== false) Object.keys(charsOf(camp)).forEach(function(k) { var x = charsOf(camp)[k]; if (x && x.id !== c.id && x.ownerId === pid && x.invited === 1) { delete x.invited; var nI = net(); if (nI && nI.active && nI.role === 'host' && nI.syncChar) nI.syncChar(x.id); } });   // Onboarding F3b: the GM's newer word — one they were asked to make is then kept on Done
     syncOwners(camp, o.keep);
     if (prev && prev !== pid) { unbindStale(camp, prev, c); if (wasMade) unbindMade(camp, prev, c.name); }
     afterCharChange(c, true);
@@ -3234,8 +3235,8 @@ function renameMaking() {
 }
 function doneMaking() {
     var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || !(c.making === 1 || c.unlocked === 1) || !n || !n.charDone) return;
-    var id = c.id, nm = c.name, mk = c.making === 1, cs = charsOf(), me = myId(), other = Object.keys(cs).some(function(k) { var x = cs[k]; return x && x.id !== id && x.ownerId === me && !x.npc && !x.partial && x.making !== 1; });   // the GM gave them one meanwhile: it stays in play
-    showConfirm(mk ? 'Finished with ' + nm + '? ' + (other ? 'It is kept (you go on playing the character your GM gave you)' : 'It goes into play now') + ', and your GM is told (they may send it back to you).' : 'Done with ' + nm + '\u2019s sheet? It locks again, and your GM is told.', function(y) {
+    var id = c.id, nm = c.name, mk = c.making === 1, inv = c.invited === 1, cs = charsOf(), me = myId(), other = Object.keys(cs).some(function(k) { var x = cs[k]; return x && x.id !== id && x.ownerId === me && !x.npc && !x.partial && x.making !== 1; });   // the GM gave them one meanwhile: it stays in play
+    showConfirm(mk ? 'Finished with ' + nm + '? ' + (other && !inv ? 'It is kept (you go on playing the character your GM gave you)' : other ? 'It goes into play now (the character you play now is kept)' : 'It goes into play now') + ', and your GM is told (they may send it back to you).' : 'Done with ' + nm + '\u2019s sheet? It locks again, and your GM is told.', function(y) {
         if (!y) return;
         var r = n.charDone(id, function(a) { toast(a.error || (mk ? (a.kept ? nm + ' is finished and kept: you go on playing the character your GM gave you.' : nm + ' is in play.') : nm + ' is done.')); }); if (r && r.error) toast(r.error);
     });
@@ -3257,6 +3258,44 @@ function renderReviewBar(c, camp, gm) {
     bar.style.display = '';
 }
 // [sinkcheck:reviewbar-end]
+// Onboarding F3b: the GM asks a player to make a character (where making is not off; also a replacement for one they play — it goes into play
+// when they press Done, unless the GM gives them another meanwhile). It starts in the making, theirs alone, under their name
+function inviteMaking(pid) {
+    var camp = getActiveCampaign(), S = window.wpSystemCore, n = net(); if (!camp || isClient() || !okPid(pid) || !camp.system || !S || !S.newCharRules) return false;
+    if (S.newCharRules(camp, sheetsOnIn(camp)).create === 'off') return false;
+    var cs = charsOf(camp), had = Object.keys(cs).filter(function(k) { return cs[k] && cs[k].ownerId === pid && cs[k].making === 1; })[0];
+    if (had) { toast('They are making ' + cs[had].name + ' already.'); return false; }
+    var raw = playerNames(camp)[pid] || '', nm = (n && n.cleanCharName ? n.cleanCharName(raw) : String(raw).slice(0, 60)) || 'Character', id = S.uid('c_');
+    while (Object.prototype.hasOwnProperty.call(cs, id)) id = S.uid('c_');
+    cs[id] = { id: id, name: nm, ownerId: pid, portrait: '', npc: false, values: {}, updated: Date.now(), making: 1, made: 1, invited: 1 };
+    save(true);
+    if (n && n.active && n.role === 'host') { if (n.sendCharTo) n.sendCharTo(pid, id); if (n.charReview) n.charReview(pid, id, nm, 'invited', ''); }
+    if (n && n.logEvent) n.logEvent('char', 'Asked ' + (raw || 'a player') + ' to make a character');
+    toast((raw || 'The player') + ' is asked to make a character' + (n && n.isConnected && n.isConnected(pid) ? '.' : ' (they see it when they join).'));
+    if (window.appRender) window.appRender();
+    if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+    return true;
+}
+// Onboarding F3b: a plain token a player took (Just a token, no sheets): its picture from their face — a bundled one copied, their photo saved
+// as a PNG — put on it when saved (it wears the silhouette until then); never on a token that has a picture meanwhile
+function applyTokenFace(mapId, wbId, plan) {
+    var n = net(); if (isClient() || !plan || (plan.kind !== 'bundled' && plan.kind !== 'picture') || !/^[A-Za-z0-9_-]{1,40}$/.test(String(wbId))) return Promise.resolve(false);
+    var camp = getActiveCampaign();
+    var p = plan.kind === 'bundled' ? (n && n.FACE_PICS && n.FACE_PICS.indexOf(plan.name) >= 0 ? copyBundled(plan.name).then(function(u) { return u.token; }) : Promise.reject(new Error('name')))
+        : (n && n.safeAvatar && n.safeAvatar(plan.data) ? pngOf(plan.data).then(function(b) { return uploadExact('images/portraits/token-' + wbId + '.png', b); }) : Promise.reject(new Error('picture')));
+    return p.then(function(url) {
+        var camp2 = getActiveCampaign(); if (!camp2 || camp2 !== camp || !/^[/]saves[/]images[/]/.test(String(url))) return false;
+        var m = Object.prototype.hasOwnProperty.call(camp2.items, mapId) ? camp2.items[mapId] : null, w = m && Array.isArray(m.whiteboard) ? m.whiteboard.find(function(x) { return x && x.id === wbId; }) : null;
+        if (!w || !w.isChar || w.src) return false;
+        if (window.wpHistFlush) window.wpHistFlush();
+        w.type = 'image'; w.src = url; w.color = 'transparent'; delete w.face;
+        var wasR = n ? n.applyingRemote : false; if (n) n.applyingRemote = true;   // never a step of the GM's undo
+        try { save(true); } finally { if (n) n.applyingRemote = wasR; }
+        if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) n.broadcastItemFiltered(camp2.id, mapId);
+        if (window.appRender) window.appRender();
+        return true;
+    }).catch(function() { toast('That picture could not be saved.'); return false; });
+}
 function keepMade(id) { var camp = getActiveCampaign(), c = charById(id, camp); if (!c || isClient()) return; delete c.review; save(true); var n = net(); if (n && n.logEvent) n.logEvent('char', 'Kept ' + c.name); renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); }
 function sendBackMade(id) {
     var c0 = charById(id); if (!c0 || isClient()) return;
@@ -4752,7 +4791,7 @@ var _lastCamp = null;
 setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
-window.wpSheets = { bellNote: bellNote, startMaking: startMaking, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,

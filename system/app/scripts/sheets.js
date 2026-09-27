@@ -29,7 +29,15 @@ function imgSrc(p) { var n = net(), out = n && n.assetSrc ? n.assetSrc(p) : p; r
 
 /* ---------- the campaign's system and characters ---------- */
 function systemOf(camp) { camp = camp || getActiveCampaign(); return camp && camp.system && typeof camp.system === 'object' ? camp.system : null; }
-function playerSystem(camp) { camp = camp || getActiveCampaign(); if (!camp || !camp.system || !F()) return null; return cleanSystem(camp.system, { F: F(), gmView: false, pages: readablePages(camp) }); }
+// Stage 6 library L1d: the players' view is worked out once per exact system and page set (a library core makes it dearer), and handed
+// out as a copy; the key is the system's whole text, so no two systems can ever share a view
+var _pvMemo = { key: null, text: null };
+function playerSystem(camp) {
+    camp = camp || getActiveCampaign(); if (!camp || !camp.system || !F()) return null;
+    var pages = readablePages(camp), key = JSON.stringify(camp.system) + '\n' + pages.join(',');
+    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
+    return _pvMemo.text === null ? null : JSON.parse(_pvMemo.text);
+}
 // Stage 5f: the handbook pages players may read in a campaign (the "Players can read" switch: meta.players !== false) — the host's
 // filter for chips and links in the players' view of the system (here and in net.js's join snapshot)
 function readablePages(camp) { var items = (camp && camp.items) || {}, out = []; Object.keys(items).forEach(function(id) { var it = items[id]; if (it && it.type === 'doc' && !(it.meta && it.meta.players === false)) out.push(id); }); return out; }

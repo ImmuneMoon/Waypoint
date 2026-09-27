@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan } from './librarycore.js';
-import { setLibraryFind } from './systemcore.js';
+import { setLibraryFind, coreOf, cleanSystem } from './systemcore.js';
 
 function map() { return Object.create(null); }
 var cur = { campId: null, sig: '', byId: map(), packs: map(), n: 0, state: 'none', error: '' };
@@ -20,7 +20,21 @@ function gmHere() {
 }
 function F() { return window.wpFormula; }
 function oldCore() { if (!saidOld) { saidOld = true; toast('This Waypoint core cannot store a library yet: update Waypoint to use it.'); } }
+// L1d: the system's core — the library entries its formulas address by key (systemcore coreOf), recomputed after the library or the
+// system changes on the GM's machine; stored (and so sent to the table) only when it changed
+function byKey() { var m = map(); Object.keys(cur.byId).forEach(function(id) { var e = cur.byId[id], k = e && typeof e.key === 'string' ? e.key.toLowerCase() : ''; if (k) (m[k] = m[k] || []).push(e); }); return m; }
+function refreshCore(camp) {
+    camp = camp || getActiveCampaign(); if (!camp || !camp.system || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return false;
+    var idx = byKey(), res = coreOf(camp.system, function(k) { return idx[k] || []; }), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
+    if (before === nowT) return false;
+    if (res.core.length) camp.system.core = res.core; else delete camp.system.core;
+    var clean = F() ? cleanSystem(camp.system, { F: F(), gmView: true }) : null; if (clean) camp.system = clean;   // cleaned as any system is
+    if (res.over) toast('The library core holds its first ' + (camp.system.core ? camp.system.core.length : 0) + ' addressed entries; ' + res.over + ' more are left out.');
+    save(true);
+    return true;
+}
 function after() {   // the sheets redraw; a host's players get their rows' copies from the library now in memory
+    try { refreshCore(); } catch (e) { console.error(e); }
     try { if (window.wpSheetsSync) window.wpSheetsSync(); } catch (e) { console.error(e); }
     var n = window.wpNet; try { if (n && n.active && n.role === 'host' && n.syncChars) n.syncChars(); } catch (e) { console.error(e); }
 }
@@ -108,4 +122,4 @@ setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore };

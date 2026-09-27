@@ -459,6 +459,14 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   var pendingImport = null;
 
   var pendingImportImages = null; // zip bundles: [{name:'images/<mapId>/<file>', data:Uint8Array}]
+  var pendingImportLibrary = null; // Stage 6 library L1c2: the zip's pack files by name (library/<dir>/<id>.<rev>.json); none: a file's manifest is not used
+  var importLibJobs = [];
+  // an imported campaign's library manifest, used only with its files: it lands in a fresh folder, or joins the one already here
+  function takeImportedLibrary(target, ic, existingLib) {
+      var L = window.wpLibrary, plan = pendingImportLibrary && ic && ic.library && L && L.importPlan ? L.importPlan(existingLib || null, ic.library) : null;
+      if (!plan) { if (existingLib) target.library = existingLib; else delete target.library; return; }
+      target.library = plan.manifest; if (plan.uploads.length) importLibJobs.push({ camp: target, uploads: plan.uploads });
+  }
 
   function finishImport(msg) {
 
@@ -469,6 +477,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       var imgs = pendingImportImages || [];
 
       pendingImportImages = null;
+      var libJobs = importLibJobs, libFiles = pendingImportLibrary; importLibJobs = []; pendingImportLibrary = null;
+      if (libJobs.length && window.wpLibrary && window.wpLibrary.importFiles) window.wpLibrary.importFiles(libJobs, libFiles || {});   // the pack files, while the library waits for them (L1c2)
 
       document.getElementById('importChoiceModal').style.display = 'none';
 
@@ -544,6 +554,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           if (!existing) {
 
               state.appState.campaigns[ic.id] = ic;
+              takeImportedLibrary(ic, ic, null);   // Stage 6 library L1c2: a fresh folder for its packs
               if (ic.system && window.wpSystemCore && window.wpFormula) { var nsys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true }); if (nsys) ic.system = nsys; else delete ic.system; }   // character sheets (1.5.0)
               if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore) { if (!ic.system) delete ic.chars; else { var nch = {}; Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], ic.system); if (cc && cc.id === id) nch[id] = cc; }); ic.chars = nch; if (window.wpSystemCore.migrateBindings) { var rbN = window.wpSystemCore.migrateBindings(ic); if ((rbN.bound || rbN.linked) && window.wpNoteBindings) window.wpNoteBindings([{ camp: ic, r: rbN }]); window.wpSystemCore.applyOwnerOps(ic, window.wpSystemCore.ownedTokenPlan(ic, { all: !!(window.wpVtt && window.wpVtt.campaignOn('sheets', ic) === false) })); } } }   // Onboarding F0: bound by id, one owned token per character
 
@@ -567,6 +578,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           });
 
           if (ic.name) existing.name = ic.name;
+          if (ic.library) takeImportedLibrary(existing, ic, existing.library);   // Stage 6 library L1c2: its packs join the library here (a pack already here takes a new revision)
 
           // the system (character sheets, 1.5.0): the imported one replaces when it is at least as new, cleaned like a file's; preset ids are stable, so values keep their fields
           if (ic.system && typeof ic.system === 'object' && window.wpSystemCore && window.wpFormula) {
@@ -651,6 +663,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           state.appState = cleanR;
 
+          Object.values(state.appState.campaigns || {}).forEach(function(c) { if (c && c.library) takeImportedLibrary(c, c, null); });   // Stage 6 library L1c2: each library in a fresh folder, with its files
           finishImport('Imported (replaced all data).');
 
       });
@@ -693,6 +706,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                       toast('This zip has no data.json — not a Waypoint export.'); return;
                   }
                   pendingImportImages = entries.filter(function(en) { return /^images\//.test(en.name); });
+                  var libE = entries.filter(function(en) { return /^library\/l_[a-z0-9]{8}\/p_[A-Za-z0-9_]{1,24}\.[0-9]{1,10}\.json$/.test(en.name); });
+                  pendingImportLibrary = null; if (libE.length) { pendingImportLibrary = Object.create(null); libE.forEach(function(en) { pendingImportLibrary[en.name] = en; }); }
                   handleImportedJson(new TextDecoder().decode(dj.data));
               } catch(err) {
                   console.error(err);
@@ -710,7 +725,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
       reader.onload = function(ev) {
 
-          pendingImportImages = null;
+          pendingImportImages = null; pendingImportLibrary = null;   // a plain file carries no pack files: its library manifest is not used
 
           var textIn = String(ev.target.result || '');
           if (/\.txt$/i.test(file.name) && !/^[\s\uFEFF]*[\[{]/.test(textIn) && window.wpDocImport) { window.wpDocImport.importFile(file); return; }   // plain text that is not JSON: read as Markdown

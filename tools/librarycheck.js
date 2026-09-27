@@ -98,6 +98,24 @@ const j = v => JSON.stringify(v);
             manifestSig({ id: 'camp_1', library: m3 }) === 'camp_1|l_abcd1234|p_a.4,p_b.1000000000' && manifestSig({ id: 'c' }) === '' && manifestSig(null) === '');
     }
 
+    /* ---- L1c2: how an imported library lands ---- */
+    {
+        const { libImportPlan } = L;
+        let rr = 0.5; const rnd = () => { rr = (rr + 0.29) % 1; return rr; };
+        const im = { dir: 'l_import01', packs: [{ id: 'p_gear', name: 'Gear', rev: 3, count: 2, bytes: 90, hash: 'aaaaaaaa' }, { id: 'p_new', name: 'New', rev: 0 }, { id: 'p_spell', name: 'Spells', vis: 'gm', rev: 7, count: 1, bytes: 40, hash: 'bbbbbbbb' }] };
+        const fresh = libImportPlan(null, im, rnd);
+        check('L1c2 into a campaign with no library: a fresh folder (never the file\'s), each pack as it was, each written pack copied from library/<its dir>/<id>.<rev>.json to the same revision there; a pack never written copies nothing',
+            fresh.manifest.dir !== 'l_import01' && /^l_[a-z0-9]{8}$/.test(fresh.manifest.dir) && j(fresh.manifest.packs.map(p => [p.id, p.rev, p.vis])) === j([['p_gear', 3, 'all'], ['p_new', 0, 'all'], ['p_spell', 7, 'gm']])
+            && j(fresh.uploads) === j([{ dir: fresh.manifest.dir, pack: 'p_gear', rev: 3, from: 'library/l_import01/p_gear.3.json' }, { dir: fresh.manifest.dir, pack: 'p_spell', rev: 7, from: 'library/l_import01/p_spell.7.json' }]) && fresh.left === 0, j(fresh));
+        const ex = { dir: 'l_here0001', packs: [{ id: 'p_gear', name: 'Old gear', rev: 5, count: 9, bytes: 1, hash: 'cccccccc', icon: '\u2694' }, { id: 'p_mine', name: 'Mine', rev: 2 }] }, joined = libImportPlan(ex, im, rnd);
+        check('L1c2 into a campaign that has a library: its folder is kept; a pack already here takes the file\'s name and facts at a revision past both (6), never rewriting one; a new pack joins; its own packs stay',
+            joined.manifest.dir === 'l_here0001' && j(joined.manifest.packs.map(p => [p.id, p.name, p.rev])) === j([['p_gear', 'Gear', 6], ['p_mine', 'Mine', 2], ['p_new', 'New', 0], ['p_spell', 'Spells', 7]]) && !('icon' in joined.manifest.packs[0]) && joined.manifest.packs[0].hash === 'aaaaaaaa'
+            && j(joined.uploads.map(u => [u.dir, u.pack, u.rev, u.from])) === j([['l_here0001', 'p_gear', 6, 'library/l_import01/p_gear.3.json'], ['l_here0001', 'p_spell', 7, 'library/l_import01/p_spell.7.json']]), j(joined));
+        const nearFull = { dir: 'l_here0001', packs: Array.from({ length: LIB.packs - 1 }, (_, i) => ({ id: 'p_x' + i })) }, capped = libImportPlan(nearFull, im, rnd);
+        check('L1c2 no more than ' + LIB.packs + ' packs: the rest are counted, not added; nothing to bring (no manifest, no packs, a bad one) is no plan',
+            capped.manifest.packs.length === LIB.packs && capped.left === 2 && libImportPlan(null, null) === null && libImportPlan(null, { dir: 'l_import01', packs: [] }) === null && libImportPlan(null, { dir: '../x', packs: [{ id: 'p_a' }] }) === null);
+    }
+
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');
     check('under a window the module publishes itself as window.wpLibraryCore', !!(global.window.wpLibraryCore && global.window.wpLibraryCore.cleanPack && global.window.wpLibraryCore.VERSION === L2.VERSION));
     delete global.window;

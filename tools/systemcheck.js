@@ -4408,6 +4408,20 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /if \(c\.library !== undefined && window\.wpLibraryCore && window\.wpLibraryCore\.cleanManifest\) \{ var lman = window\.wpLibraryCore\.cleanManifest\(c\.library\); if \(lman\) c\.library = lman; else delete c\.library; \}/.test(ioK)
             && hmK.indexOf('scripts/librarycore.js') > hmK.indexOf('scripts/systemcore.js') && hmK.indexOf('scripts/librarycore.js') < hmK.indexOf('scripts/main.js') && hmK.indexOf('scripts/library.js') > 0 && /var SHELL_WANTED = '1\.5\.0';   \/\/ 1\.5\.0 adds \/api\/library/.test(stK));
     }
+    /* ---- Stage 6 library L1c2: exports and imports carry the library (source; the plan itself is librarycheck's) ---- */
+    {
+        const ioX = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), mnX = fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n'), lbX = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L1c2 an export of a campaign (or everything) carries each pack file its manifest pins as library/<dir>/<id>.<rev>.json, so a campaign with a library always travels as a zip',
+            /if \(scope === 'campaign' \|\| scope === 'all'\) \{\n\s*var libCamps = /.test(ioX) && /libFiles\.push\(\{ name: 'library\/' \+ lm\.dir \+ '\/' \+ pk\.id \+ '\.' \+ pk\.rev \+ '\.json', data: /.test(ioX) && /if \(!paths\.length && !libFiles\.length\) return \{ name: base \+ '\.json', text: json \};/.test(ioX)
+            && /var entries = \[\{ name: 'data\.json', data: enc\.encode\(json\) \}\]\.concat\(libFiles\);/.test(ioX));
+        check('L1c2 an import uses a campaign\'s library manifest only with its pack files (a zip\'s library/ entries by exact name; a plain file carries none), a fresh folder for a new or replaced campaign, the folder here for a merge; the files are copied once the import is done',
+            /var libE = entries\.filter\(function\(en\) \{ return \/\^library\\\/l_\[a-z0-9\]\{8\}\\\/p_\[A-Za-z0-9_\]\{1,24\}\\\.\[0-9\]\{1,10\}\\\.json\$\/\.test\(en\.name\); \}\);/.test(mnX)
+            && /pendingImportImages = null; pendingImportLibrary = null;   \/\/ a plain file carries no pack files/.test(mnX) && /plan = pendingImportLibrary && ic && ic\.library && L && L\.importPlan \? L\.importPlan\(existingLib \|\| null, ic\.library\) : null;/.test(mnX) && /if \(!plan\) \{ if \(existingLib\) target\.library = existingLib; else delete target\.library; return; \}/.test(mnX)
+            && /state\.appState\.campaigns\[ic\.id\] = ic;\n\s*takeImportedLibrary\(ic, ic, null\);/.test(mnX) && /if \(ic\.library\) takeImportedLibrary\(existing, ic, existing\.library\);/.test(mnX) && /state\.appState = cleanR;\n\n\s*Object\.values\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(c\) \{ if \(c && c\.library\) takeImportedLibrary\(c, c, null\); \}\);/.test(mnX)
+            && /if \(libJobs\.length && window\.wpLibrary && window\.wpLibrary\.importFiles\) window\.wpLibrary\.importFiles\(libJobs, libFiles \|\| \{\}\);/.test(mnX));
+        check('L1c2 an import\'s pack files are cleaned like any pack read (the file\'s own id must match), written at the revision the manifest now pins, with the manifest watch held until they are all there; then the library is read again',
+            /var rd = fe \? readPackFile\(new TextDecoder\(\)\.decode\(fe\.data\), ctx\) : null; if \(!rd \|\| rd\.error \|\| rd\.pack\.id !== u\.pack\) \{ bad\+\+; continue; \}\n\s*rd\.pack\.rev = u\.rev;/.test(lbX) && /setInterval\(function\(\) \{ if \(busy\) return;/.test(lbX) && /\} finally \{ busy--; \}/.test(lbX) && /load\(getActiveCampaign\(\)\);\n\s*return \{ ok: ok, bad: bad \};/.test(lbX));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

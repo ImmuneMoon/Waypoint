@@ -4370,6 +4370,17 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /else if \(pl\.kind === 'roller'\) node = rollerNode\(pl, c, hbKey\(vctx, c, sec, pli\)\);/.test(shQ) && /\['k:roller', 'Custom roller'\]/.test(shQ) && /else if \(plr && c\.indexOf\('sys-pl-rformula'\) >= 0\) \{ var plf = \(sec\.fields \|\| \[\]\)\[\+plr\.dataset\.pi\]; if \(plf\) plf\.formula = t\.value\.slice\(0, LIMITS\.formula\); \}/.test(shQ)
             && /\.sheet-roller-row \.sheet-roller-go \{ flex: none; width: auto;/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')) && /A <b>Custom roller<\/b> placement is a formula box, a name and <b>Roll<\/b>/.test(hmQ) && /a <b>Custom roller<\/b> rolls any formula as the character/.test(tuQ));
     }
+    /* ---- Stage 6 library L0: a system import counts what it left out ---- */
+    {
+        const rawL = { v: 1, name: 'Big', fields: [{ id: 'f_a', key: 'A', kind: 'number' }, { id: 'f_a', key: 'Dup', kind: 'number' }, 'junk'], rolls: [{ id: 'r_1', label: 'R', formula: '1d6' }],
+            items: Array.from({ length: 205 }, (_, i) => ({ id: 'i_' + i, name: 'Item ' + i })), effects: [{ id: 'e_1', name: 'E', mods: [] }, { nope: 1 }] };
+        const cL = cleanSystem(rawL, { F, gmView: true }), dL = S.droppedCounts(rawL, cL);
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L0 droppedCounts: per kind, what the file had that cleaning left out (205 items past the 200 limit: 5; a duplicate and a junk field: 2; a bad effect: 1); a kind that lost nothing is not listed; nothing for a non-object',
+            JSON.stringify(dL) === JSON.stringify({ fields: 2, items: 5, effects: 1 }) && cL.items.length === 200 && JSON.stringify(S.droppedCounts(null, cL)) === '{}' && JSON.stringify(S.droppedCounts({ items: 'x' }, cL)) === '{}', JSON.stringify(dL));
+        check('L0 the import\'s notice names the items it kept and counts what it left out ("Left out (over the limits, or not valid): 5 items"), singular for one',
+            /var dr = droppedCounts\(j, c\), drT = Object\.keys\(dr\)\.map\(function\(k\) \{ return dr\[k\] \+ ' ' \+ \(dr\[k\] === 1 \? k\.slice\(0, -1\) : k\); \}\)\.join\(', '\);/.test(shL) && /\(drT \? ' Left out \(over the limits, or not valid\): ' \+ drT \+ '\.' : ''\)/.test(shL) && /nN\(c\.fields\.length, 'field'\) \+ ', ' \+ nN\(c\.rolls\.length, 'roll'\)/.test(shL));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

@@ -4117,6 +4117,116 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /Effect timers <select id="setTimersMode"/.test(hmT) && /var val = _timersSel\.value === 'gm' \? 'gm' : 'owner';\s+camp\.turnRules = Object\.assign\(\{\}, camp\.turnRules && typeof camp\.turnRules === 'object' \? camp\.turnRules : \{\}, \{ timers: val \}\);/.test(shT)
             && /for its player and you, or you only \(<b>Effect timers<\/b>, which reaches players at the table at once\)/.test(hmT) && /and its countdown can be paused, reset or stopped\./.test(tuT));
     }
+    /* ---- The bell (the HUD's notes, 2026-09-26): the log, pins on this machine, the panel, the effects feed — sheets.js run for real ---- */
+    {
+        const shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), DCB = await import(url('dicecore.js'));
+        const bSrc = shB.slice(shB.indexOf('var BELL_DEPTHS = '), shB.indexOf('// One refresh path for every view of a character'));
+        const mkDoc = () => {
+            const doc = { activeElement: null };
+            const E = tag => { const e = { tag, className: '', children: [], attrs: {}, on: {}, style: {}, title: '', type: '', value: '', disabled: false, scrollTop: 0, _t: '', parent: null,
+                get textContent() { return this._t + this.children.map(c => c.textContent).join(''); }, set textContent(v) { this.children.forEach(c => { c.parent = null; }); this.children = []; this._t = String(v); },
+                appendChild(c) { c.parent = this; this.children.push(c); if (c.tag === 'option' && !this.value) this.value = c.value; return c; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(k, f) { this.on[k] = f; },
+                get classList() { const s = this; return { contains: k => s.className.split(/\s+/).includes(k) }; },
+                all() { return this.children.flatMap(c => [c, ...c.all()]); }, querySelector(q) { return this.all().find(c => c.classList.contains(q.slice(1))) || null; }, querySelectorAll(q) { return this.all().filter(c => c.classList.contains(q.slice(1))); },
+                contains(x) { return x === this || this.all().includes(x); }, focus() { doc.activeElement = this; }, click() { if (this.on.click) this.on.click({ preventDefault() {} }); } }; return e; };
+            doc.E = E; return doc;
+        };
+        const rawFx = { v: 1, name: 'B', rolls: [{ id: 'r_a', label: 'Attack', formula: '1d20' }], fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_fx', key: 'Effects', kind: 'effects', edit: 'owner' }],
+            effects: [{ id: 'e_b', name: 'Bless', mods: [], tone: 'buff' }, { id: 'e_p', name: 'Poisoned', mods: [], tone: 'debuff' }], sheet: { sections: [] } };
+        const sysB = cleanSystem(rawFx, { F, gmView: true }), sysNoRoll = cleanSystem(Object.assign({}, rawFx, { rolls: [] }), { F, gmView: true });
+        // o: { client, me, sys, prefs, rolls, open, diceOff } — read at call time
+        const run = o => {
+            o = o || {}; const doc = mkDoc(), prefs = Object.assign({}, o.prefs), toasts = [];
+            const el = (t, c, x) => { const e = doc.E(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; };
+            const iconNode = (v, c) => { const e = el('span', c + ' wp-glyph'); e.attrs.icon = v; return e; };
+            const camp = { id: 'k1', chars: { c_a: { id: 'c_a', name: 'Bren', ownerId: 'u_me', values: { f_fx: [] } }, c_b: { id: 'c_b', name: 'Ana', ownerId: 'u_mate', values: { f_fx: [] } }, c_c: { id: 'c_c', name: 'Bren', ownerId: 'u_other', values: {} } } };
+            const netS = { myId: 'u_me', rollSeq: () => 1, rollsFor: () => (o.rolls || []) };
+            const win = { wpVtt: { on: k => k !== 'dice' || !o.diceOff }, wpDice: { renderCard: m => el('div', 'chat-roll', 'card') }, wpDiceCore: DCB };
+            const huds = {}, fresh = id => (huds[id] = { charId: id, foot: el('div', 'hud-foot'), histOpen: false, bellOpen: !!o.open });
+            const canOpen = id => !!camp.chars[id] && (!o.client || camp.chars[id].ownerId === (o.me || 'u_me'));
+            const api = new Function('el', 'iconNode', 'pref', 'setPref', 'getActiveCampaign', 'charById', 'net', 'systemOf', 'huds', 'document', 'window', 'HUD_CID', 'isClient', 'myId', 'canOpen', 'toast', 'featureOn',
+                bSrc + '\nreturn { bellNote, bellPin, bellDrop, bellClear, bellLog, bellFx, bellText, bellAgo, bellDepth, renderHudFoot, logs: _bell };')(
+                el, iconNode, (k, d) => (k in prefs ? prefs[k] : d), (k, v) => { prefs[k] = String(v); }, () => camp, (id, cp) => (cp || camp).chars[id] || null, () => netS, () => (o.sys === undefined ? sysB : o.sys), huds, doc, win,
+                /^c_[A-Za-z0-9_]{1,24}$/, () => !!o.client, () => o.me || 'u_me', canOpen, m => toasts.push(m), () => true);
+            return { api, camp, huds, fresh, prefs, toasts, doc, cls: (v, q) => v.foot.querySelectorAll(q) };
+        };
+        const b1 = run(), A = b1.api;
+        const nA = A.bellNote('c_a', { title: 'Hit\u202e  by  \u0007 a trap', text: 'x'.repeat(400), bad: true }), nB = A.bellNote('c_a', { title: '', text: 'plain' }), nC = A.bellNote('c_a', { title: '', text: ' \u200b ' });
+        const nApply = A.bellNote('c_a', { apply: { label: 'Apply wounds', lines: [{ n: 'HP', d: -3, v: 7 }, { n: 'FP', d: 2, v: 5 }] } }), nApply0 = A.bellNote('c_a', { apply: { lines: [{ n: 'HP', d: -1, v: 9 }] } });
+        const nDue = A.bellNote('c_a', { due: { label: 'Regenerate', as: 'Bren', why: 'turn' } }), nX = A.bellNote('c_x', { title: 'T' }), nBad = A.bellNote('../x', { title: 'T' });
+        check('The bell: a note is text only (controls and bidi marks gone, spaces folded, title 60, text 300), newest first; one with nothing left is dropped; an apply card is its action and changes ("HP \u22123 \u2192 7, FP +2 \u2192 5", "Applied" without a label), a reminder its line; a character not here or a bad id takes none',
+            nA.title === 'Hit by a trap' && nA.text.length === 300 && nA.bad === 1 && nB.title === '' && nB.text === 'plain' && nC === null && nApply.title === 'Apply wounds' && nApply.text === 'HP \u22123 \u2192 7, FP +2 \u2192 5' && nApply.bad === 0
+            && nApply0.title === 'Applied' && nDue.title === 'Reminder' && nDue.text === 'Regenerate for Bren is due (the start of its turn)' && nX === null && nBad === null && j(A.bellLog('c_a').recs.map(r => r.id)) === j(['n5', 'n4', 'n3', 'n2', 'n1']), j(A.bellLog('c_a').recs));
+        const cl = run({ client: true }), CA = cl.api, byAs = n => CA.bellNote('', { apply: { label: 'X', lines: [{ n: 'HP', d: 1, v: 2 }] } }, n);
+        const own1 = byAs('Bren'), mate = byAs('Ana'), none = byAs('Nobody'), noAs = byAs(''), gmBlank = A.bellNote('', { title: 'T' }, 'Bren');
+        cl.camp.chars.c_d = { id: 'c_d', name: 'Bren', ownerId: 'u_me', values: {} }; const two = byAs('Bren');
+        check('The bell: on a player\'s machine a card found by its name lands on their own one character of that name (Bren, not the other player\'s Bren); a teammate\'s, an unknown name, no name, or two of theirs so named: none; the GM\'s machine never guesses by name; a player\'s bell takes notes for their own characters only',
+            own1 && CA.bellLog('c_a').recs.length === 1 && mate === null && none === null && noAs === null && two === null && gmBlank === null && CA.bellNote('c_b', { title: 'T' }) === null && CA.bellNote('c_a', { title: 'T' }) !== null);
+        const cp = run(); for (let i = 0; i < 14; i++) cp.api.bellNote('c_a', { title: 'n' + i });
+        const capped = cp.api.bellLog('c_a').recs.map(r => r.title);
+        const pinT = run(); for (let i = 0; i < 3; i++) pinT.api.bellNote('c_a', { title: 'p' + i }); pinT.api.bellPin('c_a', 'n1'); pinT.api.bellPin('c_a', 'n2'); for (let i = 0; i < 20; i++) pinT.api.bellNote('c_a', { title: 'q' + i });
+        const kept = pinT.api.bellLog('c_a').recs;
+        check('The bell: it keeps the depth (12 by default: the 14th note pushes out the two oldest), never a pinned note (two pinned from the start survive twenty more, the list still 12)',
+            capped.length === 12 && capped[0] === 'n13' && capped[11] === 'n2' && kept.length === 12 && kept.filter(r => r.pinned).map(r => r.title).sort().join() === 'p0,p1' && A.bellDepth() === 12, j([capped, kept.map(r => r.title)]));
+        const lim = run(); for (let i = 0; i < 12; i++) lim.api.bellNote('c_a', { title: 'l' + i }); const pinned = []; for (let i = 1; i <= 12; i++) pinned.push(lim.api.bellPin('c_a', 'n' + i));
+        check('The bell: at most depth \u2212 1 pinned (11 at 12): the twelfth pin is refused with a notice; unpinning frees a place',
+            pinned.slice(0, 11).every(x => x === true) && pinned[11] === false && j(lim.toasts) === j(['At most 11 notes can be pinned.']) && lim.api.bellPin('c_a', 'n3') === false && lim.api.bellPin('c_a', 'n12') === true && lim.api.bellPin('c_a', 'n99') === null);
+        const st = run(); st.api.bellNote('c_a', { title: 'Keep me', text: 'why', bad: true }); st.api.bellNote('c_a', { title: 'Loose' }); st.api.bellNote('c_b', { title: 'Other' }); st.api.bellPin('c_a', 'n1'); st.api.bellPin('c_b', 'n1');
+        const stored = JSON.parse(st.prefs['wp_bellPins.k1']);
+        const st2 = run({ prefs: st.prefs }), restored = st2.api.bellLog('c_a').recs.slice(), next = st2.api.bellNote('c_a', { title: 'After' });
+        check('The bell: a pin is saved on this machine (wp_bellPins.<campaign>: each character\'s pinned notes, id, title, text, time, bad only when set) and a new session restores them pinned, its next note numbered past them',
+            j(Object.keys(stored)) === j(['c_a', 'c_b']) && j(Object.keys(stored.c_a[0]).sort()) === j(['at', 'bad', 'id', 'text', 'title']) && stored.c_a[0].title === 'Keep me' && !('bad' in stored.c_b[0])
+            && restored.length === 1 && restored[0].pinned === true && restored[0].title === 'Keep me' && restored[0].bad === 1 && next.id === 'n2', j([stored, restored]));
+        st.api.bellPin('c_a', 'n1'); const unp = JSON.parse(st.prefs['wp_bellPins.k1']); st.api.bellDrop('c_b', 'n1'); const dropped = JSON.parse(st.prefs['wp_bellPins.k1']);
+        st.api.bellNote('c_a', { title: 'x' }); st.api.bellPin('c_a', 'n3'); const before = st.prefs['wp_bellPins.k1']; st.api.bellClear('c_a');
+        check('The bell: unpinning or removing a pinned note takes it out of the store; Clear drops the unpinned only and leaves the store as it was',
+            !('c_a' in unp) && 'c_b' in unp && j(dropped) === '{}' && st.api.bellLog('c_a').recs.map(r => r.title).join() === 'x' && st.prefs['wp_bellPins.k1'] === before, j([unp, dropped, st.api.bellLog('c_a').recs]));
+        const junk = { c_a: [{ id: 'n1', title: 'ok', text: '', at: 5 }, { id: 'x1', title: 'bad id', at: 1 }, { id: 'n2', title: 'no time' }, { id: 'n3', title: '', text: '', at: 1 }, { id: 'n4', title: 5, text: 'num title', at: 2 }, 'str', null], '../c': [{ id: 'n1', title: 'path', at: 1 }], c_b: 'nope' };
+        const jr = run({ prefs: { 'wp_bellPins.k1': JSON.stringify(junk) } }), jl = jr.api.bellLog('c_a').recs.slice(), jw = (jr.api.bellPin('c_a', 'n4'), jr.api.bellPin('c_a', 'n4'), JSON.parse(jr.prefs['wp_bellPins.k1'])), gar = run({ prefs: { 'wp_bellPins.k1': '{not json' } }), arr = run({ prefs: { 'wp_bellPins.k1': '[1,2]' } });
+        const proto = run({ prefs: { 'wp_bellPins.k1': '{"__proto__":[{"id":"n1","title":"p","at":1}],"constructor":[{"id":"n1","title":"c","at":1}]}' } });
+        check('The bell: saved pins are read like a file — a note with a bad id, no time or nothing to show is dropped (a number title becomes text), a bad character id or a non-list is skipped (and gone from the store at its next write), a broken store is none, and no key reaches the prototype',
+            j(jl.map(r => [r.id, r.title, r.text])) === j([['n1', 'ok', ''], ['n4', '5', 'num title']]) && j(Object.keys(jw)) === j(['c_a']) && jw.c_a.length === 2 && gar.api.bellLog('c_a').recs.length === 0 && arr.api.bellLog('c_a').recs.length === 0 && proto.api.bellLog('c_a').recs.length === 0 && ({}).title === undefined, j(jl));
+        const ui = run({ rolls: [{ roll: { id: 'r1' } }] }), v = ui.fresh('c_a'); ui.api.renderHudFoot(v);
+        const bellB = () => v.foot.querySelector('.hud-bell-btn');
+        const closedNone = bellB() && !ui.cls(v, '.hud-bell-count').length && bellB().attrs['aria-expanded'] === 'false' && bellB().title === 'Notes: none yet this session' && v.foot.children.length === 1;
+        ui.api.bellNote('c_a', { title: 'A' }); ui.api.bellNote('c_a', { title: 'B', text: 'bee', bad: true }); ui.api.bellNote('c_a', { title: 'C' }); ui.api.bellPin('c_a', 'n1'); ui.api.renderHudFoot(v);
+        const counted = ui.cls(v, '.hud-bell-count')[0] && ui.cls(v, '.hud-bell-count')[0].textContent === '3' && bellB().title === '3 notes kept, 1 pinned';
+        bellB().focus(); bellB().click();
+        const order = ui.cls(v, '.hud-bell-ntitle').map(e => e.textContent), notes = ui.cls(v, '.hud-bell-note');
+        check('The bell (the panel, run for real): the bell sits in the foot\'s bar (none noted: no count); with notes a count and a title saying what is kept; pressed, the panel opens ABOVE the bar, pinned first then newest, a bad note marked, a pinned one marked, each with a pin and a remove, a time, and focus back on the bell',
+            closedNone && counted && v.foot.children[0].className === 'hud-bell' && v.foot.children[1].className === 'hud-hist-bar' && j(order) === j(['A', 'C', 'B'])
+            && notes[0].className.includes('hud-bell-pinned') && notes[2].className.includes('hud-bell-bad') && ui.cls(v, '.hud-bell-pin')[0].children[0].attrs.icon === 'icon:thumbtack-slash' && ui.cls(v, '.hud-bell-pin')[1].children[0].attrs.icon === 'icon:thumbtack'
+            && ui.cls(v, '.hud-bell-rm').length === 3 && ui.cls(v, '.hud-bell-ago')[0].textContent === 'just now' && ui.cls(v, '.hud-bell-text').map(e => e.textContent).join() === 'bee' && ui.cls(v, '.hud-bell-pins')[0].textContent === '1 of 11 pinned' && ui.doc.activeElement === bellB(), j(order));
+        ui.cls(v, '.hud-bell-pin')[1].click(); const afterPin = ui.cls(v, '.hud-bell-ntitle').map(e => e.textContent);
+        ui.cls(v, '.hud-bell-rm')[2].click(); const afterRm = ui.cls(v, '.hud-bell-ntitle').map(e => e.textContent), noClr = ui.cls(v, '.hud-bell-clear').length === 0; ui.api.bellNote('c_a', { title: 'D' });
+        ui.cls(v, '.hud-bell-clear')[0].click(); const afterClr = ui.cls(v, '.hud-bell-ntitle').map(e => e.textContent), clrGone = ui.cls(v, '.hud-bell-clear').length === 0;
+        const dsel = ui.cls(v, '.hud-bell-depth')[0], dOpts = dsel.children.map(o => o.value); dsel.value = '25'; dsel.on.change(); const d25 = ui.prefs.wp_hudBellDepth;
+        check('The bell (the panel): its pin pins (C goes up, the pinned newest first), its remove removes, Clear shows only with an unpinned note, keeps the pinned and then goes; the depth is 12, 25 or 50, kept as the pref wp_hudBellDepth',
+            j(afterPin) === j(['C', 'A', 'B']) && ui.api.bellLog('c_a').recs.filter(r => r.pinned).length === 2 && j(afterRm) === j(['C', 'A']) && noClr && j(afterClr) === j(['C', 'A']) && clrGone && j(dOpts) === j(['12', '25', '50']) && d25 === '25' && ui.api.bellDepth() === 25
+            && run({ prefs: { wp_hudBellDepth: '7' } }).api.bellDepth() === 12, j([afterPin, afterRm, afterClr]));
+        const lim2 = run({ open: true, rolls: [{ roll: { id: 'r1' } }] }), vL = lim2.fresh('c_a'); vL.bellOpen = true; for (let i = 0; i < 12; i++) lim2.api.bellNote('c_a', { title: 't' + i }); for (let i = 1; i <= 11; i++) lim2.api.bellPin('c_a', 'n' + i); lim2.api.renderHudFoot(vL);
+        const unpinned = lim2.cls(vL, '.hud-bell-pin').filter(b => b.children[0].attrs.icon === 'icon:thumbtack');
+        const nr = run({ sys: sysNoRoll }), vN = nr.fresh('c_a'); nr.api.renderHudFoot(vN); const hid = vN.foot.children.length; nr.api.bellNote('c_a', { title: 'x' });
+        const em = run({ open: true, rolls: [] }), vE = em.fresh('c_b'); em.api.renderHudFoot(vE);
+        check('The bell (the panel): at the limit the unpinned note\'s pin is disabled and says why; a system with nothing to roll shows no foot until the bell holds a note, then the bar with the bell alone; open and empty it names the character',
+            unpinned.length === 1 && unpinned[0].disabled === true && unpinned[0].title === 'At most 11 notes can be pinned' && hid === 0 && vN.foot.children.length === 1 && nr.cls(vN, '.hud-hist-toggle').length === 0 && nr.cls(vN, '.hud-bell-btn').length === 1
+            && em.cls(vE, '.hud-bell-empty')[0].textContent === 'No notes for Ana yet this session.');
+        const fx = run(), FA = fx.api, fxr = fx.camp.chars.c_a.values.f_fx; fx.camp.chars.c_b.values.f_fx.push({ id: 'x_8', ref: 'e_p', on: true });
+        FA.bellFx(null); const first = FA.bellLog('c_a').recs.length + FA.bellLog('c_b').recs.length;
+        fxr.push({ id: 'x_1', ref: 'e_b', on: true }, { id: 'x_2', ref: 'e_p', on: true }, { id: 'x_3', name: 'Stun', dur: '', mods: [], on: true }); FA.bellFx('c_a');
+        const added = FA.bellLog('c_a').recs.map(r => [r.title, r.text, r.bad]);
+        fxr[0].on = false; FA.bellFx('c_a'); fxr[0].on = true; FA.bellFx(null); fxr.splice(1, 1); FA.bellFx('c_a'); FA.bellFx('c_a');
+        const later = FA.bellLog('c_a').recs.slice(0, 3).map(r => [r.title, r.text]);
+        const fxP = run({ client: true }); fxP.api.bellFx(null); fxP.camp.chars.c_b.values.f_fx.push({ id: 'x_9', ref: 'e_b', on: true }); fxP.api.bellFx('c_b');
+        const fxN = run({ sys: cleanSystem(Object.assign({}, rawFx, { fields: [rawFx.fields[0]] }), { F, gmView: true }) }); fxN.api.bellFx(null); fxN.camp.chars.c_a.values.f_fx.push({ id: 'x_1', ref: 'e_b', on: true }); fxN.api.bellFx('c_a');
+        check('The bell\'s effects feed: the first look records only (an effect already on is no news); then an effect applied (a debuff marked bad; an ad hoc row by its own name), suspended, resumed and ended each make one note, and nothing when nothing changed; a character this viewer cannot open takes none; a system with no effects list feeds nothing',
+            first === 0 && j(added) === j([['Effect applied', 'Stun', 0], ['Effect applied', 'Poisoned', 1], ['Effect applied', 'Bless', 0]])
+            && j(later) === j([['Effect ended', 'Poisoned'], ['Effect resumed', 'Bless'], ['Effect suspended', 'Bless']]) && FA.bellLog('c_a').recs.length === 6 && fxP.api.bellLog('c_b').recs.length === 0 && fxN.api.bellLog('c_a').recs.length === 0, j([added, later]));
+        const hmB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuB = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('The bell (source): every repaint of a character\'s views and the one-second watch run the effects feed; a HUD window starts with the bell closed; Help and the tour say what it keeps and that pins stay on this computer',
+            /function renderViews\(charId, skip\) \{\n    if \(typeof bellFx === 'function'\) \{ try \{ bellFx\(charId\); \}/.test(shB) && /_lastCamp = id; try \{ bellFx\(null\); \}/.test(shB) && /v\.histOpen = false; v\.bellOpen = false;/.test(shB) && /window\.wpSheets = \{ bellNote: bellNote,/.test(shB)
+            && /The <b>bell<\/b> beside it keeps the character&rsquo;s <b>notes<\/b>/.test(hmB) && /pins stay on this computer, never on the character/.test(hmB) && /The <b>bell<\/b> beside it keeps the character&rsquo;s notes/.test(tuB) && /pin one to keep it on this computer\./.test(tuB));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

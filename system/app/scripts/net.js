@@ -3308,6 +3308,7 @@ function handleMessage(msg, conn) {
         var Dp = DC(); if (!Dp || !Dp.cleanApply) return;
         var ap = Dp.cleanApply(msg); if (!ap) return;
         pushChat({ from: ap.from, text: '', scope: ap.priv ? 'whisper' : 'global', ts: ap.ts, apply: ap });
+        if (ap.as && typeof bellOut === 'function') bellOut('', { apply: ap }, ap.as);   // their character's bell, found by the name the card carries
         // [netcheck:applyin-end]
     } else if (msg.type === 'acts-left' && net.role === 'client') {
         // [netcheck:actsin-start]
@@ -3336,6 +3337,7 @@ function handleMessage(msg, conn) {
         var Dd = DC(); if (!Dd || !Dd.cleanDue) return;
         var du = Dd.cleanDue(msg); if (!du || du.theirs) return;
         pushChat({ from: du.from, text: '', scope: 'whisper', ts: du.ts, due: du });
+        if (typeof bellOut === 'function') bellOut(du.charId, { due: du });
         // [netcheck:duein-end]
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
@@ -3962,9 +3964,12 @@ function postApply(rec, scope, ch, conn) {
     }
     pushChat({ from: rec.from, text: '', scope: scope === 'table' ? 'global' : 'whisper', ts: rec.ts, apply: rec });
     logEvent('char', applyLine(rec));
+    if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { apply: rec });   // the character's bell here
 }
 function applyLines(lines) { return (Array.isArray(lines) ? lines : []).slice(0, 4).map(function(l) { var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; return { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; }); }   // what the card carries: a label, two numbers (clients refuse past 1e15)
 // [netcheck:postapply-end]
+// The bell (the HUD's notes, sheets.js): a note for a character's bell on this machine — cid '' finds this player's character named as
+function bellOut(cid, note, as) { try { if (window.wpSheets && window.wpSheets.bellNote) window.wpSheets.bellNote(cid, note, as); } catch (e) { console.error(e); } }
 function applyLine(rec) { var D = DC(); return D && D.applyText ? D.applyText(rec) : 'An action was applied.'; }
 function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : 'An action is due.'; }
 // Turn-based combat T2b: a timed action that waits for a press — its reminder card (sheets.js timedHook): the character's player's when asked
@@ -3980,6 +3985,7 @@ function postDue(rec, ch, toOwner) {
     var sent = false;
     if (toOwner && net.active && net.role === 'host' && ch && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== ch.ownerId) return; try { c.send(rec); sent = true; } catch (e) { sendFailed(e); } });
     pushChat({ from: rec.from, text: '', scope: 'whisper', ts: rec.ts, due: sent ? Object.assign({}, rec, { theirs: 1 }) : rec });
+    if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { due: rec });
 }
 // [netcheck:postdue-end]
 // Stage 6 HUD H7: the GM's own press (sheets.js has worked it out and stored it): the card, as the GM's

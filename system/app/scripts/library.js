@@ -7,7 +7,7 @@
    docs/STAGE_6_LIBRARY_BUILD.md. */
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText } from './librarycore.js';
+import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText, itemsToMove } from './librarycore.js';
 import { setLibraryFind, coreOf, cleanSystem, libSnaps } from './systemcore.js';
 
 function map() { return Object.create(null); }
@@ -50,7 +50,7 @@ async function load(camp) {
     camp = camp || getActiveCampaign();
     var m = camp && camp.library, mine = { campId: camp ? camp.id : null, sig: manifestSig(camp), byId: map(), packs: map(), n: 0, state: m && m.packs.length ? 'loading' : 'none', error: '' };
     cur = mine;
-    if (!m || !m.packs.length || !gmHere()) { if (m && m.packs.length) mine.state = 'none'; return mine; }
+    if (!m || !m.packs.length || !gmHere()) { if (m && m.packs.length) mine.state = 'none'; else if (camp && gmHere()) migrateItems(camp); return mine; }   // L2b: a campaign with no library yet moves its items into one
     var ctx = libCtx(camp.system, F(), true), seen = map(), bad = [];
     for (var i = 0; i < m.packs.length; i++) {
         var p = m.packs[i]; if (!p.rev) { mine.packs[p.id] = []; continue; }   // made but never written
@@ -66,6 +66,7 @@ async function load(camp) {
     if (bad.length) { mine.error = 'Could not read: ' + bad.join(', '); toast('The library could not read ' + bad.join(', ') + '.'); }
     after();
     if (window.wpLibraryWin && window.wpLibraryWin.refresh) { try { window.wpLibraryWin.refresh(); } catch (e) { console.error(e); } }   // L2a: an open Library window shows what was loading
+    if (mine.state === 'ready') migrateItems(camp);   // L2b: every pack read: the system's items may move in
     return mine;
 }
 // Write a pack's entries as its next revision; the manifest pins it and the save follows. { ok } or { error }
@@ -86,9 +87,9 @@ async function savePack(packId, entries) {
     save(true); after();
     return { ok: true, dropped: cp.dropped, reasons: cp.reasons };
 }
-async function createPack(name) {
+async function createPack(name, wantId) {
     var camp = getActiveCampaign(); if (!camp || !gmHere()) return { error: 'No campaign here.' };
-    var ap = addPack(camp.library, name); if (!ap) return { error: 'This campaign holds as many packs as it can.' };
+    var ap = addPack(camp.library, name, undefined, wantId); if (!ap) return { error: 'This campaign holds as many packs as it can.' };
     var had = camp.library; camp.library = ap.manifest;
     var r = await savePack(ap.id, []);
     if (r.error) { if (had) camp.library = had; else delete camp.library; return r; }   // nothing half made
@@ -111,6 +112,38 @@ function setMeta(packId, meta) {
     camp.library = m; cur.sig = manifestSig(camp);
     save(true); after();
     return { ok: true };
+}
+// L2b (owner decision 3): the campaign's own items (System ▸ Items) move into the library's Items pack, automatically, on the GM's
+// machine once the library is read (never with a pack unread, never while the System editor is open). A safety copy first — none, and
+// nothing moves (tried again the next time). The entries are written to the pack; every row that carried an item then keeps a copy of
+// it (libSnaps) before the items leave the system; the core is worked out again (formulas that name them read the same); one save.
+// Idempotent: nothing but the tutorial's Firepot left, nothing to do; an item made later in the Items tab moves the next time
+var ITEMS_PACK = 'p_items', KEEP_ITEMS = ['i_tut_firepot'], _migrating = false;
+async function migrateItems(camp) {
+    camp = camp || getActiveCampaign();
+    if (_migrating || !camp || !camp.system || !gmHere() || cur.campId !== camp.id || (cur.state !== 'ready' && cur.state !== 'none')) return 0;
+    var sm = document.getElementById('systemModal'); if (sm && sm.style.display === 'flex') return 0;   // a draft open: the next load
+    if (!(camp.system.items || []).some(function(it) { return it && KEEP_ITEMS.indexOf(it.id) < 0; })) return 0;
+    _migrating = true;
+    try {
+        var bk = null; try { bk = await fetch('/api/backup-now', { method: 'POST' }); } catch (e) { bk = null; }
+        if (!bk || !bk.ok || getActiveCampaign() !== camp || cur.campId !== camp.id) return 0;   // no safety copy: nothing moves
+        var taken = map(), inPack = map(); Object.keys(cur.byId).forEach(function(id) { taken[id] = 1; }); (cur.packs[ITEMS_PACK] || []).forEach(function(id) { inPack[id] = 1; });
+        var plan = itemsToMove(camp.system, KEEP_ITEMS, taken, inPack, libCtx(camp.system, F(), true)); if (!plan.drop.length) return 0;
+        if (plan.move.length) {
+            if (!(camp.library && camp.library.packs.some(function(p) { return p.id === ITEMS_PACK; }))) { var cr = await createPack('Items', ITEMS_PACK); if (!cr || cr.error) return 0; }
+            if (!ready(ITEMS_PACK)) return 0;
+            var sv = await savePack(ITEMS_PACK, entriesOf(ITEMS_PACK).concat(plan.move)); if (!sv || !sv.ok) return 0;
+            if (plan.move.some(function(e) { return !cur.byId[e.id]; })) return 0;   // every one must be in the library before any leaves the system
+        }
+        var gone = map(); plan.drop.forEach(function(id) { gone[id] = 1; });
+        var sysAfter = Object.assign({}, camp.system, { items: (camp.system.items || []).filter(function(it) { return !(it && gone[it.id]); }) });
+        libSnaps(sysAfter, camp.chars || {}, entry);   // every row that carried one keeps a copy of it, before the item leaves
+        camp.system = (F() ? cleanSystem(sysAfter, { F: F(), gmView: true }) : null) || sysAfter;
+        refreshCore(camp); save(true); after();
+        if (plan.move.length) toast('The campaign\u2019s ' + plan.move.length + (plan.move.length === 1 ? ' item' : ' items') + ' moved into the library\u2019s \u201cItems\u201d pack (a safety copy was taken first).' + (plan.left.length ? ' ' + plan.left.length + ' stayed: an entry of the library already has the same id.' : ''));
+        return plan.move.length;
+    } finally { _migrating = false; }
 }
 // L1c2: an import's pack files copied beside the save — each cleaned like any pack read (never trusted as it came), written at the
 // revision its campaign's manifest now pins; the manifest watch waits until they are all there, then the library is read again.
@@ -166,4 +199,4 @@ setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, playerIndexOf: playerIndexOf, playerManifest: playerManifest, playerEntry: playerEntry };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, playerEntry: playerEntry };

@@ -45,11 +45,13 @@ function setMermaidMode(m) {
     if (!window.mermaid || !window.wpMermaidConfig || mode === m) return;
     try { mermaid.initialize(Object.assign({}, window.wpMermaidConfig, { securityLevel: m === 'strict' ? 'strict' : (window.wpMermaidConfig.securityLevel || 'loose') })); mode = m; } catch (e) {}
 }
-function renderInto(body, it) {
+function renderInto(body, it) { renderPage(body, it); openSig = sigOf(it); }
+// A page drawn into any element — the reader, and a sheet's or HUD's handbook search (Stage 6 HUD H12, window.wpDocRenderPage): the
+// sanitised render (docrender), the campaign's look, its diagrams laid out (strict at another's table)
+function renderPage(body, it) {
     if (foreign()) setMermaidMode('strict');
     var _camp = getActiveCampaign();
     body.innerHTML = renderDoc(it, { src: srcOf, mermaid: !!window.mermaid, docStyle: _camp && _camp.docStyle });
-    openSig = sigOf(it);
     if (!window.mermaid) return;
     var nodes = Array.from(body.querySelectorAll('pre.mermaid'));
     if (!nodes.length) return;
@@ -128,6 +130,7 @@ document.addEventListener('wp-asset', function(e) {
 });
 
 window.wpOpenDoc = openDoc;
+window.wpDocRenderPage = renderPage;
 window.wpCloseDoc = closeDoc;
 window.wpDocReaderRefresh = refresh;
 // The campaign's document look changed under the open page (a 'docStyle' message from the host): re-render it in place —

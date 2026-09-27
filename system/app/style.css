@@ -2554,6 +2554,29 @@
   @media (prefers-reduced-motion: reduce) { .hud-hist-new { animation: none; } }
   .hud-hist-chev { width: 11px; height: 11px; margin-left: auto; color: var(--dim); }
   .hud-hist-tools { display: flex; align-items: center; gap: 6px; flex: none; }
+  .sheet-hb { display: flex; flex-direction: column; gap: 6px; min-width: 0; }   /* Stage 6 HUD H12: the handbook search */
+  .sheet-hb-bar { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .sheet-hb-bar .sheet-hb-q { flex: 1; min-width: 0; }
+  .sheet-hb-bar .tool { flex: none; padding: 3px 8px; font-size: 11px; }
+  .sheet-hb-rtitle { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-hb-res { display: flex; flex-direction: column; gap: 6px; }
+  .sheet-hb-group { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid color-mix(in srgb, var(--edge) 40%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 5%, transparent); }
+  .sheet-hb-page-row, .sheet-hb-head, .sheet-hb-hit { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: none; border: 0; padding: 3px 4px; color: inherit; font: inherit; cursor: pointer; border-radius: 4px; }
+  .sheet-hb-page-row:hover, .sheet-hb-head:hover, .sheet-hb-hit:hover { background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 8%, transparent); }
+  .sheet-hb-ptitle { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .sheet-hb-head { padding-left: 24px; font-size: 12px; color: var(--sheet-accent, var(--gold)); }
+  .sheet-hb-more { align-self: flex-start; margin-left: 20px; padding: 1px 6px; font-size: 11px; }
+  .sheet-hb-sub { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); margin-top: 4px; }
+  .sheet-hb-hit { flex-direction: column; align-items: stretch; gap: 2px; padding: 6px 8px; border: 1px solid color-mix(in srgb, var(--edge) 40%, transparent); background: color-mix(in srgb, var(--sheet-accent, var(--gold)) 5%, transparent); }
+  .sheet-hb-where { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--sheet-accent, var(--gold)); overflow-wrap: anywhere; }
+  .sheet-hb-snip { font-family: Georgia, serif; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+  .sheet-hb-snip mark { background: rgba(224,165,79,0.34); color: inherit; border-radius: 2px; padding: 0 1px; }
+  .sheet-hb-page.doc-view { border-top: 1px solid var(--edge); padding-top: 6px; overflow-wrap: anywhere; }
+  .sheet-hb-page.doc-view h1 { font-size: 20px; }
+  .sheet-hb-page.doc-view h2 { margin: 18px 0 8px; }
+  .sheet-hb-page .diagram.fc-box { resize: none; }
+  .sheet-hb-page .diagram.fc-box g.node { cursor: default; }
+  .sheet-hb-page .sheet-hb-here { outline: 2px solid color-mix(in srgb, var(--sheet-accent, var(--gold)) 55%, transparent); outline-offset: 3px; border-radius: 4px; }
   .hud-bell-btn { margin-left: auto; position: relative; flex: none; padding: 4px 6px; }   /* the bell: the character's notes on this machine */
   .hud-bell-count { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--sheet-accent, var(--gold)); color: var(--bg); font-size: 9.6px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
   .hud-bell { flex: none; max-height: 16rem; display: flex; flex-direction: column; border-bottom: 1px solid var(--edge); }

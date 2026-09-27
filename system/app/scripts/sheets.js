@@ -96,6 +96,84 @@ function pageChip(id) {
     ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
     return ch;
 }
+/* Stage 6 HUD H12: the handbook search placement (the reference's Handbook tab). The viewer's own pages — the GM's all (GM-only marked),
+   a player's the ones shared with them — listed, then searched by heading as they type; in the text on Enter, on the button, or by itself
+   450 ms after the headings come up empty (3+ characters). A hit opens its page right here, at its heading, in the reader's own render;
+   Open in reader opens it there. What it shows is kept per view and placement for the session, across repaints. Text nodes only. */
+var _hb = Object.create(null), HB_DEEP_MS = 450;
+function hbKey(vctx, c, sec, i) { return ((vctx && vctx.preview) ? 'p' : (vctx && vctx.view === 'hud') ? 'h' : 's') + '-' + String((c && c.id) || 'x').replace(/[^A-Za-z0-9_]/g, '') + '-' + String((sec && sec.id) || 'x').replace(/[^A-Za-z0-9_]/g, '') + '-' + (i | 0); }
+function hbState(key) { return _hb[key] || (_hb[key] = { q: '', deep: null, view: null, more: Object.create(null), timer: 0, go: false }); }
+function hbPages() {
+    var camp = getActiveCampaign(), items = (camp && camp.items) || {}, out = [];
+    Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'doc') return; out.push({ id: id, title: String((it.meta && it.meta.title) || 'Page'), doc: it, gmOnly: !!(it.meta && it.meta.players === false) }); });
+    out.sort(function(a, b) { return a.title.localeCompare(b.title); });
+    return out;
+}
+function hbNode(key) { var box = el('div', 'sheet-field sheet-kind-search sheet-hb'); box.dataset.hb = key; hbDraw(box, key); return box; }
+function hbLive(key) { var b = document.querySelector('.sheet-hb[data-hb="' + key + '"]'); return b && b.isConnected !== false ? b : null; }   // the box this key draws in now (a repaint makes a new one)
+function hbDraw(box, key) {
+    var st = hbState(key); box.textContent = '';
+    if (st.view) { hbReader(box, key, st); return; }
+    var bar = el('div', 'sheet-hb-bar'), inp = el('input', 'field sheet-hb-q'); inp.type = 'search'; inp.placeholder = 'Search the handbook'; inp.value = st.q; inp.dataset.fid = key; inp.dataset.part = 'q'; inp.setAttribute('aria-label', 'Search the handbook'); inp.maxLength = 120;
+    var deep = el('button', 'tool ghost sheet-hb-deep', 'Search inside pages'); deep.type = 'button'; deep.title = 'Look for the words in the pages\u2019 text (Enter)';
+    var res = el('div', 'sheet-hb-res');
+    inp.addEventListener('input', function() { st.q = inp.value.slice(0, 120); st.deep = null; st.more = Object.create(null); clearTimeout(st.timer); hbResults(res, key, st); deep.disabled = st.q.trim().length < 2; });
+    inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); hbDeep(key, st); } else if (e.key === 'Escape' && st.q) { e.preventDefault(); e.stopPropagation(); st.q = ''; st.deep = null; inp.value = ''; clearTimeout(st.timer); hbResults(res, key, st); } });
+    deep.disabled = st.q.trim().length < 2; deep.addEventListener('click', function() { hbDeep(key, st); });
+    bar.appendChild(inp); bar.appendChild(deep); box.appendChild(bar); box.appendChild(res);
+    hbResults(res, key, st);
+}
+function hbDeep(key, st) { var DR = window.wpDocRender, q = st.q.trim(); clearTimeout(st.timer); if (!DR || !DR.hbText || q.length < 2) return; st.deep = DR.hbText(hbPages(), q); var b = hbLive(key); if (b) hbResults(b.querySelector('.sheet-hb-res'), key, st); }
+function hbOpen(key, st, id, bi) { st.view = { id: id, bi: typeof bi === 'number' ? bi : -1 }; st.go = true; var b = hbLive(key); if (b) hbDraw(b, key); }
+function hbPageRow(p, key, st) {
+    var r = el('button', 'sheet-hb-page-row'); r.type = 'button'; r.appendChild(iconNode('icon:book-open', 'sheet-hb-ico')); r.appendChild(el('span', 'sheet-hb-ptitle', p.title));
+    if (p.gmOnly) r.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only'));
+    r.title = 'Open \u201c' + p.title + '\u201d here'; r.addEventListener('click', function() { hbOpen(key, st, p.id, -1); });
+    return r;
+}
+function hbResults(res, key, st) {
+    if (!res) return; res.textContent = '';
+    var DR = window.wpDocRender, pages = hbPages(), q = st.q.trim(), byId = Object.create(null); pages.forEach(function(p) { byId[p.id] = p; });
+    if (!pages.length) { res.appendChild(el('div', 'sheet-hb-empty notepad-who', 'No handbook pages here yet.')); return; }
+    if (!q || !DR || !DR.hbHeadings) { pages.forEach(function(p) { res.appendChild(hbPageRow(p, key, st)); }); return; }
+    var heads = DR.hbHeadings(pages, q);
+    heads.forEach(function(h) {
+        var p = byId[h.id]; if (!p) return; var grp = el('div', 'sheet-hb-group'); grp.appendChild(hbPageRow(p, key, st));
+        var all = !!st.more[h.id], shown = all ? h.heads : h.heads.slice(0, 3);
+        shown.forEach(function(x) { var hr = el('button', 'sheet-hb-head', x.title); hr.type = 'button'; hr.title = 'Open \u201c' + p.title + '\u201d here, at this heading'; hr.addEventListener('click', function() { hbOpen(key, st, h.id, x.bi); }); grp.appendChild(hr); });
+        if (!all && h.heads.length > 3) { var mo = el('button', 'tool ghost sheet-hb-more', '+' + (h.heads.length - 3) + ' more'); mo.type = 'button'; mo.addEventListener('click', function() { st.more[h.id] = true; hbResults(res, key, st); }); grp.appendChild(mo); }
+        res.appendChild(grp);
+    });
+    if (st.deep) {
+        var dh = st.deep.hits || []; res.appendChild(el('div', 'sheet-hb-sub', dh.length ? 'In the text: ' + (st.deep.over ? dh.length + '+' : dh.length) + (dh.length === 1 && !st.deep.over ? ' place' : ' places') : 'Nothing in the text either.'));
+        dh.forEach(function(x) {
+            var hit = el('button', 'sheet-hb-hit'); hit.type = 'button'; hit.appendChild(el('span', 'sheet-hb-where', x.page + (x.head && x.head !== x.page ? ' \u203a ' + x.head : '')));   // a page titled by its own first heading names it once
+            var sn = el('span', 'sheet-hb-snip'); sn.appendChild(document.createTextNode(x.before)); if (x.hit) sn.appendChild(el('mark', null, x.hit)); sn.appendChild(document.createTextNode(x.after)); hit.appendChild(sn);
+            hit.addEventListener('click', function() { hbOpen(key, st, x.id, x.bi); }); res.appendChild(hit);
+        });
+    } else if (!heads.length) {
+        res.appendChild(el('div', 'sheet-hb-empty notepad-who', q.length >= 3 ? 'No heading matches \u2014 looking in the text\u2026' : 'No heading matches. Press Enter to look in the text.'));
+        if (q.length >= 3) { clearTimeout(st.timer); st.timer = setTimeout(function() { if (st.q.trim() === q && !st.deep && !st.view) hbDeep(key, st); }, HB_DEEP_MS); }   // no dead ends: the text by itself
+    }
+}
+function hbReader(box, key, st) {
+    var camp = getActiveCampaign(), items = (camp && camp.items) || {}, it = Object.prototype.hasOwnProperty.call(items, st.view.id) ? items[st.view.id] : null;
+    if (!it || it.type !== 'doc') { st.view = null; hbDraw(box, key); return; }   // gone, or hidden from this player since
+    var bar = el('div', 'sheet-hb-bar'), back = el('button', 'tool ghost sheet-hb-back', '\u2190 Results'); back.type = 'button'; back.dataset.fid = key; back.dataset.part = 'back';
+    back.addEventListener('click', function() { st.view = null; hbDraw(box, key); var q = box.querySelector('.sheet-hb-q'); if (q) { try { q.focus({ preventScroll: true }); } catch (e) {} } });
+    var id = st.view.id, ttl = el('span', 'sheet-hb-rtitle', String((it.meta && it.meta.title) || 'Page')), open = el('button', 'tool ghost sheet-hb-open', 'Open in reader'); open.type = 'button'; open.title = 'Open this page in the reader, full size';
+    open.addEventListener('click', function() { openPage(id); });
+    bar.appendChild(back); bar.appendChild(ttl); bar.appendChild(open); box.appendChild(bar);
+    var page = el('div', 'doc-view sheet-hb-page'); box.appendChild(page);
+    if (window.wpDocRenderPage) window.wpDocRenderPage(page, it);
+    var bi = st.view.bi, go = st.go; st.go = false;   // to the heading once, when it is opened (a repaint keeps where the reader scrolled)
+    if (go && bi >= 0) setTimeout(function() {
+        var t = page.querySelector('[data-blk="' + bi + '"]'); if (!t) return;
+        var sc = page.closest ? page.closest('.hud-body, #sheetBody') : null, fr = sc && sc.querySelector('.sheet-frame'), off = fr && fr.getBoundingClientRect ? fr.getBoundingClientRect().height : 0;
+        if (t.style) t.style.scrollMarginTop = Math.round(off + 8) + 'px';   // clear of the sticky band and tab strip
+        try { t.scrollIntoView({ block: 'start' }); } catch (e) {} t.classList.add('sheet-hb-here');
+    }, 0);
+}
 // A handbook link placement: a button that opens its page; nothing at all when the page is not here
 function linkNode(pl) {
     var ref = pl.page ? pageRef(pl.page) : null; if (!ref) return null;
@@ -1312,7 +1390,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             s.appendChild(head);
         }
         var grid = el('div', 'sheet-grid'); grid.style.gridTemplateColumns = 'repeat(' + Math.max(1, Math.min(4, sec.cols || 1)) + ', minmax(0, 1fr))';
-        (sec.fields || []).forEach(function(pl) {
+        (sec.fields || []).forEach(function(pl, pli) {
             var plOff = !!pl.showIf && !showsIf(pl.showIf, all.vars, F());   // C8: a placement's own show-if
             if (plOff && !previewV) return;
             var node = null;
@@ -1321,6 +1399,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
             else if (pl.kind === 'link') node = linkNode(pl);   // Stage 5f
+            else if (pl.kind === 'search') node = hbNode(hbKey(vctx, c, sec, pli));   // Stage 6 HUD H12
             else if (pl.kind === 'hud') node = hudButton(pl, c, sys, vctx);   // HUD frame (HF2b): opens this character's HUD
             else if (pl.kind === 'facing') node = facingNode(c, gm);   // 5h Fold 3
             else if (pl.kind === 'stance') node = stanceNode(c, gm);   // Stage 6
@@ -1368,7 +1447,7 @@ function showIfNote(text) {
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? rollPick(r) : null; }
-    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'search') return 'Handbook search'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
     return null;
 }
 function renderLayout() {
@@ -1670,7 +1749,7 @@ function renderLayout() {
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, rollPick(r)]); });
         opts.push(['k:heading', 'Heading'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
         grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
-        if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link']);   // Stage 5f: only when the campaign has pages
+        if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link'], ['k:search', 'Handbook search']);   // Stage 5f: only when the campaign has pages; H12: a search over them
         if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
         addRow.appendChild(select('sys-pl-add', opts, '', 'A field not yet on the sheet, a roll button, a heading, a divider, the portrait, a facing dial, a stance control or a handbook link'));
         row.appendChild(addRow);

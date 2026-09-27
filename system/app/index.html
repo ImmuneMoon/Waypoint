@@ -82,6 +82,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/vtt.js"></script>
 <script type="module" src="scripts/main.js"></script>
 <script type="module" src="scripts/net.js"></script>
+<script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/settings.js"></script>
 <script type="module" src="scripts/tips.js"></script>
 <script type="module" src="scripts/stream.js"></script>
@@ -274,7 +275,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       <p>Waypoint organizes a tabletop campaign into <b>Maps</b> (locations with two faces: a node-based <b>Data Map</b> for your notes and a freeform <b>Play Map</b> for the battle map) and <b>Planners</b> (document pages for session plans). Everything lives in the left sidebar.</p>
                       <p>New here? The <b>&#127891; Tutorial</b> tab runs a guided tour over a small demo campaign that you can keep and build on &mdash; or type in the <b>search box</b> above to jump straight to any topic.</p>
                       <h4>The welcome screen</h4>
-                      <p>When Waypoint opens you land on a <b>Welcome</b> screen: <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, or <b>Join a game</b>. <b>Join a game</b> opens its own screen where you set your <b>name</b>, <b>color</b> and <b>picture</b> (your profile, which follows you to every table) and enter the GM&rsquo;s <b>room code</b> &mdash; it stays up showing the connection and drops you in once the GM&rsquo;s table loads. Click the <b>Waypoint</b> logo (top-left) to bring the Welcome screen back any time, set your profile any time under <b>Settings &#9656; Profile</b>, and choose how often the screen appears under <b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> (every time, first run only, or never).</p>
+                      <p>When Waypoint opens you land on a <b>Welcome</b> screen: <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Continue</b> a campaign you already have, or <b>Join a game</b>. <b>Join a game</b> opens its own screen where you set your <b>name</b>, <b>color</b>, <b>picture</b> and <b>token face</b> (your profile, which follows you to every table) and enter the GM&rsquo;s <b>room code</b> &mdash; it stays up showing the connection and drops you in once the GM&rsquo;s table loads. Click the <b>Waypoint</b> logo (top-left) to bring the Welcome screen back any time, set your profile any time under <b>Settings &#9656; Profile</b>, and choose how often the screen appears under <b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> (every time, first run only, or never).</p>
                       <h4>Your first map</h4>
                       <ol>
                           <li>Press <b>+</b> next to <b>Maps</b> in the left sidebar and name it.</li>
@@ -525,7 +526,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>From then on it's theirs: they can drag it, and when they join a session it's placed on your map automatically if it isn't already there.</li>
                       </ol>
                       <p>With character sheets, give them a <b>character</b> instead: right-click their chip on the party strip &#9656; <b>Give a character&hellip;</b>, or pick them as its player in <b>System &#9656; Characters</b>. Their token appears on the map they are on &mdash; their own copy, a copy from another map, a token of that name linked to it, or a new one made from the character (its portrait, else their initials in their colour). A player follows their character, not a name, so renaming it or its tokens changes nothing.</p>
-                      <p>A player who joins with no character gets a <b>waiting token</b>: their picture (or the silhouette on their colour) in a dashed circle they can move about the map they are on. It follows them from map to map, and gives way to their real token the moment you give them a character &mdash; right-click it (or their chip), or select it for its Properties, for <b>Give a character&hellip;</b>, <b>Hide</b> or <b>Remove</b> (for the rest of the session; deleting it does the same). It goes three minutes after they leave, at once at a ban or a Forget, and at the end of the session: it is never kept in the save. <b>Players without a character</b> in the Multiplayer window turns waiting tokens off for a campaign, and can let them see around themselves under fog (off, they see only what you have revealed).</p>
+                      <p>A player who joins with no character gets a <b>waiting token</b>: the face they chose (their picture, the plain default, a bundled token picture or an emoji) in a dashed circle they can move about the map they are on. It follows them from map to map, and gives way to their real token the moment you give them a character &mdash; right-click it (or their chip), or select it for its Properties, for <b>Give a character&hellip;</b>, <b>Hide</b> or <b>Remove</b> (for the rest of the session; deleting it does the same). It goes three minutes after they leave, at once at a ban or a Forget, and at the end of the session: it is never kept in the save. <b>Players without a character</b> in the Multiplayer window turns waiting tokens off for a campaign, and can let them see around themselves under fog (off, they see only what you have revealed).</p>
                       <h4>Running the table</h4>
                       <ul>
                           <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
@@ -572,7 +573,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <h4>Join your GM's table</h4>
                       <ol>
                           <li>Get the <b>room code</b> from your GM (it looks like <b>AB12CD</b>), plus the session password if they set one.</li>
-                          <li>On the <b>Welcome</b> screen press <b>Join a game</b> (or the <b>&#127760;</b> button in the header any time) &mdash; set your name (required), your color and picture, enter the code (and password), and press <b>Join</b>. The Join screen shows the connection and drops you in when the GM&rsquo;s table loads.</li>
+                          <li>On the <b>Welcome</b> screen press <b>Join a game</b> (or the <b>&#127760;</b> button in the header any time) &mdash; set your name (required), your color, picture and token face, enter the code (and password), and press <b>Join</b>. The Join screen shows the connection and drops you in when the GM&rsquo;s table loads.</li>
                           <li>Your first time at a table, the GM gets a prompt to let you in &mdash; you'll see "waiting for the GM" for a moment. After that you're recognized and go straight in.</li>
                           <li>You'll land on whatever map the GM is showing, and follow along as they move the party.</li>
                       </ol>
@@ -580,7 +581,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <ul>
                           <li>Pan (<kbd>Middle Click + Drag</kbd>), zoom (<kbd>Mouse Wheel</kbd>), and use the <b>&#128207; Measure</b> tool freely &mdash; your camera is your own.</li>
                           <li><b>Your token:</b> if the GM assigned you one, just drag it. It snaps to the grid on hex maps. You can't move anyone else's.</li>
-                          <li><b>No character yet?</b> You get a <b>waiting token</b> &mdash; your picture in a dashed circle &mdash; to move about until your GM gives you a character. Right-click it to see where you stand.</li>
+                          <li><b>No character yet?</b> You get a <b>waiting token</b> &mdash; your face in a dashed circle &mdash; to move about until your GM gives you a character. Right-click it to see where you stand. Its face is yours to choose: your picture, the plain default, one of the bundled token pictures or an emoji &mdash; on the Join screen, in <b>&#9881; Settings &#9656; Profile</b>, or from that card.</li>
                           <li><b>Doors &amp; stairs:</b> double-click a portal marker to travel through on your own &mdash; the GM can summon the party back together.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
                           <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
@@ -1081,7 +1082,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <div id="partyStrip" data-tip="Your players' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map."></div>
       <div id="combatStrip" style="display:none;" data-tip="Combat on this map"></div>
       <div id="partyMenu" class="shape-menu" style="position:fixed; flex-direction:column; min-width:200px; z-index:99998;"></div>
-      <div id="joinCard" class="join-card" role="status" style="display:none;"><span id="joinCardStatus"></span><button class="tool ghost" id="joinCardClose" type="button" title="Hide (right-click your waiting token to see this again)" aria-label="Close">&times;</button></div>
+      <div id="joinCard" class="join-card" role="status" style="display:none;"><span id="joinCardStatus"></span><button class="tool ghost join-face" id="joinCardFaceBtn" type="button" title="Choose your token's face"><span class="face-prev"></span> Choose its face&hellip;</button><button class="tool ghost" id="joinCardClose" type="button" title="Hide (right-click your waiting token to see this again)" aria-label="Close">&times;</button></div>
       <div id="zoomBox">
           <span id="cursorPos" title="Cursor position (world coordinates)">&ndash;</span>
           <div class="zoom-sep"></div>
@@ -1413,6 +1414,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="wc-fields">
           <label class="wc-field"><span>Your name</span><input type="text" id="wcNameInput" placeholder="How players see you" maxlength="40" autocomplete="off"></label>
           <label class="wc-field wc-field-color"><span>Color</span><input type="color" id="wcColorInput" value="#7aa7ff"></label>
+          <div class="wc-field wc-field-face"><span>Token face</span><button class="tool ghost" id="wcFaceBtn" type="button" title="What your token shows until your GM gives you a character: your picture, the plain default, a bundled token picture or an emoji"><span class="face-prev"></span></button></div>
         </div>
       </div>
       <div class="wc-join-fields">
@@ -1454,6 +1456,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <input type="color" id="setColorInput" value="#7aa7ff" title="Your color in the roster and on the maps" style="width:40px; height:26px; padding:0; border:1px solid var(--edge); background:none; cursor:pointer;">
             <button class="tool ghost" id="setColorClearBtn" style="padding:4px 10px;" title="Use an automatic color instead">Auto</button>
             <span style="font-size:10.5px; color:var(--dim); flex:1; line-height:1.35;">Your dot in the roster and on each map (initials when you have no picture).</span>
+        </div>
+        <div style="margin:10px 0 6px; display:flex; align-items:center; gap:10px;">
+            <div class="set-field-label" style="margin:0;">Token face</div>
+            <button class="tool ghost" id="setFaceBtn" type="button" style="padding:3px 8px;" title="Choose your token's face"><span class="face-prev"></span></button>
+            <span style="font-size:10.5px; color:var(--dim); flex:1; line-height:1.35;">What your token shows while you wait for a character at a table: your picture, the plain default, a bundled token picture or an emoji.</span>
         </div>
         <div style="margin-top:6px;">
             <div class="set-field-label">Welcome screen on launch</div>

@@ -880,6 +880,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var name = (nm && nm.value || '').trim(), patch = { color: (col && col.value) || '' };
       if (name || !(wcProfile().name || '').trim()) patch.name = name;   // an empty box never blanks a stored name (a name is how the table knows you; hosting needs it)
       if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile(patch);
+      if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face preview follows the colour
   }
   function hideWelcome() { var w = document.getElementById('welcomeScreen'); if (w) w.style.display = 'none'; }
   function renderWcContinue() {
@@ -940,6 +941,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var av = document.getElementById('wcAvatarPrev');
       if (av) { av.textContent = ''; var avI = document.createElement('img'); avI.alt = ''; avI.src = wcSafeAvatar(prof.avatar) ? prof.avatar : wpDefaultAvatar(prof.color); av.appendChild(avI); av.style.background = ''; }   // a photo, else the color-tinted silhouette default (built as a node)
       var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
+      if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face row
       w.style.display = 'flex';
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
           renderWcContinue();
@@ -1000,6 +1002,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           if (!f || !window.wpProcessAvatar) return;
           window.wpProcessAvatar(f, function(data) {
               if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile({ avatar: data });
+              if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: and the picture
               var av = document.getElementById('wcAvatarPrev'); if (av && wcSafeAvatar(data)) { av.textContent = ''; var avN = document.createElement('img'); avN.alt = ''; avN.src = data; av.appendChild(avN); av.style.background = ''; }
           });
       });

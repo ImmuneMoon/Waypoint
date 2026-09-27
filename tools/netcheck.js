@@ -45,10 +45,10 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + 
 
 /* ---- the sliced code, built once ---- */
 const storage = (() => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, clear: () => { m = {}; } }; })();
-const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem };')(storage, globalThis.crypto);
+const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem, cleanFace, faceView, FACE_PICS };')(storage, globalThis.crypto);
 const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
 
-const ENV_NAMES = ['net', 'own', 'validProfileId', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'approvedIds', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed'];
+const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'approvedIds', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed'];
 // the env supplies every name a slice references — except the function the slice itself DEFINES (a var of the same name would overwrite the hoisted declaration)
 const pre = (except) => 'var ' + ENV_NAMES.filter(n => except.indexOf(n) < 0).map(n => n + ' = env.' + n).join(', ') + ';\n';
 const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');
@@ -84,7 +84,7 @@ function harness(opts) {
         allow: () => true,
         pushChat: m => h.pushed.push(m),
         broadcast: (m, ex) => { packCheck(m); h.bcast.push({ m, ex }); },
-        safeAvatar: H.safeAvatar, cleanRosterName: H.cleanRosterName, awayMap: () => ({ u_a: 'map_1' }), validKey: RC.validKey, sendFailed: () => {},
+        safeAvatar: H.safeAvatar, cleanRosterName: H.cleanRosterName, cleanFace: H.cleanFace, awayMap: () => ({ u_a: 'map_1' }), validKey: RC.validKey, sendFailed: () => {},
     };
     env.queueJoin = (conn, prof, why) => runQueue(env, conn, prof, why);
     h.env = env;
@@ -2340,9 +2340,9 @@ pendingChecks.push((async () => {
         const out = { toasts: [], logs: [], saves: 0, sent: [], renders: 0, timers: [], cleared: [], camp };
         const net = { active: true, role: 'host', roster: o.roster || { pA: { id: 'u_a', name: 'Ana\u202e', color: '#112233', location: 'm1' } }, applyingRemote: false,
                       broadcastItemFiltered: (c, m) => out.sent.push(m), isConnected: pid => Object.values(net.roster).some(p => p && p.id === pid) };
-        const api = new Function('net', 'SC', 'own', 'cleanRosterName', 'spawnSpot', 'toast', 'logEvent', 'save', 'getActiveCampaign', 'render', 'window', 'setTimeout', 'clearTimeout',
+        const api = new Function('net', 'SC', 'own', 'cleanRosterName', 'cleanFace', 'spawnSpot', 'toast', 'logEvent', 'save', 'getActiveCampaign', 'render', 'window', 'setTimeout', 'clearTimeout',
             wSrc + '\nreturn { removeWaiting, placeWaiting, settleWaiting, waitingChanged, startWaitGrace, endWaiting, dropWaitingFor };')(
-            net, () => Sx, H.own, H.cleanRosterName, (map, lr, near) => ({ x: near ? near.x : 100, y: near ? near.y : 200 }), t => out.toasts.push(t), (k, t) => out.logs.push([k, t]),
+            net, () => Sx, H.own, H.cleanRosterName, H.cleanFace, (map, lr, near) => ({ x: near ? near.x : 100, y: near ? near.y : 200 }), t => out.toasts.push(t), (k, t) => out.logs.push([k, t]),
             () => { out.saves++; if (!net.applyingRemote) out.saveOutsideRemote = true; }, () => camp, () => { out.renders++; }, {},
             (f, ms) => { out.timers.push({ f, ms }); return out.timers.length; }, id => { out.cleared.push(id); });
         return { api, net, camp, out, wb: id => camp.items[id].whiteboard };
@@ -2393,6 +2393,18 @@ pendingChecks.push((async () => {
     check('F1a review fixes (the hooks): a waiting token\'s map copy goes through the walls rule like a move before it takes x/y; the resolver passes the give-away spot and redraws a map a waiting token left; the GM\'s pending edit is flushed first; the Players panel\'s ban drops it; the Host panel box is the host\'s alone',
         /if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{[\s\S]{0,1400}?\n\s*if \(lw\.waiting\) \{ if \(lw\.x !== w\.x/.test(src) && /var wMaps = settleWaiting\(camp, pid, map, src\.op, landRoomId, opts\.near/.test(src) && /wMaps\.indexOf\(myActive\.activeItemId\) >= 0\)\) render\(\);/.test(src)
         && /function waitingChanged\(camp, maps\) \{\n\s*if \(!maps \|\| !maps\.length\) return;\n\s*if \(window\.wpHistFlush\) window\.wpHistFlush\(\);/.test(src.replace(/\r\n/g, '\n')) && /if \(key\) net\.kickPlayer\(key\);\n\s*dropWaitingFor\(pid\);/.test(src.replace(/\r\n/g, '\n')) && /if \(net\.active && net\.role !== 'host'\) \{ refreshNewPlayersBox\(\); return; \}/.test(src));
+    // F1b review: the waiting token wears the roster face (kept for the GM while its player is away), cleaned on a player's copy; the client converges
+    const Fw = mkW({ roster: { pA: { id: 'u_a', name: 'Ana', location: 'm1', face: 'pic:orc' } } }); Fw.api.placeWaiting(Fw.camp, 'u_a', Fw.camp.items.m1, null);
+    const wf1 = (Fw.wb('m1')[0] || {}).face; Fw.net.roster.pA.face = '\u{1F409}'; const redress = Fw.api.placeWaiting(Fw.camp, 'u_a', Fw.camp.items.m1, null), wf2 = (Fw.wb('m1')[0] || {}).face;
+    const rlSrc = src.replace(/\r\n/g, '\n'), rlA = rlSrc.indexOf('net.sendMyLook = function'), rlB = rlSrc.indexOf('net.removeWaiting = function');
+    const rl = (o) => { const sent = [], timers = []; const netR = Object.assign({ active: true, role: 'client', paused: false, selfPaused: false, syncedPeer: 'h', myId: 'u_a', conns: [{ peer: 'h', open: true, send: m => sent.push(m) }], roster: { u_a: { id: 'u_a', face: o.have } } }, o.net || {});
+        const api = new Function('net', 'getProfile', 'cleanFace', 'own', 'sendFailed', 'setTimeout', rlSrc.slice(rlA, rlB) + '\nreturn net;')(netR, () => ({ face: o.want }), H.cleanFace, H.own, e => { throw e; }, (f) => { timers.push(f); return timers.length; });
+        api.reconcileLook(); api.reconcileLook(); timers.forEach(f => f()); return { sent, timers: timers.length }; };
+    const rDiff = rl({ have: 'pic:orc', want: '\u{1F409}' }), rSame = rl({ have: '\u{1F409}', want: '\u{1F409}' }), rPaused = rl({ have: 'pic:orc', want: '\u{1F409}', net: { selfPaused: true } }), rHost = rl({ have: 'pic:orc', want: '\u{1F409}', net: { role: 'host' } });
+    check('F1b review fixes: the waiting token wears the face on the roster (and follows a change), cleaned on a player\'s copy; a player whose roster entry disagrees with their chosen face sends it again once, a moment later (never while paused, never when it agrees, never on the host)',
+        wf1 === 'pic:orc' && wf2 === '\u{1F409}' && j(redress) === j(['m1']) && H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', face: '\u{1F409}' }).face === '\u{1F409}' && !('face' in H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', face: '<b>' }))
+        && rDiff.timers === 1 && j(rDiff.sent) === j([{ type: 'my-look', face: '\u{1F409}' }]) && rSame.sent.length === 0 && rSame.timers === 0 && rPaused.sent.length === 0 && rPaused.timers === 0 && rHost.sent.length === 0 && rHost.timers === 0
+        && /if \(net\.reconcileLook\) net\.reconcileLook\(\);/.test(src) && (src.match(/if \(!on && net\.reconcileLook\) net\.reconcileLook\(\);/g) || []).length === 2, j([wf1, wf2, rDiff, rSame, rPaused]));
     // the rules' push (host) and a client's take of it
     const nsSrc = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync');
     const mkS = () => {
@@ -2424,6 +2436,47 @@ pendingChecks.push((async () => {
         && /if \(p\) dropWaitingFor\(p\.id\);/.test(src) && /endWaiting\(wasHost\);/.test(src)
         && /if \(w\.hidden \|\| !\(w\.isChar \|\| w\.waiting\) \|\|/.test(src) && /if \(lw\.waiting\) \{ if \(lw\.x !== w\.x \|\| lw\.y !== w\.y\) \{ lw\.x = w\.x; lw\.y = w\.y; changed = true; \} return; \}/.test(src));
 })());
+// Onboarding F1b: faces — the rule (cleanFace), how a face is drawn (faceView), the roster both ways, hello, setProfile and my-look (run for real)
+{
+    const F24 = ['\u{1F9D9}', '\u{1F9DD}', '\u{1F9DA}', '\u{1F9DB}', '\u{1F9DF}', '\u2694\uFE0F', '\u{1F5E1}\uFE0F', '\u{1F3F9}', '\u{1F6E1}\uFE0F', '\u{1F52E}', '\u{1F4DC}', '\u{1F451}', '\u{1F916}', '\u{1F47D}', '\u{1F680}', '\u{1F6F0}\uFE0F', '\u2699\uFE0F', '\u{1F575}\uFE0F', '\u{1F43A}', '\u{1F409}', '\u{1F985}', '\u{1F480}', '\u{1F525}', '\u26A1'];
+    const shT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+    const esA = shT.indexOf('var EMOJI_SET = ['), esB = shT.indexOf('];', esA), EMOJI_SET = new Function('return ' + shT.slice(esA + 'var EMOJI_SET = '.length, esB + 1) + ';')();
+    const badEs = EMOJI_SET.filter(x => H.cleanFace(x[0]) !== x[0]).map(x => x[0]);
+    const fam = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}', thumbs = '\u{1F44D}\u{1F3FD}';
+    const refused = ['A', 'abc', '1', '\u{1F1FA}\u{1F1F8}', '<b>', 'x\u{1F525}', '\u{1F525}\u200B', '\u{1F525}\u202E', '\u0000', '\u{1F525}'.repeat(9), '\u{1F409}\u{1F409}', '\u200D', '\uFE0F', '\u200D'.repeat(8), '\u{1F3FD}', '\u00A9\u00AE\u2122', '\u{1F409}\u200D', '\u200D\u{1F409}', Array(9).fill('\u{1F409}').join('\u200D'), 'pic:', 'pic:../x', 'pic:ORC', 'pic:https://e/x.png', 'photo ', 'Default', 5, null, undefined, {}];
+    check('F1b cleanFace: the 24 character faces and every emoji of the sheet editor pass whole; ONE joined sequence (a family, a couple, a gendered detective) and a skin tone stay whole; the picture, the default and the 15 bundled pictures by name; letters, digits, flags, markup, zero-width or bidi characters, a mixed string, a run of several emoji, a joiner, selector or skin tone alone, a dangling joiner, or any other shape is refused whole',
+        F24.every(e => H.cleanFace(e) === e) && badEs.length === 0 && EMOJI_SET.length > 60 && H.cleanFace(fam) === fam && H.cleanFace(thumbs) === thumbs && H.cleanFace('\u{1F575}\uFE0F\u200D\u2642\uFE0F') === '\u{1F575}\uFE0F\u200D\u2642\uFE0F' && H.cleanFace('\u{1F469}\u200D\u2764\uFE0F\u200D\u{1F468}') === '\u{1F469}\u200D\u2764\uFE0F\u200D\u{1F468}'
+        && ['photo', 'default', 'pic:orc', 'pic:minotaur_archer', 'pic:tharic'].every(f => H.cleanFace(f) === f) && H.FACE_PICS.length === 15 && refused.every(f => H.cleanFace(f) === ''), j(badEs));
+    const def = c => 'DEF(' + c + ')', av = 'data:image/png;base64,AAAA';
+    const fv = (p) => j(H.faceView(p, '#123456', def));
+    check('F1b faceView: a bundled picture is the app\'s own asset (square art); an emoji is text; their picture only when it passes whole; the default (or a face the rule refuses) is the silhouette on their colour, and "default" wins over a picture',
+        fv({ face: 'pic:orc', avatar: av }) === j({ img: 'assets/tutorial/orc_sq.jpg' }) && fv({ face: '\u{1F409}' }) === j({ emoji: '\u{1F409}' }) && fv({ face: 'photo', avatar: av }) === j({ img: av })
+        && fv({ avatar: av }) === j({ img: av }) && fv({ face: 'photo', avatar: 'javascript:alert(1)' }) === j({ img: 'DEF(#123456)' }) && fv({ face: 'default', avatar: av }) === j({ img: 'DEF(#123456)' })
+        && fv({ face: 'pic:../../x', avatar: av }) === j({ img: av }) && fv({ face: '<img src=x>' }) === j({ img: 'DEF(#123456)' }) && fv(null) === j({ img: 'DEF(#123456)' }));
+    const rcSrc = between('// [netcheck:rosterclean-start]', '// [netcheck:rosterclean-end]', 'rosterclean');
+    const cleanRoster = new Function('safeAvatar', 'cleanRosterName', 'validProfileId', 'cleanFace', rcSrc + '\nreturn cleanHostRoster;')(H.safeAvatar, H.cleanRosterName, H.validProfileId, H.cleanFace);
+    const rc = cleanRoster([{ id: 'u_a', name: 'A', face: '\u{1F409}' }, { id: 'u_b', name: 'B', face: '<b>x</b>' }, { id: 'u_c', name: 'C', face: 'pic:orc' }]);
+    check('F1b the roster both ways: a player\'s own roster copy keeps a clean face and drops any other; the host sends only a clean one; hello keeps a clean face and drops the rest; setProfile stores it through the same rule (\'\' clears)',
+        rc.u_a.face === '\u{1F409}' && !('face' in rc.u_b) && rc.u_c.face === 'pic:orc'
+        && /var fP = cleanFace\(p\.face\); if \(fP\) e\.face = fP;/.test(src) && /prof = \{ id: prof\.id, name: prof\.name, color: prof\.color, avatar: prof\.avatar, face: cleanFace\(prof\.face\) \};[^\n]*\n\s*if \(!prof\.face\) delete prof\.face;/.test(src)
+        && /if \(typeof patch\.face === 'string'\) \{ var cf = cleanFace\(patch\.face\); if \(cf\) p\.face = cf; else if \(patch\.face === ''\) delete p\.face; \}/.test(src), j(rc));
+    const expAt = src.indexOf('net.FACE_PICS = FACE_PICS.slice()'), helpEnd = src.indexOf('// [netcheck:helpers-end]'), picsAt = src.indexOf('var FACE_PICS = [');
+    check('F1b the face exports run after the helpers assign FACE_PICS (above them, net.js stopped loading at the first line that read it: found live — the table could not be hosted)',
+        expAt > helpEnd && helpEnd > picsAt && picsAt > 0 && (src.match(/net\.FACE_PICS = FACE_PICS\.slice\(\)/g) || []).length === 1, j([picsAt, helpEnd, expAt]));
+    const mlSrc = between('// [netcheck:mylook-start]', '// [netcheck:mylook-end]', 'mylook');
+    const look = (msg, o) => {
+        o = o || {}; const out = { bc: 0, rr: 0, rd: 0, allows: 0 }, wtok = { id: 'wt', waiting: 1, ownerId: 'u_a', face: o.start };
+        const net = { paused: !!o.paused, roster: { pA: { id: 'u_a', face: o.start } } };
+        new Function('msg', 'conn', 'net', 'own', 'peerPaused', 'cleanFace', 'allow', 'broadcastRoster', 'renderRoster', 'render', 'SC', 'getActiveCampaign', mlSrc)(msg, { peer: o.peer || 'pA' }, net, H.own, () => !!o.pp, H.cleanFace, (k, lim) => { out.allows++; out.lim = lim; return o.allow !== false; }, () => { out.bc++; }, () => { out.rr++; }, () => { out.rd++; },
+            () => ({ waitingTokensOf: (c, pid) => (pid === 'u_a' ? [{ w: wtok }] : []) }), () => ({ id: 'k' }));
+        return Object.assign(out, { face: net.roster.pA.face, wface: wtok.face });
+    };
+    const lOk = look({ face: '\u{1F43A}' }), lClr = look({ face: '' }, { start: 'pic:orc' }), lBad = look({ face: '<script>' }, { start: 'pic:orc' }), lPause = look({ face: '\u{1F43A}' }, { paused: true }), lPP = look({ face: '\u{1F43A}' }, { pp: true });
+    const lRate = look({ face: '\u{1F43A}' }, { allow: false }), lStranger = look({ face: '\u{1F43A}' }, { peer: 'pX' }), lSame = look({ face: 'pic:orc' }, { start: 'pic:orc' }), lShape = look({ face: 5 });
+    check('F1b my-look (host, run for real): an admitted player\'s clean face is stored on their roster entry and their waiting token (the GM keeps seeing it while they are away) and sent to everyone (the roster redrawn); \'\' clears it; about one change a second (a burst of five); a refused face, a paused table or player, a flood, a stranger, no string or no change (which costs no allowance) changes nothing',
+        lOk.face === '\u{1F43A}' && lOk.bc === 1 && lOk.rd === 1 && lOk.wface === '\u{1F43A}' && j(lOk.lim) === j({ perMs: 1000, burst: 5, windowMs: 10000 }) && lClr.face === undefined && lClr.wface === undefined && lClr.bc === 1 && lBad.face === 'pic:orc' && lBad.bc === 0 && lPause.face === undefined && lPP.bc === 0 && lRate.bc === 0 && lStranger.bc === 0 && lSame.bc === 0 && lSame.allows === 0 && lShape.bc === 0
+        && /net\.sendMyLook = function\(\) \{\n\s*if \(!net\.active \|\| net\.role !== 'client' \|\| net\.paused \|\| net\.selfPaused \|\| !net\.syncedPeer/.test(src.replace(/\r\n/g, '\n')), j([lOk, lClr, lBad, lPause, lRate]));
+}
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

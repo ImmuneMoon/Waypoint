@@ -62,6 +62,7 @@ function renderAvatarPreview() {
         if (!el) return;
         el.textContent = ''; var im = document.createElement('img'); im.alt = ''; im.src = safeAv(p.avatar) ? p.avatar : def; el.appendChild(im); el.style.background = '';   // built as a node
     });
+    if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face previews follow the picture and colour
 }
 
 /* ---------- panel sync ---------- */

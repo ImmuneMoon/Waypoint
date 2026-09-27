@@ -178,6 +178,66 @@ const j = v => JSON.stringify(v);
             && /<div id="helpModal"[\s\S]*<li><b>&#128218; Library&hellip;<\/b> \(on the Items tab\)/.test(hmS) && /<b>&#128218; Library&hellip;<\/b> opens the campaign&rsquo;s <b>library<\/b>/.test(tuS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
     }
 
+    /* ---- L2a2: a pack as a file, the import's dry run, bulk changes ---- */
+    {
+        const { packFile, readPackImport, packImportPlan, bulkSet, bulkMove, keyIndex } = L;
+        const sysP = S.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }, { id: 'f_sec', key: 'Sec', kind: 'item-list', vis: 'gm', list: { stats: [{ key: 'Curse', label: 'Curse' }] } }] }, { F, gmView: true });
+        const plSys = S.cleanSystem(sysP, { F, gmView: false }), gmC = libCtx(sysP, F, true), plC = libCtx(plSys, F, false);
+        const ents = [{ id: 'i_a', name: 'Axe', category: 'Gear', damage: '1d8', gmNotes: 'Notched.', stats: { Wt: 4, Curse: 2 }, rm: 'bound', rmMsg: 'Stuck.' }, { id: 'i_s', name: 'Secret', vis: 'gm' }, { id: 'i_a', name: 'Dup' }, { nope: 1 }];
+        const gmF = packFile({ id: 'p_gear', name: ' Gear\u0007 ', icon: '\u2694', vis: 'gm' }, ents, gmC), plF = packFile({ id: 'p_gear', name: 'Gear', vis: 'all' }, ents, plC), plG = packFile({ id: 'p_gear', name: 'Gear', vis: 'gm' }, ents, plC);
+        check('L2a2 packFile: the GM\'s copy is the pack as held (its name on one line, icon, GM-only mark, every entry with its GM notes, formulas and secrets; one per id, junk gone); a players\' copy holds what the players\' view does (no GM-only entry, notes, formula text, GM-only list\'s stat or secret); a GM-only pack\'s players\' copy is empty',
+            gmF.format === 'waypoint-pack' && gmF.name === 'Gear' && gmF.icon === '\u2694' && gmF.vis === 'gm' && j(gmF.entries.map(e => e.id)) === j(['i_a', 'i_s']) && gmF.entries[0].gmNotes === 'Notched.' && gmF.entries[0].damage === '1d8' && gmF.entries[0].rm === 'bound' && j(gmF.entries[0].stats) === j({ Wt: 4, Curse: 2 })
+            && !('vis' in plF) && j(plF.entries.map(e => e.id)) === j(['i_a']) && !('gmNotes' in plF.entries[0]) && plF.entries[0].damage === '' && !('rm' in plF.entries[0]) && !('rmMsg' in plF.entries[0]) && j(plF.entries[0].stats) === j({ Wt: 4 })
+            && plG.entries.length === 0 && packFile({ id: 'nope' }, [], gmC).id === 'p_pack' && packFile(null, null, gmC).name === 'Pack', j([gmF, plF]));
+        const rt = readPackImport(JSON.stringify(gmF), gmC), bad = readPackImport(JSON.stringify({ format: 'waypoint-pack', name: 'X'.repeat(90), entries: [{ id: 'i_ok', name: 'Ok' }, { id: 'bad id', name: 'B' }, { id: 'i_ok', name: 'Again' }, 5] }), gmC);
+        check('L2a2 readPackImport: a pack file comes back as it was exported (name, icon, GM-only mark, entries); its entries are cleaned in the GM\'s view, one per id, the rest counted with reasons; not JSON, not a pack, another format or too large is an error',
+            rt.name === 'Gear' && rt.icon === '\u2694' && rt.vis === 'gm' && j(rt.entries) === j(gmF.entries) && rt.dropped === 0
+            && bad.name.length === LIB.packName && j(bad.entries.map(e => e.id)) === j(['i_ok']) && bad.dropped === 3 && bad.reasons.length === 3 && bad.vis === 'all'
+            && !!readPackImport('{', gmC).error && !!readPackImport('[]', gmC).error && !!readPackImport(JSON.stringify({ format: 'waypoint-system', entries: [] }), gmC).error && !!readPackImport(JSON.stringify({ name: 'x' }), gmC).error
+            && /too large/.test(readPackImport(JSON.stringify({ entries: [], pad: 'x'.repeat(LIB.fileBytes) }), gmC).error || '') && !!readPackImport(null, gmC).error && !readPackImport(JSON.stringify({ entries: [] }), gmC).error, j([rt, bad]));
+        const lib = [{ id: 'p_t', name: 'Target', entries: [{ id: 'i_1', name: 'One', key: 'One' }, { id: 'i_2', name: 'Two', key: 'Two', notes: 'old' }] }, { id: 'p_o', name: 'Other', entries: [{ id: 'i_9', name: 'Nine', key: 'Nine' }] }];
+        const inc = { entries: [{ id: 'i_1', name: 'One', key: 'One' }, { id: 'i_2', name: 'Two', key: 'Two', notes: 'new' }, { id: 'i_9', name: 'Stolen', key: 'Zed' }, { id: 'i_3', name: 'Three', key: 'nine' }, { id: 'i_x', name: 'Twin', key: 'TWO' }], dropped: 2, reasons: ['r1', 'r2'] };
+        let r3 = 0; const seq = () => { r3 = (r3 + 0.37) % 1; return r3; };
+        const pId = packImportPlan(lib, 'p_t', inc, 'id', seq), pKey = packImportPlan(lib, 'p_t', inc, 'key', seq), pNew = packImportPlan(lib, 'p_t', inc, 'new', seq);
+        check('L2a2 packImportPlan by id: the entry of an id is replaced (an equal one unchanged), an id another pack holds is skipped with its reason, the rest added; the file\'s own drops count as not valid; a key another entry has is counted',
+            pId.same === 1 && pId.update === 1 && pId.add === 2 && pId.skip === 1 && pId.invalid === 2 && j(pId.entries.map(e => e.id)) === j(['i_1', 'i_2', 'i_3', 'i_x']) && pId.entries[1].notes === 'new' && pId.reasons[0] === 'r1' && /Stolen: its id is already in the pack Other/.test(pId.reasons[2]) && pId.clash === 3
+            && lib[0].entries.length === 2 && lib[0].entries[1].notes === 'old', j(pId));
+        check('L2a2 packImportPlan by key: the entry of a key (case aside) is replaced and keeps its own id; an unmatched entry whose id the library uses gets a fresh one; nothing is skipped',
+            pKey.same === 1 && pKey.update === 2 && pKey.add === 2 && pKey.skip === 0 && pKey.entries[1].id === 'i_2' && pKey.entries[1].name === 'Twin' && pKey.entries.length === 4 && pKey.entries[2].id !== 'i_9' && /^i_[a-z0-9]{8}$/.test(pKey.entries[2].id) && pKey.entries[3].id === 'i_3', j(pKey));
+        check('L2a2 packImportPlan as a new pack: every entry added (ids the library holds made fresh), the target untouched; merging with no pack to merge into skips all',
+            pNew.add === 5 && pNew.update === 0 && pNew.entries.length === 5 && pNew.entries.filter(e => ['i_1', 'i_2', 'i_9'].includes(e.id)).length === 0 && pNew.entries.some(e => e.id === 'i_3') && pNew.entries.some(e => e.id === 'i_x')
+            && packImportPlan(lib, 'p_none', inc, 'id').skip === 5 && packImportPlan(lib, 'p_none', inc, 'id').add === 0, j(pNew));
+        const full = [{ id: 'p_t', name: 'T', entries: Array.from({ length: LIB.entries - 1 }, (_, i) => ({ id: 'i_f' + i, name: 'F' })) }], capP = packImportPlan(full, 'p_t', { entries: [{ id: 'i_n1', name: 'N1' }, { id: 'i_n2', name: 'N2' }] }, 'id');
+        check('L2a2 packImportPlan: the target never passes ' + LIB.entries + ' entries (the rest skipped with a reason); at most ' + LIB.reasons + ' reasons',
+            capP.add === 1 && capP.skip === 1 && capP.entries.length === LIB.entries && packImportPlan(lib, 'p_none', { entries: Array.from({ length: 40 }, (_, i) => ({ id: 'i_q' + i, name: 'Q' })) }, 'id').reasons.length === LIB.reasons, j([capP.add, capP.skip]));
+        const bl = [{ id: 'i_1', name: 'One', category: 'Gear', tags: ['A'] }, { id: 'i_2', name: 'Two', category: 'Gear' }, { id: 'i_3', name: 'Three', category: 'Gear' }].map(e => cleanLibEntry(e, gmC));
+        const b1 = bulkSet(bl, ['i_1', 'i_2'], { category: 'Tool', addTags: ['B', 'a'], vis: 'gm' }, gmC), b2 = bulkSet(bl, ['i_1'], { tags: ['Z'] }, gmC), b3 = bulkSet(bl, ['i_1'], { category: 'Gear' }, gmC);
+        check('L2a2 bulkSet: the chosen entries get the category, tags added (no repeat, case aside) or replacing theirs, and who may see them, each cleaned again; the others are the same objects; what did not change is not counted',
+            b1.changed === 2 && b1.entries[0].category === 'Tool' && j(b1.entries[0].tags) === j(['A', 'B']) && j(b1.entries[1].tags) === j(['B', 'a']) && b1.entries[1].vis === 'gm' && b1.entries[2] === bl[2]
+            && j(b2.entries[0].tags) === j(['Z']) && b3.changed === 0 && bl[0].category === 'Gear', j([b1, b2]));
+        const src = [{ id: 'i_1', name: 'One', key: 'One' }, { id: 'i_2', name: 'Two' }, { id: 'i_3', name: 'Three' }], dst = [{ id: 'i_9', name: 'Nine' }];
+        const mv = bulkMove(src, dst, ['i_1', 'i_3'], {}), cp = bulkMove(src, dst, ['i_1'], { copy: true, taken: { i_1: 1, i_2: 1, i_3: 1, i_9: 1 }, suffix: ' (copy)' });
+        const room = bulkMove(src, Array.from({ length: LIB.entries - 1 }, (_, i) => ({ id: 'i_d' + i })), ['i_1', 'i_2', 'i_3'], {}), dupe = bulkMove(src, src, ['i_2'], { copy: true, taken: { i_2: 1 } });
+        check('L2a2 bulkMove: a move takes the chosen entries (ids kept) to the other pack; a copy leaves them and adds fresh ids with no key and the suffix; a full pack takes what it has room for (the rest stay, counted); a copy within one pack adds beside the originals',
+            j(mv.src.map(e => e.id)) === j(['i_2']) && j(mv.dst.map(e => e.id)) === j(['i_9', 'i_1', 'i_3']) && mv.done === 2 && mv.left === 0 && mv.dst[1] === src[0]
+            && bulkMove(src, dst, ['i_1'], { copy: true, taken: { i_aaaaaaaa: 1 }, rnd: () => 0 }).left === 1 && j(bulkMove(src, dst, ['i_1', 'i_2'], { copy: true, rnd: () => 0 }).dst.map(e => e.id)) === j(['i_9', 'i_aaaaaaaa'])
+            && cp.src.length === 3 && cp.dst.length === 2 && /^i_[a-z0-9]{8}$/.test(cp.dst[1].id) && !['i_1', 'i_2', 'i_3', 'i_9'].includes(cp.dst[1].id) && !('key' in cp.dst[1]) && cp.dst[1].name === 'One (copy)' && src[0].key === 'One'
+            && room.done === 1 && room.left === 2 && j(room.src.map(e => e.id)) === j(['i_2', 'i_3']) && dupe.dst.length === 4 && dupe.dst[3].name === 'Two', j([mv, cp, room.done, room.left]));
+        const fs = require('fs');
+        const winT = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L2a2 the window: an import is read only when 16 MB or less, through readPackImport in the GM\'s view, and changes nothing until Import (which needs something to add or update, a pack it has read, and the plan worked out again); a players\' copy is made from the players\' view (none: no stats); bulk actions act only on chosen entries the search shows, on packs it has read',
+            /if \(f\.size > LIB\.fileBytes\) \{ toast\([^\n]*\); return; \}/.test(winT) && /var d = readPackImport\(text, gmCtx\(\)\); if \(d\.error\)/.test(winT)
+            && /var plan = planFor\(im\), pid = im\.target; if \(!plan\.add && !plan\.update\) return;/.test(winT) && /\} else if \(!ready\(pid\)\) return;\n\s*st\.work\[pid\] = plan\.entries;/.test(winT) && /pid = r\.id; LB\(\)\.setMeta\(pid, \{ icon: im\.data\.icon \|\| '', vis: im\.data\.vis \}\); plan = planFor\(im\);/.test(winT)
+            && /var file = packFile\(p, workOf\(p\.id\), players \? libCtx\(pv \|\| \{ fields: \[\] \}, F\(\), false\) : gmCtx\(\)\);/.test(winT) && /window\.wpSheets\.playerSystem\(c\)/.test(winT) && /if \(p\.vis === 'gm'\) ex\.options\[2\]\.disabled = true;/.test(winT)
+            && /function chosen\(\) \{ return st\.shown\.filter\(function\(e\) \{ return st\.sel\[e\.id\]; \}\)\.map\(function\(e\) \{ return e\.id; \}\); \}/.test(winT)
+            && /var pid = st\.packId, ids = chosen\(\); if \(!ids\.length \|\| !ready\(pid\)\) return;\n\s*var r = bulkSet\(/.test(winT) && /if \(!ids\.length \|\| !ready\(src\) \|\| !ready\(dst\) \|\| src === dst\) return;/.test(winT)
+            && /if \(!yes \|\| !st\.open \|\| !ready\(pid\)\) return; var gone = map\(\);/.test(winT) && !/innerHTML|outerHTML|insertAdjacentHTML/.test(winT));
+        const hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('L2a2 Help and the tour describe choosing several, import with its dry run and export; the window has its Import button and a list that takes the keys',
+            /id="libImport"/.test(hmT) && /<div id="libList" class="lib-list" tabindex="0">/.test(hmT) && /<b>Import&hellip;<\/b> reads a <code>\.wppack\.json<\/code> file and shows what it would do before anything changes/.test(hmT) && /<b>Ctrl-click<\/b>, <b>Shift-click<\/b> or <b>Ctrl\+A<\/b> chooses several entries/.test(hmT)
+            && /packs import and export as <code>\.wppack\.json<\/code> files/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')));
+    }
+
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');
     check('under a window the module publishes itself as window.wpLibraryCore', !!(global.window.wpLibraryCore && global.window.wpLibraryCore.cleanPack && global.window.wpLibraryCore.VERSION === L2.VERSION));
     delete global.window;

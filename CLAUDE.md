@@ -47,7 +47,7 @@ Every suite is plain Node, no dependencies, exits 1 on any failure:
 | `tools/dicecheck.js` | dice engine, modifiers, advantage |
 | `tools/itemcheck.js` | item library |
 | `tools/servercheck.js` | the local server's library storage (`system/resources/app/libstore.js`, shared by main.js and the dev server), run for real on a scratch folder: names, containment, the 16 MB cap, UTF-8 across chunks, revisions kept, backups; both servers wired alike |
-| `tools/librarycheck.js` | the library at scale's pure core (`librarycore.js`): entries per view, packs and pack files, the manifest, names on disk, index rows, the Library window's rules (search, form to entry, key clashes, pack settings) and the core's key index (a GM-only pack's entries stay GM-only); the window itself (`librarywin.js`: text nodes only, never writes a pack it has not read) |
+| `tools/librarycheck.js` | the library at scale's pure core (`librarycore.js`): entries per view, packs and pack files, the manifest, names on disk, index rows, the Library window's rules (search, form to entry, key clashes, pack settings, bulk changes, a pack as a `.wppack.json` file — the GM's copy or a players' copy — and an import's dry run by id, by key or as a new pack) and the core's key index (a GM-only pack's entries stay GM-only); the window itself (`librarywin.js`: text nodes only, never writes a pack it has not read) |
 | `tools/vttcheck.js` | VTT feature toggles |
 | `tools/fogcheck.js` | fog of war |
 | `tools/soundcheck.js`, `fxcheck.js`, `musiccheck.js` | sound, effects, music playlists |

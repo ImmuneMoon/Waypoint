@@ -3505,8 +3505,27 @@ function itemRow(it) {
     row.appendChild(top); row.appendChild(flags);
     var stBox = itemStatsBox(it, sDefs); if (stBox) row.appendChild(stBox);   // F4c1
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
+    row.appendChild(itemModsBox(it, anyL, anyO));   // Stage 6 F6
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
     return row;
+}
+// Stage 6 F6: an item's changes to the character carrying it — a status effect's kind of change (a number, skill or formula up or down, a
+// pool's max, a toggle switched on); per level once a list has levels, "only while switched on" once a list has a switch
+function itemModsBox(it, anyL, anyO) {
+    var box = el('div', 'sys-fx-mods sys-item-mods'), targets = fxTargets(draft);
+    box.appendChild(el('span', 'sys-note', 'Changes to the character carrying it:'));
+    (it.mods || []).forEach(function(m, mi) {
+        var ln = el('div', 'sys-fx-mod sys-item-mod'); ln.dataset.mi = String(mi);
+        var val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : 'add'), opts = targets.slice();
+        if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
+        ln.appendChild(select('sys-item-mtarget', opts, val, 'What this change affects'));
+        if (m.op !== 'on') { var am = numInput('sys-item-mamt', m.v, 'How much it adds (negative to take away)'); am.step = 'any'; ln.appendChild(am); if (anyL) ln.appendChild(checkLabel('sys-item-mlvl', m.lvl === true, 'per level', 'Times the row\u2019s level (a trait at level 3: three times)')); }
+        ln.appendChild(btnRow([['itemmoddel', 'Remove this change', '&times;']]));
+        box.appendChild(ln);
+    });
+    var add = el('button', 'tool ghost sys-btn', '+ Change'); add.dataset.act = 'itemmodadd'; add.title = 'Add a number to a field, or switch a toggle on, while a character carries it'; if (!targets.length) add.disabled = true; box.appendChild(add);
+    if (anyO && (it.mods || []).length) box.appendChild(checkLabel('sys-item-modson', it.modsOn === true, 'Only while switched on', 'Its changes count only while its row is switched on (Readied, Equipped\u2026)'));
+    return box;
 }
 // Stage 6 F4c1: an item's stat boxes — the stats of every list it can be on (its category among the list's, or a list with none), once per key
 // ignoring case (the first list's, as Save spells it). A value stored under a key none of those lists has is drawn after, so it can be cleared
@@ -3850,6 +3869,7 @@ function onInput(e) {
         else if (ic.indexOf('sys-item-eqtext') >= 0) it.eqMsg = t.value.slice(0, LIMITS.rmMsg);   // F4b
         else if (ic.indexOf('sys-item-key') >= 0) { var ikv = t.value.trim().slice(0, 40); if (ikv) it.key = ikv; else delete it.key; }
         else if (ic.indexOf('sys-item-lvl') >= 0) { if (String(t.value).trim() === '') delete it.lvl; else it.lvl = Number(t.value); }
+        else if (ic.indexOf('sys-item-mamt') >= 0) { var iml = t.closest('.sys-item-mod'), imm = iml ? (it.mods || [])[+iml.dataset.mi] : null; if (imm) imm.v = t.value === '' ? 0 : Number(t.value); }   // F6
         else if (ic.indexOf('sys-item-stat') >= 0) { var sk = t.dataset.sk || ''; if (!STAT_KEY.test(sk) || (sk in Object.prototype) || (sk.toLowerCase() in Object.prototype)) return; if (t.validity && t.validity.badInput) return; var ist = it.stats && typeof it.stats === 'object' && !Array.isArray(it.stats) ? it.stats : {}, sv = String(t.value).trim(); Object.keys(ist).forEach(function(k2) { if (k2 !== sk && k2.toLowerCase() === sk.toLowerCase()) delete ist[k2]; }); if (sv === '') delete ist[sk]; else if (t.dataset.pick === '1') ist[sk] = sv; else { var sn = Number(sv); if (!isFinite(sn)) return; ist[sk] = sn; } if (Object.keys(ist).length) it.stats = ist; else delete it.stats; }   // Stage 6 F4c1: a stat box (its key checked first: never a prototype name)
         else return;
         markDirty(); patchErrors(); return;
@@ -3977,6 +3997,9 @@ function onChange(e) {
     var iit = itemOfRow(t);
     if (iit) {
         if (c.indexOf('sys-item-vis') >= 0) { iit.vis = t.value; markDirty(); patchErrors(); return; }
+        if (c.indexOf('sys-item-mtarget') >= 0) { var itl = t.closest('.sys-item-mod'), itm = itl ? (iit.mods || [])[+itl.dataset.mi] : null; if (itm) { var itp = t.value.split('|'); itm.f = itp[0]; if (itp[1] === 'on') { itm.op = 'on'; delete itm.v; delete itm.part; delete itm.lvl; } else { itm.op = 'add'; if (typeof itm.v !== 'number') itm.v = 1; if (itp[1] === 'max') itm.part = 'max'; else delete itm.part; } markDirty(); renderAll(); } return; }   // F6
+        if (c.indexOf('sys-item-mlvl') >= 0) { var ivl = t.closest('.sys-item-mod'), ivm = ivl ? (iit.mods || [])[+ivl.dataset.mi] : null; if (ivm) { if (t.checked) ivm.lvl = true; else delete ivm.lvl; markDirty(); patchErrors(); } return; }
+        if (c.indexOf('sys-item-modson') >= 0) { if (t.checked) iit.modsOn = true; else delete iit.modsOn; markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-item-rmmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.rm = t.value; else delete iit.rm; markDirty(); renderAll(); return; }   // Stage 6
         if (c.indexOf('sys-item-eqmode') >= 0) { if (t.value === 'bound' || t.value === 'curse') iit.eq = t.value; else delete iit.eq; markDirty(); renderAll(); return; }   // F4b
         if (c.indexOf('sys-item-shape') >= 0) { if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' }; markDirty(); renderAll(); return; }
@@ -4103,6 +4126,13 @@ function onClick(e) {
         else if (iact === 'down' && ii < draft.items.length - 1) { draft.items.splice(ii, 1); draft.items.splice(ii + 1, 0, iitem); }
         else if (iact === 'dup') { var di = clone(iitem); di.id = uid('i_'); if (di.name) di.name = di.name + ' copy'; draft.items.splice(ii + 1, 0, di); }
         else if (iact === 'del') { draft.items.splice(ii, 1); }
+        else if (iact === 'itemmodadd') {   // F6
+            var tgI = fxTargets(draft)[0]; if (!tgI) return; iitem.mods = Array.isArray(iitem.mods) ? iitem.mods : [];
+            if (iitem.mods.length >= LIMITS.effectMods) { toast('At most ' + LIMITS.effectMods + ' changes per item.'); return; }
+            var tpI = tgI[0].split('|'), nmI = { f: tpI[0], op: tpI[1] === 'on' ? 'on' : 'add' }; if (nmI.op === 'add') { nmI.v = 1; if (tpI[1] === 'max') nmI.part = 'max'; }
+            iitem.mods.push(nmI);
+        }
+        else if (iact === 'itemmoddel') { var dlI = b.closest('.sys-item-mod'); if (dlI) (iitem.mods || []).splice(+dlI.dataset.mi, 1); }
         else return;
         markDirty(); renderAll(); return;
     }

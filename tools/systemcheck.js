@@ -478,7 +478,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const pcEmpty = cleanChar({ id: 'c_3', name: 'Q', ownerId: 'u_q', values: {}, partial: true, lines: [] }, fx1);
         check('5h F1: an empty list of host lines is kept (the owner\'s "no lines" is the answer; the teammate never recomputes from its own defaults)', Array.isArray(pcEmpty.lines) && pcEmpty.lines.length === 0);
         const shF1 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
-        check('5h F1: the join snapshot gives a teammate\'s copy the host\'s hover lines too, and a teammate\'s hover card draws them', /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt \}\), camp\.chars\[id\], camp\.system, libFx, libIt\)/.test(netSrcF) && /if \(c\.partial && Array\.isArray\(c\.lines\)\) return c\.lines\.slice\(\);/.test(shF1));
+        check('5h F1: the join snapshot gives a teammate\'s copy the host\'s hover lines too, and a teammate\'s hover card draws them', /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\), camp\.chars\[id\], camp\.system, libFx, libIt, fullSys\)/.test(netSrcF) && /if \(c\.partial && Array\.isArray\(c\.lines\)\) return c\.lines\.slice\(\);/.test(shF1));
     }
 
     /* ---- Stage 5h Fold 2: status effects ---- */
@@ -1277,8 +1277,8 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && j(kids4(priceSel).map(o => [o.value, !!o.selected])) === j([['', false], ['Acc', false], ['Dmg', false], ['Cost', true], ['Wt', false], ['diff', false]]) && find4(none4, 'sys-list-price').length === 0 && find4(none4, 'sys-list-stat').length === 0 && find4(none4, 'sys-list-statadd').length === 1,
             j([keys4.map(k => k.value), kids4(priceSel || fe4('x')).map(o => [o.value, o.selected])]));
         const sel4 = (cls, options, value, title) => { const s = fe4('select', cls); options.forEach(o => { s.appendChild(opt4(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; };
-        const irDeps = ['el', 'input', 'numInput', 'numField', 'select', 'btnRow', 'glyphButton', 'errorCell', 'LIMITS', 'draft', 'F', 'cleanListSpec', 'STAT_KEY', 'document'];
-        const mkIR = dr => new Function(...irDeps, cutS('function itemRow(', '// Stage 6 F4b: the Lists tab') + '\nreturn { itemRow: itemRow, itemStatDefs: itemStatDefs };')(fe4, inp4, ni4, nf4, sel4, () => fe4('span', 'sys-btns'), () => fe4('button'), () => fe4('div', 'sys-err'), S.LIMITS, dr, () => F, S.cleanListSpec, S.STAT_KEY, doc4);
+        const irDeps = ['el', 'input', 'numInput', 'numField', 'select', 'btnRow', 'glyphButton', 'errorCell', 'LIMITS', 'draft', 'F', 'cleanListSpec', 'STAT_KEY', 'document', 'fxTargets', 'checkLabel'];   // F6: the item's changes box
+        const mkIR = dr => new Function(...irDeps, cutS('function itemRow(', '// Stage 6 F4b: the Lists tab') + '\nreturn { itemRow: itemRow, itemStatDefs: itemStatDefs };')(fe4, inp4, ni4, nf4, sel4, () => fe4('span', 'sys-btns'), () => fe4('button'), () => fe4('div', 'sys-err'), S.LIMITS, dr, () => F, S.cleanListSpec, S.STAT_KEY, doc4, () => [], () => fe4('label', 'sys-check'));
         const drI = JSON.parse(JSON.stringify(rawS)); drI.fields.push({ id: 'f_w2', key: 'W2', label: 'W2', kind: 'item-list', list: { stats: [{ key: 'acc' }, { key: 'Extra' }] } }); drI.items[0].stats = JSON.parse('{"Acc":2,"Dmg":3,"Cost":500,"Wt":0.0001,"Heat":7,"Rel":1,"Zzz":4,"toString":5,"constructor":6,"__proto__":8}'); drI.items.push({ id: 'i_d', name: 'D', category: 'Gun', stats: { diff: 7 } });
         const IR = mkIR(drI), rowB = IR.itemRow(drI.items[0]), sbB = find4(rowB, 'sys-item-stats')[0], ctlB = sbB ? find4(sbB, 'sys-item-stat') : [], capsB = sbB ? find4(sbB, 'sys-num-cap').map(x => x.textContent) : [];
         const selD = find4(IR.itemRow(drI.items[5]), 'sys-item-stat').find(x => x.tag === 'select'), drR = JSON.parse(JSON.stringify(rawS)); drR.items.push({ id: 'i_r', name: 'R', category: 'Rock' });
@@ -4478,6 +4478,48 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('L2c the GM machine keeps the copies current after every library change (never mid-load or at another\'s table; saved only when one changed)',
             /function after\(\) \{   \/\/ [^\n]*\n\s*try \{ refreshCore\(\); \} catch \(e\) \{ console\.error\(e\); \}\n\s*try \{ syncSnaps\(\); \}/.test(lbC)
             && /if \(!camp \|\| !camp\.system \|\| !camp\.chars \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return 0;\n\s*var r = libSnaps\(camp\.system, camp\.chars, entry\); if \(r\.rows\) save\(true\);/.test(lbC));
+    }
+
+    /* ---- Stage 6 F6: item mods — cleaned, applied from rows, per level, while switched on, a kept curse's changes nameless ---- */
+    {
+        const rawF = { v: 1, name: 'F6', rolls: [], fields: [
+            { id: 'f_dx', key: 'DX', kind: 'number', def: 10 }, { id: 'f_mv', key: 'Move', kind: 'formula', formula: 'DX / 2' }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' }, { id: 'f_fly', key: 'Fly', kind: 'toggle' }, { id: 'f_gm', key: 'Luck', kind: 'number', vis: 'gm', def: 0 },
+            { id: 'f_arm', key: 'Armor', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Equipped' }, lvl: { label: 'Level', min: 0, max: 5, def: 1 } } }, { id: 'f_sec', key: 'Hidden', kind: 'item-list', vis: 'gm', edit: 'gm' }],
+            items: [{ id: 'i_mail', name: 'Chain mail', category: 'Armor', modsOn: true, mods: [{ f: 'f_dx', op: 'add', v: -1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }, { f: 'f_gm', op: 'add', v: 3 }, { f: 'f_nope', op: 'add', v: 1 }, { f: 'f_fly', op: 'add', v: 2 }] },
+                { id: 'i_tr', name: 'Nimble', category: 'Trait', mods: [{ f: 'f_dx', op: 'add', v: 1, lvl: true }, { f: 'f_fly', op: 'on' }] },
+                { id: 'i_cur', name: 'Cursed ring', category: 'Ring', rm: 'curse', mods: [{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_gm', op: 'add', v: -5 }] },
+                { id: 'i_hex', name: 'Hex', category: 'Ring', mods: [{ f: 'f_hp', op: 'add', v: -3, part: 'max' }] },
+                { id: 'i_plain', name: 'Rope', category: 'Gear' }] };
+        const sF = cleanSystem(rawF, { F, gmView: true }), pF = cleanSystem(rawF, { F, gmView: false }), mail = sF.items[0], mailP = pF.items[0];
+        check('F6 an item\'s mods are cleaned as status-effect changes (a number, skill or formula +/−, a pool\'s max, a toggle on; the field must be there and of that kind), a change per level kept, "while switched on" kept; the players\' view drops a change to a GM-only field; an item with none has no key at all',
+            j(mail.mods) === j([{ f: 'f_dx', op: 'add', v: -1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }, { f: 'f_gm', op: 'add', v: 3 }]) && mail.modsOn === true && j(mailP.mods) === j([{ f: 'f_dx', op: 'add', v: -1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }])
+            && j(sF.items[1].mods) === j([{ f: 'f_dx', op: 'add', v: 1, lvl: true }, { f: 'f_fly', op: 'on' }]) && !('mods' in sF.items[4]) && !('modsOn' in sF.items[4]) && S.cleanItemMods(Array.from({ length: 20 }, () => ({ f: 'f_dx', op: 'add', v: 1 })), S.fieldKinds(sF)).length === S.LIMITS.effectMods, j([mail, mailP, sF.items[1]]));
+        const chF = (rows, hidRows) => S.cleanChar({ id: 'c_f', name: 'F', ownerId: 'u_p', values: { f_arm: rows, f_sec: hidRows || [] } }, sF);
+        const r0 = resolveAll(sF, chF([]), F), rOff = resolveAll(sF, chF([{ id: 'w_m', defId: 'i_mail', qty: 1, on: false }]), F), rOn = resolveAll(sF, chF([{ id: 'w_m', defId: 'i_mail', qty: 3, on: true }]), F);
+        const rTr = resolveAll(sF, chF([{ id: 'w_t', defId: 'i_tr', qty: 1, lvl: 3 }]), F);
+        check('F6 on the sheet: an item that works while switched on changes nothing while off, and once on its changes land once (three of it still once): DX 10 → 9, Move follows (a formula reads the changed DX), HP\'s max 10 → 15; .base keeps the stored value; the breakdown names the item; a trait\'s per-level change times its level (+3 at level 3) and a toggle switched on',
+            r0.f_dx.value === 10 && rOff.f_dx.value === 10 && rOn.f_dx.value === 9 && rOn.f_mv.value === 4.5 && rOn.f_hp.max === 15 && rOn.f_dx.base === 10 && /Chain mail/.test(S.fxText(rOn.f_dx)) && rOn.f_gm.value === 3
+            && rTr.f_dx.value === 13 && rTr.f_fly.value === true && /Nimble \+3/.test(S.fxText(rTr.f_dx)), j([rOn.f_dx, rOn.f_hp, rTr.f_dx, rTr.f_fly]));
+        const kept = chF([{ id: 'w_c', defId: 'i_cur', qty: 1, hid: 1 }], [{ id: 'w_h', defId: 'i_hex', qty: 1 }]);
+        const gmK = resolveAll(sF, kept, F), items = {}; sF.items.forEach(i => { items[i.id] = i; });
+        const own = S.charFor(kept, pF, 'u_p', { items, full: sF }), mate = S.charFor(kept, pF, 'u_q', { items, full: sF }), noFull = S.charFor(kept, pF, 'u_p', { items });
+        const ownC = S.cleanChar(own, pF), plK = resolveAll(pF, ownC, F);
+        check('F6 a kept curse keeps working (owner, 2026-09-27): the GM\'s sheet names it; its owner\'s copy carries only nameless amounts on the fields they can see (DX −2; a GM-only field\'s change never travels), as does a row of a list they cannot see (HP max −3), so their sheet agrees with the GM\'s — the breakdown says "An unseen effect"; a teammate\'s copy carries none; nothing of it names the item',
+            gmK.f_dx.value === 8 && /Cursed ring/.test(S.fxText(gmK.f_dx)) && gmK.f_hp.max === 7 && j(own.unseen) === j([{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_hp', op: 'add', v: -3, part: 'max' }]) && !('unseen' in mate)
+            && plK.f_dx.value === 8 && plK.f_hp.max === 7 && /An unseen effect/.test(S.fxText(plK.f_dx)) && !/Cursed|Hex|i_cur|i_hex|w_c|w_h/.test(j(own)) && j(noFull.unseen) === j([{ f: 'f_dx', op: 'add', v: -2 }]), j([own, plK.f_dx, noFull.unseen]));
+        const visK = chF([{ id: 'w_m', defId: 'i_mail', qty: 1, on: true }, { id: 'w_t', defId: 'i_tr', qty: 1, lvl: 2 }]), ownVis = S.charFor(visK, pF, 'u_p', { items, full: sF }), ownVisC = S.cleanChar(ownVis, pF);
+        check('F6 rows their owner holds send no nameless changes (the owner works them out from the rows): the same DX on both machines, never counted twice',
+            !('unseen' in ownVis) && resolveAll(pF, ownVisC, F).f_dx.value === resolveAll(sF, visK, F).f_dx.value && resolveAll(sF, visK, F).f_dx.value === 11, j([ownVis.unseen, resolveAll(pF, ownVisC, F).f_dx, resolveAll(sF, visK, F).f_dx]));
+        const onK = chF([{ id: 'w_m', defId: 'i_mail', qty: 1, on: true, keptOn: 1 }]), ownOn = S.charFor(onK, pF, 'u_p', { items, full: sF }), ownOnC = S.cleanChar(ownOn, pF);
+        check('F6 a curse kept switched on (it looks off to its owner): its "while switched on" changes reach them nameless, so their DX agrees with the GM\'s; the row itself shows as off',
+            ownOnC.values.f_arm[0].on === false && j(ownOn.unseen) === j([{ f: 'f_dx', op: 'add', v: -1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }]) && resolveAll(pF, ownOnC, F).f_dx.value === resolveAll(sF, onK, F).f_dx.value, j([ownOn.unseen, ownOnC.values.f_arm]));
+        const hostile = S.cleanChar({ id: 'c_f', name: 'F', ownerId: 'u_p', values: {}, unseen: [{ f: 'f_dx', op: 'add', v: 'x' }, { f: 'f_gm', op: 'add', v: 99 }, { f: 'f_dx', op: 'add', v: 1e9 }, { f: 'f_dx', op: 'add', v: -1, lvl: true, name: 'Leak' }, 5] }, pF), part = S.cleanChar({ id: 'c_f', name: 'F', ownerId: 'u_p', partial: true, values: {}, unseen: [{ f: 'f_dx', op: 'add', v: -1 }] }, pF);
+        check('F6 a player cleans what the host sends as unseen again: changes to fields of their view only, amounts in range, nothing but field, kind and amount; a teammate\'s copy takes none',
+            j(hostile.unseen) === j([{ f: 'f_dx', op: 'add', v: -1 }]) && !('unseen' in part), j([hostile.unseen, part.unseen]));
+        const libEntry = { id: 'i_lib', name: 'Ring', modsOn: true, mods: [{ f: 'f_dx', op: 'add', v: 2 }, { f: 'f_gm', op: 'add', v: 1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }] }, snapT = S.cleanRowDef(libEntry, true);
+        const inl = S.projectRows([{ id: 'w_x', defId: 'i_lib', qty: 1, on: true, snap: snapT }], pF, id => (id === 'i_lib' ? libEntry : null), pF.fields.find(f => f.id === 'f_arm').list);
+        check('F6 an inline copy (a GM-only or library item on its owner\'s sheet) carries its changes on their fields only; a row\'s copy keeps them by their shape',
+            j(inl[0].def.mods) === j([{ f: 'f_dx', op: 'add', v: 2 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }]) && inl[0].def.modsOn === true && inl[0].lnk === 1 && j(snapT.mods) === j([{ f: 'f_dx', op: 'add', v: 2 }, { f: 'f_gm', op: 'add', v: 1 }, { f: 'f_hp', op: 'add', v: 5, part: 'max' }]), j([inl[0], snapT]));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

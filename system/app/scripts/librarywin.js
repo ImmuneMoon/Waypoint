@@ -10,9 +10,9 @@ import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove } from './librarycore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn'];
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
-var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null };
+var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null };   // fm (F6): the open entry's changes being edited
 var byName = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : function(a, b) { return String(a).localeCompare(String(b)); };
 function map() { return Object.create(null); }
 function ui(id) { return document.getElementById(id); }
@@ -250,6 +250,7 @@ function renderForm() {
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
+    modsBox(form, e);   // Stage 6 F6
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
     field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
     field(form, 'rmMsg', 'Message', e.rmMsg, { max: 200, ph: 'Shown to the player (optional)' });
@@ -263,11 +264,46 @@ function renderForm() {
     var del = el('button', 'tool ghost lib-del', st.draftNew ? 'Discard' : 'Delete entry'); del.type = 'button'; del.addEventListener('click', deleteEntry);
     btns.appendChild(sv); btns.appendChild(dup); btns.appendChild(del); form.appendChild(btns);
 }
+// Stage 6 F6: an entry's changes to the character carrying it — a working copy while its form is open (Save entry keeps it), each a field to
+// change (the system's numbers, skills, formulas, pools' max, toggles) by an amount, per level once a list has levels; "only while switched on"
+// once a list has a switch. Built with text nodes; the entry is cleaned as any is when saved
+function modTargets() {
+    var c = camp(), out = [];
+    ((c && c.system && c.system.fields) || []).forEach(function(x) { var nm = x.label || x.key || '(field)'; if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]); else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']); else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']); else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ' — switch on']); });
+    return out;
+}
+function modsBox(form, e) {
+    if (st.fmFor !== e.id || !st.fm) { st.fm = clone(Array.isArray(e.mods) ? e.mods : []); st.fmFor = e.id; }
+    var anyL = itemLists().some(function(f) { return f.list && f.list.lvl; }), anyO = itemLists().some(function(f) { return f.list && f.list.on; }), targets = modTargets();
+    form.appendChild(el('div', 'lib-fsub', 'Changes to the character carrying it'));
+    var box = el('div', 'lib-mods'); form.appendChild(box);
+    var draw = function() {
+        box.textContent = '';
+        st.fm.forEach(function(m, mi) {
+            var ln = el('div', 'lib-ctl lib-mod'), val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : 'add'), opts = targets.slice();
+            if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
+            var sel = select(opts, val); sel.title = 'What this change affects'; ln.appendChild(sel);
+            sel.addEventListener('change', function() { var tp = sel.value.split('|'); m.f = tp[0]; if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; delete m.lvl; } else { m.op = 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; } draw(); });
+            if (m.op !== 'on') {
+                var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = 'any'; am.value = typeof m.v === 'number' ? String(m.v) : ''; am.title = 'How much it adds (negative to take away)'; ln.appendChild(am);
+                am.addEventListener('input', function() { m.v = am.value === '' ? 0 : Number(am.value); });
+                if (anyL) { var lb = el('label', 'lib-mod-lvl'), cb = el('input'); cb.type = 'checkbox'; cb.checked = m.lvl === true; lb.appendChild(cb); lb.appendChild(document.createTextNode(' per level')); lb.title = 'Times the row’s level'; cb.addEventListener('change', function() { if (cb.checked) m.lvl = true; else delete m.lvl; }); ln.appendChild(lb); }
+            }
+            var x = el('button', 'tool ghost', '×'); x.type = 'button'; x.title = 'Remove this change'; x.addEventListener('click', function() { st.fm.splice(mi, 1); draw(); }); ln.appendChild(x);
+            box.appendChild(ln);
+        });
+        var add = el('button', 'tool ghost', '+ Change'); add.type = 'button'; add.title = 'Add a number to a field, or switch a toggle on, while a character carries it'; add.disabled = !targets.length || st.fm.length >= 12;
+        add.addEventListener('click', function() { var tp = targets[0][0].split('|'), nm = { f: tp[0], op: tp[1] === 'on' ? 'on' : 'add' }; if (nm.op === 'add') { nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; } st.fm.push(nm); draw(); });
+        box.appendChild(add);
+        if (anyO && st.fm.length) { var ol = el('label', 'lib-mod-on'), oc = el('input'); oc.type = 'checkbox'; oc.id = 'libF_modsOn'; oc.checked = e.modsOn === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Only while switched on')); ol.title = 'Its changes count only while its row is switched on (Readied, Equipped…)'; box.appendChild(ol); }
+    };
+    draw();
+}
 // the form as an entry: what the form shows replaced, anything it does not show (a bound item's secrets) kept as it was
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 function saveEntry() {

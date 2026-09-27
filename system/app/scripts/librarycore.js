@@ -93,10 +93,11 @@ export function packFileName(packId, rev) { return PACK_RE.test(String(packId)) 
 // a pack's facts once written — how many entries, the file's size, and the fingerprint of what players see of it (their view of each
 // entry, a GM-only one left out: adding a hidden entry never moves it)
 export function manifestSig(camp) { var m = isObj(camp) ? camp.library : null; return isObj(m) && Array.isArray(m.packs) ? String(camp.id) + '|' + m.dir + '|' + m.packs.map(function(p) { return p.id + '.' + p.rev; }).join(',') : ''; }
-export function addPack(manifest, name, rnd) {
+export function addPack(manifest, name, rnd, wantId) {   // wantId (L2b): a fixed id (the migration's Items pack), when free
     rnd = rnd || Math.random;
     var m = cleanManifest(manifest) || { v: VERSION, dir: newDir(rnd), packs: [] }; if (m.packs.length >= LIB.packs) return null;
     var id = '', taken = map(); m.packs.forEach(function(p) { taken[p.id] = 1; });
+    if (typeof wantId === 'string' && PACK_RE.test(wantId)) { if (taken[wantId]) return null; id = wantId; }
     for (var k = 0; k < 20 && (!id || taken[id]); k++) { id = 'p_'; for (var i = 0; i < 8; i++) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(rnd() * 36) % 36); }
     if (taken[id]) return null;
     m.packs.push({ id: id, name: line(name, LIB.packName) || 'Pack', vis: 'all', rev: 0, count: 0, bytes: 0, hash: '' });
@@ -146,6 +147,8 @@ export function entryFromForm(f) {
     var lv = s(f.lvl).trim(); if (/^-?\d+$/.test(lv)) out.lvl = Number(lv);
     if (isObj(f.stats)) { var st = {}, n = 0; Object.keys(f.stats).forEach(function(k) { var v = s(f.stats[k]).trim(); if (!v) return; st[k] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v; n++; }); if (n) out.stats = st; }
     var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)
+    if (f.rm === 'bound' || f.rm === 'curse') { out.rm = f.rm; if (s(f.rmMsg).trim()) out.rmMsg = s(f.rmMsg); }   // L2b: a player's removal (bound / curse on contact) and its message, as the Items tab has them
+    if (f.eq === 'bound' || f.eq === 'curse') { out.eq = f.eq; if (s(f.eqMsg).trim()) out.eqMsg = s(f.eqMsg); }   // and switching it off
     return out;
 }
 export function newEntryId(taken, rnd) {
@@ -297,6 +300,22 @@ export function cleanPlayerManifest(m) {
     });
     return out;
 }
+// L2b (owner decision 3): the system's own items as library entries — each cleaned as an entry in the GM's view (lossless: an item
+// definition is an entry); kept: the ids asked to stay (the tutorial's) and any id the library already holds in another pack (never two
+// of one id); an id already in the Items pack is only dropped from the system (a move that was cut short, finished). Pure.
+// { move: entries to add, drop: ids that leave the system, keep: items that stay, left: ids that stay because of a clash }
+export function itemsToMove(sys, keepIds, taken, inPack, ctx) {
+    var out = { move: [], drop: [], keep: [], left: [] }, stay = map(); (Array.isArray(keepIds) ? keepIds : []).forEach(function(id) { stay[id] = 1; });
+    (isObj(sys) && Array.isArray(sys.items) ? sys.items : []).forEach(function(it) {
+        if (!isObj(it) || typeof it.id !== 'string') return;
+        if (stay[it.id]) { out.keep.push(it); return; }
+        if (inPack && own(inPack, it.id)) { out.drop.push(it.id); return; }
+        if (taken && own(taken, it.id)) { out.keep.push(it); out.left.push(it.id); return; }
+        var e = cleanLibEntry(it, ctx); if (!e) { out.keep.push(it); out.left.push(it.id); return; }
+        out.move.push(e); out.drop.push(it.id);
+    });
+    return out;
+}
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
 // its cleaner (a client takes nothing else from a host)
 export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
@@ -307,5 +326,5 @@ export function cleanIndexRow(r) {
     return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
 }
 
-var API = { VERSION: VERSION, queryWords: queryWords, entryHay: entryHay, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, playerIndex: playerIndex, indexPage: indexPage, getAnswer: getAnswer, cleanPlayerManifest: cleanPlayerManifest, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
+var API = { VERSION: VERSION, queryWords: queryWords, entryHay: entryHay, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, playerIndex: playerIndex, indexPage: indexPage, itemsToMove: itemsToMove, getAnswer: getAnswer, cleanPlayerManifest: cleanPlayerManifest, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };
 if (typeof window !== 'undefined') window.wpLibraryCore = API;

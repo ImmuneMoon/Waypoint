@@ -156,19 +156,19 @@ const j = v => JSON.stringify(v);
         const winS = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), lbS = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
         const hmS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), tuS = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         const fk = /var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = (\[[^\]]*\]);/.exec(winS), FK = fk ? JSON.parse(fk[1].replace(/'/g, '"')) : [];
-        const full = entryFromForm({ id: 'i_z', name: 'n', key: 'K', category: 'c', icon: 'x', vis: 'gm', lvl: '1', stats: { Rank: '2' }, notes: 'n', desc: 'd', tags: 't', ref: 'r', damage: '1', cost: '1', throwSkill: 'T', areaFt: '5', gmNotes: 'g' });
+        const full = entryFromForm({ id: 'i_z', name: 'n', key: 'K', category: 'c', icon: 'x', vis: 'gm', lvl: '1', stats: { Rank: '2' }, notes: 'n', desc: 'd', tags: 't', ref: 'r', damage: '1', cost: '1', throwSkill: 'T', areaFt: '5', gmNotes: 'g', rm: 'bound', rmMsg: 'm', eq: 'curse', eqMsg: 'e' });
         check('L2a the Library window: text nodes only (nothing from an entry, a pack name or a file becomes markup); it never writes a pack it has not read (still loading or unreadable: writing it would leave nothing); a save replaces every field the form holds (each one entryFromForm makes) and keeps the rest (a bound item\'s secrets); it acts on the campaign it opened on',
             !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\('on/.test(winS)
             && /if \(!packById\(pid\) \|\| !ready\(pid\)\) \{ delete st\.dirty\[pid\]; continue; \}/.test(winS)
             && /function saveEntry\(\) \{\n\s*var e = current\(\); if \(!e \|\| !st\.packId \|\| !ready\(st\.packId\)\) return;/.test(winS) && /if \(ready\(packId\)\) st\.work\[packId\] = list;/.test(winS)
-            && /var out = clone\(e\); FORM_KEYS\.forEach\(function\(k\) \{ delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(winS)
+            && /var out = clone\(e\), eqShown = !!ui\('libF_eq'\); FORM_KEYS\.forEach\(function\(k\) \{ if \(eqShown \|\| \(k !== 'eq' && k !== 'eqMsg'\)\) delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(winS)
             && Object.keys(full).filter(k => k !== 'id').every(k => FK.includes(k)) && FK.length === Object.keys(full).length - 1
             && /function camp\(\) \{ var c = getActiveCampaign\(\); return c && c\.id === st\.campId \? c : null; \}/.test(winS) && /function ready\(packId\) \{ return !!\(camp\(\) && LB\(\) && LB\(\)\.ready && LB\(\)\.ready\(packId\)\); \}/.test(winS), j([FK, Object.keys(full)]));
         check('L2a the store: a pack is ready only once read for the campaign on screen; a pack\'s name, icon or visibility changes in the manifest, is saved and works the core out again; the core is drawn through keyIndex; an open window hears when the library has been read',
             /function ready\(packId\) \{ var camp = getActiveCampaign\(\); return !!camp && cur\.campId === camp\.id && typeof packId === 'string' && Object\.prototype\.hasOwnProperty\.call\(cur\.packs, packId\); \}/.test(lbS)
             && /var m = setPackMeta\(camp\.library, packId, meta\); if \(!m\) return \{ error: 'No such pack\.' \};\n\s*camp\.library = m; cur\.sig = manifestSig\(camp\);\n\s*save\(true\); after\(\);/.test(lbS)
             && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = byKey\(camp\), res = coreOf\(/.test(lbS)
-            && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n\s*return mine;/.test(lbS)
+            && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n(\s*if \(mine\.state === 'ready'\) migrateItems\(camp\);[^\n]*\n)?\s*return mine;/.test(lbS)
             && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta[, ]/.test(lbS));
         const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };
         check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help and the tour describe it',
@@ -297,6 +297,49 @@ const j = v => JSON.stringify(v);
             && /if \(cp !== camp \|\| !ch \|\| !ff\) return;\n\s*var miss = 0; ids\.forEach\(function\(id\) \{ if \(!N\.libEntry\(id\)\) \{ miss\+\+; return; \} commitItem\(ch, ff, \{ op: 'add', defId: id, rowId: uid\('w_'\), qty: qty \}\); \}\);/.test(shB)
             && /Promise\.resolve\(opts\.source\.load\(function\(\) \{ if \(st !== mine\) return;/.test(pkB) && /st\.getTimer = setTimeout\(function\(\) \{ if \(st !== mine\) return; src\.get\(x\.e, x\.p, function\(full\) \{ if \(st !== mine \|\| !full \|\| full\.id !== want\) return;/.test(pkB)
             && /<b>Players<\/b> get the same picker on the lists they may change, over the packs you let them see/.test(hmB) && /players get it too, over the packs you let them see/.test(tuB));
+    }
+
+    /* ---- L2b: the system's items move into the library (lossless) and the form edits what the Items tab does ---- */
+    {
+        const fs = require('fs'), { itemsToMove, addPack, keyIndex, entryFromForm } = L;
+        const rawM = { v: 1, name: 'M', rolls: [], items: [{ id: 'i_rope', name: 'Rope', category: 'Gear', key: 'Rope', stats: { Wt: 10 }, damage: '1d4', rm: 'bound', rmMsg: 'Tied fast', icon: 'icon:bolt' }, { id: 'i_lamp', name: 'Lamp', category: 'Gear', key: 'Lamp', stats: { Wt: 2 } }, { id: 'i_sec', name: 'Secret', category: 'Gear', vis: 'gm', stats: { Wt: 3 } }, { id: 'i_tut_firepot', name: 'Firepot', category: 'Gear' }, { id: 'i_dup', name: 'Clash', category: 'Gear' }, { id: 'i_half', name: 'Half moved', category: 'Gear' }],
+            fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }, { id: 'f_tw', key: 'TW', kind: 'formula', formula: 'Gear.Wt' }, { id: 'f_lw', key: 'LW', kind: 'formula', formula: 'Gear.Lamp.Wt + Gear.Rope.Wt * 3' }] };
+        const sM = S.cleanSystem(rawM, { F, gmView: true }), pM = S.cleanSystem(sM, { F, gmView: false });
+        const chM = S.cleanChar({ id: 'c_m', name: 'M', ownerId: 'u_p', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 2, ov: { notes: 'Mine' } }, { id: 'w_2', defId: 'i_sec', qty: 1 }, { id: 'w_3', defId: 'i_tut_firepot', qty: 1 }] } }, sM);
+        const plan = itemsToMove(sM, ['i_tut_firepot'], { i_dup: 1 }, { i_half: 1 }, libCtx(sM, F, true));
+        check('L2b itemsToMove: every item but the ones kept becomes an entry exactly as the system held it; the tutorial\'s stays; an id another pack holds stays (a clash, reported); one already in the Items pack only leaves the system',
+            j(plan.move.map(e => e.id)) === j(['i_rope', 'i_lamp', 'i_sec']) && j(plan.drop) === j(['i_rope', 'i_lamp', 'i_sec', 'i_half']) && j(plan.keep.map(i => i.id)) === j(['i_tut_firepot', 'i_dup']) && j(plan.left) === j(['i_dup'])
+            && j(plan.move[0]) === j(sM.items[0]) && plan.move[0].rm === 'bound' && plan.move[0].icon === 'icon:bolt' && plan.move[2].vis === 'gm', j(plan));
+        const beforeGM = S.resolveAll(sM, chM, F), items0 = {}; sM.items.forEach(i => { items0[i.id] = i; });
+        const beforePl = S.resolveAll(pM, S.charFor(chM, pM, 'u_p', { items: items0 }), F);
+        const lib = {}; plan.move.forEach(e => { lib[e.id] = e; });
+        const gone = {}; plan.drop.forEach(id => { gone[id] = 1; });
+        const sysAfter0 = Object.assign({}, sM, { items: sM.items.filter(it => !gone[it.id]) }), charsM = { c_m: JSON.parse(JSON.stringify(chM)) };
+        const snaps = S.libSnaps(sysAfter0, charsM, id => lib[id] || null);
+        const byK = keyIndex({ packs: [{ id: 'p_items', vis: 'all' }] }, () => plan.move), co = S.coreOf(sysAfter0, k => byK[k] || []);
+        const sA = S.cleanSystem(Object.assign({}, sysAfter0, co.core.length ? { core: co.core } : {}), { F, gmView: true }), pA = S.cleanSystem(sA, { F, gmView: false });
+        let afterGM, afterPl, kept;
+        S.setLibraryFind(id => lib[id] || null);
+        try { kept = S.cleanChar(charsM.c_m, sA); afterGM = S.resolveAll(sA, kept, F); afterPl = S.resolveAll(pA, S.charFor(kept, pA, 'u_p', { items: id => lib[id] || null }), F); } finally { S.setLibraryFind(null); }
+        const pick = r => j({ tw: [r.f_tw.value, r.f_tw.text], lw: [r.f_lw.value, r.f_lw.text] });
+        check('L2b the move is lossless: every carried row keeps a copy (its own values too), the tutorial\'s row is untouched, the core holds what formulas name (Gear.Lamp.Wt, never carried), and every formula reads the same after as before — on the GM\'s sheet and in the players\' view',
+            snaps.rows === 2 && kept.values.f_inv.length === 3 && kept.values.f_inv[0].snap.name === 'Rope' && j(kept.values.f_inv[0].ov) === j({ notes: 'Mine' }) && !kept.values.f_inv[2].snap && j((sA.core || []).map(e => e.id).sort()) === j(['i_lamp', 'i_rope'])
+            && pick(afterGM) === pick(beforeGM) && pick(afterPl) === pick(beforePl) && beforeGM.f_lw.value === 32, j([pick(beforeGM), pick(afterGM), pick(beforePl), pick(afterPl)]));
+        const ap = addPack({ dir: 'l_abcd1234', packs: [{ id: 'p_a', name: 'A' }] }, 'Items', null, 'p_items'), apTaken = addPack({ dir: 'l_abcd1234', packs: [{ id: 'p_items', name: 'Items' }] }, 'Items', null, 'p_items'), apBad = addPack(null, 'X', () => 0.5, 'bad id');
+        check('L2b addPack takes a fixed id when it is free (the Items pack), none when it is taken; a malformed one falls back to a fresh id',
+            ap.id === 'p_items' && ap.manifest.packs[1].name === 'Items' && apTaken === null && /^p_[a-z0-9]{8}$/.test(apBad.id), j([ap, apTaken, apBad]));
+        const ff = entryFromForm({ id: 'i_x', name: 'X', rm: 'curse', rmMsg: 'Cold', eq: 'bound', eqMsg: '', icon: 'icon:bolt' }), fn = entryFromForm({ id: 'i_x', name: 'X', rm: 'nope', rmMsg: 'kept?' });
+        const lbM = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n'), wnM = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L2b the Library form edits what the Items tab does — a player\'s removal and switching off (bound / curse on contact) with their messages, a bundled icon kept as it is; a switch lock the form does not show is kept',
+            ff.rm === 'curse' && ff.rmMsg === 'Cold' && ff.eq === 'bound' && !('eqMsg' in ff) && ff.icon === 'icon:bolt' && !('rm' in fn) && !('rmMsg' in fn)
+            && /var out = clone\(e\), eqShown = !!ui\('libF_eq'\); FORM_KEYS\.forEach\(function\(k\) \{ if \(eqShown \|\| \(k !== 'eq' && k !== 'eqMsg'\)\) delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(wnM) && /field\(form, 'icon', 'Icon', e\.icon \|\| '',/.test(wnM));
+        check('L2b the move runs on the GM\'s machine only, once every pack is read, never with the System editor open, only after a safety copy (none: nothing moves), writes the entries before any item leaves the system, gives every row its copy before the items go, works the core out again, one save',
+            /if \(_migrating \|\| !camp \|\| !camp\.system \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| \(cur\.state !== 'ready' && cur\.state !== 'none'\)\) return 0;/.test(lbM)
+            && /var sm = document\.getElementById\('systemModal'\); if \(sm && sm\.style\.display === 'flex'\) return 0;/.test(lbM)
+            && /if \(!bk \|\| !bk\.ok \|\| getActiveCampaign\(\) !== camp \|\| cur\.campId !== camp\.id\) return 0;/.test(lbM)
+            && /if \(plan\.move\.some\(function\(e\) \{ return !cur\.byId\[e\.id\]; \}\)\) return 0;/.test(lbM)
+            && lbM.indexOf('libSnaps(sysAfter, camp.chars || {}, entry);') < lbM.indexOf('camp.system = (F() ? cleanSystem(sysAfter') && /refreshCore\(camp\); save\(true\); after\(\);/.test(lbM)
+            && /var ITEMS_PACK = 'p_items', KEEP_ITEMS = \['i_tut_firepot'\]/.test(lbM) && /if \(mine\.state === 'ready'\) migrateItems\(camp\);/.test(lbM));
     }
 
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');

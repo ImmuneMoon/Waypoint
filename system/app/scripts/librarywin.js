@@ -10,7 +10,7 @@ import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove } from './librarycore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg'];
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null };
 var byName = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : function(a, b) { return String(a).localeCompare(String(b)); };
@@ -236,7 +236,7 @@ function renderForm() {
     var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
     catList(form);
     field(form, 'category', 'Category', e.category, { max: 40, list: 'libCats', title: 'Which item lists offer it (a list names the categories it draws on)' });
-    field(form, 'icon', 'Icon', e.icon && !/^icon:/.test(e.icon) ? e.icon : '', { max: 16, ph: 'An emoji' });
+    field(form, 'icon', 'Icon', e.icon || '', { max: 32, ph: 'An emoji', title: 'An emoji, or a bundled icon as icon:name (kept as it is)' });
     field(form, 'vis', 'Who sees it', e.vis === 'gm' ? 'gm' : 'all', { pairs: VIS, title: 'A GM-only entry stays out of the players’ lists (one you give a character reaches its owner by name and notes)' });
     field(form, 'lvl', 'Starts at level', typeof e.lvl === 'number' ? e.lvl : '', { max: 4, title: 'A new row of it starts at this level (else the list’s)' });
     var sd = statDefs(); if (sd.length) { form.appendChild(el('div', 'lib-fsub', 'Stats')); sd.forEach(function(s) { var inp = field(form, 'st_' + s.key.toLowerCase(), s.label, e.stats && e.stats[s.key] !== undefined ? e.stats[s.key] : '', s.opts ? { choices: s.opts } : { max: 40 }); inp.dataset.stat = s.key; }); }
@@ -250,6 +250,13 @@ function renderForm() {
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
+    form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
+    field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
+    field(form, 'rmMsg', 'Message', e.rmMsg, { max: 200, ph: 'Shown to the player (optional)' });
+    if (itemLists().some(function(f) { return f.list && f.list.on; })) {   // only once a list has a switch (Readied, Equipped…)
+        field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
+        field(form, 'eqMsg', 'Message', e.eqMsg, { max: 200, ph: 'Shown to the player (optional)' });
+    }
     var btns = el('div', 'lib-fbtns');
     var sv = el('button', 'tool lib-save', 'Save entry'); sv.type = 'button'; sv.addEventListener('click', saveEntry);
     var dup = el('button', 'tool ghost', 'Duplicate'); dup.type = 'button'; dup.disabled = !!st.draftNew; dup.addEventListener('click', duplicateEntry);
@@ -260,8 +267,8 @@ function renderForm() {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes') });
-    var out = clone(e); FORM_KEYS.forEach(function(k) { delete out[k]; }); return Object.assign(out, typed);
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg') });
+    var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 function saveEntry() {
     var e = current(); if (!e || !st.packId || !ready(st.packId)) return;

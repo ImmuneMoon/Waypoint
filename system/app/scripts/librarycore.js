@@ -12,7 +12,7 @@ export var LIB = Object.freeze({
     packs: 64, entries: 10000, total: 50000,          // packs per campaign, entries per pack, entries per library
     desc: 4000, gmNotes: 2000, tags: 8, tag: 24, ref: 40, packName: 60,
     fileBytes: 16 * 1024 * 1024, keepRevs: 5,          // a pack file (or an import) at most; revisions of a pack kept on disk
-    reasons: 20,                                       // the reasons an import lists (the rest counted)
+    reasons: 20, lostStats: 8,                         // the reasons an import lists (the rest counted); the stats it names as left out
     page: 400, getIds: 50, answerBytes: 48 * 1024,     // L3 on the wire: index rows a page, ids an ask, an answer's entries at most (behind them: dice and chat)
     hostBudget: 64 * 1024 * 1024, clientBudget: 32 * 1024 * 1024, cache: 2000   // bytes a profile may draw from a host a session; a player takes; entries a player keeps
 });
@@ -194,7 +194,21 @@ export function readPackImport(text, ctx) {
     var cp = cleanPack({ format: 'waypoint-pack', id: 'p_import', rev: 0, entries: j.entries }, ctx);
     var out = { name: line(j.name, LIB.packName) || 'Imported pack', vis: j.vis === 'gm' ? 'gm' : 'all', entries: cp.pack.entries, dropped: cp.dropped, reasons: cp.reasons };
     var ic = cleanIcon(j.icon); if (ic) out.icon = ic;
+    var ls = lostStats(j.entries, cp.pack.entries); if (ls.length) out.lostStats = ls;   // Stage 6 F3: never left out silently
     return out;
+}
+// Stage 6 F3: the stats an import leaves out — a stat no list of this system has (or a value it cannot hold): [{ key, n }], the most
+// common first, at most LIB.lostStats. Each entry counted once, as the first of its id (the one kept); keys compared ignoring case
+function lostStats(raw, kept) {
+    var byId = map(), seen = map(), n = map(), spell = map();
+    (Array.isArray(kept) ? kept : []).forEach(function(c) { byId[c.id] = c; });
+    raw.forEach(function(e) {
+        if (!isObj(e) || typeof e.id !== 'string' || !own(byId, e.id) || own(seen, e.id)) return; seen[e.id] = 1;
+        if (!isObj(e.stats)) return;
+        var have = map(); Object.keys(isObj(byId[e.id].stats) ? byId[e.id].stats : {}).forEach(function(k) { have[k.toLowerCase()] = 1; });
+        Object.keys(e.stats).slice(0, 64).forEach(function(k) { var l = k.toLowerCase(); if (have[l] === 1) return; n[l] = (n[l] || 0) + 1; if (!own(spell, l)) spell[l] = line(k, 24) || '?'; });
+    });
+    return Object.keys(n).sort(function(a, b) { return n[b] - n[a] || (a < b ? -1 : a > b ? 1 : 0); }).slice(0, LIB.lostStats).map(function(l) { return { key: spell[l], n: n[l] }; });
 }
 // L2a2: the dry run of an import: what it would do, nothing changed. library: every pack as { id, name, entries } (the target among
 // them); incoming: readPackImport's result; mode 'id' merges by id into the target (the entry of that id replaced; an id another pack

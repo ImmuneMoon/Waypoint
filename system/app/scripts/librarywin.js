@@ -153,6 +153,7 @@ function renderImport(form) {
     if (!targets.some(function(p) { return p.id === im.target; })) im.target = targets.length ? targets[0].id : null;
     form.appendChild(el('div', 'lib-fhead', 'Import “' + d.name + '”'));
     form.appendChild(el('div', 'lib-note', im.file + ' · ' + plural(d.entries.length) + (d.dropped ? ' (and ' + d.dropped + ' not valid)' : '') + '. Nothing changes until you press Import.'));
+    if (d.lostStats && d.lostStats.length) form.appendChild(el('div', 'lib-warn', 'Left out: stats no list of this system has \u2014 ' + d.lostStats.map(function(x) { return x.key + ' (' + x.n + ')'; }).join(', ') + '. Set up the lists first (or import the system) to keep them.'));   // Stage 6 F3
     var md = field(form, 'imMode', 'Import as', im.mode, { pairs: [['new', 'A new pack'], ['id', 'Merged into a pack, by id'], ['key', 'Merged into a pack, by key']], title: 'By id: an entry of the same id is replaced. By key: an entry of the same key is replaced and keeps its id. Either way the rest are added.' });
     md.addEventListener('change', function() { im.mode = md.value; renderForm(); });
     if (im.mode !== 'new') {

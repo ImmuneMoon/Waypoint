@@ -4556,6 +4556,60 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('L4 the Library window tells the reach of an entry saved and of a bulk change (each line into the session log), and its form says how many carry the entry',
             /var was = i >= 0 \? list\[i\] : null;/.test(wnL) && /if \(was\) \{ var rt = reachOf\(\[was\], \[c\]\); if \(rt\) toast\(rt\); \}/.test(wnL) && /r\.lines\.forEach\(function\(l\) \{ n\.logEvent\('items', l\); \}\);/.test(wnL) && /c\.chars \|\| \{\}, \{ lib: true \}\), n = window\.wpNet;/.test(wnL) && /carriedBy\(camp\(\)\.system, camp\(\)\.chars \|\| \{\}, e\.id\)/.test(wnL));
     }
+
+    /* ---- Stage 6 F3: the bridge's other scalars (a system built on the website's keys), and a choice reading a list's name ---- */
+    {
+        const n = (id, key, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind: 'number', vis: 'all' }, extra || {});
+        const rawB = { v: 1, name: 'B', rolls: [], fields: [
+            n('st', 'ST', { def: 10 }), n('iq', 'IQ', { def: 10 }), { id: 'f_player', key: 'Player', label: 'P', kind: 'text', vis: 'all', max: 20 }, { id: 'f_cpm', key: 'CPMode', label: 'C', kind: 'toggle', vis: 'all' },
+            n('sttpl', 'STTpl'), n('hpfree', 'HPFree'), n('hplvl', 'HPLvl'), n('willlvl', 'WillLvl'), n('frightlvl', 'FrightLvl'), n('visionlvl', 'VisionLvl'), n('speedlvl', 'SpeedLvl', { step: 0.25 }), n('movelvl', 'MoveLvl', { def: 3 }),
+            n('points', 'Points'), { id: 'f_pp', key: 'PP', label: 'PP', kind: 'resource', vis: 'all', maxFormula: '100' }, n('align', 'Align', { min: -100, max: 100 }), n('credits', 'Credits'),
+            { id: 'f_cf', key: 'CreditsForm', label: 'F', kind: 'select', vis: 'all', options: ['digital', 'physical'] }, { id: 'f_h', key: 'Height', label: 'H', kind: 'text', vis: 'all' }, n('age', 'Age'), n('sm', 'SM', { step: 0.01 }),
+            { id: 'f_droid', key: 'Droid', label: 'D', kind: 'toggle', vis: 'all', def: true }, n('stun', 'Stun', { labels: ['None', 'Physical', 'Mental'] }), { id: 'f_desc', key: 'Description', label: 'D', kind: 'notes', vis: 'all' },
+            n('culturecp', 'CultureCP'), n('litcp', 'LitCP'), n('langcp', 'LangCP'), { id: 'f_role', key: 'ShipRole', label: 'R', kind: 'select', vis: 'all', options: ['Unassigned', 'Pilot'] }, { id: 'f_stn', key: 'Station', label: 'S', kind: 'select', vis: 'all', options: ['Unassigned', 'Helm'] },
+            { id: 'f_turn', key: 'Turn', label: 'T', kind: 'formula', vis: 'all', formula: '1' }] };
+        const sB = cleanSystem(rawB, { F, gmView: true }), id = k => sB.fields.find(f => f.key === k).id;
+        const dos = { player: 'Pat the Far Traveller', attributes: { strength: { value: 12 }, dexterity: { value: 11 }, iq: { value: 13 }, health: { value: 10 } },
+            investment: { isStartingPointsMode: true, stBaseline: 9, hitPointsBaseline: 1 },
+            characteristics: { hitPoints: { final: 14 }, will: { final: 15 }, frightCheck: { final: 12 }, vision: { final: 12 }, perception: { final: null }, basicSpeed: { final: 6 }, basicMove: { final: null } },
+            points: { total: 200, powerPoints: 80, lightSidePoints: 30, darkSidePoints: 10 }, credits: { total: 1200, tradedForm: 'Physical' },
+            details: { height: 170, age: 1e20, sizeModifier: -0.4, isDroid: false, stunType: 'Mental', turnCounter: 4 }, narrative: { description: 'Tall.' },
+            culturalFamiliarities: 'Core [1]; Rim [2]\nWilds, Deep [1] [5]', culturalFamiliaritiesBaseline: 1, literacy: 'Full [2 points]', languages: 'Basic [x]; Old [3]', shipPosition: 'pilot', assignedStation: 'Nowhere' };
+        const rB = aliasFromShadowBase(dos, sB, F), v = rB.values;
+        const want = { Player: 'Pat the Far Travelle', CPMode: true, STTpl: 9, HPFree: 1, HPLvl: 2, WillLvl: 2, FrightLvl: -3, VisionLvl: -1, SpeedLvl: 0.75, MoveLvl: 0, Points: 200, PP: { cur: 80 }, Align: 20, Credits: 1200,
+            CreditsForm: 'physical', Height: '170', SM: -0.4, Droid: false, Stun: 2, Description: 'Tall.', CultureCP: 3, LitCP: 2, LangCP: 3, ShipRole: 'Pilot' };
+        const bad = Object.keys(want).filter(k => j(v[id(k)]) !== j(want[k]));
+        check('F3 the bridge copies a dossier\'s other scalars onto the keys a system has, each by the field\'s own rules: text (cut to its max; a number as text), switches, the template (else 10), free levels, a level bought as the figure less its base (HP on raw ST, Fright on bought Will, a sense on bought Per — else IQ, Speed on (DX + HT) / 4; an empty figure buys 0), points, a pool\'s current, alignment from the two sides when the dossier has no alignment, a choice matched ignoring case, [n] marks summed less their free part',
+            !bad.length && !(id('Age') in v) && !(id('Station') in v) && !(id('Turn') in v) && rB.matched === Object.keys(want).length + 2 && v[id('ST')] === 12 && v[id('IQ')] === 13, j([bad.map(k => k + ' ' + j(v[id(k)])), rB.matched]));
+        const rOld = aliasFromShadowBase({ points: { forceAlignment: -40, lightSidePoints: 90 }, attributes: {}, characteristics: { will: { final: 12 } } }, sB, F).values, rNone = aliasFromShadowBase({ player: { toString: 1 }, details: { stunType: 5, isDroid: 'yes' } }, sB, F).values;
+        const sK = cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_a', key: 'Age', label: 'A', kind: 'toggle', vis: 'all' }, n('p', 'Player'), { id: 'f_s', key: 'SM', label: 'S', kind: 'select', vis: 'all', options: ['0', '1'] }] }, { F, gmView: true }), rK = aliasFromShadowBase({ details: { age: 30, sizeModifier: 1 }, player: 'Pat' }, sK, F);
+        check('F3 the bridge: a dossier\'s own alignment wins over the two sides; with no attributes a level reads the template (10); a value of the wrong type is skipped (a player that is no text, a stun that is no word, a droid flag that is no switch; a number for a key the system made a switch, a text for its number, a number for its choice)',
+            rOld[id('Align')] === -40 && rOld[id('WillLvl')] === 2 && !(id('Player') in rNone) && !(id('Stun') in rNone) && !(id('Droid') in rNone) && rK.matched === 0 && j(rK.values) === '{}', j([rOld, rNone, rK]));
+        const g3 = cleanSystem(JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', '3d6.json'), 'utf8')), { F, gmView: true }), g3r = aliasFromShadowBase(Object.assign({}, dos, { narrative: { notes: '  ', description: 'Tall.' } }), g3, F);
+        const g3n = aliasFromShadowBase({ narrative: { notes: 'Met the Duke.' } }, g3, F), g3Notes = g3.fields.find(f => f.key === 'Notes').id;
+        check('F3 the bridge: a system with none of the website\'s other keys copies what it copied before (the 3d6 preset: its attributes and HP); its Notes takes the dossier\'s notes, but an empty text never wipes what a character has',
+            j(Object.keys(g3r.values).sort()) === j(g3.fields.filter(f => ['ST', 'DX', 'IQ', 'HT', 'HP'].indexOf(f.key) >= 0).map(f => f.id).sort()) && j(g3n.values) === j({ [g3Notes]: 'Met the Duke.' })
+            && !(id('Player') in aliasFromShadowBase({ player: '' }, sB, F).values), j([g3r.values, g3n.values]));
+
+        const rawC = { v: 1, name: 'C', rolls: [], fields: [
+            n('st', 'ST', { def: 11 }), { id: 'f_gm', key: 'Hid', label: 'H', kind: 'number', vis: 'gm', def: 4 },
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', list: { cats: ['Skill'], lvl: { label: 'Level', min: 0, max: 30, def: 10 }, custom: true, stats: [{ key: 'bonus' }], cols: [{ key: 'Target', label: 'Target', formula: 'Row.lvl + Row.bonus' }] } },
+            { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: { custom: true, stats: [{ key: 'sk', kind: 'pick', opts: [{ label: 'Guns', name: 'Skills.Guns.Target' }, { label: 'Rows', name: 'Skills.count' }, { label: 'Strength', name: 'ST' }, { label: 'Secret', name: 'Skills.Secret.Target' }, { label: 'Library', name: 'Skills.Lib.Target' }] }], cols: [{ key: 'Skill', label: 'Skill', formula: 'Row.sk' }] } },
+            { id: 'f_x', key: 'LibT', label: 'L', kind: 'formula', vis: 'all', formula: 'Skills.Lib.Target + Skills.Nope.Target' }],
+            items: [{ id: 'i_guns', name: 'Guns', key: 'Guns', category: 'Skill', stats: { bonus: 1 } }, { id: 'i_sec', name: 'Secret', key: 'Secret', category: 'Skill', vis: 'gm', stats: { bonus: 2 } }],
+            core: [{ id: 'i_lib', name: 'Lib', key: 'Lib', category: 'Skill', stats: { bonus: 5 } }] };
+        const sC = cleanSystem(rawC, { F, gmView: true }), vC = validateSystem(sC, F), pC = cleanSystem(rawC, { F, gmView: false });
+        const chC = { id: 'c_c', name: 'C', ownerId: '', npc: true, values: { f_sk: [{ id: 'w_s1', defId: 'i_guns', qty: 1, lvl: 12 }], f_wp: [{ id: 'w_a', qty: 1, def: { name: 'Blaster', stats: { sk: 'Guns' } } }, { id: 'w_b', qty: 1, def: { name: 'Count', stats: { sk: 'Rows' } } }, { id: 'w_c', qty: 1, def: { name: 'Club', stats: { sk: 'Strength' } } }, { id: 'w_d', qty: 1, def: { name: 'Book', stats: { sk: 'Library' } } }] } };
+        const aC = resolveAll(sC, chC, F), cells = ['w_a', 'w_b', 'w_c', 'w_d'].map(r => aC.f_wp.cells[r] ? aC.f_wp.cells[r][0].text : '?');
+        const bad2 = rawC.fields.slice(); bad2[3] = JSON.parse(j(rawC.fields[3])); bad2[3].list.stats[0].opts.push({ label: 'Own', name: 'Row.lvl' }, { label: 'Nope', name: 'Skills.Guns.Nothing' });
+        const eC2 = validateSystem(cleanSystem(Object.assign({}, rawC, { fields: bad2 }), { F, gmView: true }), F).errors.map(e => e.message);
+        check('F3 a choice\'s option may read a list\'s name, as a formula can — a row by key (Skills.Guns.Target: 12 + 1), a total (Skills.count), an entry the library\'s core holds (Lib: 10 + 5) — beside a field (ST); the validator takes them, warns of a GM-only entry\'s row (players do not get that option) and still refuses a row\'s own name or a word the list lacks',
+            vC.errors.length === 0 && j(cells) === j(['13', '1', '11', '15']) && vC.warnings.some(w => /option “Secret” reads a GM-only value/.test(w.message))
+            && pC.fields.find(f => f.id === 'f_wp').list.stats[0].opts.map(o => o.label).join() === 'Guns,Rows,Strength,Library'
+            && eC2.some(m => /option “Own” reads “Row\.lvl”/.test(m)) && eC2.some(m => /option “Nope” reads “Skills\.Guns\.Nothing”/.test(m)), j([vC.errors, vC.warnings, cells, eC2]));
+        check('F3 the validator: a key only the library\'s core holds is a known row (no "reads as not carried" warning); a key nothing holds still warns',
+            !vC.warnings.some(w => /key "Lib"/.test(w.message)) && vC.warnings.some(w => /key "Nope"/.test(w.message)), j(vC.warnings));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

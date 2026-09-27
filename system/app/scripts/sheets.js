@@ -302,6 +302,7 @@ function giveCharacter(pid, charId, o) {
     if (prev && prev !== pid) unbindStale(camp, prev, c);
     afterCharChange(c, true);
     var n = net();
+    if (pid && n && n.allowWaiting) n.allowWaiting(pid);   // Onboarding F1a: a give ends a Remove of their waiting token
     if (n && n.reconcilePresence) {
         if (pid) n.reconcilePresence(pid, { mode: 'give', keep: o.keep, near: nearNew });
         if (prev && prev !== pid) n.reconcilePresence(prev, { mode: 'give', near: nearPrev });
@@ -3222,6 +3223,7 @@ function charChanged(id) {
 function ownerFromToken(w) {
     var camp = getActiveCampaign(), c = w && w.charId ? charById(w.charId, camp) : null; if (!c || c.npc) return;
     if (!c.ownerId && !w.ownerId) return;
+    if (!w.ownerId) { var nT = net(); if (nT && nT.noWaiting && !playableChars(camp, c.ownerId).some(function(x) { return x.id !== c.id; })) nT.noWaiting(c.ownerId); }   // Onboarding F1a: "GM controlled" is a takeover: no waiting token pops up for a player it leaves with nothing
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }

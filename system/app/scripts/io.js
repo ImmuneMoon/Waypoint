@@ -45,7 +45,7 @@ import { renderWhiteboard, attachResizeHandle, attachRotateHandle, addWbItem, up
 
 import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  renderElementList, esc } from './inspector.js';
 
-import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
+import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js';
 
 
 
@@ -247,6 +247,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
         if(Object.keys(data).length > 0) {
             migrated = migrateAppState(data);
             state.appState = migrated.data;
+            Object.keys(state.appState.campaigns || {}).forEach(function(k) { dropWaiting(state.appState.campaigns[k]); });   // Onboarding F1a: a waiting token never outlives its session (a crash left one)
         }
         if (window.wpStream && window.wpNet && window.wpNet.sanitizeAppState) state.appState = window.wpNet.sanitizeAppState(state.appState);   // stream window: players' view only
         if (Object.keys(data).length === 0 && window.wpNet && window.wpNet.foreign && !window.wpStream) state.appState = { activeCampaignId: null, campaigns: {} };   // no save on disk: start fresh, never adopt the GM's table
@@ -871,6 +872,8 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       var parsed = JSON.parse(snap);
 
+      if (item.type === 'map' && parsed && parsed.c && Array.isArray(parsed.c.whiteboard)) parsed.c.whiteboard = parsed.c.whiteboard.filter(function(w) { return !(w && w.waiting); });   // Onboarding F1a: an undo never brings a waiting token back (while hosting, the merge keeps the live one)
+
       var hosting = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host');
 
       if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item);
@@ -881,6 +884,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       if (item.type === 'map' && window.wpSheets && window.wpSheets.syncOwners) window.wpSheets.syncOwners(camp);   // Onboarding F0 'tidy': one owned token per character, never an adopt, copy or spawn
 
+      var wUndo = hosting && item.type === 'map' && window.wpNet && window.wpNet.tidyWaiting ? window.wpNet.tidyWaiting({ quiet: true, mapId: item.id }) : [];   // Onboarding F1a: a token the undo gave back takes the place of a waiting one
       if (hosting && item.type === 'map' && window.wpAutoRoom) (item.whiteboard || []).forEach(function(w) { if (w.isChar && w.ownerId) window.wpAutoRoom(w, item); });   // room membership follows the token
 
       closeChunk();
@@ -893,7 +897,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       try {
 
-          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); }
+          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); wUndo.forEach(function(id) { if (id !== item.id && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, id); }); }
 
           else save(true);
 
@@ -1160,9 +1164,10 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
       if (!m || m.type !== 'map') return false;
       var ids = selectedWbIds();
       if (!ids.length) return false;
-      wbClipboard = ids.map(function(id) { return m.whiteboard.find(function(x) { return x.id === id; }); }).filter(Boolean).map(clone);
+      wbClipboard = ids.map(function(id) { return m.whiteboard.find(function(x) { return x.id === id; }); }).filter(function(x) { return x && !x.waiting; }).map(clone);   // Onboarding F1a: a waiting token is never copied
       wbPasteCount = 0;
       if (cut) {
+          m.whiteboard.forEach(function(x) { if (ids.includes(x.id) && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); });   // Onboarding F1a: cut away, it stays away this session
           m.whiteboard = m.whiteboard.filter(function(x) { return !ids.includes(x.id); });
           state.selWbIds = []; state.selWbId = null;
           save(); render();
@@ -1301,6 +1306,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
               if (!ids.length) return;
 
+              m.whiteboard.forEach(x => { if (ids.includes(x.id) && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); });   // Onboarding F1a: a deleted waiting token stays away this session
               m.whiteboard = m.whiteboard.filter(x => !ids.includes(x.id));
 
               state.selWbIds = []; state.selWbId = null;
@@ -1495,7 +1501,7 @@ import { onLoad as cleanupOnLoad, sweepRecents } from './cleanup.js';
 
       // Bookkeeping keys never travel: the origin marker and the cleanup's own notes
       delete payload._foreign; delete payload._keptByUser; delete payload._cleanup;
-      Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; });
+      Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; dropWaiting(c); });   // Onboarding F1a: nor a waiting token
 
       var json = JSON.stringify(payload, null, 2);
       var paths = collectImagePaths(payload);

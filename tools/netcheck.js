@@ -45,7 +45,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + 
 
 /* ---- the sliced code, built once ---- */
 const storage = (() => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, clear: () => { m = {}; } }; })();
-const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName };')(storage, globalThis.crypto);
+const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem };')(storage, globalThis.crypto);
 const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
 
 const ENV_NAMES = ['net', 'own', 'validProfileId', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'approvedIds', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed'];
@@ -479,10 +479,15 @@ pendingChecks.push((async () => {
     check('pos gate (F0): a player moves only a SHOWN CHARACTER token they own ON THE MAP THEY ARE ON — a hidden token, another player\'s, an item that is not a character, a copy on another map and a paused player never move, relay, travel or reveal a handout; only final === true travels',
         own.moved && own.relayed === 1 && own.dropped === 1 && own.rooms === 1 && [hid, oth, obj, far, paused].every(r => !r.moved && !r.relayed && !r.dropped && !r.rooms) && truthy.moved && truthy.dropped === 0 && truthy.rooms === 0, j([own, hid, oth, obj, far, truthy, paused]));
     const noLoc = t('t_own', 'm1', null, e => { e.net.roster.peerA.location = null; });
+    const hW = mk(); hW.camp.items.m1.whiteboard.push({ id: 't_wait', waiting: 1, ownerId: 'u_a', x: 0, y: 0, rot: 30, front: 10 }, { id: 't_waitB', waiting: 1, ownerId: 'u_b', x: 0, y: 0 }, { id: 't_waitH', waiting: 1, ownerId: 'u_a', hidden: true, x: 0, y: 0 });
+    ['t_wait', 't_waitB', 't_waitH'].forEach(id => runPos(hW.env, { type: 'pos', campId: 'c', itemId: 'm1', wbId: id, x: 50, y: 60, rot: 90, front: 45, final: true }, { peer: 'peerA' }));
+    const wW = id => hW.camp.items.m1.whiteboard.find(x => x.id === id);
+    check('pos gate (F1a): a player\'s own shown WAITING token moves and relays, but never turns — the host keeps its rotation and facing; another player\'s waiting token and a hidden one never move',
+        wW('t_wait').x === 50 && wW('t_wait').y === 60 && wW('t_wait').rot === 30 && wW('t_wait').front === 10 && hW.log.relayed === 1 && wW('t_waitB').x === 0 && wW('t_waitH').x === 0, j([hW.camp.items.m1.whiteboard, hW.log]));
     check('pos gate (F0 review): a player with no location yet (joined while the GM was on a page) still moves their own shown token; the map rule applies once they have one', noLoc.moved && noLoc.relayed === 1, j(noLoc));
     const ioN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), wbN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
     check('undo + presence (F0): an undo strips a restored token\'s owner only when the player holds a live token of the SAME character (or same-named pet); a kept character\'s token shows only where its player is',
-        /liveOwned\[grp\(w\)\] = 1/.test(ioN) && /if \(s && s\.isChar && s\.ownerId && liveOwned\[grp\(s\)\]\) delete s\.ownerId;/.test(ioN) && /var presOwner = item\.ownerId \|\| keptOwnerOf\(item\);/.test(wbN) && /absentOwner = !window\.wpNet\.isPresent\(presOwner, activeMap\.id\);/.test(wbN));
+        /liveOwned\[grp\(w\)\] = 1/.test(ioN) && /if \(s && s\.isChar && s\.ownerId && liveOwned\[grp\(s\)\]\) delete s\.ownerId;/.test(ioN) && /var presOwner = item\.ownerId \|\| keptOwnerOf\(item\);/.test(wbN) && /absentOwner = item\.waiting \? [^\n]*: !window\.wpNet\.isPresent\(presOwner, activeMap\.id\);/.test(wbN));
     check('session end (F0): leaving a table resets net.role, the code and the last stage (a trailing comment had swallowed them since 92352e2)', /net\.active = false; net\.role = null; net\.code = null; net\.lastStage = null;   \/\//.test(src) && !/\/\/[^\n]*net\.role = null;/.test(src));
     check('throw-req (F0): a throw needs a shown token of THAT character on the map (a kept character has none of its own)', /w\.ownerId === profT\.id && w\.charId === msg\.charId; \}\)\) return;/.test(src));
     check('client (F0): a character copy that is no longer ours drops its queued edits BEFORE they are replayed (both the snapshot and a single copy)', /if \(outC\[id\]\.partial \|\| outC\[id\]\.ownerId !== net\.myId\) dropP\(id\); \}\);[^\n]*\n\s*campC\.chars = outC; Object\.keys\(outC\)\.forEach\(reapplyPending\);/.test(src) && /if \(c1\.partial \|\| c1\.ownerId !== net\.myId\) dropP\(c1\.id\); campC\.chars\[c1\.id\] = c1; noteHostCopy\(c1\.id, c1\.values\); reapplyPending\(c1\.id\);/.test(src));
@@ -536,6 +541,10 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
     check('patch (host): a player\'s own unlocked token moves, turns and takes its stance; their token the GM LOCKED is frozen — no move, turn, facing, posture or elevation',
         chg === true && byId('t1').x === 40 && byId('t1').front === 45 && byId('t1').posture === 'kneeling' && byId('t1').elevation === 2
         && j(byId('t2')) === j({ id: 't2', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, locked: true }), j([chg, wb]));
+    const csW = mk(); csW.c1.items.m1.whiteboard.push({ id: 'wt', waiting: 1, ownerId: 'u_p', x: 0, y: 0 }, { id: 'wo', waiting: 1, ownerId: 'u_q', x: 0, y: 0 });
+    const chgW = runPatch(csW, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'wt', x: 40, y: 50, rot: 90, front: 45, posture: 'kneeling', elevation: 2 }, { id: 'wo', x: 40, y: 50 }] } }), byW = id => csW.c1.items.m1.whiteboard.find(w => w.id === id);
+    check('patch (F1a): a player\'s own WAITING token takes a move and nothing else — no turn, facing, posture or elevation; another player\'s never moves',
+        chgW === true && j(byW('wt')) === j({ id: 'wt', waiting: 1, ownerId: 'u_p', x: 40, y: 50 }) && j(byW('wo')) === j({ id: 'wo', waiting: 1, ownerId: 'u_q', x: 0, y: 0 }), j([chgW, byW('wt'), byW('wo')]));
     check('patch (host): a drawing the GM locked is not erased by leaving it out of a patch (an unlocked one still is), nor redrawn',
         !!byId('s1') && !byId('s2') && j(byId('s1').pts) === '[[0,0],[1,1]]', j(wb.map(w => w.id)));
     const cs2 = mk(), redraw = runPatch(cs2, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 's1', type: 'path', ownerId: 'u_p', pts: [[5, 5], [9, 9]] }, { id: 's2', type: 'path', ownerId: 'u_p', pts: [[0, 0], [2, 2]] }] } });
@@ -600,10 +609,10 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
         opts = opts || {};
         const camp = { id: 'c1', players: { u_a: { name: 'Ana', key: 'k1', lastMap: 'm0' }, u_b: { name: 'Bo', key: 'k2' } } };
         const net = { role: 'host', roster: { pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' } }, forgotten: Object.create(null) };
-        const out = { asked: [], toasts: [], saved: 0, redraws: 0, camp, net };
+        const out = { asked: [], toasts: [], saved: 0, redraws: 0, camp, net, waitRemoved: [], waitChanged: [] };
         out.approvedIds = { u_a: true };   // a yes to a connection that had dropped, not yet used
-        const env = [net, H.own, (m, cb) => { out.asked.push(m); cb(answer); }, () => (opts.switched ? { id: 'c2' } : camp), () => { out.saved++; }, m => out.toasts.push(m), () => { out.redraws++; }, out.approvedIds, () => ({ playableChars: (c, pid) => pid === 'u_a' ? [{ id: 'c_1' }] : [] })];
-        const fns = new Function('net', 'own', 'showConfirm', 'getActiveCampaign', 'save', 'toast', 'renderPlayersPanel', 'approvedIds', 'SC', fgSrc + '\n' + slSrc + '\nreturn { forgetPlayer, syncLastMaps };')(...env);
+        const env = [net, H.own, (m, cb) => { out.asked.push(m); cb(answer); }, () => (opts.switched ? { id: 'c2' } : camp), () => { out.saved++; }, m => out.toasts.push(m), () => { out.redraws++; }, out.approvedIds, () => ({ playableChars: (c, pid) => pid === 'u_a' ? [{ id: 'c_1' }] : [] }), (c, pid) => { out.waitRemoved.push(pid); return ['m1']; }, (c, maps) => { out.waitChanged.push(maps); }];
+        const fns = new Function('net', 'own', 'showConfirm', 'getActiveCampaign', 'save', 'toast', 'renderPlayersPanel', 'approvedIds', 'SC', 'removeWaiting', 'waitingChanged', fgSrc + '\n' + slSrc + '\nreturn { forgetPlayer, syncLastMaps };')(...env);
         fns.forgetPlayer(camp, fid);
         fns.syncLastMaps();
         return out;
@@ -612,6 +621,7 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
     check('forget (host): asked first, naming them and saying they stay at the table; on yes the record goes for good — the roster sync that runs on every redraw no longer re-creates it while they play on — and a one-time approval still waiting goes too (Cancel keeps it)',
         yes.asked.length === 1 && /Forget Ana\?/.test(yes.asked[0]) && /stay at the table/.test(yes.asked[0]) && !('u_a' in yes.camp.players) && yes.net.forgotten.u_a === true && yes.saved === 1 && yes.redraws === 1
         && yes.camp.players.u_b.lastMap === 'm1' && !('u_a' in yes.approvedIds) && no.approvedIds.u_a === true, j([yes.asked, yes.camp.players, yes.approvedIds]));
+    check('forget (F1a): a Forget takes the player\'s waiting token too (Cancel leaves it)', j(yes.waitRemoved) === j(['u_a']) && j(yes.waitChanged) === j([['m1']]) && no.waitRemoved.length === 0 && no.waitChanged.length === 0, j([yes.waitRemoved, no.waitRemoved]));
     const gone = run(true, 'u_a', { switched: true }), proto = run(true, 'constructor'), stranger = run(true, 'u_zz');
     check('forget (host): Cancel keeps them (and the sync still records where they are); an answer after a campaign switch changes nothing; a prototype-key or unknown id asks nothing',
         no.camp.players.u_a.key === 'k1' && no.camp.players.u_a.lastMap === 'm1' && !no.net.forgotten.u_a && no.saved === 0 && gone.camp.players.u_a.key === 'k1' && gone.saved === 0
@@ -1506,6 +1516,10 @@ pendingChecks.push((async () => {
         out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => (m.to ? m.to + ':' : '') + m.text);
         return { out, net, map, camp, pat, free, P, C, api };
     };
+    const wt = mkT({ rules: { walls: 'refuse' }, turns: false }); wt.map.whiteboard.push({ id: 't_w', waiting: 1, ownerId: 'u_a', x: 0, y: 200, w: 50, h: 50 }); wt.C('t_w', 1100, 200); const wtW = wt.map.whiteboard.find(w => w.id === 't_w');
+    const wt2 = mkT({ rules: { walls: 'refuse' }, turns: false }); wt2.map.whiteboard.push({ id: 't_w', waiting: 1, ownerId: 'u_a', x: 0, y: 200, w: 50, h: 50 }); wt2.C('t_w', 300, 200); const wt2W = wt2.map.whiteboard.find(w => w.id === 't_w');
+    check('F1a the walls rule on a waiting token\'s map copy (run for real): past a wall it goes back (it never lands where a move would be refused); within the walls it moves',
+        wtW.x === 0 && wtW.y === 200 && wt2W.x === 300, j([wtW, wt2W, wt.out.notes()]));
     // the pos path: within the move, past it (refuse), the copy that follows a refused drop, a lost final (the copy closes it), warn, off
     const a = mkT({ allow: 4 }); a.P('t_p', 50, 0); a.P('t_p', 100, 0, true); a.C('t_p', 100, 0);
     const aMoved = a.net.turnMove.m1.moved, aNotes = a.out.notes();
@@ -2304,6 +2318,111 @@ pendingChecks.push((async () => {
         cA > 0 && cB > cA && dB > cB && cOk.r.ok === true && cOk.sent.length === 1 && j(Object.keys(cOk.sent[0]).sort()) === j(['charId', 'rid', 'sheet', 'type']) && j(cOk.sent[0].sheet) === j({ name: 'Ana', skills: [] }) && cOk.sent[0].type === 'char-upload'
         && [cMate, cPart].every(c => c.r.error === 'That character is not yours.' && c.sent.length === 0) && cBig.r.error === 'That file is too large, or not a sheet.' && cBig.sent.length === 0 && cGm.r.error === 'Not at a table.' && cOff.r.error === 'Character sheets are off here.' && cOff.sent.length === 0
         && j(told) === j([['pA', { type: 'char-upload-done', charId: 'c_1', done: 3, of: 5 }]]), j([cOk, cMate.r, cPart.r, cBig.r, cGm.r, told]));
+})());
+// Onboarding F1a: the waiting token — the client's cleaner, and the host's section run for real with the real systemcore (one per player per
+// campaign, moved not copied, gone once they have a token, the GM's Remove, the grace after a leave, the end of the session), the rules'
+// push and a client's take of it, the free spot, and the hooks on the paths that end a player's stay
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js'));
+    const good = H.cleanWaitingItem({ id: 'wbq1', type: 'image', waiting: 1, ownerId: 'u_a', name: 'Ana\u202e<b>', color: '#112233', x: 1e9, y: 5, w: 60, h: 52, src: 'https://evil/x.png', isChar: true, charId: 'c_1', face: 'x', sheet: {}, gmInfo: 'secret', hidden: true, layer: 'front' });
+    check('F1a cleanWaitingItem (client): a waiting token from the host is rebuilt from its own fields only — a circle, its owner, a clean name, a hex colour, bounded geometry, hidden only when true; a picture, a character link, a sheet or GM info never come through',
+        j(good) === j({ id: 'wbq1', type: 'circle', waiting: 1, ownerId: 'u_a', name: 'Ana<b>', color: '#112233', x: 60000, y: 5, w: 60, h: 52, layer: 'middle', hidden: true })
+        && [{ id: 'a b', ownerId: 'u_a' }, { id: 'ok', ownerId: 'constructor' }, { id: 'ok', ownerId: 'u a' }, { id: 7, ownerId: 'u_a' }, null, 'x'].every(w => H.cleanWaitingItem(w) === null)
+        && j(H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', color: 'red;x', hidden: 'yes', locked: 1, x: 'n' })) === j({ id: 'ok', type: 'circle', waiting: 1, ownerId: 'u_a', name: 'Player', color: '#4db3d3', x: 15000, y: 15000, w: 60, h: 52, layer: 'middle' })
+        && H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', locked: true }).locked === true
+        && /function cleanHostWbItem\(w\) \{ if \(!w \|\| typeof w !== 'object' \|\| typeof w\.id !== 'string'\) return null; if \(w\.waiting\) return cleanWaitingItem\(w\);/.test(src), j(good));
+    const wSrc = between('// [netcheck:waiting-start]', '// [netcheck:waiting-end]', 'waiting');
+    const mkW = (o) => {
+        o = o || {};
+        const camp = { id: 'k', players: o.players || {}, chars: o.chars || {}, items: { m1: { id: 'm1', type: 'map', meta: { title: 'Inn' }, whiteboard: [] }, m2: { id: 'm2', type: 'map', meta: { title: 'Road' }, whiteboard: [] } } };
+        if (o.rules) camp.newPlayers = o.rules;
+        const out = { toasts: [], logs: [], saves: 0, sent: [], renders: 0, timers: [], cleared: [], camp };
+        const net = { active: true, role: 'host', roster: o.roster || { pA: { id: 'u_a', name: 'Ana\u202e', color: '#112233', location: 'm1' } }, applyingRemote: false,
+                      broadcastItemFiltered: (c, m) => out.sent.push(m), isConnected: pid => Object.values(net.roster).some(p => p && p.id === pid) };
+        const api = new Function('net', 'SC', 'own', 'cleanRosterName', 'spawnSpot', 'toast', 'logEvent', 'save', 'getActiveCampaign', 'render', 'window', 'setTimeout', 'clearTimeout',
+            wSrc + '\nreturn { removeWaiting, placeWaiting, settleWaiting, waitingChanged, startWaitGrace, endWaiting, dropWaitingFor };')(
+            net, () => Sx, H.own, H.cleanRosterName, (map, lr, near) => ({ x: near ? near.x : 100, y: near ? near.y : 200 }), t => out.toasts.push(t), (k, t) => out.logs.push([k, t]),
+            () => { out.saves++; if (!net.applyingRemote) out.saveOutsideRemote = true; }, () => camp, () => { out.renders++; }, {},
+            (f, ms) => { out.timers.push({ f, ms }); return out.timers.length; }, id => { out.cleared.push(id); });
+        return { api, net, camp, out, wb: id => camp.items[id].whiteboard };
+    };
+    const A = mkW(), p1 = A.api.placeWaiting(A.camp, 'u_a', A.camp.items.m1, null), w1 = JSON.parse(j(A.wb('m1')[0] || {}));   // a copy: the token itself moves on
+    const p2 = A.api.placeWaiting(A.camp, 'u_a', A.camp.items.m2, null), w2 = A.wb('m2')[0] || {};
+    const p3 = A.api.placeWaiting(A.camp, 'u_a', A.camp.items.m2, null);
+    check('F1a placeWaiting: the first makes one waiting token (a circle with their clean name and colour, at the spawn spot) and tells the GM once (a toast and a Session Log "char" line); on another map it MOVES there under a fresh id (never two items with one id on a map: a stroke planted with its id cannot collide; the old map loses it, both maps reported); on its own map nothing changes',
+        j(p1) === j(['m1']) && j(Object.assign({}, w1, { id: 'x' })) === j({ id: 'x', type: 'circle', waiting: 1, ownerId: 'u_a', w: 60, h: 52, layer: 'middle', name: 'Ana', color: '#112233', x: 100, y: 200 }) && /^wb[a-z0-9]{1,8}$/.test(w1.id)
+        && j(A.out.toasts) === j(['Ana has no character yet \u2014 a waiting token on Inn.']) && j(A.out.logs) === j([['char', 'Ana has no character yet \u2014 a waiting token on Inn']])
+        && j(p2.slice().sort()) === j(['m1', 'm2']) && A.wb('m1').length === 0 && w2.id !== w1.id && /^wb[a-z0-9]{1,8}$/.test(w2.id) && A.wb('m2').length === 1 && j(p3) === '[]' && A.out.toasts.length === 1, j([p1, w1, p2, p3, A.out.toasts]));
+    A.wb('m1').push({ id: 'extra', type: 'circle', waiting: 1, ownerId: 'u_a', x: 0, y: 0 }, { id: 'other', type: 'circle', waiting: 1, ownerId: 'u_b', x: 0, y: 0 });
+    const p4 = A.api.placeWaiting(A.camp, 'u_a', A.camp.items.m2, null), r1 = A.api.removeWaiting(A.camp, 'u_a');
+    check('F1a: never two — a stray second waiting token of theirs goes when theirs is placed (another player\'s stays); removeWaiting takes every one of theirs and names the maps',
+        j(p4) === j(['m1']) && j(A.wb('m1').map(w => w.id)) === j(['other']) && j(r1) === j(['m2']) && A.wb('m2').length === 0 && A.wb('m1').length === 1, j([p4, r1, A.wb('m1'), A.wb('m2')]));
+    const B = mkW(), sKeep = B.api.settleWaiting(B.camp, 'u_a', B.camp.items.m1, 'none', null), nB = B.wb('m1').length;
+    const sGone = B.api.settleWaiting(B.camp, 'u_a', B.camp.items.m1, 'keep', null), nB2 = B.wb('m1').length;
+    B.api.settleWaiting(B.camp, 'u_a', B.camp.items.m1, 'none', null); const rmd = B.net.removeWaiting('u_a'), nB3 = B.wb('m1').length;
+    const sBlocked = B.api.settleWaiting(B.camp, 'u_a', B.camp.items.m1, 'none', null), nB4 = B.wb('m1').length;
+    B.net.allowWaiting('u_a'); const sAgain = B.api.settleWaiting(B.camp, 'u_a', B.camp.items.m1, 'none', null), nB5 = B.wb('m1').length;
+    B.camp.newPlayers = { token: 'off' }; const sOff = B.api.settleWaiting(B.camp, 'u_a', B.camp.items.m1, 'none', null), nB6 = B.wb('m1').length;
+    check('F1a settleWaiting + the GM\'s hands: nothing found places it, a token found removes it; the GM\'s Remove takes it and keeps it away for the session (a later arrival places none) until a give allows it again; a table that gives none removes it',
+        j(sKeep) === j(['m1']) && nB === 1 && j(sGone) === j(['m1']) && nB2 === 0 && rmd === true && nB3 === 0 && j(sBlocked) === '[]' && nB4 === 0 && j(sAgain) === j(['m1']) && nB5 === 1 && j(sOff) === j(['m1']) && nB6 === 0, j([sKeep, sGone, rmd, sBlocked, sAgain, sOff]));
+    const C = mkW(); C.api.placeWaiting(C.camp, 'u_a', C.camp.items.m1, null); C.out.sent.length = 0; C.out.saves = 0;
+    C.api.startWaitGrace('u_a'); const g1 = C.out.timers[0]; if (g1) g1.f(); const kept = C.wb('m1').length;
+    C.api.startWaitGrace('u_a'); C.api.startWaitGrace('u_a'); const restarted = C.out.cleared.length === 1; delete C.net.roster.pA; const g2 = C.out.timers[2]; if (g2) g2.f(); const gone = C.wb('m1').length;
+    check('F1a the grace: a player who leaves keeps their waiting token for three minutes (180000 ms); back by then, it stays; a second leave restarts the clock; still away, it goes — saved (as the host\'s own write) and sent',
+        g1 && g1.ms === 180000 && kept === 1 && restarted && gone === 0 && C.out.saves === 1 && !C.out.saveOutsideRemote && j(C.out.sent) === j(['m1']) && C.net.applyingRemote === false, j([C.out.timers.map(t => t && t.ms), kept, gone, C.out.saves, C.out.sent]));
+    const D = mkW({ roster: { pA: { id: 'u_a', name: 'Ana', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm2' } } });
+    D.api.placeWaiting(D.camp, 'u_a', D.camp.items.m1, null); D.api.placeWaiting(D.camp, 'u_b', D.camp.items.m2, null);
+    D.net.hideWaiting('u_a', true); const hid = D.wb('m1')[0].hidden === true; D.net.hideWaiting('u_a', false); const shown = !('hidden' in D.wb('m1')[0]);
+    D.api.startWaitGrace('u_b'); D.net.removeWaiting('u_a'); D.api.endWaiting(true);
+    const allGone = D.wb('m1').length === 0 && D.wb('m2').length === 0;
+    D.net.roster.pA.location = 'm1'; D.api.settleWaiting(D.camp, 'u_a', D.camp.items.m1, 'none', null); const unblocked = D.wb('m1').length === 1;
+    D.wb('m1').length = 0; D.net.tidyWaiting(); const tidied = D.wb('m1').length === 1 && D.wb('m2').length === 1;
+    check('F1a Hide / Show, the end of the session and the tidy: the GM hides and shows a waiting token; the end takes every one, clears the grace timers and forgets the session\'s Removes; a tidy (a setting changed) gives every connected player without a character theirs',
+        hid && shown && allGone && D.out.cleared.length >= 1 && unblocked && tidied, j([hid, shown, allGone, D.out.cleared, unblocked, D.wb('m1'), D.wb('m2')]));
+    // the review's fixes, run on the same section: beside the token they lost, a ban inside the grace, off takes an away player's, an undo's quiet tidy
+    const E = mkW({ roster: { pA: { id: 'u_a', name: 'Ana', location: 'm1' } } });
+    const nearP = E.api.settleWaiting(E.camp, 'u_a', E.camp.items.m1, 'none', null, { x: 700, y: 800 }), atNear = E.wb('m1')[0] || {};
+    E.net.roster = {}; E.api.startWaitGrace('u_a'); E.api.dropWaitingFor('u_a'); const banned = E.wb('m1').length === 0 && E.out.cleared.length === 1;
+    const F2 = mkW({ roster: { pA: { id: 'u_a', name: 'Ana', location: 'm1' } } }); F2.api.placeWaiting(F2.camp, 'u_a', F2.camp.items.m1, null); F2.api.placeWaiting(F2.camp, 'u_b', F2.camp.items.m2, null);   // u_b is away (not in the roster)
+    F2.camp.newPlayers = { token: 'off' }; const offMaps = F2.net.tidyWaiting({ quiet: true }).sort(), offGone = F2.wb('m1').length === 0 && F2.wb('m2').length === 0 && F2.out.saves === 0;
+    const G = mkW({ roster: { pA: { id: 'u_a', name: 'Ana', location: 'm1' } } }); G.api.placeWaiting(G.camp, 'u_a', G.camp.items.m1, null); G.wb('m1').push({ id: 'back', isChar: true, ownerId: 'u_a', x: 0, y: 0 }); G.out.saves = 0;
+    const undoMaps = G.net.tidyWaiting({ quiet: true, mapId: 'm1' }), undoOk = j(undoMaps) === j(['m1']) && !G.wb('m1').some(w => w.waiting) && G.out.saves === 0;
+    check('F1a review fixes: a waiting token placed after a give away stands beside the token they lost; a ban takes it at once even inside the grace (the timer stopped); turning waiting tokens off takes an away player\'s too; an undo that gives a token back settles it quietly (the undo saves and sends)',
+        atNear.x === 700 && atNear.y === 800 && j(nearP) === j(['m1']) && banned && j(offMaps) === j(['m1', 'm2']) && offGone && undoOk, j([atNear, banned, offMaps, undoMaps, G.wb('m1')]));
+    check('F1a review fixes (the hooks): a waiting token\'s map copy goes through the walls rule like a move before it takes x/y; the resolver passes the give-away spot and redraws a map a waiting token left; the GM\'s pending edit is flushed first; the Players panel\'s ban drops it; the Host panel box is the host\'s alone',
+        /if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{[\s\S]{0,1400}?\n\s*if \(lw\.waiting\) \{ if \(lw\.x !== w\.x/.test(src) && /var wMaps = settleWaiting\(camp, pid, map, src\.op, landRoomId, opts\.near/.test(src) && /wMaps\.indexOf\(myActive\.activeItemId\) >= 0\)\) render\(\);/.test(src)
+        && /function waitingChanged\(camp, maps\) \{\n\s*if \(!maps \|\| !maps\.length\) return;\n\s*if \(window\.wpHistFlush\) window\.wpHistFlush\(\);/.test(src.replace(/\r\n/g, '\n')) && /if \(key\) net\.kickPlayer\(key\);\n\s*dropWaitingFor\(pid\);/.test(src.replace(/\r\n/g, '\n')) && /if \(net\.active && net\.role !== 'host'\) \{ refreshNewPlayersBox\(\); return; \}/.test(src));
+    // the rules' push (host) and a client's take of it
+    const nsSrc = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync');
+    const mkS = () => {
+        const camp = { id: 'k' }, sent = { pA: [], pW: [] }, tidies = [];
+        const net = { active: true, role: 'host', roster: { pA: { id: 'u_a' } }, conns: [{ peer: 'pA', open: true, send: m => sent.pA.push(m) }, { peer: 'pW', open: true, send: m => sent.pW.push(m) }], tidyWaiting: () => tidies.push(1) };
+        new Function('net', 'SC', 'getActiveCampaign', 'own', 'sendFailed', nsSrc)(net, () => Sx, () => camp, H.own, e => { throw e; });
+        return { camp, net, sent, tidies };
+    };
+    const P = mkS(); P.net.syncNewPlayers(); P.net.syncNewPlayers(); P.camp.newPlayers = { token: 'off', sight: true }; P.net.syncNewPlayers();
+    check('F1a the rules on the wire (host): sent to admitted players once per change (a peer waiting for Allow hears nothing), always complete (the defaults filled in); a change mid-session settles every waiting token (a tidy), the first send does not; the snapshot sets the signature; every save syncs it',
+        j(P.sent.pA) === j([{ type: 'newPlayers', campId: 'k', token: 'on', sight: false }, { type: 'newPlayers', campId: 'k', token: 'off', sight: true }]) && P.sent.pW.length === 0 && P.tidies.length === 1
+        && /var npm = net\.newPlayersMessage\(\); if \(npm\) net\._lastNewPlayersSig = newPlayersSig\(npm\);/.test(src) && /net\.syncNewPlayers\(\); \/\/ and the rules for players without a character/.test(src) && /net\._lastNewPlayersSig = null; \/\/ and the rules/.test(src), j([P.sent, P.tidies]));
+    const npSrc = between('// [netcheck:newplayers-start]', '// [netcheck:newplayers-end]', 'newplayers');
+    const take = (msg, peer, start) => { const camp = { id: 'k' }; if (start) camp.newPlayers = start; const r = { renders: 0 }; new Function('msg', 'conn', 'net', 'state', 'campOf', 'SC', 'window', 'render', npSrc)(msg, { peer: peer || 'h' }, { foreign: true, syncedPeer: 'h', stream: false }, { appState: { activeCampaignId: 'k' } }, id => (id === 'k' ? camp : null), () => Sx, {}, () => { r.renders++; }); return Object.assign(r, { np: camp.newPlayers }); };
+    const tOff = take({ type: 'newPlayers', campId: 'k', token: 'off', sight: true }), tDef = take({ type: 'newPlayers', campId: 'k', token: 'on', sight: false }, 'h', { token: 'off' }), tJunk = take({ type: 'newPlayers', campId: 'k', token: 'maybe', sight: 'yes' }, 'h', { sight: true });
+    const tPeer = take({ type: 'newPlayers', campId: 'k', token: 'off' }, 'x'), tCamp = take({ type: 'newPlayers', campId: 'k2', token: 'off' });
+    check('F1a the rules on the wire (player): taken only from the synced host, for the hosted campaign, and cleaned (the defaults store nothing, junk counts as the default); the map redraws',
+        j(tOff.np) === j({ token: 'off', sight: true }) && tOff.renders === 1 && tDef.np === undefined && tJunk.np === undefined && tPeer.np === undefined && tPeer.renders === 0 && tCamp.np === undefined, j([tOff, tDef, tJunk, tPeer, tCamp]));
+    // the free spot: a waiting token is an obstacle, except the one about to give way
+    const fsSrc = fnSrc('function freeSpotNear(', '\nfunction ', 'freeSpotNear'), ssSrc = fnSrc('function spawnSpot(', '\n/* Host: player P', 'spawnSpot');
+    const FS = new Function('window', 'landingPoint', fsSrc + '\n' + ssSrc + '\nreturn { freeSpotNear, spawnSpot };')({}, () => null);
+    const mapF = { id: 'm1', meta: {}, whiteboard: [{ id: 'wt', waiting: 1, ownerId: 'u_a', x: 70, y: 74, w: 60, h: 52 }] };
+    const blocked = FS.freeSpotNear(mapF, 100, 100, 60, 52, null, null), through = FS.spawnSpot(mapF, null, { x: 100, y: 100 }, 60, 52, 'wt');
+    check('F1a the free spot: two joiners never share a spot and a new token never lands on a waiting one — except the waiting token that gives way to it (the new token takes its place)',
+        !(blocked.x === 70 && blocked.y === 74) && through.x === 70 && through.y === 74, j([blocked, through]));
+    check('F1a the hooks: the resolver settles the waiting token after every arrival and give (the new token takes its spot); a leave starts the grace, a return inside it ends it, a ban and a Forget take it, the end of the session takes them all; the pos and patch gates take a waiting token\'s move only',
+        /var wMaps = settleWaiting\(camp, pid, map, src\.op, landRoomId, /.test(src) && /var spot = spawnSpot\(map, landRoomId, near, nw\.w \|\| 60, nw\.h \|\| 52, waitHere \? waitHere\.w\.id : null\);/.test(src)
+        && /if \(p\) startWaitGrace\(p\.id\);/.test(src) && /if \(_waitGrace\[prof\.id\]\) \{ clearTimeout\(_waitGrace\[prof\.id\]\); delete _waitGrace\[prof\.id\]; \}/.test(src)
+        && /if \(p\) dropWaitingFor\(p\.id\);/.test(src) && /endWaiting\(wasHost\);/.test(src)
+        && /if \(w\.hidden \|\| !\(w\.isChar \|\| w\.waiting\) \|\|/.test(src) && /if \(lw\.waiting\) \{ if \(lw\.x !== w\.x \|\| lw\.y !== w\.y\) \{ lw\.x = w\.x; lw\.y = w\.y; changed = true; \} return; \}/.test(src));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

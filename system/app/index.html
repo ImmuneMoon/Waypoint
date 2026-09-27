@@ -525,6 +525,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>From then on it's theirs: they can drag it, and when they join a session it's placed on your map automatically if it isn't already there.</li>
                       </ol>
                       <p>With character sheets, give them a <b>character</b> instead: right-click their chip on the party strip &#9656; <b>Give a character&hellip;</b>, or pick them as its player in <b>System &#9656; Characters</b>. Their token appears on the map they are on &mdash; their own copy, a copy from another map, a token of that name linked to it, or a new one made from the character (its portrait, else their initials in their colour). A player follows their character, not a name, so renaming it or its tokens changes nothing.</p>
+                      <p>A player who joins with no character gets a <b>waiting token</b>: their picture (or the silhouette on their colour) in a dashed circle they can move about the map they are on. It follows them from map to map, and gives way to their real token the moment you give them a character &mdash; right-click it (or their chip), or select it for its Properties, for <b>Give a character&hellip;</b>, <b>Hide</b> or <b>Remove</b> (for the rest of the session; deleting it does the same). It goes three minutes after they leave, at once at a ban or a Forget, and at the end of the session: it is never kept in the save. <b>Players without a character</b> in the Multiplayer window turns waiting tokens off for a campaign, and can let them see around themselves under fog (off, they see only what you have revealed).</p>
                       <h4>Running the table</h4>
                       <ul>
                           <li><b>Hide secrets:</b> right-click an item &rarr; <b>Hide from Players</b>. They see a grey cloud; you see a ghost with an eye. Reveal it the same way.</li>
@@ -579,6 +580,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <ul>
                           <li>Pan (<kbd>Middle Click + Drag</kbd>), zoom (<kbd>Mouse Wheel</kbd>), and use the <b>&#128207; Measure</b> tool freely &mdash; your camera is your own.</li>
                           <li><b>Your token:</b> if the GM assigned you one, just drag it. It snaps to the grid on hex maps. You can't move anyone else's.</li>
+                          <li><b>No character yet?</b> You get a <b>waiting token</b> &mdash; your picture in a dashed circle &mdash; to move about until your GM gives you a character. Right-click it to see where you stand.</li>
                           <li><b>Doors &amp; stairs:</b> double-click a portal marker to travel through on your own &mdash; the GM can summon the party back together.</li>
                           <li><b>Chat:</b> click <b>&#128172;</b> to talk to the table. Messages from the GM marked <b>(private)</b> are whispers only you can see.</li>
                           <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map (<kbd>Esc</kbd> or &times; closes it); the map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
@@ -1079,6 +1081,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <div id="partyStrip" data-tip="Your players' characters. Click one to jump to them; right-click for more (summon). The highlighted ones are on this map."></div>
       <div id="combatStrip" style="display:none;" data-tip="Combat on this map"></div>
       <div id="partyMenu" class="shape-menu" style="position:fixed; flex-direction:column; min-width:200px; z-index:99998;"></div>
+      <div id="joinCard" class="join-card" role="status" style="display:none;"><span id="joinCardStatus"></span><button class="tool ghost" id="joinCardClose" type="button" title="Hide (right-click your waiting token to see this again)" aria-label="Close">&times;</button></div>
       <div id="zoomBox">
           <span id="cursorPos" title="Cursor position (world coordinates)">&ndash;</span>
           <div class="zoom-sep"></div>
@@ -1271,6 +1274,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div id="netStageFallbackRow" style="margin-bottom:10px; display:none;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">New players start at</div>
                 <select id="netStageFallbackSelect" style="width:100%; box-sizing:border-box;" title="Where a player joining this campaign for the first time lands — they have no last location yet (a last map that was deleted or locked for players counts the same). 'Follow me' puts them on your map with you; picking a map parks them there until they travel or you summon."></select>
+            </div>
+            <div id="newPlayersBox" style="margin-bottom:10px;">
+                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players without a character</div>
+                <select id="netWaitingSelect" style="width:100%; box-sizing:border-box;" title="A player who joins with no character gets a waiting token: their picture in a dashed circle they can move about, until you give them a character (right-click it, or their chip on the party strip). Off: nothing until you give them one.">
+                    <option value="on">Get a waiting token until you give them a character</option>
+                    <option value="off">Get no token until you give them a character</option>
+                </select>
+                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="Off (the default): a waiting token sees nothing of its own under fog, only what you have revealed. On: it sees around itself like a character's token."><input type="checkbox" id="netWaitingSight"> Waiting tokens see around them under fog</label>
             </div>
             <div style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>

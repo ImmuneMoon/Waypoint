@@ -593,6 +593,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           el.classList.toggle('wb-door-open', item.blocksSight === true && item.sightType === 'door' && !!item.doorOpen);
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
+          el.classList.toggle('wb-waiting', !!item.waiting && !hideFromMe);   // Onboarding F1a: the dashed ring — never on a hidden stub (an element is reused when an item is hidden)
+          if (el.dataset.waitTip && (!item.waiting || hideFromMe)) { delete el.dataset.tip; delete el.dataset.waitTip; }   // nor its tooltip
 
           if (hideFromMe && !el.dataset.ph) { el.innerHTML = '<span class="ph-cloud">&#9729;&#65039;</span>'; el.dataset.ph = '1'; }
 
@@ -604,9 +606,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
           var presOwner = item.ownerId || keptOwnerOf(item);   // Onboarding F0: a kept character's token shows only where its player is, like their own
 
-          if (item.isChar && presOwner && window.wpNet && window.wpNet.active) {
+          if ((item.isChar || item.waiting) && presOwner && window.wpNet && window.wpNet.active) {   // Onboarding F1a: a waiting token only while its player is here
 
-              absentOwner = !window.wpNet.isPresent(presOwner, activeMap.id);
+              absentOwner = item.waiting ? !(presOwner === window.wpNet.myId || Object.values(window.wpNet.roster || {}).some(function(p) { return p && p.id === presOwner; })) : !window.wpNet.isPresent(presOwner, activeMap.id);
 
           }
 
@@ -681,6 +683,19 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
               }
 
+          } else if (item.waiting) {
+              // [sinkcheck:waitingface-start]
+              // Onboarding F1a: a waiting token — the player's own face read live from the table's roster (a picture that passes safeAvatar,
+              // else the silhouette on their colour); it is not a character, so no initials, sheet or hover card
+              var wRos = window.wpNet ? Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === item.ownerId; }) : null;
+              var wSrc = wRos && window.wpNet.safeAvatar && window.wpNet.safeAvatar(wRos.avatar) ? wRos.avatar : (window.wpDefaultAvatar ? window.wpDefaultAvatar(cssColor((wRos && wRos.color) || item.color)) : '');
+              var wImg = el.querySelector(':scope > img.wait-face');
+              if (!wImg) { el.textContent = ''; wImg = document.createElement('img'); wImg.className = 'wait-face'; wImg.alt = ''; wImg.draggable = false; el.appendChild(wImg); }
+              if (wImg.getAttribute('src') !== wSrc) wImg.src = wSrc;
+              var wTip = String(item.name || 'Player') + ' \u2014 waiting for a character';
+              if (el.dataset.tip !== wTip) el.dataset.tip = wTip;
+              el.dataset.waitTip = '1';
+              // [sinkcheck:waitingface-end]
           } else if (item.isChar && (item.type === 'circle' || item.type === 'rect' || item.type === 'diamond' || item.type === 'hexagon')) {
 
               // Stand-in token: initials until a portrait arrives
@@ -1051,6 +1066,7 @@ window.wpFitToGrid = fitToGrid;
       if (!am || am.type !== 'map' || !its.length) return [];
       var gidMap = {}, copies = [];
       its.forEach(function(src) {
+          if (!src || src.waiting) return;   // Onboarding F1a: a waiting token is the host's alone, never copied
           var it = JSON.parse(JSON.stringify(src));
           it.id = 'wb' + uid() + Math.random().toString(36).slice(2, 5);
           delete it.ownerId; delete it.charId; delete it.threats;   // a copy is a new creature, not a second token of the character (5h: nor its threat marks)
@@ -1191,6 +1207,7 @@ window.wpFitToGrid = fitToGrid;
           } else if (act === 'del') {
               var am = getActiveMap();
               var ids = its.map(function(i) { return i.id; });
+              if (window.wpWaitingGone) window.wpWaitingGone(its);   // Onboarding F1a
               am.whiteboard = am.whiteboard.filter(function(x) { return ids.indexOf(x.id) === -1; });
               state.selWbIds = []; state.selWbId = null;
           } else return;
@@ -1917,6 +1934,7 @@ window.wpFitToGrid = fitToGrid;
   var FOCUS_ZOOM = 1.5;
   function wbHashHue(s) { var h = 0, t = String(s); for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return ((h % 360) + 360) % 360; }   // a stable per-key hue for the no-picture silhouette default
   function renderPartyStrip() {
+      if (window.wpJoinCard) window.wpJoinCard.check();   // Onboarding F1a: a player's join card follows their waiting token
       var strip = document.getElementById('partyStrip'); if (!strip) return;
       var camp = getActiveCampaign(), am = getActiveMap();
       if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual') { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
@@ -1935,19 +1953,19 @@ window.wpFitToGrid = fitToGrid;
               if (!p || !p.id || owned[p.id]) return;
               var avOk = !!(window.wpNet && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar));   // the whole data URL (net.js)
               var locMap = p.location && camp.items[p.location];
-              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true, color: p.color || null,
+              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
           });
       }
-      var sig = list.map(function(c) { return c.key + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
+      var sig = list.map(function(c) { return c.key + (c.waiting ? '~w' : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
       strip.innerHTML = list.map(function(c) {
           var here = c.mapId === am.id;
           var away = atTable && c.ownerId && !present[c.ownerId];
           var pausedC = hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId);
-          var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '') + (pausedC ? ' paused' : '');
-          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.noToken ? ' \u2014 no token yet' : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
+          var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '') + (pausedC ? ' paused' : '') + (c.waiting ? ' party-waiting' : '');
+          var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.noToken ? (c.waiting ? ' \u2014 waiting for a character' : ' \u2014 no token yet') : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
           var pcol = c.color || ('hsl(' + wbHashHue(c.key) + ',55%,55%)');   // no picture → the color-tinted silhouette default
@@ -1955,10 +1973,33 @@ window.wpFitToGrid = fitToGrid;
       }).join('');
   }
   window.wpRenderPartyStrip = renderPartyStrip;
+  // Onboarding F1a: a waiting token the GM deletes (any route) stays away for the rest of the session
+  window.wpWaitingGone = function(items) { (items || []).forEach(function(x) { if (x && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); }); };
+  // Onboarding F1a: the join card (index.html #joinCard) — status only for now (text through textContent)
+  (function() {
+      var had = false, dismissed = false;
+      function mine() { var n = window.wpNet, camp = getActiveCampaign(); if (!n || !n.active || n.role !== 'client' || window.wpStream || !camp || !window.wpSystemCore || !window.wpSystemCore.waitingTokensOf) return null; return window.wpSystemCore.waitingTokensOf(camp, n.myId)[0] || null; }
+      function text(t) { var st = document.getElementById('joinCardStatus'), camp = getActiveCampaign(), m = camp && camp.items[t.mapId]; if (st) st.textContent = 'You don\u2019t have a character yet. Your token is waiting on ' + ((m && m.meta && m.meta.title) || 'the map') + ' \u2014 move it about; your GM will give you a character.'; }
+      function show() { var card = document.getElementById('joinCard'), t = mine(); if (!card) return; if (!t) { card.style.display = 'none'; return; } text(t); dismissed = false; card.style.display = ''; }   // their right-click: always
+      function check() {
+          var t = mine(), card = document.getElementById('joinCard'); if (!card) return;
+          if (!t) { card.style.display = 'none'; had = false; dismissed = false; return; }   // no waiting token (a character, or none given): the next one shows the card again
+          text(t);   // the map it waits on, kept current
+          if (!had) { had = true; if (!dismissed) card.style.display = ''; }
+      }
+      window.wpJoinCard = { show: show, check: check };
+      document.addEventListener('click', function(e) { if (e.target.closest && e.target.closest('#joinCardClose')) { var card = document.getElementById('joinCard'); if (card) card.style.display = 'none'; dismissed = true; } });
+  })();
+  // Onboarding F1a: a player's waiting token, for their chip ('p:' key) — { map, tok } or null
+  function waitingLoc(camp, key) {
+      if (typeof key !== 'string' || key.charAt(0) !== 'p' || !window.wpSystemCore || !window.wpSystemCore.waitingTokensOf) return null;
+      var t = window.wpSystemCore.waitingTokensOf(camp, key.slice(2))[0];
+      return t && camp.items[t.mapId] ? { map: camp.items[t.mapId], tok: t.w } : null;
+  }
   function focusCharacter(key) {
       var camp = getActiveCampaign(); if (!camp) return;
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream) {
-          var amC = getActiveMap(), locC = locateCharacter(camp, key, camp.activeItemId);
+          var amC = getActiveMap(), locC = locateCharacter(camp, key, camp.activeItemId) || waitingLoc(camp, key);
           if (!locC) {
               var plC = Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === key.slice(2); });
               var whereC = plC && plC.location && camp.items[plC.location] ? (camp.items[plC.location].meta || {}).title : null;
@@ -1974,7 +2015,8 @@ window.wpFitToGrid = fitToGrid;
           toast('Found ' + nameC + '.');
           return;
       }
-      if (key.charAt(0) === 'p') {
+      var wlG = waitingLoc(camp, key);
+      if (key.charAt(0) === 'p' && !wlG) {
           // a player with no token yet: go to the map they are on
           var pl = Object.values((window.wpNet && window.wpNet.roster) || {}).find(function(p) { return p && p.id === key.slice(2); });
           if (!pl || !pl.location || !camp.items[pl.location]) { toast((pl && pl.name || 'That player') + ' has no token and no map yet.'); return; }
@@ -1985,7 +2027,7 @@ window.wpFitToGrid = fitToGrid;
           toast(pl.name + ' is on this map but has no token yet \u2014 give them one from a character token\'s Properties.');
           return;
       }
-      var loc = locateCharacter(camp, key, camp.activeItemId);
+      var loc = wlG || locateCharacter(camp, key, camp.activeItemId);
       if (!loc) { toast('That character is not on any map right now.'); return; }
       if (camp.activeItemId !== loc.map.id) { camp.activeItemId = loc.map.id; updateSidebarNav(); }
       state.viewMode = 'visual';
@@ -2063,12 +2105,19 @@ window.wpFitToGrid = fitToGrid;
       strip.addEventListener('contextmenu', function(e) {
           var tok = e.target.closest && e.target.closest('.party-tok'); if (!tok || !menu) return;
           e.preventDefault(); e.stopPropagation();
+          openPartyMenu(tok.dataset.key, e.clientX, e.clientY);
+      });
+      // A chip's menu; the GM's right-click on a player's waiting token opens the same one (Onboarding F1a)
+      function openPartyMenu(key, cx, cy) {
+          if (!menu) return;
+          var cmOld = document.getElementById('contextMenu'); if (cmOld) cmOld.style.display = 'none';   // an item menu left open never sits beside this one
           var camp = getActiveCampaign(); var am = getActiveMap();
-          var isPlayerOnly = tok.dataset.key.charAt(0) === 'p';
-          var loc = isPlayerOnly ? null : locateCharacter(camp, tok.dataset.key, camp && camp.activeItemId);
-          var ownerId = (tok.dataset.key.charAt(0) === 'o' || isPlayerOnly) ? tok.dataset.key.slice(2) : null;
+          var isPlayerOnly = key.charAt(0) === 'p';
+          var loc = isPlayerOnly ? null : locateCharacter(camp, key, camp && camp.activeItemId);
+          var ownerId = (key.charAt(0) === 'o' || isPlayerOnly) ? key.slice(2) : null;
           var rosterP = ownerId && window.wpNet && Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === ownerId; });
-          var name = loc ? (loc.tok.charName || loc.tok.name || 'this character') : (rosterP && rosterP.name) || 'this player';
+          var waitN = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a: a player away inside the grace has only their waiting token's name
+          var name = loc ? (loc.tok.charName || loc.tok.name || 'this character') : (rosterP && rosterP.name) || (waitN && waitN.w.name) || 'this player';
           var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
           var connected = hosting && ownerId && window.wpNet.isConnected(ownerId);
           var here = loc && am && loc.map.id === am.id;
@@ -2089,6 +2138,8 @@ window.wpFitToGrid = fitToGrid;
               if (viewingOther && connected) items.push({ act: 'summonHere', label: '\uD83D\uDCE3 Summon ' + name + ' to this map (' + amTitle + ')' });
               items.push({ act: 'summonAll', label: '\uD83D\uDCE3 Summon everyone to the table\'s map' + tableSfx });
               if (viewingOther) items.push({ act: 'summonAllHere', label: '\uD83D\uDCE3 Summon everyone to this map (' + amTitle + ')' });
+              var waitT = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a
+              if (waitT) { items.push({ act: 'waitHide', label: (waitT.w.hidden ? '\uD83D\uDC41 Show ' : '\uD83D\uDE48 Hide ') + name + '\u2019s waiting token' }); items.push({ act: 'waitRemove', label: '\u2716 Remove ' + name + '\u2019s waiting token (for this session)' }); }
               if (connected) {
                   var pausedP = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(ownerId);
                   items.push({ act: pausedP ? 'unpausePlayer' : 'pausePlayer', label: (pausedP ? '\u25B6\uFE0F Resume ' : '\u23F8\uFE0F Pause ') + name + ' (just this player)' });
@@ -2101,10 +2152,11 @@ window.wpFitToGrid = fitToGrid;
           if (loc && loc.tok && loc.tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(loc.tok.charId)) items.push({ act: 'hud', label: '\u3030 HUD\u2026' });   // HUD frame (HF2b)
           if (!isClient && ownerId && window.wpSheets && window.wpSheets.giveCharacter && camp && camp.system && giveList(camp, ownerId).length) items.push({ act: 'give', label: '\uD83C\uDFAD Give a character\u2026' });   // Onboarding F0: give, switch the one in play, or put its token here
           if (!isClient && window.wpSheets) items.push({ act: 'chars', label: String.fromCharCode(55357, 56421) + ' Characters\u2026' });
-          fillPartyMenu(items, tok.dataset.key);
+          fillPartyMenu(items, key);
           menu.classList.add('show');
-          window.wpClampMenu(menu, e.clientX, e.clientY);
-      });
+          window.wpClampMenu(menu, cx, cy);
+      }
+      window.wpPartyMenuFor = openPartyMenu;
       function fillPartyMenu(items, key) {
           menu.innerHTML = items.map(function(i) {
               return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + esc(i.label) + '</button>';
@@ -2142,6 +2194,8 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'summonHere') { var amH = getActiveMap(); if (amH && amH.type === 'map' && window.wpNet.summonPlayerToMap) window.wpNet.summonPlayerToMap(key.slice(2), amH.id); }
           else if (act === 'summonAll') { window.wpNet.summonAll(); }
           else if (act === 'summonAllHere') { var amA = getActiveMap(); if (amA && amA.type === 'map' && window.wpNet.summonAllToMap) window.wpNet.summonAllToMap(amA.id); }
+          else if (act === 'waitHide') { var cWt = getActiveCampaign(), tWt = cWt && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(cWt, key.slice(2))[0] : null; if (tWt && window.wpNet.hideWaiting) window.wpNet.hideWaiting(key.slice(2), !tWt.w.hidden); }   // Onboarding F1a
+          else if (act === 'waitRemove') { if (window.wpNet.removeWaiting && window.wpNet.removeWaiting(key.slice(2))) toast('Waiting token removed for this session \u2014 Give a character\u2026 still works.'); }
           else if (act === 'pausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), true); }
           else if (act === 'unpausePlayer') { if (window.wpNet.pausePlayer) window.wpNet.pausePlayer(key.slice(2), false); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
@@ -5603,7 +5657,8 @@ document.addEventListener('contextmenu', function(e) {
             var ownEl = e.target.closest('.wb-item');
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
-                if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
+                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)))) { e.preventDefault(); showStanceMenu(e, tokO); }
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;
@@ -5643,6 +5698,8 @@ document.addEventListener('contextmenu', function(e) {
             }
         }
         
+        // Onboarding F1a: a player's waiting token opens that player's menu (Give a character, Hide, Remove), not the item menu
+        if (isWb && targetId && window.wpPartyMenuFor) { var amWt = getActiveMap(), wWt = amWt && (amWt.whiteboard || []).find(function(x) { return x.id === targetId; }); if (wWt && wWt.waiting && typeof wWt.ownerId === 'string') { var cmWt = document.getElementById('contextMenu'); if (cmWt) cmWt.style.display = 'none'; window.wpPartyMenuFor('p:' + wWt.ownerId, e.clientX, e.clientY); return; } }
         var cMenu = document.getElementById('contextMenu');
         if (!cMenu) return;
         
@@ -5918,6 +5975,7 @@ document.addEventListener('contextmenu', function(e) {
                     });
                     import('./io.js').then(m => m.toast(liftThem ? 'Rendering above the grid.' : 'Back under the grid.'));
                 } else if (action.includes('cm-del')) {
+                    am.whiteboard.forEach(x => { if (selectedIds.includes(x.id) && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); });   // Onboarding F1a: a deleted waiting token stays away this session
                     am.whiteboard = am.whiteboard.filter(x => !selectedIds.includes(x.id));
                     state.selWbIds = []; state.selWbId = null;
                 } else {

@@ -110,7 +110,7 @@ let summed = false;   // a check that never settles (a promise nothing answers) 
 process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
 (async () => {
     const url = 'file:///' + path.resolve(mod).replace(/\\/g, '/');
-    const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, cleanImport, cleanImportItems } = await import(url);
+    const { classifyState, fileVerdict, pickRecovery, inspectCampaign, removeCampaign, unmovePlanners, runSweep, cleanImport, cleanImportItems, dropWaiting } = await import(url);
     DOC = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docrender.js')).replace(/\\/g, '/'));
     const KNOWN = { images: [] };          // list-images answered: nothing on disk
     const UNKNOWN = { images: null };      // list-images failed
@@ -519,6 +519,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // a planner from before blocks: its one text string opens as a raw HTML block, so it is cleaned as one — on Merge (no normaliser) and on Replace (after it)
         const oldPlan = () => ({ id: 'op', type: 'planner', meta: { title: 'Old' }, content: '<img src=x onerror="window.__pwned=9"><b>old notes</b>' });
         const icM = { items: { op: oldPlan() } }; cleanImportItems(icM, deps);
+        const outWt = cleanImport({ campaigns: { cW: { id: 'cW', name: 'W', items: { mw: { id: 'mw', type: 'map', meta: { title: 'M' }, rooms: [], links: [], whiteboard: [{ id: 'wa', type: 'circle', waiting: 1, ownerId: 'u_a', x: 0, y: 0 }, { id: 'ok', type: 'rect', x: 1, y: 1, w: 5, h: 5 }] } } } } }, deps);
+        const cD = { items: { m1: { type: 'map', whiteboard: [{ id: 'a', waiting: 1 }, { id: 'b', type: 'rect' }] }, m2: { type: 'map', whiteboard: [{ id: 'c', waiting: 1 }] }, p1: { type: 'planner', whiteboard: [{ id: 'd', waiting: 1 }] } } };
+        const d1 = dropWaiting(cD), d2 = dropWaiting(cD), j = JSON.stringify;
+        const ioW = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('F1a a waiting token never outlives its session: an import drops it (Replace and Merge), dropWaiting takes it from every play map (idempotent; a planner untouched), and the load, an undo, an export, a copy and a cut or delete handle it',
+            outWt && j(outWt.campaigns.cW.items.mw.whiteboard.map(w => w.id)) === j(['ok']) && d1 === 2 && d2 === 0 && j(cD.items.m1.whiteboard.map(w => w.id)) === j(['b']) && cD.items.p1.whiteboard.length === 1 && dropWaiting(null) === 0
+            && /state\.appState = migrated\.data;\n\s*Object\.keys\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(k\) \{ dropWaiting\(state\.appState\.campaigns\[k\]\); \}\);/.test(ioW)
+            && /var parsed = JSON\.parse\(snap\);\n\n\s*if \(item\.type === 'map' && parsed && parsed\.c && Array\.isArray\(parsed\.c\.whiteboard\)\) parsed\.c\.whiteboard = parsed\.c\.whiteboard\.filter\(function\(w\) \{ return !\(w && w\.waiting\); \}\);[^\n]*\n[\s\S]{0,200}mergeLivePlayerState\(parsed\.c, item\)/.test(ioW)
+            && /delete c\._cleanup; dropWaiting\(c\); \}\);/.test(ioW) && /var wUndo = hosting && item\.type === 'map' && window\.wpNet && window\.wpNet\.tidyWaiting \? window\.wpNet\.tidyWaiting\(\{ quiet: true, mapId: item\.id \}\) : \[\];/.test(ioW) && /wUndo\.forEach\(function\(id\) \{ if \(id !== item\.id && window\.wpNet\.broadcastItemFiltered\) window\.wpNet\.broadcastItemFiltered\(camp\.id, id\); \}\);/.test(ioW) && /\.filter\(function\(x\) \{ return x && !x\.waiting; \}\)\.map\(clone\);/.test(ioW) && (ioW.match(/x\.waiting && window\.wpNet && window\.wpNet\.noWaiting\) window\.wpNet\.noWaiting\(x\.ownerId\);/g) || []).length === 2, j([outWt && outWt.campaigns.cW.items.mw.whiteboard, d1, d2]));
         const outR = cleanImport({ campaigns: { cO: { id: 'cO', name: 'O', items: { op: oldPlan() } } } }, deps);
         const icN = { items: { op: oldPlan() } }; cleanImportItems(icN, {});
         const rawOf = it => it && Array.isArray(it.blocks) && it.blocks.length === 1 && it.blocks[0].type === 'raw' ? it.blocks[0].content : null;

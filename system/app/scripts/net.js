@@ -1048,6 +1048,7 @@ net.onLocalSave = function() {
         net.syncDocStyle(); // and the campaign's document look (doc theming), the same way
         net.syncCampName(); // and its name (a rename reaches the players' top bar), the same way
         net.syncTurnRules(); // and who may press an effect's timer (turn-based combat T5b), the same way
+        net.syncLibrary();   // and the library players may look through (Stage 6 library L3), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -1308,6 +1309,21 @@ net.syncTurnRules = function() {
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:turnrulessync-end]
+// [netcheck:libmansync-start]
+// Stage 6 library L3: the library players may look through — its visible packs, counted and hashed on the players' view (library.js
+// playerManifest) — sent to admitted players once per change; a campaign that never had one sends nothing
+net._lastLibSig = null;
+net.libManifestMessage = function() { var LB = window.wpLibrary, m = LB && LB.playerManifest ? LB.playerManifest() : null; return m ? { type: 'libManifest', campId: m.campId, packs: m.packs } : null; };
+net.syncLibrary = function(force) {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.libManifestMessage(); if (!msg) return;
+    var s = JSON.stringify(msg); if (!force && s === net._lastLibSig) return;
+    if (!msg.packs.length && net._lastLibSig === null) return;   // nothing to say yet
+    net._lastLibSig = s;
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+};
+var _libSpent = Object.create(null);   // L3: bytes of the library each profile has drawn this session (a reconnect does not start it again)
+// [netcheck:libmansync-end]
 net._lastSystemSig = null;
 net.systemMessage = function() { var camp = getActiveCampaign(); if (!camp || !window.wpSheets) return null; return { type: 'system', campId: camp.id, system: window.wpSheets.playerSystem(camp) }; };
 net.syncSystem = function(force) {
@@ -2647,6 +2663,7 @@ function admitPlayer(conn, prof, provenKey) {
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
     var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers;   // and who may press an effect's timer
+    var lbm = net.libManifestMessage(); if (lbm && lbm.packs.length) { try { conn.send(lbm); } catch (e) { sendFailed(e); } }   // L3: the library players may look through, to this peer only
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
 }
@@ -3090,7 +3107,8 @@ function handleMessage(msg, conn) {
         var profI = net.roster[conn.peer]; if (chI.npc || !chI.ownerId || !profI || chI.ownerId !== profI.id) { denyI('owner'); return; }
         var nowI = Date.now(), gkI = qi.charId + '|' + qi.fieldId + '|' + (qi.rowId || ''), grI = qi.op !== 'add' && _rowGrace[gkI] && _rowGrace[gkI].until > nowI ? _rowGrace[gkI] : null;   // Stage 6: inside a pickup's Undo window
         var ogI = !!(_rowGrace[gkI + '|on'] && _rowGrace[gkI + '|on'].until > nowI);   // F4b: a bound item switched on a moment ago may come off (or be dropped: the lock covers that while it is on)
-        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI });
+        var libI = window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id) ? window.wpLibrary.entry(id) : null; } : null;   // Stage 6 library L3: an entry of a pack players may see (the host's own copy of it: the row keeps it)
+        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI });
         if (!resI.ok) {
             if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             denyI(resI.reason); return;
@@ -3112,6 +3130,24 @@ function handleMessage(msg, conn) {
         if (resI.keptOn) itemNotice(chI, resI.name, 'eq-curse-off');
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
         // [netcheck:charitem-end]
+    } else if ((msg.type === 'lib-idx' || msg.type === 'lib-get') && net.role === 'host') {
+        // [netcheck:libreq-start]
+        // Stage 6 library L3: a player looks through the library — a pack's index a page at a time, then entries by id, in the players' view.
+        // Admitted peers, the hosted campaign, a pack players may see; rate-limited, and at most LIB.hostBudget bytes a profile per session
+        var LBq = window.wpLibrary, LCq = window.wpLibraryCore, profQ = net.roster[conn.peer], ridQ = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : '';
+        if (!ridQ) return;
+        var ansQ = function(o) { o.type = msg.type + '-ans'; o.rid = ridQ; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        if (!profQ || !LBq || !LBq.playerIndexOf || !LCq) { ansQ({ err: 'none' }); return; }
+        if (!allow('lib', { perMs: 50, burst: 40, windowMs: 10000, table: 400 }, conn.peer)) { ansQ({ err: 'busy' }); return; }
+        var campQ = getActiveCampaign(); if (!campQ || msg.campId !== campQ.id) { ansQ({ err: 'camp' }); return; }
+        var ixQ = typeof msg.packId === 'string' && LCq.PACK_RE.test(msg.packId) ? LBq.playerIndexOf(msg.packId) : null; if (!ixQ) { ansQ({ err: 'pack' }); return; }
+        var outQ = { packId: msg.packId, hash: ixQ.hash };
+        if (msg.type === 'lib-idx') { var pgQ = LCq.indexPage(ixQ.rows, msg.page, LCq.LIB.page); if (!pgQ) { ansQ({ err: 'page' }); return; } outQ.page = pgQ.page; outQ.pages = pgQ.pages; outQ.rows = pgQ.rows; }
+        else { if (!Array.isArray(msg.ids) || !msg.ids.length || msg.ids.length > LCq.LIB.getIds) { ansQ({ err: 'ids' }); return; } outQ.entries = LCq.getAnswer(ixQ.byId, msg.ids, LCq.LIB.answerBytes); }
+        var bQ = JSON.stringify(outQ).length, kQ = profQ.id, hadQ = Object.prototype.hasOwnProperty.call(_libSpent, kQ) ? _libSpent[kQ] : 0;
+        if (hadQ + bQ > LCq.LIB.hostBudget) { ansQ({ err: 'budget' }); return; }
+        _libSpent[kQ] = hadQ + bQ; ansQ(outQ);
+        // [netcheck:libreq-end]
     } else if (msg.type === 'char-effect' && net.role === 'host') {
         // [netcheck:charfx-start]
         // 5h: a player's status-effects change on their own character: shape, pause, rate, feature, ownership, then the list's own rules

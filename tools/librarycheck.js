@@ -169,7 +169,7 @@ const j = v => JSON.stringify(v);
             && /var m = setPackMeta\(camp\.library, packId, meta\); if \(!m\) return \{ error: 'No such pack\.' \};\n\s*camp\.library = m; cur\.sig = manifestSig\(camp\);\n\s*save\(true\); after\(\);/.test(lbS)
             && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = byKey\(camp\), res = coreOf\(/.test(lbS)
             && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n\s*return mine;/.test(lbS)
-            && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta \};/.test(lbS));
+            && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta[, ]/.test(lbS));
         const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };
         check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help and the tour describe it',
             zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
@@ -255,6 +255,36 @@ const j = v => JSON.stringify(v);
             /var libOK = gm && !!window\.wpLibPicker && !!\(window\.wpLibrary && window\.wpLibrary\.size && window\.wpLibrary\.size\(\) > 0\);/.test(shS) && /if \(libOK\) add\.appendChild\(opt\('__lib', /.test(shS) && /if \(add\.value === '__lib'\) \{ add\.value = ''; openLibPicker\(add, c, f, specI, carried\); return; \}/.test(shS)
             && /if \(cp !== camp \|\| !ch \|\| !ff\) return; ids\.forEach\(function\(id\) \{ commitItem\(ch, ff, \{ op: 'add', defId: id, rowId: uid\('w_'\), qty: qty \}\); \}\);/.test(shS)
             && /scripts\/libpicker\.js/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')) && /<b>&#128218; From the library&hellip;<\/b>: a picker over the campaign&rsquo;s library packs/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+    }
+
+    /* ---- L3: the library as players see it (pure) ---- */
+    {
+        const { playerIndex, indexPage, getAnswer, cleanPlayerManifest, cleanIndexRow, HASH_RE } = L;
+        const sysI = S.cleanSystem({ v: 1, name: 'I', rolls: [], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }, { id: 'f_sec', key: 'Sec', kind: 'item-list', vis: 'gm', list: { stats: [{ key: 'Curse', label: 'Curse' }] } }] }, { F, gmView: true });
+        const plI = libCtx(S.cleanSystem(sysI, { F, gmView: false }), F, false);
+        const ents = [{ id: 'i_a', name: 'Axe', category: 'Gear', damage: '1d8', gmNotes: 'x', desc: 'An axe.', tags: ['Tool'], stats: { Wt: 4, Curse: 2 } }, { id: 'i_s', name: 'Secret', vis: 'gm' }, { id: 'i_b', name: 'Bow', key: 'Bow' }, { id: 'i_a', name: 'Dup' }];
+        const ix = playerIndex(ents, plI), ix2 = playerIndex(ents.map(e => e.id === 'i_a' ? Object.assign({}, e, { gmNotes: 'changed', damage: '9d9', stats: { Wt: 4, Curse: 7 } }) : e), plI), ix3 = playerIndex(ents.map(e => e.id === 'i_a' ? Object.assign({}, e, { name: 'Axe2' }) : e), plI);
+        check('L3 playerIndex: a pack as players see it — GM-only entries gone, each entry in the players\' view (no GM notes, formula text or GM-only list stat), its index row, one per id; the hash moves when what players see moves, never for a GM-only edit',
+            j(ix.rows.map(r => r[0])) === j(['i_a', 'i_b']) && !('gmNotes' in ix.byId.i_a) && ix.byId.i_a.damage === '' && j(ix.byId.i_a.stats) === j({ Wt: 4 }) && ix.byId.i_a.desc === 'An axe.' && !ix.byId.i_s && Object.getPrototypeOf(ix.byId) === null
+            && ix.rows.every(r => j(cleanIndexRow(r)) === j(r)) && HASH_RE.test(ix.hash) && ix2.hash === ix.hash && ix3.hash !== ix.hash, j([ix.rows, ix.hash, ix2.hash, ix3.hash]));
+        const rowsP = Array.from({ length: 950 }, (_, i) => [i]);
+        check('L3 indexPage: a page of the index (at most the size), its number and how many there are; a page out of range, not a whole number or not a number is none; an empty pack has one empty page',
+            j(indexPage(rowsP, 0, 400)) === j({ page: 0, pages: 3, rows: rowsP.slice(0, 400) }) && indexPage(rowsP, 2, 400).rows.length === 150 && indexPage(rowsP, 3, 400) === null && indexPage(rowsP, -1, 400) === null && indexPage(rowsP, 1.5, 400) === null && indexPage(rowsP, '1', 400) === null
+            && j(indexPage([], 0, 400)) === j({ page: 0, pages: 1, rows: [] }) && indexPage([], 1, 400) === null);
+        const big = {}; for (let i = 0; i < 60; i++) big['i_e' + i] = { id: 'i_e' + i, name: 'E', desc: 'd'.repeat(3000) };
+        const gA = getAnswer(ix.byId, ['i_b', 'i_s', 'i_zz', 'bad id', 'i_b', 'i_a', 5], 48 * 1024), gB = getAnswer(big, Object.keys(big), 48 * 1024), gC = getAnswer({ i_h: { id: 'i_h', desc: 'd'.repeat(90000) } }, ['i_h'], 48 * 1024);
+        check('L3 getAnswer: the entries asked for that the pack has, each once, in the order asked (a GM-only, unknown or malformed id left out silently); at most ' + LIB.getIds + ' asked and within the byte cap (one always goes)',
+            j(gA.map(e => e.id)) === j(['i_b', 'i_a']) && gB.length > 0 && gB.length < LIB.getIds && JSON.stringify(gB).length <= 48 * 1024 && gC.length === 1 && getAnswer(null, ['i_b'], 100).length === 0 && j(getAnswer({ i_ok: { id: 'i_ok' } }, ['toString', 'constructor', '__proto__', 'hasOwnProperty', 'i_ok'], 1000).map(e => e.id)) === j(['i_ok']), j([gA.map(e => e.id), gB.length]));
+        const lbP = require('fs').readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L3 the store: a players\' index only on the GM\'s machine, for the campaign on screen, of a pack it has read that players may see (never a GM-only pack), worked out again when the pack or the players\' fields change; the manifest and an entry by id go through it',
+            /var camp = getActiveCampaign\(\); if \(!camp \|\| !camp\.library \|\| !gmHere\(\) \|\| !ready\(packId\)\) return null;\n\s*var p = camp\.library\.packs\.filter\(function\(x\) \{ return x\.id === packId; \}\)\[0\]; if \(!p \|\| p\.vis === 'gm'\) return null;/.test(lbP)
+            && /var sig = camp\.id \+ '\|' \+ p\.rev \+ '\|' \+ hashText\(JSON\.stringify\(fields\)\), m = _pidx\[packId\]; if \(m && m\.sig === sig\) return m;/.test(lbP)
+            && /\(camp\.library \? camp\.library\.packs : \[\]\)\.forEach\(function\(p\) \{ var ix = playerIndexOf\(p\.id, pl\); if \(!ix\) return;/.test(lbP) && /var ix = playerIndexOf\(camp\.library\.packs\[i\]\.id, pl\); if \(ix && Object\.prototype\.hasOwnProperty\.call\(ix\.byId, id\)\) return ix\.byId\[id\];/.test(lbP));
+        const pm = cleanPlayerManifest({ campId: 'k_1', dir: 'l_abcd1234', packs: [{ id: 'p_a', name: ' Gear\u0007 ', icon: '\u2694', count: 3.7, hash: 'abcdef12', rev: 4, vis: 'all' }, { id: 'p_a', name: 'Dup', count: 1, hash: 'abcdef12' }, { id: 'bad', count: 1, hash: 'abcdef12' }, { id: 'p_b', count: -4, hash: 'nothex!!' }, { id: 'p_c', count: 1e12, hash: '00000000' }] });
+        check('L3 cleanPlayerManifest: what a player takes — the campaign, packs with an id, a name on one line, an icon, a whole count in range and a hash (never a folder, revision or visibility); a bad pack is left out; not a manifest: none',
+            j(pm) === j({ campId: 'k_1', packs: [{ id: 'p_a', name: 'Gear', count: 3, hash: 'abcdef12', icon: '\u2694' }, { id: 'p_c', name: 'Pack', count: LIB.entries, hash: '00000000' }] })
+            && cleanPlayerManifest({ campId: '__proto__ x', packs: [] }) === null && cleanPlayerManifest({ campId: 'k', packs: 'x' }) === null && cleanPlayerManifest(null) === null
+            && cleanPlayerManifest({ campId: 'k', packs: Array.from({ length: 80 }, (_, i) => ({ id: 'p_' + i, hash: '00000000' })) }).packs.length === LIB.packs, j(pm));
     }
 
     global.window = {}; const L2 = await import(url('librarycore.js') + '?w');

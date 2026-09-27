@@ -2075,6 +2075,67 @@ pendingChecks.push((async () => {
         JSON.stringify(r1) === JSON.stringify(['<img src=x onerror=alert(1)>', 1]) && JSON.stringify([r2, r3, r4, r5, r6, r8]) === JSON.stringify(Array(6).fill(['Old', 0])) && r7[0].length === 200 && r7[1] === 1, JSON.stringify([r1, r2, r3, r4, r5, r6, r7[1], r8]));
 }
 
+// Stage 6 library L3: the library on the wire, host side — the manifest players get (the real syncLibrary), a pack's index and entries by id
+// (the real lib-idx / lib-get handler, over a real players' index), and a player's pick of a library entry through the real char-item handler
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Lx = await import(url('librarycore.js')), J = JSON.stringify;
+    const lmSrc = between('// [netcheck:libmansync-start]', '// [netcheck:libmansync-end]', 'libmansync');
+    const sentM = { a: [], w: [] }; let man = null;
+    const netM = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); sentM.a.push(JSON.parse(J(m))); } }, { peer: 'pW', open: true, send: m => sentM.w.push(m) }], roster: { pA: { id: 'u_a' } } };
+    new Function('net', 'window', 'sendFailed', lmSrc)(netM, { wpLibrary: { playerManifest: () => man } }, e => { throw e; });
+    netM.syncLibrary(); man = { campId: 'k', packs: [] }; netM.syncLibrary();
+    man = { campId: 'k', packs: [{ id: 'p_a', name: 'Gear', count: 2, hash: 'abcdef12' }] }; netM.syncLibrary(); netM.syncLibrary();
+    man = { campId: 'k', packs: [{ id: 'p_a', name: 'Gear', count: 3, hash: '12345678' }] }; netM.syncLibrary();
+    man = { campId: 'k', packs: [] }; netM.syncLibrary(); netM.syncLibrary();
+    netM.role = 'client'; man = { campId: 'k', packs: [{ id: 'p_z', name: 'Z', count: 1, hash: '00000000' }] }; netM.syncLibrary();
+    check('L3 the manifest (host): sent to admitted players once per change (a waiting peer gets nothing), nothing while a campaign never had a pack, an empty one once when the last is gone; a client never sends one; it follows every host save, and a joining player gets it after the snapshot when it holds a pack',
+        J(sentM.a.map(m => m.packs.map(p => p.count))) === J([[2], [3], []]) && sentM.a.every(m => m.type === 'libManifest' && m.campId === 'k') && sentM.w.length === 0
+        && /net\.syncTurnRules\(\); \/\/ [^\n]*\n\s*net\.syncLibrary\(\);/.test(src) && /var lbm = net\.libManifestMessage\(\); if \(lbm && lbm\.packs\.length\) \{ try \{ conn\.send\(lbm\); \}/.test(src), J(sentM));
+
+    const rqSrc = between('// [netcheck:libreq-start]', '// [netcheck:libreq-end]', 'libreq');
+    const sysL = Sx.cleanSystem({ v: 1, name: 'L', rolls: [], fields: [{ id: 'f_wp', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Gear'], stats: [{ key: 'Wt', label: 'Weight' }] } }] }, { F: Fx, gmView: true });
+    const plCtx = Lx.libCtx(Sx.cleanSystem(sysL, { F: Fx, gmView: false }), Fx, false);
+    const gmE = { i_rope: { id: 'i_rope', name: 'Rope', category: 'Gear', damage: '1d4', gmNotes: 'Cursed rope', rm: 'bound', rmMsg: 'Tied fast', desc: 'A rope.', stats: { Wt: 10 } }, i_hid: { id: 'i_hid', name: 'Hidden', category: 'Gear', vis: 'gm' }, i_sec: { id: 'i_sec', name: 'Secret pack item', category: 'Gear' }, i_ski: { id: 'i_ski', name: 'Skis', category: 'Sport' } };
+    const many = Array.from({ length: 450 }, (_, i) => ({ id: 'i_m' + i, name: 'Many ' + i, category: 'Gear' }));
+    const ixA = Lx.playerIndex([gmE.i_rope, gmE.i_hid, gmE.i_ski].concat(many), plCtx);   // the pack players may see (its GM-only entry never in it); p_g, a GM-only pack, has none
+    const libFake = { size: () => 4, entry: id => (Object.prototype.hasOwnProperty.call(gmE, id) ? gmE[id] : null), playerIndexOf: id => (id === 'p_a' ? ixA : null), playerEntry: id => (Object.prototype.hasOwnProperty.call(ixA.byId, id) ? ixA.byId[id] : null) };
+    const spent = Object.create(null), lim = { ok: true }, netQ = { active: true, role: 'host', roster: { pA: { id: 'u_a' }, pB: { id: 'u_a' }, pC: { id: 'u_c' } } }, campQ = { id: 'k', system: sysL };
+    const runQ = (msg, peer) => { const got = []; new Function('net', 'conn', 'msg', 'window', 'getActiveCampaign', 'allow', 'sendFailed', '_libSpent', rqSrc)(netQ, { peer, send: m => { packCheck(m); got.push(JSON.parse(J(m))); } }, msg, { wpLibrary: libFake, wpLibraryCore: Lx }, () => campQ, () => lim.ok, e => { throw e; }, spent); return got; };
+    const IDX = o => Object.assign({ type: 'lib-idx', rid: 'r1', campId: 'k', packId: 'p_a', page: 0 }, o), GET = o => Object.assign({ type: 'lib-get', rid: 'g1', campId: 'k', packId: 'p_a', ids: ['i_rope'] }, o);
+    const q0 = runQ(IDX({ rid: undefined }), 'pA'), q0b = runQ(IDX({ rid: 'bad rid!' }), 'pA'), q1 = runQ(IDX(), 'pX');
+    lim.ok = false; const q2 = runQ(IDX(), 'pA'); lim.ok = true;
+    const q3 = runQ(IDX({ campId: 'k2' }), 'pA'), q4 = runQ(IDX({ packId: 'p_g' }), 'pA'), q5 = runQ(IDX({ packId: '__proto__' }), 'pA'), q6 = runQ(IDX({ page: 2 }), 'pA'), q7 = runQ(IDX({ page: '0' }), 'pA');
+    const p0 = runQ(IDX(), 'pA'), p1 = runQ(IDX({ page: 1 }), 'pA');
+    check('L3 lib-idx (host): nothing without a well-formed ask id; an unadmitted peer gets none, a flood busy, another campaign camp, a pack players may not see (or a bad id) pack, a page out of range page; a page answers with the players\' index rows (400 at most), its number, how many and the pack hash — never a GM-only entry or any GM text',
+        q0.length === 0 && q0b.length === 0 && J(q1) === J([{ err: 'none', type: 'lib-idx-ans', rid: 'r1' }]) && q2[0].err === 'busy' && q3[0].err === 'camp' && q4[0].err === 'pack' && q5[0].err === 'pack' && q6[0].err === 'page' && q7[0].err === 'page'
+        && p0[0].type === 'lib-idx-ans' && p0[0].rid === 'r1' && p0[0].rows.length === 400 && p0[0].pages === 2 && p0[0].page === 0 && p0[0].hash === ixA.hash && p1[0].rows.length === 52 && !/i_hid|Hidden|Cursed|1d4|bound|Tied/.test(J(p0.concat(p1))), J([q1, q2, q3, q4, q6, p0[0].pages, p1[0].rows.length]));
+    const g1 = runQ(GET({ ids: ['i_rope', 'i_hid', 'i_sec', 'i_zz', 'i_rope'] }), 'pA'), g2 = runQ(GET({ ids: [] }), 'pA'), g3 = runQ(GET({ ids: Array.from({ length: 51 }, (_, i) => 'i_m' + i) }), 'pA'), g4 = runQ(GET({ ids: 'i_rope' }), 'pA');
+    check('L3 lib-get (host): the asked entries of that pack in the players\' view (its description, no GM notes, formula text or lock), a GM-only entry, another pack\'s or an unknown id left out silently; no ids, more than 50 or not a list: ids',
+        g1[0].type === 'lib-get-ans' && g1[0].rid === 'g1' && J(g1[0].entries.map(e => e.id)) === J(['i_rope']) && g1[0].entries[0].desc === 'A rope.' && !/Cursed|1d4|bound|Tied|gmNotes|i_hid|i_sec/.test(J(g1)) && g2[0].err === 'ids' && g3[0].err === 'ids' && g4[0].err === 'ids', J([g1, g2, g3]));
+    spent.u_a = Lx.LIB.hostBudget - 50; const b1 = runQ(IDX(), 'pB'), bAfter = spent.u_a, b2 = runQ(IDX(), 'pC');
+    check('L3 the budget (host): at most ' + (Lx.LIB.hostBudget / 1048576) + ' MB drawn by a profile in a session — a second connection of the same player shares it (budget, nothing counted), another player has their own',
+        b1[0].err === 'budget' && bAfter === Lx.LIB.hostBudget - 50 && Array.isArray(b2[0].rows) && spent.u_c > 0, J([b1, bAfter, spent.u_c]));
+
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const campC = { id: 'k', system: sysL, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: [] } } } };
+    const outC = { answer: [], owner: [], mate: [] };
+    const netC = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); outC.owner.push(JSON.parse(J(m))); } }, { peer: 'pM', open: true, send: m => { packCheck(m); outC.mate.push(JSON.parse(J(m))); } }], roster: { pA: { id: 'u_a' }, pM: { id: 'u_m' } } };
+    const winC = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null, wpLibrary: libFake };
+    Sx.setLibraryFind(id => (Object.prototype.hasOwnProperty.call(gmE, id) ? gmE[id] : null));
+    const HC = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n} };')(
+        netC, () => Sx, winC, () => false, () => campC, () => {}, e => { throw e; }, c => (netC.roster[c.peer] ? netC.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+    const ADD = (rid, defId) => { outC.answer = []; outC.owner.length = 0; outC.mate.length = 0; HC.handle({ type: 'char-item', rid, charId: 'c_1', fieldId: 'f_wp', op: 'add', defId, rowId: 'w_' + rid, qty: 1 }, { peer: 'pA', send: m => { packCheck(m); outC.answer.push(JSON.parse(J(m))); } }); return { answer: outC.answer.slice(), owner: outC.owner.slice(), mate: outC.mate.slice() }; };
+    let a1, a2, a3, a4, a5, stored;
+    try { a1 = ADD('a1', 'i_rope'); stored = campC.chars.c_1.values.f_wp.find(r => r.id === 'w_a1'); a2 = ADD('a2', 'i_hid'); a3 = ADD('a3', 'i_sec'); a4 = ADD('a4', 'i_ski'); a5 = ADD('a5', 'i_zz'); } finally { Sx.setLibraryFind(null); }
+    const denied = (r, rid) => J(r.answer) === J([{ type: 'char-deny', rid, reason: 'missing' }]);
+    check('L3 a player picks a library entry (host, the real char-item handler): an entry of a pack players may see is added — the row keeps the host\'s own copy (its lock and all), the owner\'s delta carries it inline in their view with no GM text; a GM-only entry, one of a GM-only pack, one outside the list\'s categories, an unknown one: missing, nothing stored',
+        a1.answer[0].type === 'char-ack' && !!stored && stored.defId === 'i_rope' && stored.snap.rm === 'bound' && stored.snap.damage === '1d4' && a1.owner.some(m => /"lnk":1/.test(J(m)) && /Rope/.test(J(m)))
+        && denied(a2, 'a2') && denied(a3, 'a3') && denied(a4, 'a4') && denied(a5, 'a5') && campC.chars.c_1.values.f_wp.length === 1 && !/Cursed|1d4|bound|Tied/.test(J(a1.owner.concat(a1.mate, a1.answer))), J([a1, a2 && a2.answer, stored]));
+})());
+
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

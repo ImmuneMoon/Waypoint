@@ -2567,6 +2567,129 @@ pendingChecks.push((async () => {
     check('F1c the face rule is one rule: systemcore.js (a character\'s face, on load and from the wire) carries net.js cleanFace and its picture list word for word',
         faceRule(scF) !== null && faceRule(scF) === faceRule(ps));
 }
+// Onboarding F3a: a character a player makes — the host's char-make / char-name / char-done (the [netcheck:charmake|charname|chardone] slices,
+// run for real with the real systemcore), the player's answers and the GM's verdict (charmakeans, charreview), who hears of one in the making
+// (syncChar, syncCharGone, sendCharTo, charReview, sliced), and the refusals of a character not yet in play
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const cleanCharName = new Function(lineOf('function cleanCharName(') + '\nreturn cleanCharName;')();
+    const sysK = Sx.cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', edit: 'gm' }] }, { F: Fx, gmView: true });
+    const mkSrc = between('// [netcheck:charmake-start]', '// [netcheck:charmake-end]', 'charmake'), nmSrc = between('// [netcheck:charname-start]', '// [netcheck:charname-end]', 'charname'), dnSrc = between('// [netcheck:chardone-start]', '// [netcheck:chardone-end]', 'chardone');
+    const table = o => {
+        o = o || {};
+        const camp = { id: 'k', chars: Object.assign({ c_g: { id: 'c_g', name: 'Gil', ownerId: 'u_b', npc: false, values: {} } }, JSON.parse(JSON.stringify(o.chars || {}))), items: {}, players: {} };
+        if (!o.noSys) camp.system = sysK;
+        if (o.rules) camp.newPlayers = o.rules;
+        const out = { answer: [], sentTo: [], toasts: [], logs: [], saves: 0, gives: [], synced: [], allowed: [], flushed: 0, camp };
+        const conn = { peer: o.from || 'pA', send: m => { packCheck(m); out.answer.push(JSON.parse(JSON.stringify(m))); } };
+        const net = { active: true, role: 'host', paused: !!o.paused, applyingRemote: false, roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } }, syncChar: id => out.synced.push([id, net.applyingRemote]) };
+        const win = { wpSheets: { charChanged() {}, giveCharacter: (pid, id, g) => { out.gives.push([pid, id, j(g), camp.chars[id].making, camp.chars[id].review, net.applyingRemote]); return true; } }, wpHistFlush: () => { out.flushed++; } };
+        out.net = net;
+        out.run = (source, msg) => { new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'save', 'sendFailed', 'toast', 'logEvent', 'own', 'sheetsOnFor', 'sendCharTo', 'allow', 'cleanCharName', 'cleanRosterName', source)(
+            msg, conn, net, () => Sx, win, () => !!o.peerPaused, () => camp, () => { out.saves++; }, () => { out.saves++; }, e => { throw e; }, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), H.own, () => !o.sheetsOff, (pid, id) => out.sentTo.push([pid, id]),
+            k => { out.allowed.push(k); return o.slow !== k; }, cleanCharName, H.cleanRosterName); return out; };
+        return out;
+    };
+    const mine = t => Object.keys(t.camp.chars).filter(k => t.camp.chars[k].ownerId === 'u_a');
+    // char-make
+    const m1 = table().run(mkSrc, { type: 'char-make', rid: 'k1', name: ' Vex\u202e  the\u200b Bold ' }), id1 = m1.answer[0] && m1.answer[0].charId, c1 = m1.camp.chars[id1];
+    check('F3a char-make (host, run for real): an admitted player starts one — in the making and made by them (theirs, no values, no picture), its name cleaned (bidi and zero-width out, spaces collapsed), saved, sent to them alone, the GM told (toast and log), answered with its id',
+        /^c_[a-z0-9]+$/.test(id1 || '') && j(m1.answer) === j([{ ok: true, charId: id1, type: 'char-make-ans', rid: 'k1' }]) && c1 && c1.making === 1 && c1.made === 1 && c1.ownerId === 'u_a' && c1.name === 'Vex the Bold' && c1.npc === false && c1.portrait === '' && j(c1.values) === '{}'
+        && j(m1.sentTo) === j([['u_a', id1]]) && m1.saves === 1 && j(m1.toasts) === j(['Pat is making a character (Vex the Bold).']) && j(m1.logs) === j([['char', 'Pat is making a character (Vex the Bold)']]) && j(m1.allowed) === j(['charmake']), j([m1.answer, c1, m1.sentTo, m1.toasts]));
+    const mBlank = table().run(mkSrc, { type: 'char-make', rid: 'k1', name: '\u200b ' }), mNum = table().run(mkSrc, { type: 'char-make', rid: 'k1', name: 7 });
+    m1.run(mkSrc, { type: 'char-make', rid: 'k2', name: 'Another' });
+    const mAgainSlow = table({ slow: 'charmakeagain', chars: { c_q: { id: 'c_q', name: 'Q', ownerId: 'u_a', npc: false, making: 1, made: 1, values: {} } } }).run(mkSrc, { type: 'char-make', rid: 'k2', name: 'Again' });
+    check('F3a char-make: a blank or non-text name takes their table name; asking again while making gives the same one (sent again, no second; a light rate bucket of its own, never a real make\'s)',
+        mBlank.camp.chars[mBlank.answer[0].charId].name === 'Pat' && mNum.camp.chars[mNum.answer[0].charId].name === 'Pat' && mine(m1).length === 1 && m1.answer[1].charId === id1 && m1.answer[1].ok === true && m1.sentTo.length === 2 && j(m1.allowed) === j(['charmake', 'charmakeagain']) && m1.camp.chars[id1].name === 'Vex the Bold'
+        && j(mAgainSlow.answer) === j([{ reason: 'slow', type: 'char-make-ans', rid: 'k2' }]) && mAgainSlow.sentTo.length === 0 && mine(mAgainSlow).length === 1, j([m1.answer, m1.allowed, mAgainSlow.answer]));
+    const busyChars = {}; for (let i = 0; i < 12; i++) busyChars['c_m' + i] = { id: 'c_m' + i, name: 'M' + i, ownerId: 'u_x' + i, npc: false, making: 1, values: {} };
+    const eleven = Object.assign({}, busyChars); delete eleven.c_m11;
+    const refused = (t, why) => j(t.answer) === j([{ reason: why, type: 'char-make-ans', rid: 'k1' }]) && mine(t).length === (t.had || 0) && t.saves === 0 && t.toasts.length === 0 && t.sentTo.length === 0;
+    const mk = o => table(o).run(mkSrc, { type: 'char-make', rid: 'k1', name: 'Vex' });
+    const have = mk({ chars: { c_k: { id: 'c_k', name: 'Kit', ownerId: 'u_a', npc: false, values: {} } } }); have.had = 1;
+    const busy = mk({ chars: busyChars }), notBusy = mk({ chars: eleven });
+    check('F3a char-make refused and answered why, nothing made: they play a character already (have); a dozen being made at the table (busy; eleven is fine); making not open (the GM\'s invite or off, sheets off, no system: closed); a paused table or player (paused); the rate (slow, after the other gates)',
+        refused(have, 'have') && refused(busy, 'busy') && notBusy.answer[0].ok === true && ['invite', 'off'].every(r => refused(mk({ rules: { create: r } }), 'closed')) && refused(mk({ sheetsOff: true }), 'closed') && refused(mk({ noSys: true }), 'closed')
+        && refused(mk({ paused: true }), 'paused') && refused(mk({ peerPaused: true }), 'paused') && refused(mk({ slow: 'charmake' }), 'slow') && have.allowed.length === 0 && busy.allowed.length === 0, j([have.answer, busy.answer]));
+    const silent = t => t.answer.length === 0 && mine(t).length === 0 && t.saves === 0;
+    check('F3a char-make: a malformed request id or a peer not admitted (or named like a prototype key) gets no answer and makes nothing',
+        silent(table().run(mkSrc, { type: 'char-make', rid: 'k 1', name: 'Vex' })) && silent(table().run(mkSrc, { type: 'char-make', name: 'Vex' })) && silent(table({ from: 'pZ' }).run(mkSrc, { type: 'char-make', rid: 'k1', name: 'Vex' })) && silent(table({ from: '__proto__' }).run(mkSrc, { type: 'char-make', rid: 'k1', name: 'Vex' })));
+    // char-name
+    const mkC = { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, made: 1, values: {} }, c_f: { id: 'c_f', name: 'Fin', ownerId: 'u_a', npc: false, values: {} }, c_o: { id: 'c_o', name: 'Oth', ownerId: 'u_b', npc: false, making: 1, values: {} } };
+    const nm = (o, msg) => table(Object.assign({ chars: mkC }, o)).run(nmSrc, Object.assign({ type: 'char-name', rid: 'n1', charId: 'c_m', name: ' Nova\u0007 ' }, msg || {}));
+    const n1 = nm(), nRef = (why, o, msg) => { const t = nm(o, msg); return j(t.answer) === j([{ reason: why, type: 'char-name-ans', rid: 'n1' }]) && t.camp.chars.c_m.name === 'Vex' && t.camp.chars.c_f.name === 'Fin' && t.saves === 0 && t.sentTo.length === 0; };
+    check('F3a char-name (host, run for real; owner: only while in the making): the owner renames their character in the making (cleaned), saved and sent to them alone; a finished one (notmaking), another\'s (owner), one gone or a prototype id (missing), a name that cleans to nothing (bad), paused, the rate: refused, unchanged',
+        j(n1.answer) === j([{ ok: true, type: 'char-name-ans', rid: 'n1' }]) && n1.camp.chars.c_m.name === 'Nova' && j(n1.sentTo) === j([['u_a', 'c_m']]) && n1.saves === 1 && j(n1.allowed) === j(['charname'])
+        && nRef('notmaking', {}, { charId: 'c_f' }) && nRef('owner', {}, { charId: 'c_o' }) && nRef('missing', {}, { charId: 'c_9' }) && nRef('missing', {}, { charId: '__proto__' }) && nRef('bad', {}, { name: '\u200b\u202e' }) && nRef('bad', {}, { name: 12 })
+        && nRef('paused', { paused: true }) && nRef('slow', { slow: 'charname' }), j(n1));
+    // char-done
+    const dn = (o, msg) => table(Object.assign({ chars: mkC }, o)).run(dnSrc, Object.assign({ type: 'char-done', rid: 'd1', charId: 'c_m' }, msg || {}));
+    const onlyMk = { c_m: mkC.c_m, c_o: mkC.c_o }, d1 = dn({ chars: onlyMk }), dGive = dn({ chars: Object.assign({}, onlyMk, { c_k: { id: 'c_k', name: 'Kit', ownerId: 'u_a', npc: false, values: {} } }) }), dClash = dn({ chars: Object.assign({}, onlyMk, { c_v: { id: 'c_v', name: ' vex', ownerId: 'u_b', npc: false, values: {} } }) });
+    check('F3a char-done (host, run for real): one in the making goes live — out of the making, marked for the GM\'s review, given to its owner in play with their face copied (a GM give meanwhile keeps theirs in play: owner, 2026-09-27) — as a remote change (not a GM undo step, the history flushed first, the flag restored); the GM told (toast, log); answered ok',
+        j(d1.answer) === j([{ ok: true, type: 'char-done-ans', rid: 'd1' }]) && d1.camp.chars.c_m.making === undefined && d1.camp.chars.c_m.review === 1 && d1.camp.chars.c_m.made === 1 && j(d1.gives) === j([['u_a', 'c_m', j({ play: true, pic: true }), undefined, 1, true]])
+        && d1.net.applyingRemote === false && d1.flushed === 1 && j(d1.toasts) === j(['Pat finished making Vex \u2014 review it on its sheet.']) && j(d1.logs) === j([['char', 'Pat finished making Vex']]) && j(d1.allowed) === j(['chardone'])
+        && dGive.gives.length === 1 && dGive.gives[0][2] === j({ play: false, pic: true }) && j(dGive.answer) === j([{ ok: true, kept: true, type: 'char-done-ans', rid: 'd1' }]) && /^Pat finished making Vex \(the name is also another character\u2019s\) \u2014 review it on its sheet\.$/.test(dClash.toasts[0] || ''), j([d1, dGive.gives, dClash.toasts]));
+    const d2 = dn({ chars: Object.assign({}, mkC, { c_f: { id: 'c_f', name: 'Fin', ownerId: 'u_a', npc: false, unlocked: 1, values: {} } }) }, { charId: 'c_f' });
+    check('F3a char-done on an unlocked character: it locks again, marked for review, saved and synced (as a remote change), no give; the GM told',
+        j(d2.answer) === j([{ ok: true, type: 'char-done-ans', rid: 'd1' }]) && d2.camp.chars.c_f.unlocked === undefined && d2.camp.chars.c_f.review === 1 && d2.saves === 1 && j(d2.synced) === j([['c_f', true]]) && d2.gives.length === 0 && d2.toasts[0] === 'Pat finished the sheet of Fin \u2014 review it on its sheet.', j(d2));
+    const dRef = (why, o, msg) => { const t = dn(o, msg); return j(t.answer) === j([{ reason: why, type: 'char-done-ans', rid: 'd1' }]) && t.gives.length === 0 && t.synced.length === 0 && t.saves === 0 && t.toasts.length === 0 && t.camp.chars.c_m.making === 1 && t.camp.chars.c_m.review === undefined; };
+    check('F3a char-done refused and answered why, nothing changed: a finished, locked character (notmaking), another\'s or an NPC (owner), one gone (missing), paused, the rate (slow); a malformed request id is dropped',
+        dRef('notmaking', {}, { charId: 'c_f' }) && dRef('owner', {}, { charId: 'c_o' }) && dRef('owner', { chars: Object.assign({}, mkC, { c_n: { id: 'c_n', name: 'N', ownerId: 'u_a', npc: true, making: 1, values: {} } }) }, { charId: 'c_n' }) && dRef('missing', {}, { charId: 'c_9' }) && dRef('missing', {}, { charId: 'constructor' })
+        && dRef('paused', { paused: true }) && dRef('paused', { peerPaused: true }) && dRef('slow', { slow: 'chardone' }) && dn({}, { rid: 'd 1' }).answer.length === 0);
+    // the player's side: the answers, the GM's verdict
+    const mkWhy = lineOf('var MK_WHY = {'), ansSrc = between('// [netcheck:charmakeans-start]', '// [netcheck:charmakeans-end]', 'charmakeans');
+    const mkAns = msg => { const got = [], pend = { k1: { done: a => got.push(a), timer: 1 } }; let cleared = 0; new Function('msg', '_mkPending', 'clearTimeout', mkWhy + '\n' + ansSrc)(msg, pend, () => { cleared++; }); return { got, left: Object.keys(pend).length, cleared }; };
+    const aOk = mkAns({ rid: 'k1', ok: true, charId: 'c_ab12' }), aBadId = mkAns({ rid: 'k1', ok: true, charId: '<img>' }), aHave = mkAns({ rid: 'k1', reason: 'have' }), aProto = ['__proto__', 'constructor', 'toString', 'nope', 5].map(r => mkAns({ rid: 'k1', reason: r }).got[0].error), aNo = mkAns({ rid: 'k9', ok: true }), aProtoRid = mkAns({ rid: '__proto__', ok: true }), aKept = mkAns({ rid: 'k1', ok: true, kept: true }), aKeptStr = mkAns({ rid: 'k1', ok: true, kept: 'yes' });
+    check('F3a char-make / char-name / char-done answers (player, run for real): ok with a well-formed id only (else none), a reason of ours in words, a prototype-named or unknown reason a plain refusal; an answer to no question of ours does nothing',
+        j(aOk.got) === j([{ ok: true, charId: 'c_ab12' }]) && aOk.left === 0 && aOk.cleared === 1 && j(aBadId.got) === j([{ ok: true, charId: null }]) && aHave.got[0].error === 'You already play a character here.' && aProto.every(e => e === 'The GM could not do that.')
+        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
+    const rvSrc = between('// [netcheck:charreview-start]', '// [netcheck:charreview-end]', 'charreview');
+    const review = (msg, o) => { o = o || {}; const t = []; new Function('msg', 'conn', 'net', 'toast', 'cleanCharName', rvSrc)(msg, { peer: o.peer || 'h' }, { foreign: o.foreign !== false, stream: !!o.stream, syncedPeer: 'h' }, x => t.push(x), cleanCharName); return t; };
+    check('F3a char-review (player, run for real): the GM\'s verdict from their own GM only — sent back (to fill in, Done again), removed, locked — its name and note cleaned (control and bidi characters out, 300 at most); an unknown or prototype-named outcome, another peer, a stream or no table: nothing',
+        j(review({ outcome: 'back', name: 'Vex\u202e', note: ' Fix\u0000 your   ST ' })) === j(['Your GM sent back Vex to fill in (press Done when it is finished): Fix your ST']) && j(review({ outcome: 'removed', name: 'Vex' })) === j(['Your GM removed Vex.']) && j(review({ outcome: 'locked', name: 5 })) === j(['Your GM locked your character.'])
+        && review({ outcome: 'back', name: 'V', note: 'x'.repeat(900) })[0].length === 'Your GM sent back V to fill in (press Done when it is finished): '.length + 300
+        && ['__proto__', 'toString', 'nuke', 1].every(oc => review({ outcome: oc, name: 'V' }).length === 0) && review({ outcome: 'back', name: 'V' }, { peer: 'x' }).length === 0 && review({ outcome: 'back', name: 'V' }, { stream: true }).length === 0 && review({ outcome: 'back', name: 'V' }, { foreign: false }).length === 0);
+    // who hears of it (host)
+    const scA = src.indexOf('net.syncChar = function(id)'), scB = src.indexOf('net.syncCharDelta = function'), sgA = src.indexOf('net.syncCharGone = function'), sgB = src.indexOf('// A player\'s edit of their own sheet');
+    const hostSend = () => {
+        const got = [], camp = { id: 'k', chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, made: 1, values: {} }, c_f: { id: 'c_f', name: 'Fin', ownerId: 'u_a', npc: false, review: 1, made: 1, values: {} } } };
+        const conn = p => ({ peer: p, open: p !== 'pC', send: m => { packCheck(m); got.push([p, JSON.parse(JSON.stringify(m))]); } });
+        const net = { active: true, role: 'host', roster: { pA: { id: 'u_a' }, pA2: { id: 'u_a' }, pB: { id: 'u_b' }, pC: { id: 'u_a' } }, conns: ['pA', 'pA2', 'pB', 'pC', 'pZ'].map(conn) };
+        new Function('net', 'getActiveCampaign', 'peerProfileId', 'charViewFor', 'sendFailed', 'cleanCharName', src.slice(scA, scB) + '\n' + src.slice(sgA, sgB))(net, () => camp, c => net.roster[c.peer] && net.roster[c.peer].id, (id, pid) => Sx.charFor(camp.chars[id], sysK, pid), e => { throw e; }, cleanCharName);
+        return { got, net, camp };
+    };
+    const hs = hostSend(), who = () => hs.got.splice(0).map(g => g[0] + ':' + g[1].type + (g[1].char ? (g[1].char.partial ? '/partial' : '/own') + (g[1].char.making ? '/making' : '') : ''));
+    hs.net.syncChar('c_m'); const wMk = who(); hs.net.syncChar('c_f'); const wFin = who(); hs.net.syncCharGone('c_m', 'u_a'); const wGoneMk = who(); hs.net.syncCharGone('c_f'); const wGone = who(); hs.net.sendCharTo('u_a', 'c_m'); const wTo = who();
+    hs.net.charReview('u_a', 'c_f', 'Fin\u202e', 'back', ' a\u0000b '); const rv = hs.got.splice(0); hs.net.charReview('u_a', 'c_f', 'Fin', 'nuke', 'x'); hs.net.charReview('u_a', 'c_f', 'Fin', 'removed', ''); const rv2 = hs.got.splice(0); hs.net.charReview('u_a', 'c_f', 'Fin', 'locked', 'y'.repeat(400)); const rv3 = hs.got.splice(0);
+    check('F3a who hears of a character in the making (host, sliced): syncChar sends it to its owner\'s open connections alone (not even a "gone" to anyone else), a finished one as ever (teammates a partial copy, never review or made); syncCharGone to one player or all; sendCharTo its owner alone; the GM\'s verdict to its owner alone — a known outcome only, the name and note cleaned, no note key when empty, 300 at most',
+        scA > 0 && scB > scA && sgA > 0 && sgB > sgA && j(wMk) === j(['pA:char/own/making', 'pA2:char/own/making']) && j(wFin) === j(['pA:char/own', 'pA2:char/own', 'pB:char/partial']) && j(wGoneMk) === j(['pA:charGone', 'pA2:charGone']) && j(wGone) === j(['pA:charGone', 'pA2:charGone', 'pB:charGone'])
+        && j(wTo) === j(['pA:char', 'pA2:char'].map(x => x + '/own/making')) && j(rv) === j([['pA', { type: 'char-review', charId: 'c_f', name: 'Fin', outcome: 'back', note: 'a b' }], ['pA2', { type: 'char-review', charId: 'c_f', name: 'Fin', outcome: 'back', note: 'a b' }]])
+        && j(rv2.map(g => [g[0], Object.keys(g[1]).sort()])) === j([['pA', ['charId', 'name', 'outcome', 'type']], ['pA2', ['charId', 'name', 'outcome', 'type']]]) && rv3.length === 2 && rv3[0][1].note.length === 300, j([wMk, wFin, wGoneMk, wGone, wTo, rv, rv2]));
+    // the rules for making (camp.newPlayers create / fromFile): kept by the GM's waiting-token box, carried on the wire only where they differ, taken by a player
+    const snpSrc = (() => { const i = src.indexOf('function setNewPlayers('); return src.slice(i, src.indexOf('\n}\n', i) + 2); })();
+    const setNP = (start, patch) => { const camp = { id: 'k' }; if (start) camp.newPlayers = start; new Function('net', 'getActiveCampaign', 'SC', 'save', 'refreshNewPlayersBox', snpSrc + '\nreturn setNewPlayers;')({ active: true, role: 'host' }, () => camp, () => Sx, () => {}, () => {})(patch); return camp.newPlayers; };
+    const nsS = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync'), npS = between('// [netcheck:newplayers-start]', '// [netcheck:newplayers-end]', 'newplayers');
+    const syncNP = np => { const camp = { id: 'k', newPlayers: np }, sent = []; const netS = { active: true, role: 'host', roster: { pA: { id: 'u_a' } }, conns: [{ peer: 'pA', open: true, send: m => sent.push(m) }], tidyWaiting: () => {} }; new Function('net', 'SC', 'getActiveCampaign', 'own', 'sendFailed', nsS)(netS, () => Sx, () => camp, H.own, e => { throw e; }); netS.syncNewPlayers(); return sent; };
+    const takeNP = msg => { const camp = { id: 'k' }; new Function('msg', 'conn', 'net', 'state', 'campOf', 'SC', 'window', 'render', npS)(Object.assign({ type: 'newPlayers', campId: 'k' }, msg), { peer: 'h' }, { foreign: true, syncedPeer: 'h', stream: false }, { appState: { activeCampaignId: 'k' } }, id => (id === 'k' ? camp : null), () => Sx, {}, () => {}); return camp.newPlayers; };
+    check('F3a the rules for making a character: the GM\'s waiting-token box keeps them when it changes its own (sight, token); the wire carries create and fromFile only where they differ (the default message unchanged); a player takes them cleaned (junk is the default)',
+        j(setNP({ create: 'off', fromFile: false }, { sight: true })) === j({ sight: true, create: 'off', fromFile: false }) && j(setNP({ create: 'invite', sight: true }, { sight: false })) === j({ create: 'invite' }) && setNP(null, { sight: false }) === undefined
+        && j(syncNP({ create: 'invite', fromFile: false })) === j([{ type: 'newPlayers', campId: 'k', token: 'on', sight: false, create: 'invite', fromFile: false }]) && j(syncNP(undefined)) === j([{ type: 'newPlayers', campId: 'k', token: 'on', sight: false }])
+        && j(takeNP({ token: 'on', sight: false, create: 'off', fromFile: false })) === j({ create: 'off', fromFile: false }) && takeNP({ token: 'on', sight: false, create: 'live!', fromFile: 0 }) === undefined, j([setNP({ create: 'off', fromFile: false }, { sight: true }), syncNP({ create: 'invite', fromFile: false })]));
+    // the refusals of a character not yet in play
+    const upSrc = between('// [netcheck:charupload-start]', '// [netcheck:charupload-end]', 'charupload'), upAns = [], campU = { id: 'k', system: sysK, chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, values: {} } } };
+    new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', upSrc)(
+        { type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: { name: 'Vex' } }, { peer: 'pA', send: m => upAns.push(JSON.parse(JSON.stringify(m))) }, { active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat' } } }, () => Sx,
+        { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { sbFinder: () => () => [], charChanged() {}, uploadsChanged() {}, playerSystem: cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false }) } }, () => false, () => campU, () => {}, e => { throw e; }, () => {}, () => {}, {}, 10000);
+    const apS = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), rqS = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), thI = src.indexOf("} else if (msg.type === 'throw-req' && net.role === 'host') {"), thS = src.slice(thI, src.indexOf('\n    } else if', thI + 10));
+    check('F3a a character in the making is not at the table yet: a sheet upload of it is refused (making, run for real; the player reads why), an apply (making), a roll from it (char) and a throw from it are refused on the host; the deny word survives the client\'s cleaner',
+        j(upAns) === j([{ reason: 'making', type: 'char-upload-ans', rid: 'e1' }]) && !campU.uploads && /making: 'Finish the character first \(press Done on its sheet\)\.'/.test(src) && /if \(chA\.making === 1\) \{ denyA\('making'\); return; \}/.test(apS)
+        && /srcQ\.ownerId !== pidQ \|\| srcQ\.making === 1 \|\| !SQ \|\| !campQ\.system\) \{ denyQ\('char'\); return; \}/.test(rqS) && thI > 0 && /chT\.ownerId !== profT\.id \|\| chT\.making === 1\) return;/.test(thS) && Sx.cleanDenyReason('making') === 'making', j(upAns));
+    check('F3a the player keeps their own copy\'s marks (the snapshot, the chars list and a char message re-clean with the owner\'s state), and a delta\'s probe carries the making mark (charFor refuses it to anyone but the owner)',
+        (src.match(/cleanChar\([^)]*, \{ state: 'owner' \}\)/g) || []).length === 3 && /probe = \{ id: id, name: src\.name, ownerId: src\.ownerId, npc: src\.npc, making: src\.making, values: \{\} \};/.test(src)
+        && Sx.charFor({ id: 'c_m', name: 'V', ownerId: 'u_a', npc: false, making: 1, values: { f_st: 0 } }, Sx.cleanSystem(sysK, { F: Fx, gmView: false }), 'u_b', { probe: true }) === null);
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

@@ -282,6 +282,8 @@ function ownsTokenNamed(camp, pid, name) { return Object.values(camp.items || {}
 // binding goes too once they hold no token of that name (so a stale name never hands them a token the GM took back). Runs AFTER the chooser.
 function unbindStale(camp, pid, c) { var r = playerRecOf(camp, pid, false); if (!r) return; if (r.charId === c.id) delete r.charId; unbindName(camp, pid, c.name); }
 function unbindName(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name && !ownsTokenNamed(camp, pid, name)) delete r.charName; }
+// Onboarding F3: a name its player chose never binds them to a token by name once that character is gone from them (even one they still hold)
+function unbindMade(camp, pid, name) { var r = playerRecOf(camp, pid, false); if (r && r.charName === name) delete r.charName; }
 // Where a player's token stood on their current map, so a new one appears beside it
 function tokenSpotOf(camp, pid, charId) {
     var n = net(), p = n && n.active && n.role === 'host' ? Object.values(n.roster || {}).find(function(x) { return x && x.id === pid; }) : null;
@@ -295,12 +297,13 @@ function tokenSpotOf(camp, pid, charId) {
 function giveCharacter(pid, charId, o) {
     var camp = getActiveCampaign(), c = charById(charId, camp); if (!camp || !c) return false;
     o = o || {}; pid = pid && okPid(pid) ? pid : '';
-    var prev = c.ownerId || '', was = pid ? activeCharOf(camp, pid).id : null;
+    var prev = c.ownerId || '', was = pid ? activeCharOf(camp, pid).id : null, wasMade = c.made === 1;
+    if (prev !== pid) { delete c.making; delete c.unlocked; delete c.review; delete c.made; }   // Onboarding F3: a new owner gets a finished, locked character of their own (no one else's unfinished one)
     var nearNew = pid && o.nearTok ? spotOnPlayersMap(camp, pid, o.nearTok) : pid && was && was !== c.id ? tokenSpotOf(camp, pid, was) : null, nearPrev = prev && prev !== pid ? tokenSpotOf(camp, prev, c.id) : null;
     c.ownerId = pid; if (pid) c.npc = false;
     if (pid && o.play !== false) setInPlay(camp, c);
     syncOwners(camp, o.keep);
-    if (prev && prev !== pid) unbindStale(camp, prev, c);
+    if (prev && prev !== pid) { unbindStale(camp, prev, c); if (wasMade) unbindMade(camp, prev, c.name); }
     afterCharChange(c, true);
     var n = net();
     if (pid && n && n.allowWaiting) n.allowWaiting(pid);   // Onboarding F1a: a give ends a Remove of their waiting token
@@ -347,9 +350,9 @@ function deleteCharacter(id) {
     var prev = c.ownerId || '';
     delete charsOf(camp)[id];
     Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === id) delete w.charId; }); });
-    if (prev) { unbindStale(camp, prev, c); syncOwners(camp); var nD = net(); if (nD && nD.logEvent) nD.logEvent('char', c.name + ' deleted (played by ' + (playerNames(camp)[prev] || 'a player') + '; they keep its tokens)'); }   // their leftover tokens stay theirs (by name); another character of theirs may now be in play
+    if (prev) { unbindStale(camp, prev, c); if (c.made === 1) unbindMade(camp, prev, c.name); syncOwners(camp); var nD = net(); if (nD && nD.logEvent) nD.logEvent('char', c.name + ' deleted (played by ' + (playerNames(camp)[prev] || 'a player') + '; they keep its tokens)'); }   // their leftover tokens stay theirs (by name); another character of theirs may now be in play
     save(true);
-    var n = net(); if (n && n.active && n.role === 'host') n.syncCharGone(id);
+    var n = net(); if (n && n.active && n.role === 'host') n.syncCharGone(id, c.making === 1 ? prev : '');   // Onboarding F3: one in the making was its player's alone
     if (prev && n && n.reconcilePresence) n.reconcilePresence(prev, { mode: 'give' });
     if (sheetOpen === id) closeSheet();
     closeHud(id);
@@ -632,13 +635,17 @@ function renderSheet() {
     if (!c || !sys || !F()) { closeSheet(); return; }
     var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
     head.textContent = c.name;
-    sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (gm && lastChange && lastChange.charId === c.id ? '' : '');
+    sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? ' · unlocked' : '') + (gm && c.review === 1 ? ' · new' : '');   // Onboarding F3: its state
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
-    var upB = ui('sheetUpload'); if (upB) upB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes)
+    var upB = ui('sheetUpload'); if (upB) upB.style.display = isClient() && own && !c.partial && c.making !== 1 ? '' : 'none';   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes)
     var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
+    var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
+    var nmB = ui('sheetName'); if (nmB) nmB.style.display = isClient() && own && !c.partial && c.making === 1 ? '' : 'none';   // renamed only while in the making (owner)
+    var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock' : 'Unlock'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
+    renderReviewBar(c, camp, gm);
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
@@ -1064,7 +1071,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
         var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; main.appendChild(nm);
     }
     var IDN_EDIT = { text: 1, select: 1, number: 1, toggle: 1 };   // Stage 6 look fold: identity rows edited in place
-    var idnOk = function(f) { return !c.partial && (gm || (own && f.edit === 'owner' && f.vis === 'all')); };   // the section's own rule
+    var idnOk = function(f) { return !c.partial && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1))); };   // the section's own rule
     function block(list, cls, itemCls, ledger) {
         if (!Array.isArray(list) || !list.length) return;
         var box = el('div', cls);
@@ -1075,7 +1082,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
             var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
             var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
-            if (ledger && f.kind === 'number' && !f.labels && !en.error && !c.partial && (gm || (own && f.edit === 'owner' && f.vis === 'all'))) {
+            if (ledger && f.kind === 'number' && !f.labels && !en.error && !c.partial && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1)))) {
                 var raw = c.values ? c.values[f.id] : undefined;
                 var inp = el('input', 'field sheet-num sheet-hdr-input' + tone); inp.type = 'number'; inp.dataset.fid = f.id; inp.dataset.part = 'hdr';
                 inp.value = raw === undefined ? String(f.def) : String(raw); inp.step = String(f.step || 1); inp.title = f.label + (f.unit ? ' (' + f.unit + ')' : '');
@@ -2759,7 +2766,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
     if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); rb.addEventListener('click', function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined); }); lab.appendChild(rb); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
-    var editable = gm || (own && f.edit === 'owner' && f.vis === 'all');
+    var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
     if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
@@ -2938,10 +2945,10 @@ function costBlock(c, cost) {
     var n = net(), al = cost && c && n && n.actsLeft ? n.actsLeft[c.id] : null; if (!al || al.mode !== 'refuse' || typeof al.left[cost] !== 'number' || al.left[cost] > 0) return '';
     return 'No ' + cost + ' left this turn';
 }
-function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return true; }
+function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return true; }
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)
-function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc); return canWrite(); }
+function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return canWrite(); }
 function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
 function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || 'Apply') : 'Roll: ' + (r.label || r.formula); }   // Stage 6 HUD H7: the Layout tab's name for a roll entry
 // Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
@@ -3209,6 +3216,88 @@ function pickCharPicture(anchor) {
     };
     window.wpFaces.open(anchor, '', prof, function(face, img) { send(face, img); }, { upload: true });
 }
+/* ---------- Onboarding F3a: a character a player makes ---------- */
+// The player's side: start one (the host mints it in the making — theirs alone, every field they can see theirs to set — and sends it here; its
+// sheet opens), name it while it is (owner, 2026-09-27: only then), say it is done (it goes into play; an unlocked one locks again)
+function startMaking() {
+    var n = net(); if (!isClient() || !n || !n.charMake) return;
+    var prof = n.getProfile ? n.getProfile() : {};
+    showPrompt('A name for your character', (prof && typeof prof.name === 'string' && prof.name) || '', function(nm) {
+        if (nm === null || nm === undefined) return;
+        var r = n.charMake(String(nm), function(a) { if (a.error) { toast(a.error); return; } if (a.charId) openSheet(a.charId); });
+        if (r && r.error) toast(r.error);
+    });
+}
+function renameMaking() {
+    var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || c.making !== 1 || !n || !n.charName) return;
+    showPrompt('Your character\u2019s name', c.name, function(nm) { if (nm === null || nm === undefined || !String(nm).trim()) return; var r = n.charName(c.id, String(nm), function(a) { if (a.error) toast(a.error); }); if (r && r.error) toast(r.error); });
+}
+function doneMaking() {
+    var c = sheetOpen ? charById(sheetOpen) : null, n = net(); if (!c || !isClient() || !(c.making === 1 || c.unlocked === 1) || !n || !n.charDone) return;
+    var id = c.id, nm = c.name, mk = c.making === 1, cs = charsOf(), me = myId(), other = Object.keys(cs).some(function(k) { var x = cs[k]; return x && x.id !== id && x.ownerId === me && !x.npc && !x.partial && x.making !== 1; });   // the GM gave them one meanwhile: it stays in play
+    showConfirm(mk ? 'Finished with ' + nm + '? ' + (other ? 'It is kept (you go on playing the character your GM gave you)' : 'It goes into play now') + ', and your GM is told (they may send it back to you).' : 'Done with ' + nm + '\u2019s sheet? It locks again, and your GM is told.', function(y) {
+        if (!y) return;
+        var r = n.charDone(id, function(a) { toast(a.error || (mk ? (a.kept ? nm + ' is finished and kept: you go on playing the character your GM gave you.' : nm + ' is in play.') : nm + ' is done.')); }); if (r && r.error) toast(r.error);
+    });
+}
+// The GM's side: a character a player made (or finished) waits for Keep it (owner, 2026-09-27); Send back unlocks it for them to fill in, with a
+// note; Remove (one a player made) deletes it with its tokens and gives them a waiting token where it stood; Unlock / Lock on any player's character
+// [sinkcheck:reviewbar-start]
+function renderReviewBar(c, camp, gm) {
+    var bar = ui('sheetReviewBar'); if (!bar) return;
+    bar.textContent = '';
+    if (!gm || !c || c.review !== 1) { bar.style.display = 'none'; return; }
+    var S = window.wpSystemCore, cl = S && S.charClash ? S.charClash(camp, c.name, c.id) : [], CLW = { character: 'another character\u2019s', token: 'a token\u2019s', room: 'a room character\u2019s' };
+    var who = (c.ownerId && playerNames(camp)[c.ownerId]) || 'A player';
+    bar.appendChild(el('span', 'sheet-rv-text', who + (c.made === 1 ? ' made this character' : ' finished this sheet') + (cl.length ? ' \u00b7 the name is also ' + cl.map(function(k) { return CLW[k]; }).join(' and ') : '') + '.'));
+    var bt = function(label, title, fn, cls) { var b = el('button', 'tool ghost notepad-btn' + (cls ? ' ' + cls : ''), label); b.type = 'button'; b.title = title; b.addEventListener('click', function() { fn(c.id); }); bar.appendChild(b); };
+    bt('Keep it', 'It stays as it is (Remove goes; Unlock is still on its sheet)', keepMade);
+    bt('Send back\u2026', 'Unlock it for its player to fill in, with a note', sendBackMade);
+    if (c.made === 1) bt('Remove\u2026', 'Delete it and its tokens; its player gets a waiting token where it stood', removeMadeAsk, 'danger');
+    bar.style.display = '';
+}
+// [sinkcheck:reviewbar-end]
+function keepMade(id) { var camp = getActiveCampaign(), c = charById(id, camp); if (!c || isClient()) return; delete c.review; save(true); var n = net(); if (n && n.logEvent) n.logEvent('char', 'Kept ' + c.name); renderSheet(); if (window.appRender) window.appRender(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); }
+function sendBackMade(id) {
+    var c0 = charById(id); if (!c0 || isClient()) return;
+    showPrompt('Send ' + c0.name + ' back to its player? A note for them (optional):', '', function(note) {
+        if (note === null || note === undefined) return;
+        var camp = getActiveCampaign(), c = charById(id, camp); if (!c || !c.ownerId) return;
+        delete c.review; c.unlocked = 1; afterCharChange(c, true);
+        var n = net(); if (n && n.charReview) n.charReview(c.ownerId, c.id, c.name, 'back', note); if (n && n.logEvent) n.logEvent('char', 'Sent ' + c.name + ' back to ' + (playerNames(camp)[c.ownerId] || 'its player'));
+        if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+    });
+}
+function unlockChar(id) {
+    var camp = getActiveCampaign(), c = charById(id, camp), n = net(); if (!c || isClient() || !c.ownerId || c.npc || c.making === 1) return;
+    if (c.unlocked === 1) { delete c.unlocked; afterCharChange(c, true); if (n && n.charReview) n.charReview(c.ownerId, c.id, c.name, 'locked', ''); if (n && n.logEvent) n.logEvent('char', 'Locked ' + c.name); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); return; }
+    sendBackMade(id);
+}
+function removeMadeAsk(id) { var c0 = charById(id); if (!c0 || isClient()) return; showPrompt('Remove ' + c0.name + '? It goes with its tokens, and its player gets a waiting token where it stood. A note for them (optional):', '', function(note) { if (note === null || note === undefined) return; removeMade(id, note); }); }
+function removeMade(id, note) {
+    var camp = getActiveCampaign(), c = charById(id, camp), n = net(); if (!camp || !c || isClient()) return false;
+    var pid = c.ownerId || '', spot = pid ? tokenSpotOf(camp, pid, id) : null, maps = [];   // where its token stood on their current map
+    if (window.wpHistFlush) window.wpHistFlush();
+    Object.keys(camp.items || {}).forEach(function(k) {
+        var m = camp.items[k]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+        var before = m.whiteboard.length;
+        m.whiteboard = m.whiteboard.filter(function(w) { return !(w && w.isChar && w.charId === id); });
+        m.whiteboard.forEach(function(w) { if (w && w.charId === id) delete w.charId; });
+        if (m.whiteboard.length !== before) maps.push(m.id);
+    });
+    delete charsOf(camp)[id];
+    if (pid) { unbindStale(camp, pid, c); unbindMade(camp, pid, c.name); syncOwners(camp); }   // its name binds nothing of theirs any more; their other character may now be in play
+    if (maps.length && window.wpHistBarrier) window.wpHistBarrier(maps);   // an undo never brings its tokens back
+    save(true);
+    if (n && n.active && n.role === 'host') { if (n.pushItems && maps.length) n.pushItems(maps); n.syncCharGone(id); if (n.charReview) n.charReview(pid, id, c.name, 'removed', note); }
+    if (n && n.logEvent) n.logEvent('char', 'Removed ' + c.name + ' (made by ' + (playerNames(camp)[pid] || 'a player') + ') and its tokens');
+    if (pid && n && n.allowWaiting) n.allowWaiting(pid);
+    if (pid && n && n.reconcilePresence) n.reconcilePresence(pid, { near: spot });   // a waiting token where it stood (or their other character's token)
+    if (sheetOpen === id) closeSheet();
+    closeHud(id);
+    if (window.appRender) window.appRender();
+    return true;
+}
 /* ---------- Onboarding F2a: take a sheet away — a character file (.wpchar.json) and a readable page (.md) ---------- */
 // What a download holds (sheetexport.js writes it): a player — their own whole copy as their sheet shows it; the GM — the players' view of any
 // character (the owner's projection, as the host sends it; an NPC or an unassigned one too), or with "Include GM-only fields" their full copy
@@ -3453,7 +3542,7 @@ function ownerFromToken(w) {
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
+function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'making' ? 'Finish the character first (press Done on its sheet).' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
@@ -3793,7 +3882,7 @@ function charRow(c, camp) {
     top.appendChild(btnRow([['delchar', 'Delete this character (tokens keep their name, lose the link)', '&times;']]));
     row.appendChild(top);
     var tokens = 0; Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === c.id) tokens++; }); });
-    row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' (in play)' : ' (kept: you move its tokens)') : '') : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)')));
+    row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' (in play)' : ' (kept: you move its tokens)') : '') : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)') + (c.making === 1 ? ' · being made by its player (theirs alone until Done)' : c.unlocked === 1 ? ' · unlocked for its player' : '') + (c.review === 1 ? ' · new: review it on its sheet' : '')));
     return row;
 }
 // 5h: one library effect in the editor: name, icon, tone, duration note, its changes (a field and an amount, or a toggle switched on),
@@ -4626,6 +4715,9 @@ function importFile(file) {
     var upBt = ui('sheetUpload'); if (upBt) upBt.addEventListener('click', importJson);   // Stage 6 U3
     var picBt = ui('sheetPic'); if (picBt) picBt.addEventListener('click', function(e) { e.stopPropagation(); pickCharPicture(picBt); });   // Onboarding F1c
     var dlBt = ui('sheetDownload'); if (dlBt) dlBt.addEventListener('click', function(e) { e.stopPropagation(); openDownloadMenu(dlBt); });   // Onboarding F2a
+    var dnBt = ui('sheetDone'); if (dnBt) dnBt.addEventListener('click', doneMaking);   // Onboarding F3
+    var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
+    var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
@@ -4660,7 +4752,7 @@ var _lastCamp = null;
 setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
-window.wpSheets = { bellNote: bellNote, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, startMaking: startMaking, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,

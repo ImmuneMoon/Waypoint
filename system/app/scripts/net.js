@@ -115,6 +115,8 @@ function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || 
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
 // A display name a peer may show: control, bidi-override and zero-width characters out, trimmed, at most 40; 'Player' when blank.
 function cleanRosterName(v) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; return s || 'Player'; }
+// Onboarding F3: a character's name a player chose — the same characters out (control, bidi-override, zero-width), trimmed, at most 60; '' when blank
+function cleanCharName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).trim() : ''; }
 // Onboarding F1b: a player's token FACE — 'photo' (their profile picture), 'default' (the silhouette on their colour), 'pic:<name>' (one of
 // the bundled token pictures, by name from this fixed list), or ONE emoji: a pictograph (with its variation selector or skin tone), joined to
 // more only by the zero-width joiner — anything else is refused whole (''), never trimmed: no letters, digits, markup or control characters,
@@ -163,7 +165,7 @@ function cleanWaitingItem(w) {
     return o;
 }
 // [netcheck:helpers-end]
-net.charFacePlan = charFacePlan; net.cleanFace = cleanFace; net.FACE_PICS = FACE_PICS.slice(); net.faceView = function(p, color) { return faceView(p, color, window.wpDefaultAvatar); };   // Onboarding F1b: faces, one rule for every screen (after the helpers: FACE_PICS is only assigned there)
+net.charFacePlan = charFacePlan; net.cleanCharName = cleanCharName; net.cleanFace = cleanFace; net.FACE_PICS = FACE_PICS.slice(); net.faceView = function(p, color) { return faceView(p, color, window.wpDefaultAvatar); };   // Onboarding F1b: faces, one rule for every screen (after the helpers: FACE_PICS is only assigned there)
 // What a client accepts from a host, beyond the shape checks the wire already does.
 // [netcheck:rosterclean-start]
 function validKey(k) { return typeof k === 'string' && k.length > 0 && k.length <= 160 && !(k in Object.prototype); }   // an id used as an object key: never a prototype key
@@ -671,7 +673,7 @@ function refreshNewPlayersBox() {
 function setNewPlayers(patch) {
     if (net.active && net.role !== 'host') { refreshNewPlayersBox(); return; }   // a player never sets the table's rules (their copy follows the host's)
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.cleanNewPlayers) return;
-    var c = S.cleanNewPlayers(Object.assign(S.newPlayerRules(camp), patch));
+    var c = S.cleanNewPlayers(Object.assign({}, S.cleanNewPlayers(camp.newPlayers) || {}, S.newPlayerRules(camp), patch));   // Onboarding F3: the rules this box does not set (making) are kept
     if (c) camp.newPlayers = c; else delete camp.newPlayers;
     save(); refreshNewPlayersBox();
 }
@@ -959,7 +961,7 @@ function applySnapshot(msg) {
         }
         if (!cs.chars || typeof cs.chars !== 'object') return;
         if (!cs.system) { delete cs.chars; return; }
-        var cleanCh = {}; Object.keys(cs.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(cs.chars[id], cs.system); if (cc && cc.id === id) { cc.partial = cs.chars[id].partial === true; cleanCh[id] = cc; } }); cs.chars = cleanCh;
+        var cleanCh = {}; Object.keys(cs.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(cs.chars[id], cs.system, { state: 'owner' }); if (cc && cc.id === id) { cc.partial = cs.chars[id].partial === true; cleanCh[id] = cc; } }); cs.chars = cleanCh;
     });
     charSessionReset();
     Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { noteHostCopy(id, cs.chars[id].values); }); });   // Stage 6: the host's copy of every character, whole, from the start (a refusal goes back to it)
@@ -1406,8 +1408,9 @@ net.syncTurnRules = function() {
 // then settles every player's waiting token. A host has NO branch for 'newPlayers': a client never sets the table's rules.
 // [netcheck:newplayerssync-start]
 net._lastNewPlayersSig = null;
-function newPlayersSig(m) { return m.campId + '|' + m.token + '|' + m.sight; }
-net.newPlayersMessage = function() { var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.newPlayerRules) return null; var r = S.newPlayerRules(camp); return { type: 'newPlayers', campId: camp.id, token: r.token, sight: r.sight }; };
+function newPlayersSig(m) { return m.campId + '|' + m.token + '|' + m.sight + '|' + (m.create || '') + '|' + (m.fromFile === false ? 0 : 1); }
+// Onboarding F3: making a character (create 'invite' | 'off', fromFile false) travels only where it differs from the default
+net.newPlayersMessage = function() { var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.newPlayerRules) return null; var r = S.newPlayerRules(camp), n = S.cleanNewPlayers(camp.newPlayers) || {}, m = { type: 'newPlayers', campId: camp.id, token: r.token, sight: r.sight }; if (n.create) m.create = n.create; if (n.fromFile === false) m.fromFile = false; return m; };
 net.syncNewPlayers = function() {
     if (!net.active || net.role !== 'host') return;
     var msg = net.newPlayersMessage(); if (!msg) return;
@@ -1590,8 +1593,10 @@ net.syncChars = function() {   // every character, per peer (after the system ch
 net.syncChar = function(id) {   // one character whole (renamed, reassigned, portrait) or gone for a peer that may not see it
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp) return;
+    var srcM = camp.chars && camp.chars[id], mkM = !!(srcM && srcM.making === 1);   // Onboarding F3: a character in the making: its owner hears of it, nobody else (not even that it is gone)
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
+        if (mkM && peerProfileId(c) !== srcM.ownerId) return;
         var v = charViewFor(id, peerProfileId(c));
         try { c.send(v ? { type: 'char', campId: camp.id, char: v } : { type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); }
     });
@@ -1600,7 +1605,7 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !camp.chars || !camp.chars[id] || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
-    var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, values: {} };
+    var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, making: src.making, values: {} };   // making (Onboarding F3): charFor itself refuses it to anyone but its owner
     Object.keys(values).forEach(function(f) { probe.values[f] = 0; });
     var libD = fxLib(camp.system), itD = itemLib(camp.system), ownSees = S.charFor(probe, view, src.ownerId, { probe: true }), linesMove = !!ownSees && Object.keys(values).some(function(f) { return ownSees.values[f] !== undefined; });   // any input a teammate's host-worked lines may read
     net.conns.forEach(function(c) {
@@ -1621,7 +1626,20 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     });
 };
 // [netcheck:chardelta-end]
-net.syncCharGone = function(id) { if (!net.active || net.role !== 'host') return; var camp = getActiveCampaign(); if (!camp) return; net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send({ type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); } } }); };
+net.syncCharGone = function(id, only) { if (!net.active || net.role !== 'host') return; var camp = getActiveCampaign(); if (!camp) return; net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && (!only || peerProfileId(c) === only)) { try { c.send({ type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); } } }); };   // only (Onboarding F3): one player's (a character in the making went)
+// Onboarding F3: a character's copy to its owner alone (each connection of theirs) — a character in the making is theirs only
+function sendCharTo(pid, id) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp) return;
+    net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== pid) return; var v = charViewFor(id, pid); if (v) { try { c.send({ type: 'char', campId: camp.id, char: v }); } catch (e) { sendFailed(e); } } });
+}
+net.sendCharTo = sendCharTo;
+// Onboarding F3 (host): what the GM did with a player's character, to that player — sent back (unlocked to fill in), removed, locked
+net.charReview = function(pid, charId, name, outcome, note) {
+    if (!net.active || net.role !== 'host' || (outcome !== 'back' && outcome !== 'removed' && outcome !== 'locked')) return;
+    var m = { type: 'char-review', charId: String(charId), name: cleanCharName(name), outcome: outcome }, nt = String(note || '').replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300); if (nt) m.note = nt;   // the note: text only, 300 at most
+    net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+};
 // A player's edit of their own sheet: applied here at once, judged on the host, undone on a refusal or silence
 net.charEdit = function(charId, fieldId, value) {
     var S = SC(), camp = getActiveCampaign();
@@ -2921,6 +2939,23 @@ net.charPic = function(charId, face, img, done) {
     try { net.conns[0].send(m); } catch (e) { clearTimeout(_picPending[rid].timer); delete _picPending[rid]; return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
+// Onboarding F3: a player's own character — start one (in the making: theirs alone, every field they can see theirs to set), name it while it is,
+// say it is done (it goes live; an unlocked one locks again). done({ ok, charId? } | { error }); a GM whose Waypoint has none of this never answers
+var _mkPending = {};
+var MK_WHY = { paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
+function mkSend(type, m, done) {
+    if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    if (net.paused || net.selfPaused) return { error: 'The table is paused.' };
+    var rid = 'k' + Math.random().toString(36).slice(2, 10);
+    _mkPending[rid] = { done: done, timer: setTimeout(function() { var p = _mkPending[rid]; delete _mkPending[rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM (their Waypoint may not have this yet).' }); }, 20000) };
+    m.type = type; m.rid = rid;
+    try { net.conns[0].send(m); } catch (e) { clearTimeout(_mkPending[rid].timer); delete _mkPending[rid]; return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+}
+net.charMake = function(name, done) { return mkSend('char-make', { name: cleanCharName(name) }, done); };
+net.charName = function(charId, name, done) { var nm = cleanCharName(name); if (!nm) return { error: 'That name cannot be used.' }; return mkSend('char-name', { charId: String(charId), name: nm }, done); };
+net.charDone = function(charId, done) { return mkSend('char-done', { charId: String(charId) }, done); };
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
     if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
@@ -3322,7 +3357,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-upload-ans' && net.role === 'client') {   // Stage 6 U2: the host's answer to our upload
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_uploadPending, msg.rid)) return;
         var pU = _uploadPending[msg.rid]; delete _uploadPending[msg.rid]; clearTimeout(pU.timer);
-        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.', file: 'That is a character file, not a ShadowBase one.' };
+        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.', file: 'That is a character file, not a ShadowBase one.', making: 'Finish the character first (press Done on its sheet).' };
         if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: Object.prototype.hasOwnProperty.call(UP_WHY, msg.reason) ? UP_WHY[msg.reason] : 'The GM could not read it.' } : { n: typeof msg.n === 'number' && isFinite(msg.n) ? Math.max(0, msg.n | 0) : 0, auto: typeof msg.auto === 'number' && isFinite(msg.auto) ? Math.max(0, msg.auto | 0) : 0 });
     } else if (msg.type === 'char-pic-ans' && net.role === 'client') {   // Onboarding F1c: the host's answer to our picture
         // [netcheck:charpicans-start]
@@ -3331,6 +3366,22 @@ function handleMessage(msg, conn) {
         var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
+    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
+        // [netcheck:charmakeans-start]
+        if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_mkPending, msg.rid)) return;
+        var pK = _mkPending[msg.rid]; delete _mkPending[msg.rid]; clearTimeout(pK.timer);
+        if (typeof pK.done !== 'function') return;
+        if (msg.ok === true) { var aK = { ok: true, charId: typeof msg.charId === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId) ? msg.charId : null }; if (msg.kept === true) aK.kept = true; pK.done(aK); }
+        else pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(MK_WHY, msg.reason) ? MK_WHY[msg.reason] : 'The GM could not do that.' });
+        // [netcheck:charmakeans-end]
+    } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
+        // [netcheck:charreview-start]
+        if (!net.foreign || net.stream || conn.peer !== net.syncedPeer) return;
+        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM locked ' };
+        if (typeof msg.outcome !== 'string' || !Object.prototype.hasOwnProperty.call(OUT_R, msg.outcome)) return;
+        var nmR = cleanCharName(msg.name) || 'your character', ntR = typeof msg.note === 'string' ? msg.note.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+        toast(OUT_R[msg.outcome] + nmR + (msg.outcome === 'back' ? ' to fill in (press Done when it is finished)' : '') + (ntR ? ': ' + ntR : '.'));
+        // [netcheck:charreview-end]
     } else if (msg.type === 'char-upload-done' && net.role === 'client') {   // U2: what the GM did with it
         var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
         var dn = typeof msg.done === 'number' && isFinite(msg.done) ? Math.max(0, msg.done | 0) : 0, ofN = typeof msg.of === 'number' && isFinite(msg.of) ? Math.max(0, msg.of | 0) : 0;
@@ -3347,7 +3398,7 @@ function handleMessage(msg, conn) {
         var sysC = campC.system;
         if (msg.type === 'chars') {
             var outC = {};
-            if (msg.chars && typeof msg.chars === 'object') Object.keys(msg.chars).forEach(function(id) { var cc = SC2.cleanChar(msg.chars[id], sysC); if (cc && cc.id === id) { cc.partial = msg.chars[id].partial === true; outC[id] = cc; } });
+            if (msg.chars && typeof msg.chars === 'object') Object.keys(msg.chars).forEach(function(id) { var cc = SC2.cleanChar(msg.chars[id], sysC, { state: 'owner' }); if (cc && cc.id === id) { cc.partial = msg.chars[id].partial === true; outC[id] = cc; } });
             _charHost = {}; Object.keys(outC).forEach(function(id) { noteHostCopy(id, outC[id].values); });
             Object.keys(outC).forEach(function(id) { if (outC[id].partial || outC[id].ownerId !== net.myId) dropP(id); });   // no longer ours: queued edits go, never laid over a teammate copy
             campC.chars = outC; Object.keys(outC).forEach(reapplyPending);
@@ -3362,7 +3413,7 @@ function handleMessage(msg, conn) {
             if (window.wpSheets) window.wpSheets.charGone(msg.id);
             return;
         }
-        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
+        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;
         var tgt = campC.chars[msg.id], hb = _charHost[msg.id] || null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
         Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });
@@ -3437,6 +3488,7 @@ function handleMessage(msg, conn) {
         var campA = getActiveCampaign(), chA = campA && campA.chars && campA.chars[qa.charId];
         if (!campA || !campA.system || !chA) { denyA('missing'); return; }
         var profA = net.roster[conn.peer]; if (chA.npc || !chA.ownerId || !profA || chA.ownerId !== profA.id) { denyA('owner'); return; }
+        if (chA.making === 1) { denyA('making'); return; }   // Onboarding F3: not in play until they press Done
         var viewA = window.wpSheets ? window.wpSheets.playerSystem(campA) : null, chvA = viewA ? Sa.charFor(chA, viewA, profA.id, { lib: fxLib(campA.system), items: itemLib(campA.system), full: campA.system }) : null;
         if (!viewA || !chvA) { denyA('missing'); return; }
         var actA = null, rowGmA = false;
@@ -3491,6 +3543,7 @@ function handleMessage(msg, conn) {
         var campU = getActiveCampaign(), chU = campU && campU.chars && campU.chars[qu.charId];
         if (!campU || !campU.system || !chU) { ansU({ reason: 'missing' }); return; }
         var profU = net.roster[conn.peer]; if (chU.npc || !chU.ownerId || !profU || chU.ownerId !== profU.id) { ansU({ reason: 'owner' }); return; }
+        if (chU.making === 1) { ansU({ reason: 'making' }); return; }   // Onboarding F3: a character in the making is filled in on its sheet (a file starts one: F4)
         _uploadAt[conn.peer] = nowU;
         var findU = window.wpSheets && window.wpSheets.sbFinder ? window.wpSheets.sbFinder(campU, campU.system) : null;
         var prU = Su.sbProposal(campU.system, chU, qu.sheet, Fu, findU), autoU = 0;
@@ -3607,7 +3660,7 @@ function handleMessage(msg, conn) {
         var campT = getActiveCampaign(); if (!campT || !campT.system) return;
         var amT = getActiveMap(); if (!amT || amT.id !== msg.mapId) return;   // throws land on the GM's current map (where the player is)
         var chT = campT.chars && campT.chars[msg.charId], profT = net.roster[conn.peer];
-        if (!chT || chT.npc || !chT.ownerId || !profT || chT.ownerId !== profT.id) return;
+        if (!chT || chT.npc || !chT.ownerId || !profT || chT.ownerId !== profT.id || chT.making === 1) return;
         if (!(amT.whiteboard || []).some(function(w) { return w && w.isChar && !w.hidden && w.ownerId === profT.id && w.charId === msg.charId; })) return;   // the thrower must be on this map: a token of THAT character (a kept one has none of its own)
         var fT = St.fieldById(campT.system, msg.fieldId); if (!fT || fT.kind !== 'item-list' || fT.vis !== 'all') return;   // Stage 6: a visible list only (a GM-only list's items are never thrown by a player)
         var vT = chT.values && chT.values[fT.id], rowT = Array.isArray(vT) ? vT.find(function(r) { return r && r.hid !== 1 && St.rowIdOf(r) === msg.rowId; }) : null; if (!rowT) return;   // the carried row, on the host's copy
@@ -3722,6 +3775,79 @@ function handleMessage(msg, conn) {
             toast(tP + '.'); logEvent('char', tP); ansP({ ok: true });
         }, function() { ansP({ reason: 'failed' }); });
         // [netcheck:charpic-end]
+    } else if (msg.type === 'char-make' && net.role === 'host') {
+        // [netcheck:charmake-start]
+        // Onboarding F3: a player starts a character of their own — in the making (theirs alone, not in play; every field they can see is theirs
+        // to set) — an admitted player, not while paused, sheets on with a system and making open (the campaign's rule), one at a time (asking
+        // again gives the one they are making), not while they play a character, a dozen at a table at most, two a minute; the GM is told
+        var ridK = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridK) return;
+        var ansK = function(o) { o.type = 'char-make-ans'; o.rid = ridK; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prK = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prK) return;
+        if (net.paused || peerPaused(conn.peer)) { ansK({ reason: 'paused' }); return; }
+        var campK = getActiveCampaign(), SK = SC();
+        if (!campK || !SK || SK.newCharRules(campK, sheetsOnFor(campK)).create !== 'live') { ansK({ reason: 'closed' }); return; }
+        var csK = campK.chars && typeof campK.chars === 'object' ? campK.chars : (campK.chars = {}), mineK = null, nMk = 0;
+        Object.keys(csK).forEach(function(k) { var x = csK[k]; if (x && x.making === 1) { nMk++; if (x.ownerId === prK.id && !mineK) mineK = x; } });
+        if (mineK) {   // asking again re-sends their whole copy: a light bucket of its own (it never uses up a real make)
+            if (!allow('charmakeagain', { perMs: 1000, burst: 5, windowMs: 10000, table: 120 }, conn.peer)) { ansK({ reason: 'slow' }); return; }
+            sendCharTo(prK.id, mineK.id); ansK({ ok: true, charId: mineK.id }); return;
+        }
+        if (SK.activeCharOf(campK, prK.id).id) { ansK({ reason: 'have' }); return; }
+        if (nMk >= SK.LIMITS.makingMax) { ansK({ reason: 'busy' }); return; }
+        if (!allow('charmake', { perMs: 10000, burst: 2, windowMs: 60000, table: 30 }, conn.peer)) { ansK({ reason: 'slow' }); return; }
+        var chK = { id: SK.uid('c_'), name: cleanCharName(msg.name) || cleanRosterName(prK.name), ownerId: prK.id, portrait: '', npc: false, values: {}, updated: Date.now(), making: 1, made: 1 };
+        while (Object.prototype.hasOwnProperty.call(csK, chK.id)) chK.id = SK.uid('c_');
+        csK[chK.id] = chK;
+        saveRemoteSoon();
+        sendCharTo(prK.id, chK.id);
+        var tK = (prK.name || 'A player') + ' is making a character (' + chK.name + ')'; toast(tK + '.'); logEvent('char', tK);
+        ansK({ ok: true, charId: chK.id });
+        if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chK.id);
+        // [netcheck:charmake-end]
+    } else if (msg.type === 'char-name' && net.role === 'host') {
+        // [netcheck:charname-start]
+        // Onboarding F3 (owner, 2026-09-27: only while in the making): the owner names their character; once live the GM renames it
+        var ridN = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridN) return;
+        var ansN = function(o) { o.type = 'char-name-ans'; o.rid = ridN; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prN = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prN) return;
+        if (net.paused || peerPaused(conn.peer)) { ansN({ reason: 'paused' }); return; }
+        var campN = getActiveCampaign(), chN = campN && campN.chars && typeof msg.charId === 'string' && own(campN.chars, msg.charId) ? campN.chars[msg.charId] : null;
+        if (!chN) { ansN({ reason: 'missing' }); return; }
+        if (chN.npc || chN.ownerId !== prN.id) { ansN({ reason: 'owner' }); return; }
+        if (chN.making !== 1) { ansN({ reason: 'notmaking' }); return; }
+        var nmN = cleanCharName(msg.name); if (!nmN) { ansN({ reason: 'bad' }); return; }
+        if (!allow('charname', { perMs: 1000, burst: 3, windowMs: 10000, table: 60 }, conn.peer)) { ansN({ reason: 'slow' }); return; }
+        chN.name = nmN; chN.updated = Date.now(); saveRemoteSoon(); sendCharTo(prN.id, chN.id); ansN({ ok: true });
+        if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chN.id);
+        // [netcheck:charname-end]
+    } else if (msg.type === 'char-done' && net.role === 'host') {
+        // [netcheck:chardone-start]
+        // Onboarding F3: the owner says their character is finished — one in the making goes LIVE at once (in play, unless the GM gave them one to
+        // play meanwhile: owner, 2026-09-27), its token on their waiting token's spot, their face copied when it has none; an unlocked one locks
+        // again. Not a step of the GM's undo. The GM is told (a toast, the Session Log, the chip's badge and the sheet's review bar until Keep it)
+        var ridD = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridD) return;
+        var ansD = function(o) { o.type = 'char-done-ans'; o.rid = ridD; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prD = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prD) return;
+        if (net.paused || peerPaused(conn.peer)) { ansD({ reason: 'paused' }); return; }
+        var campD = getActiveCampaign(), SD = SC(), chD = campD && campD.chars && typeof msg.charId === 'string' && own(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
+        if (!chD || !SD) { ansD({ reason: 'missing' }); return; }
+        if (chD.npc || chD.ownerId !== prD.id) { ansD({ reason: 'owner' }); return; }
+        var stD = SD.openChar(chD); if (!stD) { ansD({ reason: 'notmaking' }); return; }
+        if (!window.wpSheets || !window.wpSheets.giveCharacter) { ansD({ reason: 'off' }); return; }
+        if (!allow('chardone', { perMs: 2000, burst: 2, windowMs: 30000, table: 30 }, conn.peer)) { ansD({ reason: 'slow' }); return; }
+        var clD = SD.charClash(campD, chD.name, chD.id), CLW = { character: 'another character\u2019s', token: 'a token\u2019s', room: 'a room character\u2019s' };
+        if (window.wpHistFlush) window.wpHistFlush();
+        var wasRD = net.applyingRemote; net.applyingRemote = true;
+        try {
+            if (stD === 'making') { var playD = !SD.activeCharOf(campD, prD.id).id; delete chD.making; chD.review = 1; window.wpSheets.giveCharacter(prD.id, chD.id, { play: playD, pic: true }); }   // asked while it is still in the making: does the GM's give (a character they play) stand?
+            else { delete chD.unlocked; chD.review = 1; chD.updated = Date.now(); save(true); net.syncChar(chD.id); }
+        } finally { net.applyingRemote = wasRD; }
+        var tD = (prD.name || 'A player') + (stD === 'making' ? ' finished making ' : ' finished the sheet of ') + chD.name + (clD.length ? ' (the name is also ' + clD.map(function(k) { return CLW[k]; }).join(' and ') + ')' : '');
+        toast(tD + ' \u2014 review it on its sheet.'); logEvent('char', tD);
+        ansD(stD === 'making' && !playD ? { ok: true, kept: true } : { ok: true });   // kept: the character the GM gave them stays in play
+        if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chD.id);
+        if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+        // [netcheck:chardone-end]
     } else if (msg.type === 'my-look' && net.role === 'host') {
         // [netcheck:mylook-start]
         // Onboarding F1b: an admitted player changes their token face mid-session — cleaned, about one change a second (a burst of five), not
@@ -3743,7 +3869,7 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campNP = campOf(msg.campId), SNP = SC(); if (!campNP || !SNP || !SNP.cleanNewPlayers) return;
-        var cNP = SNP.cleanNewPlayers({ token: msg.token, sight: msg.sight });
+        var cNP = SNP.cleanNewPlayers({ token: msg.token, sight: msg.sight, create: msg.create, fromFile: msg.fromFile });
         if (cNP) campNP.newPlayers = cNP; else delete campNP.newPlayers;
         if (window.wpFog) window.wpFog.invalidateVision();
         render();
@@ -3786,7 +3912,7 @@ function handleMessage(msg, conn) {
         var chQ = null, varsQ = null, SQ = SC(), actQ = null, tcQ = null;
         if (q.charId) {   // the player's own character, resolved through the view they hold: a GM-only name is unknown there, a nulled formula an error, as on their sheet
             var campQ = getActiveCampaign(), pidQ = peerProfileId(conn), srcQ = campQ && campQ.chars && campQ.chars[q.charId];
-            if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || !SQ || !campQ.system) { denyQ('char'); return; }
+            if (!srcQ || srcQ.npc || !srcQ.ownerId || !pidQ || srcQ.ownerId !== pidQ || srcQ.making === 1 || !SQ || !campQ.system) { denyQ('char'); return; }   // making (Onboarding F3): not at the table yet
             var viewQ = window.wpSheets ? window.wpSheets.playerSystem(campQ) : null, chvQ = viewQ ? SQ.charFor(srcQ, viewQ, pidQ, { lib: fxLib(campQ.system), items: itemLib(campQ.system), full: campQ.system }) : null;
             if (!viewQ || !chvQ) { denyQ('char'); return; }
             var locQ = net.roster[conn.peer] && net.roster[conn.peer].location, mapQ = (typeof locQ === 'string' && campQ.items && own(campQ.items, locQ)) ? campQ.items[locQ] : null;   // 5h Fold 3: the facing names read the player's token on the map they are on

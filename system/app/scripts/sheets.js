@@ -8,7 +8,8 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView } from './systemcore.js';
+import { fileBase, charToJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -612,11 +613,12 @@ function canOpen(charId) {
 }
 function openSheet(charId) {
     if (!canOpen(charId)) { toast(featureOn() ? 'That sheet is not yours to open.' : 'Character sheets are off here.'); return; }
+    if (sheetOpen !== charId) closeDownloadMenu();   // Onboarding F2a: its menu names the character it was opened for
     sheetOpen = charId;
     var p = ui('sheetPanel'); if (!p) return;
     p.style.display = 'flex'; placeSheet(); raisePanel(p); renderSheet();
 }
-function closeSheet() { sheetOpen = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
+function closeSheet() { closeDownloadMenu(); sheetOpen = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} }
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
@@ -636,6 +638,7 @@ function renderSheet() {
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var upB = ui('sheetUpload'); if (upB) upB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes)
     var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
+    var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
@@ -3200,6 +3203,93 @@ function pickCharPicture(anchor) {
     };
     window.wpFaces.open(anchor, '', prof, function(face, img) { send(face, img); }, { upload: true });
 }
+/* ---------- Onboarding F2a: take a sheet away — a character file (.wpchar.json) and a readable page (.md) ---------- */
+// What a download holds (sheetexport.js writes it): a player — their own whole copy as their sheet shows it; the GM — the players' view of any
+// character (the owner's projection, as the host sends it; an NPC or an unassigned one too), or with "Include GM-only fields" their full copy
+function fxLibOf(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }   // net.js fxLib, alike
+function itemLibOf(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = window.wpLibrary; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : L.entry(id); } : lib; }   // net.js itemLib, alike
+function exportView(charId, gmAll) {
+    var camp = getActiveCampaign(), c0 = camp ? charById(charId, camp) : null; if (!camp || !c0 || c0.partial || !canOpen(c0.id)) return null;
+    var sys = null, view = null, gm = false;
+    if (isClient()) { sys = playerSystem(camp); view = sys ? cleanChar(c0, sys) : null; }   // their own copy (a client holds no other whole one)
+    else if (gmAll === true) { sys = F() ? cleanSystem(camp.system, { F: F(), gmView: true }) : null; view = sys ? cleanChar(c0, sys) : null; gm = true; }
+    else { sys = playerSystem(camp); view = sys ? charForView(c0, sys, { lib: fxLibOf(camp.system), items: itemLibOf(camp.system), full: camp.system }) : null; }
+    if (!sys || !view) return null;
+    var tctx = gm || isClient() || (c0.ownerId && !c0.npc) ? tokenCtxFor(c0.id, camp) : null;   // the players' view of an NPC or an unassigned character reads no token (the GM's pick could be a hidden one)
+    return { camp: camp, sys: sys, view: view, gm: gm, tctx: tctx, all: resolveAll(sys, view, F(), tctx) };   // the numbers on that same view: nothing worked out from what it hides
+}
+function saveTextFile(name, text, type) {   // the anchor download every export uses (a save dialog in the app)
+    try { var url = URL.createObjectURL(new Blob([text], { type: type })), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function() { URL.revokeObjectURL(url); }, 1000); return true; }
+    catch (e) { toast('The file could not be saved here.'); return false; }
+}
+// The portrait for the file: a square of at most 256 pixels (a JPEG when a PNG runs past 200,000 characters); '' when there is none, or a
+// player's copy of it has not arrived within four seconds
+function pictureData(path) {
+    return new Promise(function(res) {
+        var done = false, finish = function(v) { if (!done) { done = true; res(typeof v === 'string' ? v : ''); } };
+        if (typeof path !== 'string' || !path) { finish(''); return; }
+        setTimeout(function() { finish(''); }, 4000);
+        var draw = function(src) {
+            var im = new Image();
+            im.onload = function() {
+                try {
+                    var w = im.naturalWidth, h = im.naturalHeight; if (!(w > 1 && h > 1) || w > 4096 || h > 4096) { finish(''); return; }
+                    var s = Math.min(w, h), side = Math.min(256, s), cv = document.createElement('canvas'); cv.width = side; cv.height = side;
+                    cv.getContext('2d').drawImage(im, Math.floor((w - s) / 2), Math.floor((h - s) / 2), s, s, 0, 0, side, side);
+                    var d = cv.toDataURL('image/png'); if (d.length > 200000) d = cv.toDataURL('image/jpeg', 0.85);
+                    finish(d.length <= 200000 ? d : '');
+                } catch (e) { finish(''); }
+            };
+            im.onerror = function() { finish(''); };
+            im.src = src;
+        };
+        var n = net(), ph = n ? n.ASSET_PLACEHOLDER : null, src = imgSrc(path);
+        if (ph && src === ph) {   // a player's copy of the picture is still on its way (a refused one never comes: the timeout)
+            var onA = function(ev) { if (ev && ev.detail && ev.detail.path === path) { document.removeEventListener('wp-asset', onA); draw(imgSrc(path)); } };
+            document.addEventListener('wp-asset', onA); setTimeout(function() { document.removeEventListener('wp-asset', onA); }, 4000);
+            return;
+        }
+        if (src) draw(src); else finish('');
+    });
+}
+function downloadChar(charId, kind, gmAll) {
+    var X = exportView(charId, gmAll); if (!X) { toast('This sheet cannot be downloaded here.'); return; }
+    var base = fileBase(X.view.name) + (X.gm ? '-gm' : '');
+    if (kind === 'md') {
+        var md = sheetToMarkdown(X.sys, X.view, X.all, { F: F(), gm: X.gm, sub: String(X.sys.name || ''), tctx: X.tctx, pageTitle: function(id) { var r = pageRef(id); return r && (X.gm || !r.gmOnly) ? r.title : null; } });
+        if (saveTextFile(base + '.md', md, 'text/markdown')) toast('Saved ' + base + '.md');
+        return;
+    }
+    pictureData(X.view.portrait).then(function(pic) {
+        var j = charToJson(X.sys, X.view, X.all, { exported: new Date().toISOString(), gm: X.gm, picture: pic });
+        if (saveTextFile(base + '.wpchar.json', JSON.stringify(j, null, 1), 'application/json')) toast('Saved ' + base + '.wpchar.json');
+    });
+}
+// The Download menu (the sheet's head ⤓): on the page, not in the panel (the panel clips what overflows it); Escape and a click elsewhere close it
+var _dlPop = null, _dlGm = false;   // _dlGm: the GM's "Include GM-only fields", off each time the app starts
+function closeDownloadMenu() { if (_dlPop) { _dlPop.remove(); _dlPop = null; document.removeEventListener('mousedown', dlOutside, true); document.removeEventListener('keydown', dlKey, true); } }
+function dlOutside(e) { if (_dlPop && !_dlPop.contains(e.target) && !(_dlPop._anchor && _dlPop._anchor.contains(e.target))) closeDownloadMenu(); }
+function dlKey(e) { if (_dlPop && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); var a = _dlPop._anchor; closeDownloadMenu(); try { if (a) a.focus(); } catch (er) {} } }
+function openDownloadMenu(anchor) {
+    if (_dlPop) { closeDownloadMenu(); return; }   // its button toggles it
+    var c = sheetOpen ? charById(sheetOpen) : null; if (!c || c.partial || !canOpen(c.id)) return;
+    var gm = !isClient(), cid = c.id, pop = el('div', 'sheet-dl-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
+    var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); };
+    item('Character file (.json)', 'Every value on the sheet, to keep', 'json');
+    item('Readable page (.md)', 'The sheet as text \u2014 it imports as a handbook page', 'md');
+    if (gm) { var lb = el('label', 'sheet-dl-gm'), cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = _dlGm; cb.addEventListener('change', function() { _dlGm = cb.checked; }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' Include GM-only fields')); lb.title = 'Off: the sheet as its player sees it. On: your own copy, with every GM-only field and row (the file is named \u2026-gm)'; pop.appendChild(lb); }
+    else pop.appendChild(el('div', 'sheet-dl-note', 'Your sheet as you see it.'));
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) {   // its keys stay in it (on the page, arrows and Delete would act on the map's selection); the arrows move between its choices
+        e.stopPropagation();
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item, .sheet-dl-gm input')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
+    });
+    document.body.appendChild(pop); _dlPop = pop;
+    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.right - 280)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - 180, r.bottom + 6)) + 'px';
+    document.addEventListener('mousedown', dlOutside, true); document.addEventListener('keydown', dlKey, true);   // Escape here first: the panel's own Escape closes the sheet
+    var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
+}
 /* ---------- Stage 6 U3: a player's sheet upload — their Import JSON, the GM's review ---------- */
 function uploadsOf(camp, charId) { return cleanUploads(camp && camp.uploads).filter(function(u) { return !charId || u.charId === charId; }); }
 function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes)
@@ -3210,6 +3300,7 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
         if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
         file.text().then(function(txt) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+            if (isCharFile(j)) { toast('That is a character file from a sheet\u2019s Download: Import takes a ShadowBase character.'); return; }   // Onboarding F2a: never sent as a dossier
             if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) { toast('That does not look like a ShadowBase character JSON.'); return; }
             var n = net(); if (!n || !n.charUpload) return;
             var r = n.charUpload(c.id, j, function(a) {
@@ -4478,6 +4569,7 @@ function importFile(file) {
     var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });
     var upBt = ui('sheetUpload'); if (upBt) upBt.addEventListener('click', importJson);   // Stage 6 U3
     var picBt = ui('sheetPic'); if (picBt) picBt.addEventListener('click', function(e) { e.stopPropagation(); pickCharPicture(picBt); });   // Onboarding F1c
+    var dlBt = ui('sheetDownload'); if (dlBt) dlBt.addEventListener('click', function(e) { e.stopPropagation(); openDownloadMenu(dlBt); });   // Onboarding F2a
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button

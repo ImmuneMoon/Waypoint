@@ -41,9 +41,9 @@ Every suite is plain Node, no dependencies, exits 1 on any failure:
 | --- | --- |
 | `tools/parsecheck.js` | every module in `system/app/scripts` loads — run after **every** script edit |
 | `tools/tutorialcheck.js` | every tour step's `target` exists in `index.html` |
-| `tools/doccheck.js` | handbook renderer, rich-text sanitiser, Markdown, document theming |
+| `tools/doccheck.js` | handbook renderer, rich-text sanitiser, Markdown (a line that would open a block written so it reads back as text; the front matter quoted), document theming |
 | `tools/formulacheck.js` | the formula engine |
-| `tools/systemcheck.js` | the character system + sheet model (`systemcore.js`): cleaners, GM-view stripping, layout, band |
+| `tools/systemcheck.js` | the character system + sheet model (`systemcore.js`): cleaners, GM-view stripping, layout, band; a sheet's download (`sheetexport.js`: the character file and the readable page of the viewer's own view, run for real, and the sheet's export view sliced from `sheets.js`) |
 | `tools/dicecheck.js` | dice engine, modifiers, advantage |
 | `tools/itemcheck.js` | item library |
 | `tools/servercheck.js` | the local server's library storage (`system/resources/app/libstore.js`, shared by main.js and the dev server), run for real on a scratch folder: names, containment, the 16 MB cap, UTF-8 across chunks, revisions kept, backups; both servers wired alike |

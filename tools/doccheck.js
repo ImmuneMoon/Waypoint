@@ -303,6 +303,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('planner round trip: scene node, table node, html fence as code (never raw)', types(plb) === 'h1,node,node,text' && plb.blocks[1].linkRoomId === 'r9' && plb.blocks[1].rows[0].col1 === 'Bribe' && plb.blocks[2].mode === 'table' && /<pre><code>&lt;b&gt;raw/.test(plb.blocks[3].content) && plb.meta.status === 'next', types(plb) + ' ' + JSON.stringify(plb.blocks[3]));
         check('detectBundle: .md at the root or one folder down, __MACOSX and dotfiles ignored', (() => { const b = detectBundle([{ name: '__MACOSX/x.md', data: new Uint8Array() }, { name: 'Folder/.hidden.md', data: new Uint8Array() }, { name: 'Folder/page.md', data: new Uint8Array() }, { name: 'Folder/images/a.png', data: new Uint8Array() }]); return b && b.md.name === 'Folder/page.md' && b.base === 'Folder/' && b.files.length === 2; })() && detectBundle([{ name: 'a/b/c.md', data: new Uint8Array() }]) === null && detectBundle([{ name: 'data.json', data: new Uint8Array() }]) === null);
         check('htmlToMarkdown: code and pre', htmlToMarkdown('<p>use <code>x</code></p><pre>a\n b</pre>') === 'use `x`\n\n```\na\n b\n```');
+        // Onboarding F2a: a line start that would open a block is escaped, and reads back exactly as written
+        const esc2 = M.mdEscapeText;
+        check('mdEscapeText (F2a): a heading of any depth, a list or rule marker, a table row and a numbered list at a line start are escaped so they read back as text (1\\. not \\1.); marks as before',
+            esc2('## x') === '\\## x' && esc2('# x') === '\\# x' && esc2('- x') === '\\- x' && esc2('---') === '\\---' && esc2('+ x') === '\\+ x' && esc2('| a |') === '\\| a |' && esc2('1. x') === '1\\. x' && esc2('12) x') === '12\\) x' && esc2('1.5 kg') === '1.5 kg'
+            && esc2('a *b* <c>') === 'a \\*b\\* \\<c\\>' && esc2('  - x') === '  \\- x' && esc2('#tag') === '\\#tag');
+        const rtDoc = { type: 'doc', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, { type: 'text', content: '<p>## x<br>1. y<br>---<br>- z<br>| a | b |<br>+ w<br>&gt; q</p>' }, { type: 'text', content: '<ul><li>-5 and #3</li></ul>' }] };
+        const rtBack = markdownToBlocks(docToMarkdown(rtDoc).text, { kind: 'doc' }), rtTxt = rtBack.blocks.filter(b => b.type === 'text').map(b => b.content).join('\n');
+        check('F2a round trip: text lines that look like a heading, a numbered list, a rule, a list, a table row or a quote read back as the same text (text, nothing else, no stray backslash)',
+            /^h1,text(,text)?$/.test(types(rtBack)) && ['## x', '1. y', '---', '- z', '| a | b |', '+ w', '&gt; q', '-5 and #3'].every(t => rtTxt.indexOf(t) >= 0) && rtTxt.indexOf('\\') < 0, JSON.stringify(rtBack.blocks));
+        const cdDoc = { type: 'doc', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T' }, { type: 'text', content: '<p>Apply <code>-2</code>, <code>+1</code>, <code>#loot</code>, <code>|</code> and <code>a*b</code></p>' }, { type: 'text', content: '<p>1.<br>a | b<br>:--|--<br>::: lede<br>Met the duke<br>&amp;amp; and &amp;#58;</p>' }, { type: 'h2', title: 'After' }] };
+        const cdMd = docToMarkdown(cdDoc).text, cdBack = markdownToBlocks(cdMd, { kind: 'doc' }), cdTxt = cdBack.blocks.filter(b => b.type === 'text').map(b => b.content).join('\n');
+        check('F2a round trip: inline code comes back as written (no escape inside it); a lone "1.", a table separator under a piped line, a prose fence and a literal entity in text stay text; what follows them is intact',
+            /<code>-2<\/code>/.test(cdTxt) && /<code>\+1<\/code>/.test(cdTxt) && /<code>#loot<\/code>/.test(cdTxt) && /<code>\|<\/code>/.test(cdTxt) && /<code>a\*b<\/code>/.test(cdTxt) && cdTxt.indexOf('\\') < 0
+            && /(^|>|<br>)1\.(<br>|<\/p>)/.test(cdTxt) && cdTxt.indexOf('::: lede') >= 0 && cdTxt.indexOf(':--|--') >= 0 && cdTxt.indexOf('&amp;amp; and &amp;#58;') >= 0
+            && !cdBack.blocks.some(b => ['lede', 'callout', 'table', 'rule'].indexOf(b.type) >= 0 || (b.type === 'text' && /<ol>/.test(b.content))) && cdBack.blocks.some(b => b.type === 'h2' && b.title === 'After'), JSON.stringify(cdBack.blocks));
+        check('F2a htmlToMarkdown: a mark or a line start is escaped only where it would read as one — mid-line text stays as written; yamlStr quotes a control character even alone',
+            htmlToMarkdown('<p>a <b>b</b> -5 and #3: x</p>') === 'a **b** -5 and #3: x' && htmlToMarkdown('<p>x<br>-5</p>') === 'x  \n\\-5' && M.yamlStr('A' + String.fromCharCode(13) + 'B') === '"A\\rB"' && M.yamlStr('A' + String.fromCharCode(0) + 'B') === '"A\\u0000B"');
+        const fmDoc = { type: 'doc', meta: { title: 'A "quoted" <b>x</b> & y\r---\rplayers: true', players: false }, blocks: [{ type: 'h1', title: 'A' }] };
+        const fmMd = docToMarkdown(fmDoc).text, fmBack = markdownToBlocks(fmMd, { kind: 'doc' }), fmHead = fmMd.split('\n---')[0];
+        check('F2a front matter: a title with quotes, markup, an ampersand or a control character is written quoted and escaped (no raw < or CR in the file) and reads back exactly; players: false stays',
+            !/[<>&\r]/.test(fmHead) && fmBack.meta.title === fmDoc.meta.title && fmBack.meta.players === false && M.yamlStr('plain') === 'plain' && M.yamlStr('a: b') === '"a: b"', fmMd.slice(0, 200));
     }
 
     /* ---- Stage 6 HUD H12: the handbook search (plain text over the viewer's own pages) ---- */

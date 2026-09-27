@@ -2658,6 +2658,14 @@
   .hud-ico-user, .hud-ico-open, .hud-ico-wave { width: 13px; height: 13px; }
   .hud-ico-user { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 16 84 84'%3E%3Ccircle cx='50' cy='40' r='24'/%3E%3Cpath d='M24 70 L76 70 L92 100 L8 100 Z'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 16 84 84'%3E%3Ccircle cx='50' cy='40' r='24'/%3E%3Cpath d='M24 70 L76 70 L92 100 L8 100 Z'/%3E%3C/svg%3E"); }   /* the default avatar's figure (main.js wpDefaultAvatar: a circle head over a trapezoid torso), as a player without a photo is drawn */
   .hud-ico-open, .hud-ico-wave { -webkit-mask-image: url("assets/icons/fa/solid/wave-square.svg"); mask-image: url("assets/icons/fa/solid/wave-square.svg"); }
+  .sheet-dl-ico { width: 13px; height: 13px; -webkit-mask-image: url("assets/icons/fa/solid/download.svg"); mask-image: url("assets/icons/fa/solid/download.svg"); }   /* Onboarding F2a: the sheet's Download */
+  .sheet-dl-pop { position: fixed; z-index: 100003; width: 280px; display: flex; flex-direction: column; gap: 2px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+  .sheet-dl-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; color: var(--ink); cursor: pointer; font: inherit; }
+  .sheet-dl-item:hover, .sheet-dl-item:focus-visible { background: var(--surface); border-color: var(--edge); outline: none; }
+  .sheet-dl-t { font-size: 13px; }
+  .sheet-dl-s, .sheet-dl-note { font-size: 11px; color: var(--dim); }
+  .sheet-dl-gm { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); cursor: pointer; }
+  .sheet-dl-note { padding: 6px 8px 2px; margin-top: 2px; border-top: 1px solid var(--edge); }
   .hud-ico-wave { width: 15px; height: 15px; color: var(--sheet-primary, var(--gold)); }
   /* HF2b: the HUD button placement — a full-width button led by the HUD's wave glyph */
   .sheet-hud-link { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }

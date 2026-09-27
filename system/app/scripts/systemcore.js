@@ -2567,7 +2567,7 @@ function validateSystem(sys, F) {
             if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
-                if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row has it.' }); }
+                if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row has it.' }); }
                 if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             }
             if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
@@ -2780,9 +2780,9 @@ function validateSystem(sys, F) {
             if (kd !== 'pick') return;
             if (!Array.isArray(st.opts) || !st.opts.length) errors.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d is a choice with no options yet.' });
             (st.opts || []).forEach(function(o) {
-                var t = known[lower(o.name)], ok = false; try { var p = F.parse(o.name); ok = !!p.ok && p.names.length === 1 && lower(p.names[0]) === lower(o.name); } catch (e) { ok = false; }
+                var t = known[lower(o.name)] || listT(o.name), ok = false; try { var p = F.parse(o.name); ok = !!p.ok && p.names.length === 1 && lower(p.names[0]) === lower(o.name); } catch (e) { ok = false; }   // Stage 6 F3: or a list's name — an addressed row (Skills.Guns.Target), a total
                 if (!ok || !t || !NUMERIC[t.kind]) { errors.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads \u201c' + o.name + '\u201d, which is not a number formulas know.' }); return; }
-                if (f.vis === 'all' && (t.vis === 'gm' || gmP[t.id] === 1)) warnings.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads a GM-only value, so players do not get that option.' });
+                if (f.vis === 'all' && (t.vis === 'gm' || gmP[t.id] === 1 || t.gmKey)) warnings.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads a GM-only value, so players do not get that option.' });
             });
         });
     });
@@ -2973,6 +2973,59 @@ var SB_MAP = [
 ];
 function pick(obj, path) { var cur = obj; for (var i = 0; i < path.length; i++) { if (!isObj(cur)) return undefined; cur = cur[path[i]]; } return cur; }
 function numOf(v) { if (typeof v === 'number') return v; if (isObj(v)) { var c = [v.effective, v.final, v.value, v.level, v.current]; for (var i = 0; i < c.length; i++) if (typeof c[i] === 'number' && isFinite(c[i])) return c[i]; } return undefined; }
+// Stage 6 F3: the rest of a website dossier's scalars, each onto the key a system built on them has (a stored kind; its own rules, as an
+// edit's). A level bought is the dossier's figure less the base the website prices it on — the raw attribute (its stored value, else the
+// template), or Will and Per as bought (their figure, else IQ) for Fright and the senses; a figure the dossier leaves empty buys nothing (0)
+var SB_FREE = [['hpfree', 'hitPoints'], ['epfree', 'endurancePoints'], ['forcefree', 'forcePoints'], ['willfree', 'will'], ['perfree', 'perception'], ['frightfree', 'frightCheck'], ['speedfree', 'basicSpeed'], ['movefree', 'basicMove'], ['visionfree', 'vision'], ['hearingfree', 'hearing'], ['tastefree', 'tasteAndSmell'], ['touchfree', 'touch']];
+function sbNum(v) { return typeof v === 'number' && isFinite(v) ? v : undefined; }
+function sbMarks(t) {   // the website's [n] marks in a text: the first of each entry (a line, or split by ;), summed
+    if (typeof t !== 'string') return 0; var n = 0;
+    t.slice(0, LIMITS.notes).split(/[\n;]/).forEach(function(e) { var m = /\[\s*([+-]?\d{1,6})\s*(?:points?)?\s*\]/.exec(e); if (m) n += parseInt(m[1], 10); });
+    return n;
+}
+function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a boolean or a text), before any field's rules
+    var o = function(v) { return isObj(v) ? v : {}; }, inv = o(j.investment), at = o(j.attributes), ch = o(j.characteristics), pt = o(j.points), cr = o(j.credits), dt = o(j.details), nr = o(j.narrative), out = map();
+    var tpl = function(k) { var v = sbNum(inv[k + 'Baseline']); return v === undefined ? 10 : v; };
+    var raw = function(a, k) { var v = numOf(at[a]); return v === undefined ? tpl(k) : v; };
+    var rST = raw('strength', 'st'), rDX = raw('dexterity', 'dx'), rIQ = raw('iq', 'iq'), rHT = raw('health', 'ht');
+    var fig = function(k) { return isObj(ch[k]) ? sbNum(ch[k].final) : undefined; }, pW = fig('will'), pP = fig('perception'); if (pW === undefined) pW = rIQ; if (pP === undefined) pP = rIQ;
+    var lvl = function(key, k, base) { var f = fig(k); out[key] = f === undefined ? 0 : f - base; };
+    ['player', 'species', 'homeworld', 'campaign', 'literacy'].forEach(function(k) { if (typeof j[k] === 'string') out[k] = j[k]; });
+    if (typeof inv.isStartingPointsMode === 'boolean') out.cpmode = inv.isStartingPointsMode;
+    if (typeof inv.useLiftingST === 'boolean') out.useliftst = inv.useLiftingST;
+    [['st', 'st'], ['dx', 'dx'], ['iq', 'iq'], ['ht', 'ht']].forEach(function(p) { out[p[0] + 'tpl'] = tpl(p[1]); });
+    SB_FREE.forEach(function(p) { var v = sbNum(inv[p[1] + 'Baseline']); out[p[0]] = v === undefined ? 0 : v; });
+    lvl('hplvl', 'hitPoints', rST); lvl('eplvl', 'endurancePoints', rHT); lvl('forcelvl', 'forcePoints', pW); lvl('willlvl', 'will', rIQ); lvl('perlvl', 'perception', rIQ); lvl('frightlvl', 'frightCheck', pW);
+    lvl('visionlvl', 'vision', pP); lvl('hearinglvl', 'hearing', pP); lvl('tastelvl', 'tasteAndSmell', pP); lvl('touchlvl', 'touch', pP);
+    lvl('speedlvl', 'basicSpeed', (rDX + rHT) / 4); lvl('movelvl', 'basicMove', Math.floor((rST + rDX) / 4));
+    if (sbNum(pt.total) !== undefined) out.points = pt.total;
+    if (sbNum(pt.powerPoints) !== undefined) out.pp = pt.powerPoints;
+    var al = sbNum(pt.forceAlignment); if (al === undefined && (sbNum(pt.lightSidePoints) !== undefined || sbNum(pt.darkSidePoints) !== undefined)) al = (sbNum(pt.lightSidePoints) || 0) - (sbNum(pt.darkSidePoints) || 0); if (al !== undefined) out.align = al;   // an older dossier has only the two sides
+    if (sbNum(cr.total) !== undefined) out.credits = cr.total;
+    if (sbNum(cr.tradedCp) !== undefined) out.cptraded = cr.tradedCp;
+    if (typeof cr.tradedForm === 'string') out.creditsform = cr.tradedForm;
+    [['height', 'height'], ['weight', 'weight'], ['age', 'age'], ['sm', 'sizeModifier'], ['appearance', 'appearance'], ['turn', 'turnCounter']].forEach(function(p) { var v = dt[p[1]]; if (typeof v === 'string' || sbNum(v) !== undefined) out[p[0]] = v; });
+    if (typeof dt.isDroid === 'boolean') out.droid = dt.isDroid;
+    if (typeof dt.facingChangeUsed === 'boolean') out.turnused = dt.facingChangeUsed;
+    if (typeof dt.stunType === 'string') out.stun = /^physical$/i.test(dt.stunType) ? 1 : /^mental$/i.test(dt.stunType) ? 2 : 0;
+    [['description', 'description'], ['background', 'background'], ['notes', 'notes']].forEach(function(p) { if (typeof nr[p[1]] === 'string') out[p[0]] = nr[p[1]]; });
+    if (typeof j.republicRaised === 'boolean') out.republic = j.republicRaised;
+    if (typeof j.culturalFamiliarities === 'string') out.culture = j.culturalFamiliarities;
+    var base = function(k) { return sbNum(j[k + 'Baseline']) || 0; };   // top-level, not under investment
+    out.culturecp = sbMarks(j.culturalFamiliarities) - base('culturalFamiliarities'); out.litcp = sbMarks(j.literacy) - base('literacy'); out.langcp = sbMarks(j.languages) - base('languages');
+    if (typeof j.shipPosition === 'string') out.shiprole = j.shipPosition;
+    if (typeof j.assignedStation === 'string') out.station = j.assignedStation;
+    return out;
+}
+function sbPut(f, v) {   // a dossier value in a field's own terms (cleanValue after), or undefined
+    var k = f.kind;
+    if (k === 'resource') return sbNum(v) === undefined ? undefined : cleanValue(f, { cur: v });
+    if (k === 'number' || k === 'skill') return sbNum(v) === undefined ? undefined : cleanValue(f, v);
+    if (k === 'toggle') return typeof v === 'boolean' ? v : undefined;
+    if (k === 'text' || k === 'notes') return (typeof v === 'string' && v.trim()) || sbNum(v) !== undefined ? cleanValue(f, String(v)) : undefined;   // an empty text never wipes what the character has
+    if (k === 'select') { var t = typeof v === 'string' ? lower(v.trim()) : ''; for (var i = 0; t && i < f.options.length; i++) if (lower(f.options[i]) === t) return f.options[i]; }
+    return undefined;
+}
 function aliasFromShadowBase(json, sys, F) {
     var values = {}, matched = 0;
     if (!isObj(json) || !sys) return { values: values, matched: 0 };
@@ -2986,6 +3039,8 @@ function aliasFromShadowBase(json, sys, F) {
         var nv = cleanValue(f, n); if (nv === undefined) return;   // the field's own rules (bounds, step, the wire-safe range), as an edit would
         values[f.id] = nv; matched++;
     });
+    var sc = sbScalars(json);   // Stage 6 F3: the other scalars (after SB_MAP: a key it filled keeps its value)
+    Object.keys(sc).forEach(function(k) { var f = ix[k]; if (!f || !STORED[f.kind] || f.id in values) return; var v = sbPut(f, sc[k]); if (v === undefined) return; values[f.id] = v; matched++; });
     var temp = { id: 'c_tmp', name: '', ownerId: '', npc: true, values: values };
     (Array.isArray(json.skills) ? json.skills : []).forEach(function(s) {
         if (!isObj(s) || typeof s.name !== 'string') return;

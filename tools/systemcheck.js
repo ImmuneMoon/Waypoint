@@ -4227,6 +4227,77 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /function renderViews\(charId, skip\) \{\n    if \(typeof bellFx === 'function'\) \{ try \{ bellFx\(charId\); \}/.test(shB) && /_lastCamp = id; try \{ bellFx\(null\); \}/.test(shB) && /v\.histOpen = false; v\.bellOpen = false;/.test(shB) && /window\.wpSheets = \{ bellNote: bellNote,/.test(shB)
             && /The <b>bell<\/b> beside it keeps the character&rsquo;s <b>notes<\/b>/.test(hmB) && /pins stay on this computer, never on the character/.test(hmB) && /The <b>bell<\/b> beside it keeps the character&rsquo;s notes/.test(tuB) && /pin one to keep it on this computer\./.test(tuB));
     }
+    /* ---- Stage 6 HUD H12: the handbook search placement — sheets.js run for real on a tiny DOM, with the real docrender search ---- */
+    {
+        const shH = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), DRH = await import(url('docrender.js'));
+        const hSrc = shH.slice(shH.indexOf('/* Stage 6 HUD H12: the handbook search placement'), shH.indexOf('// A handbook link placement'));
+        const mkH = o => {
+            o = o || {}; const doc = { activeElement: null, roots: [] };
+            const matches = (e, q) => { const m = /^\.([\w-]+)(?:\[data-hb="([^"]*)"\])?$/.exec(q); if (m) return e.className.split(/\s+/).includes(m[1]) && (m[2] === undefined || e.dataset.hb === m[2]); const b = /^\[data-blk="(\d+)"\]$/.exec(q); return !!b && e.dataset.blk === b[1]; };
+            const E = tag => { const e = { tag, className: '', children: [], attrs: {}, on: {}, dataset: {}, style: {}, title: '', type: '', value: '', disabled: false, placeholder: '', maxLength: 0, _t: '', isConnected: true,
+                classList: { add(k) { e.className += ' ' + k; }, contains: k => e.className.split(/\s+/).includes(k) },
+                get textContent() { return this._t + this.children.map(c => c.textContent).join(''); }, set textContent(v) { this.children = []; this._t = String(v); },
+                appendChild(c) { this.children.push(c); return c; }, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(k, f) { this.on[k] = f; },
+                all() { return this.children.flatMap(c => c.all ? [c, ...c.all()] : [c]); }, querySelector(q) { return this.all().find(c => c.className !== undefined && matches(c, q)) || null; }, querySelectorAll(q) { return this.all().filter(c => c.className !== undefined && matches(c, q)); },
+                focus() { doc.activeElement = e; }, click() { if (this.on.click) this.on.click({ preventDefault() {}, stopPropagation() {} }); }, scrollIntoView() { e.scrolled = true; } }; return e; };
+            const el = (t, c, x) => { const e = E(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; };
+            doc.createTextNode = t => ({ textContent: String(t) }); doc.querySelector = q => { for (const r of doc.roots) { if (matches(r, q)) return r; const f = r.querySelector(q); if (f) return f; } return null; };
+            const camp = { items: o.items || { d_c: { type: 'doc', meta: { title: 'Combat' }, blocks: [{ type: 'h1', title: 'Combat', sub: 'Rules of the fight' }, { type: 'h2', title: 'Movement' }, { type: 'text', content: 'Move your Speed.' }, { type: 'h2', title: 'Moving diagonally' }, { type: 'h3', title: 'Moves in water' }, { type: 'h3', title: 'Moves in mud' }, { type: 'text', content: 'Mud costs double.' }] },
+                d_s: { type: 'doc', meta: { title: 'Secrets', players: false }, blocks: [{ type: 'text', content: 'The dragon sleeps.' }] }, m_1: { type: 'map', meta: { title: 'Not a page' } } } };
+            const timers = [], opened = [], rendered = [];
+            const win = { wpDocRender: DRH, wpDocRenderPage: (page, it) => { rendered.push(it.meta.title); (it.blocks || []).forEach((b, i) => { const d = el('div', 'pv-blk'); d.dataset.blk = String(i); page.appendChild(d); }); } };
+            const api = new Function('el', 'iconNode', 'getActiveCampaign', 'window', 'document', 'openPage', 'setTimeout', 'clearTimeout', hSrc + '\nreturn { hbNode, hbKey, hbState, state: _hb };')(
+                el, (v, c) => el('span', c), () => camp, win, doc, id => opened.push(id), (f, ms) => { timers.push([f, ms]); return timers.length; }, () => {});
+            const mount = key => { const b = api.hbNode(key); doc.roots = [b]; return b; };
+            const type = (b, v) => { const i = b.querySelector('.sheet-hb-q'); i.value = v; i.on.input(); };
+            const texts = (b, q) => b.querySelectorAll(q).map(x => x.textContent);
+            return { api, camp, doc, timers, opened, rendered, mount, type, texts };
+        };
+        const H = mkH(), b0 = H.mount('h-c_a-s_x-0');
+        check('H12 the placement (run for real): nothing typed, it lists the pages here by title (the GM-only one marked), never another kind of item; the text button waits for two characters',
+            JSON.stringify(H.texts(b0, '.sheet-hb-ptitle')) === JSON.stringify(['Combat', 'Secrets']) && b0.querySelectorAll('.sheet-chip-gm').length === 1 && b0.querySelector('.sheet-hb-q').placeholder === 'Search the handbook' && b0.querySelector('.sheet-hb-deep').disabled === true
+            && b0.querySelector('.sheet-hb-q').dataset.fid === 'h-c_a-s_x-0' && b0.querySelector('.sheet-hb-q').dataset.part === 'q', JSON.stringify(H.texts(b0, '.sheet-hb-ptitle')));
+        H.type(b0, 'mov');
+        const heads1 = H.texts(b0, '.sheet-hb-head'), more1 = H.texts(b0, '.sheet-hb-more');
+        b0.querySelector('.sheet-hb-more').click(); const heads2 = H.texts(b0, '.sheet-hb-head');
+        check('H12 typing searches the headings: the page, then three of its matching headings and "+N more", which shows the rest; the text button is ready',
+            JSON.stringify(heads1) === JSON.stringify(['Movement', 'Moving diagonally', 'Moves in water']) && JSON.stringify(more1) === JSON.stringify(['+1 more']) && heads2.length === 4 && !b0.querySelector('.sheet-hb-more') && b0.querySelector('.sheet-hb-deep').disabled === false, JSON.stringify([heads1, more1, heads2]));
+        H.type(b0, 'dragon'); const waiting = H.texts(b0, '.sheet-hb-empty'), t1 = H.timers.length;
+        H.timers[t1 - 1][0](); const deep1 = H.texts(b0, '.sheet-hb-sub'), marks = b0.all().filter(m => m.tag === 'mark').map(m => m.textContent), where = H.texts(b0, '.sheet-hb-where');
+        check('H12 no heading matching three characters or more: it says it is looking in the text and does, by itself 450 ms later — each place with its page (and heading), the words marked',
+            JSON.stringify(waiting) === JSON.stringify(['No heading matches \u2014 looking in the text\u2026']) && H.timers[t1 - 1][1] === 450 && JSON.stringify(deep1) === JSON.stringify(['In the text: 1 place']) && JSON.stringify(marks) === JSON.stringify(['dragon']) && JSON.stringify(where) === JSON.stringify(['Secrets']), JSON.stringify([waiting, deep1, marks, where]));
+        H.type(b0, 'rules of'); H.timers[H.timers.length - 1][0](); const once = H.texts(b0, '.sheet-hb-where');
+        const tb = H.timers.length; H.type(b0, 'xy'); const short = H.texts(b0, '.sheet-hb-empty'), t2 = H.timers.length;
+        b0.querySelector('.sheet-hb-q').on.keydown({ key: 'Enter', preventDefault() {}, stopPropagation() {} }); const none = H.texts(b0, '.sheet-hb-sub');
+        H.type(b0, 'double'); b0.querySelector('.sheet-hb-deep').click(); const deep2 = H.texts(b0, '.sheet-hb-where');
+        check('H12 two characters wait for Enter (no timer); Enter or the button searches the text now (nothing found says so); a place under the page\'s own title heading names the page once',
+            JSON.stringify(once) === JSON.stringify(['Combat']) && JSON.stringify(short) === JSON.stringify(['No heading matches. Press Enter to look in the text.']) && t2 === tb && JSON.stringify(none) === JSON.stringify(['Nothing in the text either.']) && JSON.stringify(deep2) === JSON.stringify(['Combat \u203a Moves in mud']), JSON.stringify([short, none, deep2]));
+        b0.querySelector('.sheet-hb-hit').click(); const b1 = H.doc.roots[0], pg = b1.querySelector('.sheet-hb-page'), target = pg && pg.querySelector('[data-blk="5"]');
+        const tScroll = H.timers[H.timers.length - 1]; tScroll[0]();
+        check('H12 a place opens its page right here: back to the results, the page\'s title, Open in reader; the reader\'s own render in a doc-view box, taken to the heading once (marked)',
+            JSON.stringify(H.texts(b1, '.sheet-hb-rtitle')) === JSON.stringify(['Combat']) && b1.querySelectorAll('.sheet-hb-back').length === 1 && b1.querySelectorAll('.sheet-hb-open').length === 1 && pg && pg.className === 'doc-view sheet-hb-page'
+            && JSON.stringify(H.rendered) === JSON.stringify(['Combat']) && target && target.scrolled === true && target.className.includes('sheet-hb-here') && H.api.state['h-c_a-s_x-0'].go === false, JSON.stringify(H.rendered));
+        const nT = H.timers.length, b2 = H.mount('h-c_a-s_x-0');
+        check('H12 what it shows is kept for the session: a repaint draws the same page again without taking the reader back to the heading',
+            b2.querySelectorAll('.sheet-hb-page').length === 1 && H.timers.length === nT && H.rendered.length === 2);
+        b2.querySelector('.sheet-hb-open').click(); b2.querySelector('.sheet-hb-back').click(); const b3 = H.doc.roots[0];
+        check('H12 Open in reader opens that page there; back returns to the results, the words still typed and the search box focused',
+            JSON.stringify(H.opened) === JSON.stringify(['d_c']) && b3.querySelector('.sheet-hb-q').value === 'double' && H.doc.activeElement === b3.querySelector('.sheet-hb-q') && H.texts(b3, '.sheet-hb-where').length === 1);
+        b3.querySelector('.sheet-hb-q').on.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} }); const cleared = H.texts(b3, '.sheet-hb-ptitle');
+        const g = mkH(); const gb = g.mount('s-c_a-s_x-1'); g.type(gb, 'secrets'); gb.querySelector('.sheet-hb-page-row').click(); delete g.camp.items.d_s; const gb2 = g.mount('s-c_a-s_x-1');
+        const e = mkH({ items: {} }), eb = e.mount('p-x-x-0');
+        check('H12 Esc empties the words (back to the list); a page gone (or hidden from this player since) falls back to the results; no pages: says so; keys are made of safe characters only',
+            JSON.stringify(cleared) === JSON.stringify(['Combat', 'Secrets']) && gb2.querySelectorAll('.sheet-hb-page').length === 0 && gb2.querySelectorAll('.sheet-hb-q').length === 1 && JSON.stringify(e.texts(eb, '.sheet-hb-empty')) === JSON.stringify(['No handbook pages here yet.'])
+            && g.api.hbKey({ view: 'hud' }, { id: 'c_a"]x' }, { id: 's_1' }, 2) === 'h-c_ax-s_1-2' && g.api.hbKey({ preview: true, view: 'hud' }, null, null, 0) === 'p-x-x-0' && g.api.hbKey({ view: 'sheet' }, { id: 'c_b' }, { id: 's_2' }, 3) === 's-c_b-s_2-3');
+        const rawH = { v: 1, name: 'H', fields: [], rolls: [], sheet: { sections: [{ id: 's_a', title: 'Rules', fields: [{ kind: 'search', w: 'row' }, { kind: 'search', w: 1, text: 'x' }] }] } };
+        const gH = cleanSystem(rawH, { F, gmView: true }), pH = cleanSystem(rawH, { F, gmView: false });
+        const hbC = fs.readFileSync(path.join(app, 'scripts', 'handbook.js'), 'utf8').replace(/\r\n/g, '\n'), hmH = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuH = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        check('H12 the kind: a search placement is kept in both views (no GM data rides on it: the pages are the viewer\'s own); the section draws it keyed by view, character, section and place; the editor offers it beside Handbook link; the reader and the placement share one render; Help and the tour say so',
+            JSON.stringify(gH.sheet.sections[0].fields) === JSON.stringify([{ kind: 'search', w: 'row' }, { kind: 'search', w: 1 }]) && JSON.stringify(pH.sheet.sections[0].fields) === JSON.stringify(gH.sheet.sections[0].fields)
+            && /else if \(pl\.kind === 'search'\) node = hbNode\(hbKey\(vctx, c, sec, pli\)\);/.test(shH) && /opts\.push\(\['k:link', 'Handbook link'\], \['k:search', 'Handbook search'\]\);/.test(shH) && /if \(pl\.kind === 'search'\) return 'Handbook search';/.test(shH)
+            && /function renderInto\(body, it\) \{ renderPage\(body, it\); openSig = sigOf\(it\); \}/.test(hbC) && /window\.wpDocRenderPage = renderPage;/.test(hbC)
+            && /A <b>Handbook search<\/b> placement \(on a HUD&rsquo;s Handbook tab, say\) lists the pages the viewer can read and searches them/.test(hmH) && /and a <b>Handbook search<\/b> placement searches the rules and shows the page in place\./.test(tuH));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

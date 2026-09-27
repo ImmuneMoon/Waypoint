@@ -464,6 +464,70 @@ function renderDoc(doc, opts) {
     return html;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+/* ---------- Stage 6 HUD H12: the handbook search (a sheet or HUD placement; the reference's Handbook tab) ----------
+   Plain text only, over the viewer's own pages: a page's parts under each heading (h1, h2, h3), searched by heading as the viewer types
+   (every word, any order, in the page's title or a heading) and in the text on request (every word under one heading, the phrase first),
+   capped. Nothing here makes markup: the caller draws with text nodes. Folding keeps one character per character, so a place found in the
+   folded text is the same place in the text. */
+var HB_LIMIT = 60;
+function hbFold(s) { s = String(s == null ? '' : s); var out = ''; for (var i = 0; i < s.length; i++) { var c = s.charAt(i), f = (c.normalize ? c.normalize('NFD').charAt(0) : c).toLowerCase(); out += f.length === 1 ? f : c; } return out; }
+function hbPlain(html) { return decodeEntities(str(html, LIMITS.html).replace(/<(br|\/p|\/li|\/div|\/h[1-6])\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(); }
+function hbBlockText(b) {
+    switch (b.type) {
+        case 'text': case 'lede': case 'oneline': case 'callout': case 'flare': return hbPlain(b.content);
+        case 'table': return [str(b.title, LIMITS.title)].concat(Array.isArray(b.cols) ? b.cols.map(function(x) { return str(x, LIMITS.title); }) : [], (Array.isArray(b.rows) ? b.rows : []).map(function(r) { return rowCells(r).map(function(x) { return str(x, LIMITS.cell); }).join(' '); })).join(' ');
+        case 'image': return str(b.caption, LIMITS.caption);
+        default: return '';
+    }
+}
+// [{ bi, level, title, text }]: bi is the heading's block (-1: the part before the first heading, its title the page's)
+function hbSections(doc) {
+    var blocks = doc && Array.isArray(doc.blocks) ? doc.blocks : [], out = [], cur = { bi: -1, level: 0, title: '', parts: [] };
+    var push = function(s) { var text = s.parts.join(' ').replace(/\s+/g, ' ').trim(); if (s.bi < 0 && !text) return; out.push({ bi: s.bi, level: s.level, title: s.title, text: text }); };
+    blocks.forEach(function(b, i) {
+        if (!b || typeof b !== 'object') return;
+        if (b.type === 'h1' || b.type === 'h2' || b.type === 'h3') { push(cur); cur = { bi: i, level: +b.type.charAt(1), title: str(b.title, LIMITS.title).replace(/\s+/g, ' ').trim(), parts: [] }; if (b.type === 'h1' && b.sub) cur.parts.push(str(b.sub, LIMITS.title)); return; }
+        var t = hbBlockText(b); if (t) cur.parts.push(t);
+    });
+    push(cur);
+    return out;
+}
+function hbWords(q) { return hbFold(q).split(/\s+/).filter(Boolean).slice(0, 12); }
+function hbAll(f, words) { return words.every(function(w) { return f.indexOf(w) >= 0; }); }
+// pages: [{ id, title, doc }]; the pages whose title or headings hold every word — the title first, then the most headings
+function hbHeadings(pages, q) {
+    var words = hbWords(q), out = []; if (!words.length) return out;
+    (Array.isArray(pages) ? pages : []).forEach(function(p) {
+        if (!p || typeof p.id !== 'string') return;
+        var t = String(p.title == null ? '' : p.title), heads = [];
+        hbSections(p.doc).forEach(function(s) { if (s.bi >= 0 && s.title && hbAll(hbFold(s.title), words)) heads.push({ bi: s.bi, title: s.title }); });
+        var inTitle = hbAll(hbFold(t), words); if (!inTitle && !heads.length) return;
+        out.push({ id: p.id, title: t, inTitle: inTitle, heads: heads });
+    });
+    out.sort(function(a, b) { return (+b.inTitle - +a.inTitle) || (b.heads.length - a.heads.length) || a.title.localeCompare(b.title); });
+    return out;
+}
+// the parts that hold every word (under a heading, its title counts): the phrase first, then the heading's own match; each with a
+// snippet around the phrase (else the first word the text holds) as before / hit / after; at most HB_LIMIT (over: there were more)
+function hbText(pages, q) {
+    var words = hbWords(q), phrase = words.join(' '), hits = [];
+    if (!words.length || phrase.length < 2) return { hits: hits, over: false };
+    (Array.isArray(pages) ? pages : []).forEach(function(p) {
+        if (!p || typeof p.id !== 'string') return;
+        var pt = String(p.title == null ? '' : p.title);
+        hbSections(p.doc).forEach(function(s) {
+            var body = s.text, fb = hbFold(body); if (!hbAll(hbFold(s.title) + ' ' + fb, words)) return;
+            var ph = fb.indexOf(phrase), at = ph, len = phrase.length; if (at < 0) words.some(function(w) { var i = fb.indexOf(w); if (i < 0) return false; at = i; len = w.length; return true; });
+            var h = { id: p.id, page: pt, bi: s.bi, head: s.bi >= 0 ? s.title : '', score: (ph >= 0 ? 100 : 0) + (hbAll(hbFold(s.title), words) ? 10 : 0), before: '', hit: '', after: '' };
+            if (at < 0) h.before = body.slice(0, 120) + (body.length > 120 ? '\u2026' : '');
+            else { h.before = (at > 50 ? '\u2026' : '') + body.slice(Math.max(0, at - 50), at); h.hit = body.slice(at, at + len); h.after = body.slice(at + len, at + len + 90) + (at + len + 90 < body.length ? '\u2026' : ''); }
+            hits.push(h);
+        });
+    });
+    hits.sort(function(a, b) { return b.score - a.score || a.page.localeCompare(b.page) || a.bi - b.bi; });
+    return { hits: hits.slice(0, HB_LIMIT), over: hits.length > HB_LIMIT };
+}
+
+var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

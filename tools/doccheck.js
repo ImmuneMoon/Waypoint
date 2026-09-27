@@ -303,6 +303,45 @@ function inert(html) {
         check('htmlToMarkdown: code and pre', htmlToMarkdown('<p>use <code>x</code></p><pre>a\n b</pre>') === 'use `x`\n\n```\na\n b\n```');
     }
 
+    /* ---- Stage 6 HUD H12: the handbook search (plain text over the viewer's own pages) ---- */
+    {
+        const { hbFold, hbSections, hbHeadings, hbText, HB_LIMIT } = D;
+        const combat = { blocks: [
+            { type: 'text', content: '<p>Before any heading</p>' },
+            { type: 'h1', title: 'Combat', sub: 'Rules of engagement' },
+            { type: 'text', content: '<p>Every <b>round</b> has turns &amp; phases.</p><script>alert(1)</script>' },
+            { type: 'h2', title: 'Movement and Speed' },
+            { type: 'text', content: 'You may move up to your <i>Speed</i> in feet.' },
+            { type: 'table', title: 'Terrain', cols: ['Kind', 'Cost'], rows: [['Mud', 'double'], ['Road', 'normal']] },
+            { type: 'h3', title: 'Diagonal Moves' },
+            { type: 'callout', content: 'Every second diagonal costs double.' },
+            { type: 'image', src: '', caption: 'A map of the \u00c9lan river' },
+            { type: 'diagram', content: 'graph TD; Hidden-->Words' },
+            null, 'junk'] };
+        const magic = { blocks: [{ type: 'h2', title: 'Spell Slots' }, { type: 'text', content: 'A slot comes back after a long rest.' }, { type: 'h2', title: 'Movement Spells' }, { type: 'text', content: 'Speed doubles.' }] };
+        const secs = hbSections(combat);
+        check('H12 hbSections: the part before the first heading (-1), then each heading (h1, h2, h3) with its level, title and plain text — tags gone, entities read, an h1\'s subtitle, a table\'s title, columns and cells, a picture\'s caption; a diagram and junk blocks add nothing',
+            JSON.stringify(secs.map(s => [s.bi, s.level, s.title])) === JSON.stringify([[-1, 0, ''], [1, 1, 'Combat'], [3, 2, 'Movement and Speed'], [6, 3, 'Diagonal Moves']]) && secs[0].text === 'Before any heading'
+            && secs[1].text === 'Rules of engagement Every round has turns & phases. alert(1)' && secs[2].text === 'You may move up to your Speed in feet. Terrain Kind Cost Mud double Road normal' && secs[3].text === 'Every second diagonal costs double. A map of the \u00c9lan river'
+            && JSON.stringify(hbSections(null)) === '[]' && JSON.stringify(hbSections({ blocks: 'x' })) === '[]', JSON.stringify(secs));
+        check('H12 hbFold: lower case with accents dropped, one character per character (a place found folded is the same place in the text)',
+            hbFold('\u00c9lan \u0130stanbul MOVE') === 'elan istanbul move' && hbFold('\u00c9lan').length === 4 && hbFold(null) === '' && hbFold('\ud83d\ude00a').length === 3);
+        const pages = [{ id: 'd_c', title: 'Combat', doc: combat }, { id: 'd_m', title: 'Magic', doc: magic }, { id: 'd_x', title: 'Speedy things', doc: { blocks: [] } }, null, { title: 'no id' }];
+        const hs = hbHeadings(pages, 'speed'), hm = hbHeadings(pages, 'MOVES diagonal'), hc = hbHeadings(pages, 'combat');
+        check('H12 hbHeadings: every word in any order, in the page\'s title or one heading (case and accents aside); a title match first, then the most headings; each heading by its block; nothing typed, nothing',
+            JSON.stringify(hs.map(h => [h.id, h.inTitle, h.heads.map(x => x.bi)])) === JSON.stringify([['d_x', true, []], ['d_c', false, [3]]]) && JSON.stringify(hm.map(h => [h.id, h.heads.map(x => x.title)])) === JSON.stringify([['d_c', ['Diagonal Moves']]])
+            && hc.length === 1 && hc[0].inTitle && JSON.stringify(hc[0].heads) === JSON.stringify([{ bi: 1, title: 'Combat' }]) && hbHeadings(pages, '   ').length === 0 && hbHeadings(pages, 'zebra').length === 0 && hbHeadings(null, 'x').length === 0, JSON.stringify([hs, hm]));
+        const tElan = hbText(pages, 'elan'), tDouble = hbText(pages, 'double costs'), tPhrase = hbText(pages, 'long rest'), tHead = hbText(pages, 'movement speed');
+        check('H12 hbText: every word under one heading (its title counts too); the phrase first; each with its page, heading and a snippet around the phrase (else the first word the text holds) whose hit keeps the text\'s own spelling; too short: nothing',
+            tElan.hits.length === 1 && tElan.hits[0].hit === '\u00c9lan' && tElan.hits[0].head === 'Diagonal Moves' && tElan.hits[0].bi === 6 && tElan.hits[0].before.endsWith('map of the ') && tElan.hits[0].after === ' river'
+            && JSON.stringify(tDouble.hits.map(h => [h.id, h.bi, h.hit, h.score])) === JSON.stringify([['d_c', 6, 'double', 0]]) && tPhrase.hits[0].score === 100 && tPhrase.hits[0].hit === 'long rest' && tPhrase.hits[0].page === 'Magic'
+            && JSON.stringify(tHead.hits.map(h => [h.id, h.bi, h.hit, h.score])) === JSON.stringify([['d_c', 3, 'Speed', 10], ['d_m', 2, 'Speed', 0]]) && hbText(pages, 'a').hits.length === 0 && hbText(pages, '').over === false, JSON.stringify([tElan, tDouble, tHead]));
+        const many = { blocks: Array.from({ length: 70 }, (_, i) => [{ type: 'h2', title: 'Part ' + i }, { type: 'text', content: 'the quick fox ' + i }]).flat() };
+        const cap = hbText([{ id: 'd_big', title: 'Big', doc: many }], 'quick fox'), long = hbText([{ id: 'd_l', title: 'L', doc: { blocks: [{ type: 'text', content: 'x'.repeat(200) + ' needle ' + 'y'.repeat(200) }] } }], 'needle');
+        check('H12 hbText: at most ' + HB_LIMIT + ' places (over: there were more), in page then heading order at one score; a long part is cut around the hit with an ellipsis each side',
+            HB_LIMIT === 60 && cap.hits.length === 60 && cap.over === true && cap.hits[0].bi === 0 && cap.hits[1].bi === 2 && long.hits[0].before.startsWith('\u2026') && long.hits[0].before.length === 51 && long.hits[0].hit === 'needle' && long.hits[0].after.endsWith('\u2026'), JSON.stringify(long.hits[0]));
+    }
+
     /* ---- publication under a window ---- */
     global.window = {};
     const D2 = await import(url + '?x');

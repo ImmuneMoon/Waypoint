@@ -595,6 +595,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           el.classList.toggle('wb-hidden-ph', hideFromMe);
           el.classList.toggle('wb-waiting', !!item.waiting && !hideFromMe);   // Onboarding F1a: the dashed ring — never on a hidden stub (an element is reused when an item is hidden)
           if (el.dataset.waitTip && (!item.waiting || hideFromMe)) { delete el.dataset.tip; delete el.dataset.waitTip; }   // nor its tooltip
+          var picShape = item.type === 'image' && item.isChar && (item.shape === 'hexagon' || item.shape === 'rect' || item.shape === 'circle') ? item.shape : '';   // grid-shaped tokens: a picture token's outline (its art cut to the cell)
+          el.classList.toggle('tok-pic-hexagon', picShape === 'hexagon'); el.classList.toggle('tok-pic-rect', picShape === 'rect'); el.classList.toggle('tok-pic-circle', picShape === 'circle');
 
           if (hideFromMe && !el.dataset.ph) { el.innerHTML = '<span class="ph-cloud">&#9729;&#65039;</span>'; el.dataset.ph = '1'; }
 
@@ -751,6 +753,20 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
           
 
+          // [sinkcheck:hexplate-start]
+          // Grid-shaped tokens (owner, 2026-09-27): a hexagon token (a character's or a waiting one) is a plate drawn INSIDE its box, never
+          // clipped, so the turn ring, selection, target glow and hidden marker still show around it; a waiting one wears a dashed gold ring
+          var hexTok = item.type === 'hexagon' && (!!item.isChar || !!item.waiting) && !hideFromMe;
+          el.classList.toggle('wb-hextok', hexTok);
+          var plateEl = el.querySelector(':scope > svg.tok-plate'), ringEl = el.querySelector(':scope > svg.tok-ring');
+          var hexSvg = function(cls) { var sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', cls); sv.setAttribute('viewBox', '0 0 60 52'); sv.setAttribute('preserveAspectRatio', 'none'); var pg = document.createElementNS('http://www.w3.org/2000/svg', 'polygon'); pg.setAttribute('points', '15,1 45,1 59,26 45,51 15,51 1,26'); sv.appendChild(pg); return sv; };
+          if (hexTok) {
+              if (!plateEl) { plateEl = hexSvg('tok-plate'); el.insertBefore(plateEl, el.firstChild); }
+              var plateFill = cssColor(item.color); if (plateEl.firstChild.style.fill !== plateFill) plateEl.firstChild.style.fill = plateFill;   // a colour the rule refuses: the plate's own
+              if (item.waiting) { if (!ringEl) { ringEl = hexSvg('tok-ring'); el.appendChild(ringEl); } }
+              else if (ringEl) ringEl.remove();
+          } else { if (plateEl) plateEl.remove(); if (ringEl) ringEl.remove(); }
+          // [sinkcheck:hexplate-end]
           // Tokens carry a small front-side arrow (which side of the art is "forward")
           var fw = el.querySelector(':scope > .token-front');
           if (item.isChar && stanceOn('turning')) {   // token facing is a per-campaign VTT feature (Settings ▸ VTT features); when off there is no facing wedge
@@ -1027,7 +1043,9 @@ function fitWouldChange(its) {
     for (var i = 0; i < its.length; i++) {
         var it = its[i];
         if (!it || it.locked || it.type === 'path') continue;
-        if (fitItemInPlace({ x: it.x, y: it.y, w: it.w, h: it.h, isChar: it.isChar, type: it.type, shape: it.shape }, g)) return true;
+        var cl = { x: it.x, y: it.y, w: it.w, h: it.h, isChar: it.isChar, waiting: it.waiting, type: it.type, shape: it.shape, src: it.src };
+        var moved = fitItemInPlace(cl, g);
+        if (moved || (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(cl, getActiveMap()))) return true;   // it would move or resize, or once fitted take the cell's shape
     }
     return false;
 }
@@ -1038,7 +1056,9 @@ function fitToGrid(its) {
     its.forEach(function(it) {
         if (it.locked || it.type === 'path') return;
         it.gridFit = true;   // remember it's grid-fitted, so it re-seats to the cell CENTRE on every move (not just this one-shot) — a hex move used to leave it ~half a cell off in x
-        if (fitItemInPlace(it, g)) n++;
+        var fitted = fitItemInPlace(it, g);
+        var reshaped = !!(window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(it, getActiveMap()));   // grid-shaped tokens: once fitted, a one-cell token takes the cell's shape too (one press is final)
+        if (fitted || reshaped) n++;
     });
     if (n) { save(); render(); toast('Fitted ' + n + ' item' + (n === 1 ? '' : 's') + ' to the ' + g + ' grid.'); }
     else { toast('Already aligned to the grid.'); }
@@ -2125,9 +2145,9 @@ window.wpFitToGrid = fitToGrid;
           if (kind === 'o' || kind === 'p') { window.wpNet.bringPlayerHere(key.slice(2), x, y); return; }
           var loc = locateCharacter(camp, key, camp.activeItemId); if (!loc) return;
           var tok = loc.tok;
-          if (loc.map !== am) { loc.map.whiteboard = (loc.map.whiteboard || []).filter(function(w) { return w !== tok; }); am.whiteboard = am.whiteboard || []; am.whiteboard.push(tok); }
+          if (loc.map !== am) { loc.map.whiteboard = (loc.map.whiteboard || []).filter(function(w) { return w !== tok; }); am.whiteboard = am.whiteboard || []; am.whiteboard.push(tok); if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(tok, am); }   // brought from another map: this map's cell shape
           tok.x = x - (tok.w || 60) / 2; tok.y = y - (tok.h || 52) / 2;
-          if (window.wpSeatHex) window.wpSeatHex(tok, am);
+          if (window.wpSeatCell) window.wpSeatCell(tok, am); else if (window.wpSeatHex) window.wpSeatHex(tok, am);
           if (loc.map !== am && window.wpHistBarrier) window.wpHistBarrier([loc.map.id, am.id]);   // a move between two maps: neither side can be undone past it
           import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast((tok.charName || tok.name || 'Character') + (loc.map !== am ? ' brought over.' : ' moved.')); });
       }
@@ -5371,7 +5391,8 @@ function castPlace(cid, x, y, count) {
         if (c.src) it.src = c.src;
         if (c.shape) it.shape = c.shape;
         if (c.charId && count === 1) it.charId = c.charId;   // one copy of a character shares its sheet; several are separate mooks
-        if (window.wpSeatHex) window.wpSeatHex(it, am);
+        if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(it, am);   // grid-shaped tokens: this map's cell shape
+        if (window.wpSeatCell) window.wpSeatCell(it, am); else if (window.wpSeatHex) window.wpSeatHex(it, am);
         am.whiteboard.push(it);
     }
     import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast(count === 1 ? c.name + ' placed.' : count + ' × ' + c.name + ' placed.'); });

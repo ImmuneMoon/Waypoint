@@ -1077,6 +1077,22 @@
   .face-upload { font-size: 18px; }   /* Onboarding F1c */
   .wb-item > .token-face { font-size: 26px; line-height: 1; }
   .wb-item > .token-face-img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; pointer-events: none; }
+  /* Grid-shaped tokens (owner, 2026-09-27): a hexagon token is a plate inside its box (the box unclipped: turn ring, selection, target glow and
+     hidden marker show around it); a waiting one has a dashed gold hexagon; faces and pictures take the cell's shape */
+  .wb-item.hexagon.wb-hextok { clip-path: none; background: transparent !important; border: 0; }
+  .wb-hextok > .tok-plate, .wb-hextok > .tok-ring { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .wb-hextok > .tok-plate polygon { fill: var(--faint); }
+  .wb-item.hexagon.wb-hextok { pointer-events: none; }   /* clicks on the hexagon only, as the clip gave (neighbours' boxes overlap 15 px on a hex grid); the plate takes them */
+  .wb-hextok > .tok-plate polygon { pointer-events: visiblePainted; }
+  body.placing #whiteboard .wb-hextok > .tok-plate polygon { pointer-events: none; }   /* placing a shape passes through tokens, as for every item */
+  .wb-hextok > .tok-ring { z-index: 1; }
+  .wb-hextok > .tok-ring polygon { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+  .wb-hextok > .token-face-img, .wb-hextok.wb-waiting > .wait-face, .wb-hextok.tok-dead::after { border-radius: 0; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+  .wb-item.rect > .token-face-img, .wb-item.rect.wb-waiting > .wait-face { border-radius: 4px; }
+  .wb-item.image.tok-pic-hexagon > img, .wb-item.image.tok-pic-rect > img, .wb-item.image.tok-pic-circle > img { object-fit: cover; }
+  .wb-item.image.tok-pic-hexagon > img { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+  .wb-item.image.tok-pic-rect > img { border-radius: 4px; }
+  .wb-item.image.tok-pic-circle > img { border-radius: 50%; }
   .party-tok.party-ini { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--ink); }
   .party-tok.paused { border-color: #7aa7ff; box-shadow: 0 0 0 2px rgba(122,167,255,0.9), 0 2px 6px rgba(0,0,0,0.55); opacity: 1; filter: grayscale(0.4); }   /* a player the GM paused individually */
   #sessionPauseBtn.paused { color: var(--gold); background: rgba(212,175,55,0.16); }

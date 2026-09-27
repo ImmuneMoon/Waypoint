@@ -3168,9 +3168,9 @@ function uploadExact(rel, body) {   // a file saved at exactly images/<...> (the
     return fetch('/api/upload-exact?path=' + encodeURIComponent(rel), { method: 'POST', body: body }).then(function(r) { if (!r.ok) throw new Error('upload'); return '/saves/' + rel; });
 }
 function copyBundled(name) {
-    var fs2 = [name + '_sq.jpg', name + '_hex.png'];
+    var fs2 = [name + '_sq.jpg'];   // grid-shaped tokens: one square picture, portrait and token art alike (each map's cell shape cuts it)
     return Promise.all(fs2.map(function(f) { return fetch('assets/tutorial/' + f).then(function(r) { if (!r.ok) throw new Error('asset'); return r.blob(); }).then(function(b) { return uploadExact('images/tutorial/' + f, b); }); }))
-        .then(function(u) { return { portrait: u[0], token: u[1] }; });
+        .then(function(u) { return { portrait: u[0], token: u[0] }; });
 }
 // [sinkcheck:charface-start]
 function applyCharFace(charId, plan, replace) {
@@ -3188,7 +3188,8 @@ function applyCharFace(charId, plan, replace) {
         tokensOfChar(camp2, c2.id).forEach(function(t) {
             var w = t.w;
             if (art) { w.type = 'image'; w.src = art; w.color = 'transparent'; delete w.face; }
-            else { if (w.type === 'image') { w.type = 'circle'; delete w.src; w.color = col; } w.face = face; }
+            else { if (w.type === 'image') { w.type = 'circle'; delete w.src; delete w.shape; w.color = col; } w.face = face; }
+            if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(w, t.m)) { if (window.wpSeatCell) window.wpSeatCell(w, t.m); else if (window.wpSeatHex) window.wpSeatHex(w, t.m); }   // grid-shaped tokens: its map's cell shape (a picture cut to it), seated in its cell
             if (maps.indexOf(t.m.id) < 0) maps.push(t.m.id);
         });
         var n = net(), wasR = n ? n.applyingRemote : false;
@@ -3289,6 +3290,7 @@ function applyTokenFace(mapId, wbId, plan) {
         if (!w || !w.isChar || w.src) return false;
         if (window.wpHistFlush) window.wpHistFlush();
         w.type = 'image'; w.src = url; w.color = 'transparent'; delete w.face;
+        if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(w, m)) { if (window.wpSeatCell) window.wpSeatCell(w, m); else if (window.wpSeatHex) window.wpSeatHex(w, m); }   // its map's cell shape (the picture cut to it), seated in its cell
         var wasR = n ? n.applyingRemote : false; if (n) n.applyingRemote = true;   // never a step of the GM's undo
         try { save(true); } finally { if (n) n.applyingRemote = wasR; }
         if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) n.broadcastItemFiltered(camp2.id, mapId);

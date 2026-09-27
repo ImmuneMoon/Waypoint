@@ -2358,11 +2358,12 @@ pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js'));
     const good = H.cleanWaitingItem({ id: 'wbq1', type: 'image', waiting: 1, ownerId: 'u_a', name: 'Ana\u202e<b>', color: '#112233', x: 1e9, y: 5, w: 60, h: 52, src: 'https://evil/x.png', isChar: true, charId: 'c_1', face: 'x', sheet: {}, gmInfo: 'secret', hidden: true, layer: 'front' });
-    check('F1a cleanWaitingItem (client): a waiting token from the host is rebuilt from its own fields only — a circle, its owner, a clean name, a hex colour, bounded geometry, hidden only when true; a picture, a character link, a sheet or GM info never come through',
+    check('F1a cleanWaitingItem (client): a waiting token from the host is rebuilt from its own fields only — its grid shape (a hexagon or a square; anything else a circle), its owner, a clean name, a hex colour, bounded geometry, hidden only when true; a picture, a character link, a sheet or GM info never come through',
         j(good) === j({ id: 'wbq1', type: 'circle', waiting: 1, ownerId: 'u_a', name: 'Ana<b>', color: '#112233', x: 60000, y: 5, w: 60, h: 52, layer: 'middle', hidden: true })
         && [{ id: 'a b', ownerId: 'u_a' }, { id: 'ok', ownerId: 'constructor' }, { id: 'ok', ownerId: 'u a' }, { id: 7, ownerId: 'u_a' }, null, 'x'].every(w => H.cleanWaitingItem(w) === null)
         && j(H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', color: 'red;x', hidden: 'yes', locked: 1, x: 'n' })) === j({ id: 'ok', type: 'circle', waiting: 1, ownerId: 'u_a', name: 'Player', color: '#4db3d3', x: 15000, y: 15000, w: 60, h: 52, layer: 'middle' })
         && H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', locked: true }).locked === true
+        && H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', type: 'hexagon' }).type === 'hexagon' && H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', type: 'rect', w: 50, h: 50 }).type === 'rect' && ['image', 'diamond', 'constructor', '__proto__', 'x y', 7, 'Hexagon'].every(t => H.cleanWaitingItem({ id: 'ok', ownerId: 'u_a', type: t }).type === 'circle')
         && /function cleanHostWbItem\(w\) \{ if \(!w \|\| typeof w !== 'object' \|\| typeof w\.id !== 'string'\) return null; if \(w\.waiting\) return cleanWaitingItem\(w\);/.test(src), j(good));
     const wSrc = between('// [netcheck:waiting-start]', '// [netcheck:waiting-end]', 'waiting');
     const mkW = (o) => {
@@ -2739,6 +2740,51 @@ pendingChecks.push((async () => {
     check('F3a the player keeps their own copy\'s marks (the snapshot, the chars list and a char message re-clean with the owner\'s state), and a delta\'s probe carries the making mark (charFor refuses it to anyone but the owner)',
         (src.match(/cleanChar\([^)]*, \{ state: 'owner' \}\)/g) || []).length === 3 && /probe = \{ id: id, name: src\.name, ownerId: src\.ownerId, npc: src\.npc, making: src\.making, values: \{\} \};/.test(src)
         && Sx.charFor({ id: 'c_m', name: 'V', ownerId: 'u_a', npc: false, making: 1, values: { f_st: 0 } }, Sx.cleanSystem(sysK, { F: Fx, gmView: false }), 'u_b', { probe: true }) === null);
+})());
+// Grid-shaped incoming tokens (owner, 2026-09-27): the waiting token (the [netcheck:waiting] slice) and Just a token (the [netcheck:chartoken]
+// slice) come in in the cell shape of the map they land on; the free spot seats in a square grid's cells
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js'));
+    const wS = between('// [netcheck:waiting-start]', '// [netcheck:waiting-end]', 'waiting');
+    const campG = () => ({ id: 'k', players: {}, chars: {}, items: { mh: { id: 'mh', type: 'map', meta: { title: 'Hex', gridType: 'hex' }, whiteboard: [] }, ms: { id: 'ms', type: 'map', meta: { title: 'Sq', gridType: 'square' }, whiteboard: [] }, mo: { id: 'mo', type: 'map', meta: { title: 'Off' }, whiteboard: [] } } });
+    const mkG = () => {
+        const camp = campG(), spots = [], seats = [];
+        const netG = { active: true, role: 'host', roster: { pA: { id: 'u_a', name: 'Ana', color: '#112233', location: 'mh' } }, applyingRemote: false, broadcastItemFiltered() {}, isConnected: () => true };
+        const api = new Function('net', 'SC', 'own', 'cleanRosterName', 'cleanFace', 'spawnSpot', 'toast', 'logEvent', 'save', 'getActiveCampaign', 'render', 'window', 'setTimeout', 'clearTimeout', wS + '\nreturn { placeWaiting };')(
+            netG, () => Sx, H.own, H.cleanRosterName, H.cleanFace, (map, lr, near, w, h) => { spots.push([map.id, w, h]); return { x: 100, y: 200 }; }, () => {}, () => {}, () => {}, () => camp, () => {}, { wpSeatCell: (it, m) => { seats.push([m.id, it.type]); return false; } }, () => 0, () => {});
+        return { api, camp, spots, seats, wb: id => camp.items[id].whiteboard };
+    };
+    const G = mkG(); G.api.placeWaiting(G.camp, 'u_a', G.camp.items.mh, null); const gh = JSON.parse(j(G.wb('mh')[0]));
+    G.api.placeWaiting(G.camp, 'u_a', G.camp.items.ms, null); const gs = JSON.parse(j(G.wb('ms')[0])); G.api.placeWaiting(G.camp, 'u_a', G.camp.items.mo, null); const go = JSON.parse(j(G.wb('mo')[0]));
+    G.camp.items.mo.meta.gridType = 'hex'; const again = G.api.placeWaiting(G.camp, 'u_a', G.camp.items.mo, null), gAgain = G.wb('mo')[0];
+    check('grid shape: a waiting token comes in in the cell shape of the map it lands on — a hexagon 60x52 on hex, moved to a square map a square 50x50 (the free spot asked for that size), to a map with no grid a circle 60x52; on its own map a grid change reshapes it in place (the map reported); each is seated in its cell',
+        gh.type === 'hexagon' && gh.w === 60 && gh.h === 52 && gs.type === 'rect' && gs.w === 50 && gs.h === 50 && go.type === 'circle' && go.w === 60 && go.h === 52 && j(G.spots) === j([['mh', 60, 52], ['ms', 50, 50], ['mo', 60, 52]])
+        && gAgain.type === 'hexagon' && gAgain.w === 60 && j(again) === j(['mo']) && G.seats.length === 4 && j(G.seats[3]) === j(['mo', 'hexagon']), j([gh, gs, go, gAgain, G.spots, G.seats, again]));
+    const jtS = between('// [netcheck:chartoken-start]', '// [netcheck:chartoken-end]', 'chartoken');
+    const cleanCharName = new Function((() => { const i = src.indexOf('function cleanCharName('); return src.slice(i, src.indexOf('\n', i)); })() + '\nreturn cleanCharName;')();
+    const jtG = (mapId, wait) => {
+        const camp = campG(), spots = [], seats = [];
+        if (wait) camp.items[mapId].whiteboard.push(Object.assign({ id: 'wq', waiting: 1, ownerId: 'u_a', x: 100, y: 200 }, wait));
+        const netJ = { active: true, role: 'host', paused: false, applyingRemote: false, roster: { pA: { id: 'u_a', name: 'Ana', location: mapId, color: '#123456', face: '\u{1F409}' } } };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'toast', 'logEvent', 'own', 'sheetsOnFor', 'allow', 'cleanCharName', 'cleanRosterName', 'charFacePlan', 'spawnSpot', 'removeWaiting', 'waitingChanged', jtS)(
+            { type: 'char-token', rid: 't1', name: 'Vex' }, { peer: 'pA', send() {} }, netJ, () => Sx, { wpSeatCell: (it, m) => { seats.push([m.id, it.type]); return false; }, wpSheets: {} }, () => false, () => camp, e => { throw e; }, () => {}, () => {}, H.own, () => false,
+            () => true, cleanCharName, H.cleanRosterName, H.charFacePlan, (map, lr, near, w, h) => { spots.push([map.id, w, h]); return { x: 900, y: 800 }; }, () => [], () => {});
+        return { tok: camp.items[mapId].whiteboard.find(w => w.ownerId === 'u_a'), spots, seats };
+    };
+    const jH = jtG('mh'), jS = jtG('ms'), jO = jtG('mo'), jW = jtG('mh', { type: 'hexagon', w: 60, h: 52 }), jOld = jtG('ms', { type: 'circle', w: 60, h: 52, x: 100, y: 200 });
+    check('grid shape: Just a token without sheets comes in in the cell shape of the map they stand on — a new one a hexagon 60x52 on hex, a square 50x50 on a square grid (the free spot asked for that size), a circle with no grid; their hexagon waiting token stays a hexagon; a circle waiting token left from before becomes a square on a square map (its centre kept, seated)',
+        jH.tok.type === 'hexagon' && jH.tok.w === 60 && jS.tok.type === 'rect' && jS.tok.w === 50 && jS.tok.h === 50 && j(jS.spots) === j([['ms', 50, 50]]) && jO.tok.type === 'circle' && jO.tok.w === 60 && j(jO.spots) === j([['mo', 60, 52]])
+        && jW.tok.type === 'hexagon' && jW.tok.id === 'wq' && jW.seats.length === 0 && jOld.tok.type === 'rect' && jOld.tok.w === 50 && jOld.tok.x === 105 && jOld.tok.y === 201 && j(jOld.seats) === j([['ms', 'rect']]), j([jH.tok, jS.tok, jO.tok, jW.tok, jOld.tok, jOld.seats]));
+    const fsS = fnSrc('function freeSpotNear(', '\nfunction ', 'freeSpotNear');
+    const FSG = new Function('window', fsS + '\nreturn freeSpotNear;')({});
+    const sqMap = { id: 'q', meta: { gridType: 'square' }, whiteboard: [{ id: 'o', isChar: true, x: 100, y: 200, w: 50, h: 50 }] };
+    const blk = []; for (let i = 0; i < 5; i++) for (let k = 2; k < 7; k++) blk.push({ id: 'b' + i + '_' + k, isChar: true, x: i * 50, y: k * 50, w: 50, h: 50 });
+    const f4 = FSG({ id: 'q4', meta: { gridType: 'square' }, whiteboard: blk }, 120, 230, 50, 50, null, null), f5 = FSG({ id: 'q5', meta: { gridType: 'square' }, whiteboard: [] }, 310, 290, 100, 100, null, null);
+    const f1 = FSG(sqMap, 120, 230, 50, 50, null, null), f2 = FSG({ id: 'q2', meta: { gridType: 'square' }, whiteboard: [] }, 137, 241, 50, 50, null, null), f3 = FSG({ id: 'q3', meta: {}, whiteboard: [] }, 137, 241, 50, 50, null, null);
+    check('grid shape: the free spot on a square grid is a whole cell (a 50x50 lands on the lattice) and a neighbouring cell (no cell skipped: past a taken 5x5 block the nearest free ring) is found when that one is taken; a sized-up token\'s corner lands on the lattice; with no grid nothing is rounded',
+        j(f2) === j({ x: 100, y: 200 }) && f1.x % 50 === 0 && f1.y % 50 === 0 && Math.max(Math.abs(f1.x - 100), Math.abs(f1.y - 200)) === 50 && j(f3) === j({ x: 112, y: 216 })
+        && f4.x % 50 === 0 && f4.y % 50 === 0 && Math.max(Math.abs(f4.x - 100), Math.abs(f4.y - 200)) === 150 && j(f5) === j({ x: 250, y: 250 }), j([f1, f2, f3, f4, f5]));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

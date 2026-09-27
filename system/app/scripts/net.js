@@ -157,7 +157,7 @@ function charFacePlan(face, avatar) {
 function cleanWaitingItem(w) {
     if (!w || typeof w !== 'object' || typeof w.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(w.id) || !validProfileId(w.ownerId)) return null;
     var num = function(v, d, lo, hi) { v = Number(v); return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
-    var o = { id: w.id, type: 'circle', waiting: 1, ownerId: w.ownerId, name: cleanRosterName(w.name), color: typeof w.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(w.color) ? w.color : '#4db3d3',
+    var o = { id: w.id, type: w.type === 'hexagon' || w.type === 'rect' ? w.type : 'circle', waiting: 1, ownerId: w.ownerId, name: cleanRosterName(w.name), color: typeof w.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(w.color) ? w.color : '#4db3d3',
               x: num(w.x, 15000, -30000, 60000), y: num(w.y, 15000, -30000, 60000), w: num(w.w, 60, 20, 400), h: num(w.h, 52, 20, 400), layer: 'middle' };
     if (w.hidden === true) o.hidden = true;
     if (w.locked === true) o.locked = true;   // the GM's lock: their app stops the drag too, as for any token
@@ -1981,7 +1981,9 @@ function hostTravel(conn, traveler, portal, fromMap) {
 // character token (and, when given, stays off the portal's footprint).
 function freeSpotNear(map, cx, cy, w, h, avoidId, portal) {
     var others = (map.whiteboard || []).filter(function(o) { return (o.isChar || o.waiting) && o.id !== avoidId; });   // Onboarding F1a: a waiting token holds its spot too
-    function seated(x, y) {   // where a token placed at (x, y) ends up after hex seating on this map
+    var sq = !!(map && map.meta && map.meta.gridType === 'square');   // grid-shaped tokens: a square grid seats in its 50 px cells
+    function seated(x, y) {   // where a token placed at (x, y) ends up after seating on this map (a hex cell, a square cell)
+        if (sq) return Math.max(w, h) <= 64 ? { x: Math.floor((x + w / 2) / 50) * 50 + 25 - w / 2, y: Math.floor((y + h / 2) / 50) * 50 + 25 - h / 2 } : { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };   // one cell: centred; sized up: its corner on the lattice
         if (!window.wpSeatHex) return { x: x, y: y };
         var tmp = { x: x, y: y, w: w, h: h, isChar: true };
         window.wpSeatHex(tmp, map);
@@ -1991,7 +1993,7 @@ function freeSpotNear(map, cx, cy, w, h, avoidId, portal) {
         if (portal && x < portal.x + (portal.w || 0) && x + w > portal.x && y < portal.y + (portal.h || 0) && y + h > portal.y) return true;
         return others.some(function(o) { return x < o.x + (o.w || 0) && x + w > o.x && y < o.y + (o.h || 0) && y + h > o.y; });
     }
-    var step = Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2, tried = {};
+    var step = sq ? Math.ceil(Math.max(w, h) / 50) * 50 : Math.max(w, h) + 8, x0 = cx - w / 2, y0 = cy - h / 2, tried = {};   // on a square grid a step is whole cells (no cell skipped)
     var first = seated(x0, y0);
     if (!clashes(first.x, first.y)) return first;
     for (var ring = 1; ring <= 8; ring++) {
@@ -2080,6 +2082,7 @@ function offlinePlayerTravel(item, map) {
         mine.ownerId = item.ownerId; if ((src.op === 'clone' || src.op === 'link') && src.charId) mine.charId = src.charId;   // never stamps the character onto a copy of a pet
         delete mine.threats;   // 5h: threat marks belong to the map they were set on
         delete mine.hidden;
+        var Sd = SC(); if (Sd && Sd.shapeStandIn) Sd.shapeStandIn(mine, dest);   // grid-shaped tokens: it comes in in the destination's cell shape
         var spot = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, null, nodeEl);
         mine.x = spot.x; mine.y = spot.y;
         dest.whiteboard.push(mine); placed = true;
@@ -2119,6 +2122,7 @@ function npcTravel(item, map) {
         there.id = 'wb' + Math.random().toString(36).slice(2, 10);
         delete there.threats;   // 5h: threat marks belong to the map they were set on
         delete there.hidden;
+        var Sn = SC(); if (Sn && Sn.shapeStandIn) Sn.shapeStandIn(there, dest);   // grid-shaped tokens: the copy takes the destination's cell shape
         var spot = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, null, nodeEl);
         there.x = spot.x; there.y = spot.y;
         dest.whiteboard.push(there); placed = true;
@@ -2787,7 +2791,8 @@ function healBindings(camp) {
 }
 // The campaign's sheets feature: off, characters do not drive tokens (every owned one counts as in play; none is made on arrival)
 function sheetsOnFor(camp) { return !window.wpVtt || !window.wpVtt.campaignOn || window.wpVtt.campaignOn('sheets', camp) !== false; }
-// A new token for a character that has none anywhere: its portrait, else a circle in the player's colour (the initials show on it)
+// A new token for a character that has none anywhere: its portrait, else a circle in the player's colour (the initials show on it) — its caller
+// then gives it the map's cell shape (systemcore shapeStandIn)
 function tokenFromChar(ch, pid) {
     var pr = Object.values(net.roster).find(function(p) { return p && p.id === pid; }), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3';
     var t = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: ch.portrait ? 'image' : 'circle', w: 60, h: 52, color: ch.portrait ? 'transparent' : col, layer: 'middle', isChar: true, charName: ch.name, name: ch.name, charId: ch.id, charStats: '', ownerId: pid };
@@ -2825,6 +2830,7 @@ function ensurePlayerToken(pid, mapId, landRoomId, opts) {
     if (src.op === 'adopt' || (src.op === 'link' && src.here)) { src.tok.ownerId = pid; if (src.charId) src.tok.charId = src.charId; keepId = src.tok.id; changed = true; }
     else if (src.op === 'clone' || src.op === 'link') { nw = JSON.parse(JSON.stringify(src.tok)); delete nw.threats; delete nw.hidden; nw.id = 'wb' + Math.random().toString(36).slice(2, 10); nw.ownerId = pid; if (src.charId) nw.charId = src.charId; }   // 5h: threat marks belong to the map they were set on
     else if (src.op === 'spawn' && camp.chars && camp.chars[src.charId]) nw = tokenFromChar(camp.chars[src.charId], pid);
+    if (nw && S.shapeStandIn) S.shapeStandIn(nw, map);   // grid-shaped tokens: a new token, or one copied from another map, takes this map's cell shape
     if (nw) {
         // beside the token they had (a give), else where their waiting token stands (it gives way: Onboarding F1a), else on the landing
         // room's whiteboard item when there is one, else at home
@@ -2832,7 +2838,7 @@ function ensurePlayerToken(pid, mapId, landRoomId, opts) {
         var near = opts.near && isFinite(opts.near.x) && isFinite(opts.near.y) ? opts.near : waitHere ? { x: (Number(waitHere.w.x) || 0) + (waitHere.w.w || 60) / 2, y: (Number(waitHere.w.y) || 0) + (waitHere.w.h || 52) / 2 } : null;
         var spot = spawnSpot(map, landRoomId, near, nw.w || 60, nw.h || 52, waitHere ? waitHere.w.id : null);
         nw.x = spot.x; nw.y = spot.y;
-        if (window.wpSeatHex) window.wpSeatHex(nw, map);
+        if (window.wpSeatCell) window.wpSeatCell(nw, map); else if (window.wpSeatHex) window.wpSeatHex(nw, map);
         map.whiteboard.push(nw);
         keepId = nw.id; changed = true;
         toast((pl.name || 'Player') + "'s token " + (src.op === 'spawn' ? 'made' : 'placed') + ' on ' + ((map.meta || {}).title || mapId) + '.');
@@ -2876,13 +2882,19 @@ function placeWaiting(camp, pid, map, landRoomId, near) {
     mine.forEach(function(x) { if (!keep || x.w !== keep.w) { removeFromMap(camp, x.mapId, x.w.id); add(x.mapId); } });   // never two
     var pr = waitingRosterOf(pid), nm = cleanRosterName(pr && pr.name), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3', fc = pr ? cleanFace(pr.face) : '';
     var dress = function(t) { t.name = nm; t.color = col; if (fc) t.face = fc; else delete t.face; };   // F1b: the face goes with it, for the GM while its player is away
-    if (keep && keep.mapId === map.id) { if (keep.w.name !== nm || keep.w.color !== col || (keep.w.face || '') !== fc) { dress(keep.w); add(map.id); } return maps; }   // already here: it stays where it stands
-    var w = keep ? keep.w : { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'circle', waiting: 1, ownerId: pid, w: 60, h: 52, layer: 'middle' };
+    if (keep && keep.mapId === map.id) {   // already here: it stays where it stands (a map whose grid changed reshapes it)
+        var reW = S.shapeStandIn ? S.shapeStandIn(keep.w, map) : false; if (reW) { if (window.wpSeatCell) window.wpSeatCell(keep.w, map); else if (window.wpSeatHex) window.wpSeatHex(keep.w, map); }
+        if (reW || keep.w.name !== nm || keep.w.color !== col || (keep.w.face || '') !== fc) { dress(keep.w); add(map.id); }
+        return maps;
+    }
+    var cW = S.tokenCell ? S.tokenCell(map) : { type: 'circle', w: 60, h: 52 };   // grid-shaped tokens: the map's cell shape (a circle with no grid)
+    var w = keep ? keep.w : { id: 'wb' + Math.random().toString(36).slice(2, 10), type: cW.type, waiting: 1, ownerId: pid, w: cW.w, h: cW.h, layer: 'middle' };
+    if (keep && S.shapeStandIn) S.shapeStandIn(w, map);   // moved in from another map: this map's cell shape
     if (keep) { removeFromMap(camp, keep.mapId, w.id); add(keep.mapId); w.id = 'wb' + Math.random().toString(36).slice(2, 10); }   // a fresh id on each map: never two items with one id there
     dress(w);
     var spot = spawnSpot(map, landRoomId, near || null, w.w || 60, w.h || 52, null);   // beside the token they lost (a give away), else the landing room or home
     w.x = spot.x; w.y = spot.y;
-    if (window.wpSeatHex) window.wpSeatHex(w, map);
+    if (window.wpSeatCell) window.wpSeatCell(w, map); else if (window.wpSeatHex) window.wpSeatHex(w, map);
     map.whiteboard = map.whiteboard || []; map.whiteboard.push(w); add(map.id);
     if (!keep) { var t = nm + ' has no character yet \u2014 a waiting token on ' + ((map.meta || {}).title || 'a map'); toast(t + '.'); logEvent('char', t); }
     return maps;
@@ -3892,13 +3904,15 @@ function handleMessage(msg, conn) {
         var wJ = SJ.waitingTokensOf(campJ, prJ.id).filter(function(x) { return x.mapId === mJ.id; })[0], tokJ;
         if (wJ) { tokJ = wJ.w; delete tokJ.waiting; }   // the waiting token becomes theirs where it stands
         else {
-            tokJ = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'circle', ownerId: prJ.id, w: 60, h: 52, layer: 'middle' };
-            var spJ = spawnSpot(mJ, null, null, 60, 52, null); tokJ.x = spJ.x; tokJ.y = spJ.y;
-            if (window.wpSeatHex) window.wpSeatHex(tokJ, mJ);
+            var cJ = SJ.tokenCell ? SJ.tokenCell(mJ) : { type: 'circle', w: 60, h: 52 };   // grid-shaped tokens: the map's cell shape
+            tokJ = { id: 'wb' + Math.random().toString(36).slice(2, 10), type: cJ.type, ownerId: prJ.id, w: cJ.w, h: cJ.h, layer: 'middle' };
+            var spJ = spawnSpot(mJ, null, null, cJ.w, cJ.h, null); tokJ.x = spJ.x; tokJ.y = spJ.y;
+            if (window.wpSeatCell) window.wpSeatCell(tokJ, mJ); else if (window.wpSeatHex) window.wpSeatHex(tokJ, mJ);
             mJ.whiteboard = Array.isArray(mJ.whiteboard) ? mJ.whiteboard : []; mJ.whiteboard.push(tokJ);
         }
         var planJ = charFacePlan(prJ.face, prJ.avatar);
-        tokJ.type = 'circle'; tokJ.isChar = true; tokJ.charName = nmJ; tokJ.name = nmJ; tokJ.charStats = ''; tokJ.ownerId = prJ.id;
+        tokJ.isChar = true; tokJ.charName = nmJ; tokJ.name = nmJ; tokJ.charStats = ''; tokJ.ownerId = prJ.id;
+        if (SJ.shapeStandIn && SJ.shapeStandIn(tokJ, mJ)) { if (window.wpSeatCell) window.wpSeatCell(tokJ, mJ); else if (window.wpSeatHex) window.wpSeatHex(tokJ, mJ); }   // the map's cell shape (a waiting token already has it)
         tokJ.color = typeof prJ.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prJ.color) ? prJ.color : '#4db3d3';
         if (planJ.kind === 'face') tokJ.face = planJ.face; else delete tokJ.face;
         if (campJ.players && own(campJ.players, prJ.id)) { campJ.players[prJ.id].charName = nmJ; campJ.players[prJ.id].charMade = nmJ; }   // bound by its name — one THEY chose: their next arrival finds it, never a GM's namesake
@@ -5390,9 +5404,10 @@ net.bringPlayerHere = function(pid, wbX, wbY) {
     else if (src.op === 'clone' || src.op === 'link') { tok = JSON.parse(JSON.stringify(src.tok)); tok.id = 'wb' + Math.random().toString(36).slice(2, 10); delete tok.threats; tok.ownerId = pid; if (src.charId) tok.charId = src.charId; map.whiteboard.push(tok); copied = true; }   // 5h: threat marks belong to the map they were set on
     else if (src.op === 'spawn' && camp.chars && camp.chars[src.charId]) { tok = tokenFromChar(camp.chars[src.charId], pid); map.whiteboard.push(tok); copied = true; }
     if (!tok) { toast('No token for ' + name + ' yet \u2014 give them a character (System \u25B8 Characters) or a token (its Properties \u25B8 Player Owner).'); return false; }
+    if (copied && S.shapeStandIn) S.shapeStandIn(tok, map);   // grid-shaped tokens: a new token or a copy takes this map's cell shape
     tok.x = wbX - (tok.w || 60) / 2; tok.y = wbY - (tok.h || 52) / 2;
     delete tok.hidden;
-    if (window.wpSeatHex) window.wpSeatHex(tok, map);
+    if (window.wpSeatCell) window.wpSeatCell(tok, map); else if (window.wpSeatHex) window.wpSeatHex(tok, map);
     S.applyOwnerOps(camp, S.ownedTokenPlan(camp, { keep: tok.id, mapId: map.id, all: !sheetsOnFor(camp) }));   // one owned token of the character on this map
     save(true);
     if (window.appRender) window.appRender();

@@ -2,75 +2,664 @@ WAYPOINT 1.5.0 — What's New
 ============================
 
 Play map & settings
-- Fog of war is on by default now, and while a fog map is open the GM
-  always sees the see-through fog overlay — across every tool and while
-  dragging items — instead of only in fog mode. A token's vision cone
-  also follows its facing on hex/GURPS maps.
-- Drawing: a Flat (chisel) pen now shows its true angled ribbon as you
-  draw, matching the finished stroke.
-- Fit to Grid Cells greys out (and says "Already aligned to the grid")
-  when the selection already sits on the grid, so it only lights up when
-  it would move something.
+- Drawing: a Flat (chisel) pen now shows its true angled ribbon as you draw,
+  matching the finished stroke.
+- Fit to Grid Cells greys out (and says "Already aligned to the grid") when
+  the selection already sits on the grid, so it only lights up when it would
+  move something.
 - The grid button has a ◑ shortcut straight to the grid-opacity setting.
 - Undo history size is now adjustable — Settings ▸ Advanced, 10–500 steps
   (default 100) — with a note on its memory cost; and a few heavy features
   (fog, minimap, sound) carry a short hardware-impact note in Settings.
-- Sight-blocking (new): flag a fill or a shape (rectangle, hexagon,
-  circle/pillar or diamond) as "Blocks sight" in its Properties and it
-  becomes a wall — a token's fog vision, and each player's view, stops at
-  it (fog must be on for the map).
-- Doors: set a sight-blocker's type to Door — closed it blocks, open it lets
-  sight through. The GM toggles a door from its Properties or by clicking it
-  in fog mode; a player can open/close one their token stands next to (unless
-  the GM locks it). A height dimension comes next.
-- Vision — all around or a facing cone: a map's fog menu now has a Vision
-  setting, all-around (a token sees every direction) or a facing cone whose
-  width you choose and which turns with the token. It's set per map and no
-  longer tied to the grid type — a square map can use a cone, a hex map can
-  see all around — with a "use for new maps" campaign default that never
-  changes maps you already made.
-- Cover from the map: the walls, pillars, closed doors and filled cells that
-  block sight now also give cover. Turn on Cover for your system (Settings ▸
-  System ▸ Items) and drag the ruler between two character tokens — it reports
-  the cover between them (half / three-quarters / total, or a simple cover/none
-  for systems that grade it once), on square and hex. It's advisory: Waypoint
-  estimates the cover and you apply it — no dice or damage change.
+- Selecting on the play map: a single click selects and a double-click opens
+  Properties (text boxes still edit and portals still travel on a
+  double-click); Ctrl-click adds to or takes from a selection; a click on a
+  token under a label, note or backdrop takes the token; and a drag that
+  starts on a locked item, such as a background, sweeps a selection box. An
+  item you fitted with Fit to Grid Cells stays seated on the grid whenever
+  you move it, Snap or not.
+- A shorter play-map toolbar: Text box, Image, Image Library and Import
+  Character sit under + Add, and Sound, Music and Visual effects under
+  🎬 Scene; Draw, Eraser and Fill form one group. Only one toolbar menu is
+  open at a time, clicking the active tool while its menu is open puts it
+  away and returns to the arrow, and the Sound and Visual effects panels
+  take turns instead of stacking.
+- The Planners, Handbook and Maps headers in the sidebar show just their
+  title: right-click one for its actions (collapse all, search and new, plus
+  new from a Markdown file for planners and pages).
+- Item badges (the hidden eye, the sight-blocker and door marks, the portal
+  icon, the elevation and posture chips) keep their size on screen at any
+  zoom, so they stay legible zoomed out. Zooming in past about 2× no longer
+  throws the view somewhere else: it stays under the pointer, on the data
+  map and the play map.
+- Hover cards stay inside the board at every edge, and a character's card
+  shows its portrait (the token's picture or face) and shortens long notes,
+  which no longer read in capitals. The party and combat strips show one
+  tooltip, not two.
+
+Tokens and portals
+- Tokens come in the grid's shape: a token the app places (a player's
+  waiting or new token, one arriving through a portal, a summon or Bring, a
+  roster, cast or imported character) takes the shape of the map's cells, a
+  hexagon on a hex map, a square on a square map and a circle only with no
+  grid, its picture cut to match. Tokens already on a map, and tokens you
+  sized up, keep their shape; Fit to Grid Cells gives a one-cell token the
+  cell's shape in one press.
+- The token creator: your profile picture, a character's portrait
+  (Portrait…, a room character's, a ShadowBase import) and a picture a
+  player uploads for their character or their own token open it first —
+  drag to move, scroll, pinch or the slider to zoom, and OK keeps what is
+  inside the square (untouched: the middle, as before). One square picture
+  is saved; each map's grid gives it its outline, and the Hexagon, Square
+  and Circle chips preview them. Frame picture… on a picture token's menu
+  frames any token (the selected plain ones, or all of a character's);
+  with Keep the original, ticked for you, you can zoom back out later, and
+  your players never get the original. A player's own picture keeps none:
+  they choose a picture again.
+- A new picture always gets a new file name, so everyone sees the latest at
+  once, and a character's or a token's older pictures are cleared from your
+  saves folder (the one before stays, and anything still in use).
+- Token facing is a VTT feature (Settings ▸ VTT features), on by default and
+  yours to set for the table, like fog: switched off, tokens lose their
+  facing arrow (and character tokens their rotate handle), and a map set to
+  a facing cone sees all around instead.
+- A locked token is frozen for its player too: they can no longer move or
+  turn it, change its posture or elevation, or mark threats on it until you
+  unlock it, and their app stops offering to.
+- GM note / dialogue, in a character token's Properties, holds private notes
+  and lines to read aloud for that one token. It shows on your hover card
+  under the stats and never reaches players.
+- A token's Properties show the Info and Reference of the data-map character
+  it is linked to, and editing them there edits that character (with a note
+  when several tokens share it). An unlinked token offers Link to a
+  character…: one of the campaign's characters, or a new one named after the
+  token.
+- Trap tiles: a hidden portal does nothing, as before, until you tick
+  "⚠️ Trap — fires while hidden" in its Properties. Players never see the
+  tile, but a token that lands on it is teleported; you see a red ⚠️ and a
+  dashed outline, and a locked destination map still stops it.
+- On a player's screen, a picture token whose picture is still arriving
+  shows the character's initials in a dashed circle instead of an empty box.
+
+Welcome screen, profile and tour
+- Waypoint opens on a Welcome screen: Start a campaign, Import one from a
+  file, Continue one already on this computer, or Join a game. The Waypoint
+  logo at the top left brings it back any time, and Settings ▸ Profile ▸
+  Welcome screen on launch sets how often it appears (every time, first run
+  only or never).
+- Join a game has a screen of its own: your name, color, picture and token
+  face, the room code and a password if the GM set one. It shows the
+  connection as it goes (connecting, waiting for the GM to let you in, or
+  what went wrong) and takes you to the table once the GM's campaign
+  arrives; ← Back abandons the join.
+- Your profile (name, color and picture) is kept on this computer and goes
+  with you to every table; set it on the Join screen or in Settings ▸
+  Profile. A name is required to host or join. A new profile starts on a
+  random color, so players are told apart at once, and anyone without a
+  picture shows a silhouette on their own color (in the roster, on the
+  party strip and on the Maps list) instead of a "?" or initials; so does a
+  character's hover card when it has no picture.
+- The tour is grouped into seven parts you can jump between (the ▾ menu on
+  each card, or Help ▸ Tutorial), and each card shows how far you are
+  through its part, with a slim bar that fills part by part, instead of one
+  long count through the whole tour.
+
+Players and their characters
+- A player now follows their character, not its name, so renaming a
+  character or its tokens no longer loses them, and plays one character at a
+  time. Give a character… on their chip on the party strip (or a token's
+  Player Owner, or In play in System ▸ Characters) puts one into play, its
+  token on the map they are on; their others are kept (sheets and rolls
+  still theirs, switched from the picker at the top of the sheet) while you
+  move those tokens. The Players panel reads "plays Brakka · also Wolf", and
+  the Session Log records each change.
+- A player who joins with no character gets a waiting token: their face in a
+  dashed gold outline that they can move about the map they are on, until
+  you give them a character and their real token takes its place. It follows
+  them from map to map, goes three minutes after they leave, and is never
+  saved; right-click it, or their chip, for Give a character…, Hide or
+  Remove. A card tells them where they stand.
+- Each player chooses their token's face (their picture, the plain default,
+  a bundled token picture or an emoji) on the Join screen, in Settings ▸
+  Profile ▸ Token face or from their card. Their chip wears it too, and a
+  change reaches the table at once.
+- A character you give a player at the table, with no picture of its own,
+  takes a copy of their face and keeps it: a later profile change never
+  touches it (untick Use their face at the top of the Give list to leave it
+  bare). The player changes it with Picture on their own sheet (a face, a
+  bundled picture or an upload) and you are told. Its tokens and chip wear
+  the picture.
+- With character sheets on, a player can make their own: Make a character…
+  on their card (or My character… on their chip) starts a sheet whose every
+  visible field is theirs to fill in, seen by no other player until they
+  press Done. It then goes into play at once, in their waiting token's place
+  (unless you gave them a character meanwhile), and you are told. Its sheet
+  shows you a review bar until you press Keep it: Send back… unlocks it for
+  them with your note, Remove… deletes it with its tokens. Unlock on any
+  player's sheet lets them fill in every field they can see; Lock ends it.
+- Just a token… on their card is the quick way in: a name and their face,
+  and they play at once (with character sheets, an empty character they can
+  fill in later, which comes to your review like one they made; without, a
+  plain token of theirs).
+- Players without a character, in the 🌐 Multiplayer window, turns waiting
+  tokens off for a campaign, can let them see around themselves under fog,
+  and sets when players may make a character of their own: at once, only
+  when you ask (Let them make a character on their chip; for a player who
+  already plays one, it is a replacement) or never. Forget, under Player
+  History & Bans, now asks first, holds until you next let them in, and
+  removes a character they were still making.
+
+Running the table
+- Pause this player, on a player's token or their chip on the party strip,
+  freezes just that player while the rest play on: their chip wears a blue
+  ring and they see a banner, with chat still open. A ⏸️ button in the top
+  Table bar, shown while you host, pauses the whole table from either map,
+  in step with the 🌐 panel and the right-click menu.
+- While you view a map other than the table's, the party strip's right-click
+  menu also offers Summon … to this map: for one player (a scout ahead; the
+  rest stay put) or for everyone (the whole table moves here, and it becomes
+  the table's map). The table's-map entries name that map, so the two are
+  never confused.
+- The Maps list shows small faces for the players on each map, solid for
+  anyone there now and dimmed where a player was last seen, so a split party
+  is plain at a glance. Only you see them.
+- A player's top bar names the campaign and, in a section of its own, the
+  map they are on. It follows them through doors, travel and summons, and
+  picks up a campaign or map renamed mid-session.
+- The combat roster sends players the turn order, never an initiative
+  number, and a Hidden row carries nothing of its creature. Every row of
+  your roster now shows its name (the initiative box had squeezed the names
+  out).
+
+Character sheets: the system
+- Character sheets start with the system: a System button in the Campaign
+  pill opens an editor for the campaign's rules, with no code. Fields with a
+  key formulas use (STR, Skill.Stealth), a label and a kind: numbers with a
+  default and range, formulas computed from other fields
+  (floor((STR - 10) / 2)), resources with a formula for their max (HP),
+  skills as ranks plus a base, toggles for conditions, text, notes and
+  selects. Named rolls with dice (d20 + STRmod, 3d6 <= Skill.Stealth) become
+  buttons on the sheet. Errors show under a field as you type, with a caret;
+  loops and dice inside definitions are refused; Compute with defaults shows
+  every number. Start from Basic d20 or Basic 3d6, or blank; Export and
+  Import move a system between campaigns as a .wpsystem.json file.
+- Each field is visible to players or GM only (a GM-only field never leaves
+  your machine), editable by the player or by the GM, and can appear on the
+  hover card. The visible part of the system reaches players at your table
+  at once. Character sheets is a VTT feature (Settings ▸ VTT features).
+- Characters: the editor's Characters tab creates the campaign's characters
+  (a player, NPC, a portrait); a token points at one through its Properties
+  or right-click ▸ New character sheet, and any number of tokens can share a
+  character (one HP across maps). The character's player is written onto its
+  tokens, so moves and the party strip work as before. Right-click a token ▸
+  Sheet… opens the sheet over the play map: numbers and skills with totals,
+  resources as a bar with − and +, toggles, text, notes, selects, formulas
+  read-only; every change saves at once, ↶ puts the last one back.
+- Players open their own sheet the same way and fill in what you left
+  editable; your machine checks every value and keeps it. Of other PCs they
+  see only the Hover fields, on the hover card and the party strip; NPCs
+  never leave your machine.
+- Rolls from the sheet: the roll buttons on a sheet (and a field's own die
+  beside its label) roll at the table like /roll, with the character's
+  values filled in; the card shows the label, who rolled as whom, and every
+  name with the value it used. The roller gains a character picker (your own
+  characters; the GM any), so /roll d20 + STR works once a character is
+  picked; a GM's roll that uses a GM-only value stays private. In the combat
+  roster, a die beside a row rolls initiative from the system's Initiative
+  roll.
+- Layout: the editor's Layout tab arranges the sheet in sections of 1–4
+  columns — fields, roll buttons, headings, dividers and the portrait, each
+  one column or the full row, dragged between sections — with a live preview
+  for a chosen character. Without a layout the sheet arranges itself by
+  kind; Start from the automatic layout copies that.
+- Bridges: a token with a ShadowBase sheet attached gets Character from this
+  sheet (a copy of its attributes, resources and skills by the system's
+  matching keys, and much more on a system built for it: see ShadowBase
+  sheets); the party strip's right-click menu offers Sheet… and Characters…;
+  the Tutorial campaign carries a small system with Bren's sheet, and the
+  tour opens it.
+- GM-only values stay yours: your roll that reads a value worked out from a
+  GM-only field (a visible formula built on it, a skill whose base reads
+  it), or whose label shows one, stays private, as do a GM-only field's own
+  roll, a GM-only roll and the damage of a GM-only item, whose blast reaches
+  players without its name. A resource whose maximum reads a GM-only field
+  is GM only as a whole, and a skill whose base reads one shows players
+  "GM only" rather than a wrong total.
+- Importing a system file tells you what it left out (items over the limits,
+  a malformed field, an effect that did not read), counted by kind: "Left
+  out (over the limits, or not valid): 5 items".
+
+Character sheets: building the sheet
+- Tabs and sections: add Tabs at the top of the Layout tab and give each
+  section a tab, and the sheet shows a tab strip; with none it stays one
+  stacked page. A section can be Collapsible (the reader folds it away),
+  show a Count in its header (any field's value, such as a points total),
+  sit under another as a sub-section, and wear its own colors (an accent, a
+  panel and a border; untick Stripe to color only its title). A sheet holds
+  up to 40 sections.
+- The top of the sheet: Identity rows (a small label over each value) and
+  Ledger figures (a label over a bold number, red when negative) make a
+  header block under the name that scrolls away with the sheet; text,
+  select, number and yes/no rows and ledger numbers are changed right where
+  they are read. The Pinned band keeps a few numbers, resources, toggles or
+  roll buttons in reach on every tab, staying at the top with the tab strip
+  while the sheet scrolls; a section set Above the tabs is a dashboard on
+  every tab.
+- Pin groups: put band figures in named groups (Points, Spell slots) and
+  give each a Pin button where its figures live. Each viewer pins the groups
+  they want onto the band, remembered on their own machine for each
+  character; figures in no group always show.
+- Fields: Tile shows a number, formula, skill or resource as a boxed stat
+  tile for an ability-score grid; Slider shows a number with a min and a max
+  on a two-color track with end labels (an alignment, a mood), still a
+  plain number to formulas. A value can carry a Unit (pts, kg) and ± color
+  (green above zero, red below). A resource can take an icon, a ↻ button
+  that fills it to its max, and no bar.
+- Captions and value names: any field can take a Caption, a line under it
+  with values worked out for the character ("Base: {ST * 2}"; {±X} adds the
+  sign, +2), and a roll's label can show values the same way
+  ("Attack ({±AtkBonus})" reads "Attack (+5)", on its card too). A number or
+  a formula can carry Value names (Not stunned, Physical, Mental): the
+  number becomes a dropdown and the formula shows the name, while formulas
+  still read 0, 1, 2. A caption or label that names a GM-only field never
+  reaches players.
+- Inline rows and counters: a section set to Inline rows draws each field on
+  one line, label and value on the left and its Roll on the right. A number
+  or skill ticked Counter gets − and + either side of its box. A section
+  holding resources or counters can carry Reset all in its header, in your
+  own words (Long rest): one press fills its resources and sets its counters
+  back to their start. Players reset their own; your own reset comes back
+  whole with one ↶.
+- Show if: a section, or one placement (its "if" button), shows only while a
+  formula is true (Stun > 0, Station == 2): a stunned banner, one station's
+  actions. It is worked out on the character's own values, and the Layout
+  preview draws a hidden part dimmed. It only hides: the values still reach
+  the player, so a secret stays GM only.
+- Handbook on the sheet: a section can carry a handbook chip in its header,
+  and a Handbook link placement is a button; both open a handbook page, over
+  the map beside the sheet for you and in the reader for a player. Players
+  only ever get chips and links to pages they can read.
+- Rich table: tick Rich table on an Item list field to show the inventory as
+  a table of the columns you pick (category, cost, damage, area), with an
+  expandable notes row, category chips and a totals footer.
+
+Character sheets: the look
+- The Sheet look box at the top of the Layout tab gives the sheet a look of
+  its own over the campaign's default page look: a font, text and panel
+  colors, and a background picture from the Image Library with a Dim slider
+  (Clear goes back to the default). Players see the same look.
+- Its shape: Headline or Accordion section titles (a line under each, a
+  chevron on those that fold), Sticky titles (a section's title stays at the
+  top while you scroll through it), Filled or Angular tabs, one Accent
+  color (Theme accent puts the gold back), Capital labels, and the
+  character's portrait and name leading the header block.
+- A Palette recolors the whole sheet at once (text, muted labels, panel,
+  cards, input fields, edges, a primary color, danger, good and warning)
+  from a preset, Graphite (dark) or Parchment (light), or your own swatches;
+  it looks the same under the light theme, and Clear palette puts the sheet
+  back. Inter joins the font list.
+- Finer options: Monospaced numbers, the band as an Inline band or Band
+  chips, Arrows inside every number box, Boxed results, Item cards, and
+  Effect cards (each status effect a card with a pill per change: +2 ST). On
+  the Fields tab a formula can show as a Badge, each value name in its own
+  color (Good, Warning, Danger, Accent, Primary), and a resource can have
+  its own color; on the Rolls tab a roll takes a tone (filled, red for
+  damage, grey, outline) and an icon.
+- Icons: every icon box (a tab, a section, a resource, an effect, an item, a
+  roll) takes an emoji or one of 161 bundled icons from the picker beside it
+  (Icons and Emoji tabs, with a search that knows words like spell, armour
+  or rest), drawn in the sheet's own colors; Inter and the Font Awesome
+  Free icons are credited in the About box. None of these options changes a
+  sheet until you pick it.
+
+Character sheets: rolls, effects and the token
+- Situational modifier: shift-click (or Alt-click) a roll button on a sheet,
+  or a field's die, to add a bonus or penalty first (quick chips, a stepper
+  and a preview of the formula); a plus always helps, raising the total, or
+  the target of a roll-under check. For a lone die (a d20, a d%) it also
+  offers Advantage and Disadvantage: roll twice, keep the better or the
+  worse. A plain click still rolls at once.
+- Status effects: the System editor's Effects tab is a library of effects (a
+  name, an icon, Buff or Debuff, a duration note, and changes that add to a
+  number, a skill, a formula or a resource's max, or switch a toggle on),
+  each Visible or GM only. A Status effects field on the sheet carries a
+  character's: + Add effect… from the library, or New… made on the spot;
+  untick one to suspend it, × to end it. Players change their own when the
+  field is Player may edit.
+- An effect reaches every formula, roll, hover card and header figure built
+  on its field. The sheet shows the result beside the value you typed (→ 12,
+  or ▲ / ▼ on a worked-out value) with each source in the tooltip
+  (10 base · Rage +2); ST.base reads a value before effects, for point
+  costs. When an effect that raised a max ends, a current value above the
+  new max comes down to it.
+- Facing dial: a Layout placement that shows the character's token facing as
+  a hex (a square on a square grid); click a wedge or use the arrow keys to
+  turn the token, and turning the token turns the dial. Click the outer ring
+  to mark where a threat comes from (the first is active, later ones queue);
+  Turn to face turns toward it. Formulas read Facing, Arc (0 front, 1 side,
+  2 rear), Arc.front / .side / .rear and Threats, so a Dodge can vanish from
+  behind: if(Arc.rear, 0, Dodge). It needs Token facing on (Settings ▸ VTT
+  features).
+- Stance: a Stance (posture & elevation) placement shows and sets the
+  token's posture and elevation, the same values as its chip and right-click
+  menu; formulas read Posture (0 standing to 6 lying face up) and Elevation
+  (in yards). Players turn, mark and set their own token, never while
+  paused.
+
+Character sheets: pop-out, download and print
+- The sheet panel resizes from its bottom-right corner (double-click the
+  corner for the default size), remembered with its position. For you, ⧉ in
+  its head pops the sheet out into its own window (drag it to a second
+  monitor), a read-only copy that follows every change; Dock back in the app
+  returns it.
+- Download (the arrow in the sheet's head) saves the open sheet as a
+  Character file (.wpchar.json: every value, the numbers worked out, its
+  picture) or a Readable page (.md: every tab and section as text, which
+  imports back as a handbook page). A player takes only their own sheet,
+  exactly as they see it; you can take any character's, NPCs too, as its
+  player would see it or, with Include GM-only fields ticked, your own full
+  copy.
+- Print or save as PDF… on the same menu prints the sheet exactly as it
+  shows (its look, palette and background picture), then every tab in turn
+  with every section open and notes in full; pick a PDF printer to keep a
+  file. A print dialog no longer drops the connection: while one is open the
+  other side of the table waits (up to three minutes), for a printed sheet
+  and for Save PDF on a planner or page alike.
+
+Character sheets: the HUD
+- The HUD: a second, compact layout of the same sheet in a window of its
+  own. The Sheet | HUD switch on the Layout tab lays it out with its own
+  title, tabs, sections, band and ledger (a field can sit on both), from
+  scratch or with "Copy the sheet's sections"; "Remove the HUD" takes it
+  away, and the Sheet look dresses both. A change in one shows in the other
+  at once.
+- Opening it: HUD in the sheet's title bar, HUD… on a token's right-click
+  menu, the party strip, Open HUD in the token's Properties, the Characters
+  tab, or a HUD button you place on the sheet (which can open it at one of
+  its tabs). One window per character, several at once, each dragged and
+  resized from its corner (remembered); Esc closes. Players open their own
+  character's, never with GM-only fields or rolls. The map's toolbars now
+  sit under the sheet, a HUD and a handbook page instead of drawing over
+  them.
+- Roll history: a drawer at the foot of the HUD lists the rolls made as that
+  character this session, newest first, a roll with a target in green or
+  red. Clear hides them for you; it keeps 10, 25, 50 or 100.
+- The bell beside it keeps the character's notes this session: an apply
+  action's result, an effect applied, suspended, resumed, ended or run out,
+  a start-of-turn reminder and the turn notes (your turn, a move counted or
+  stopped, an action spent). Pin a note to keep it (pins stay on this
+  computer and reach no one), remove one, or Clear the unpinned; it keeps
+  12, 25 or 50.
+- Three new placements for a sheet or a HUD. Handbook search lists the pages
+  the viewer can read and searches them (headings as you type, the text on
+  Enter), opening a result right there, with Open in reader for the full
+  page; a section's handbook chip and a Handbook link then open their page
+  in the character's HUD. Rules text shows a block of your own words as
+  written. Custom roller is a formula box, a name and Roll: anyone who may
+  roll as the character types any roll (3d6 <= DX + 2) and rolls it as them.
+
+Character sheets: actions and consequences
+- Apply actions: set a roll's Kind to Apply for a button that moves
+  resources or numbers instead of rolling (Apply costs, Apply wounds): up to
+  four changes, each Subtract, Add or Set to by an amount worked out for the
+  character (FPCost, max(0, Incoming - DR)), all or nothing and never past a
+  field's min and max. Its player and you may press it, and your machine
+  works the amount out. Its card reaches the whole table only when every
+  value it moves is on the hover card, else its player and you; Revert takes
+  your press back whole.
+- A roll's consequences: "+ Then…" under a roll adds up to four changes that
+  happen after it lands, Always, On success or On failure of its test (a hit
+  leaves a pending hit, a failed save adds a mark); with Show if, a Damage
+  roll can show only while a hit is pending. For a player's roll your
+  machine rolls the button's own formula, modifier and advantage included,
+  so a hit cannot be made up. A roll's Malf (17, or a weapon's own) makes a
+  natural total at or past it a malfunction: the card says so, it counts as
+  a failure, and its On malfunction changes happen.
+- Each round and at a turn's start: an apply action set to Also each round
+  runs on every character in a combat whenever the round changes
+  (Turn Set to CombatRound, Parries Set to 0); one set to Also at its turn's
+  start runs on its character when its turn begins (a bleed, a reaction
+  back). Either runs by itself or waits in chat as a reminder with a Run
+  button, for you or for its player, in any combat, turn-based or not.
+  Formulas read CombatRound, the round of the combat on the map of the
+  character's token (0 with no token or no combat).
+
+Turn-based combat
+- Turns: the Combat card on the System editor's Items tab gains a Turns box.
+  Move per turn is a formula worked out for each character (BasicMove,
+  Speed) in feet, yards, metres or grid cells, which each map's scale
+  converts; Diagonals on squares is a straight line, every diagonal 1
+  square, or alternating 1–2 (the ruler counts them your way too); A round
+  is so many seconds; your own time units (a watch) by their length; and the
+  actions a turn allows (Action 1, Bonus action 1, Reaction 1). A roll or an
+  apply action can cost one of them.
+- Turn-based combat is a new VTT feature (Settings ▸ VTT features), off by
+  default and yours to control for the whole table. While a combat runs, the
+  player whose token has the turn gets End turn on the turn strip, their
+  sheet and their HUD: it moves play on exactly as your Next turn does, and
+  only while the turn is still theirs.
+- Moves: a player's token in the combat moves only on its own turn, and then
+  no further than its Move per turn, counted from where each drag began in
+  the map's cells (hex steps on hexes). They hear "Your turn: 6 squares
+  (30 ft) to move." and what is left after each move. A token outside the
+  combat is free, and your own moves are never limited.
+- Actions per turn: while their token is in the combat, a player's press of
+  a roll or apply action that costs an action spends one, on or off their
+  turn (a reaction); their actions come back when their turn begins, they
+  hear what is left, and a spent button greys. Your own presses are never
+  limited.
+- Walls stop player tokens, in or out of combat: a player's token cannot
+  land in or cross a cell a sight-blocker occupies (a wall, a pillar, a
+  closed door; an open door never counts); it goes back to where its drag
+  began, with a note. The setting sits under Settings ▸ VTT features ▸ Fog
+  of war.
+- Every refusal has its own Refuse, Warn or Off: Walls stop player tokens,
+  and Move limit, Out of turn and Actions per turn under Settings ▸ VTT
+  features ▸ Turn-based combat. Refuse (the default) puts the token back or
+  refuses the press with the reason; Warn lets it through with a note to the
+  player and to you (in the character's HUD bell too); Off does not check.
+- Timed effects: a status effect whose duration reads as a time (3 turns, 10
+  seconds, 1 minute, next turn, or your own unit: 2 watches) runs out by
+  itself, with a private line to its player and you. In a combat a round
+  passes at the start of each of its character's turns; outside one the
+  clock runs, and the time left carries between encounters. Its row shows
+  what is left, with pause, reset and stop (Effect timers, under Settings ▸
+  VTT features ▸ Turn-based combat, says who may use them). Any other note
+  (until dawn) stays until someone ends it.
+
+Items
+- The System editor has an Items tab: your campaign's own weapons, gear and
+  explosives. Each item carries a name, a category, an optional blast area
+  (a radius in feet), a damage roll (dice allowed), a cost, an icon and a
+  Visible/GM-only flag; a GM-only item stays out of players' lists, and
+  players' sheets never carry item formulas.
+- Characters carry items through a new Item list field on the sheet: an
+  inventory with quantity, remove, and a + Add item… picker of the
+  campaign's items. Players manage their own; your machine checks every
+  change.
+- Throw from the sheet: an item with a blast area gets a Throw button —
+  press it, click the map, and the blast lands attributed to the character
+  and shared with everyone on that map. Per campaign you choose the
+  automation (full auto rolls and applies the damage, or roll-to-chat, or
+  measure only), who rolls (the owner or the GM), and which resource damage
+  subtracts from; a full-auto throw can be undone from the blast menu.
+- The toolbar blast is now a GM quick-tool for an ad-hoc radius; the old
+  fixed explosive presets are gone in favour of your campaign's own items.
+- The System editor's Lists tab shapes each Item list field: the categories
+  its picker offers, the same item more than once (a skill with two
+  specialties), no quantity (skills and powers), a level per row with
+  optional names (Broken, Accented, Fluent) and a switch per row (Readied,
+  Equipped, Active, and whether new rows start on). Each row then shows its
+  level and its switch, and its notes button holds the row's own note;
+  players change these on their own characters. In Layout, a list can show
+  only the rows switched on (readied weapons).
+- Bound and cursed items: on an item in the Items tab, When a player removes
+  it can make it Bound (it stays on their sheet with your message: "The ring
+  won't come off") or Curse on contact (it leaves their sheet but stays on
+  the character, out of their sight, until you remove it). When a player
+  switches it off does the same for a list's switch. Players never see the
+  setting, a mis-click in the first ten seconds can still be taken back, and
+  you alone are told (a toast, and Items in the session log) when a player
+  picks up, tries to remove or drops one.
+- Stats and a price: a list can carry up to ten stats, numbers each of its
+  items holds (Acc, Wt, Cost…) with a key, a label, a default and optional
+  value names; the Items tab gives each item a box for every stat of its
+  lists, and a stat set to On the row shows as a chip beside the row's name.
+  One stat can be the list's price: a row records what it cost (Paid) when
+  it is added, so a later price change never rewrites a purchase, and you
+  can correct it in the row's Paid box.
+- A copy's own values: ✎ on a row opens that copy's form (name, icon,
+  category, notes, stats, blast, damage and cost, and its own locks). An
+  empty box follows the library; a value you type is the copy's own (a gold
+  dot marks it), ↺ takes one back and Follow the library takes them all.
+  Item stats on players' sheets, at the top of the Lists tab, can let
+  players change the stats of their own copies; a stat you set holds. Saving
+  items that characters carry tells you how far each change reaches
+  ("Blaster: affects 3 characters; 1 has its own Dmg."), and the session log
+  keeps each line under Items.
+- Custom rows: tick Custom rows on a list and players add items of their own
+  with + Custom… in its picker: a New item row, its form open for a name, an
+  icon, a category, notes, stats and a key. You can add one to any list
+  shaped in the Lists tab and give it a blast, damage, locks or GM only; a
+  player edits only the rows they made. An item deleted from the library
+  stays on every character carrying it (not in library, on your sheet), and
+  Make custom turns that copy into the character's own.
+- Items that change the character: an item or a custom row can carry up to
+  twelve changes (+ Change), as a status effect does: a number, skill or
+  formula up or down, a resource's max, a toggle switched on. They count
+  once per row, optionally per level (a trait at level 3, three times) and
+  only while switched on (armour while Equipped); every row shows them as
+  chips, and the value's breakdown names the item. A cursed item a player
+  dropped keeps working on them, shown only as "an unseen effect".
+
+Item lists in formulas
+- Columns: a list can carry up to six formulas worked out for each row (no
+  dice), reading the row as Row.lvl, Row.qty, Row.on, Row.paid, Row.<stat>
+  or another column, and anything else on the character: a skill's cost from
+  its level, a weapon's to-hit. Each has a label, a unit, value names,
+  Hidden (worked out, not shown) and Total, summed under the list.
+- Any formula can read a list: its totals (Skills.count, Weapons.paid,
+  Weapons.Wt, a stat times the quantity, or a column summed), the same over
+  the rows switched on (Weapons.on.Wt), or one row by its item's key
+  (Skills.Karate.lvl, Weapons.Blaster.Acc), which also reads an item or
+  library entry the character does not carry. A key no row has reads as not
+  carried, a kept curse counts in no total, and whatever reads a GM-only
+  value shows players "GM only".
+- Choice stats: a stat can be a choice of named options, written
+  Strength = STRmod, Dexterity = DEXmod (an option can read a list too:
+  Guns = Skills.Guns.Target). An item, a copy or a custom row picks one, the
+  sheet shows its label, and formulas read its value (Row.Attr,
+  Skills.Karate.Attr). An option that reads a GM-only value never reaches
+  players.
+- Row rolls: up to four rolls per list (a label and a formula, dice allowed)
+  put a button on every row, rolled with that row's names: a weapon's Attack
+  as d20 + Row.Hit, a skill's Check as 3d6 <= Row.Skill. Shift-click adds a
+  modifier; a roll on a GM-only item, or through a GM-only value, stays
+  private.
+- Row actions and counters: a list's roll can be an apply action too, its
+  amounts read from the row (Apply costs on each power: FP − Row.FPCost). A
+  list can keep up to four Counters on each row, such as a weapon's Charges
+  and Hits, shown as chips with − and + ("Charges 12/20") and read as
+  Row.Charges. A list's roll can move them (Fire: Charges − 1, On success
+  Hits + 1) and can need something first (Row.Charges >= 1, "Out of
+  charges"): its button greys with that text, and your machine refuses the
+  roll.
+
+The library
+- Library… on the System editor's Items tab opens the campaign's library,
+  for collections too big for one tab: thousands of weapons, spells or
+  skills. It holds packs (each Players can see it or GM only) of entries: an
+  item plus a description, tags, a reference (a book and page) and GM notes
+  only you read. Search matches every word you type, and a pack of thousands
+  opens and scrolls at once. The library is kept beside the campaign's save
+  and goes with it into backups and exports.
+- Several entries at once: Ctrl-click, Shift-click or Ctrl+A chooses them to
+  move or copy to another pack, set their category, add or replace their
+  tags, set who sees them, duplicate or delete them. An entry's form says
+  how many characters carry it, and saving a change tells you how far it
+  reaches, as a System save does for items.
+- Import… reads a .wppack.json file and shows what it would do before
+  anything changes (as a new pack, or merged into a pack by id or by key),
+  counting what would be added, updated, unchanged, skipped or not valid,
+  and naming any stats it would leave out (set up the lists, or import the
+  system, first). Export… saves a pack as the GM's copy (everything) or a
+  players' copy (no GM-only entries, GM notes or formulas).
+- From the library… under an item list's + Add item… opens a picker over the
+  sheet: a search, pack and category chips, and a preview with the entry's
+  stats and your notes; Enter adds, Shift+Enter adds and stays open,
+  Ctrl-click picks several. Each row keeps a copy of its entry, kept current
+  as you edit the library, so the sheet still draws it if the entry is
+  deleted.
+- Players get the same picker on the lists they may change, over the packs
+  you let them see: entries arrive a page at a time (the search covers what
+  has come), an entry shows in full when highlighted, and your machine
+  judges every pick. GM-only entries, GM notes and formulas never leave your
+  machine.
+- Your campaign's own items move into the library's Items pack the next time
+  the campaign opens on your machine: a safety copy is taken first,
+  characters keep carrying them and every formula reads the same. Items you
+  make later in the Items tab move on the next open (the tutorial's Firepot
+  stays).
+
+ShadowBase sheets
+- On a system built on the ShadowBase website's own keys, Character from
+  this sheet (and Copy the sheet's values into the character, to copy again)
+  brings the whole dossier across: the player, species, homeworld, levels
+  bought, points, credits, alignment and the narrative, and its rows, from
+  skills, advantages and powers to gear, worn armour with its DR per
+  location, weapons, vehicles, cybernetics, hit locations and status
+  effects. Each row is matched by name to an item or library entry and kept
+  linked (its differences held as that copy's own values), or else made a
+  custom row; the toast says what did not come across. Copy from a fresh
+  export: the website mends older sheets when it opens them.
+- Attaching a sheet also turns its token to the sheet's facing and marks its
+  threats while it is engaged (with token facing on), and a skill level the
+  website exports as text now comes across.
+- Players update their own characters: Import on their sheet sends their
+  ShadowBase file to you as proposed changes, and nothing changes until you
+  review it. A gold Review (N) button appears on the character's sheet: each
+  change has a tick (a value you set yourself and a row the file no longer
+  has start unticked), Apply takes the ticked ones, Keep as it is takes
+  none, and the player is told which. The Lists tab's Rules box can let the
+  levels, switches and quantities of rows they already carry apply at once.
 
 Handbook
 - A third kind of item beside maps and planners: Handbook pages — rules,
   quick reference, a setting primer — written in the same block editor as a
   planner (plus sub-headings, plain tables and a horizontal line; no scene
-  nodes, raw HTML or GM notes on a page), nested and re-ordered like planners,
-  searched, exported (Export This Page / Export All Pages) and covered by the
-  planner's undo.
+  nodes, raw HTML or GM notes on a page), nested and re-ordered like
+  planners, searched, exported (Export This Page / Export All Pages) and
+  covered by the planner's undo.
 - Layout: pictures, callouts, flares, tables, diagrams and flowcharts on a
-  page take a width, float left or right with the text wrapping around
-  them, a pixel nudge, or the full width of a multi-column section; a
-  section heading splits what follows into 1–3 columns. In the preview,
-  drag a picture to nudge it and its corner to resize it (one undo step per
-  drag). A page flows like a web page: a player's narrower window, the print
-  path and the HTML export reflow the same content.
+  page take a width, float left or right with the text wrapping around them,
+  a pixel nudge, or the full width of a multi-column section; a section
+  heading splits what follows into 1–3 columns. In the preview, drag a
+  picture to nudge it and its corner to resize it (one undo step per drag).
+  A page flows like a web page: a player's narrower window, the print path
+  and the HTML export reflow the same content.
 - Import and export: a Markdown file (with its pictures picked alongside, or
-  zipped with them; Google Docs' Markdown export works as is) becomes a planner
-  or a handbook page — the import button in the planner toolbar appends to
-  the open document, the file button in the Planners and Handbook headers makes a new
-  one, and the header Import button takes .md files and zips too. A preview
-  lists every block (flip a type, untick a block) and nothing is written until
-  you press Import: one undo step, Cancel leaves nothing behind. Save Markdown
+  zipped with them; Google Docs' Markdown export works as is) becomes a
+  planner or a handbook page — the import button in the planner toolbar
+  appends to the open document, New planner (or page) from a Markdown file
+  on the Planners and Handbook headers' right-click menu makes a new one,
+  and the header Import button takes .md files and zips too. A preview lists
+  every block (flip a type, untick a block) and nothing is written until you
+  press Import: one undo step, Cancel leaves nothing behind. Save Markdown
   on the Export menu writes any planner or page back out (a zip when it has
   pictures), and Help ▸ Handbook ▸ Import and export holds the format with a
   template to download.
 - Players at your table receive the pages you leave on "Players can read"
-  (the default; the switch is in the planner toolbar and the page's right-click
-  menu) and read them from a Handbook tree of their own — the only section of
-  the left panel they see — in a panel over the play map, so the session keeps
-  running underneath. Esc or × closes it. Your edits reach an open page as you
-  type; turning a page GM only removes it from every player at once; only the
-  hosted campaign's pages travel.
+  (the default; the switch is in the planner toolbar and the page's
+  right-click menu) and read them from a Handbook tree of their own — the
+  only section of the left panel they see — in a panel over the play map, so
+  the session keeps running underneath. Esc or × closes it. Your edits reach
+  an open page as you type; turning a page GM only removes it from every
+  player at once; only the hosted campaign's pages travel.
 - Everything a player receives from a page is cleaned twice (on your machine
   before it is sent and on theirs before it is shown): text, never markup;
   links only to http(s); pictures only from the campaign; diagrams in a
-  stricter mode. A deleted map, planner or page now leaves players' copies too.
+  stricter mode. A deleted map, planner or page now leaves players' copies
+  too.
 - The Tutorial gains a House rules page, and the tour and Help cover the
   Handbook. Planner flowcharts and pages share one compiler.
 
@@ -92,11 +681,16 @@ Pictures per campaign
   planners, the cast and campaigns that brought it in. Campaign and
   Everything exports bundle a campaign's own pictures even when nothing
   references them yet.
+- The ★ Campaign Cast shows in the Image Library under the campaign's own
+  chip only, not under Shared, Unfiled or All campaigns. Clicking a cast
+  face opens a preview (portrait, name and stat line) with Add to map
+  instead of dropping a token at once, and Ctrl-click and Shift-click pick
+  several to add together.
 
 Sound
-- Ambient loops and one-shot cues at the table. The Sound button on the play
-  map (a music note, GM only) opens a small panel that stays open while you
-  run the scene: click a loop to crossfade to it, a cue to fire it (up to four
+- Ambient loops and one-shot cues at the table. 🎵 Sound, under 🎬 Scene on
+  the play map (GM only), opens a small panel that stays open while you run
+  the scene: click a loop to crossfade to it, a cue to fire it (up to four
   overlap), Master for the table's volume, Mute mine for your own speakers.
   Every player hears what you play; the speaker in the Table pill gives each
   of them their own volume, a mute, and Off for me at this table.
@@ -107,25 +701,44 @@ Sound
   campfire) and twelve cues (door opens / closes, latch, coins, footsteps,
   page flip, blade drawn, creak, dice, sword clash, healing, teleport), all
   CC0 and credited in assets/sounds/NOTICES.txt, about 1.3 MB in all; a
-  bundled sound is hidden per install rather than deleted (Show hidden brings
-  it back). Import from another campaign… brings sounds in by reference,
-  nothing copied. Files live in saves/images/audio/<campaign>/ and travel to
-  players over the connection one at a time, the playing loop first, so a
-  player who joins mid-scene hears the loop once its file has crossed.
+  bundled sound is hidden per install rather than deleted (Show hidden
+  brings it back). Import from another campaign… brings sounds in by
+  reference, nothing copied. Files live in saves/images/audio/<campaign>/
+  and travel to players over the connection one at a time, the playing loop
+  first, so a player who joins mid-scene hears the loop once its file has
+  crossed.
 - Sound is a VTT feature: per campaign in Settings ▸ VTT features, a default
-  for new campaigns, and the GM's campaign is the ceiling at a table (a player
-  can turn it off for themselves, never on). The stream window is silent
-  unless "Stream window plays the table's ambient sound" is ticked. In a
-  browser tab one click on the page is needed before sound may play; the
-  speaker pulses until then.
+  for new campaigns, and the GM's campaign is the ceiling at a table (a
+  player can turn it off for themselves, never on). The stream window is
+  silent unless "Stream window plays the table's ambient sound" is ticked.
+  In a browser tab one click on the page is needed before sound may play;
+  the speaker pulses until then.
+
+Music
+- Music, separate from Sound: 🎶 Music, under 🎬 Scene on the play map,
+  holds the campaign's songs (+ Add music… uploads MP3, OGG and other
+  compressed audio files of up to 25 MB each; not WAV or FLAC) and named
+  playlists built from them, with play and pause, previous and next, a
+  seek bar, loop (off, one song or the whole list), shuffle and a speed
+  from 0.5× to 2×.
+- Remember on this map gives a map a song or a playlist: during a session it
+  starts on each player's machine as they enter the map, and carries on
+  without a restart onto a map with the same music (tick Auto-play map music
+  while solo to hear it while you prepare alone). Take control of the
+  table's music plays the same track for everyone until you release it; then
+  each player hears their own map's music again.
+- Songs travel to players over the connection. The 🎶 note in the Table pill
+  gives each player their own music volume and mute, apart from Sound. Music
+  is a VTT feature (Settings ▸ VTT features), and a player can switch it off
+  for themselves.
 
 Dice
 - Roll at the table: type /roll 2d6 + 3 in Table Chat (or /r), or open the
   dice roller beside the message box: quick buttons for d4 to d100, a Roll
-  button, and the up arrow for your last twenty rolls. The GM's machine makes
-  every roll and everyone sees the same card: the formula, every die with
-  what was kept or dropped, the total, or for a check the margin, and a mark
-  on a lone d20 showing 20 or 1. The full syntax (4d6kh3, 2d6!, d20r1,
+  button, and the up arrow for your last twenty rolls. The GM's machine
+  makes every roll and everyone sees the same card: the formula, every die
+  with what was kept or dropped, the total, or for a check the margin, and a
+  mark on a lone d20 showing 20 or 1. The full syntax (4d6kh3, 2d6!, d20r1,
   10d6cs>=5, 4dF, d%, checks like d20 + 5 >= 16) is in Help ▸ Dice.
 - Private rolls: /gmroll (or /gr) rolls for the GM's eyes only; a player's
   /gmroll rolls to the GM; a whisper target picked in the chat panel makes
@@ -138,86 +751,81 @@ Dice
 - Table chat now clears when a session ends or a new one starts, so a new
   table never sees the last one's lines; the dev console keeps /roll local
   and gains /table <expr> to post a roll from there.
-
-Character sheets: the system
-- The first step of character sheets: a System button in the Campaign pill
-  opens an editor for the campaign's rules, with no code. Fields with a key
-  formulas use (STR, Skill.Stealth), a label and a kind: numbers with a
-  default and range, formulas computed from other fields
-  (floor((STR - 10) / 2)), resources with a formula for their max (HP),
-  skills as ranks plus a base, toggles for conditions, text, notes and
-  selects. Named rolls with dice (d20 + STRmod, 3d6 <= Skill.Stealth)
-  become buttons on the sheet. Errors show under a field as you type, with
-  a caret; loops and dice inside definitions are refused; Compute with
-  defaults shows every number. Start from Basic d20 or Basic 3d6, or
-  blank; Export and Import move a system between campaigns as a
-  .wpsystem.json file.
-- Each field is visible to players or GM only (a GM-only field never leaves
-  your machine), editable by the player or by the GM, and can appear on the
-  hover card. The visible part of the system reaches players at your table
-  at once. Character sheets is a VTT feature (Settings ▸ VTT features).
-- Characters: the editor's Characters tab creates the campaign's characters
-  (a player, NPC, a portrait); a token points at one through its Properties
-  or right-click ▸ New character sheet, and any number of tokens can share
-  a character (one HP across maps). The character's player is written onto
-  its tokens, so moves and the party strip work as before. Right-click a
-  token ▸ Sheet… opens the sheet over the play map: numbers and skills with
-  totals, resources as a bar with − and +, toggles, text, notes, selects,
-  formulas read-only; every change saves at once, ↶ puts the last one back.
-- Players open their own sheet the same way and fill in what you left
-  editable; your machine checks every value and keeps it. Of other PCs they
-  see only the Hover fields, on the hover card and the party strip; NPCs
-  never leave your machine.
-- Rolls from the sheet: the roll buttons on a sheet (and a field's own
-  die beside its label) roll at the table like /roll, with the
-  character's values filled in; the card shows the label, who rolled as
-  whom, and every name with the value it used. The roller gains a
-  character picker (your own characters; the GM any), so /roll d20 + STR
-  works once a character is picked; a GM's roll that uses a GM-only value
-  stays private. In the combat roster, a die beside a row rolls initiative
-  from the system's Initiative roll.
-- Layout: the editor's Layout tab arranges the sheet in sections of 1–4
-  columns — fields, roll buttons, headings, dividers and the portrait, each
-  one column or the full row, dragged between sections — with a live
-  preview for a chosen character. Without a layout the sheet arranges
-  itself by kind; Start from the automatic layout copies that.
-- Bridges: a token with a ShadowBase sheet attached gets Character from
-  this sheet (a one-time copy of its attributes, resources and skills by
-  the system's matching keys); the party strip's right-click menu offers
-  Sheet… and Characters…; the Tutorial campaign carries a small system
-  with Bren's sheet, and the tour opens it.
+- Table Chat opens by itself when a roll lands while it is closed, so the
+  card is seen, and closes again after a few seconds unless you open or
+  touch the chat or the roller.
+- Roll outcomes (the Combat card on the System editor's Items tab) can read
+  3d6 roll-under criticals: a roll of exactly 3d6 against a target reads 3–4
+  as a critical success (5 at a target of 15 or more, 6 at 16 or more), 17
+  as a failure (critical at 15 or less), and 18, or failing by 10 or more,
+  as a critical failure. The card, the session log and what a roll changes
+  on success or failure all follow it; the default stays success or failure
+  by the margin.
 
 Visual effects
-- A visual-effects panel on the play map (the sparkle button beside the
-  Sound button) fires short-lived effects the players on that map see: a
-  flash, screen shake, a color wash (darkness, red mist, blinding light)
-  that holds until you clear it, a burst you place on the map (boom, magic,
-  smoke, sparks), weather that runs until you stop it (rain, snow, embers,
-  haze), and a text banner. Right-click a token for a pulse; the Blast tool
-  gains a Boom.
-- Everything is drawn on your machine — no files, nothing saved. "Sound
-  with it" fires a chosen cue alongside. Reduce motion (per machine) skips
-  shake and shortens flashes, and a hard flash guard protects against
-  strobing. Visual effects is a VTT feature (Settings > VTT features); a
-  player can switch it off for themselves and still see the map.
+- A visual-effects panel on the play map (✨ Visual effects, under 🎬 Scene)
+  fires short-lived effects the players on that map see: a flash, screen
+  shake, a color wash (darkness, red mist, blinding light) that holds until
+  you clear it, a burst you place on the map (boom, magic, smoke, sparks),
+  weather that runs until you stop it (rain, snow, embers, haze), and a text
+  banner. Right-click a token for a pulse; the Blast tool gains a Boom.
+- Everything is drawn on your machine — no files, nothing saved. "Sound with
+  it" fires a chosen cue alongside. Reduce motion (per machine) skips shake
+  and shortens flashes, and a hard flash guard protects against strobing.
+  Visual effects is a VTT feature (Settings ▸ VTT features); a player can
+  switch it off for themselves and still see the map.
 
 Fog of war
-- Cover a map and reveal only what the party can see. The fog button on
-  the play map (a fog bank, GM only) opens a panel: fog on or off for
-  this map, a reveal / hide brush, and Reveal all or Cover all at once;
-  on a gridless map a ruleset and cell size give the brush its measure.
-  Fog starts off on every map — turn it on where you want it.
+- Cover a map and reveal only what the party can see. The fog button on the
+  play map (a fog bank, GM only) opens a panel: fog on or off for this map,
+  a reveal / hide brush, and Reveal all or Cover all at once; on a gridless
+  map a ruleset and cell size give the brush its measure. Fog starts off on
+  every map — turn it on where you want it. While a fog map is open you
+  always see the see-through fog overlay, across every tool and while
+  dragging items, not only in fog mode.
 - Sight: a default sight range in yards, and a "sight from" picker that
-  reads each character's range from a field on their sheet, falling back
-  to the default. Preview any player’s view from the panel to see the
-  map exactly as they will.
-- Players see an opaque fog over everything their own characters cannot
-  see, and never receive what is hidden: the host works out each
-  player's vision and drops the creatures they cannot see from what it
-  sends, so nothing behind the fog reaches their machine. Fog of war is
-  a VTT feature (Settings ▸ VTT features, with a default for new
-  campaigns), on by default and never a player's to
-  enable.
+  reads each character's range from a field on their sheet, falling back to
+  the default. Preview any player's view from the panel to see the map
+  exactly as they will.
+- Players see an opaque fog over everything their own characters cannot see,
+  and never receive what is hidden: your machine works out each player's
+  vision and drops the creatures they cannot see from what it sends, so
+  nothing behind the fog reaches their machine. Fog of war is a VTT feature
+  (Settings ▸ VTT features, with a default for new campaigns), on by default
+  and never a player's to enable.
+- Sight-blocking: flag a fill or a shape (rectangle, hexagon, circle/pillar
+  or diamond) as "Blocks sight" in its Properties and it becomes a wall — a
+  token's fog vision, and each player's view, stops at it (fog must be on
+  for the map).
+- Doors: set a sight-blocker's type to Door — closed it blocks, open it lets
+  sight through. You toggle a door from its Properties or by clicking it in
+  fog mode; a player can open or close one their token stands next to
+  (unless you lock it). A height dimension comes next.
+- Vision — all around or a facing cone: a map's fog menu has a Vision
+  setting, all-around (a token sees every direction) or a facing cone whose
+  width you choose and which turns with the token. It's set per map and not
+  tied to the grid type — a square map can use a cone, a hex map can see all
+  around — with a "use for new maps" campaign default that never changes
+  maps you already made.
+- Cover from the map: the walls, pillars, closed doors and filled cells that
+  block sight also give cover. Turn on Cover from blockers on the Combat
+  card (the System editor's Items tab) and drag the ruler between two
+  character tokens — it reports the cover between them
+  (half / three-quarters / total, or a simple cover/none for systems that
+  grade it once), on square and hex. It's advisory: Waypoint estimates the
+  cover and you apply it — no dice or damage change.
+- Play areas: mark an image or shape as a play area (Play area in its
+  Properties, or the ▣ button on the selection toolbar) and fog covers only
+  the cells under marked items, leaving scenes and map art around them lit.
+  When no play area is marked, in the fog menu, chooses for the campaign
+  between fogging the whole map, as before, and no fog until you mark one.
+  Hidden items never fog.
+- Fog on · all maps, in the fog menu, turns fog on for every map of the
+  campaign at once, and New maps in this campaign start with fog on covers
+  the maps you add later.
+- The coordinate rulers along the play map's top and left edges now draw
+  over the fog, so you and your players can read them on a fogged map; they
+  show board coordinates only, nothing under the fog.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky
@@ -226,33 +834,79 @@ Drawing tools
 - Fill bucket (GM): a new tool that colors grid cells. Click or drag cells
   to lay a cell-sized colored shape — a hexagon on hex maps, a square on
   square maps — seated in the cell, below the tokens; right-click a cell to
-  clear it, and painting a filled cell recolors it. Each fill is an ordinary
-  board item you can move, restyle or delete, and it reaches players like any
-  shape.
+  clear it, and painting a filled cell recolors it. Each fill is an
+  ordinary board item you can move, restyle or delete, and it reaches
+  players like any shape.
+- Flood-fill inside lines, in the fill menu: one click fills the whole area
+  your pen strokes enclose. On a grid it fills every cell inside; with the
+  grid off it lays one smooth shape that hugs your lines. Anything drawn
+  inside, such as a pillar, is left open. It stops at your lines, and when
+  the outline has a gap it tells you so instead of flooding the map.
 
-Item library
-- The System editor has an Items tab: your campaign’s own weapons, gear and
-  explosives. Each item carries a name, a category, an optional blast area (a
-  radius in feet), a damage roll (dice allowed), a cost, an icon and a
-  Visible/GM-only flag; GM-only items and every item formula stay on your
-  machine.
-- Characters carry items through a new Item-list field on the sheet: an
-  inventory with quantity, remove, and an Add-item picker of the library.
-  Players manage their own; the host checks every change.
-- Throw from the sheet: an item with a blast area gets a Throw button — press
-  it, click the map, and the blast lands attributed to the character and
-  shared with everyone on that map. Per campaign you choose the automation
-  (full auto rolls and applies the damage, or roll-to-chat, or measure only),
-  who rolls (the owner or the GM), and which resource damage subtracts from;
-  a full-auto throw can be undone from the blast menu.
-- The toolbar blast is now a GM quick-tool for an ad-hoc radius; the old fixed
-  explosive presets are gone in favour of your campaign’s own items.
+Documents: look, panels and search
+- Appearance: the 🎨 button in the planner toolbar gives a planner or
+  handbook page its own font (from a fixed list), text and background
+  colors, and a background picture from your Image Library with a Dim
+  slider that lays a dark scrim over it; Reset clears them. Use this page's
+  look as the default makes it the campaign's, for every planner, page and
+  character sheet without a look of its own, and players already at the
+  table get it at once.
+- Right-click a planner or handbook page in the sidebar ▸ 📋 Open over the
+  map to read it in a floating panel over the play map: drag it by its
+  header, resize it from a corner (both remembered), and it follows your
+  edits as you make them. Its search box searches the text of every page
+  (ranked results with a snippet) and highlights matches on the page shown,
+  with a count and Enter / Shift+Enter for next and previous; case and
+  accents are ignored.
+- Pop-out windows: ⧉ on that panel, and on Table Chat, opens it in a window
+  of its own for a second monitor, and Dock back in the app returns it. A
+  popped-out page is read-only and follows every edit; a popped-out chat
+  sends and rolls exactly as the main window does.
+- The page finders and Ctrl+K now search what pages say as well as their
+  names: a word from a handbook page's text or a table cell finds the page,
+  with a highlighted snippet, ranked after the name matches.
+
+Security
+- Players you have hosted before are recognised by a private table key their
+  copy of Waypoint receives when you first let them in, not by the name they
+  give; someone using a known name without it waits for you to let them in,
+  with a hint saying so. Exported campaigns never carry the keys.
+- Your machine checks what players send more strictly: a player waiting to
+  be let in receives nothing of the table; chat always shows its real
+  sender; floods of moves, edits, chat and picture requests are limited; a
+  pause stops a player's sheet edits, rolls and throws too; a request for a
+  picture or a sound reaches only your picture and sound files, never the
+  rest of your save; and a player opens only doors on the map they are on.
+- What a table sends a player is cleaned before it is shown: text on the map
+  keeps only safe formatting, pictures come only from the table, and profile
+  pictures and names are checked before they are drawn, on the GM's screen
+  too.
+- The local server behind the app answers only Waypoint's own pages: another
+  web page open in your browser, or another machine on your network, can no
+  longer read or change your save, and an upload lands only among your
+  pictures. Links in shared content open only as web links, in your browser,
+  and an update without a valid checksum is refused.
+- A campaign imported from someone else's file shows safely on your own
+  screen: text is escaped or cleaned where it appears, colors must be
+  colors and numbers numbers, diagrams lose their click actions, and no
+  picture loads from outside the app. Import Replace cleans a file as a load
+  does, and deleting an image category's files keeps the pictures another
+  campaign still uses.
 
 Under the hood
-- The formula and dice engine that the rules, dice and character-sheet features
-  of 1.5.x are built on. Nothing changes at the table yet; in the developer
-  console, /roll now understands the full dice syntax (4d6kh3, 2d6!, d20r1,
-  10d6cs>=5, 4dF, d%, checks like d20 + 5 >= 16 with the margin shown).
+- This release changes Waypoint's core (the local server behind the app,
+  which now stores the campaign library and carries the new security
+  checks): updating from inside an older Waypoint walks you through the
+  installer, and the library needs the new core.
+- Text saved through the app's local server is decoded whole even where a
+  character straddles two pieces of a large save, so an em dash, an accent
+  or an emoji is never stored as "�".
+- One huge number in a save (a Gold field of 1e20, say) can no longer stop
+  players receiving the campaign, a map or a roll: numbers are kept within
+  bounds where they are stored, and a send that fails is logged.
+- Your profile and table keys are never lost to an older preferences file,
+  so a reload no longer blanks your name, and the tables you have joined
+  still know you.
 
 WAYPOINT 1.4.9 — What's New
 ============================

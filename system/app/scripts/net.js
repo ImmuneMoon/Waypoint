@@ -777,7 +777,7 @@ function applyClientItemFiltered(msg, profile) {
                 var whyP = moveRefused(camp, liveItem, msg.itemId, lw, frP.x, frP.y, w.x, w.y), ntP = '', seenP = _refusedAt[dkP] === w.x + ',' + w.y; delete _refusedAt[dkP];
                 if (whyP) { w.x = frP.x; w.y = frP.y; snapBack(camp, liveItem, lw, { campId: msg.campId, itemId: msg.itemId, wbId: lw.id }, frP); ntP = whyP; }
                 else if (lw.x !== w.x || lw.y !== w.y) ntP = moveCounted(camp, liveItem, msg.itemId, lw, frP.x, frP.y, w.x, w.y);
-                if (ntP && !seenP && typeof noteOwner === 'function') noteOwner(profile.id, ntP);   // their note, as the pos path gives it (once: not again for the drop it just refused)
+                if (ntP && !seenP && typeof noteOwner === 'function') noteOwner(profile.id, ntP, lw.charId);   // their note, as the pos path gives it (once: not again for the drop it just refused)
             }
         }
         if (lw.x !== w.x || lw.y !== w.y || (lw.rot || 0) !== (w.rot || 0) || (lw.front || 0) !== (w.front || 0)) {
@@ -1913,10 +1913,10 @@ function handlePos(msg, conn) {
         if (wlM !== 'off' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, frW.x, frW.y, msg.x, msg.y)) {   // T3a: a wall in the way, from where the drag began
             if (wlM === 'refuse') {
                 if (!msg.final) return;   // mid-drag: not applied (nothing past the wall reaches them meanwhile)
-                snapBack(camp, map, w, msg, frW); turnNote(conn, 'A wall is in the way: your token goes back.');
+                snapBack(camp, map, w, msg, frW); turnNote(conn, 'A wall is in the way: your token goes back.', w.charId);
                 return;
             }
-            if (msg.final) { turnNote(conn, 'That move went through a wall.'); toast((w.charName || 'A token') + ' moved through a wall.'); }
+            if (msg.final) { turnNote(conn, 'That move went through a wall.', w.charId); toast((w.charName || 'A token') + ' moved through a wall.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved through a wall.' }); }
         }
         if (turnLimitCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: the move limit, while it is their turn
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
@@ -1946,7 +1946,11 @@ function handlePos(msg, conn) {
 function moveMode(camp, k) { var t = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[k] : ''; return t === 'warn' || t === 'off' ? t : 'refuse'; }
 var _dragFrom = Object.create(null);   // itemId|wbId -> where a player's drag began (its token's position before the drag's first move)
 var _refusedAt = Object.create(null);   // itemId|wbId -> "x,y" of the drop the pos path just refused (the map copy that follows repeats it: no second note)
-function turnNote(conn, text) { if (conn && typeof conn.send === 'function') { try { conn.send({ type: 'turn-note', text: String(text).slice(0, 200) }); } catch (e) { sendFailed(e); } } }
+function turnNote(conn, text, cid) {   // cid (the bell): the character it is about, so their HUD's bell keeps it
+    if (!conn || typeof conn.send !== 'function') return;
+    var m = { type: 'turn-note', text: String(text).slice(0, 200) }; if (typeof cid === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(cid)) m.charId = cid;
+    try { conn.send(m); } catch (e) { sendFailed(e); }
+}
 // Turn-based combat T3b (D2, D3): while turn-based combat runs a combat on the map, a token in its order moves only on its own turn (order),
 // and on its turn no further than its move (move), each by the campaign's mode; a token outside the combat is free
 function turnCombatOf(camp, mapId, w) {
@@ -1958,8 +1962,8 @@ function turnOrderCheck(camp, map, w, frW, msg, conn) {
     var cb = turnCombatOf(camp, msg.itemId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn]; if (cur && cur.tokId === w.id) return '';
     var om = moveMode(camp, 'order'); if (om === 'off') return '';
-    if (om === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'It is not your turn: your token goes back.'); return 'stop'; }
-    if (msg.final) { turnNote(conn, 'You moved out of turn.'); toast((w.charName || 'A token') + ' moved out of turn.'); }
+    if (om === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'It is not your turn: your token goes back.', w.charId); return 'stop'; }
+    if (msg.final) { turnNote(conn, 'You moved out of turn.', w.charId); toast((w.charName || 'A token') + ' moved out of turn.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved out of turn.' }); }
     return '';
 }
 function turnLimitCheck(camp, map, w, frW, msg, conn) {
@@ -1969,8 +1973,8 @@ function turnLimitCheck(camp, map, w, frW, msg, conn) {
     var mm = moveMode(camp, 'move'); if (mm === 'off') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
     var d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg) : 0, over = st.moved + d > st.allow + 0.05;
-    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.'); return 'stop'; }
-    if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.'); if (over) toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); }
+    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
+    if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
     return '';
 }
 // T3: the note of the Refuse rule that stops a player's move of this token from (fx, fy) to (tx, ty) — a wall in the way, out of its turn, past
@@ -2227,9 +2231,9 @@ function turnMoveStart(mapId, c) {
     var tc = S.withRound(S.tokenCtx(map, w, { turning: rl('turning'), posture: rl('posture'), elevation: rl('elevation') }), c);
     var r = F.evaluate(t.move, { vars: S.makeResolver(view, chv, F, tc) }); if (!r.ok || typeof r.value !== 'number' || !isFinite(r.value)) return;
     st.allow = S.moveAllowCells(Math.max(0, r.value), t.unit, S.mapCellScale(map));
-    noteOwner(w.ownerId, 'Your turn: ' + cellsText(st.allow, map) + ' to move.');
+    noteOwner(w.ownerId, 'Your turn: ' + cellsText(st.allow, map) + ' to move.', w.charId);
 }
-function noteOwner(pid, text) { net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) turnNote(c, text); }); }
+function noteOwner(pid, text, cid) { net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) turnNote(c, text, cid); }); }
 // [netcheck:turnmove-end]
 // [netcheck:turnacts-start]
 // Turn-based combat T4 (D4, D5): the actions a turn allows (the System's Combat card) — a player's press of a roll or an apply action that costs
@@ -2257,8 +2261,8 @@ function actSpend(camp, charId, pr, cost, conn, who) {
     var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = a.n || 1;
     if (used >= n) {
         if (moveMode(camp, 'acts') === 'refuse') return 'No ' + lbl + ' left this turn.';
-        turnNote(conn, lbl + ': used past what a turn allows.'); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.');
-    } else turnNote(conn, lbl + ': ' + (n - used - 1) + ' of ' + n + ' left this turn.');
+        turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' past what a turn allows.' });
+    } else turnNote(conn, lbl + ': ' + (n - used - 1) + ' of ' + n + ' left this turn.', charId);
     sp[a.key] = used + 1; actsTell(camp, charId);
     return '';
 }
@@ -3328,6 +3332,7 @@ function handleMessage(msg, conn) {
         // Turn-based combat T3a: why the host stopped or noted a move of theirs — from the synced host only, a plain line as a toast
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || typeof msg.text !== 'string') return;
         var tnx = msg.text.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').slice(0, 200).trim(); if (tnx) toast(tnx);
+        if (tnx && typeof msg.charId === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId) && typeof bellOut === 'function') bellOut(msg.charId, { title: 'Turn', text: tnx });   // the bell: their character's (sheets.js takes their own only)
         // [netcheck:turnnote-end]
     } else if (msg.type === 'due' && net.role === 'client') {
         // [netcheck:duein-start]

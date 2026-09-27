@@ -9,6 +9,7 @@ import { getActiveCampaign } from './models.js';
 import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove } from './librarycore.js';
+import { itemReach, carriedBy } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn'];
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
@@ -32,6 +33,14 @@ function sysItems() { var c = camp(); return (c && c.system && Array.isArray(c.s
 function taken() { var m = map(); allEntries().forEach(function(e) { m[e.id] = 1; }); sysItems().forEach(function(it) { if (it && it.id) m[it.id] = 1; }); return m; }
 function itemLists() { var c = camp(); return ((c && c.system && c.system.fields) || []).filter(function(f) { return f && f.kind === 'item-list' && f.list; }); }
 function plural(n) { return n + (n === 1 ? ' entry' : ' entries'); }
+// Stage 6 library L4: how far an edit reaches — the characters carrying each changed entry and whose own values of a changed field hold
+// (systemcore itemReach, as a System save tells of its items); said once, and each line into the session log's Items
+function reachOf(before, after) {
+    var c = camp(); if (!c || !c.system || !before.length) return '';
+    var r = itemReach({ fields: c.system.fields, items: before }, { fields: c.system.fields, items: after }, c.chars || {}, { lib: true }), n = window.wpNet;
+    if (n && n.logEvent) r.lines.forEach(function(l) { n.logEvent('items', l); });
+    return r.text;
+}
 function tagList(v) { return String(v || '').split(',').map(function(t) { return t.trim(); }).filter(Boolean); }
 // the stats an entry can carry: the item lists' stat keys, each once, as the first list spells and labels it (a pick offers its choices)
 function statDefs() {
@@ -231,6 +240,7 @@ function renderForm() {
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
     var e = current(); if (!e) { form.appendChild(el('div', 'lib-empty', st.packId && ready(st.packId) ? 'Choose an entry, or + Entry to add one. Ctrl-click, Shift-click or Ctrl+A choose several.' : '')); return; }
     form.appendChild(el('div', 'lib-fhead', st.draftNew && !e.name ? 'New entry' : e.name));
+    if (!st.draftNew) { var cb0 = camp() ? carriedBy(camp().system, camp().chars || {}, e.id) : { rows: 0 }; form.appendChild(el('div', 'lib-note', cb0.rows ? 'Carried by ' + cb0.rows + (cb0.rows === 1 ? ' row' : ' rows') + ' on ' + cb0.chars + (cb0.chars === 1 ? ' character' : ' characters') + ': a change here reaches them.' : 'No character carries it.')); }   // L4
     field(form, 'name', 'Name', e.name, { max: 60 });
     field(form, 'key', 'Key', e.key, { max: 40, ph: 'e.g. Stealth', title: 'The name formulas use for it (List.Key.stat): unique within the lists that draw on it' });
     var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
@@ -311,7 +321,9 @@ function saveEntry() {
     var raw = readForm(); if (!raw.name.trim()) { toast('Give the entry a name.'); return; }
     var c = cleanLibEntry(raw, gmCtx()); if (!c) { toast('That entry could not be kept.'); return; }
     var list = workOf(st.packId), i = -1; list.forEach(function(x, k) { if (x.id === c.id) i = k; });
+    var was = i >= 0 ? list[i] : null;
     if (i < 0) { if (list.length >= LIB.entries) { toast('A pack holds at most ' + LIB.entries + ' entries.'); return; } list.push(c); } else list[i] = c;
+    if (was) { var rt = reachOf([was], [c]); if (rt) toast(rt); }   // L4
     st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm();
 }
 function duplicateEntry() { var e = current(); if (!e || st.draftNew) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, 60); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }
@@ -343,8 +355,10 @@ function renderBulk(form, ids) {
 }
 function bulk(change) {
     var pid = st.packId, ids = chosen(); if (!ids.length || !ready(pid)) return;
-    var r = bulkSet(workOf(pid), ids, change, gmCtx()); st.work[pid] = r.entries; if (r.changed) schedule(pid);
-    toast(r.changed ? plural(r.changed) + ' changed.' : 'Nothing changed.'); renderList(); renderForm();
+    var before = workOf(pid), r = bulkSet(before, ids, change, gmCtx()), pick = Object.create(null); ids.forEach(function(id) { pick[id] = 1; });
+    var rt = r.changed ? reachOf(before.filter(function(e) { return pick[e.id]; }), r.entries.filter(function(e) { return pick[e.id]; })) : '';   // L4
+    st.work[pid] = r.entries; if (r.changed) schedule(pid);
+    toast(r.changed ? plural(r.changed) + ' changed.' + (rt ? ' ' + rt : '') : 'Nothing changed.'); renderList(); renderForm();
 }
 function moveTo(dst, copy) {
     var src = st.packId, ids = chosen(); if (!ids.length || !ready(src) || !ready(dst) || src === dst) return;

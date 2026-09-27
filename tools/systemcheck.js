@@ -4542,6 +4542,20 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /keyShareChip\(line, entry, rd, unseenL\); modsBits\(line, def, entry, spec, sysI\);/.test(shB) && /keyShareChip\(nameTd, entry, rd, unseenT\); modsBits\(nameTd, def, entry, spec, sysI\);/.test(shB)
             && /var mTg = typeof fxTargets === 'function' \? fxTargets\(sysI\) : \[\], mCur = Array\.isArray\(d\.mods\) \? d\.mods : \[\];/.test(shB) && /sendM = function\(arr\) \{ one\('mods', arr\.length \? arr : null\); \}/.test(shB) && /one\('modsOn', moc\.checked \? true : null\)/.test(shB));
     }
+
+    /* ---- Stage 6 library L4: how far a library edit reaches ---- */
+    {
+        const rawL = { v: 1, name: 'L', rolls: [], fields: [{ id: 'f_dx', key: 'DX', kind: 'number' }, { id: 'f_inv', key: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Wt', label: 'Weight' }] } }, { id: 'f_b', key: 'Bag', kind: 'item-list' }] };
+        const sL = cleanSystem(rawL, { F, gmView: true }), e0 = { id: 'i_rope', name: 'Rope', category: 'Gear', stats: { Wt: 10 } }, e1 = Object.assign({}, e0, { name: 'Silk rope' }), e2 = Object.assign({}, e0, { mods: [{ f: 'f_dx', op: 'add', v: 1 }] });
+        const chars = { c_1: { id: 'c_1', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 1, snap: S.cleanRowDef(e0, true) }, { id: 'w_2', defId: 'i_rope', qty: 2, snap: S.cleanRowDef(e0, true), ov: { name: 'My rope' } }], f_b: [{ id: 'w_3', defId: 'i_rope', qty: 1, snap: S.cleanRowDef(e0, true) }] } }, c_2: { id: 'c_2', values: { f_inv: [{ id: 'w_4', defId: 'i_rope', qty: 1, snap: S.cleanRowDef(e0, true) }] } }, c_3: { id: 'c_3', values: {} } };
+        const rNo = S.itemReach({ fields: sL.fields, items: [e0] }, { fields: sL.fields, items: [e1] }, chars), rLib = S.itemReach({ fields: sL.fields, items: [e0] }, { fields: sL.fields, items: [e1] }, chars, { lib: true }), rMods = S.itemReach({ fields: sL.fields, items: [e0] }, { fields: sL.fields, items: [e2] }, chars, { lib: true });
+        const cb = S.carriedBy(sL, chars, 'i_rope'), cbNone = S.carriedBy(sL, chars, 'i_zz');
+        check('L4 a library edit\'s reach: its rows always carry a copy, so they count (without the library mode a copy is a deleted item\'s, and says nothing); a changed name reaches 2 characters, one holding its own name; a change to what it changes on the character (F6) reaches them too; carriedBy counts rows and characters across every list',
+            rNo.text === '' && /Silk rope: affects 2 characters; 1 has its own name/.test(rLib.text) && /affects 2 characters/.test(rMods.text) && j(cb) === j({ rows: 4, chars: 2 }) && j(cbNone) === j({ rows: 0, chars: 0 }), j([rNo, rLib, rMods, cb]));
+        const wnL = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L4 the Library window tells the reach of an entry saved and of a bulk change (each line into the session log), and its form says how many carry the entry',
+            /var was = i >= 0 \? list\[i\] : null;/.test(wnL) && /if \(was\) \{ var rt = reachOf\(\[was\], \[c\]\); if \(rt\) toast\(rt\); \}/.test(wnL) && /r\.lines\.forEach\(function\(l\) \{ n\.logEvent\('items', l\); \}\);/.test(wnL) && /c\.chars \|\| \{\}, \{ lib: true \}\), n = window\.wpNet;/.test(wnL) && /carriedBy\(camp\(\)\.system, camp\(\)\.chars \|\| \{\}, e\.id\)/.test(wnL));
+    }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);
 })();

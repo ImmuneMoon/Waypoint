@@ -2792,17 +2792,29 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
         else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);            // the plain carried list (as before)
         var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
-        if (editable && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK) && !onOnly) {
+        var libOK = gm && !!window.wpLibPicker && !!(window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0);   // Stage 6 library L2c: the GM's machine offers the campaign's library too
+        if (editable && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried);   // F4b: the list's categories, grouped
             else sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
+            if (libOK) add.appendChild(opt('__lib', '📚 From the library…'));   // L2c: the picker (libpicker.js)
             if (custOK) add.appendChild(opt('__custom', '+ Custom…'));   // F4c3: a blank row of the character's own, its form open on its name (in the view it was chosen in)
-            add.addEventListener('change', function() { if (add.value === '__custom') { var nr = uid('w_'); _rowForm = { charId: c.id, fieldId: f.id, rowId: nr, view: vwP, typed: {}, focus: 'name' }; commitItem(c, f, { op: 'custom', rowId: nr, def: {} }); return; } if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
-            if (nPick !== 0 || custOK) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker (F4c3: unless it takes custom rows)
+            add.addEventListener('change', function() { if (add.value === '__lib') { add.value = ''; openLibPicker(add, c, f, specI, carried); return; } if (add.value === '__custom') { var nr = uid('w_'); _rowForm = { charId: c.id, fieldId: f.id, rowId: nr, view: vwP, typed: {}, focus: 'name' }; commitItem(c, f, { op: 'custom', rowId: nr, def: {} }); return; } if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
+            if (nPick !== 0 || custOK || libOK) wrap.appendChild(add);   // F4b: none of the list's categories has an item: no picker (F4c3: unless it takes custom rows)
         }
         box.appendChild(wrap); return box;
     }
     return box;
+}
+// Stage 6 library L2c: "From the library…" on the GM's machine — the picker over the campaign's packs (libpicker.js), filtered to the list's
+// categories; each pick is an ordinary add, the character and the field looked up again (the picker can stay open across renders)
+function openLibPicker(anchor, c, f, spec, carried) {
+    var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
+    var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) once[r.defId] = 1; }); }
+    var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string') labels[s.key] = s.label || s.key; });
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true,
+        source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
+        onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { commitItem(ch, ff, { op: 'add', defId: id, rowId: uid('w_'), qty: qty }); }); } });
 }
 // A roll from a sheet button: shift/alt-click opens the situational-modifier popover (Stage 5a); a plain click rolls straight away.
 function sheetRoll(e, charId, expr, label, opts) {

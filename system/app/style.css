@@ -1810,6 +1810,37 @@
   .lib-imcell.zero { opacity: .55; }
   .lib-reasons { margin: 0; padding-left: 18px; color: var(--dim); font-size: 11.5px; line-height: 1.45; flex: none; overflow-wrap: anywhere; }
   @media (max-width: 900px) { .lib-cols { grid-template-columns: minmax(0, 1fr); grid-template-rows: 140px minmax(220px, 1fr) minmax(260px, 1fr); overflow: auto; } #libraryModal .lib-box { height: 94vh; padding: 12px; } }
+  /* Stage 6 library L2c: the "From the library…" picker over a sheet (above every floating window, below the app's questions) */
+  .lib-pick { position: fixed; z-index: 99990; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); box-sizing: border-box; }
+  .lib-pick .field { margin: 0; padding: 4px 8px; font-size: 12.5px; }
+  .lib-pick-head { display: flex; align-items: center; gap: 8px; color: var(--gold); font-size: 13px; flex: none; }
+  .lib-pick-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-pick-x { padding: 0 8px; }
+  .lib-pick-search { flex: none; }
+  .lib-pick-chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 58px; overflow: auto; flex: none; }
+  .lib-pick-chip { background: transparent; border: 1px solid var(--edge); border-radius: 10px; color: var(--dim); font: inherit; font-size: 11px; padding: 1px 8px; cursor: pointer; }
+  .lib-pick-chip.on { border-color: var(--gold); color: var(--ink); background: rgba(224,165,79,0.12); }
+  .lib-pick-sep { width: 1px; background: var(--edge); margin: 0 2px; }
+  .lib-pick-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .lib-pick-list { position: relative; overflow: auto; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.16); }
+  .lib-pick-list > .lib-empty { position: absolute; top: 0; left: 0; right: 0; }
+  .lib-pick-hdr { position: absolute; left: 0; right: 0; height: 28px; box-sizing: border-box; padding: 9px 10px 0; color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .lib-pick-row.on { box-shadow: none; }
+  .lib-pick-row.on .lib-row-name { color: var(--gold); font-weight: 600; }
+  .lib-pick-row.hi { background: rgba(224,165,79,0.16); box-shadow: inset 3px 0 0 var(--gold); }
+  .lib-pick-row.once { opacity: .45; cursor: default; }
+  .lib-pick-prev { overflow: auto; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; min-width: 0; }
+  .lib-pick-name { font-weight: 600; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; overflow-wrap: anywhere; }
+  .lib-pick-sub { color: var(--dim); font-size: 11px; }
+  .lib-pick-line { display: flex; gap: 8px; }
+  .lib-pick-k { color: var(--dim); min-width: 72px; flex: none; }
+  .lib-pick-v { color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
+  .lib-pick-notes { color: var(--ink); margin-top: 4px; overflow-wrap: anywhere; }
+  .lib-pick-desc { white-space: pre-wrap; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+  .lib-pick-foot { display: flex; align-items: center; gap: 8px; flex: none; }
+  .lib-pick .lib-pick-qty { width: 64px; }
+  .lib-pick-hint { color: var(--dim); font-size: 11px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 640px) { .lib-pick-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 0.8fr); } .lib-pick-hint { display: none; } }
   .sys-box { width: 1080px; max-width: 96vw; max-height: 90vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; }
   .sys-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .sys-head .sys-name { width: 220px; padding: 4px 8px; font-size: 12.5px; }   /* beats the base input.field, or the box took a whole line of the head */

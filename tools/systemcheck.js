@@ -1688,9 +1688,9 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
                 && shareG.length === 1 && shareG[0].textContent === 'key shared with a GM-only row' && shareO.length === 0,
                 j([fOwnCaps, fGmCaps, commitsO, shareG.length, shareO.length, find5(gC, 'sheet-item-edit').map(x => x.dataset.part)]));
             check('F4c3 + Custom… and the tick (pinned): the GM\'s on any shaped list, a player\'s where it takes custom rows, drawn even with no library items, never on a plain list; choosing it makes a blank row with its form open on the name, in the view it was chosen in; the Lists card\'s Custom rows tick writes list.custom; the client sends a custom op\'s def',
-                /var custOK = !!specI && \(gm \|\| specI\.custom === true\);/.test(shT) && /if \(editable && _fxLive && sysI && \(\(sysI\.items && sysI\.items\.length\) \|\| custOK\) && !onOnly\)/.test(shT) && /if \(custOK\) add\.appendChild\(opt\('__custom', '\+ Custom…'\)\);/.test(shT)
+                /var custOK = !!specI && \(gm \|\| specI\.custom === true\);/.test(shT) && /if \(editable && _fxLive && sysI && \(\(sysI\.items && sysI\.items\.length\) \|\| custOK \|\| libOK\) && !onOnly\)/.test(shT) && /if \(custOK\) add\.appendChild\(opt\('__custom', '\+ Custom…'\)\);/.test(shT)
                 && /if \(add\.value === '__custom'\) \{ var nr = uid\('w_'\); _rowForm = \{ charId: c\.id, fieldId: f\.id, rowId: nr, view: vwP, typed: \{\}, focus: 'name' \}; commitItem\(c, f, \{ op: 'custom', rowId: nr, def: \{\} \}\); return; \}/.test(shT)
-                && /if \(nPick !== 0 \|\| custOK\) wrap\.appendChild\(add\);/.test(shT) && /checkLabel\('sys-list-custom', sp\.custom === true, 'Custom rows',[^\n]*any shaped list'\)\);/.test(shT) && /else if \(c\.indexOf\('sys-list-custom'\) >= 0\) \{ if \(t\.checked\) lsc\.custom = true; else delete lsc\.custom; \}/.test(shT));
+                && /if \(nPick !== 0 \|\| custOK \|\| libOK\) wrap\.appendChild\(add\);/.test(shT) && /checkLabel\('sys-list-custom', sp\.custom === true, 'Custom rows',[^\n]*any shaped list'\)\);/.test(shT) && /else if \(c\.indexOf\('sys-list-custom'\) >= 0\) \{ if \(t\.checked\) lsc\.custom = true; else delete lsc\.custom; \}/.test(shT));
         }
         // ---- Stage 6 F5a1: list columns, totals and addressed rows (the resolver, the players' view, the GM's roll names, the validator, the sheet) ----
         {
@@ -4447,6 +4447,37 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             /function after\(\) \{   \/\/ [^\n]*\n\s*try \{ refreshCore\(\); \}/.test(lbD) && /if \(!camp \|\| !camp\.system \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return false;/.test(lbD) && /if \(before === nowT\) return false;/.test(lbD)
             && /var pages = readablePages\(camp\), key = JSON\.stringify\(camp\.system\) \+ '\\n' \+ pages\.join\(','\);\n\s*if \(_pvMemo\.key !== key\) \{ var v = cleanSystem\(camp\.system, \{ F: F\(\), gmView: false, pages: pages \}\);/.test(shD) && /return _pvMemo\.text === null \? null : JSON\.parse\(_pvMemo\.text\);/.test(shD)
             && /if \(window\.wpLibrary && window\.wpLibrary\.refreshCore\) \{ try \{ if \(window\.wpLibrary\.refreshCore\(camp\)\) clean = camp\.system; \}[^\n]*\n\s*draft = clone\(clean\);/.test(shD));
+    }
+
+    /* ---- Stage 6 library L2c: the GM adds a library entry (its row carries the copy); the copies kept current ---- */
+    {
+        const rawC = { v: 1, name: 'C', rolls: [], items: [{ id: 'i_own', name: 'Own', category: 'Gear' }], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { lvl: { name: 'Level', min: 0, max: 5, def: 1 }, price: 'Cost', stats: [{ key: 'Cost', label: 'Cost' }] } }, { id: 'f_multi', key: 'Many', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true } }] };
+        const sC = cleanSystem(rawC, { F, gmView: true }), pC = cleanSystem(rawC, { F, gmView: false });
+        const libR = { id: 'i_rope', name: 'Rope', category: 'Gear', notes: 'Fifty feet.', vis: 'all', area: null, damage: '1d4', cost: '', throwSkill: '', rm: 'bound', rmMsg: 'Tied on.', lvl: 3, stats: { Cost: 2 }, desc: 'Long text', gmNotes: 'x' };
+        const chC = () => ({ id: 'c_1', name: 'C', values: { f_inv: [], f_multi: [] } });
+        S.setLibraryFind(id => (id === 'i_rope' ? libR : null));
+        const a1 = S.applyRowOp(sC, chC(), 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_a1', qty: 1 }, F, {});
+        const c2 = chC(); c2.values.f_inv = a1.value; const a2 = S.applyRowOp(sC, c2, 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_a2', qty: 2 }, F, {});
+        const m1 = S.applyRowOp(sC, chC(), 'f_multi', { op: 'add', defId: 'i_rope', rowId: 'w_m1' }, F, {}), c3 = chC(); c3.values.f_multi = m1.value; const m2 = S.applyRowOp(sC, c3, 'f_multi', { op: 'add', defId: 'i_rope', rowId: 'w_m2' }, F, {});
+        const pl = S.applyRowOp(sC, chC(), 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_p1' }, F, { player: true, view: pC });
+        S.setLibraryFind(null); const none = S.applyRowOp(sC, chC(), 'f_inv', { op: 'add', defId: 'i_rope', rowId: 'w_n1' }, F, {});
+        const r1 = a1.value && a1.value[0];
+        check('L2c the GM adds a library entry: its row carries the copy (the GM\'s view of it, no library text), starts at its level and records its price; the same entry again raises the quantity (a list that takes it more than once: a new row); a player\'s pick of one is refused until the wire (L3); no library, none',
+            a1.ok && r1.id === 'w_a1' && r1.defId === 'i_rope' && r1.qty === 1 && r1.lvl === 3 && r1.paid === 2 && r1.snap && r1.snap.name === 'Rope' && r1.snap.rm === 'bound' && r1.snap.damage === '1d4' && !('desc' in r1.snap) && !('gmNotes' in r1.snap) && a1.note === 'bound'
+            && a2.ok && a2.value.length === 1 && a2.value[0].qty === 3 && m2.ok && m2.value.length === 2 && pl.ok === false && pl.reason === 'missing' && none.ok === false && none.reason === 'missing', j([a1, a2.value, pl, none]));
+        const kC = S.cleanChar({ id: 'c_1', name: 'C', values: { f_inv: a1.value } }, sC);
+        check('L2c a library row survives cleaning with its copy (no library loaded: it draws from the copy)', kC.values.f_inv.length === 1 && kC.values.f_inv[0].snap.name === 'Rope' && S.rowDef(sC, kC.values.f_inv[0]).src === 'lost', j(kC.values.f_inv));
+        const libR2 = Object.assign({}, libR, { name: 'Silk rope', notes: 'Lighter.' });
+        const chars = { c_1: { id: 'c_1', values: { f_inv: [JSON.parse(JSON.stringify(r1)), { id: 'w_o', defId: 'i_own', qty: 1 }, { id: 'w_g', defId: 'i_gone', qty: 1, snap: { name: 'Gone', category: '', icon: '', notes: '', vis: 'all' } }] } }, c_2: { id: 'c_2', values: { f_inv: [{ id: 'w_x', defId: 'i_rope', qty: 1, snap: S.cleanRowDef(libR2, true) }] } }, c_3: 'junk' };
+        const ownBefore = JSON.stringify(chars.c_1.values.f_inv[1]), goneBefore = JSON.stringify(chars.c_1.values.f_inv[2]);
+        const sn = S.libSnaps(sC, chars, id => (id === 'i_rope' ? libR2 : id === 'i_own' ? libR2 : null)), again = S.libSnaps(sC, chars, id => (id === 'i_rope' ? libR2 : null));
+        check('L2c libSnaps: a library row\'s copy becomes the entry as it is now (counted by rows and characters; one already current is left); a row of the system\'s own item, or of an entry gone, is untouched; run again, nothing; no lookup, nothing',
+            sn.rows === 1 && sn.chars === 1 && chars.c_1.values.f_inv[0].snap.name === 'Silk rope' && chars.c_1.values.f_inv[0].snap.notes === 'Lighter.' && JSON.stringify(chars.c_1.values.f_inv[1]) === ownBefore && JSON.stringify(chars.c_1.values.f_inv[2]) === goneBefore
+            && again.rows === 0 && S.libSnaps(sC, chars, null).rows === 0 && S.libSnaps(null, chars, () => libR2).rows === 0, j([sn, again]));
+        const lbC = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('L2c the GM machine keeps the copies current after every library change (never mid-load or at another\'s table; saved only when one changed)',
+            /function after\(\) \{   \/\/ [^\n]*\n\s*try \{ refreshCore\(\); \} catch \(e\) \{ console\.error\(e\); \}\n\s*try \{ syncSnaps\(\); \}/.test(lbC)
+            && /if \(!camp \|\| !camp\.system \|\| !camp\.chars \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return 0;\n\s*var r = libSnaps\(camp\.system, camp\.chars, entry\); if \(r\.rows\) save\(true\);/.test(lbC));
     }
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

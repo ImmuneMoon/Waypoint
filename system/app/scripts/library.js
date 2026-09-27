@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex } from './librarycore.js';
-import { setLibraryFind, coreOf, cleanSystem } from './systemcore.js';
+import { setLibraryFind, coreOf, cleanSystem, libSnaps } from './systemcore.js';
 
 function map() { return Object.create(null); }
 var cur = { campId: null, sig: '', byId: map(), packs: map(), n: 0, state: 'none', error: '' };
@@ -33,8 +33,16 @@ function refreshCore(camp) {
     save(true);
     return true;
 }
+// L2c: the copies library rows carry kept current (systemcore libSnaps) on the GM's machine, never mid-load or at another's table; saved
+// only when one changed (a row whose entry is gone, or whose pack could not be read, keeps its copy)
+function syncSnaps(camp) {
+    camp = camp || getActiveCampaign(); if (!camp || !camp.system || !camp.chars || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return 0;
+    var r = libSnaps(camp.system, camp.chars, entry); if (r.rows) save(true);
+    return r.rows;
+}
 function after() {   // the sheets redraw; a host's players get their rows' copies from the library now in memory
     try { refreshCore(); } catch (e) { console.error(e); }
+    try { syncSnaps(); } catch (e) { console.error(e); }
     try { if (window.wpSheetsSync) window.wpSheetsSync(); } catch (e) { console.error(e); }
     var n = window.wpNet; try { if (n && n.active && n.role === 'host' && n.syncChars) n.syncChars(); } catch (e) { console.error(e); }
 }
@@ -134,4 +142,4 @@ setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, ready: ready, setMeta: setMeta };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta };

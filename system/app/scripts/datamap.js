@@ -479,6 +479,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       item.x = nx; item.y = ny;
       return true;
   };
+  // Grid-shaped tokens (2026-09-27): seat a token the app places in its cell on either grid — hex through wpSeatHex, a square grid by centring
+  // it in its 50 px cell (a 50x50 token lands on the lattice). Returns true when the position changed
+  window.wpSeatCell = function(item, map) {
+      if (!item) return false;
+      map = map || getActiveMap();
+      var g = map && map.meta && map.meta.gridType;
+      if (!g && map === getActiveMap()) g = state.gridType;
+      if (g === 'hex') return window.wpSeatHex(item, map);
+      if (g !== 'square' || !(item.isChar || item.waiting)) return false;
+      var w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= 64;   // one cell: centred in it; sized up: its corner on the lattice, as a drag release and Fit to grid put it
+      var nx = one ? Math.floor((item.x + w / 2) / 50) * 50 + 25 - w / 2 : Math.round(item.x / 50) * 50, ny = one ? Math.floor((item.y + h / 2) / 50) * 50 + 25 - h / 2 : Math.round(item.y / 50) * 50;
+      if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
+      item.x = nx; item.y = ny;
+      return true;
+  };
 
   function getSnapCoords(x, y) {
       if (typeof state !== 'undefined' && state.snap) {

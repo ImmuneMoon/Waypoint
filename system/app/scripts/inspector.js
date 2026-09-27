@@ -528,7 +528,7 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
                       if (!data.url) return;
                       c.portrait = data.url;
                       // The stand-in token becomes the portrait
-                      linkedTokens(c, activeMap).forEach(function(t) { if (t.type !== 'image') { t.type = 'image'; t.color = 'transparent'; } t.src = data.url; });
+                      linkedTokens(c, activeMap).forEach(function(t) { if (t.type !== 'image') { t.type = 'image'; t.color = 'transparent'; } t.src = data.url; if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(t, activeMap)) { if (window.wpSeatCell) window.wpSeatCell(t, activeMap); else if (window.wpSeatHex) window.wpSeatHex(t, activeMap); } });
                       save(); render(); toast('Portrait set' + (linkedTokens(c, activeMap).length ? ' — the token now wears it.' : '.'));
 
                   })
@@ -549,8 +549,8 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
               var cc = r.characters[this.dataset.idx];
               delete cc.portrait;
-              // Back to the stand-in circle
-              linkedTokens(cc, activeMap).forEach(function(t) { if (t.type === 'image') { t.type = 'circle'; delete t.src; t.color = '#4db3d3'; } });
+              // Back to the stand-in (the map's cell shape)
+              linkedTokens(cc, activeMap).forEach(function(t) { if (t.type === 'image') { t.type = 'circle'; delete t.src; delete t.shape; t.color = '#4db3d3'; if (window.wpSystemCore && window.wpSystemCore.shapeStandIn && window.wpSystemCore.shapeStandIn(t, activeMap)) { if (window.wpSeatCell) window.wpSeatCell(t, activeMap); else if (window.wpSeatHex) window.wpSeatHex(t, activeMap); } } });
 
               save(); render();
 
@@ -1643,7 +1643,8 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           charStats: ''
       };
       if (c.portrait) tok.src = c.portrait;
-      if (window.wpSeatHex) window.wpSeatHex(tok, map);
+      if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(tok, map);   // grid-shaped tokens: the map's cell shape
+      if (window.wpSeatCell) window.wpSeatCell(tok, map); else if (window.wpSeatHex) window.wpSeatHex(tok, map);
       map.whiteboard.push(tok);
       return tok;
   }

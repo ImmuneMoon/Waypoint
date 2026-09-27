@@ -400,6 +400,50 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(called) === j([['keep', 'c_m'], ['back', 'c_m'], ['remove', 'c_m']]) && bF.kids[0].textContent === 'A player finished this sheet \u00b7 the name is also another character\u2019s.' && bF.kids.length === 3 && bP.style.display === 'none' && bP.kids.length === 0 && bN.style.display === 'none'
             && [bM, bF, bP, bN].every(noHtml) && !/innerHTML/.test(rbSrc), j([bM.kids.map(k => k.textContent), bF.kids.map(k => k.textContent)]));
     }
+    {   // Grid-shaped tokens (2026-09-27): the hexagon plate — its colour through cssColor, SVG built with createElementNS (no markup), a waiting ring
+        const j = JSON.stringify, hpSrc = slice('whiteboard.js', 'hexplate');
+        const mkEl = () => { const kids = [], cls = new Set(); const el = { kids, cls, classList: { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); } }, get firstChild() { return kids[0] || null; }, querySelector: sel => { const m = /svg\.(tok-plate|tok-ring)$/.exec(sel); return m ? kids.find(k => k.cls === m[1]) || null : null; }, insertBefore(n, ref) { const i = ref ? kids.indexOf(ref) : -1; kids.splice(i < 0 ? kids.length : i, 0, n); n.parent = el; }, appendChild(n) { kids.push(n); n.parent = el; } }; return el; };
+        const doc = { createElementNS: (ns, tag) => { const n = { ns, tag, attrs: {}, kids: [], style: {}, setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'class') this.cls = String(v); }, appendChild(k) { this.kids.push(k); }, get firstChild() { return this.kids[0] || null; }, remove() { const p = this.parent; if (p) { const i = p.kids.indexOf(this); if (i >= 0) p.kids.splice(i, 1); } } }; return n; } };
+        const draw = (item, el, hide) => { el = el || mkEl(); new Function('item', 'el', 'hideFromMe', 'cssColor', 'document', hpSrc)(item, el, !!hide, SC.cssColor, doc); return el; };
+        const withFace = cls => { const e = mkEl(); e.kids.push({ cls }); return e; };
+        const eW = draw({ type: 'hexagon', waiting: 1, color: '#112233' }, withFace('wait-emoji')), eC = draw({ type: 'hexagon', isChar: true, color: 'red;background:url(//evil)' }, withFace('token-initials')), eBack = draw({ type: 'hexagon', isChar: true, color: '#112233' }, draw({ type: 'hexagon', waiting: 1, color: '#112233' }));
+        const eOff = draw({ type: 'circle', isChar: true, color: '#112233' }, draw({ type: 'hexagon', waiting: 1, color: '#112233' })), eHide = draw({ type: 'hexagon', waiting: 1, color: '#112233' }, undefined, true), ePlain = draw({ type: 'hexagon', color: '#112233' });
+        const polyOf = sv => sv && sv.kids[0];
+        check('grid shape: a hexagon token (a character\'s or a waiting one) gets a plate inside its box — an SVG made with createElementNS, its fill the item colour through cssColor (a colour the rule refuses leaves the plate\'s own), first under the face; a waiting one a ring on top; a character\'s none; a token that stops being a hexagon, a hidden stub or a hexagon that is no token: neither, and no class',
+            eW.cls.has('wb-hextok') && j(eW.kids.map(k => k.cls)) === j(['tok-plate', 'wait-emoji', 'tok-ring']) && polyOf(eW.kids[0]).style.fill === '#112233' && eW.kids[0].ns === 'http://www.w3.org/2000/svg' && polyOf(eW.kids[0]).attrs.points === '15,1 45,1 59,26 45,51 15,51 1,26'
+            && j(eC.kids.map(k => k.cls)) === j(['tok-plate', 'token-initials']) && polyOf(eC.kids[0]).style.fill === '' && !/evil/.test(j(eC.kids[0].kids[0].style)) && eBack.kids.length === 1 && eBack.kids[0].cls === 'tok-plate'
+            && eOff.kids.length === 0 && !eOff.cls.has('wb-hextok') && eHide.kids.length === 0 && !eHide.cls.has('wb-hextok') && ePlain.kids.length === 0 && !/innerHTML/.test(hpSrc), j([eW.kids.map(k => k.cls), eC.kids.map(k => k.cls), eOff.kids.length]));
+        // applyCharFace with the grid (sheets.js, run for real with the real systemcore): a picture is cut to its map's cell, a face's token takes the cell
+        const SCc = await import(modUrl('systemcore.js')), netSrcG = read('net.js'), hG = new Function('localStorage', 'crypto', netSrcG.slice(netSrcG.indexOf('// [netcheck:helpers-start]'), netSrcG.indexOf('// [netcheck:helpers-end]')) + '\nreturn { safeAvatar, cleanFace, FACE_PICS };')({ getItem: () => null, setItem() {} }, globalThis.crypto);
+        const shG = read('sheets.js'), tcA = shG.indexOf('function tokensOfChar('), tcB = shG.indexOf('\n', tcA);
+        const faceRun = async (grid, tok, plan, replace) => {
+            const tokA = Object.assign({ id: 't1', isChar: true, charId: 'c_1', type: 'circle', color: '#112233', x: 100, y: 200, w: 60, h: 52 }, tok || {});
+            const camp = { id: 'k', chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', portrait: '' } }, items: { m1: { id: 'm1', type: 'map', meta: grid ? { gridType: grid } : {}, whiteboard: [tokA] } } };
+            const netF = { active: true, role: 'host', applyingRemote: false, roster: { pA: { id: 'u_a', color: '#445566' } }, cleanFace: hG.cleanFace, safeAvatar: hG.safeAvatar, FACE_PICS: hG.FACE_PICS, broadcastItemFiltered() {} };
+            const api = new Function('getActiveCampaign', 'charById', 'net', 'afterCharChange', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', shG.slice(tcA, tcB) + '\n' + slice('sheets.js', 'charface') + '\nreturn applyCharFace;')(
+                () => camp, (id, cp) => (cp || camp).chars[id] || null, () => netF, () => {}, () => {}, { wpHistFlush() {}, wpSystemCore: SCc }, () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_sq.jpg' }), rel => Promise.resolve('/saves/' + rel));
+            await api('c_1', plan, !!replace); return tokA;
+        };
+        const fBH = await faceRun('hex', null, { kind: 'bundled', name: 'orc' }), fBS = await faceRun('square', null, { kind: 'bundled', name: 'orc' }), fBO = await faceRun(null, null, { kind: 'bundled', name: 'orc' });
+        const fEH = await faceRun('hex', { type: 'image', src: '/saves/images/art.png', shape: 'hexagon', color: 'transparent' }, { kind: 'face', face: '\u{1F409}' }, true), fES = await faceRun('square', null, { kind: 'face', face: '\u{1F409}' });
+        check('grid shape: a character\'s picture on its tokens is cut to each map\'s cell (hex: a hexagon 60x52, square: a square 50x50, no grid: round, its size kept) — the bundled square picture everywhere; back to a face, a token takes the cell\'s plain shape (its old outline gone)',
+            fBH.type === 'image' && fBH.src === '/saves/images/tutorial/orc_sq.jpg' && fBH.x === 100 && fBH.y === 200 && fBS.x === 105 && fBS.y === 201 && fBH.shape === 'hexagon' && fBH.w === 60 && fBS.shape === 'rect' && fBS.w === 50 && fBS.h === 50 && fBO.shape === 'circle' && fBO.w === 60
+            && fEH.type === 'hexagon' && !('shape' in fEH) && !('src' in fEH) && fEH.face === '\u{1F409}' && fES.type === 'rect' && fES.w === 50 && fES.face === '\u{1F409}', j([fBH, fBS, fBO, fEH, fES]));
+        // applyTokenFace with the grid (sheets.js, run for real): a Just a token picture is cut to its map's cell once it is saved, and seated
+        const tfA = shG.indexOf('function applyTokenFace('), tfB = shG.indexOf('\nfunction keepMade(');
+        const tokFaceRun = async (grid, plan) => {
+            const w = { id: 'w1', isChar: true, type: 'circle', color: '#112233', x: 100, y: 200, w: 60, h: 52 }, seats = [];
+            const camp = { id: 'k', items: { m1: { id: 'm1', type: 'map', meta: grid ? { gridType: grid } : {}, whiteboard: [w] } } };
+            const netF = { active: true, role: 'host', applyingRemote: false, safeAvatar: hG.safeAvatar, FACE_PICS: hG.FACE_PICS, broadcastItemFiltered() {} };
+            const api = new Function('getActiveCampaign', 'net', 'isClient', 'save', 'toast', 'window', 'pngOf', 'copyBundled', 'uploadExact', shG.slice(tfA, tfB) + '\nreturn applyTokenFace;')(
+                () => camp, () => netF, () => false, () => {}, () => {}, { wpHistFlush() {}, wpSystemCore: SCc, wpSeatCell: (it, m) => { seats.push(m.id); return false; } }, () => Promise.resolve('PNG'), name => Promise.resolve({ portrait: '/saves/images/tutorial/' + name + '_sq.jpg', token: '/saves/images/tutorial/' + name + '_sq.jpg' }), rel => Promise.resolve('/saves/' + rel));
+            const r = await api('m1', 'w1', plan); return { r, w, seats };
+        };
+        const tfH = await tokFaceRun('hex', { kind: 'bundled', name: 'orc' }), tfS = await tokFaceRun('square', { kind: 'picture', data: 'data:image/png;base64,iVBORw0KGgo=' }), tfO = await tokFaceRun(null, { kind: 'bundled', name: 'orc' });
+        check('grid shape: Just a token\'s picture (applyTokenFace, run for real) is cut to its map\'s cell once saved and seated there — hex: a hexagon 60x52, a square grid: a square 50x50 (the photo saved as token-<id>.png), no grid: round at its size',
+            tfA > 0 && tfB > tfA && tfH.r === true && tfH.w.type === 'image' && tfH.w.src === '/saves/images/tutorial/orc_sq.jpg' && tfH.w.shape === 'hexagon' && tfH.w.w === 60 && tfS.r === true && tfS.w.shape === 'rect' && tfS.w.w === 50 && tfS.w.src === '/saves/images/portraits/token-w1.png' && j(tfS.seats) === j(['m1'])
+            && tfO.w.shape === 'circle' && tfO.w.w === 60 && tfH.seats.length === 1, j([tfH, tfS, tfO]));
+    }
     delete global.window;
 
     summed = true;

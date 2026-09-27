@@ -253,6 +253,8 @@ export function importCharacterToken(file) {
         };
         if (src) item.src = src;
         seedStance(item, j);
+        if (window.wpSystemCore && window.wpSystemCore.shapeStandIn) window.wpSystemCore.shapeStandIn(item, map);   // grid-shaped tokens: the map's cell shape
+        if (window.wpSeatCell) window.wpSeatCell(item, map);
         map.whiteboard = map.whiteboard || [];
         map.whiteboard.push(item);
         var st = (await import('./state.js')).state;

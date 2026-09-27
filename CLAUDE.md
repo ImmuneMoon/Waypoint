@@ -46,6 +46,7 @@ Every suite is plain Node, no dependencies, exits 1 on any failure:
 | `tools/systemcheck.js` | the character system + sheet model (`systemcore.js`): cleaners, GM-view stripping, layout, band |
 | `tools/dicecheck.js` | dice engine, modifiers, advantage |
 | `tools/itemcheck.js` | item library |
+| `tools/librarycheck.js` | the library at scale's pure core (`librarycore.js`): entries per view, packs and pack files, the manifest, names on disk, index rows |
 | `tools/vttcheck.js` | VTT feature toggles |
 | `tools/fogcheck.js` | fog of war |
 | `tools/soundcheck.js`, `fxcheck.js`, `musiccheck.js` | sound, effects, music playlists |

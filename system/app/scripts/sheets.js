@@ -1353,6 +1353,7 @@ function glyphPicker(inp, anchor, repaint) {
 function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var previewV = !!(vctx && vctx.preview);   // Stage 6 HUD C8: the Layout preview draws a part whose show-if is false, dimmed (the sheet leaves it out)
     var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
+    var printV = !!(vctx && vctx.print);   // Onboarding F2b: printed — every tab in turn, every section open, nothing that only works on screen
     var sheet = (hudV || (sys.sheet && sys.sheet.sections && sys.sheet.sections.length)) ? sys.sheet : autoLayout(sys);   // the HUD has no automatic layout of its own
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
@@ -1381,7 +1382,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     bandInto(frame, bandDef, pctx);
     var tabIds = tabs ? tabs.map(function(t) { return t.id; }) : null;
     var active = '', stripEl = null;   // active tab lives on the container (body.dataset.wpTab) so the live sheet and the builder preview never bleed into each other; the strip is appended after the dashboard sections
-    if (tabs) {
+    if (tabs && !printV) {
         active = body.dataset.wpTab || '';
         if (tabIds.indexOf(active) < 0) { active = tabIds[0]; body.dataset.wpTab = active; }
         var strip = el('div', 'sheet-tabs' + (look.tabs === 'filled' ? ' sheet-tabs-filled' : ''));   // Stage 5g: angled tabs, the open one filled in the accent
@@ -1412,7 +1413,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     function renderOneSection(sec, isChild) {
         var secOff = !!sec.showIf && !showsIf(sec.showIf, all.vars, F());   // Stage 6 HUD C8: its show-if is false for this character
         if (secOff && !previewV) return null;
-        var collap = !!sec.collapsible;
+        var collap = !!sec.collapsible && !printV;   // printed: open (and never written back to the live sheet's memory)
         var s = el(collap ? 'details' : 'div', 'sheet-section' + (collap ? ' sheet-collap' : '') + (isChild ? ' sheet-subsection' : '') + (sec.inline === true ? ' sheet-inline' : ''));
         var secKey = (hudV ? 'h:' : '') + sec.id;   // HF1: remembered per view (sheet keys unchanged)
         if (collap) { s.open = (secKey in _secOpen) ? _secOpen[secKey] : (sec.open !== false); s.addEventListener('toggle', function () { _secOpen[secKey] = s.open; }); }
@@ -1429,8 +1430,8 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else metaText = String(mvv);
         }
         var chipNode = sec.chip ? pageChip(sec.chip, c) : null;   // Stage 5f: a handbook chip
-        var pinCh = sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
-        var rsCh = sec.resetAll === true ? resetChip(sec, pctx) : null;   // HUD frame (HF4b): its Reset all
+        var pinCh = !printV && sec.pin && Object.prototype.hasOwnProperty.call(grpById, sec.pin) ? pinChip(grpById[sec.pin], pctx) : null;   // Stage 6: a band group's Pin in the header
+        var rsCh = !printV && sec.resetAll === true ? resetChip(sec, pctx) : null;   // HUD frame (HF4b): its Reset all
         if (sec.title || sec.icon || metaText || collap || chipNode || pinCh || rsCh) {   // a collapsible section always needs a summary to toggle from
             var head = el(collap ? 'summary' : 'div', 'sheet-sec-title');
             if (sec.icon) head.appendChild(iconNode(sec.icon, 'sheet-sec-icon'));   // Stage 5g (Stage 6: or a bundled glyph)
@@ -1451,14 +1452,14 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c, sys, all.vars);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'text') node = pl.text && pl.text.trim() ? el('div', 'sheet-ruletext', pl.text) : null;   // Stage 6 HUD H11: rules text, as text
-            else if (pl.kind === 'roller') node = rollerNode(pl, c, hbKey(vctx, c, sec, pli));   // Stage 6 HUD H9
+            else if (pl.kind === 'roller') node = printV ? null : rollerNode(pl, c, hbKey(vctx, c, sec, pli));   // Stage 6 HUD H9
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
             else if (pl.kind === 'link') node = linkNode(pl, c);   // Stage 5f
-            else if (pl.kind === 'search') node = hbNode(hbKey(vctx, c, sec, pli));   // Stage 6 HUD H12
-            else if (pl.kind === 'hud') node = hudButton(pl, c, sys, vctx);   // HUD frame (HF2b): opens this character's HUD
-            else if (pl.kind === 'facing') node = facingNode(c, gm);   // 5h Fold 3
-            else if (pl.kind === 'stance') node = stanceNode(c, gm);   // Stage 6
-            else if (pl.kind === 'pin') node = pl.g && Object.prototype.hasOwnProperty.call(grpById, pl.g) ? pinNode(pl, grpById[pl.g], pctx) : null;   // Stage 6: a band group's Pin button
+            else if (pl.kind === 'search') node = printV ? null : hbNode(hbKey(vctx, c, sec, pli));   // Stage 6 HUD H12
+            else if (pl.kind === 'hud') node = printV ? null : hudButton(pl, c, sys, vctx);   // HUD frame (HF2b): opens this character's HUD
+            else if (pl.kind === 'facing') node = printV && vctx.noToken ? null : facingNode(c, gm);   // 5h Fold 3
+            else if (pl.kind === 'stance') node = printV && vctx.noToken ? null : stanceNode(c, gm);   // Stage 6
+            else if (pl.kind === 'pin') node = !printV && pl.g && Object.prototype.hasOwnProperty.call(grpById, pl.g) ? pinNode(pl, grpById[pl.g], pctx) : null;   // Stage 6: a band group's Pin button
             else if (pl.kind === 'portrait') { node = el('div', 'sheet-portrait-slot'); if (c.portrait) { var im = el('img'); im.src = imgSrc(c.portrait); im.alt = ''; node.appendChild(im); } }
             if (!node) return;
             if (sec.inline === true && pl.id && byId[pl.id]) inlineRow(node, byId[pl.id]);   // HUD frame (HF4a, H2)
@@ -1473,11 +1474,16 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
         if (secOff) s.classList.add('sheet-showif-off');
         return (hasOwn || kids) ? s : null;
     }
+    (printV && tabs ? tabs : [null]).forEach(function(pt) {   // Onboarding F2b: printed, each tab in turn under its own heading (a tab with nothing drawn has none)
+        var tabHead = null, had = 0;
+        if (pt) { tabHead = el('div', 'sheet-print-tab'); if (pt.icon) tabHead.appendChild(iconNode(pt.icon, 'sheet-tab-icon')); tabHead.appendChild(el('span', 'sheet-tab-label', pt.label || 'Tab')); }
+        var want = pt ? pt.id : active;
     layout.forEach(function(sec) {
         if (sec.pinned || childParent(sec)) return;   // a dashboard section (already above the strip) or a sub-section (rendered under its parent)
-        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== active) return; }   // untabbed/unknown → first tab
+        if (tabs) { var stab = (sec.tab && tabIds.indexOf(sec.tab) >= 0) ? sec.tab : tabIds[0]; if (stab !== want) return; }   // untabbed/unknown → first tab
         var secEl = renderOneSection(sec, false);
-        if (secEl) { body.appendChild(secEl); secN++; tabN++; }
+        if (secEl) { if (tabHead && !had) body.appendChild(tabHead); body.appendChild(secEl); secN++; tabN++; had++; }
+    });
     });
     applyLook(body, look, vctx);   // Stage 6 look fold
     syncFramePad(body);
@@ -2167,7 +2173,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
 // Stage 6 F5b: a list's rolls on a row — a button each, rolled with the row's own names (Row.lvl, Row.<stat>, a column) through the dice path (the
 // host resolves them; a roll on a GM-only item stays private); inert in the Layout preview and a pop-out, and for a viewer who cannot roll for it
 function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the field's resolved entry (each row's needs)
-    if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !_fxLive || entry.hid === 1) return;
+    if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !(_fxLive || window.wpPrintCopy === true) || entry.hid === 1) return;   // F2b: a print copy draws a row's rolls as the live sheet does
     var rid = rowIdOf(entry), nm = (def && def.name) || 'Item', rollOk = canRoll(c), applyOk = null;
     spec.rolls.forEach(function(r, ri) {
         if (r && Array.isArray(r.apply)) {   // Stage 6 HUD H7b: an apply action on this row (Apply costs on a power), for a viewer who may change the character
@@ -2941,7 +2947,7 @@ function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || '
 // Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
 // Layout preview and a pop-out, and for a viewer who may not change this character
 function applyNode(r, c, sys, vars) {
-    var label = rollLabel(r, sys, c, vars), can = _fxLive && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
+    var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild);
     b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
     b.addEventListener('click', function() {
@@ -3215,8 +3221,8 @@ function exportView(charId, gmAll) {
     else if (gmAll === true) { sys = F() ? cleanSystem(camp.system, { F: F(), gmView: true }) : null; view = sys ? cleanChar(c0, sys) : null; gm = true; }
     else { sys = playerSystem(camp); view = sys ? charForView(c0, sys, { lib: fxLibOf(camp.system), items: itemLibOf(camp.system), full: camp.system }) : null; }
     if (!sys || !view) return null;
-    var tctx = gm || isClient() || (c0.ownerId && !c0.npc) ? tokenCtxFor(c0.id, camp) : null;   // the players' view of an NPC or an unassigned character reads no token (the GM's pick could be a hidden one)
-    return { camp: camp, sys: sys, view: view, gm: gm, tctx: tctx, all: resolveAll(sys, view, F(), tctx) };   // the numbers on that same view: nothing worked out from what it hides
+    var readTok = !!(gm || isClient() || (c0.ownerId && !c0.npc)), tctx = readTok ? tokenCtxFor(c0.id, camp) : null;   // the players' view of an NPC or an unassigned character reads no token (the GM's pick could be a hidden one)
+    return { camp: camp, sys: sys, view: view, gm: gm, tctx: tctx, noToken: !readTok, npc: !!c0.npc, ownerId: c0.ownerId || '', all: resolveAll(sys, view, F(), tctx) };   // the numbers on that same view: nothing worked out from what it hides
 }
 function saveTextFile(name, text, type) {   // the anchor download every export uses (a save dialog in the app)
     try { var url = URL.createObjectURL(new Blob([text], { type: type })), a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function() { URL.revokeObjectURL(url); }, 1000); return true; }
@@ -3265,6 +3271,55 @@ function downloadChar(charId, kind, gmAll) {
         if (saveTextFile(base + '.wpchar.json', JSON.stringify(j, null, 1), 'application/json')) toast('Saved ' + base + '.wpchar.json');
     });
 }
+// Onboarding F2b (D7 = (c), print exactly as on screen): the sheet as the panel draws it — its look, palette and background picture (on every
+// page), the header, the dashboard and the band, then every tab in turn under its heading, every section open, notes and long text in full,
+// a list's notes rows shown — through the print dialog (a PDF printer saves it). The same view as the files: a player's own; the GM's players'
+// view of any character, or ticked their own copy. Built off screen in #sheetPrint (shown only while printing), gone after.
+function printify(root) {   // a box keeps only what fits in it on paper: text and notes boxes become their text; rows the sheet folds away are shown
+    Array.prototype.forEach.call(root.querySelectorAll('textarea'), function(t) { t.replaceWith(el('div', (t.className || '') + ' sheet-print-text', t.value)); });
+    Array.prototype.forEach.call(root.querySelectorAll('input[type="text"], input:not([type])'), function(i) { i.replaceWith(el('span', (i.className || '') + ' sheet-print-text', i.value)); });
+    Array.prototype.forEach.call(root.querySelectorAll('.sheet-item-noteline, tr.sheet-itemtable-notes'), function(n) { n.style.display = ''; });
+    Array.prototype.forEach.call(root.querySelectorAll('.sheet-fx .sheet-fx-name[title]'), function(n) { var row = n.closest('.sheet-fx'); if (row && n.title) row.appendChild(el('div', 'sheet-print-note', n.title)); });   // an effect's notes: a tooltip on screen, a line on paper
+}
+function printSheet(charId, gmAll) {
+    var X = exportView(charId, gmAll); if (!X) { toast('This sheet cannot be printed here.'); return; }
+    var old = ui('sheetPrint'); if (old) old.remove();
+    var look = (X.sys.sheet && X.sys.sheet.look) || {}, panel = ui('sheetPanel'), pw = panel && panel.offsetWidth ? panel.offsetWidth : 680;
+    var pr = el('div'); pr.id = 'sheetPrint'; pr.style.width = Math.max(360, Math.min(900, pw)) + 'px';   // the panel's own width (the page shrinks it to fit)
+    var bg = el('div', 'sheet-print-bg'), head = el('div', 'sheet-print-head'), body = el('div', 'sheet-print-body'); body.id = 'sheetPrintBody';
+    var pim = null; if (X.view.portrait && !look.portrait) { pim = el('img'); pim.alt = ''; pim.src = imgSrc(X.view.portrait); head.appendChild(pim); }   // the head's own portrait carries it otherwise
+    var tt = el('div', 'sheet-print-titles'); if (!look.portrait) tt.appendChild(el('div', 'sheet-print-name', X.view.name || 'Character'));   // the header block carries the name when the look puts the portrait there (as the panel's title bar steps aside)
+    var sub = [X.gm ? 'The GM\u2019s copy' : '', X.npc ? 'NPC' : X.ownerId ? ownerName({ id: X.view.id, ownerId: X.ownerId }, X.camp) : 'unassigned', X.sys.name || ''].filter(Boolean).join(' \u00b7 '); if (sub) tt.appendChild(el('div', 'sheet-print-sub', sub));   // as the title bar says it (the stored character's, not the view's)
+    head.appendChild(tt); pr.appendChild(bg); if (pim || tt.childNodes.length) pr.appendChild(head); pr.appendChild(body); pr.inert = true; pr.setAttribute('aria-hidden', 'true'); document.body.appendChild(pr);   // laid out off screen (its pictures and glyphs load), never focused
+    var wasLive = _fxLive; _fxLive = false; window.wpPrintCopy = true;   // inert (no pickers, forms or live dials), yet what the live sheet shows is drawn (a row's rolls, Apply at full strength)
+    try { buildSections(body, X.sys, X.view, X.all, X.gm, !X.gm, function() {}, { campId: X.camp.id, view: 'sheet', preview: false, print: true, noToken: X.noToken }); }
+    finally { _fxLive = wasLive; window.wpPrintCopy = false; }
+    printify(body);
+    applyPaletteTo(pr, look); applySheetLookTo(pr, sheetLook(X.camp, X.sys));
+    bg.style.backgroundImage = pr.style.backgroundImage; bg.style.backgroundColor = pr.style.backgroundColor;   // the picture on a layer each printed page repeats (cover on the whole sheet would stretch it over every page)
+    if (pr.dataset.bgpath) { bg.dataset.bgpath = pr.dataset.bgpath; bg.dataset.bgdim = pr.dataset.bgdim || ''; delete pr.dataset.bgpath; delete pr.dataset.bgdim; }   // a player's picture arriving late lands on the layer
+    pr.style.backgroundImage = ''; pr.style.backgroundColor = 'transparent';
+    var ims = Array.prototype.slice.call(pr.querySelectorAll('img')).map(function(im) { return im.complete ? null : new Promise(function(r) { im.addEventListener('load', r); im.addEventListener('error', r); }); }).filter(Boolean);
+    var bgm = /url\(["']?([^"')]+)["']?\)/.exec(bg.style.backgroundImage || ''); if (bgm) ims.push(new Promise(function(r) { var bi = new Image(); bi.onload = r; bi.onerror = r; bi.src = bgm[1]; }));
+    var glyphU = {}; Array.prototype.forEach.call(pr.querySelectorAll('.wp-glyph'), function(g) { var gm2 = /url\(["']?([^"')]+)["']?\)/.exec(g.style.maskImage || g.style.webkitMaskImage || ''); if (gm2) glyphU[gm2[1]] = 1; });   // glyphs on tabs never opened: fetched now, not first at print time
+    Object.keys(glyphU).forEach(function(u) { ims.push(new Promise(function(r) { var gi = new Image(); gi.onload = r; gi.onerror = r; gi.src = u; })); });
+    var nA = net(), phA = nA ? nA.ASSET_PLACEHOLDER : null;   // a player's copy of a picture still on its way: waited for, then drawn
+    [X.view.portrait, bg.dataset.bgpath].forEach(function(p) {
+        if (!phA || typeof p !== 'string' || !p || imgSrc(p) !== phA) return;
+        ims.push(new Promise(function(r) { var onA = function(ev) { if (!ev || !ev.detail || ev.detail.path !== p) return; document.removeEventListener('wp-asset', onA); Array.prototype.forEach.call(pr.querySelectorAll('img'), function(im) { if (im.getAttribute('src') === phA) im.src = imgSrc(p); }); r(); }; document.addEventListener('wp-asset', onA); setTimeout(function() { document.removeEventListener('wp-asset', onA); r(); }, 3000); }));
+    });
+    if (document.fonts && document.fonts.ready) ims.push(document.fonts.ready);
+    Promise.race([Promise.all(ims), new Promise(function(r) { setTimeout(r, 3000); })]).then(function() {   // the pictures and fonts in, or three seconds
+        if (ui('sheetPrint') !== pr) return;   // another print started meanwhile
+        var done = false, clean = function() { if (done) return; done = true; window.removeEventListener('afterprint', clean); document.documentElement.classList.remove('print-sheet'); document.body.classList.remove('print-sheet'); if (pr.parentNode) pr.remove(); };
+        document.documentElement.classList.add('print-sheet'); document.body.classList.add('print-sheet');
+        window.addEventListener('afterprint', clean);
+        var nH = net(); if (nH && nH.holdPeers) nH.holdPeers(180000);   // the print dialog freezes this page: the table waits for it
+        try { window.print(); } catch (e) {}
+        clean();   // print() returns once its dialog is done (Chromium, Electron): nothing of the copy stays, whether afterprint fired or not (a later Save PDF would print it)
+        if (nH && nH.heldDone) nH.heldDone();
+    });
+}
 // The Download menu (the sheet's head ⤓): on the page, not in the panel (the panel clips what overflows it); Escape and a click elsewhere close it
 var _dlPop = null, _dlGm = false;   // _dlGm: the GM's "Include GM-only fields", off each time the app starts
 function closeDownloadMenu() { if (_dlPop) { _dlPop.remove(); _dlPop = null; document.removeEventListener('mousedown', dlOutside, true); document.removeEventListener('keydown', dlKey, true); } }
@@ -3274,9 +3329,10 @@ function openDownloadMenu(anchor) {
     if (_dlPop) { closeDownloadMenu(); return; }   // its button toggles it
     var c = sheetOpen ? charById(sheetOpen) : null; if (!c || c.partial || !canOpen(c.id)) return;
     var gm = !isClient(), cid = c.id, pop = el('div', 'sheet-dl-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
-    var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); };
+    var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); if (kind === 'print') printSheet(cid, gm && _dlGm); else downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); };
     item('Character file (.json)', 'Every value on the sheet, to keep', 'json');
     item('Readable page (.md)', 'The sheet as text \u2014 it imports as a handbook page', 'md');
+    item('Print or save as PDF\u2026', 'Exactly as it shows, every tab in turn', 'print');
     if (gm) { var lb = el('label', 'sheet-dl-gm'), cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = _dlGm; cb.addEventListener('change', function() { _dlGm = cb.checked; }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' Include GM-only fields')); lb.title = 'Off: the sheet as its player sees it. On: your own copy, with every GM-only field and row (the file is named \u2026-gm)'; pop.appendChild(lb); }
     else pop.appendChild(el('div', 'sheet-dl-note', 'Your sheet as you see it.'));
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });

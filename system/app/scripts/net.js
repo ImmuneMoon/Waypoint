@@ -300,7 +300,8 @@ function setStatus(msg) { var el = ui('netStatus'); if (el) el.textContent = msg
 var HB_EVERY = 4000, HB_STALE = 8000, HB_DEAD = 20000;   // silence → "not responding" at 8 s, dropped at 20 s
 var UNADMITTED_TTL = 10 * 60 * 1000;   // a connection the GM has not admitted may wait this long (heartbeating) for the Allow, then it is closed
 var hbTimer = null, lastSeen = {}, hostLastSeen = 0;
-function noteSeen(peerId) { var now = Date.now(); lastSeen[peerId] = now; if (net.role === 'client') hostLastSeen = now; }
+var holdUntil = {}, hostHoldUntil = 0, HOLD_MAX = 180000;   // Onboarding F2b: a side about to freeze in a print dialog asks the other to wait (3 minutes at most, until it speaks again)
+function noteSeen(peerId) { var now = Date.now(); lastSeen[peerId] = now; delete holdUntil[peerId]; if (net.role === 'client') { hostLastSeen = now; hostHoldUntil = 0; } }
 function setIndicator(level, text) {
     var b = ui('netBtn');
     if (!b) return;
@@ -311,6 +312,22 @@ function setIndicator(level, text) {
 }
 net.setIndicator = setIndicator;
 net._hb = { tick: hbTick, seen: noteSeen, start: startHeartbeat, stop: stopHeartbeat };   // sandbox testing hooks
+// [netcheck:holdpeers-start]
+// Onboarding F2b: this app is about to freeze in a blocking dialog (the print dialog): the other side waits for it rather than dropping it —
+// the host's admitted players (a waiting one hears nothing but the heartbeat), or a player's GM; afterwards our own clocks restart (the
+// silence was ours) and a heartbeat goes at once, which ends their wait
+net.holdPeers = function(ms) {
+    if (!net.active) return false;
+    var m = { type: 'hold', ms: Math.max(0, Math.min(HOLD_MAX, Number(ms) || 0)) };
+    (net.role === 'host' ? net.conns.filter(function(c) { return own(net.roster, c.peer); }) : net.conns.slice(0, 1)).forEach(function(c) { if (c && c.open) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+    return true;
+};
+net.heldDone = function() {
+    if (!net.active) return;
+    var now = Date.now(); hostLastSeen = now; Object.keys(lastSeen).forEach(function(k) { lastSeen[k] = now; });
+    hbTick();
+};
+// [netcheck:holdpeers-end]
 function startHeartbeat() {
     stopHeartbeat();
     var now = Date.now();
@@ -321,7 +338,7 @@ function startHeartbeat() {
 }
 function stopHeartbeat() {
     if (hbTimer) clearInterval(hbTimer);
-    hbTimer = null; lastSeen = {}; hostLastSeen = 0;
+    hbTimer = null; lastSeen = {}; hostLastSeen = 0; holdUntil = {}; hostHoldUntil = 0;
 }
 function hbTick() {
     if (!net.active) { setIndicator(null); return; }
@@ -335,7 +352,7 @@ function hbTick() {
             if (!lastSeen[c.peer]) lastSeen[c.peer] = now;
             var age = now - lastSeen[c.peer];
             var p = net.roster[c.peer];
-            if (age > HB_DEAD) {
+            if (age > HB_DEAD && !(holdUntil[c.peer] > now)) {   // F2b: a player who said they would freeze (a print dialog) is waited for
                 if (p) toast((p.name || 'A player') + ' stopped responding — dropped.');
                 try { c.close(); } catch (e) {}   // the close handler removes them from the roster
             } else if (age > HB_STALE) {
@@ -351,7 +368,7 @@ function hbTick() {
         if (!hostLastSeen) hostLastSeen = now;
         var age0 = now - hostLastSeen;
         if (reconn.pending) { setIndicator('warn', 'reconnecting to the GM'); return; }
-        if (age0 > HB_DEAD) {
+        if (age0 > HB_DEAD && !(hostHoldUntil > now)) {   // F2b: nor is a GM who said so
             setIndicator('bad', 'lost the GM — reconnecting');
             setStatus('No response from the GM for ' + Math.round(age0 / 1000) + 's — reconnecting…');
             toast('No response from the GM — reconnecting…');
@@ -3074,6 +3091,13 @@ function handleMessage(msg, conn) {
     }
     noteSeen(conn.peer);
     if (msg.type === 'hb') return;   // heartbeat: its arrival is the whole message
+    // [netcheck:hold-start]
+    if (msg.type === 'hold') {   // Onboarding F2b: the other side freezes in a print dialog now — its silence is not a lost connection until it speaks again (capped)
+        var msH = typeof msg.ms === 'number' && isFinite(msg.ms) ? Math.max(0, Math.min(HOLD_MAX, msg.ms)) : 0;
+        if (net.role === 'host') holdUntil[conn.peer] = Date.now() + msH; else hostHoldUntil = Date.now() + msH;
+        return;
+    }
+    // [netcheck:hold-end]
     if (msg.type === 'hello' && net.role === 'host') {
         if (own(net.roster, conn.peer)) return;   // already admitted: a repeat hello is ignored
         var cm = _connMeta[conn.peer] || (_connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 });

@@ -1594,8 +1594,9 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   var _el_exportPdfBtn = document.getElementById('exportPdfBtn');
 
 if(_el_exportPdfBtn) _el_exportPdfBtn.addEventListener('click', function() {
-      if (window.wpWithRenderedPlanner) window.wpWithRenderedPlanner(function() { window.print(); });   // a planner prints as its rendered document
-      else window.print();
+      var nP = window.wpNet, go = function() { if (nP && nP.holdPeers) nP.holdPeers(180000); try { window.print(); } finally { if (nP && nP.heldDone) nP.heldDone(); } };   // F2b: the table waits out the print dialog (it freezes this page)
+      if (window.wpWithRenderedPlanner) window.wpWithRenderedPlanner(go);   // a planner prints as its rendered document
+      else go();
   });
 
   

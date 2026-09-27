@@ -258,15 +258,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
     /* ---- Onboarding F1a: a waiting token's face (whiteboard.js) — a picture from the roster only when it passes safeAvatar, a colour through cssColor ---- */
     {
-        const netSrcW = read('net.js'), saLine = netSrcW.slice(netSrcW.indexOf('function safeAvatar('), netSrcW.indexOf('\n', netSrcW.indexOf('function safeAvatar(')));
-        const safeAvatar = new Function(saLine + '\nreturn safeAvatar;')();
-        const face = (avatar, color, name) => {
-            const kids = [], el = { dataset: {}, classList: { add() {}, toggle() {} }, set textContent(v) { kids.length = 0; }, set innerHTML(v) { throw new Error('innerHTML'); }, querySelector: () => kids[0] || null, appendChild(k) { kids.push(k); } };
-            const doc = { createElement: () => { const o = { attrs: {}, getAttribute(k) { return this.attrs[k] || null; } }; Object.defineProperty(o, 'src', { set(v) { o.attrs.src = String(v); }, get() { return o.attrs.src; } }); return o; } };
-            const win = { wpNet: { roster: { pA: { id: 'u_a', avatar, color } }, safeAvatar }, wpDefaultAvatar: c => 'DEFAULT(' + c + ')' };
+        const netSrcW = read('net.js'), hA = netSrcW.indexOf('// [netcheck:helpers-start]'), hB = netSrcW.indexOf('// [netcheck:helpers-end]');
+        const HW = new Function('localStorage', 'crypto', netSrcW.slice(hA, hB) + '\nreturn { safeAvatar, faceView, cleanFace };')({ getItem: () => null, setItem() {} }, globalThis.crypto);
+        const safeAvatar = HW.safeAvatar;
+        const face = (avatar, color, name, chosen) => {
+            const kids = [], el = { dataset: {}, classList: { add() {}, toggle() {} }, set textContent(v) { kids.length = 0; }, set innerHTML(v) { throw new Error('innerHTML'); }, querySelector: (sel) => kids.find(k => (/emoji/.test(sel) ? k.cls === 'wait-emoji' : k.cls !== 'wait-emoji')) || null, appendChild(k) { kids.push(k); } };
+            const doc = { createElement: () => { const o = { attrs: {}, getAttribute(k) { return this.attrs[k] || null; } }; Object.defineProperty(o, 'src', { set(v) { o.attrs.src = String(v); }, get() { return o.attrs.src; } }); Object.defineProperty(o, 'className', { set(v) { o.cls = v; }, get() { return o.cls; } }); return o; } };
+            const win = { wpNet: { roster: { pA: { id: 'u_a', avatar, color, face: chosen } }, safeAvatar, faceView: (p, c) => HW.faceView(p, c, cc => 'DEFAULT(' + cc + ')') }, wpDefaultAvatar: c => 'DEFAULT(' + c + ')' };
             new Function('item', 'el', 'window', 'document', 'cssColor', slice('whiteboard.js', 'waitingface'))({ waiting: 1, ownerId: 'u_a', name, color: '#112233' }, el, win, doc, SC.cssColor);
-            return { src: kids[0] && kids[0].attrs.src, tip: el.dataset.tip };
+            const em = kids.find(k => k.cls === 'wait-emoji');
+            return { src: kids[0] && kids[0].attrs.src, tip: el.dataset.tip, emoji: em ? em.textContent : undefined };
         };
+        const away = (() => { const kids = [], el = { dataset: {}, classList: { add() {}, toggle() {} }, set textContent(v) { kids.length = 0; }, querySelector: () => kids[0] || null, appendChild(k) { kids.push(k); } }; const doc = { createElement: () => { const o = { attrs: {}, getAttribute(k) { return this.attrs[k] || null; } }; Object.defineProperty(o, 'src', { set(v) { o.attrs.src = String(v); }, get() { return o.attrs.src; } }); return o; } };
+            new Function('item', 'el', 'window', 'document', 'cssColor', slice('whiteboard.js', 'waitingface'))({ waiting: 1, ownerId: 'u_gone', name: 'Bo', color: '#112233', face: 'pic:orc' }, el, { wpNet: { roster: {}, safeAvatar, faceView: (p, c) => HW.faceView(p, c, cc => 'DEFAULT(' + cc + ')') } }, doc, SC.cssColor); return kids[0] && kids[0].attrs.src; })();
+        check('F1b waiting face while its player is away (no roster entry): the face the token kept, through the same rule', away === 'assets/tutorial/orc_sq.jpg', away);
+        check('F1b the party chip of an emoji face is a span whose text goes through esc (never raw into the strip\'s markup)', /if \(c\.emoji\) return '<span class="' \+ cls \+ ' party-face party-emoji" data-key="' \+ esc\(c\.key\) \+ '" data-tip="' \+ esc\(tip\) \+ '">' \+ esc\(c\.emoji\) \+ '<\/span>';/.test(read('whiteboard.js')));
+        const picked = face('data:image/png;base64,AAAA', '#445566', 'Ana', 'pic:orc'), picBad = face('data:image/png;base64,AAAA', '#445566', 'Ana', 'pic:https://evil.example/x'), emo = face(undefined, '#445566', 'Ana', '\u{1F409}');
+        check('F1b waiting face: a bundled picture is the app\'s own asset; a face the rule refuses (a web address dressed as a picture) falls back to their checked picture; an emoji face is text in a span, never markup',
+            picked.src === 'assets/tutorial/orc_sq.jpg' && picBad.src === 'data:image/png;base64,AAAA' && emo.emoji === '\u{1F409}', JSON.stringify([picked, picBad, emo]));
         const ok = face('data:image/png;base64,AAAA', '#445566', 'Ana');
         const bad = ['javascript:alert(1)', 'https://evil.example/x.png', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,AA" onerror="x', '//evil/x.png'].map(a => face(a, 'red;background:url(//evil/x)', '<img src=x onerror=alert(1)>'));
         check('F1a waiting face: a roster picture reaches the token only when the whole string passes safeAvatar; anything else (a web or script address, an SVG, a quote-breaking tail) shows the silhouette, whose colour goes through cssColor; the name is only a tooltip (text, never markup)',

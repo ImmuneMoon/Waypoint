@@ -1055,6 +1055,25 @@
   .wb-item.wb-waiting > .wait-face { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; pointer-events: none; }
   .join-card { position: absolute; top: 62px; right: 224px; max-width: 300px; z-index: 8991; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 10px 30px 10px 12px; font-size: 12.5px; line-height: 1.45; color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
   .join-card > #joinCardClose { position: absolute; top: 4px; right: 4px; padding: 0 6px; }
+  /* Onboarding F1b: faces */
+  .wb-item.wb-waiting > .wait-emoji { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; line-height: 1; pointer-events: none; }
+  .party-tok.party-emoji { display: inline-flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; overflow: hidden; }
+  .party-drag-ghost.emoji { display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; background: var(--panel); }
+  .face-prev { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; overflow: hidden; align-items: center; justify-content: center; vertical-align: middle; background: var(--panel); }
+  .face-prev > img { width: 100%; height: 100%; object-fit: cover; }
+  .face-prev > .face-emoji { font-size: 16px; line-height: 1; }
+  .join-card > .join-face { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 3px 8px; font-size: 12px; }
+  .wc-field-face > button { padding: 3px 8px; }
+  .face-pop { position: fixed; z-index: 100003; width: 320px; max-height: 340px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.55); }
+  .face-tabs { display: flex; gap: 4px; }
+  .face-tab.sel { color: var(--gold); border-color: var(--gold); }
+  .face-q { width: 100%; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; }
+  .face-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; overflow-y: auto; }
+  .face-opt { height: 44px; padding: 3px; display: flex; align-items: center; justify-content: center; }
+  .face-opt.sel { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .face-opt > img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+  .face-opt > .face-emoji { font-size: 22px; line-height: 1; }
+  .face-none { grid-column: 1 / -1; color: var(--dim); font-size: 12px; padding: 6px; }
   .party-tok.party-ini { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--ink); }
   .party-tok.paused { border-color: #7aa7ff; box-shadow: 0 0 0 2px rgba(122,167,255,0.9), 0 2px 6px rgba(0,0,0,0.55); opacity: 1; filter: grayscale(0.4); }   /* a player the GM paused individually */
   #sessionPauseBtn.paused { color: var(--gold); background: rgba(212,175,55,0.16); }

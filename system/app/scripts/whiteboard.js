@@ -688,10 +688,16 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               // Onboarding F1a: a waiting token — the player's own face read live from the table's roster (a picture that passes safeAvatar,
               // else the silhouette on their colour); it is not a character, so no initials, sheet or hover card
               var wRos = window.wpNet ? Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === item.ownerId; }) : null;
-              var wSrc = wRos && window.wpNet.safeAvatar && window.wpNet.safeAvatar(wRos.avatar) ? wRos.avatar : (window.wpDefaultAvatar ? window.wpDefaultAvatar(cssColor((wRos && wRos.color) || item.color)) : '');
-              var wImg = el.querySelector(':scope > img.wait-face');
-              if (!wImg) { el.textContent = ''; wImg = document.createElement('img'); wImg.className = 'wait-face'; wImg.alt = ''; wImg.draggable = false; el.appendChild(wImg); }
-              if (wImg.getAttribute('src') !== wSrc) wImg.src = wSrc;
+              var wView = window.wpNet && window.wpNet.faceView ? window.wpNet.faceView(wRos || { face: item.face }, cssColor((wRos && wRos.color) || item.color)) : { img: '' };   // Onboarding F1b: their chosen face (net.js faceView: a bundled picture, an emoji, their picture checked whole, or the silhouette)
+              if (wView.emoji) {
+                  var wEm = el.querySelector(':scope > .wait-emoji');
+                  if (!wEm) { el.textContent = ''; wEm = document.createElement('span'); wEm.className = 'wait-emoji'; el.appendChild(wEm); }
+                  if (wEm.textContent !== wView.emoji) wEm.textContent = wView.emoji;
+              } else {
+                  var wImg = el.querySelector(':scope > img.wait-face');
+                  if (!wImg) { el.textContent = ''; wImg = document.createElement('img'); wImg.className = 'wait-face'; wImg.alt = ''; wImg.draggable = false; el.appendChild(wImg); }
+                  if (wImg.getAttribute('src') !== (wView.img || '')) wImg.src = wView.img || '';
+              }
               var wTip = String(item.name || 'Player') + ' \u2014 waiting for a character';
               if (el.dataset.tip !== wTip) el.dataset.tip = wTip;
               el.dataset.waitTip = '1';
@@ -1952,12 +1958,13 @@ window.wpFitToGrid = fitToGrid;
           Object.values(window.wpNet.roster || {}).forEach(function(p) {
               if (!p || !p.id || owned[p.id]) return;
               var avOk = !!(window.wpNet && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar));   // the whole data URL (net.js)
+              var fvP = window.wpNet && window.wpNet.faceView ? window.wpNet.faceView(p, p.color || '#4db3d3') : null;   // the waiting token's colour when they have none   // Onboarding F1b: their chosen face
               var locMap = p.location && camp.items[p.location];
-              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: avOk ? p.avatar : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
+              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: fvP ? (fvP.img || null) : (avOk ? p.avatar : null), emoji: fvP && fvP.emoji ? fvP.emoji : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
           });
       }
-      var sig = list.map(function(c) { return c.key + (c.waiting ? '~w' : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
+      var sig = list.map(function(c) { return c.key + (c.waiting ? '~w' : '') + (c.emoji ? '~' + c.emoji : '') + '|' + c.name + '|' + c.mapId + '|' + (c.src ? c.src.length + c.src.slice(-16) : '') + '|' + (atTable ? (present[c.ownerId] ? 1 : 0) : 2) + '|' + (window.wpSheets && c.tokId ? window.wpSheets.hoverLinesForTokenId(camp, c.tokId).join(',') : '') + '|' + (hosting && c.ownerId && window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(c.ownerId) ? 'P' : ''); }).join(';') + '#' + am.id;
       if (strip.dataset.sig === sig) return;
       strip.dataset.sig = sig;
       strip.innerHTML = list.map(function(c) {
@@ -1967,6 +1974,7 @@ window.wpFitToGrid = fitToGrid;
           var cls = 'party-tok' + (here ? ' here' : '') + (away ? ' away' : '') + (pausedC ? ' paused' : '') + (c.waiting ? ' party-waiting' : '');
           var tip = c.name + (here ? ' \u2014 on this map' : ' \u2014 on ' + c.map) + (away ? ' (player not connected)' : '') + (pausedC ? ' \u2014 PAUSED by you' : '') + (c.noToken ? (c.waiting ? ' \u2014 waiting for a character' : ' \u2014 no token yet') : '') + (atTable && !hosting ? (here ? '. Click to find them.' : '') : '. Click to jump to them.');
           if (window.wpSheets && c.tokId) { var hlT = window.wpSheets.hoverLinesForTokenId(camp, c.tokId); if (hlT.length) tip += String.fromCharCode(10) + hlT.join(' · '); }
+          if (c.emoji) return '<span class="' + cls + ' party-face party-emoji" data-key="' + esc(c.key) + '" data-tip="' + esc(tip) + '">' + esc(c.emoji) + '</span>';   // Onboarding F1b: an emoji face (pictographic only, net.js cleanFace)
           if (c.src) return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + esc(c.avatar ? c.src : resolveImg(c.src)) + '" alt="" data-tip="' + esc(tip) + '">';
           var pcol = c.color || ('hsl(' + wbHashHue(c.key) + ',55%,55%)');   // no picture → the color-tinted silhouette default
           return '<img class="' + cls + (c.noToken ? ' party-face' : '') + '" data-key="' + esc(c.key) + '" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(pcol) : '') + '" alt="" data-tip="' + esc(tip) + '">';
@@ -2072,7 +2080,7 @@ window.wpFitToGrid = fitToGrid;
           var tok = e.target.closest && e.target.closest('.party-tok'); if (!tok || e.button !== 0) return;
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
           e.preventDefault();   // no native image drag (it would cancel the pointer sequence)
-          pDrag = { key: tok.dataset.key, sx: e.clientX, sy: e.clientY, src: tok.tagName === 'IMG' ? tok.getAttribute('src') : null, label: tok.textContent, ghost: null, moved: false };
+          pDrag = { key: tok.dataset.key, sx: e.clientX, sy: e.clientY, src: tok.tagName === 'IMG' ? tok.getAttribute('src') : null, label: tok.textContent, emoji: tok.classList.contains('party-emoji'), ghost: null, moved: false };
       });
       document.addEventListener('pointermove', function(e) {
           if (!pDrag) return;
@@ -2080,7 +2088,7 @@ window.wpFitToGrid = fitToGrid;
           if (!pDrag.ghost) {
               var g = document.createElement(pDrag.src ? 'img' : 'span');
               if (pDrag.src) g.src = pDrag.src; else g.textContent = pDrag.label;
-              g.className = 'party-drag-ghost';
+              g.className = 'party-drag-ghost' + (pDrag.emoji ? ' emoji' : '');   // Onboarding F1b: an emoji face stays readable while dragged
               document.body.appendChild(g); pDrag.ghost = g; pDrag.moved = true;
               document.body.classList.add('party-dragging');
           }

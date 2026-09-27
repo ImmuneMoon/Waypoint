@@ -89,6 +89,7 @@ function setProfile(patch) {
         if (typeof patch.name === 'string') p.name = patch.name.slice(0, 40);
         if (typeof patch.color === 'string') { if (/^#[0-9a-fA-F]{6}$/.test(patch.color)) p.color = patch.color; else if (patch.color === '') delete p.color; }
         if (typeof patch.avatar === 'string') { if (safeAvatar(patch.avatar)) p.avatar = patch.avatar; else if (patch.avatar === '') delete p.avatar; }
+        if (typeof patch.face === 'string') { var cf = cleanFace(patch.face); if (cf) p.face = cf; else if (patch.face === '') delete p.face; }   // Onboarding F1b: the token face
     }
     try { localStorage.setItem('wp_profile', JSON.stringify(p)); } catch (e) {}
     return p;
@@ -114,6 +115,31 @@ function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || 
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
 // A display name a peer may show: control, bidi-override and zero-width characters out, trimmed, at most 40; 'Player' when blank.
 function cleanRosterName(v) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; return s || 'Player'; }
+// Onboarding F1b: a player's token FACE — 'photo' (their profile picture), 'default' (the silhouette on their colour), 'pic:<name>' (one of
+// the bundled token pictures, by name from this fixed list), or ONE emoji: a pictograph (with its variation selector or skin tone), joined to
+// more only by the zero-width joiner — anything else is refused whole (''), never trimmed: no letters, digits, markup or control characters,
+// no run of several emoji and nothing invisible (a joiner or a selector alone).
+var FACE_PICS = ['bren', 'chef', 'golems', 'innkeeper', 'king', 'liriel', 'minotaur_archer', 'minotaur_soldier', 'orc', 'priestess', 'sage', 'slime', 'smith', 'spriggan', 'tharic'];
+function cleanFace(v) {
+    if (typeof v !== 'string' || !v || v.length > 64) return '';
+    if (v === 'photo' || v === 'default') return v;
+    if (v.slice(0, 4) === 'pic:') return FACE_PICS.indexOf(v.slice(4)) >= 0 ? v : '';
+    var cps = Array.from(v), i = 0; if (cps.length > 16) return '';
+    var ep = function(c) { return /^\p{Extended_Pictographic}$/u.test(c); }, mod = function(c) { return c === '\uFE0F' || /^[\u{1F3FB}-\u{1F3FF}]$/u.test(c); };
+    var unit = function() { if (i >= cps.length || !ep(cps[i])) return false; i++; while (i < cps.length && mod(cps[i])) i++; return true; };
+    if (!unit()) return '';
+    while (i < cps.length) { if (cps[i] !== '\u200D') return ''; i++; if (!unit()) return ''; }
+    return v;
+}
+// How a face is drawn: { emoji } (text), or { img } — a bundled picture (the app's own asset), the player's picture only when it passes
+// safeAvatar whole, else the silhouette (def(color)). A face the list does not know falls back as if none was chosen.
+function faceView(p, color, def) {
+    var f = p && typeof p === 'object' ? cleanFace(p.face) : '';
+    if (f.slice(0, 4) === 'pic:') return { img: 'assets/tutorial/' + f.slice(4) + '_sq.jpg' };
+    if (f && f !== 'photo' && f !== 'default') return { emoji: f };
+    if (f !== 'default' && p && safeAvatar(p.avatar)) return { img: p.avatar };
+    return { img: typeof def === 'function' ? def(color) : '' };
+}
 // Onboarding F1a: a waiting token from the host, rebuilt from its own fields only (a player's copy never carries anything else: no
 // picture, no sheet, no character link — its face is read from the roster)
 function cleanWaitingItem(w) {
@@ -123,9 +149,11 @@ function cleanWaitingItem(w) {
               x: num(w.x, 15000, -30000, 60000), y: num(w.y, 15000, -30000, 60000), w: num(w.w, 60, 20, 400), h: num(w.h, 52, 20, 400), layer: 'middle' };
     if (w.hidden === true) o.hidden = true;
     if (w.locked === true) o.locked = true;   // the GM's lock: their app stops the drag too, as for any token
+    var fWI = cleanFace(w.face); if (fWI) o.face = fWI;   // Onboarding F1b: the face it last wore (read only while its player is away)
     return o;
 }
 // [netcheck:helpers-end]
+net.cleanFace = cleanFace; net.FACE_PICS = FACE_PICS.slice(); net.faceView = function(p, color) { return faceView(p, color, window.wpDefaultAvatar); };   // Onboarding F1b: faces, one rule for every screen (after the helpers: FACE_PICS is only assigned there)
 // What a client accepts from a host, beyond the shape checks the wire already does.
 // [netcheck:rosterclean-start]
 function validKey(k) { return typeof k === 'string' && k.length > 0 && k.length <= 160 && !(k in Object.prototype); }   // an id used as an object key: never a prototype key
@@ -141,6 +169,7 @@ function cleanHostRoster(raw) {
         var e = { id: p.id, name: cleanRosterName(p.name), location: validKey(p.location) ? p.location : null, detached: p.detached === true };
         if (typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color)) e.color = p.color;
         if (safeAvatar(p.avatar)) e.avatar = p.avatar;
+        var fR = cleanFace(p.face); if (fR) e.face = fR;   // Onboarding F1b
         out[p.id] = e; n++;
     }
     return out;
@@ -1148,11 +1177,13 @@ function refreshPauseUi() {
 function setPausedLocal(on) {
     net.paused = !!on;
     refreshPauseUi();
+    if (!on && net.reconcileLook) net.reconcileLook();   // Onboarding F1b: a face picked while paused goes now
 }
 // client: set/clear my personal pause (from a 'pausePlayer' message or the join snapshot)
 function setSelfPausedLocal(on) {
     net.selfPaused = !!on;
     refreshPauseUi();
+    if (!on && net.reconcileLook) net.reconcileLook();
 }
 // host: is this player individually paused? (composes with the table pause)
 function pausedById(pid) { return !!(pid && net.pausedPlayers && net.pausedPlayers[pid]); }
@@ -2208,6 +2239,7 @@ function rosterPayload() {
         var e = { id: p.id, name: cleanRosterName(p.name), location: typeof p.location === 'string' ? p.location : null, detached: p.detached === true };
         if (typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color)) e.color = p.color;
         if (safeAvatar(p.avatar)) e.avatar = p.avatar;
+        var fP = cleanFace(p.face); if (fP) e.face = fP;   // Onboarding F1b: their token face
         out.push(e);
     });
     return out;
@@ -2793,11 +2825,12 @@ function placeWaiting(camp, pid, map, landRoomId, near) {
     var S = SC(), mine = S.waitingTokensOf(camp, pid), maps = [], add = function(id) { if (maps.indexOf(id) < 0) maps.push(id); };
     var keep = mine.filter(function(x) { return x.mapId === map.id; })[0] || mine[0] || null;
     mine.forEach(function(x) { if (!keep || x.w !== keep.w) { removeFromMap(camp, x.mapId, x.w.id); add(x.mapId); } });   // never two
-    var pr = waitingRosterOf(pid), nm = cleanRosterName(pr && pr.name), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3';
-    if (keep && keep.mapId === map.id) { if (keep.w.name !== nm || keep.w.color !== col) { keep.w.name = nm; keep.w.color = col; add(map.id); } return maps; }   // already here: it stays where it stands
+    var pr = waitingRosterOf(pid), nm = cleanRosterName(pr && pr.name), col = pr && typeof pr.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(pr.color) ? pr.color : '#4db3d3', fc = pr ? cleanFace(pr.face) : '';
+    var dress = function(t) { t.name = nm; t.color = col; if (fc) t.face = fc; else delete t.face; };   // F1b: the face goes with it, for the GM while its player is away
+    if (keep && keep.mapId === map.id) { if (keep.w.name !== nm || keep.w.color !== col || (keep.w.face || '') !== fc) { dress(keep.w); add(map.id); } return maps; }   // already here: it stays where it stands
     var w = keep ? keep.w : { id: 'wb' + Math.random().toString(36).slice(2, 10), type: 'circle', waiting: 1, ownerId: pid, w: 60, h: 52, layer: 'middle' };
     if (keep) { removeFromMap(camp, keep.mapId, w.id); add(keep.mapId); w.id = 'wb' + Math.random().toString(36).slice(2, 10); }   // a fresh id on each map: never two items with one id there
-    w.name = nm; w.color = col;
+    dress(w);
     var spot = spawnSpot(map, landRoomId, near || null, w.w || 60, w.h || 52, null);   // beside the token they lost (a give away), else the landing room or home
     w.x = spot.x; w.y = spot.y;
     if (window.wpSeatHex) window.wpSeatHex(w, map);
@@ -2841,6 +2874,21 @@ function endWaiting(wasHost) {
     if (any) setTimeout(render, 0);
 }
 // Host, the GM's hands: Remove (it stays away this session), Delete or Cut (the same), a give (they may get one again), Hide or Show
+// Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
+net.sendMyLook = function() {
+    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
+    try { net.conns[0].send({ type: 'my-look', face: getProfile().face || '' }); } catch (e) { sendFailed(e); return false; }
+    return true;
+};
+// Their own roster entry is the host's word: when it disagrees with the face they chose (a pick while paused, while waiting to be let in,
+// or one the host's limit dropped), it is sent again — a moment later, once — on every roster and when a pause lifts
+var _lookTimer = null;
+net.reconcileLook = function() {
+    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || _lookTimer) return;
+    var differs = function() { var me = own(net.roster, net.myId) ? net.roster[net.myId] : null; return !!me && (me.face || '') !== cleanFace(getProfile().face || ''); };
+    if (!differs()) return;
+    _lookTimer = setTimeout(function() { _lookTimer = null; if (differs()) net.sendMyLook(); }, 1200);
+};
 net.removeWaiting = function(pid) { if (!net.active || net.role !== 'host' || typeof pid !== 'string' || !pid) return false; var camp = getActiveCampaign(); if (!camp) return false; _noWaiting[pid] = 1; var ms = removeWaiting(camp, pid); waitingChanged(camp, ms); return ms.length > 0; };
 net.noWaiting = function(pid) { if (typeof pid === 'string' && pid) _noWaiting[pid] = 1; };
 net.allowWaiting = function(pid) { if (typeof pid === 'string') delete _noWaiting[pid]; };
@@ -3004,7 +3052,8 @@ function handleMessage(msg, conn) {
         if (msg.profile && typeof msg.profile !== 'object') return;
         var prof = msg.profile || { id: conn.peer, name: 'Player' };
         if (!validProfileId(prof.id)) { denyJoin(conn, 'That player identity is not valid.'); return; }
-        prof = { id: prof.id, name: prof.name, color: prof.color, avatar: prof.avatar };   // only what a roster carries: nothing else a peer sends is stored or re-broadcast
+        prof = { id: prof.id, name: prof.name, color: prof.color, avatar: prof.avatar, face: cleanFace(prof.face) };   // only what a roster carries: nothing else a peer sends is stored or re-broadcast
+        if (!prof.face) delete prof.face;   // Onboarding F1b: a face the rule refuses is dropped
         if (prof.id === net.myId) { denyJoin(conn, 'That player identity is the GM\'s own.'); return; }   // a claimed GM id would render as "You" on the GM's screen
         var dupC = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
         if (dupC) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // a live duplicate would read and edit that player's sheet; a dropped one (silent past 8 s) may come back
@@ -3588,6 +3637,20 @@ function handleMessage(msg, conn) {
         campTR.turnRules = Object.assign({}, campTR.turnRules && typeof campTR.turnRules === 'object' ? campTR.turnRules : {}, { timers: msg.timers });
         if (window.wpSheetsSync) window.wpSheetsSync();
         // [netcheck:turnrules-end]
+    } else if (msg.type === 'my-look' && net.role === 'host') {
+        // [netcheck:mylook-start]
+        // Onboarding F1b: an admitted player changes their token face mid-session — cleaned, about one change a second (a burst of five), not
+        // while they or the table are paused (their app sends it again once it may); the roster carries it to everyone and their waiting token redraws
+        var prML = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prML) return;
+        if (net.paused || peerPaused(conn.peer)) return;
+        if (typeof msg.face !== 'string') return;
+        var fML = cleanFace(msg.face); if (msg.face && !fML) return;   // '' clears it; anything the rule refuses is dropped
+        if ((prML.face || '') === fML) return;   // no change costs nothing
+        if (!allow('mylook', { perMs: 1000, burst: 5, windowMs: 10000 }, conn.peer)) return;
+        if (fML) prML.face = fML; else delete prML.face;
+        var SML = SC(), campML = getActiveCampaign(); if (SML && campML && SML.waitingTokensOf) SML.waitingTokensOf(campML, prML.id).forEach(function(x) { if (fML) x.w.face = fML; else delete x.w.face; });   // the GM keeps seeing it while they are away
+        broadcastRoster(); renderRoster(); render();
+        // [netcheck:mylook-end]
     } else if (msg.type === 'newPlayers' && net.role === 'client') {
         // [netcheck:newplayers-start]
         // the table's rules for players without a character changed mid-session (Onboarding F1a): from the synced host only, for the hosted
@@ -3797,6 +3860,7 @@ function handleMessage(msg, conn) {
         net.away = cleanHostAway(msg.away);
         renderRoster();
         refreshChatRecipients();
+        if (net.reconcileLook) net.reconcileLook();   // Onboarding F1b: a face the table has not taken yet is sent again
         if (net.role === 'client' && state.viewMode === 'visual') render();  // presence changed → token visibility may change
     }
 }

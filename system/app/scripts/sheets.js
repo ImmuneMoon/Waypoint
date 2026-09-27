@@ -188,6 +188,29 @@ function hbReader(box, key, st) {
         try { t.scrollIntoView({ block: 'start' }); } catch (e) {} t.classList.add('sheet-hb-here');
     }, 0);
 }
+/* Stage 6 HUD H9: a custom roller (the reference's Custom Roll): a formula box, a name and Roll — rolled as this character through the dice
+   engine, as the dice panel rolls as one (the host judges a player's roll like any other). The box starts with the GM's formula (one naming a
+   GM-only value never reaches players); what the viewer types is kept for the session. Enter rolls; shift- or alt-click adds a modifier */
+var _rl = Object.create(null);
+function rollerNode(pl, c, key) {
+    var st = _rl[key] || (_rl[key] = { expr: pl.formula || '', label: '' }), can = canRoll(c);
+    var box = el('div', 'sheet-field sheet-kind-roller'), row = el('div', 'sheet-roller-row');
+    var fx = input('field sheet-roller-expr', st.expr, 'A formula with dice: 2d6 + 3, or 3d6 <= a number to roll against', pl.formula || '2d6 + 3'); fx.dataset.fid = key; fx.dataset.part = 'expr'; fx.maxLength = LIMITS.formula;
+    var lb = input('field sheet-roller-label', st.label, 'What it is for (shown on its card)', pl.text || 'Custom roll'); lb.dataset.fid = key; lb.dataset.part = 'label'; lb.maxLength = LIMITS.label;
+    var go = el('button', 'tool sheet-roll sheet-roller-go', 'Roll'); go.type = 'button'; go.disabled = !can; go.title = can ? 'Roll it as ' + c.name + ' \u00b7 shift-click to add a modifier' : '(dice are off here, or this is not your character)';
+    fx.addEventListener('input', function() { st.expr = fx.value.slice(0, LIMITS.formula); });
+    lb.addEventListener('input', function() { st.label = lb.value.slice(0, LIMITS.label); });
+    var doRoll = function(e) {
+        if ((box.closest && box.closest('#systemModal')) || !canRoll(c)) return;
+        var ex = st.expr.trim(); if (!ex) { toast('Type a formula to roll, for example 2d6 + 3.'); return; }
+        var lab = st.label.trim() || pl.text || 'Custom roll';
+        if (e && (e.shiftKey || e.altKey) && window.wpDice.rollWithMod) window.wpDice.rollWithMod(c.id, ex, lab, { source: 'sheet' }, go); else window.wpDice.rollFor(c.id, ex, lab, { source: 'sheet' });
+    };
+    go.addEventListener('click', doRoll);
+    fx.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doRoll(e); } });
+    row.appendChild(fx); row.appendChild(lb); row.appendChild(go); box.appendChild(row);
+    return box;
+}
 // A handbook link placement: a button that opens its page; nothing at all when the page is not here
 function linkNode(pl, c) {
     var ref = pl.page ? pageRef(pl.page) : null; if (!ref) return null;
@@ -1412,6 +1435,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             else if (pl.roll && rollById[pl.roll]) node = rollNode(rollById[pl.roll], c, sys, all.vars);
             else if (pl.kind === 'heading') node = el('div', 'sheet-heading', pl.text || '');
             else if (pl.kind === 'text') node = pl.text && pl.text.trim() ? el('div', 'sheet-ruletext', pl.text) : null;   // Stage 6 HUD H11: rules text, as text
+            else if (pl.kind === 'roller') node = rollerNode(pl, c, hbKey(vctx, c, sec, pli));   // Stage 6 HUD H9
             else if (pl.kind === 'divider') node = el('div', 'sheet-divider');
             else if (pl.kind === 'link') node = linkNode(pl, c);   // Stage 5f
             else if (pl.kind === 'search') node = hbNode(hbKey(vctx, c, sec, pli));   // Stage 6 HUD H12
@@ -1462,7 +1486,7 @@ function showIfNote(text) {
 function placementLabel(pl, byId, rollById) {
     if (pl.id) { var f = byId[pl.id]; return f ? (f.label || f.key || '(field)') + (f.key && f.label ? ' (' + f.key + ')' : '') : null; }
     if (pl.roll) { var r = rollById[pl.roll]; return r ? rollPick(r) : null; }
-    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'search') return 'Handbook search'; if (pl.kind === 'text') return 'Rules text'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
+    if (pl.kind === 'heading') return 'Heading'; if (pl.kind === 'divider') return 'Divider'; if (pl.kind === 'portrait') return 'Portrait'; if (pl.kind === 'link') return 'Handbook link'; if (pl.kind === 'search') return 'Handbook search'; if (pl.kind === 'text') return 'Rules text'; if (pl.kind === 'roller') return 'Custom roller'; if (pl.kind === 'facing') return 'Facing dial'; if (pl.kind === 'stance') return 'Stance (posture & elevation)'; if (pl.kind === 'pin') return 'Pin button'; if (pl.kind === 'hud') return 'HUD button';
     return null;
 }
 function renderLayout() {
@@ -1735,6 +1759,7 @@ function renderLayout() {
             pr.appendChild(el('span', 'sys-pl-grip', String.fromCharCode(8942)));
             pr.appendChild(el('span', 'sys-pl-name', text));
             if (pl.kind === 'heading') pr.appendChild(input('sys-pl-text field', pl.text, 'The heading\'s text', 'Heading text'));
+            if (pl.kind === 'roller') { pr.appendChild(input('sys-pl-text field', pl.text, 'Its name on the roll\u2019s card (blank: Custom roll; the viewer can type their own)', 'Custom roll')); pr.appendChild(input('sys-pl-rformula field', pl.formula, 'The formula its box starts with (the viewer can change it)', '2d6 + 3')); }   // Stage 6 HUD H9
             if (pl.kind === 'text') { var rta = el('textarea', 'sys-pl-rtext field'); rta.value = pl.text || ''; rta.rows = 4; rta.maxLength = LIMITS.ruleText; rta.placeholder = 'The rules, as plain text (line breaks kept)'; rta.title = 'Shown as written, up to ' + LIMITS.ruleText + ' characters; players see it too'; rta.spellcheck = true; pr.appendChild(rta); }   // Stage 6 HUD H11
             if (pl.kind === 'pin') {   // Stage 6: which group it pins, and an optional label (blank = "Pin <group>")
                 pr.appendChild(select('sys-pl-group', grpList.map(function(g) { return [g.id, g.label || 'Group']; }), pl.g || '', 'The band group this button pins'));
@@ -1763,7 +1788,7 @@ function renderLayout() {
         var addRow = el('div', 'sys-row-main sys-pl-addrow'), opts = [['', 'Add to this section\u2026']], inHdr = headerEdits(draft, hudOn ? (draft.sheet && draft.sheet.hud) || null : undefined);
         draft.fields.forEach(function(f) { if (!placed[f.id]) opts.push(['f:' + f.id, (f.label || f.key || '(field)') + (f.key ? ' (' + f.key + ')' : '') + (inHdr[f.id] === 1 ? ' (in the header)' : '') + (hudOn && onSheet[f.id] ? ' (on the sheet)' : '')]); });   // Stage 6: the GM is told a field is already edited in the header
         draft.rolls.forEach(function(r) { opts.push(['r:' + r.id, rollPick(r)]); });
-        opts.push(['k:heading', 'Heading'], ['k:text', 'Rules text'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
+        opts.push(['k:heading', 'Heading'], ['k:text', 'Rules text'], ['k:roller', 'Custom roller'], ['k:divider', 'Divider'], ['k:portrait', 'Portrait'], ['k:facing', 'Facing dial'], ['k:stance', 'Stance (posture & elevation)']);
         grpList.forEach(function(g) { opts.push(['p:' + g.id, 'Pin button: ' + (g.label || 'Group')]); });   // Stage 6: a band group's Pin, beside its figures
         if (pageOptions('', null).length) opts.push(['k:link', 'Handbook link'], ['k:search', 'Handbook search']);   // Stage 5f: only when the campaign has pages; H12: a search over them
         if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
@@ -1797,6 +1822,7 @@ function onLayoutInput(t) {
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
+    else if (plr && c.indexOf('sys-pl-rformula') >= 0) { var plf = (sec.fields || [])[+plr.dataset.pi]; if (plf) plf.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H9
     else if (plr && c.indexOf('sys-pl-rtext') >= 0) { var plt = (sec.fields || [])[+plr.dataset.pi]; if (plt) plt.text = t.value.slice(0, LIMITS.ruleText); }   // Stage 6 HUD H11
     else if (plr && c.indexOf('sys-pl-showif') >= 0) { var pls = (sec.fields || [])[+plr.dataset.pi]; if (pls) pls.showIf = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD C8 (kept while empty: the box stays)
     else if (t.classList.contains('sys-sec-showif')) { if (t.value.trim()) sec.showIf = t.value.slice(0, LIMITS.formula); else delete sec.showIf; }

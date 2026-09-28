@@ -851,6 +851,13 @@ Fog of war
   leaves the light of a player's token as it is now, your own changes to
   it included. A token's or a light source's right-click menu switches its
   light for you as well.
+- The Tutorial's Dark Cellar shows light at work: Bren carries a torch from
+  the Tutorial's own light presets, a brazier burns in the far corner and is
+  seen from across the room, and the Cellar Lurker stands in the dark
+  between them, out of his sight. A Tutorial you already have gains them
+  the next time the tour starts or you open it from Help: the torch and the
+  light presets where it has none of its own, the brazier where its cellar
+  is still Dark and holds no light source of yours.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
   block sight also give cover, and a piece's Cover setting in its
   Properties can make it cover you can see over (a crate or a low wall:

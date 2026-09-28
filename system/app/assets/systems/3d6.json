@@ -43,6 +43,16 @@
     { "id": "r_per", "label": "Perception check", "formula": "3d6 <= Per", "vis": "all" },
     { "id": "r_dodge", "label": "Dodge", "formula": "3d6 <= Dodge", "vis": "all" }
   ],
+  "combat": {
+    "light": {
+      "names": { "dim": "Dim light (-1 to -9 to see)", "dark": "Total darkness (-10)" },
+      "presets": [
+        { "name": "Glow stick", "bright": 2, "dim": 2, "pick": true },
+        { "name": "Torch", "bright": 3, "dim": 6, "pick": true },
+        { "name": "Lantern", "bright": 5, "dim": 10, "pick": true }
+      ]
+    }
+  },
   "sheet": {
     "sections": [
       { "id": "s_attr", "title": "Attributes", "cols": 4, "fields": [ { "id": "f_st", "w": 1 }, { "id": "f_dx", "w": 1 }, { "id": "f_iq", "w": 1 }, { "id": "f_ht", "w": 1 } ] },

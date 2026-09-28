@@ -520,7 +520,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   // Items from a file someone else made are content from another table (cleanup.js cleanImportItems: raw HTML rebuilt, diagram clicks
   // stripped, pages through cleanDoc, map text rebuilt, no prototype-key id). A whole file (Replace, a legacy one) also goes through the
   // load's own normaliser first (cleanImport). importDeps() hands both the app's real cleaners.
-  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText }; }
+  function importDeps() { return { migrate: function(d) { return migrateAppState(d).data; }, DR: window.wpDocRender, sanitize: window.wpNet && window.wpNet.sanitizeRichText, FC: window.wpFogCore }; }
 
   function cleanImportedItems(ic) { cleanImportItems(ic, importDeps()); }
 

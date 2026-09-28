@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -3846,6 +3846,7 @@ function saveDraft() {
     var v = validateSystem(clean, F());
     toast((reach.text ? reach.text + ' ' : '') + (orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));
     renderAll(); renderViews(null);
+    if (window.appRender) window.appRender();   // the board and the Properties panel read the system too (a light's presets, the light names): drawn afresh from what was saved
 }
 function refreshErrors() {
     errorsById = {}; warningsById = {};
@@ -3944,6 +3945,21 @@ function refreshErrors() {
         });
     }
     if (tErr.length) errorsById.combat = (errorsById.combat || []).concat(tErr);
+    var ltE = draft.combat && draft.combat.light && typeof draft.combat.light === 'object' ? draft.combat.light : null, lErr = [], lKept = 0;   // lighting L4: what Save drops from the light rules, under the Combat card's Light box — read as the cleaner reads (systemcore cleanLightRules): a name is what is left of it without control characters, a number is finite and no larger than the wire takes, the cap counts the presets kept
+    var lCtl = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g'), lNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15 ? v : 0; };
+    if (ltE) (Array.isArray(ltE.presets) ? ltE.presets : []).forEach(function(p, i) {
+        var nm = 'Light preset ' + (i + 1), b = lNum(p && p.bright), d = lNum(p && p.dim);
+        var named = !!p && typeof p.name === 'string' && !!Array.from(p.name.slice(0, 256).replace(lCtl, ' ').trim()).filter(function(ch) { return !(ch.length === 1 && ch >= String.fromCharCode(0xD800) && ch <= String.fromCharCode(0xDFFF)); }).join('').trim();
+        if (!named) lErr.push({ message: nm + ' needs a name: Save drops it.' });
+        else if (!(b > 0) && !(d > 0)) lErr.push({ message: nm + ' needs a radius above 0: Save drops it.' });
+        else if (lKept >= LIMITS.lightPresets) lErr.push({ message: nm + ': at most ' + LIMITS.lightPresets + ', so Save drops it.' });
+        else {
+            lKept++;
+            if (b > 1000 || d > 1000 || b < 0 || d < 0) lErr.push({ message: nm + ': a radius is 0 to 1000, so Save keeps the nearest.' });
+            else if (d < b) lErr.push({ message: nm + ': dim is the outer edge, so Save makes it ' + b + ' too.' });
+        }
+    });
+    if (lErr.length) errorsById.light = (errorsById.light || []).concat(lErr);
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -4429,8 +4445,78 @@ function renderCombat() {
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
+    lightBox(box, cm);   // lighting L4: the system's light rules
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
 }
+// Lighting L4: the system's light rules on the Combat card — what it calls a dim and a dark place (the ruler and a target mark show the names)
+// and its light presets (a light's Properties offer them; a tick marks one meant for players' own tokens). Every text lands as a value or
+// a text node. Save cleans them; refreshErrors says what it would drop
+// [sinkcheck:lightbox-start]
+function lightDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.light && typeof cm.light === 'object' && !Array.isArray(cm.light) ? cm.light : (cm.light = {}); }
+function lightBox(box, cm) {
+    var lt = cm.light && typeof cm.light === 'object' && !Array.isArray(cm.light) ? cm.light : {}, nm = lt.names && typeof lt.names === 'object' && !Array.isArray(lt.names) ? lt.names : {}, wrap = el('div', 'sys-light');
+    wrap.appendChild(el('div', 'sys-light-head', 'Light'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s light, for fogged maps with Lighting on: what it calls a dim and a dark place (the ruler between two tokens and a target mark show the name, so word its penalty into it), and its lights. A light\u2019s Properties offer these presets.'));
+    var r1 = el('div', 'sys-flags sys-light-names');
+    [['dim', 'Dim light is called', 'e.g. Dim light (-2 to see)'], ['dark', 'Darkness is called', 'e.g. Darkness (-9)']].forEach(function(g) {
+        var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', g[1]));
+        var i = input('sys-light-name field', Object.prototype.hasOwnProperty.call(nm, g[0]) && typeof nm[g[0]] === 'string' ? nm[g[0]] : '', 'Shown on the ruler and at a target mark when the target stands in ' + (g[0] === 'dim' ? 'dim light' : 'the dark') + ', as the token looking sees it; empty: nothing is shown', g[2]); i.maxLength = LIMITS.label; i.dataset.lvl = g[0]; l.appendChild(i); r1.appendChild(l);
+    });
+    wrap.appendChild(r1);
+    var arr = Array.isArray(lt.presets) ? lt.presets : [];
+    wrap.appendChild(el('span', 'sys-num-cap', 'Light presets'));
+    arr.forEach(function(p0, i) {
+        var p = p0 && typeof p0 === 'object' ? p0 : {}, rw = el('div', 'sys-flags sys-light-row'); rw.dataset.li = String(i);
+        var n = input('sys-light-pname field', typeof p.name === 'string' ? p.name : '', 'Its name: Torch, Lantern, Glow rod', 'Name'); n.maxLength = LIMITS.label; rw.appendChild(n);
+        [['bright', 'Bright to', 'How far it lights brightly (0: a dim light only)'], ['dim', 'Dim to', 'Its outer edge: dim from the bright radius out to here (the same as bright: no dim fringe)']].forEach(function(g) {
+            var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', g[1]));
+            var ni = el('input', 'field sys-light-p' + g[0]); ni.type = 'number'; ni.min = '0'; ni.max = '1000'; ni.step = 'any'; ni.value = typeof p[g[0]] === 'number' ? String(p[g[0]]) : ''; ni.title = g[2]; nl.appendChild(ni); rw.appendChild(nl);
+        });
+        rw.appendChild(select('sys-light-punit', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']], typeof p.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, p.unit) ? p.unit : 'yd', 'What the two radii count in: each map\u2019s scale converts it (a 20 ft torch on 5 ft squares lights 4 squares)'));
+        var pk = el('label', 'sys-hover'), pc = el('input', 'sys-light-ppick'); pc.type = 'checkbox'; pc.checked = p.pick === true; pk.appendChild(pc); pk.appendChild(document.createTextNode(' Players may pick')); pk.title = 'Marks a light meant for players\u2019 own tokens. For now only you set a light, in a token\u2019s Properties'; rw.appendChild(pk);
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lp' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+    });
+    var ad = el('button', 'tool ghost sys-btn sys-light-add', '+ Light preset'); ad.dataset.act = 'lpadd'; ad.disabled = arr.length >= LIMITS.lightPresets; ad.title = ad.disabled ? 'At most ' + LIMITS.lightPresets : 'A light of your game: a torch, a lantern, a glow rod'; wrap.appendChild(ad);
+    var err = errorCell('light'); err.dataset.errFor = 'light'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onLightInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-light-') < 0) return false;
+    if (c.indexOf('sys-light-punit') >= 0 || c.indexOf('sys-light-ppick') >= 0) return true;   // their change events do the work
+    var lt = lightDraft(), rw = t.closest('.sys-light-row'), i = rw ? +rw.dataset.li : -1;
+    if (c.indexOf('sys-light-name') >= 0) {
+        var nm = lt.names && typeof lt.names === 'object' && !Array.isArray(lt.names) ? lt.names : (lt.names = {}), k = t.dataset.lvl === 'dark' ? 'dark' : 'dim';
+        if (t.value.trim()) nm[k] = t.value.slice(0, LIMITS.label); else delete nm[k];
+        if (!Object.keys(nm).length) delete lt.names;
+    } else if (rw) {
+        var p = Array.isArray(lt.presets) && lt.presets[i] && typeof lt.presets[i] === 'object' ? lt.presets[i] : null; if (!p) return true;
+        if (c.indexOf('sys-light-pname') >= 0) p.name = t.value.slice(0, LIMITS.label);
+        else if (c.indexOf('sys-light-pbright') >= 0 || c.indexOf('sys-light-pdim') >= 0) { var nv = Number(t.value), key = c.indexOf('sys-light-pbright') >= 0 ? 'bright' : 'dim'; if (t.value.trim() && isFinite(nv)) p[key] = nv; else delete p[key]; }
+        else return true;
+    } else return false;
+    markDirty(); patchErrors(); return true;
+}
+function onLightChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-light-') < 0) return false;
+    if (c.indexOf('sys-light-punit') < 0 && c.indexOf('sys-light-ppick') < 0) return true;   // the boxes' change events (their input events did the work)
+    var lt = lightDraft(), rw = t.closest('.sys-light-row'), i = rw ? +rw.dataset.li : -1, p = Array.isArray(lt.presets) && lt.presets[i] && typeof lt.presets[i] === 'object' ? lt.presets[i] : null; if (!p) return true;
+    if (c.indexOf('sys-light-punit') >= 0) { if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, t.value)) p.unit = t.value; else delete p.unit; }
+    else if (t.checked) p.pick = true; else delete p.pick;
+    markDirty(); patchErrors(); return true;
+}
+function lightClick(b) {
+    var m = /^lp(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var lt = lightDraft(), arr = Array.isArray(lt.presets) ? lt.presets : (lt.presets = []);
+    var rw = b.closest('.sys-light-row'), i = rw ? +rw.dataset.li : -1;
+    if (m[1] === 'add') { if (arr.length >= LIMITS.lightPresets) { toast('At most ' + LIMITS.lightPresets + '.'); return true; } arr.push({ name: '', bright: 5, dim: 10 }); }
+    else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    else if (m[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else arr.splice(i, 1);
+    markDirty(); renderAll(); return true;
+}
+// [sinkcheck:lightbox-end]
 // Turn-based combat T1: the system's turn rules on the Combat card — how far a character moves in one turn (a formula and its unit), how a
 // square grid counts a diagonal (the ruler follows it), how long a round is, the system's own time units and what one turn allows. Save
 // cleans them; refreshErrors says what it would drop
@@ -4533,6 +4619,7 @@ function onInput(e) {
     if (!draft) return;
     var t = e.target; if (onLayoutInput(t)) return;
     if (onTurnInput(t)) return;   // turn-based combat T1
+    if (onLightInput(t)) return;   // lighting L4
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -4667,6 +4754,7 @@ function onChange(e) {
     var t = e.target, c = t.className || '';
     if (onLayoutChange(t)) return;
     if (onTurnChange(t)) return;   // turn-based combat T1
+    if (onLightChange(t)) return;   // lighting L4
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -4783,6 +4871,7 @@ function onClick(e) {
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
     if (turnClick(b)) return;   // turn-based combat T1: the Combat card's actions and time units
+    if (lightClick(b)) return;   // lighting L4: the Combat card's light presets
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

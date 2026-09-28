@@ -1775,6 +1775,9 @@
   body.net-client .wb-item.wb-light { display: none !important; }   /* players see a light, never its marker */
   .target-pair { position: relative; display: inline-flex; flex: 0 0 auto; }   /* cover follow-ups: a target mark and its cover tag, wrapping as one */
   .target-cover { position: absolute; right: -2px; bottom: -2px; display: inline-flex; align-items: center; justify-content: center; min-width: calc(var(--mark, 20px) * 0.6); height: calc(var(--mark, 20px) * 0.6); font-size: calc(var(--mark, 20px) * 0.5); line-height: 1; font-weight: 700; color: #1a1a22; background: var(--gold); border-radius: 50%; pointer-events: none; }   /* cover follow-ups: the cover at a target mark's corner */
+  .target-light { position: absolute; right: -2px; top: -2px; display: inline-flex; align-items: center; justify-content: center; min-width: calc(var(--mark, 20px) * 0.6); height: calc(var(--mark, 20px) * 0.6); font-size: calc(var(--mark, 20px) * 0.5); line-height: 1; font-weight: 700; color: #1a1a22; background: #b9c4e8; border-radius: 50%; pointer-events: none; }   /* lighting L4: the light at a target mark's upper corner (dim) */
+  .target-light.dark { color: #e8e6f5; background: #23213a; box-shadow: 0 0 0 1px rgba(232,230,245,0.55); }
+  /* lighting L4: the light's name under a targeted token is drawn on the fog's overlay (fog.js drawCaptions), over the fog */
   .chat-dmg { color: var(--card-t-bad, var(--red)); border: 1px solid currentColor; border-radius: 9px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 0 6px; vertical-align: 1px; }   /* chat cards: a damage roll's tag (an outline chip) */
   .chat-time { color: var(--dim); font-size: 10px; float: right; }
   /* Chat cards (owner 2026-09-27; his Foundry cards): a 3px stripe down the left edge by outcome — the plain colour, success, failure, damage
@@ -1797,6 +1800,12 @@
   .roll-total.roll-malf { font-style: italic; }
   .sys-turn { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }   /* turn-based combat T1: the Combat card's turn rules */
   .sys-turn-head { font-weight: 600; }
+  .sys-light { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* lighting L4: the Combat card's light rules */
+  .sys-light-head { font-weight: 600; }
+  .sys-light .sys-light-add { align-self: flex-start; }
+  .sys-light-names input.sys-light-name { width: 280px; max-width: 100%; }
+  .sys-light-row input.sys-light-pname { flex: 1 1 140px; min-width: 0; }
+  .sys-light-row input[type=number] { width: 76px; }
   .sheet-fx-timer { display: inline-flex; gap: 2px; margin-left: 4px; }   /* turn-based combat T5b: a timed effect's pause / reset / stop */
   .sheet-fx-tbtn { font-size: 11px; padding: 0 4px; min-width: 0; }
   .sheet-fx-left { font-size: 11px; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }   /* turn-based combat T5a: what a timed effect has left */

@@ -3205,6 +3205,103 @@ pendingChecks.push((async () => {
     check('token creator: the player\'s tok-pic sender — only a whole safe picture travels, as { type, rid, mapId, wbId, img }; anything else is refused before it is sent; it remembers what it asked (its answer read in a token\'s words)',
         mkA > 0 && mkB > mkA && sOk.r.ok === true && sOk.sent.length === 1 && j(Object.keys(sOk.sent[0]).sort()) === j(['img', 'mapId', 'rid', 'type', 'wbId']) && sOk.sent[0].type === 'tok-pic' && j(sOk.kinds) === j(['tok-pic']) && sBad.r.error === 'That picture cannot be used.' && sBad.sent.length === 0 && sBad.kinds.length === 0, j([sOk, sBad.r]));
 })());
+// Lighting L4 (system light rules) on the wire: the Sight unit of the campaign's fog defaults (the real host sync and the client's branch,
+// sliced), an item's light cleaned again by a client (the real cleanHostWbItem / cleanHostLight / cleanHostMap with the real fogcore), the
+// system's light rules in the players' view (the real systemcore, cleaned twice) and a light on a player's copy of a map (the real sanitizeItem)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const chr = n => String.fromCharCode(n), ownK = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    // (a) the host's message and its sync
+    const syncL = between('// [netcheck:campfogsync-start]', '// [netcheck:campfogsync-end]', 'campfogsync'), rcvL = between('// [netcheck:campfog-start]', '// [netcheck:campfog-end]', 'campfog');
+    const hostL = camp => { const sent = { a: [], w: [] }, resent = [];
+        const net = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); sent.a.push(JSON.parse(JSON.stringify(m))); } }, { peer: 'pW', open: true, send: m => sent.w.push(m) }], roster: { pA: { id: 'u_a' } }, resendFogged: () => resent.push(sent.a.length) };
+        new Function('net', 'getActiveCampaign', 'own', 'sendFailed', 'window', syncL)(net, () => camp, ownK, e => { throw e; }, { wpFogCore: FCx });
+        return { net, sent, resent }; };
+    const msgOf = unit => hostL({ id: 'k_1', fog: { defaults: { sight: 6 }, fields: { sight: 'f_sight', sightUnit: unit } } }).net.campFogMessage();
+    const unitsOk = ['ft', 'm', 'cells'].map(u => j(msgOf(u))), junkU = ['yd', 'yards', 'FT', 'Cells', 'ft ', 'constructor', '__proto__', 'toString', '', 7, null, true, ['ft'], { ft: 1 }, '<img src=x>'].map(u => j(msgOf(u)));
+    check('Lighting: the campaign\'s fog defaults carry the Sight unit to players only when it is feet, metres or cells, after the sight field; yards (no unit), a unit the app does not know, a prototype key or anything not text never travels',
+        j(unitsOk) === j(['ft', 'm', 'cells'].map(u => j({ type: 'campFog', campId: 'k_1', fog: { fields: { sight: 'f_sight', sightUnit: u }, defaults: { sight: 6 } } })))
+        && junkU.every(s => s === j({ type: 'campFog', campId: 'k_1', fog: { fields: { sight: 'f_sight' }, defaults: { sight: 6 } } }))
+        && j(hostL({ id: 'k_1', fog: { fields: { sightUnit: 'cells' } } }).net.campFogMessage().fog) === j({ fields: { sightUnit: 'cells' }, defaults: { sight: 0 } }), j([unitsOk, junkU]));
+    const campU = { id: 'k_1', fog: { defaults: { sight: 6 }, fields: { sight: 'f_sight' } } }, hU = hostL(campU), stepsU = [], stepU = () => { hU.net.syncCampFog(); stepsU.push([hU.sent.a.length, hU.resent.length]); };
+    stepU(); stepU(); campU.fog.fields.sightUnit = 'ft'; stepU(); stepU(); campU.fog.fields.sightUnit = 'cells'; stepU(); campU.fog.fields.sightUnit = 'yd'; stepU(); campU.fog.fields.sightUnit = 'leagues'; stepU(); delete campU.fog.fields.sightUnit; stepU();
+    hU.net.role = 'client'; campU.fog.fields.sightUnit = 'm'; stepU();
+    check('Lighting: a change of the Sight unit alone goes to admitted players once (a waiting peer gets nothing) and re-sends every fogged map, after the message; the same unit again, or one unknown unit for another, sends nothing; a client never sends',
+        j(stepsU) === j([[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [4, 4], [4, 4], [4, 4], [4, 4]]) && j(hU.resent) === j([1, 2, 3, 4]) && hU.sent.w.length === 0
+        && j(hU.sent.a.map(m => m.fog.fields)) === j([{ sight: 'f_sight' }, { sight: 'f_sight', sightUnit: 'ft' }, { sight: 'f_sight', sightUnit: 'cells' }, { sight: 'f_sight' }]) && hU.sent.a.every(m => m.type === 'campFog' && m.campId === 'k_1' && j(m.fog.defaults) === j({ sight: 6 })), j([stepsU, hU.sent.a]));
+    const runL = (msg, peer) => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', fog: { defaults: { sight: 2 }, fields: { sightUnit: 'm' } } } } } }, calls = [];
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvL)({ role: 'client', foreign: true, syncedPeer: 'host1', stream: false }, { peer }, msg, st, id => (ownK(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpFogCore: FCx, wpFog: { invalidateVision: () => calls.push('inv'), redraw: () => calls.push('draw') } });
+        return [st.appState.campaigns.k_1.fog, calls]; };
+    const mkL = fields => ({ type: 'campFog', campId: 'k_1', fog: { defaults: { sight: 9 }, fields } });
+    const c1 = runL(mkL({ sight: 'f_sight', sightUnit: 'ft' }), 'host1'), c2 = runL(mkL({ sight: 'f_sight', sightUnit: '<img src=x onerror=alert(1)>' }), 'host1'), c3 = runL(mkL({ sightUnit: 'cells', sightunit: 'ft', unit: 'ft' }), 'host1'), c4 = runL(mkL({ sightUnit: { toString: null } }), 'host1'), c5 = runL(mkL({ sightUnit: 'ft' }), 'evil'), c6 = runL(mkL({ sightUnit: 'constructor' }), 'host1');
+    check('Lighting: a client cleans the Sight unit its host sends again — feet, metres or cells are kept, anything else is dropped (the unit it had goes with it) and nothing but the known keys comes in — then works the fog out afresh and redraws; another peer changes nothing',
+        j(c1) === j([{ fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 9 } }, ['inv', 'draw']]) && j(c2) === j([{ fields: { sight: 'f_sight' }, defaults: { sight: 9 } }, ['inv', 'draw']]) && j(c3) === j([{ fields: { sightUnit: 'cells' }, defaults: { sight: 9 } }, ['inv', 'draw']])
+        && j(c4) === j([{ fields: {}, defaults: { sight: 9 } }, ['inv', 'draw']]) && j(c6) === j(c4) && j(c5) === j([{ defaults: { sight: 2 }, fields: { sightUnit: 'm' } }, []]), j([c1, c2, c3, c4, c5, c6]));
+
+    // (b) an item's light as a client keeps it
+    const lineL = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); if (src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' is not unique'); return src.slice(i, src.indexOf('\n', i)); };
+    const hmA = src.indexOf('function cleanHostMap(m) {'), hmB = src.indexOf('\n}\n', hmA) + 2;
+    const hostSide = win => new Function('window', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lineL('function cleanHostWbItem(w) {') + '\n' + lineL('function cleanHostLight(w) {') + '\n' + src.slice(hmA, hmB) + '\nreturn { cleanHostWbItem, cleanHostLight, cleanHostMap };')(win, H.cleanWaitingItem, t => 'T:' + String(t).length, v => (v === '#123456' ? v : ''));
+    const CL = hostSide({ wpFogCore: FCx }), CN = hostSide({}), CO = hostSide({ wpFogCore: {} });
+    const bad = 'Torch' + chr(0) + chr(10) + 'of' + chr(127) + '<b onclick=x>' + 'A'.repeat(500), badClean = 'Torch  of <b onclick=x>' + 'A'.repeat(37), ctrlRe = new RegExp('[' + chr(0) + '-' + chr(31) + chr(127) + ']');
+    const items = () => [
+        { id: 't1', type: 'image', isChar: true, x: 5, light: { bright: 20, dim: 40, off: true, unit: 'ft', name: 'Torch' } },
+        { id: 't2', type: 'image', light: { bright: 3, dim: 1, off: 'yes', unit: 'furlong', name: bad, html: '<img>', constructor: 1 } },
+        { id: 't3', type: 'image', light: { bright: 'x' } },
+        { id: 'l1', type: 'light', light: { bright: 'x' } },
+        { id: 'l2', type: 'light', light: { bright: 1e9, dim: -4, unit: 'cells', name: '  ' + chr(9) + ' ' } },
+        { id: 't4', type: 'image', x: 1, y: 2 },
+        { id: 'q1', waiting: 1, ownerId: 'u_a', type: 'circle', light: { bright: 5, dim: 5, name: 'Lamp' } },
+        { id: 't5', type: 'image', light: null },
+        { id: 't6', type: 'rect', light: '<img src=x onerror=alert(1)>' },
+        { id: 'l3', type: 'light', light: ['ft'] },
+        { id: 'x1', type: 'text', text: '<b>hi</b>', light: { bright: 0, dim: 2, unit: 'm', name: '<script>' } }];
+    const got = items().map(w => CL.cleanHostWbItem(w)), lights = got.map(w => (ownK(w, 'light') ? w.light : 'none'));
+    check('Lighting: a client cleans an item\'s light its host sends again (run for real) — the radii clamped, dim at least bright, off only when true, a unit only of feet, metres or cells, the name cut to 60 characters with its control characters made spaces and kept as plain text, nothing else carried; a light of nonsense leaves a token and reads 0 and 0 on a light source',
+        j(lights) === j([{ bright: 20, dim: 40, off: true, unit: 'ft', name: 'Torch' }, { bright: 3, dim: 3, name: badClean }, 'none', { bright: 0, dim: 0 }, { bright: 1000, dim: 1000, unit: 'cells' }, 'none', 'none', 'none', 'none', { bright: 0, dim: 0 }, { bright: 0, dim: 2, unit: 'm', name: '<script>' }])
+        && badClean.length === 60 && got[1].light.name.length === 60 && !ctrlRe.test(got[1].light.name) && got[10].text === 'T:9' && got[0].isChar === true && got[0].x === 5, j(lights));
+    const plain = { id: 't4', type: 'image', x: 1, y: 2 }, plainOut = CL.cleanHostWbItem(plain), waitOut = CL.cleanHostWbItem(items()[6]);
+    check('Lighting: an item without a light is untouched by the client\'s cleaner (the same item, no light key appears) and a waiting token still carries no light, whatever the host sent with it',
+        plainOut === plain && j(plain) === j({ id: 't4', type: 'image', x: 1, y: 2 }) && !ownK(plain, 'light') && j(waitOut) === j(H.cleanWaitingItem(items()[6])) && !ownK(waitOut, 'light') && waitOut.waiting === 1 && !/Lamp/.test(j(waitOut))
+        && CL.cleanHostWbItem({ id: 7, light: { bright: 1, dim: 1 } }) === null && CL.cleanHostWbItem(null) === null, j([plainOut, waitOut]));
+    const noCore = [CN, CO].map(C => items().map(w => C.cleanHostWbItem(w)).map(w => (ownK(w, 'light') ? w.light : 'none')));
+    check('Lighting: with no light cleaner on hand a client takes no light at all from its host — a good one, a hostile one and a light source\'s alike are removed, never kept as they came',
+        j(noCore) === j([Array(11).fill('none'), Array(11).fill('none')]), j(noCore));
+    const mapL = CL.cleanHostMap({ id: 'm1', type: 'map', whiteboard: items().concat([null, { id: 9 }, 'x']), rooms: 'x', cats: { a: { color: 'url(x)' }, b: { color: '#123456' } }, fogLit: '<img>', lightsCapped: 'yes' });
+    check('Lighting: a whole map from the host has every item\'s light cleaned the same way (cleanHostMap, run for real) — the items that are not items dropped, each light as the item cleaner leaves it, the map\'s own lit cells and light cap still cleaned',
+        j(mapL.whiteboard.map(w => w.id)) === j(['t1', 't2', 't3', 'l1', 'l2', 't4', 'q1', 't5', 't6', 'l3', 'x1']) && j(mapL.whiteboard.map(w => (ownK(w, 'light') ? w.light : 'none'))) === j(lights) && !ownK(mapL, 'fogLit') && !ownK(mapL, 'lightsCapped') && j(mapL.rooms) === '[]' && mapL.cats.a.color === '#888' && mapL.cats.b.color === '#123456', j(mapL));
+
+    // (c) the system's light rules in the players' view, cleaned by the host and again by the client
+    const base = () => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hud-bare.json'), 'utf8'));
+    const longN = 'Gloom' + chr(7) + '<i>' + 'z'.repeat(500), longClean = 'Gloom <i>' + 'z'.repeat(51);
+    const sysL = base(); sysL.combat = Object.assign({}, sysL.combat, { light: { html: '<img>', names: { dim: '  Dim' + chr(10) + 'light <b>x</b> ', dark: longN, bright: 'Bright', constructor: 'x' }, presets: [
+        { name: 'Candle', bright: 5, dim: 10, unit: 'ft', pick: true, html: '<img>' }, { name: 'Torch' + chr(0) + '<script>', bright: 40, dim: 20, unit: 'furlong', pick: 'yes' }, { name: '', bright: 5, dim: 5 }, { name: 'Dark', bright: 0, dim: 0 },
+        { name: 'Sun', bright: 1e9, dim: '7', unit: 'cells' }, { name: 'Text', bright: '5', dim: '9' }, null, 'x', { name: 'Glow', dim: 2, unit: 'm', pick: true }, { name: 7, bright: 3, dim: 3 }] } });
+    const wantL = { names: { dim: 'Dim light <b>x</b>', dark: longClean }, presets: [{ name: 'Candle', bright: 5, dim: 10, unit: 'ft', pick: true }, { name: 'Torch <script>', bright: 40, dim: 40 }, { name: 'Sun', bright: 1000, dim: 1000, unit: 'cells' }, { name: 'Glow', bright: 0, dim: 2, unit: 'm', pick: true }] };
+    const viewH = Sx.cleanSystem(sysL, { F: Fx, gmView: false }); let packedL = true; try { packCheck(viewH); } catch (e) { packedL = e.message; }
+    const viewC = Sx.cleanSystem(JSON.parse(j(viewH)), { F: Fx, gmView: false, libCats: {} });
+    const bareV = Sx.cleanSystem(base(), { F: Fx, gmView: false }), junkV = ['<img>', [], 7, null, { names: { dim: '' }, presets: [{ name: 'x' }] }, { names: 'x', presets: 'y' }].map(l => { const s = base(); s.combat = { light: l }; const v = Sx.cleanSystem(s, { F: Fx, gmView: false }); return !!v && !!v.combat && !ownK(v.combat, 'light'); });
+    const manyS = base(); manyS.combat = { light: { presets: Array.from({ length: 40 }, (x, i) => ({ name: 'P' + i, bright: 1, dim: 2 })) } }; const manyV = Sx.cleanSystem(manyS, { F: Fx, gmView: false });
+    check('Lighting: the system\'s light rules reach players in the players\' view (the real cleaner) — the names of dim light and darkness and the presets as short plain text with control characters made spaces, radii clamped, dim at least bright, a unit only of feet, metres or cells, the pick mark only when true, at most 24 presets, last in the combat rules; they pack for the wire and a client cleaning them again gets exactly what the host sent; a system with none, or with nonsense, carries none',
+        !!viewH && j(viewH.combat.light) === j(wantL) && longClean.length === 60 && packedL === true && j(viewC) === j(viewH) && j(viewC.combat.light) === j(wantL) && Object.keys(viewH.combat).pop() === 'light'
+        && !!bareV && !ownK(bareV.combat, 'light') && junkV.every(Boolean) && manyV.combat.light.presets.length === 24 && manyV.combat.light.presets[23].name === 'P23' && j(Sx.cleanSystem(JSON.parse(j(manyV)), { F: Fx, gmView: false, libCats: {} })) === j(manyV)
+        && Sx.lightName(viewC, 1) === 'Dim light <b>x</b>' && Sx.lightName(viewC, 0) === longClean && Sx.lightName(viewC, 2) === '' && j(Sx.lightPresets(viewC)) === j(wantL.presets), j([viewH && viewH.combat, packedL, junkV]));
+
+    // (d) a player's copy of a lit map
+    const siA = src.indexOf('function sanitizeItem('), siB = src.indexOf('\n}\n', siA) + 2, wn = (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0];
+    const siL = new Function('window', wn + '\n' + src.slice(siA, siB) + '\nreturn sanitizeItem;')({});
+    const torch = { bright: 20, dim: 40, unit: 'ft', name: 'Torch' }, lamp = { bright: 2, dim: 4, off: true, unit: 'cells', name: 'Street lamp' };
+    const mapS = { id: 'm1', type: 'map', rooms: [], links: [], fog: { on: true, mode: 'auto' }, whiteboard: [
+        { id: 'w1', type: 'image', isChar: true, x: 1, y: 2, w: 3, h: 4, light: torch }, { id: 'w2', type: 'light', x: 5, y: 6, w: 7, h: 8, light: lamp }, { id: 'w3', type: 'image', sheet: { a: 1 }, gmInfo: 'secret', frame: { src: 'a' }, light: torch },
+        { id: 'w4', type: 'image', hidden: true, x: 1, y: 2, w: 3, h: 4, light: { bright: 9, dim: 9, unit: 'm', name: 'Secret lantern' } }, { id: 'w5', type: 'light', hidden: true, x: 1, y: 2, w: 3, h: 4, light: { bright: 1, dim: 2, name: 'Secret glow' } }, { id: 'w6', type: 'rect', x: 0 }] };
+    const before = j(mapS), outS = siL(mapS); let packedS = true; try { packCheck(outS); } catch (e) { packedS = e.message; }
+    const stubKeys = j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y']);
+    check('Lighting: a player\'s copy of a map keeps a visible item\'s light with its unit and name (sanitizeItem, run for real: a token\'s, a light source\'s, one on a token whose GM prep is stripped) and the light of a hidden item never travels — a hidden token or light source is only a stub, its light and its name nowhere in the copy; the host\'s own map is unchanged',
+        siA > 0 && outS.whiteboard.length === 6 && j(outS.whiteboard[0].light) === j(torch) && j(outS.whiteboard[1].light) === j(lamp) && outS.whiteboard[1].type === 'light' && j(outS.whiteboard[2].light) === j(torch) && !ownK(outS.whiteboard[2], 'sheet') && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'frame')
+        && [3, 4].every(i => j(Object.keys(outS.whiteboard[i]).sort()) === stubKeys && outS.whiteboard[i].type === 'rect' && !ownK(outS.whiteboard[i], 'light')) && !/Secret|"unit":"m"/.test(j(outS)) && !ownK(outS.whiteboard[5], 'light') && packedS === true && j(mapS) === before
+        && j(CL.cleanHostWbItem(JSON.parse(j(outS.whiteboard[0]))).light) === j(torch) && j(CL.cleanHostMap(JSON.parse(j(outS))).whiteboard.map(w => w.light || 0)) === j([torch, lamp, torch, 0, 0, 0]), j(outS.whiteboard));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

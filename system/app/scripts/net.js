@@ -269,7 +269,10 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); return w; }
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); return w; }
+// Lighting L4: an item's light as the host sent it, cleaned again (fogcore cleanLight: numbers clamped, a unit the app knows, the name short
+// plain text); with no cleaner on hand it does not come in
+function cleanHostLight(w) { var FCl = window.wpFogCore, lc = FCl && FCl.cleanLight ? FCl.cleanLight(w.light) : null; if (lc) w.light = lc; else if (w.type === 'light' && FCl && FCl.cleanLight) w.light = { bright: 0, dim: 0 }; else delete w.light; }
 function cleanHostMap(m) {
     if (!m || typeof m !== 'object') return m;
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];

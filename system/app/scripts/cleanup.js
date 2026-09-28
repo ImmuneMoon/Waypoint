@@ -588,7 +588,7 @@ function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize
 // deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText }. Merge runs it on each campaign.
 function cleanImportItems(ic, deps) {
     if (!isObj(ic.items)) { ic.items = {}; return; }
-    var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null;
+    var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null, FC = deps && deps.FC && typeof deps.FC.cleanLight === 'function' ? deps.FC : null;
     Object.keys(ic.items).forEach(function(id) {
         if (id in Object.prototype) { delete ic.items[id]; return; }
         var it = ic.items[id]; if (!isObj(it)) { delete ic.items[id]; return; }
@@ -604,6 +604,11 @@ function cleanImportItems(ic, deps) {
         });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (isObj(w) && w.type === 'text') w.text = san ? san(String(w.text || '')) : ''; });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard = it.whiteboard.filter(function(w) { return !(isObj(w) && w.waiting); });   // Onboarding F1a: never a waiting token from a file
+        if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) {   // lighting L4: a light from a file, cleaned as the app reads one (deps.FC = fogcore.js); with no cleaner on hand it does not come in
+            if (!isObj(w) || w.light === undefined) return;
+            var L = FC ? FC.cleanLight(w.light) : null;
+            if (L) w.light = L; else if (w.type === 'light' && FC) w.light = { bright: 0, dim: 0 }; else delete w.light;
+        });
     });
 }
 // Onboarding F1a: a waiting token lives only while its session runs — a save, an export or an import never keeps one. Returns how many went.

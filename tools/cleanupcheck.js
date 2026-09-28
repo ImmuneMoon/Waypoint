@@ -535,12 +535,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /old notes/.test(rawOf(icM.items.op) || '') && !/[<>]/.test(rawOf(icM.items.op) || '<') && /old notes/.test(rawOf(outR && outR.campaigns.cO.items.op) || '') && !/[<>]/.test(rawOf(outR && outR.campaigns.cO.items.op) || '<')
             && rawOf(icN.items.op) === '' && !('content' in icM.items.op) && !('content' in outR.campaigns.cO.items.op), JSON.stringify([icM.items.op, outR && outR.campaigns.cO.items.op, icN.items.op]));
         check('import: a file with nothing but prototype-key campaigns brings nothing in', cleanImport(JSON.parse('{"campaigns":{"__proto__":{"id":"x","items":{}},"constructor":{"items":{}}}}'), deps) === null && cleanImport(null, deps) === null && cleanImport({ campaigns: 5 }, deps) === null);
+        // lighting L4: a light from a file is cleaned as the app reads one (the real fogcore.js), on Replace and on Merge
+        {
+            const FCr = await import(surl('fogcore.js')), depsL = { migrate, DR: DOC, sanitize, FC: FCr }, jl = JSON.stringify;
+            const HT = '<img src=x onerror=alert(1)>', longName = HT + 'n'.repeat(200), ctrl = ' Torch' + String.fromCharCode(0) + String.fromCharCode(9) + 'of' + String.fromCharCode(31) + String.fromCharCode(127) + 'fire ';
+            const board = () => [
+                { id: 'a', type: 'light', x: 0, y: 0, light: { bright: 5000, dim: -3, off: true, unit: 'furlongs', name: longName, extra: HT, pick: true } },
+                { id: 'b', type: 'circle', isChar: true, x: 0, y: 0, light: { bright: '5', dim: 'x" onfocus="y', unit: 'ft', name: 'None' } },
+                { id: 'c', type: 'light', x: 0, y: 0, light: HT },
+                { id: 'd', type: 'rect', x: 0, y: 0, w: 5, h: 5 },
+                { id: 'e', type: 'light', x: 0, y: 0 },
+                { id: 'f', type: 'circle', isChar: true, x: 0, y: 0, light: { bright: 2, dim: 6, unit: 'cells', name: ctrl, off: 'yes' } },
+                { id: 'g', type: 'circle', isChar: true, x: 0, y: 0, light: null },
+                { id: 'h', type: 'circle', isChar: true, x: 0, y: 0, light: { bright: 4, dim: 2, unit: 'constructor', name: 7 } },
+                { id: 'i', type: 'light', x: 0, y: 0, light: { bright: 1.5, dim: 3, unit: 'm', name: 'Glow rod' } }
+            ];
+            const want = { a: { bright: 1000, dim: 1000, off: true, name: longName.slice(0, FCr.LIMITS.lightName) }, c: { bright: 0, dim: 0 }, f: { bright: 2, dim: 6, unit: 'cells', name: 'Torch  of  fire' }, h: { bright: 4, dim: 4 }, i: { bright: 1.5, dim: 3, unit: 'm', name: 'Glow rod' } };
+            const lightsOf = wb => { const o = {}; (wb || []).forEach(w => { if ('light' in w) o[w.id] = w.light; }); return o; };
+            const outL = cleanImport(JSON.parse(jl({ campaigns: { cL: { id: 'cL', name: 'L', items: { mL: { id: 'mL', type: 'map', meta: { title: 'M' }, rooms: [], links: [], whiteboard: board() } } } } })), depsL);
+            const wbR = outL && outL.campaigns.cL.items.mL.whiteboard;
+            const icL = { items: { mL: { id: 'mL', type: 'map', whiteboard: board() }, pL: { id: 'pL', type: 'planner', blocks: [], whiteboard: [{ id: 'z', type: 'light', light: { bright: 5000, dim: 1 } }] } } }; cleanImportItems(icL, depsL);
+            const wbM = icL.items.mL.whiteboard;
+            check('import: an item\'s light from a file is cleaned on Replace and on Merge — its numbers clamped (dim at least bright), a unit the app does not know dropped, its name short plain text (control characters to spaces), on or off only as true, nothing else riding along',
+                !!wbR && jl(lightsOf(wbR)) === jl(want) && jl(lightsOf(wbM)) === jl(want) && want.a.name.length === 60 && wbR.length === 9 && wbM.length === 9, jl([lightsOf(wbR || []), lightsOf(wbM)]));
+            check('import: a light that gives none is taken off a token and reads { bright: 0, dim: 0 } on a light source; an item that had no light gains no light key (a light source with none set stays so)',
+                !!wbR && [wbR, wbM].every(wb => { const by = {}; wb.forEach(w => { by[w.id] = w; }); return !('light' in by.b) && !('light' in by.g) && jl(by.c.light) === jl({ bright: 0, dim: 0 }) && !('light' in by.d) && !('light' in by.e) && Object.keys(by.d).join() === 'id,type,x,y,w,h'; }), jl([wbR, wbM]));
+            check('import: a light is only a play map\'s item\'s — a planner\'s own list is not walked', jl(icL.items.pL.whiteboard[0].light) === jl({ bright: 5000, dim: 1 }));
+            const icN = { items: { mL: { id: 'mL', type: 'map', whiteboard: board() } } }; cleanImportItems(icN, { DR: DOC, sanitize });
+            const icB = { items: { mL: { id: 'mL', type: 'map', whiteboard: board() } } }; cleanImportItems(icB, { DR: DOC, sanitize, FC: { LIMITS: FCr.LIMITS } });
+            const icU = { items: { mL: { id: 'mL', type: 'map', whiteboard: board() } } }; cleanImportItems(icU, undefined);
+            const outN = cleanImport(JSON.parse(jl({ campaigns: { cL: { id: 'cL', name: 'L', items: { mL: { id: 'mL', type: 'map', meta: { title: 'M' }, rooms: [], links: [], whiteboard: board() } } } } })), deps);
+            check('import: fails closed — with no light cleaner on hand (none, or one that cleans nothing) no light comes in, not even a light source\'s empty one, on Merge and on Replace; the items themselves stay',
+                jl(lightsOf(icN.items.mL.whiteboard)) === '{}' && jl(lightsOf(icB.items.mL.whiteboard)) === '{}' && jl(lightsOf(icU.items.mL.whiteboard)) === '{}' && !!outN && jl(lightsOf(outN.campaigns.cL.items.mL.whiteboard)) === '{}' && icN.items.mL.whiteboard.length === 9 && outN.campaigns.cL.items.mL.whiteboard.length === 9, jl([lightsOf(icN.items.mL.whiteboard), outN && lightsOf(outN.campaigns.cL.items.mL.whiteboard)]));
+            const again = { items: { mL: { id: 'mL', type: 'map', whiteboard: JSON.parse(jl(wbM)) } } }; cleanImportItems(again, depsL);
+            check('import: a light already cleaned comes through a second clean unchanged', jl(again.items.mL.whiteboard) === jl(wbM));
+        }
         // the app routes every whole-file import through it, before the state is replaced or the modal is even closed
         const repl = mainSrc.slice(mainSrc.indexOf("_el_importReplaceBtn.addEventListener('click'"), mainSrc.indexOf('var _el_importCancelBtn'));
         const legacy = mainSrc.slice(mainSrc.indexOf('// Legacy single-campaign format'), mainSrc.indexOf('} else if (data.campaigns) {'));
         check('import (main.js): Replace cleans first (cleanImport with the app\'s real normaliser, docrender and the wire\'s sanitiser) and only then may replace the state; the raw file never becomes the state',
             /var cleanR = cleanImport\(pendingImport, importDeps\(\)\);[\s\S]*if \(!cleanR\) \{ importNothing\(\); return; \}[\s\S]*var guard = [\s\S]*state\.appState = cleanR;/.test(repl) && !/state\.appState = pendingImport/.test(mainSrc)
-            && /function importDeps\(\) \{ return \{ migrate: function\(d\) \{ return migrateAppState\(d\)\.data; \}, DR: window\.wpDocRender, sanitize: window\.wpNet && window\.wpNet\.sanitizeRichText \}; \}/.test(mainSrc) && /\n    migrateAppState   \/\/ main\.js/.test(ioSrc));
+            && /function importDeps\(\) \{ return \{ migrate: function\(d\) \{ return migrateAppState\(d\)\.data; \}, DR: window\.wpDocRender, sanitize: window\.wpNet && window\.wpNet\.sanitizeRichText, FC: window\.wpFogCore \}; \}/.test(mainSrc) && /\n    migrateAppState   \/\/ main\.js/.test(ioSrc));
         check('import (main.js): a legacy single-campaign file is wrapped and cleaned the same way before it joins the campaigns; Merge cleans its items with the same cleaner',
             /var cleanL = cleanImport\(wrapL, importDeps\(\)\);[\s\S]*var guardL = [\s\S]*state\.appState\.campaigns\[defaultCamp\.id\] = cleanL\.campaigns\[defaultCamp\.id\];/.test(legacy) && !/state\.appState\.campaigns\[defaultCamp\.id\] = defaultCamp;/.test(legacy)
             && /function cleanImportedItems\(ic\) \{ cleanImportItems\(ic, importDeps\(\)\); \}/.test(mainSrc) && /cleanImportedItems\(ic\);/.test(mainSrc));

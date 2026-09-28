@@ -152,9 +152,10 @@ function maskFootprint(w, grid, C) {
 // (no fog until an area is marked). Hidden items never contribute: the wire reduces a hidden item to a stub with
 // no flags, so host and client must both ignore them to agree (same rule as the sight-blockers above).
 var _maskCache = Object.create(null), _maskStamp = Object.create(null);
+function fogSig(wb) { var s = ''; for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (w && w.fogged && !w.hidden) s += w.id + ':' + w.x + ',' + w.y + ',' + (w.w || 0) + ',' + (w.h || 0) + ',' + (w.rot || 0) + ';'; } return s; }
 function fogMask(map, camp, grid) {
     if (!map || !grid) return { mode: 'all' };
-    var stamp = (map.meta && map.meta.updated) || 0;
+    var stamp = ((map.meta && map.meta.updated) || 0) + '|' + fogSig(map.whiteboard || []);   // a play area dragged live masks where it is now, not where it was saved (review follow-up b)
     if (_maskCache[map.id] !== undefined && _maskStamp[map.id] === stamp) return _maskCache[map.id];
     var C = core(), wb = map.whiteboard || [], set = Object.create(null), cells = [], n = 0, any = false, over = false;
     for (var i = 0; i < wb.length && !over; i++) {

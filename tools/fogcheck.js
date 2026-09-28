@@ -251,6 +251,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const drop = FD('u_a', {}, mapD) || {};
         check('F1a fogDropIds: another player\'s waiting token inside fog is left out of this player\'s copy like a character token; their own always comes; a plain item is not a token',
             drop.wb_other === 1 && drop.tok_b === 1 && !drop.wb_mine && !drop.prop, JSON.stringify(drop));
+        // review follow-up (b): a play area dragged live (its position changed, the map not yet saved) masks where it is now
+        const FC = await import(url('fogcore.js') + '?m'), grid = FC.squareGrid(50);
+        const mSrc = fogSrc.slice(fogSrc.indexOf('var _maskCache = Object.create(null)'), fogSrc.indexOf('function inMask('));
+        const FM = new Function('core', 'footprintCells', 'maskFootprint', 'campFog', mSrc + '\nreturn fogMask;')(() => FC, (w, g, C) => C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, g), (w, g, C) => C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, g), () => ({ defaults: {} }));
+        const area = { id: 'pa', type: 'rect', fogged: true, x: 0, y: 0, w: 50, h: 50 }, mapM = { id: 'm1', meta: { updated: 5 }, whiteboard: [area] };
+        const k0 = Object.keys(FM(mapM, {}, grid).keys || {}); area.x = 200; const k1 = Object.keys(FM(mapM, {}, grid).keys || {}); const k2 = Object.keys(FM(mapM, {}, grid).keys || {});
+        check('Fog play areas: a play area dragged live masks its new footprint before the map is saved (the mask follows the areas\' own positions), and the same position reads the cached mask',
+            k0.length === 1 && k1.length === 1 && k0[0] !== k1[0] && JSON.stringify(k1) === JSON.stringify(k2), JSON.stringify([k0, k1]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

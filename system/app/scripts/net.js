@@ -1147,6 +1147,7 @@ net.onLocalSave = function() {
         net.syncTurnRules(); // and who may press an effect's timer (turn-based combat T5b), the same way
         net.syncLibrary();   // and the library players may look through (Stage 6 library L3), the same way
         net.syncNewPlayers(); // and the rules for players without a character (Onboarding F1a), the same way
+        net.syncCampFog();  // and its fog defaults (an empty map's fog, the default sight), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         patch = null;
     }
@@ -1394,6 +1395,21 @@ net.syncCampName = function() {
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
 // [netcheck:campnamesync-end]
+// Fog play areas (review follow-up a): the hosted campaign's fog defaults (camp.fog: an empty map's fog, the default sight and its field)
+// — the join snapshot carries them (cleanCampFog); a change mid-session goes out the way a rename does, once per change, admitted peers
+// only, cleaned again on arrival (before, a player saw it only after reconnecting). A host has NO branch for 'campFog'
+// [netcheck:campfogsync-start]
+net._lastCampFogSig = null;
+net.campFogMessage = function() { var camp = getActiveCampaign(), FCm = window.wpFogCore; if (!camp || !FCm || !FCm.cleanCampFog) return null; return { type: 'campFog', campId: camp.id, fog: FCm.cleanCampFog(camp.fog) }; };
+net.syncCampFog = function() {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.campFogMessage(); if (!msg) return;
+    var s = msg.campId + '\n' + JSON.stringify(msg.fog);
+    if (s === net._lastCampFogSig) return;
+    net._lastCampFogSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+};
+// [netcheck:campfogsync-end]
 // Turn-based combat T5b: who may pause, reset or stop an effect's countdown (camp.turnRules.timers) — a player's sheet shows the controls
 // only when they may. The join snapshot carries it; a change mid-session goes out the way a rename does, the one word only (the host
 // judges every press whatever a player's copy says). A host has NO branch for 'turnRules': a client never sets the table's rules.
@@ -3080,6 +3096,7 @@ function admitPlayer(conn, prof, provenKey) {
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
     var npm = net.newPlayersMessage(); if (npm) net._lastNewPlayersSig = newPlayersSig(npm);   // and the rules for players without a character (Onboarding F1a)
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
+    var cfm = net.campFogMessage(); if (cfm) net._lastCampFogSig = cfm.campId + '\n' + JSON.stringify(cfm.fog);   // and its fog defaults
     var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers;   // and who may press an effect's timer
     var lbm = net.libManifestMessage(); if (lbm && lbm.packs.length) { try { conn.send(lbm); } catch (e) { sendFailed(e); } }   // L3: the library players may look through, to this peer only
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
@@ -3773,6 +3790,16 @@ function handleMessage(msg, conn) {
         if (cds) campDS.docStyle = cds; else delete campDS.docStyle;
         try { if (window.wpDocReaderRestyle) window.wpDocReaderRestyle(msg.campId); } catch (e) {}
         try { if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet(); } catch (e) {}
+    } else if (msg.type === 'campFog' && net.role === 'client') {
+        // [netcheck:campfog-start]
+        // the hosted campaign's fog defaults changed mid-session: from the synced host only, for the hosted campaign, cleaned again (fogcore
+        // cleanCampFog); the fog is worked out afresh (its caches busted) and redrawn
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campFg = campOf(msg.campId), FCf = window.wpFogCore; if (!campFg || !FCf || !FCf.cleanCampFog) return;
+        campFg.fog = FCf.cleanCampFog(msg.fog);
+        if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+        // [netcheck:campfog-end]
     } else if (msg.type === 'campName' && net.role === 'client') {
         // [netcheck:campname-start]
         // the hosted campaign renamed mid-session: from the synced host only, for the hosted campaign, a string (cut to 200); the top bar

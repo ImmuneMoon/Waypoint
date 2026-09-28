@@ -18,13 +18,13 @@ function isOpen() { return !!st; }
 function close() { if (!st) return; clearTimeout(st.timer); clearTimeout(st.getTimer); document.removeEventListener('mousedown', st.outside, true); if (st.pop.parentNode) st.pop.parentNode.removeChild(st.pop); var a = st.opts.anchor; st = null; if (a && a.isConnected) try { a.focus({ preventScroll: true }); } catch (e) {} }
 function gmOnly(x) { return x.e.vis === 'gm' || x.p.vis === 'gm'; }
 
-// opts: { anchor, title, cats (the list's categories, or null), once (entry ids already carried on a list that holds each once), noQty,
+// opts: { anchor, title, cats (the list's categories — an empty list offers none — or null: every category), once (entry ids already carried on a list that holds each once), noQty,
 //         labels (stat key -> the list's label), gm, source: { packs() -> [{ id, name, icon, vis }], entries(packId) -> [entry] },
 //         onAdd(ids, qty, packOf) } — source may add load(progress) -> Promise, get(entry, pack, done), status() -> text (a player's, over the wire)
 function open(opts) {
     close();
     if (!opts || !opts.source || typeof opts.onAdd !== 'function') return;
-    var cats = Array.isArray(opts.cats) && opts.cats.length ? opts.cats.map(lc) : null;
+    var cats = Array.isArray(opts.cats) ? opts.cats.map(lc) : null;
     var pop = el('div', 'lib-pick'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Add from the library');
     st = { pop: pop, opts: opts, cats: cats, all: [], rows: [], hi: -1, picked: map(), q: '', pack: '', cat: null, timer: null, outside: null, full: map(), getTimer: null };   // cat: null every category ('' is "no category"); full: entries fetched for the preview
     buildAll();

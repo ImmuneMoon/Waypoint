@@ -660,6 +660,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && jj(P1.uploads.map(u => [u.name, u.body === 'BLOB' ? 'BLOB' : 'FILE'])) === jj([['Ana - framed.png', 'BLOB'], ['Ana.jpg', 'FILE']]) && P1.c.portrait === '/saves/images/m/up1.png' && P1.toks.every(t => t.src === '/saves/images/m/up1.png' && jj(t.frame) === jj({ src: '/saves/images/m/up2.png', x: 1, y: 2, s: 30, of: '/saves/images/m/up1.png' })) && P1.toks[0].frame !== P1.toks[1].frame && P1.saves === 1
             && P2.uploads.length === 1 && P2.toks.every(t => !('frame' in t)) && P3.opened[0].keep === undefined && P3.uploads.length === 1
             && jj(P4.uploads.map(u => u.name)) === jj(['Ana.jpg']) && P5.uploads.length === 0 && jj(P6.uploads.map(u => u.name)) === jj(['Ana.jpg']) && P7.opened[0].keep === true && jj(P7.uploads.map(u => u.name)) === jj(['Ana - framed.png']), jj([P1.opened[0], P1.uploads.map(u => u.name), P1.toks, P2.toks, P3.opened, P4.uploads.map(u => u.name)]));
+        // Onboarding F4: what came of a fill (sheets.js fillNote, run for real) names the file's own labels — text for a toast, never markup
+        const XPx = await import(modUrl('sheetexport.js')), fnS = slice('sheets.js', 'fillnote');
+        const sysN = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all' }], items: [], effects: [] };
+        const fnote = (a, j2) => new Function('getActiveCampaign', 'isCharFile', 'charFromJson', 'window', 'F', fnS + '\nreturn fillNote;')(() => ({ system: sysN }), XPx.isCharFile, XPx.charFromJson, { wpSystemCore: SCf }, () => null)(a, j2);
+        const evil = '<img src=x onerror=alert(1)>';
+        const cf = { format: 'waypoint-character', v: 1, name: 'V', system: { sig: 'x', fields: { f_q: { key: 'Q', kind: 'number', label: evil } } }, values: { f_q: 3 } };
+        const n1 = fnote({ auto: 2, left: 1 }, cf), n2 = fnote({ auto: 0, left: 0 }, { name: 'V', attributes: {} }), shN = read('sheets.js'), ioN = read('io.js');
+        check('Onboarding F4: what came of a fill is text — the host\'s counts and the file\'s own labels this campaign has no place for (a label that is markup stays text), shown only by toast, which writes textContent',
+            n1 === '2 parts filled in; 1 part could not be taken; not in this campaign: ' + evil + '.' && n2 === 'Nothing could be filled in.' && /toast\(a\.error \|\| fillNote\(a, j\)\)/.test(shN) && /toast\(fillNote\(b, j\)\)/.test(shN) && (shN.match(/fillNote\(/g) || []).length === 3
+            && /export function toast\(msg\) \{[\s\S]{0,120}document\.getElementById\('toastMsg'\)\.textContent = msg;/.test(ioN), JSON.stringify([n1, n2]));
+        const FXn = await import(modUrl('formula.js')), sysA = SCf.cleanSystem({ v: 1, name: 'A', rolls: [], fields: [{ id: 'f_lc', key: 'Locations', label: 'Locations', kind: 'item-list', vis: 'all', list: {} }] }, { F: FXn, gmView: false });
+        const nA = new Function('getActiveCampaign', 'isCharFile', 'charFromJson', 'window', 'F', fnS + '\nreturn fillNote;')(() => ({ system: sysA }), XPx.isCharFile, XPx.charFromJson, { wpSystemCore: SCf }, () => FXn)({ auto: 1, left: 0 }, { name: 'V', characteristics: { locations: [{ name: 'Left Arm', isAmputated: true }, { name: 'Torso' }] }, inventory: { general: [{ name: 'Rope' }] } });
+        check('Onboarding F4: a hit location left out because it is amputated is said so, never "not in this campaign" (that is for what the campaign has no place for)',
+            nA === '1 part filled in; not in this campaign: gear; left out as amputated: Left Arm.', nA);
+        // Onboarding F4b: a file's own picture (sheets.js filePicture, run for real) — framed first, only a PNG, JPEG or WebP data URL; else its own face
+        const netH = read('net.js'), hF = new Function('localStorage', 'crypto', netH.slice(netH.indexOf('// [netcheck:helpers-start]'), netH.indexOf('// [netcheck:helpers-end]')) + '\nreturn { cleanFace };')({ getItem: () => null, setItem() {} }, globalThis.crypto);
+        const fpS = slice('sheets.js', 'filepic');
+        const fpRun = (j2, o) => { o = o || {}; const out = { opened: [], pics: [], toasts: [] };
+            const win = o.noFrame ? {} : { wpFrame: { open(src, opts, cb) { out.opened.push({ type: src && src.type, size: src && src.size, opts }); if (o.refuse) return false; cb({ data: 'data:image/png;base64,FRAMED' }); return true; } } };
+            const r = new Function('net', 'toast', 'window', fpS + '\nreturn filePicture;')(() => ({ charPic: (id, face, img, cb) => { out.pics.push([id, face, img]); }, cleanFace: hF.cleanFace }), t => out.toasts.push(t), win)('c_1', j2);
+            return Object.assign(out, { r }); };
+        const png = 'data:image/png;base64,' + Buffer.from('PNGDATA').toString('base64');
+        const q1 = fpRun({ picture: png }), q2 = fpRun({ portrait: png }), q3 = fpRun({ picture: 'data:image/svg+xml;base64,PHN2Zz4=', face: '\u{1F409}' }), q4 = fpRun({ portrait: 'https://evil.example/x.png' }), q5 = fpRun({ face: 'photo' });
+        const q6 = fpRun({ picture: 'data:image/png;base64,' + 'A'.repeat(12 * 1024 * 1024 + 8) }), q7 = fpRun({ picture: png }, { noFrame: true }), q8 = fpRun({ picture: 'data:image/png;base64,AB<script>' }), q9 = fpRun({ face: '<img src=x>' });
+        check('Onboarding F4b: a file\'s own picture (filePicture, run for real) — a PNG, JPEG or WebP data URL (a character file\'s picture, a ShadowBase portrait) opens the token creator on its bytes (256 px, a data URL within 200,000) and goes as the character\'s picture (char-pic checks it again); an SVG, a web address, anything malformed or past 12 MB never does; else its own face (never "photo", nothing that is not a face); nothing without either',
+            q1.r === true && q1.opened.length === 1 && q1.opened[0].type === 'image/png' && q1.opened[0].size === 7 && q1.opened[0].opts.px === 256 && q1.opened[0].opts.as === 'data' && q1.opened[0].opts.max === 200000 && JSON.stringify(q1.pics) === JSON.stringify([['c_1', '', 'data:image/png;base64,FRAMED']])
+            && q2.opened.length === 1 && q3.opened.length === 0 && JSON.stringify(q3.pics) === JSON.stringify([['c_1', '\u{1F409}', '']]) && q4.r === false && q4.opened.length === 0 && q4.pics.length === 0 && q5.r === false && q5.pics.length === 0
+            && q6.opened.length === 0 && q7.r === false && q7.pics.length === 0 && q8.opened.length === 0 && q9.r === false && q9.pics.length === 0, JSON.stringify([q1, q3.pics, q4, q5, q9]));
     }
     delete global.window;
 

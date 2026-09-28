@@ -2093,6 +2093,7 @@ window.wpFitToGrid = fitToGrid;
       function rules() { var camp = getActiveCampaign(), S = window.wpSystemCore; if (!camp || !S || !S.newCharRules) return null; var on = !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false; return S.newCharRules(camp, on); }
       function canMake() { var r = rules(); return !!(r && r.create === 'live' && window.wpSheets && window.wpSheets.startMaking); }
       function canToken() { var r = rules(); return !!(r && r.justToken && window.wpNet && window.wpNet.charToken); }   // Onboarding F3b: Just a token (it follows making; always without sheets)
+      function canFile() { var r = rules(); return !!(r && r.create === 'live' && r.fromFile && window.wpSheets && window.wpSheets.startFromFile); }   // Onboarding F4b: start one from a file (where making is open and the table lets them)
       // Onboarding F3: with no waiting token (the GM's rule gives none, or removed theirs) a player who has no character of theirs and no token
       // may still make one; the card then shows by itself only where the rule gives no waiting token (a Remove never brings it back unasked)
       function bare() {
@@ -2104,8 +2105,9 @@ window.wpFitToGrid = fitToGrid;
       function text(t, mk) {
           var st = document.getElementById('joinCardStatus'), camp = getActiveCampaign(), m = t && camp && camp.items[t.mapId], mkOk = !mk && canMake(), jtOk = !mk && canToken();
           if (st) st.textContent = mk ? 'You are making ' + mk.name + ' \u2014 open it to fill it in, then press Done on its sheet.' : (t ? 'You don\u2019t have a character yet. Your token is waiting on ' + ((m && m.meta && m.meta.title) || 'the map') + ' \u2014 move it about; ' : 'You don\u2019t have a character yet \u2014 ') + (mkOk ? (t ? 'make a character' : 'make one') + ', or wait for your GM to give you one.' : jtOk ? 'take a token of your own, or wait for your GM to give you one.' : t ? 'your GM will give you a character.' : 'your GM will give you one.');
-          var bm = document.getElementById('joinCardMake'), bo = document.getElementById('joinCardOpen'), bf = document.getElementById('joinCardFaceBtn'), bj = document.getElementById('joinCardToken');
+          var bm = document.getElementById('joinCardMake'), bo = document.getElementById('joinCardOpen'), bf = document.getElementById('joinCardFaceBtn'), bj = document.getElementById('joinCardToken'), bfl = document.getElementById('joinCardFile');
           if (bm) bm.style.display = mkOk ? '' : 'none';
+          if (bfl) bfl.style.display = mkOk && canFile() ? '' : 'none';
           if (bj) bj.style.display = jtOk ? '' : 'none';
           if (bo) { bo.style.display = mk ? '' : 'none'; if (mk) bo.textContent = 'Open ' + mk.name; }
           if (bf) bf.style.display = t ? '' : 'none';   // its face is the waiting token's
@@ -2134,6 +2136,7 @@ window.wpFitToGrid = fitToGrid;
           var tg = e.target; if (!tg || !tg.closest) return;
           if (tg.closest('#joinCardMake')) { if (window.wpSheets && window.wpSheets.startMaking) window.wpSheets.startMaking(); return; }
           if (tg.closest('#joinCardToken')) { justToken(); return; }
+          if (tg.closest('#joinCardFile')) { if (window.wpSheets && window.wpSheets.startFromFile) window.wpSheets.startFromFile(); return; }
           if (tg.closest('#joinCardOpen')) { var mk = making(); if (mk && window.wpSheets && window.wpSheets.openSheet) window.wpSheets.openSheet(mk.id); }
       });
       document.addEventListener('click', function(e) { if (e.target.closest && e.target.closest('#joinCardClose')) { var card = document.getElementById('joinCard'); if (card) card.style.display = 'none'; dismissed = true; } });

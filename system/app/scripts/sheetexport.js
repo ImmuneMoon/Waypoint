@@ -39,6 +39,7 @@ function computedOf(f, e) {
     if (f.kind === 'toggle') return !!e.value;
     return typeof e.value === 'number' && isFinite(e.value) ? e.value : (e.text != null && e.text !== '' ? String(e.text) : null);
 }
+function itemIn(sys, id) { var hit = null; ((sys && Array.isArray(sys.items)) ? sys.items : []).forEach(function(it) { if (!hit && isObj(it) && it.id === id) hit = it; }); return hit; }
 // opts: { exported (an ISO time), gm (the GM's own copy: GM-only fields included), picture (a data URL of at most 200,000 characters) }
 function charToJson(sys, view, all, opts) {
     opts = opts || {};
@@ -50,6 +51,7 @@ function charToJson(sys, view, all, opts) {
             if (vals[f.id] !== undefined) {
                 var v = clone(vals[f.id]);
                 if (f.kind === 'effects' && Array.isArray(v)) v.forEach(function(r) { if (isObj(r)) delete r.t; });   // a countdown runs on the GM's clock: never in a file
+                if (f.kind === 'item-list' && Array.isArray(v)) v.forEach(function(r) { var it = isObj(r) && typeof r.defId === 'string' ? itemIn(sys, r.defId) : null; if (it) { if (typeof it.name === 'string' && it.name) r.name = it.name; if (typeof it.key === 'string' && it.key) r.key = it.key; } });   // Onboarding F4: its item's name, for a reader on another campaign
                 values[f.id] = v;   // a pool left full stays absent (read back, {cur: null} would be an empty pool)
             }
         }
@@ -64,6 +66,93 @@ function charToJson(sys, view, all, opts) {
     if (typeof opts.picture === 'string' && opts.picture.length <= PICTURE_MAX && PIC_RE.test(opts.picture)) out.picture = opts.picture;
     out.values = values;
     out.computed = computed;
+    return out;
+}
+
+/* ---------- Onboarding F4: a character file read back ---------- */
+// A character file (charToJson) as a fill for a character in the making (systemcore fillMaking), read on this campaign's PLAYERS' view (nothing
+// else is read, so no GM-only value is ever matched): each stored value by field id when the file was made on this very system (its signature),
+// else by key and kind, its type checked; its rows as the ops a hand would make — an item of the view by id, else by name (and key) through find
+// within the list's categories, else a row of its own with the players' fields — its facts as the list has them; its effects (one of the view's
+// by id, else its own changes, each on a field of the view). A GM's copy (gm), the numbers worked out (computed) and the system's name are never
+// read. { values, lists, ops, fxLists, fx, unmatched (the file's own labels, as text), lost (rows it could not place), name, face } or null
+var ROWS_MAX = 150, FX_MAX = 30;
+function charFromJson(view, j, find, findKey) {
+    if (!isCharFile(j) || j.v !== VERSION || !isObj(view) || !Array.isArray(view.fields)) return null;
+    var out = { values: {}, lists: [], ops: [], fxLists: [], fx: [], unmatched: [], lost: 0, name: typeof j.name === 'string' ? j.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 60) : '', face: typeof j.face === 'string' ? j.face.slice(0, 40) : '' };
+    var own = function(o, k) { return isObj(o) && Object.prototype.hasOwnProperty.call(o, k); };
+    var fileF = isObj(j.system) && isObj(j.system.fields) ? j.system.fields : {}, same = isObj(j.system) && j.system.sig === systemSig(view);
+    var byId = Object.create(null), byKey = Object.create(null), items = Object.create(null), effs = Object.create(null);
+    view.fields.forEach(function(f) { if (!isObj(f) || typeof f.id !== 'string' || !STORED[f.kind] || f.vis === 'gm') return; byId[f.id] = f; if (typeof f.key === 'string' && f.key) byKey[f.key.toLowerCase() + '|' + f.kind] = f; });
+    (Array.isArray(view.items) ? view.items : []).forEach(function(it) { if (isObj(it) && typeof it.id === 'string' && it.vis !== 'gm') items[it.id] = it; });
+    (Array.isArray(view.effects) ? view.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string' && d.vis !== 'gm') effs[d.id] = d; });
+    var target = function(fid) {   // the view's field for one of the file's
+        var ff = own(fileF, fid) ? fileF[fid] : null; if (!isObj(ff) || typeof ff.kind !== 'string') return null;
+        var kid = own(byId, fid) && byId[fid].kind === ff.kind ? byId[fid] : null, kk = typeof ff.key === 'string' && ff.key ? byKey[ff.key.toLowerCase() + '|' + ff.kind] || null : null;
+        return same ? (kid || kk) : (kk || kid);
+    };
+    var mods = function(ms) { return (Array.isArray(ms) ? ms.slice(0, 12) : []).map(function(m) { if (!isObj(m) || typeof m.f !== 'string') return null; var t = target(m.f); if (!t) return null; var o = { f: t.id, op: m.op }; if (m.v !== undefined) o.v = m.v; if (m.part) o.part = m.part; return o; }).filter(Boolean); };
+    var n = 0, pfx = Math.random().toString(36).slice(2, 6), rid = function(p) { n++; return p + 'f' + pfx + n.toString(36); };
+    var label = function(fid) { var ff = own(fileF, fid) ? fileF[fid] : null; return isObj(ff) ? String(ff.label || ff.key || 'A field').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60) : 'A field'; };
+    var catOk = function(cats, c) { var l = String(c == null ? '' : c).slice(0, 40).toLowerCase(); return !!l && cats.some(function(x) { return String(x).toLowerCase() === l; }); };
+    var rowsInto = function(f, rows) {
+        if (!Array.isArray(rows)) return;
+        if (out.lists.indexOf(f.id) < 0) out.lists.push(f.id);
+        var spec = isObj(f.list) ? f.list : {}, cats = Array.isArray(spec.cats) ? spec.cats : null;   // an empty list (every category of it GM-only) takes none
+        var named = function(nm, key) {
+            var hit = null, ok = function(e) { return isObj(e) && typeof e.id === 'string' && e.vis !== 'gm' && (!cats || catOk(cats, e.category)); };
+            if (typeof find === 'function' && typeof nm === 'string' && nm.trim()) (find(nm) || []).forEach(function(e) { if (!hit && ok(e) && (typeof key !== 'string' || !key || typeof e.key !== 'string' || !e.key || e.key.toLowerCase() === key.toLowerCase())) hit = e; });
+            return hit;
+        };
+        rows.slice(0, ROWS_MAX).forEach(function(r) {
+            if (!isObj(r)) return;
+            var id = rid('w_'), qty = typeof r.qty === 'number' && isFinite(r.qty) ? Math.max(1, Math.min(99, Math.round(r.qty))) : 1, def = isObj(r.def) ? r.def : null;
+            var nm = def && typeof def.name === 'string' ? def.name : typeof r.name === 'string' ? r.name : '', key = def && typeof def.key === 'string' ? def.key : typeof r.key === 'string' ? r.key : '';
+            var e = typeof r.defId === 'string' && own(items, r.defId) ? items[r.defId] : named(nm, key);
+            if (!e && r.lnk === 1 && key && typeof findKey === 'function') (findKey(key) || []).forEach(function(x) { if (!e && isObj(x) && typeof x.id === 'string' && x.vis !== 'gm' && (!cats || catOk(cats, x.category))) e = x; });   // a library copy with its own name ("Guns (Pistol)" over Guns): by its key
+            if (e) {
+                out.ops.push({ f: f.id, q: { op: 'add', defId: e.id, rowId: id, qty: qty } });
+                var ov = {}, src = isObj(r.ov) ? r.ov : def || {};
+                var nm2 = typeof src.name === 'string' ? src.name : ''; if (nm2 && nm2 !== e.name) ov.name = nm2;
+                if (isObj(src.stats) && Object.keys(src.stats).length) ov.stats = src.stats;
+                if (Object.keys(ov).length) out.ops.push({ f: f.id, q: { op: 'ov', rowId: id, ov: ov } });
+            } else if (def) {
+                var d = { name: nm.trim() ? nm : 'Item' }; ['icon', 'category', 'notes', 'key'].forEach(function(k) { if (typeof def[k] === 'string' && def[k]) d[k] = def[k]; });
+                if (isObj(def.stats)) d.stats = def.stats;
+                var ms = mods(def.mods); if (ms.length) { d.mods = ms; if (def.modsOn === true) d.modsOn = true; }
+                out.ops.push({ f: f.id, q: { op: 'custom', rowId: id, def: d } });
+                if (qty > 1 && !spec.noQty) out.ops.push({ f: f.id, q: { op: 'setQty', rowId: id, qty: qty } });
+            } else { out.lost++; return; }   // a pointer to an item this campaign does not have, with nothing to know it by
+            var facts = {};
+            if (isObj(spec.lvl) && typeof r.lvl === 'number' && isFinite(r.lvl)) facts.lvl = r.lvl;
+            if (isObj(spec.on) && typeof r.on === 'boolean') facts.on = r.on;
+            if (typeof r.note === 'string' && r.note.trim()) facts.note = r.note.slice(0, 200);
+            if (Array.isArray(spec.counters) && isObj(r.ct)) { var ct = {}; spec.counters.forEach(function(t) { if (!isObj(t) || typeof t.key !== 'string') return; Object.keys(r.ct).forEach(function(k) { if (k.toLowerCase() === t.key.toLowerCase() && typeof r.ct[k] === 'number' && isFinite(r.ct[k])) ct[t.key] = r.ct[k]; }); }); if (Object.keys(ct).length) facts.ct = ct; }   // the list's own counters
+            if (Object.keys(facts).length) out.ops.push({ f: f.id, q: { op: 'set', rowId: id, facts: facts } });
+        });
+    };
+    var fxInto = function(f, rows) {
+        if (!Array.isArray(rows)) return;
+        if (out.fxLists.indexOf(f.id) < 0) out.fxLists.push(f.id);
+        rows.slice(0, FX_MAX).forEach(function(r) {
+            if (!isObj(r)) return;
+            var id = rid('x_');
+            if (typeof r.ref === 'string' && own(effs, r.ref)) { out.fx.push({ f: f.id, q: { op: 'add', ref: r.ref, rowId: id } }); if (r.on === false) out.fx.push({ f: f.id, q: { op: 'on', rowId: id, on: false } }); return; }
+            if (typeof r.name === 'string' && r.name.trim()) out.fx.push({ f: f.id, q: { op: 'adhoc', row: { id: id, name: r.name, icon: typeof r.icon === 'string' ? r.icon : '', tone: typeof r.tone === 'string' ? r.tone : '', dur: typeof r.dur === 'string' ? r.dur : '', notes: typeof r.notes === 'string' ? r.notes : '', on: r.on !== false, mods: mods(r.mods) } } });
+        });
+    };
+    var vals = isObj(j.values) ? j.values : {};
+    Object.keys(vals).slice(0, 400).forEach(function(fid) {
+        if (!own(vals, fid)) return;
+        var f = target(fid), v = vals[fid]; if (!f) { out.unmatched.push(label(fid)); return; }
+        if (out.lists.indexOf(f.id) >= 0 || out.fxLists.indexOf(f.id) >= 0 || own(out.values, f.id)) return;   // one file field per field of the view (a list's rows stay within ROWS_MAX)
+        var k = f.kind;
+        if (k === 'item-list') { rowsInto(f, v); return; }
+        if (k === 'effects') { fxInto(f, v); return; }
+        var fits = k === 'number' || k === 'skill' ? typeof v === 'number' && isFinite(v) : k === 'toggle' ? typeof v === 'boolean' : k === 'resource' ? isObj(v) && typeof v.cur === 'number' && isFinite(v.cur) : typeof v === 'string';
+        if (!fits) { out.unmatched.push(label(fid)); return; }
+        out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
+    });
     return out;
 }
 
@@ -208,6 +297,6 @@ function sheetToMarkdown(sys, view, all, opts) {
     return docToMarkdown({ type: 'doc', meta: meta, blocks: B }).text;
 }
 
-var API = { FORMAT: FORMAT, VERSION: VERSION, fileBase: fileBase, isCharFile: isCharFile, gmOnlyError: gmOnlyError, systemSig: systemSig, charToJson: charToJson, sheetToMarkdown: sheetToMarkdown, statFmt: statFmt, statText: statText, fxChangeText: fxChangeText, itemCellText: itemCellText, valueText: valueText };
+var API = { FORMAT: FORMAT, VERSION: VERSION, fileBase: fileBase, isCharFile: isCharFile, gmOnlyError: gmOnlyError, systemSig: systemSig, charToJson: charToJson, charFromJson: charFromJson, sheetToMarkdown: sheetToMarkdown, statFmt: statFmt, statText: statText, fxChangeText: fxChangeText, itemCellText: itemCellText, valueText: valueText };
 if (typeof window !== 'undefined') window.wpSheetExport = API;
-export { FORMAT, VERSION, fileBase, isCharFile, gmOnlyError, systemSig, charToJson, sheetToMarkdown, statFmt, statText, fxChangeText, itemCellText, valueText };
+export { FORMAT, VERSION, fileBase, isCharFile, gmOnlyError, systemSig, charToJson, charFromJson, sheetToMarkdown, statFmt, statText, fxChangeText, itemCellText, valueText };

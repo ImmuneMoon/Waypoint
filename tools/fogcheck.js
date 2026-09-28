@@ -166,6 +166,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sIn = sc.every(p => cellKey(cellOf(p.x, p.y, sq), sq) === '2,2');
         return sc.length === 4 && hc.length === 6 && sIn; })());
 
+    /* ---- cover follow-ups (owner 2026-09-28): what a piece gives, see-over cover, cover from a point ---- */
+    {
+        const { coverRole, coverFromPoint, openSeat } = X;
+        const R = o => coverRole(Object.assign({ id: 'w', type: 'rect', x: 0, y: 0, w: 50, h: 50 }, o));
+        check('Cover: coverRole — a sight-blocker gives hard cover unless set to none; a piece set to give cover without blocking sight gives see-over (soft) cover; never a token, a waiting token, a hidden piece, an open door or a rotated shape but a circle; an odd value reads as its sight',
+            R({ blocksSight: true }) === 'hard' && R({ blocksSight: true, cover: 'no' }) === null && R({ cover: 'yes' }) === 'soft' && R({}) === null && R({ cover: 'no' }) === null
+            && R({ blocksSight: true, isChar: true }) === null && R({ cover: 'yes', isChar: true }) === null && R({ blocksSight: true, waiting: 1 }) === null && R({ blocksSight: true, hidden: true }) === null
+            && R({ blocksSight: true, sightType: 'door', doorOpen: true }) === null && R({ blocksSight: true, sightType: 'door' }) === 'hard' && R({ blocksSight: true, rot: 30 }) === null && R({ type: 'circle', blocksSight: true, rot: 30 }) === 'hard'
+            && R({ type: 'hexagon', blocksSight: true }) === 'hard' && R({ type: 'diamond', blocksSight: true }) === 'hard' && R({ blocksSight: true, cover: 'yes' }) === 'hard'
+            && R({ fill: true, blocksSight: true }) === 'hard' && R({ type: 'image', cover: 'yes' }) === null && R({ blocksSight: true, cover: 'Yes' }) === 'hard' && R({ cover: { toString: 'yes' } }) === null && coverRole(null) === null && coverRole('x') === null);
+        const wall = { '5,1': 1, '5,2': 1, '5,3': 1 }, a = { c: 2, r: 2 }, b = { c: 8, r: 2 };
+        const hardC = coverBetween(a, b, sq, wall), softC = coverBetween(a, b, sq, null, wall), bothC = coverBetween(a, b, sq, { '5,1': 1 }, { '5,2': 1, '5,3': 1 });
+        check('Cover: see-over cover blocks a line for the coverage but never the line of effect (never total); a wall still gives total; the pair takes its better side; a wall and a crate together block what either does; a union passed in is the one read',
+            hardC.lineOfEffect === false && softC.lineOfEffect === true && softC.blocked === softC.lines && softC.coverage > 0.9 && softC.coverage < 1 && bothC.lineOfEffect === true && bothC.blocked === bothC.lines
+            && coverBetween({ c: 5, r: 7 }, { c: 0, r: 5 }, sq, { '0,6': 1 }).blocked === 0 && coverBetween({ c: 0, r: 2 }, { c: 2, r: 0 }, sq, { '1,0': 1 }, { '0,1': 1 }).blocked === 1
+            && coverBetween(a, b, sq, null, { '9,9': 1 }, wall).blocked === 4 && coverBetween(a, b, sq, null, { '9,9': 1 }, wall).lineOfEffect === true && coverBetween(a, b, sq, null, null).blocked === 0, JSON.stringify([hardC, softC, bothC]));
+        const pa = cellCenter(a, sq), fOpen = coverFromPoint(pa.x, pa.y, b, sq, null, null), fWall = coverFromPoint(pa.x, pa.y, b, sq, wall, null), fSoft = coverFromPoint(pa.x, pa.y, b, sq, null, wall);
+        const fOwn = coverFromPoint(pa.x, pa.y, b, sq, { '2,2': 1 }, null), fSame = coverFromPoint(pa.x, pa.y, a, sq, wall, null), ha = { q: 0, r: 0 }, hb = { q: 4, r: 0 }, hp = cellCenter(ha, hx), fHex = coverFromPoint(hp.x, hp.y, hb, hx, null, null);
+        const fBad = coverFromPoint(NaN, 1, b, sq, wall, null), fPart = coverFromPoint(pa.x, pa.y, { c: 6, r: 8 }, sq, { '5,5': 1 }, null);
+        check('Cover: coverFromPoint (a blast\'s centre to a token\'s cell) — none in the open, total behind a wall, see-over cover never total, the point\'s own cell and the target\'s skipped, 4 lines on a square grid and 6 on a hex, partial behind a pillar; nothing from a bad point',
+            fOpen.blocked === 0 && fOpen.lines === 4 && fOpen.lineOfEffect === true && fWall.lineOfEffect === false && fWall.coverage < 1 && fSoft.lineOfEffect === true && fSoft.blocked === 4
+            && fOwn.blocked === 0 && fSame.lines === 0 && fHex.lines === 6 && fHex.blocked === 0 && fBad.lines === 0 && fPart.blocked > 0 && fPart.blocked < fPart.lines && fPart.lineOfEffect === true
+            && coverFromPoint(pa.x, pa.y, b, sq, { '0,9': 1 }, wall).lineOfEffect === true && coverFromPoint(pa.x, pa.y, b, sq, null, { '8,2': 1 }).blocked === 0 && coverFromPoint(pa.x, NaN, b, sq, wall, null).lines === 0
+            && coverFromPoint(pa.x, pa.y, b, sq, null, { '9,9': 1 }, wall).blocked === 4, JSON.stringify([fOpen, fWall, fSoft, fPart]));
+        // owner answer 5: a blast can't go off inside a wall or a closed door
+        const wallO = { '5,1': 1, '5,2': 1, '5,3': 1 }, pw = cellCenter({ c: 5, r: 2 }, sq);
+        const oL = openSeat(pw.x, pw.y, 125, 125, sq, wallO), oR = openSeat(pw.x, pw.y, 425, 125, sq, wallO), oClick = openSeat(pw.x, pw.y, pw.x - 20, pw.y, sq, wallO), oRing = openSeat(pw.x, pw.y, pw.x, pw.y, sq, wallO);
+        const oOpen = openSeat(125, 125, 25, 125, sq, wallO), oAll = openSeat(pw.x, pw.y, 125, 125, sq, new Proxy({}, { get: () => 1 })), oBad = openSeat(NaN, 1, 0, 0, sq, wallO), oNone = openSeat(pw.x, pw.y, 0, 0, sq, null);
+        const hW = { '2:0': 1 }, hp0 = cellCenter({ q: 2, r: 0 }, hx), hT = cellCenter({ q: 0, r: 0 }, hx), oHex = openSeat(hp0.x, hp0.y, hT.x, hT.y, hx, hW), oHexK = oHex && cellKey(cellOf(oHex.x, oHex.y, hx), hx);
+        const oj = JSON.stringify, oThick = openSeat(pw.x, pw.y, pw.x - 20, pw.y, sq, { '4,2': 1, '5,2': 1 });
+        const row5 = {}; for (let cc = 0; cc <= 40; cc++) row5[cc + ',5'] = 1;
+        const oShallow = openSeat(1025, 275, 25, 225, sq, row5), oShallow3 = openSeat(1025, 275, 25, 175, sq, row5);
+        const door = {}; for (let cc = 6; cc <= 20; cc++) door[cc + ',5'] = 1;
+        const oDoor = openSeat(625, 275, 525, 275, sq, door), oFar = openSeat(275, 225, 1e300, 225, sq, { '5,4': 1 }), oInf = openSeat(275, 225, Infinity, 225, sq, { '5,4': 1 });
+        const col5 = {}; for (let rr = 0; rr <= 20; rr++) col5['5,' + rr] = 1;
+        const oOblique = openSeat(275, 525, 0, 0, sq, col5), col45 = {}; for (let rr = 0; rr <= 20; rr++) { col45['4,' + rr] = 1; col45['5,' + rr] = 1; }
+        const oTwo = openSeat(275, 525, 25, 525, sq, col45);
+        const hCol = {}; for (let rr = -10; rr <= 10; rr++) hCol['3:' + rr] = 1;
+        const hHit = cellCenter({ q: 3, r: 4 }, hx), hThr = cellCenter({ q: 2, r: -6 }, hx), oHexS = openSeat(hHit.x, hHit.y, hThr.x, hThr.y, hx, hCol), oHexSK = oHexS && cellOf(oHexS.x, oHexS.y, hx);
+        check('Cover: openSeat — a point in a wall cell moves to the centre of the first open cell toward the thrower (either side), the open cell in front of the hit (not far along a wall hit at a shallow angle, never behind a thrower standing in a doorway, a far point by its direction), round a wall two cells thick, on the thrower\'s side of one even when the far side is nearer; an open cell, no walls, a bad point or walls all round: null; hex too',
+            oj(oL) === oj({ x: 225, y: 125 }) && oj(oR) === oj({ x: 325, y: 125 }) && oj(oClick) === oj({ x: 225, y: 125 }) && !!oRing && (oj(oRing) === oj({ x: 225, y: 125 }) || oj(oRing) === oj({ x: 325, y: 125 }))
+            && oj(oThick) === oj({ x: 275, y: 75 }) && oOpen === null && oAll === null && oBad === null && oNone === null && !!oHexK
+            && oj(oShallow) === oj({ x: 1025, y: 225 }) && oj(oShallow3) === oj({ x: 1025, y: 225 }) && !!oDoor && Math.hypot(oDoor.x - 625, oDoor.y - 275) < 75 && !door[cellKey(cellOf(oDoor.x, oDoor.y, sq), sq)]
+            && oj(oFar) === oj({ x: 325, y: 225 }) && !!oInf && Math.hypot(oInf.x - 275, oInf.y - 225) === 50 && oj(oOblique) === oj({ x: 225, y: 525 }) && oj(oTwo) === oj({ x: 175, y: 525 })
+            && !!oHexSK && oHexSK.q === 2 && Math.hypot(oHexS.x - hHit.x, oHexS.y - hHit.y) < hx.s * 1.8 && !hW[oHexK] && Math.abs(oHex.x - hp0.x) < hp0.x - hT.x, oj([oL, oR, oClick, oRing, oHex]));
+    }
     /* ---- union + revealed test + manual ---- */
     check('revealedKeys unions viewers and applies manual adds/cuts; pointRevealed tests a board point', (() => {
         const v1 = { x: 125, y: 125, range: 1, ruleset: 'dnd' };
@@ -259,6 +305,60 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const k0 = Object.keys(FM(mapM, {}, grid).keys || {}); area.x = 200; const k1 = Object.keys(FM(mapM, {}, grid).keys || {}); const k2 = Object.keys(FM(mapM, {}, grid).keys || {});
         check('Fog play areas: a play area dragged live masks its new footprint before the map is saved (the mask follows the areas\' own positions), and the same position reads the cached mask',
             k0.length === 1 && k1.length === 1 && k0[0] !== k1[0] && JSON.stringify(k1) === JSON.stringify(k2), JSON.stringify([k0, k1]));
+        // cover follow-ups: fog.js's cover — a map's pieces (coverSetsFor), the ruler (coverBetween), a blast point to a token (coverAt), where a
+        // thrown blast goes off (blastSeat) and the caches' reset (invalidateVision) — sliced and run strict on the real fogcore
+        const js = JSON.stringify, lineOf = a => { const i = fogSrc.indexOf(a), k = fogSrc.indexOf(NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogSrc.slice(i, k + 1); };
+        let campCv = { system: { combat: { cover: { on: true } } } }, mapNow = null;
+        const CV = new Function('core', 'activeCamp', 'activeMap', 'gridForMap', 'window', "'use strict'; var _coverCache = Object.create(null), _coverStamp = Object.create(null), _keyCache, _blockerCache, _blockerStamp, _maskCache, _maskStamp;" + NL
+            + lineOf('function invalidateVision()') + lineOf('function coverOn(') + cut('function footprintCells(') + cut('function coverBetween(x1') + cut('function coverSetsFor(') + cut('function coverAt(') + cut('function blastSeat(')
+            + NL + 'return { coverSetsFor: coverSetsFor, coverAt: coverAt, coverBetween: coverBetween, blastSeat: blastSeat, invalidateVision: invalidateVision };')(
+            () => FC, () => campCv, () => mapNow, () => grid, { wpSystemCore: { coverTier: (sys, coverage, lineOfEffect) => ({ coverage: coverage, lineOfEffect: lineOfEffect }) } });
+        const keysOf = cells => cells.map(c => FC.cellKey(c, grid)).sort();
+        const wall = { id: 'wall', type: 'rect', x: 100, y: 0, w: 50, h: 50, blocksSight: true }, crate = { id: 'crate', type: 'circle', x: 100, y: 100, w: 50, h: 50, cover: 'yes' };
+        const tokC = { id: 'tok', type: 'circle', isChar: true, blocksSight: true, x: 100, y: 200, w: 50, h: 50 }, gone = { id: 'gone', type: 'rect', x: 100, y: 300, w: 50, h: 50, blocksSight: true, hidden: true };
+        const mapC = { id: 'mc', meta: { updated: 1 }, whiteboard: [wall, crate, tokC, gone] };
+        const cs1 = CV.coverSetsFor(mapC, grid), cs2 = CV.coverSetsFor(mapC, grid);
+        const hardK = Object.keys((cs1 && cs1.hard) || {}).sort(), softK = Object.keys((cs1 && cs1.soft) || {}).sort(), allK = Object.keys((cs1 && cs1.all) || {}).sort();
+        crate.cover = 'no'; const cs2b = CV.coverSetsFor(mapC, grid); mapC.meta.updated = 2; const cs3 = CV.coverSetsFor(mapC, grid);
+        crate.cover = 'yes'; const cs4 = CV.coverSetsFor(mapC, grid); CV.invalidateVision(); const cs5 = CV.coverSetsFor(mapC, grid);
+        check('Cover: a map\'s cover pieces (fog.js coverSetsFor, run strict) — a sight-blocker is hard cover, a see-over piece soft, never a token or a hidden piece; all is their union; the same saved stamp reads the cache until invalidateVision, a new stamp recomputes (a piece set to no cover drops out)',
+            js(hardK) === js(keysOf(FC.cellsUnderRect(100, 0, 50, 50, grid))) && js(softK) === js(keysOf(FC.cellsUnderCircle(100, 100, 50, 50, grid))) && hardK.length > 0 && softK.length > 0 && cs2 === cs1
+            && js(allK) === js(hardK.concat(softK).sort()) && cs2b === cs1 && !!cs3 && !cs3.soft && js(Object.keys(cs3.hard).sort()) === js(hardK) && cs3.all === cs3.hard && cs4 === cs3 && !!cs5 && !!cs5.soft, js([hardK, softK, allK, cs3]));
+        // the cells cap (6,000): walls and see-over cells counted once each, together
+        const big = { id: 'big', type: 'rect', x: 0, y: 1000, w: 50 * 100, h: 50 * 59, blocksSight: true }, rowS = { id: 'rowS', type: 'rect', x: 0, y: 0, w: 50 * 150, h: 50, cover: 'yes' };
+        const onW = { id: 'onW', type: 'rect', x: 0, y: 1000, w: 50 * 150, h: 50, cover: 'yes' }, huge = { id: 'huge', type: 'rect', x: 0, y: 0, w: 50 * 100, h: 50 * 61, blocksSight: true };
+        const capA = CV.coverSetsFor({ id: 'ca', meta: { updated: 1 }, whiteboard: [big, rowS] }, grid), capB = CV.coverSetsFor({ id: 'cb', meta: { updated: 1 }, whiteboard: [big, onW] }, grid), capC = CV.coverSetsFor({ id: 'cc', meta: { updated: 1 }, whiteboard: [huge] }, grid);
+        check('Cover: the cells cap — walls and see-over cells over it together keep the walls\' cover and drop the see-over pieces; a see-over cell on a wall counts once; walls alone over it give no cover (fail open, as sight)',
+            FC.LIMITS.blockerCells === 6000 && !!capA && Object.keys(capA.hard).length === 5900 && capA.soft === null && capA.all === capA.hard && !!capB && Object.keys(capB.soft).length === 150 && Object.keys(capB.all).length === 5950 && capC === null,
+            js([capA && Object.keys(capA.hard).length, capA && capA.soft, capB && capB.soft && Object.keys(capB.soft).length, capC]));
+        // a wall column (2,1)-(2,3), a see-over crate at (2,6), a token that blocks sight at (2,8): the ruler and a blast read the pieces, never the token
+        const colW = { id: 'colW', type: 'rect', x: 100, y: 50, w: 50, h: 150, blocksSight: true }, crateB = { id: 'crateB', type: 'rect', x: 100, y: 300, w: 50, h: 50, cover: 'yes' }, tokW = { id: 'tokW', type: 'circle', isChar: true, blocksSight: true, x: 100, y: 400, w: 50, h: 50 };
+        mapNow = { id: 'mr', meta: { updated: 1 }, whiteboard: [colW, crateB, tokW] };
+        const rW = CV.coverBetween(25, 125, 225, 125), rS = CV.coverBetween(25, 325, 225, 325), rT = CV.coverBetween(25, 425, 225, 425);
+        const tokR = { id: 'tokR', x: 200, y: 100, w: 50, h: 50 }, tokS = { id: 'tokS', x: 200, y: 300, w: 50, h: 50 };
+        const aW = CV.coverAt(25, 125, tokR, mapNow), aS = CV.coverAt(25, 325, tokS, mapNow), aEmpty = CV.coverAt(25, 125, tokR, { id: 'me', meta: { updated: 1 }, whiteboard: [] });
+        check('Cover: the ruler (fog.js coverBetween) and a blast\'s cover (coverAt), run strict — total through a wall, partial past a see-over crate (never total), none past a token even one that blocks sight; a map with no pieces has no cover',
+            !!rW && rW.lineOfEffect === false && !!rS && rS.lineOfEffect === true && rS.coverage > 0 && !!rT && rT.coverage === 0 && rT.lineOfEffect === true
+            && !!aW && aW.lineOfEffect === false && !!aS && aS.lineOfEffect === true && aS.coverage > 0 && aEmpty === null, js([rW, rS, rT, aW, aS, aEmpty]));
+        // a 2x2 token half behind a pillar: its most exposed cells count (its centre's cell alone reads total)
+        const pill = { id: 'pill', type: 'rect', x: 250, y: 150, w: 50, h: 50, blocksSight: true }, mapL = { id: 'ml', meta: { updated: 1 }, whiteboard: [pill] };
+        const aL = CV.coverAt(125, 175, { id: 'bigT', x: 300, y: 100, w: 100, h: 100 }, mapL), aLc = CV.coverAt(125, 175, { id: 'one', x: 350, y: 150, w: 50, h: 50 }, mapL), aTiny = CV.coverAt(125, 175, { id: 'tiny', x: 355, y: 155, w: 10, h: 10 }, mapL);
+        const T22 = { id: 'b22', x: 300, y: 100, w: 100, h: 100 }, onMap = (id, piece) => ({ id: id, meta: { updated: 1 }, whiteboard: [Object.assign({ type: 'rect', w: 50, h: 50, blocksSight: true }, piece)] });
+        const aL1 = CV.coverAt(125, 125, T22, onMap('ml1', { id: 'p1', x: 250, y: 100 })), aL2 = CV.coverAt(125, 175, T22, onMap('ml2', { id: 'p2', x: 200, y: 150 })), aL3 = CV.coverAt(125, 175, T22, onMap('ml3', { id: 'p3', x: 150, y: 100 }));
+        const aSmall = CV.coverAt(125, 125, { id: 'small', x: 280, y: 80, w: 40, h: 40 }, onMap('ms', { id: 'pS', x: 250, y: 100 }));
+        const aInWall = CV.coverAt(175, 425, { id: 'inw', x: 250, y: 400, w: 100, h: 50 }, onMap('mw', { id: 'colL', x: 250, y: 0, h: 1000 })), aHuge = CV.coverAt(125, 125, { id: 'huge', x: 0, y: 0, w: 1e6, h: 1e6 }, onMap('mh', { id: 'pH', x: 250, y: 100 }));
+        check('Cover: a large token is as exposed as its most exposed cell (a 2x2 token half behind a pillar has partial cover, not total; a covered cell first, cells of different cover, one cell covered); a cell of it inside a wall does not count; one covering no cell centre is measured to its centre\'s cell; a vast box never lists its cells',
+            !!aL && aL.lineOfEffect === true && aL.coverage > 0 && !!aLc && aLc.lineOfEffect === false && !!aTiny && aTiny.lineOfEffect === false
+            && !!aL1 && aL1.lineOfEffect === true && aL1.coverage === 0.5 && !!aL2 && aL2.coverage === 0.5 && !!aL3 && aL3.lineOfEffect === true && aL3.coverage === 0
+            && !!aSmall && aSmall.lineOfEffect === false && !!aInWall && aInWall.lineOfEffect === false && !!aHuge, js([aL, aLc, aTiny, aL1, aL2, aL3, aSmall, aInWall, aHuge]));
+        // owner answer 5: a thrown blast seated in a wall goes off in front of it, on the thrower's side
+        const sW = CV.blastSeat(mapNow, 125, 125, 25, 125), sFar = CV.blastSeat(mapNow, 125, 125, 400, 125), sOpen = CV.blastSeat(mapNow, 25, 125, 400, 125), sCrate = CV.blastSeat(mapNow, 125, 325, 25, 325), sEmpty = CV.blastSeat({ id: 'me2', meta: { updated: 1 }, whiteboard: [crateB] }, 125, 125, 25, 125);
+        campCv = { system: { combat: { cover: { on: false } } } };
+        const offA = CV.coverAt(25, 125, tokR, mapNow), offR = CV.coverBetween(25, 125, 225, 125), offS = CV.blastSeat(mapNow, 125, 125, 25, 125);
+        campCv = { system: { combat: { cover: { on: true } } } };
+        check('Cover: a blast seated in a wall (blastSeat, run strict) goes off in the open cell in front of it, toward the thrower (either side); an open cell, a see-over crate\'s cell or a map with no walls leave it; with cover off (the default) the ruler, a blast\'s cover and its seat work nothing out',
+            js(sW) === js({ x: 75, y: 125 }) && js(sFar) === js({ x: 175, y: 125 }) && sOpen === null && sCrate === null && sEmpty === null && offA === null && offR === null && offS === null, js([sW, sFar, sOpen, sCrate, sEmpty, offA, offR, offS]));
+        check('Cover: window.wpFog publishes the blast\'s cover and its seat', /coverAt: coverAt, blastSeat: blastSeat,/.test(fogSrc) && /coverBetween: coverBetween,/.test(fogSrc));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

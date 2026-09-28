@@ -849,7 +849,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           var marksEl = el.querySelector(':scope > .target-marks');
           if (tgs.length) {
               if (!marksEl) { marksEl = document.createElement('div'); marksEl.className = 'target-marks'; el.appendChild(marksEl); }
-              var tsig = tgs.map(function(t) { return t.id; }).join(',');
+              var tcov = tgs.map(function(t) { var mt = targeterTok(t.id, activeMap); if (!mt || !window.wpFog || !window.wpFog.coverBetween) return null; return window.wpFog.coverBetween(mt.x + (mt.w || 60) / 2, mt.y + (mt.h || 52) / 2, item.x + (item.w || 60) / 2, item.y + (item.h || 52) / 2); });   // cover follow-ups (owner 2026-09-28): the cover between each targeter's token here and this one, worked out from this viewer's own board
+              var tsig = tgs.map(function(t, ti) { return t.id + ':' + (tcov[ti] ? tcov[ti].name : ''); }).join(',');
               if (marksEl.dataset.sig !== tsig) {
                   marksEl.dataset.sig = tsig;
                   var n = tgs.length, side = Math.min(item.w || 60, item.h || 52);
@@ -857,11 +858,13 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                   var size = n <= 3 ? Math.round(side * 0.34) : n <= 8 ? Math.round(side * 0.26) : n <= 15 ? Math.round(side * 0.2) : Math.round(side * 0.15);
                   marksEl.style.setProperty('--mark', size + 'px');
                   marksEl.title = 'Targeted by ' + tgs.map(function(t) { return t.name; }).join(', ');
-                  marksEl.innerHTML = tgs.map(function(t) {
-                      var mine = targeterToken(t.id);
+                  marksEl.innerHTML = tgs.map(function(t, ti) {
+                      var mine = targeterToken(t.id), cv = tcov[ti], tip = esc(t.name + (cv ? ' \u2014 ' + cv.name : ''));
+                      var cvHtml = cv ? '<span class="target-cover" title="' + esc(cv.name) + '">' + (TARGET_COVER_GLYPH[cv.name] || '\u25d0') + '</span>' : '';
+                      var pair = function(mk) { return cv ? '<span class="target-pair">' + mk + cvHtml + '</span>' : mk; };   // a mark and its cover tag wrap as one
                       var ini = String(t.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
-                      if (mine && mine.src) return '<img class="target-mark" src="' + esc(resolveImg(mine.src)) + '" alt="" title="' + esc(t.name) + '" style="border-color:hsl(' + t.hue + ',75%,55%);">';
-                      return '<span class="target-mark target-mark-ini" title="' + esc(t.name) + '" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>';
+                      if (mine && mine.src) return pair('<img class="target-mark" src="' + esc(resolveImg(mine.src)) + '" alt="" title="' + tip + '" style="border-color:hsl(' + t.hue + ',75%,55%);">');
+                      return pair('<span class="target-mark target-mark-ini" title="' + tip + '" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>');
                   }).join('');
               }
               el.classList.toggle('targeted-by-me', tgs.some(function(t) { return t.id === window.wpNet.myId; }));
@@ -2016,10 +2019,17 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), cs = camp && camp.chars, c = w && w.charId && cs && Object.prototype.hasOwnProperty.call(cs, w.charId) ? cs[w.charId] : null;
       return c && typeof c === 'object' && !c.npc && typeof c.ownerId === 'string' ? c.ownerId : '';
   }
+  var TARGET_COVER_GLYPH = { 'Half cover': '\u00bd', 'Three-quarters cover': '\u00be', 'Total cover': '\u25a0', 'Cover': '\u25d0' };   // cover follow-ups: the tag beside a target mark (the tier's name in its title)
+  // The token a targeter acts from on a map: the picture token their mark's face shows (their character's before a pet), else any token of
+  // theirs (their character's first). Cover follow-ups: the target mark's cover tag measures from this same token
+  function targeterTok(pid, m) {
+      var own = (m && m.type === 'map' ? (m.whiteboard || []) : []).filter(function(w) { return w.isChar && w.ownerId === pid; }), pic = function(w) { return w.type === 'image' && w.src; };
+      return own.find(function(w) { return pic(w) && w.charId; }) || own.find(pic) || own.find(function(w) { return w.charId; }) || own[0] || null;
+  }
   function targeterToken(pid) {
       var camp = getActiveCampaign(); if (!camp) return null;
       var am = getActiveMap();
-      var find = function(m) { var wb = m && m.type === 'map' ? (m.whiteboard || []) : [], ok = function(w) { return w.isChar && w.ownerId === pid && w.type === 'image' && w.src; }; return wb.find(function(w) { return ok(w) && w.charId; }) || wb.find(ok); };   // their character before a pet
+      var find = function(m) { var w = targeterTok(pid, m); return w && w.type === 'image' && w.src ? w : null; };   // their character before a pet
       var t = find(am);
       if (!t) { var ids = Object.keys(camp.items); for (var i = 0; i < ids.length && !t; i++) t = find(camp.items[ids[i]]); }
       return t ? { src: t.src, name: t.charName || t.name || '' } : null;
@@ -3015,7 +3025,8 @@ window.wpFitToGrid = fitToGrid;
           if (!window.wpNet || !window.wpNet.active || window.wpNet.role === 'host') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (r.d > rYd + 1e-9) return;
-              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + _r1(r.d) + ' yd' + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + _r1(Math.abs(r.v)) + ')' : '') + '</text>';
+              var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory)
+              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + _r1(r.d) + ' yd' + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + _r1(Math.abs(r.v)) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
           });
           html += '</g>';
       });
@@ -3062,10 +3073,14 @@ window.wpFitToGrid = fitToGrid;
       var map = getActiveMap(); if (!map || !opts) return null;
       var ft = Math.max(1, Math.min(3000, Math.round(opts.ft || 0))) || 12;
       var b = { x: opts.x, y: opts.y, ft: ft, name: opts.name || '', elev: (opts.elev !== undefined ? opts.elev : 0), autoElev: opts.elev === undefined, thrown: true, by: opts.by || '' };
-      seatBlast(b); pushBlast(b); renderMeasures(); syncBlastMenu();
+      seatBlast(b);
+      var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
+      var seatB = window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
+      if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y); b.elev = underB ? tokenElevation(underB) : 0; } }
+      pushBlast(b); renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id);   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
-      toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.');
+      toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (seatB ? ' It went off in front of the wall or door it hit.' : ''));
       resolveThrow(b, opts, n);
       return b;
   }
@@ -3088,13 +3103,16 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, map = getActiveMap();
       if (!sys || !S || !F || !map) return;
       if (!hpId) { toast('Full auto is on, but no damage resource is set (System editor \u25b8 Items \u25b8 Damage subtracts from).'); return; }
-      var rYd = blastRadiusYd(b), hits = [], applied = 0;
+      var rYd = blastRadiusYd(b), hits = [], applied = 0, halved = 0, shielded = 0;
       blastDistances(b, map).forEach(function(r) {
           if (r.d > rYd + 1e-9 || !r.tok.charId) return;
           var ch = camp.chars && camp.chars[r.tok.charId]; if (!ch) return;
+          var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, total) : total;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
+          if (ocC === 'none' && total > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
           var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
           var cur = typeof e.value === 'number' ? e.value : 0;
-          var res = S.applyEdit(sys, ch, hpId, { cur: cur - total }, F, {}); if (!res.ok) return;
+          var res = S.applyEdit(sys, ch, hpId, { cur: cur - dmgC }, F, {}); if (!res.ok) return;
+          if (ocC === 'half' && dmgC < total) halved++;
           var prev = ch.values && Object.prototype.hasOwnProperty.call(ch.values, hpId) ? JSON.parse(JSON.stringify(ch.values[hpId])) : undefined;
           ch.values = ch.values || {}; ch.values[hpId] = res.value; ch.updated = Date.now();
           hits.push({ charId: r.tok.charId, hpId: hpId, prev: prev });
@@ -3102,7 +3120,9 @@ window.wpFitToGrid = fitToGrid;
           if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(r.tok.charId);
           applied++;
       });
-      if (applied) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast('\u2212' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's') + '. Undo last throw in the \ud83d\udca5 menu.'); }
+      var coverNote = (halved ? ' \u00b7 ' + halved + ' behind cover took less' : '') + (shielded ? ' \u00b7 ' + shielded + ' shielded by cover' : '');   // counts only: never a name (a hidden token counts too)
+      if (applied) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast('\u2212' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's') + coverNote + '. Undo last throw in the \ud83d\udca5 menu.'); }
+      else if (shielded) toast('No damage: ' + shielded + ' token' + (shielded === 1 ? '' : 's') + ' shielded by cover.');
   }
   // Undo the last full-auto throw's damage: restore every affected character's health, host-synced.
   window.wpUndoThrow = function() {

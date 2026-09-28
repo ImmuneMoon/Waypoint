@@ -159,29 +159,84 @@ function cellCorners(cell, grid) {
 // EITHER side. Returns { lines, blocked, coverage(0..<1), lineOfEffect }. blockers is the fog opaque-cell key set;
 // null/empty → fully clear. coverage stays strictly below 1 so "4/4 corners" reads as heavy-but-partial cover, while
 // TOTAL cover is signalled only by lineOfEffect:false (no clear line from any corner) — the two are never conflated.
-function coverBetween(aCell, bCell, grid, blockers) {
+// soft (cover follow-ups, owner 2026-09-28): the cells of see-over cover (a crate, a low wall) — they block a line for the coverage count but
+// never the line of effect, so they give half or three-quarters, never total. Absent: exactly as before. all: their union when the caller keeps
+// one (fog.js builds it once per map), else built here
+function coverBetween(aCell, bCell, grid, blockers, soft, all) {
     var out = { lines: 0, blocked: 0, coverage: 0, lineOfEffect: true };
     if (!aCell || !bCell || !grid) return out;
     var aKey = cellKey(aCell, grid), bKey = cellKey(bCell, grid);
     if (aKey === bKey) return out;                       // same cell: no cover
     var ca = cellCorners(aCell, grid), cb = cellCorners(bCell, grid), n = Math.min(ca.length, cb.length);
     out.lines = n;
-    if (!blockers || n <= 0) return out;                 // no blockers → fully clear
-    var skip = Object.create(null); skip[aKey] = 1; skip[bKey] = 1;
-    var side = function(src, dst) {                      // fewest blocked lines from any one src corner to all dst corners
+    if ((!blockers && !soft) || n <= 0) return out;      // no blockers → fully clear
+    var skip = Object.create(null), every = all || unionSets(blockers, soft); skip[aKey] = 1; skip[bKey] = 1;
+    var side = function(src, dst, set) {                 // fewest blocked lines from any one src corner to all dst corners
         var best = dst.length;
         for (var i = 0; i < src.length; i++) {
             var blk = 0;
-            for (var j = 0; j < dst.length; j++) if (!segClear(src[i].x, src[i].y, dst[j].x, dst[j].y, grid, blockers, skip)) blk++;
+            for (var j = 0; j < dst.length; j++) if (!segClear(src[i].x, src[i].y, dst[j].x, dst[j].y, grid, set, skip)) blk++;
             if (blk < best) best = blk;
         }
         return best;
     };
-    var mb = Math.min(side(ca, cb), side(cb, ca));
+    var mb = Math.min(side(ca, cb, every), side(cb, ca, every)), hb = !soft ? mb : blockers ? Math.min(side(ca, cb, blockers), side(cb, ca, blockers)) : 0;
     out.blocked = mb > n ? n : mb;
-    out.lineOfEffect = out.blocked < n;                  // the best corner still has at least one clear line
+    out.lineOfEffect = hb < n;                           // the best corner still has at least one clear line past the walls (see-over cover never shuts it)
     out.coverage = Math.min(out.blocked / n, 0.999);
     return out;
+}
+function unionSets(a, b) { if (!b) return a; var u = Object.create(null), k; if (a) for (k in a) u[k] = 1; for (k in b) u[k] = 1; return u; }
+// Cover follow-ups: the cover a board POINT (a blast's centre) has to a cell — its lines to the cell's corners (4 on a square grid, 6 on a hex),
+// the point's own cell and the target's skipped; the same shape and rules as coverBetween (a point has no corner to choose, so no best side)
+function coverFromPoint(px, py, bCell, grid, blockers, soft, all) {
+    var out = { lines: 0, blocked: 0, coverage: 0, lineOfEffect: true };
+    if (!bCell || !grid || !fin(px) || !fin(py)) return out;
+    var aKey = cellKey(cellOf(px, py, grid), grid), bKey = cellKey(bCell, grid);
+    if (aKey === bKey) return out;
+    var cb = cellCorners(bCell, grid); out.lines = cb.length;
+    if (!blockers && !soft) return out;
+    var skip = Object.create(null); skip[aKey] = 1; skip[bKey] = 1;
+    var cnt = function(set) { var b = 0; for (var j = 0; j < cb.length; j++) if (!segClear(px, py, cb[j].x, cb[j].y, grid, set, skip)) b++; return b; };
+    out.blocked = cnt(all || unionSets(blockers, soft));
+    out.lineOfEffect = (soft ? (blockers ? cnt(blockers) : 0) : out.blocked) < out.lines;
+    out.coverage = Math.min(out.blocked / out.lines, 0.999);
+    return out;
+}
+// Cover follow-ups (owner 2026-09-28, answer 5): a blast can't go off inside a wall or a closed door (a cell of `blocked`). The centre of the
+// open cell in front of it, within four cells of the hit: first one with a clear line to (tx, ty) (the thrower's token, else where the click
+// landed: the thrower's side), then the nearest to the hit, then one facing that way, then the nearest to (tx, ty). A far point counts by its
+// direction (the line is bounded). null when the hit cell is open (nothing to move) or no open cell is that near
+function openSeat(px, py, tx, ty, grid, blocked) {
+    if (!grid || !blocked || !fin(px) || !fin(py)) return null;
+    var hit = cellOf(px, py, grid); if (!blocked[cellKey(hit, grid)]) return null;
+    var hc = cellCenter(hit, grid), gap = grid.type === 'square' ? grid.size : grid.s * Math.sqrt(3), R = 4;
+    var ax = fin(tx) && fin(ty) ? tx - hc.x : 0, ay = fin(tx) && fin(ty) ? ty - hc.y : 0, d = Math.hypot(ax, ay), toward = isFinite(d) && d > 1e-6;
+    if (toward && d > gap * 200) { ax = ax / d * gap * 200; ay = ay / d * gap * 200; }
+    var sx = hc.x + ax, sy = hc.y + ay, skip = Object.create(null), best = null, bk = null;
+    if (toward) skip[cellKey(cellOf(sx, sy, grid), grid)] = 1;    // the thrower's own cell never blocks (a token in a doorway)
+    var less = function(a, b) { for (var n = 0; n < a.length; n++) if (a[n] !== b[n]) return a[n] < b[n]; return false; };
+    for (var i = -R; i <= R; i++) for (var j = -R; j <= R; j++) {
+        var c = grid.type === 'square' ? { c: hit.c + i, r: hit.r + j } : { q: hit.q + i, r: hit.r + j };
+        if (blocked[cellKey(c, grid)]) continue;
+        var ce = cellCenter(c, grid), near = Math.hypot(ce.x - hc.x, ce.y - hc.y), ring = Math.round(near / gap);
+        if (ring < 1 || ring > R) continue;
+        var key = [toward && segClear(ce.x, ce.y, sx, sy, grid, blocked, skip) ? 0 : 1, Math.round(near), toward && (ce.x - hc.x) * ax + (ce.y - hc.y) * ay > 0 ? 0 : 1, toward ? Math.round(Math.hypot(ce.x - sx, ce.y - sy)) : 0];
+        if (!bk || less(key, bk)) { bk = key; best = ce; }
+    }
+    return best;
+}
+// Cover follow-ups (owner 2026-09-28): what a board piece gives as cover — 'hard' (it blocks sight: a wall, a pillar, a closed door, unless set to
+// no cover), 'soft' (set to give cover without blocking sight: a crate, a low wall — never total), or null. Never a token (a token is not cover,
+// and its absence from a fogged player's board would split the host's cover from theirs), a hidden piece, an open door or a rotated shape other
+// than a circle. w.cover: 'yes' | 'no' | absent (as its sight) — read by comparison only (an import's value can be anything)
+function coverRole(w) {
+    if (!w || typeof w !== 'object' || w.hidden || w.isChar || w.waiting) return null;
+    if (w.sightType === 'door' && w.doorOpen) return null;
+    var shapeOk = w.type === 'circle' || (!w.rot && (!!w.fill || w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond'));
+    if (!shapeOk || w.cover === 'no') return null;
+    if (w.blocksSight) return 'hard';
+    return w.cover === 'yes' ? 'soft' : null;
 }
 
 /* ---------- one viewer's visible cells ----------
@@ -276,6 +331,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

@@ -822,12 +822,21 @@ Fog of war
   around — with a "use for new maps" campaign default that never changes
   maps you already made.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
-  block sight also give cover. Turn on Cover from blockers on the Combat
-  card (the System editor's Items tab) and drag the ruler between two
-  character tokens — it reports the cover between them
-  (half / three-quarters / total, or a simple cover/none for systems that
-  grade it once), on square and hex. It's advisory: Waypoint estimates the
-  cover and you apply it — no dice or damage change.
+  block sight also give cover, and a piece's Cover setting in its
+  Properties can make it cover you can see over (a crate or a low wall:
+  half or three-quarters, never total) or no cover at all. Turn on Cover
+  from blockers on the Combat card (the System editor's Items tab) and drag
+  the ruler between two character tokens — it reports the cover between
+  them (half / three-quarters / total, or a simple cover/none for systems
+  that grade it once), on square and hex. A thrown blast's labels show each
+  token's cover from the blast, and a small tag at the corner of each target
+  mark shows the cover between the targeting token and its target. Cover
+  never changes a roll: Waypoint estimates it and you apply it. The one
+  exception is a full-auto blast, where the Combat card sets what each grade
+  of cover does to its damage (full, half or none; full until you change
+  it). A blast thrown into a wall or a closed door goes off in front of it,
+  on the thrower's side, and a large token is as exposed as its most exposed
+  cell.
 - Play areas: mark an image or shape as a play area (Play area in its
   Properties, or the ▣ button on the selection toolbar) and fog covers only
   the cells under marked items, leaving scenes and map art around them lit.

@@ -155,7 +155,8 @@ function cleanRoll(rec) {
     if (rec.to !== undefined) { if (typeof rec.to !== 'string' || !PEER_RE.test(rec.to)) return null; out.to = rec.to; }
     if (rec.rid !== undefined) { if (typeof rec.rid !== 'string' || !RID_RE.test(rec.rid)) return null; out.rid = rec.rid; }
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
-    if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; }   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
+    if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; }
+    if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;
@@ -314,6 +315,30 @@ function cardText(rec, res, F, opts) {
 // whether a record's malfunction threshold (rec.malf) is reached by it (his Foundry weapon: a natural total at or past its Malf)
 function naturalOf(res) { return (res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : []).reduce(function(s, d) { return s + (d && typeof d.total === 'number' && isFinite(d.total) ? d.total : 0); }, 0); }
 function malfOf(rec, res) { return !!(rec && isInt(rec.malf) && res && res.ok && naturalOf(res) >= rec.malf); }
+// Chat cards (owner 2026-09-27): the colours a card takes from a system's sheet look — a palette's primary, good, danger (bad), muted and the
+// look's accent (else the primary), with tone: the palette made for a dark or a light panel; an accent alone gives the stripe and title.
+// Strict #rrggbb, lower-cased; null: no look colours (the app's own). cleanCardLook: that shape checked again (a chat pop-out takes it from
+// the main window)
+var HEX6 = /^#[0-9a-fA-F]{6}$/;
+function hex6(v) { return typeof v === 'string' && HEX6.test(v) ? v.toLowerCase() : ''; }
+function ownHex(o, k) { return o && Object.prototype.hasOwnProperty.call(o, k) ? hex6(o[k]) : ''; }   // its own keys only (never one a prototype lends)
+function cardLook(look) {
+    if (!look || typeof look !== 'object' || Array.isArray(look)) return null;
+    var pal = Object.prototype.hasOwnProperty.call(look, 'palette') && look.palette && typeof look.palette === 'object' && !Array.isArray(look.palette) ? look.palette : null, acc = ownHex(look, 'accent');
+    if (pal && ['primary', 'good', 'danger', 'muted', 'panel'].every(function(k) { return ownHex(pal, k); })) {
+        var n = parseInt(ownHex(pal, 'panel').slice(1), 16), lin = function(c) { var x = c / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+        var L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);   // the sheet's own test (sheets.js accentInk): dark ink reads on it, a light panel
+        return { primary: ownHex(pal, 'primary'), good: ownHex(pal, 'good'), bad: ownHex(pal, 'danger'), muted: ownHex(pal, 'muted'), accent: acc || ownHex(pal, 'primary'), tone: (L + 0.05) / 0.0567 >= 1.05 / (L + 0.05) ? 'light' : 'dark' };
+    }
+    return acc ? { primary: acc, accent: acc } : null;
+}
+function cleanCardLook(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    var out = {}; ['primary', 'good', 'bad', 'muted', 'accent'].forEach(function(k) { var h = ownHex(v, k); if (h) out[k] = h; });
+    if (!out.primary) return null;
+    if (Object.prototype.hasOwnProperty.call(v, 'tone') && (v.tone === 'dark' || v.tone === 'light')) out.tone = v.tone;
+    return out;
+}
 // Per-peer and per-table rate limit with an injected clock: allow(peer, now) -> true | 'slow' | 'table'
 function RateLimit(cfg) {
     cfg = cfg || LIMITS;
@@ -334,6 +359,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum };
+var API = { VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf };
+export { VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

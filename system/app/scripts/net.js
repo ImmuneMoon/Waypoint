@@ -4074,6 +4074,7 @@ function handleMessage(msg, conn) {
         var recQ = { type: 'roll', id: Dq.uid(), from: diceFrom(net.roster[conn.peer], false), expr: q.expr, draws: resQ.draws, v: Fq.VERSION, ts: Date.now(), rid: q.rid };
         var mfQ = null; if (actQ && actQ.malf && varsQ) { var mqQ = Fq.evaluate(actQ.malf, { vars: varsQ }); if (mqQ.ok && typeof mqQ.value === 'number' && isFinite(mqQ.value)) mfQ = Math.max(1, Math.min(1000000, Math.round(mqQ.value))); }   // Stage 6 HUD R3: its Malf, through their view
         if (mfQ !== null) recQ.malf = mfQ;
+        if (actQ && actQ.dmg === true) recQ.dmg = 1;   // chat cards: a damage roll, from the entry its formula matched (never the player's word)
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
@@ -4881,6 +4882,7 @@ net.diceRoll = function(expr, o) {
     var rec = { type: 'roll', id: D.uid(), from: diceFrom(getProfile(), true), expr: expr, draws: res.draws, v: F.VERSION, ts: Date.now() };
     var mfR = null; if (entR && entR.malf && varsR) { var mqR = F.evaluate(entR.malf, { vars: varsR }); if (mqR.ok && typeof mqR.value === 'number' && isFinite(mqR.value)) mfR = Math.max(1, Math.min(1000000, Math.round(mqR.value))); }   // Stage 6 HUD R3: its Malf
     if (mfR !== null) rec.malf = mfR;
+    if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;   // chat cards: a damage roll (its entry; or this machine's own word, a thrown item's damage — never over the wire)
     if (res.breakdown && res.breakdown.names && res.breakdown.names.length) { var nmR = D.cleanNames(res.breakdown.names); if (!nmR) return { error: 'That roll could not be recorded.' }; if (nmR.length) rec.names = nmR; }
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) rec.as = String(chR.name || '').slice(0, D.LIMITS.label);
@@ -4947,9 +4949,28 @@ function chatEntryNode(m) {   // one text entry, built from nodes: nothing from 
     wrap.appendChild(document.createTextNode(String(m.text || '')));
     return wrap;
 }
+// [sinkcheck:cardlook-start]
+// Chat cards (owner 2026-09-27): the viewer's system look colours the cards — its colours as custom properties on #chatLog, checked strict
+// #rrggbb (dicecore cardLook / cleanCardLook); none while character sheets are off or with no look. A chat pop-out takes the main window's
+// (sent with chatSync). data-card-tone: the panel the palette was made for (under the other theme its text drops to the app's colours, CSS)
+var _cardLook = null, _cardSig = 'null';
+var CARD_VARS = [['primary', '--card-primary', '--card-t-primary'], ['good', '--card-good', '--card-t-good'], ['bad', '--card-bad', '--card-t-bad'], ['muted', '--card-muted', ''], ['accent', '--card-accent', '']];
+function cardLookNow() {
+    var DCk = window.wpDiceCore; if (!DCk || !DCk.cardLook || !DCk.cleanCardLook) return null;
+    if (window.wpPopout) return DCk.cleanCardLook(_cardLook);
+    if (window.wpVtt && window.wpVtt.on && !window.wpVtt.on('sheets')) return null;
+    var syk = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null;
+    return DCk.cardLook(syk && syk.sheet ? syk.sheet.look : null);
+}
+function paintCardLook(log, cl) {
+    CARD_VARS.forEach(function(v) { var hx = cl && typeof cl[v[0]] === 'string' && /^#[0-9a-f]{6}$/.test(cl[v[0]]) ? cl[v[0]] : ''; if (hx) { log.style.setProperty(v[1], hx); if (v[2]) log.style.setProperty(v[2], hx); } else { log.style.removeProperty(v[1]); if (v[2]) log.style.removeProperty(v[2]); } });
+    if (cl && (cl.tone === 'dark' || cl.tone === 'light')) log.dataset.cardTone = cl.tone; else delete log.dataset.cardTone;
+}
+// [sinkcheck:cardlook-end]
 function renderChat() {
     var log = ui('chatLog');
     if (!log) return;
+    var clR = cardLookNow(); if (!window.wpPopout) { _cardLook = clR; _cardSig = JSON.stringify(clR); } paintCardLook(log, clR);
     var frag = document.createDocumentFragment();
     chatLog.forEach(function(m) {
         var node = null;
@@ -4969,18 +4990,19 @@ function renderChat() {
    (which has no session) mirrors it over BroadcastChannel — the main window broadcasts the log on every
    render, answers a new pop-out's request, and sends on the pop-out's behalf; the pop-out relays its input. */
 var _chatBC = null; try { _chatBC = new BroadcastChannel('waypoint'); } catch (e) {}
-function broadcastChatSync() { if (!_chatBC) return; try { _chatBC.postMessage({ type: 'chatSync', log: JSON.parse(JSON.stringify(chatLog)) }); } catch (e) {} }
+function broadcastChatSync() { if (!_chatBC || window.wpStream) return; try { _chatBC.postMessage({ type: 'chatSync', log: JSON.parse(JSON.stringify(chatLog)), look: _cardLook }); } catch (e) {} }
 if (_chatBC) _chatBC.addEventListener('message', function(e) {
-    var d = e.data; if (!d || !d.type) return;
+    var d = e.data; if (!d || !d.type || window.wpStream) return;   // the stream window holds no chat of its own: it neither answers nor sends for a pop-out
     if (window.wpPopout) {
-        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; renderChat(); }
+        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; renderChat(); }   // the main window's card colours (checked again in cardLookNow)
     } else {
         if (d.type === 'chatReq') broadcastChatSync();
         else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(); } }
         else if (d.type === 'dock' && d.kind === 'chat') { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } }
     }
 });
-window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } } };
+window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } },
+    lookSync: function() { if (window.wpPopout) return; var cl = cardLookNow(), sg = JSON.stringify(cl); if (sg === _cardSig) return; _cardSig = sg; _cardLook = cl; var lg = ui('chatLog'); if (lg) paintCardLook(lg, cl); broadcastChatSync(); } };   // the system or the sheets switch changed: the cards' colours follow (no card rebuilt)
 // A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
 // it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
 var _chatRollOpened = false, _chatDismissTimer = null;

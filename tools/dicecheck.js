@@ -157,7 +157,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     /* ---- publication ---- */
     global.window = {};
     const D2 = await import(url('dicecore.js') + '?x');
-    check('window.wpDiceCore published', !!(global.window.wpDiceCore && global.window.wpDiceCore.cleanRoll && global.window.wpDiceCore.VERSION === D2.VERSION));
+    check('window.wpDiceCore published, with every export the module has (the app reads it there: net.js cardLookNow)', !!(global.window.wpDiceCore && global.window.wpDiceCore.cleanRoll && global.window.wpDiceCore.VERSION === D2.VERSION) && Object.keys(D2).every(k => typeof global.window.wpDiceCore[k] === typeof D2[k]), Object.keys(D2).filter(k => !(k in (global.window.wpDiceCore || {}))).join(', '));
     /* ---- Stage 6 F8: 3d6 roll-under criticals (a system's combat.checks 'under3d6') ---- */
     {
         const threeOf = t => { const a = Math.min(6, t - 2), r = t - a, b = Math.min(6, r - 1); return [a, b, r - b]; };   // three faces summing to t (3..18)
@@ -180,6 +180,49 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rf = n => require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', n), 'utf8'), diceJs = rf('dice.js'), netJs = rf('net.js');
         check('F8 the card, the log and a roll\'s consequences all read the campaign\'s roll outcomes (the card: critical success / critical failure)',
             /var v = verdictOf\(res, rule\), crit = critOf\(res, rule\)/.test(diceJs) && /parts\[parts\.length - 1\]\.replace\(/.test(diceJs) && /'critical success' : 'critical failure'/.test(diceJs) && /vdQ = Dq\.verdictOf\(resQ, ruleQ\)/.test(netJs) && /vdR = D\.verdictOf\(res, ruleR\)/.test(netJs) && /rule: ruleQ \}/.test(netJs) && /rule: ruleR \}/.test(netJs));
+    }
+    /* ---- chat cards (owner 2026-09-27): a damage roll's mark on the record; the colours a card takes from a sheet look; the card itself ---- */
+    {
+        const j = JSON.stringify;
+        const rc0 = rec({ label: 'Hit' }), cd1 = cleanRoll(Object.assign({}, rc0, { dmg: 1 })), cdBad = [2, true, '1', 0, null].map(x => cleanRoll(Object.assign({}, rc0, { dmg: x })));
+        check('Chat cards: cleanRoll keeps a damage mark of exactly 1 and refuses the record for any other; a record with none has none', !!cd1 && cd1.dmg === 1 && cdBad.every(x => x === null) && !('dmg' in cleanRoll(rc0)), JSON.stringify([cd1, cdBad]));
+        const pal0 = { text: '#add8e6', muted: '#8C8C8C', panel: '#1a1a1a', card: '#212121', field: '#262626', edge: '#333333', primary: '#ADD8E6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' };
+        const L1 = D.cardLook({ accent: '#AB94B3', palette: pal0 }), L2 = D.cardLook({ palette: Object.assign({}, pal0, { panel: '#f3ead6', primary: '#7a2e1f' }) }), L3 = D.cardLook({ accent: '#123abc' }), L4 = D.cardLook({ titles: 'accordion' });
+        const L5 = D.cardLook({ palette: Object.assign({}, pal0, { good: 'red;background:url(x)' }) }), L6 = D.cardLook({ accent: 'var(--x)' }), L7 = D.cardLook(null), L8 = D.cardLook({ palette: Object.assign({}, pal0, { primary: '#abc' }), accent: '#010203' }), L9 = D.cardLook({ palette: [pal0] });
+        check('Chat cards: cardLook takes a sheet look\'s colours — a whole palette\'s primary, good, danger (as bad), muted and the accent (else the primary), lower-cased, with its panel\'s tone; an accent alone gives the stripe and title; a look with no colour, or a colour that is not #rrggbb (a style, a var, three digits), gives none',
+            JSON.stringify(L1) === JSON.stringify({ primary: '#add8e6', good: '#4ade80', bad: '#cc3333', muted: '#8c8c8c', accent: '#ab94b3', tone: 'dark' }) && L2.tone === 'light' && L2.accent === '#7a2e1f' && L2.primary === '#7a2e1f'
+            && JSON.stringify(L3) === JSON.stringify({ primary: '#123abc', accent: '#123abc' }) && L4 === null && L5 === null && L6 === null && L7 === null && L9 === null && JSON.stringify(L8) === JSON.stringify({ primary: '#010203', accent: '#010203' }), JSON.stringify([L1, L2, L3, L5, L8]));
+        const C1 = D.cleanCardLook(Object.assign(Object.create({ muted: '#000000' }), { primary: '#ABCDEF', good: 'url(x)', bad: '#123456', tone: 'dim', extra: '#111111' })), C2 = D.cleanCardLook({ good: '#123456' }), C3 = D.cleanCardLook('x'), C4 = D.cleanCardLook(L1), C5 = D.cleanCardLook([L1]);
+        check('Chat cards: cleanCardLook (a chat pop-out takes the main window\'s colours) keeps each strict #rrggbb it knows, lower-cased, and a tone of dark or light; nothing without a primary; a look already clean is kept whole',
+            JSON.stringify(C1) === JSON.stringify({ primary: '#abcdef', bad: '#123456' }) && C2 === null && C3 === null && C5 === null && JSON.stringify(C4) === JSON.stringify(L1), JSON.stringify([C1, C2, C4]));
+        const dj = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
+        const rcSrc = dj.slice(dj.indexOf('function renderCard(m) {'), dj.indexOf('// Stage 6 HUD H7: an apply action'));
+        const fe = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], style: {}, title: '', appendChild(c) { this.children.push(c); return c; } });
+        const rcard = new Function('el', 'playerHue', 'chatTime', 'net', 'F', 'verdictOf', 'critOf', 'malfOf', 'LIMITS', 'window', 'document', "'use strict';\n" + rcSrc + '\nreturn renderCard;')(fe, () => 0, () => '12:00', () => ({ active: false }), () => F, verdictOf, critOf, D.malfOf, LIMITS, { wpSheets: { systemOf: () => null } }, { createTextNode: t => ({ text: t }) });
+        const card = (o, draws, noRes) => { const r = rec(o); return rcard({ roll: r, res: noRes ? null : roll(r.expr, draws) }); };
+        const cls = c => c.className.split(' ').filter(Boolean), kid = (c, k) => c.children.find(x => x && x.className && x.className.split(' ').indexOf(k) >= 0) || null;
+        const kOk = card({ expr: 'd20 + 5 >= 10', draws: [10], label: 'Attack' }, [10]), kNo = card({ expr: 'd20 + 5 >= 10', draws: [1], label: 'Attack' }, [1]);
+        const kDm = card({ expr: '2d6', draws: [3, 4], label: 'Sword \u00b7 Damage', dmg: 1 }, [3, 4]), kMf = card({ expr: '3d6', draws: [1, 1, 1], label: 'Blaster', dmg: 1, malf: 3 }, [1, 1, 1]);
+        const kPv = card({ expr: 'd20', draws: [7], priv: 'gm' }, [7]), kBad = card({ expr: 'd20', draws: [7], label: 'Lost' }, [7], true), kPl = card({ expr: 'd20', draws: [7] }, [7]);
+        check('Chat cards: the card (dice.js renderCard, run for real) — the roll\'s name as its title (a row roll\'s "Sword · Damage" whole) and the formula alone below; the left stripe by outcome (a check\'s success or failure, a malfunction before a damage mark, else a damage roll, else plain); a damage roll\'s "damage" tag and larger total; a private card marked for its violet frame; no name, no title; an unreadable roll keeps its name and no outcome',
+            j(cls(kOk)) === j(['chat-roll', 'card-ok']) && kid(kOk, 'roll-title').textContent === 'Attack' && kid(kOk, 'roll-expr').textContent === 'd20 + 5 >= 10' && !kid(kOk, 'chat-dmg')
+            && j(cls(kNo)) === j(['chat-roll', 'card-fail']) && j(cls(kDm)) === j(['chat-roll', 'card-dmg']) && kid(kDm, 'roll-title').textContent === 'Sword \u00b7 Damage' && kid(kDm, 'chat-dmg').textContent === 'damage' && cls(kid(kDm, 'roll-total')).indexOf('roll-dmg') >= 0
+            && j(cls(kMf)) === j(['chat-roll', 'card-malf']) && cls(kid(kMf, 'roll-total')).indexOf('roll-dmg') < 0 && !!kid(kMf, 'chat-dmg')
+            && cls(kPv).indexOf('whisper') >= 0 && !kid(kPl, 'roll-title') && j(cls(kPl)) === j(['chat-roll']) && kid(kPl, 'roll-expr').textContent === 'd20'
+            && j(cls(kBad)) === j(['chat-roll']) && kid(kBad, 'roll-title').textContent === 'Lost' && !!kid(kBad, 'roll-bad'), j([cls(kOk), cls(kNo), cls(kDm), cls(kMf), cls(kPv), cls(kBad)]));
+        const kDC = card({ expr: '2d6 >= 7', draws: [6, 6], label: 'Blast', dmg: 1 }, [6, 6]), kPD = card({ expr: '2d6', draws: [3, 4], label: 'X', priv: 'gm', dmg: 1 }, [3, 4]), kBD = card({ expr: 'd20', draws: [7], label: 'Lost', dmg: 1 }, [7], true);
+        check('Chat cards: a damage roll that is also a check takes the check\'s stripe and total, and keeps its damage tag; a private damage roll keeps its tag, its damage stripe and its violet frame; an unreadable damage roll keeps its damage stripe (the mark needs no dice)',
+            j(cls(kDC)) === j(['chat-roll', 'card-ok']) && cls(kid(kDC, 'roll-total')).indexOf('roll-ok') >= 0 && cls(kid(kDC, 'roll-total')).indexOf('roll-dmg') < 0 && !!kid(kDC, 'chat-dmg')
+            && cls(kPD).indexOf('whisper') >= 0 && cls(kPD).indexOf('card-dmg') >= 0 && !!kid(kPD, 'chat-dmg') && j(cls(kBD)) === j(['chat-roll', 'card-dmg']) && !!kid(kBD, 'roll-bad'), j([cls(kDC), cls(kPD), cls(kBD)]));
+        const pG = p => D.cardLook({ palette: Object.assign({}, pal0, { panel: p }) }).tone;
+        check('Chat cards: the tone reads the panel as the sheet does (dark ink reads on it: light) — mid greys either side of the line, a pure red, the channels weighted (orange light, its blue twin dark); a colour only anchored #rrggbb',
+            pG('#606060') === 'dark' && pG('#797979') === 'dark' && pG('#7c7c7c') === 'light' && pG('#ff0000') === 'light' && pG('#ff6e00') === 'light' && pG('#006eff') === 'dark'
+            && D.cardLook({ accent: '#123456;x' }) === null && D.cardLook({ accent: 'x#123456' }) === null && D.cleanCardLook({ primary: '#123456)' }) === null, j(['#606060', '#797979', '#7c7c7c', '#ff0000', '#ff6e00', '#006eff'].map(pG)));
+        const rlSrc = dj.slice(dj.indexOf('function roll(expr, opts) {'), dj.indexOf('function rollFromPanel()')), seenR = [];
+        const rollDj = new Function('net', 'cleanExpr', 'LIMITS', 'remember', "'use strict';\nvar lastSource = '';\n" + rlSrc + '\nreturn roll;')(() => ({ diceRoll: (e, o) => { seenR.push(JSON.parse(JSON.stringify(o))); return { ok: true }; } }), cleanExpr, LIMITS, () => {});
+        rollDj('2d6', { dmg: true }); rollDj('2d6', { dmg: 1 }); rollDj('2d6', {});
+        check('Chat cards: dice.js roll() (run for real) hands this machine\'s damage word to the dice path only as true (a thrown item\'s damage), never anything else',
+            seenR.length === 3 && seenR[0].dmg === true && !('dmg' in seenR[1]) && !('dmg' in seenR[2]), j(seenR));
     }
     delete global.window;
 

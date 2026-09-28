@@ -1768,14 +1768,25 @@
   /* Chat entries (built from nodes, 1.5.0) and roll cards; the dice roller */
   .chat-gm { background: var(--gold); color: #1a1a22; font-size: 9px; padding: 0 4px; border-radius: 3px; font-weight: 700; vertical-align: 1px; }
   .chat-tag { color: var(--violet); font-size: 10px; font-style: normal; }
+  .chat-dmg { color: var(--card-t-bad, var(--red)); border: 1px solid currentColor; border-radius: 9px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 0 6px; vertical-align: 1px; }   /* chat cards: a damage roll's tag (an outline chip) */
   .chat-time { color: var(--dim); font-size: 10px; float: right; }
-  .chat-roll { margin-bottom: 8px; padding: 4px 8px 6px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.12); }
-  .chat-roll.whisper { border-left: 2px solid var(--violet); }
+  /* Chat cards (owner 2026-09-27; his Foundry cards): a 3px stripe down the left edge by outcome — the plain colour, success, failure, damage
+     (a malfunction too), an apply card muted, a reminder the accent — the roll's name as a bold title; a private card framed in violet. The
+     colours: the system's sheet look (--card-*, set on #chatLog from its palette; the HUD's own palette), else the app's */
+  .chat-roll { margin-bottom: 8px; padding: 4px 8px 6px; border: 1px solid var(--edge); border-left: 3px solid var(--card-primary, var(--sheet-primary, var(--sheet-accent, var(--gold)))); border-radius: 6px; background: rgba(0,0,0,0.12); }
+  .chat-roll.card-ok { border-left-color: var(--card-good, var(--green)); }
+  .chat-roll.card-fail, .chat-roll.card-malf, .chat-roll.card-dmg { border-left-color: var(--card-bad, var(--red)); }
+  .chat-roll.chat-apply { border-left-color: var(--card-muted, var(--dim)); }
+  .chat-roll.chat-due { border-left-color: var(--card-accent, var(--sheet-accent, var(--gold))); }
+  .chat-roll.whisper { border-top-color: var(--violet); border-right-color: var(--violet); border-bottom-color: var(--violet); }
+  .roll-title { font-size: 13px; font-weight: 700; letter-spacing: .01em; color: var(--card-t-primary, var(--sheet-primary, var(--sheet-accent, var(--gold)))); margin-top: 2px; overflow-wrap: anywhere; }
+  html[data-theme="light"] #chatLog[data-card-tone="dark"], html:not([data-theme="light"]) #chatLog[data-card-tone="light"] { --card-t-primary: initial !important; --card-t-good: initial !important; --card-t-bad: initial !important; }   /* a palette made for the other theme: its stripes stay, its text takes the app's colours */
   .roll-expr { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--ink); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .roll-break { font-size: 11.5px; color: var(--dim); line-height: 1.5; word-break: break-word; }
   .roll-die { color: var(--ink); background: rgba(212,175,55,0.12); border-radius: 3px; padding: 0 3px; }
-  .roll-total { font-size: 16px; font-weight: 700; color: var(--gold); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
-  .roll-total.roll-ok { color: var(--green); } .roll-total.roll-fail { color: var(--red); }
+  .roll-total { font-size: 16px; font-weight: 700; color: var(--card-t-primary, var(--sheet-primary, var(--sheet-accent, var(--gold)))); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+  .roll-total.roll-ok { color: var(--card-t-good, var(--green)); } .roll-total.roll-fail { color: var(--card-t-bad, var(--red)); }
+  .roll-total.roll-dmg { font-size: 18px; color: var(--card-t-bad, var(--red)); }   /* chat cards: a damage roll's total (Foundry: 1.15rem, the destructive colour) */
   .roll-total.roll-malf { font-style: italic; }
   .sys-turn { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }   /* turn-based combat T1: the Combat card's turn rules */
   .sys-turn-head { font-weight: 600; }
@@ -2806,10 +2817,9 @@
   .hud-hist-tools .hud-hist-clear { padding: 2px 8px; font-size: 11px; }
   .hud-panel .hud-hist-tools select.hud-hist-depth { width: auto; padding: 2px 4px; font-size: 11.5px; }
   .hud-hist-list { max-height: 18rem; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--edge) 60%, transparent); }
-  .hud-hist-list .chat-roll { padding: 6px 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); background: color-mix(in srgb, var(--dim) 10%, transparent); }
-  .hud-hist-list .roll-expr { font-weight: 700; color: var(--sheet-primary, var(--ink)); }
-  .hud-hist-list .chat-roll:has(.roll-ok) { border-color: color-mix(in srgb, var(--green) 45%, transparent); }
-  .hud-hist-list .chat-roll:has(.roll-fail) { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+  .hud-hist-list .chat-roll { padding: 6px 8px; border-radius: 6px; border-top-color: color-mix(in srgb, var(--edge) 70%, transparent); border-right-color: color-mix(in srgb, var(--edge) 70%, transparent); border-bottom-color: color-mix(in srgb, var(--edge) 70%, transparent); background: color-mix(in srgb, var(--dim) 10%, transparent); }   /* chat cards: the outcome is the left stripe (the whole border no longer) */
+  .hud-hist-list .chat-roll.whisper { border-top-color: var(--violet); border-right-color: var(--violet); border-bottom-color: var(--violet); }
+  .hud-hist-list .roll-expr { color: var(--dim); }
   .hud-hist-empty { font-size: 12px; padding: 2px 2px 4px; }
   /* HF4a (H2): inline rows — in an "Inline rows" section each field is one line: label and value on the left, its Roll on the right (an
      outline "Roll", as the reference's rows), a caption on its own line below; the row is a soft tile, as the reference's attribute grid */

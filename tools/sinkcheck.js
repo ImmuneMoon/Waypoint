@@ -689,6 +689,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && q2.opened.length === 1 && q3.opened.length === 0 && JSON.stringify(q3.pics) === JSON.stringify([['c_1', '\u{1F409}', '']]) && q4.r === false && q4.opened.length === 0 && q4.pics.length === 0 && q5.r === false && q5.pics.length === 0
             && q6.opened.length === 0 && q7.r === false && q7.pics.length === 0 && q8.opened.length === 0 && q9.r === false && q9.pics.length === 0, JSON.stringify([q1, q3.pics, q4, q5, q9]));
     }
+    {   // chat cards (owner 2026-09-27): the viewer's system look reaches #chatLog's style only as strict #rrggbb custom properties (net.js, sliced), a tone only dark or light
+        const j = JSON.stringify;
+        const DCs = await import(modUrl('dicecore.js')), ckS = slice('net.js', 'cardlook');
+        const mkCk = win => new Function('window', "'use strict';\n" + ckS + '\nreturn { paint: paintCardLook, now: cardLookNow, set: function(v) { _cardLook = v; } };')(win);
+        const fakeLog = () => { const props = {}; return { props, dataset: {}, style: { setProperty(k, v) { props[k] = v; }, removeProperty(k) { delete props[k]; } } }; };
+        const hostile = { accent: 'red;background:url(//x.test/a)', palette: { text: '#fff', muted: 'var(--x)', panel: 'expression(1)', card: '#212121', field: '#262626', edge: '#333333', primary: '#add8e6)url(', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' } };
+        const pal0 = { text: '#add8e6', muted: '#8c8c8c', panel: '#1a1a1a', card: '#212121', field: '#262626', edge: '#333333', primary: '#add8e6', danger: '#cc3333', good: '#4ade80', warn: '#f59e0b' };
+        const sysOf = look => () => ({ sheet: { look } }), winOf = (look, o) => Object.assign({ wpDiceCore: DCs, wpVtt: { on: () => !(o && o.off) }, wpSheets: { systemOf: sysOf(look) } }, o && o.pop ? { wpPopout: true } : {});
+        const k1 = mkCk(winOf(hostile)), l1 = fakeLog(); k1.paint(l1, k1.now());
+        const k2 = mkCk(winOf({ palette: pal0, accent: '#ab94b3' })), l2 = fakeLog(); k2.paint(l2, k2.now());
+        const k3 = mkCk(winOf({ palette: pal0 }, { off: true })), l3 = fakeLog(); k3.paint(l3, k3.now());
+        const k4 = mkCk(winOf(null, { pop: true })), l4 = fakeLog(); k4.set({ primary: 'url(x)', good: '#00ff00', tone: 'dim' }); k4.paint(l4, k4.now()); const l4b = fakeLog(); k4.set({ primary: '#ABCDEF', bad: 'red', tone: 'light' }); k4.paint(l4b, k4.now());
+        const l5 = fakeLog(); k2.paint(l5, k2.now()); k2.paint(l5, null);
+        const l6 = fakeLog(); k2.paint(l6, { primary: '#123456; x', good: '#00ff00', tone: '"><img>' });
+        const hexOnly = p => Object.keys(p).every(k => /^--card-(t-)?(primary|good|bad|muted|accent)$/.test(k) && /^#[0-9a-f]{6}$/.test(p[k]));
+        check('Chat cards: a campaign\'s look reaches the chat\'s style only as strict #rrggbb custom properties (a style, url, var or expression in its palette sets nothing), its tone only dark or light; none while character sheets are off; a chat pop-out takes the main window\'s colours checked again (nothing without a good primary); a look gone clears them',
+            j(l1.props) === '{}' && !l1.dataset.cardTone && hexOnly(l2.props) && j(l2.props) === j({ '--card-primary': '#add8e6', '--card-t-primary': '#add8e6', '--card-good': '#4ade80', '--card-t-good': '#4ade80', '--card-bad': '#cc3333', '--card-t-bad': '#cc3333', '--card-muted': '#8c8c8c', '--card-accent': '#ab94b3' }) && l2.dataset.cardTone === 'dark'
+            && j(l3.props) === '{}' && j(l4.props) === '{}' && !l4.dataset.cardTone && j(l4b.props) === j({ '--card-primary': '#abcdef', '--card-t-primary': '#abcdef' }) && l4b.dataset.cardTone === 'light'
+            && j(l5.props) === '{}' && !l5.dataset.cardTone && j(l6.props) === j({ '--card-good': '#00ff00', '--card-t-good': '#00ff00' }) && !l6.dataset.cardTone, j([l1.props, l2.props, l4.props, l4b.props, l6]));
+        // the delivery (net.js, sliced from the colours through the relay): renderChat paints #chatLog and sends the colours to a pop-out; a system change
+        // repaints and sends once; a pop-out takes them checked again; the stream window never speaks on the relay (its empty log would wipe the pop-out)
+        const netS = read('net.js'), dvS = netS.slice(netS.indexOf('// [sinkcheck:cardlook-start]'), netS.indexOf('// A roll opens Table Chat if it was closed'));
+        const mkRelay = (win, log) => { const posts = [], lis = []; function BC() {} BC.prototype.postMessage = m => posts.push(JSON.parse(JSON.stringify(m))); BC.prototype.addEventListener = (t, f) => lis.push(f);
+            const doc = { createDocumentFragment: () => ({ children: [], appendChild(c) { this.children.push(c); } }) };
+            const api = new Function('window', 'ui', 'document', 'BroadcastChannel', 'chatEntryNode', 'sendChat', "'use strict';\nvar chatLog = [], chatUnread = 0;\n" + dvS + '\nreturn { render: renderChat, log: function() { return chatLog; } };')(win, id => id === 'chatLog' ? log : null, doc, BC, () => null, () => {});
+            return { api, posts, lis }; };
+        const dLog = () => { const l = fakeLog(); l.textContent = ''; l.appendChild = () => {}; l.scrollTop = 0; l.scrollHeight = 0; return l; };
+        let lookNow = { palette: pal0, accent: '#ab94b3' }; const wMain = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpSheets: { systemOf: () => ({ sheet: { look: lookNow } }) } }, lgM = dLog(), rM = mkRelay(wMain, lgM);
+        rM.api.render(); const props1 = JSON.parse(JSON.stringify(lgM.props)), tone1 = lgM.dataset.cardTone, post1 = rM.posts[rM.posts.length - 1]; const nAfter1 = rM.posts.length; wMain.wpChat.lookSync(); const quiet = rM.posts.length === nAfter1;
+        lookNow = { accent: '#010203' }; wMain.wpChat.lookSync(); const post2 = rM.posts[rM.posts.length - 1], nAfter2 = rM.posts.length;
+        const wPop = { wpDiceCore: DCs, wpPopout: true, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, lgP = dLog(), rP = mkRelay(wPop, lgP);
+        rP.lis.forEach(f => f({ data: { type: 'chatSync', log: [], look: { primary: '#ABCDEF', good: 'url(x)', bad: '#123456', tone: 'light' } } }));
+        const wSt = { wpDiceCore: DCs, wpStream: true, wpVtt: { on: () => true }, wpSheets: { systemOf: () => ({ sheet: { look: { palette: pal0 } } }) } }, rS = mkRelay(wSt, dLog());
+        rS.api.render(); wSt.wpChat.lookSync(); rS.lis.forEach(f => f({ data: { type: 'chatReq' } }));
+        check('Chat cards: the colours travel — renderChat paints #chatLog and posts them with the log to a pop-out; the same look again posts nothing, a changed one repaints and posts once; a pop-out paints what it is sent only as checked #rrggbb; the stream window never posts on the relay, nor answers a pop-out',
+            props1['--card-primary'] === '#add8e6' && tone1 === 'dark' && post1 && post1.type === 'chatSync' && post1.look && post1.look.accent === '#ab94b3' && quiet
+            && lgM.props['--card-primary'] === '#010203' && !('--card-good' in lgM.props) && !lgM.dataset.cardTone && nAfter2 === nAfter1 + 1 && post2.look.primary === '#010203'
+            && j(lgP.props) === j({ '--card-primary': '#abcdef', '--card-t-primary': '#abcdef', '--card-bad': '#123456', '--card-t-bad': '#123456' }) && lgP.dataset.cardTone === 'light' && rS.posts.length === 0,
+            j([lgM.props, post1 && post1.look, post2 && post2.look, lgP.props, rS.posts.length]));
+    }
     delete global.window;
 
     summed = true;

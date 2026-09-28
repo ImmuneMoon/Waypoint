@@ -909,8 +909,8 @@ pendingChecks.push((async () => {
     const blastT = name => [['pA', { type: 'blast', campId: 'k', mapId: 'm1', blast: { x: 120, y: 80, ft: 10, elev: 0, name: name, by: 'Nix' } }]];
     const tG = runT('Orb', ctxT('3d6', true)), tV = runT('Frag', ctxT('2d6', false)), tU = runT('Frag', ctxT('2d6')), tF = runT('Orb', ctxT('3d6', true), { auto: 'full' });
     check('GM-only rolls: a GM-only item thrown from the GM\'s sheet (whiteboard.js arm, place, throw and damage, run for real with the real net.broadcastBlast) reaches the players on that map as an unnamed blast (the thrower\'s name kept, the GM\'s own marker keeps the item\'s) and its damage roll carries gmOnly; a visible item\'s blast keeps its name and its roll is unmarked (as is a throw that says nothing); full auto still applies the total; a player on another map gets nothing; every message packs',
-        j(tG.sent) === j(blastT('')) && tG.placed.length === 1 && tG.placed[0].name === 'Orb' && j(tG.rolls) === j([['c_n', '3d6', 'Orb damage', { gmOnly: true }]]) && tG.applied.length === 0
-        && j(tV.sent) === j(blastT('Frag')) && j(tV.rolls) === j([['c_n', '2d6', 'Frag damage', { gmOnly: false }]]) && j(tU.sent) === j(blastT('Frag')) && j(tU.rolls) === j(tV.rolls)
+        j(tG.sent) === j(blastT('')) && tG.placed.length === 1 && tG.placed[0].name === 'Orb' && j(tG.rolls) === j([['c_n', '3d6', 'Orb damage', { gmOnly: true, dmg: true }]]) && tG.applied.length === 0
+        && j(tV.sent) === j(blastT('Frag')) && j(tV.rolls) === j([['c_n', '2d6', 'Frag damage', { gmOnly: false, dmg: true }]]) && j(tU.sent) === j(blastT('Frag')) && j(tU.rolls) === j(tV.rolls)
         && j(tF.sent) === j(blastT('')) && j(tF.rolls) === j(tG.rolls) && j(tF.applied) === j([[7, 'f_hp']]), j([tG, tV.sent, tV.rolls, tU.rolls, tF.applied]));
 })());
 
@@ -1380,6 +1380,43 @@ pendingChecks.push((async () => {
     const gA = runGM('3d6 <= 30', { act: 'r_a' }), gG = runGM('3d6 <= 30', { act: 'r_g' });
     check('R3 the GM\'s own roll with a Malf carries it on the record and applies its On malfunction change here; a Malf that reads a GM-only value keeps the roll private (the card would show it)',
         gA.ret.ok && j(gA.pushed) === j([['global', '', 3]]) && j(gA.vals) === j({ f_j: 1 }) && gG.ret.ok && gG.pushed[0][1] === 'gm' && gG.pushed[0][2] === 3 && gG.toasts.some(t => /GMFig/.test(t)), j([gA.pushed, gA.vals, gG.pushed, gG.toasts]));
+})());
+
+// Chat cards (owner 2026-09-27): a damage roll's mark — the host puts it on the record from the roll entry its formula matched (a system roll by
+// its id, a list's roll by its index), never from the player's word; the GM's own roll from its entry, or this machine's own word (a thrown item's damage)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const sysD = Sx.cleanSystem({ v: 1, name: 'D', fields: [{ id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: { rolls: [{ label: 'Hit', formula: 'd6', dmg: true }, { label: 'Aim', formula: 'd20' }] } }],
+        rolls: [{ id: 'r_d', label: 'Dmg', formula: '2d6', dmg: true }, { id: 'r_p', label: 'Plain', formula: 'd20' }] }, { F: Fx, gmView: true });
+    const chD = () => ({ c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_w: [{ id: 'w_1', own: 1, qty: 1, def: { name: 'Axe' } }] } } });
+    const runD = msg => { const out = { table: [], sent: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sysD, chars: chD(), items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a' }, msg), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {});
+        return out; };
+    const dA = runD({ act: 'r_d', expr: '2d6' }), dP = runD({ act: 'r_p', expr: 'd20' }), dL = runD({ row: { f: 'f_w', r: 'w_1', i: 0 }, expr: 'd6' }), dL2 = runD({ row: { f: 'f_w', r: 'w_1', i: 1 }, expr: 'd20' });
+    const dX = runD({ expr: 'd20', dmg: 1 }), dF = runD({ act: 'r_d', expr: '1d6' });
+    check('Chat cards: a player\'s damage roll is marked by the host from the entry its formula matched (a system roll by its id, a list\'s roll by its index); an unmarked entry, a request that claims the mark, or one whose formula does not match its button puts none on the table',
+        dA.table.length === 1 && dA.table[0].dmg === 1 && Dx.cleanRoll(dA.table[0]).dmg === 1 && dP.table.length === 1 && !('dmg' in dP.table[0]) && dL.table.length === 1 && dL.table[0].dmg === 1 && dL2.table.length === 1 && !('dmg' in dL2.table[0])
+        && dX.table.length === 1 && !('dmg' in dX.table[0]) && dF.table.length === 0, j([dA.table, dP.table, dL.table, dL2.table, dX.table, dF.sent]));
+    const runGD = (expr, o) => { const out = { pushed: [] };
+        const camp = { id: 'k', system: sysD, chars: chD() };
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, (rec, res, scope) => out.pushed.push([scope, rec.dmg === undefined ? null : rec.dmg]), () => {}, () => {});
+        out.ret = dr(expr, Object.assign({ charId: 'c_a' }, o)); return out; };
+    const gD = runGD('2d6', { act: 'r_d' }), gP = runGD('d20', { act: 'r_p' }), gO = runGD('3d6', { dmg: true }), gL = runGD('d6', { row: { f: 'f_w', r: 'w_1', i: 0 } }), gN = runGD('3d6', { dmg: 1 });
+    check('Chat cards: the GM\'s own roll is marked from its entry (a system roll, a list\'s roll) or from this machine\'s own word (true only: a thrown item\'s damage); an unmarked entry is not; a player\'s request to the host never carries the word',
+        j(gD.pushed) === j([['global', 1]]) && j(gP.pushed) === j([['global', null]]) && j(gO.pushed) === j([['global', 1]]) && j(gL.pushed) === j([['global', 1]]) && j(gN.pushed) === j([['global', null]]) && !/req\.dmg/.test(src4),
+        j([gD.pushed, gP.pushed, gO.pushed, gL.pushed, gN.pushed]));
 })());
 
 // owed review F5a2 #1: a GM-only value read through a choice's option (Secret = GMFig, the Longsword picking it) — the GM's public roll of the choice,

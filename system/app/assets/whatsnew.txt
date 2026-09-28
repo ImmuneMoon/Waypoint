@@ -310,8 +310,8 @@ Character sheets: the look
   Effect cards (each status effect a card with a pill per change: +2 ST). On
   the Fields tab a formula can show as a Badge, each value name in its own
   color (Good, Warning, Danger, Accent, Primary), and a resource can have
-  its own color; on the Rolls tab a roll takes a tone (filled, red for
-  damage, grey, outline) and an icon.
+  its own color; on the Rolls tab a roll takes a tone (filled, red, grey,
+  outline) and an icon.
 - Icons: every icon box (a tab, a section, a resource, an effect, an item, a
   roll) takes an emoji or one of 161 bundled icons from the picker beside it
   (Icons and Emoji tabs, with a search that knows words like spell, armour
@@ -768,6 +768,13 @@ Dice
   as a critical failure. The card, the session log and what a roll changes
   on success or failure all follow it; the default stays success or failure
   by the margin.
+- Roll cards take a new shape: the roll's name as a bold title and a
+  colored stripe down the left edge (the plain color, green for a
+  success, red for a failure), in the colors of the system's sheet look
+  where it has one; a private card is framed in violet. A roll ticked
+  Damage in the System editor (a roll, or a list's roll) posts a damage
+  card: the damage color, a larger total and a "damage" tag; a thrown
+  item's damage does too.
 
 Visual effects
 - A visual-effects panel on the play map (✨ Visual effects, under 🎬 Scene)

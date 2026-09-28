@@ -3078,7 +3078,7 @@ window.wpFitToGrid = fitToGrid;
       if (auto === 'measure') return;
       if (window.wpVtt && !window.wpVtt.on('dice')) return;
       if (!window.wpDice || !window.wpDice.rollFor) return;
-      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly });   // a GM-only item's damage stays the GM's
+      var dr = window.wpDice.rollFor(opts.charId, opts.damage, (opts.name || 'Blast') + ' damage', { gmOnly: !!opts.gmOnly, dmg: true });   // a GM-only item's damage stays the GM's; chat cards: a damage card (an item's damage is damage by nature, as on his Foundry sheets)
       var total = dr && dr.ok && typeof dr.value === 'number' ? dr.value : null;
       if (auto !== 'full' || total === null) return;
       applyBlastDamage(b, total, combat.hpResource);

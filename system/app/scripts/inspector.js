@@ -1039,9 +1039,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the &#127787; menu.</div>' : '')+
               ((w.type === 'light' || w.isChar) && !w.waiting && !w.hidden && window.wpCanPersistLocal && window.wpCanPersistLocal() ? (function() {   // lighting (L2): the GM sets a light's radii (a player's own light: the host takes none of this from them)
                   var L = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(w.light) : null;
-                  return '<div class="field"><label for="wbLightBright">' + (w.type === 'light' ? 'Light' : 'Carries a light') + '</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><span class="muted">Bright to</span><input type="number" id="wbLightBright" min="0" max="1000" step="1" value="' + (L ? L.bright : 0) + '" style="width:64px;"><span class="muted">dim to</span><input type="number" id="wbLightDim" min="0" max="1000" step="1" value="' + (L ? L.dim : 0) + '" style="width:64px;"><span class="muted">yd</span></div></div>'
-                      + '<div class="field check-row"><input type="checkbox" id="wbLightOn" ' + (L && !L.off ? 'checked' : '') + '> <label for="wbLightOn">Light is on</label></div>'
-                      + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (&#9881; Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
+                  return lightFieldHtml(w, L, lightPresetsNow());
               })() : '')+
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
@@ -1286,17 +1284,23 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 save(); render();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
-            var _el_wbLB = document.getElementById('wbLightBright'), _el_wbLD = document.getElementById('wbLightDim'), _el_wbLO = document.getElementById('wbLightOn');
+            var _el_wbLB = document.getElementById('wbLightBright'), _el_wbLD = document.getElementById('wbLightDim'), _el_wbLO = document.getElementById('wbLightOn'), _el_wbLU = document.getElementById('wbLightUnit');
             var setLight = function() {   // lighting (L2): the light a light source or a token gives; none when both radii are 0
                 var C = window.wpFogCore; if (!C) return;
-                var had = !!C.cleanLight(w.light), b = Number(_el_wbLB && _el_wbLB.value) || 0, d = Number(_el_wbLD && _el_wbLD.value) || 0;
-                var L = C.cleanLight({ bright: b, dim: Math.max(b, d), off: _el_wbLO ? !_el_wbLO.checked && had : false });
+                var old = C.cleanLight(w.light), had = !!old, b = Number(_el_wbLB && _el_wbLB.value) || 0, d = Number(_el_wbLD && _el_wbLD.value) || 0;
+                var L = C.cleanLight({ bright: b, dim: Math.max(b, d), off: _el_wbLO ? !_el_wbLO.checked && had : false, unit: _el_wbLU ? _el_wbLU.value : old ? old.unit : '' });
+                if (L && old && old.name && L.bright === old.bright && L.dim === old.dim && (L.unit || '') === (old.unit || '')) L.name = old.name;   // L4: switched on or off it is still the preset it came from; a radius or the unit set by hand makes it a light of its own
                 if (L && !had && window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(activeMap) >= C.LIMITS.lights) { toast('This map already has the most light sources it can hold (' + C.LIMITS.lights + ').'); renderInspector(); return; }
                 if (L) w.light = L; else if (w.type === 'light') w.light = { bright: 0, dim: 0 }; else delete w.light;
-                save(); render(); if (!had) renderInspector();
+                save(); render();
+                if (!had || !L) renderInspector();
+                else if ((old.name || '') !== (L.name || '')) { var psel = document.getElementById('wbLightPreset'); if (psel) { if (psel.options && psel.options[0]) psel.options[0].textContent = 'Custom'; psel.value = ''; } }   // its name let go: the preset box says so in place (a panel drawn afresh would take the box being typed in)
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             };
             [_el_wbLB, _el_wbLD, _el_wbLO].forEach(function(el) { if (el) el.addEventListener('change', setLight); });
+            if (_el_wbLU) _el_wbLU.addEventListener('change', setLight);
+            var _el_wbLP = document.getElementById('wbLightPreset');
+            if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
             var _el_wbFogged = document.getElementById('wbFogged');
             if(_el_wbFogged) _el_wbFogged.addEventListener('change', function() {
                 if (this.checked) w.fogged = true; else delete w.fogged;   // marks this item as a play area — fog is confined to the union of such items' footprints
@@ -1654,6 +1658,36 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       return '<div class="field"><label for="' + selectId + '" title="Which room on the far map you arrive at. Automatic = a room with the same id or name as this one, else the map\'s home point.">Landing Room</label><select id="' + selectId + '">' + opts + '</select></div>';
   }
   // [sinkcheck:landing-end]
+
+  // [sinkcheck:lightfield-start]
+  // Lighting (L2, L4): the Light block of a light source's or a token's Properties (the GM's only) — the system's light presets, the two radii,
+  // what they count in, on or off. A preset's name comes from a system file, a light's from a save or the wire: both land through esc
+  function lightPresetsNow() { var camp = getActiveCampaign(), S = window.wpSystemCore; return camp && camp.system && S && S.lightPresets ? S.lightPresets(camp.system) : []; }
+  function lightFieldHtml(w, L, presets) {
+      var unit = L && L.unit ? L.unit : 'yd', list = Array.isArray(presets) ? presets : [], cur = -1;
+      var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; };
+      if (L && L.name) list.forEach(function(p, i) { if (cur < 0 && p && p.name === L.name && p.bright === L.bright && p.dim === L.dim && word(p.unit) === unit) cur = i; });
+      var pre = !list.length && !(L && L.name) ? '' : '<div class="field"><label for="wbLightPreset">Light preset</label><select id="wbLightPreset" title="Your system&rsquo;s lights (the System editor&rsquo;s Items tab, on the Combat card). Picking one copies its radii here; a later change to the list rewrites no light on the board.">'
+          + '<option value=""' + (cur < 0 ? ' selected' : '') + '>' + (L && L.name && cur < 0 ? esc(L.name) + ' (as placed)' : 'Custom') + '</option>'
+          + list.map(function(p, i) { return '<option value="' + i + '"' + (i === cur ? ' selected' : '') + '>' + esc(p && p.name) + ' (' + esc(String(Number(p && p.bright) || 0)) + ' / ' + esc(String(Number(p && p.dim) || 0)) + ' ' + word(p && p.unit) + ')</option>'; }).join('') + '</select></div>';
+      return pre + '<div class="field"><label for="wbLightBright">' + (w.type === 'light' ? 'Light' : 'Carries a light') + '</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><span class="muted">Bright to</span><input type="number" id="wbLightBright" min="0" max="1000" step="1" value="' + (L ? Number(L.bright) || 0 : 0) + '" style="width:64px;"><span class="muted">dim to</span><input type="number" id="wbLightDim" min="0" max="1000" step="1" value="' + (L ? Number(L.dim) || 0 : 0) + '" style="width:64px;">'
+          + '<select id="wbLightUnit" title="What the two radii count in: the map&rsquo;s scale turns yards, feet or metres into cells; grid cells count as they are">' + ['yd', 'ft', 'm', 'cells'].map(function(u) { return '<option value="' + u + '"' + (u === word(unit) ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></div></div>'
+          + '<div class="field check-row"><input type="checkbox" id="wbLightOn" ' + (L && !L.off ? 'checked' : '') + '> <label for="wbLightOn">Light is on</label></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (&#9881; Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
+  }
+  // A preset picked in the Light block: copied onto the item by value (its name kept with it), on or off as the light was. "Custom" keeps the
+  // radii and lets the name go. A new light past the map's cap is refused, as a radius typed in is
+  function applyLightPreset(w, value, map) {
+      var C = window.wpFogCore; if (!C || !w) return;
+      var list = lightPresetsNow(), i = typeof value === 'string' && /^[0-9]{1,3}$/.test(value) ? Number(value) : -1, p = i >= 0 && i < list.length ? list[i] : null, old = C.cleanLight(w.light);   // a place in the list, written in digits alone
+      if (value !== '' && !p) { renderInspector(); return; }   // a preset the list no longer holds there (the panel was drawn before the list changed): nothing is copied, the panel is drawn afresh
+      var L = p ? C.cleanLight({ bright: p.bright, dim: p.dim, unit: p.unit, name: p.name, off: !!(old && old.off) }) : old ? C.cleanLight({ bright: old.bright, dim: old.dim, unit: old.unit, off: old.off }) : null;
+      if (L && !old && window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(map) >= C.LIMITS.lights) { toast('This map already has the most light sources it can hold (' + C.LIMITS.lights + ').'); renderInspector(); return; }
+      if (L) w.light = L; else if (w.type === 'light') w.light = { bright: 0, dim: 0 }; else delete w.light;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+  }
+  // [sinkcheck:lightfield-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

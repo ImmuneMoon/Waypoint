@@ -14,6 +14,7 @@ var LIMITS = Object.freeze({
     blockerCells: 6000, // sight-blocker cells resolved per map — over this, occlusion falls open (no blocking)
     lights: 200,        // lighting (L2): light sources counted per map — over this the map reads dark (never more light than there is)
     lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
+    lightName: 60,      // lighting (L4): the name a light keeps of the preset it came from
     arcDeg: 180,        // GURPS front arc
     len: [10, 4000]     // a gridless cell length in board px
 });
@@ -64,6 +65,25 @@ function rangeToCells(rangeUnits, perCellUnits) {
     var per = fin(perCellUnits) && perCellUnits > 0 ? perCellUnits : 1;
     return clamp(Math.round(rangeUnits / per), 0, LIMITS.rangeCells);
 }
+// Lighting (L4): the units a length may be counted in besides yards (the absent default): feet, metres, or the map's own cells
+var LENGTH_UNITS = Object.freeze({ ft: 1 / 3, m: 1.09361, cells: 0 });
+function lightUnit(u) { return typeof u === 'string' && Object.prototype.hasOwnProperty.call(LENGTH_UNITS, u) ? u : ''; }
+// A length in its unit → a map's cells, rounded and clamped as rangeToCells. Yards (no unit, or one not known) convert exactly as before;
+// cells count as they are, whatever the map's scale; feet and metres go through the map's yards per cell, to the millionth first (3.5 ft on
+// 1 ft squares is three cells and a half, so 4, not a hair under it and 3)
+function unitCells(value, unit, perCellYards) {
+    if (!fin(value) || value <= 0) return 0;
+    var u = lightUnit(unit);
+    if (u === 'cells') return rangeToCells(value, 1);
+    if (!u) return rangeToCells(value, perCellYards);
+    var per = fin(perCellYards) && perCellYards > 0 ? perCellYards : 1;
+    return rangeToCells(Math.round(value * LENGTH_UNITS[u] / per * 1e6) / 1e6, 1);
+}
+var CTRL_G = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
+var LONE_SURROGATE = /^[\uD800-\uDFFF]$/;
+// A short name cut by code points (never half an emoji; a lone surrogate is dropped), control characters to spaces: systemcore cutPoints' own
+// rule, so a light's name copied from a preset is the preset's name
+function cleanName(v, cap) { if (typeof v !== 'string') return ''; return Array.from(v.slice(0, 256).replace(CTRL_G, ' ').trim()).filter(function(ch) { return !LONE_SURROGATE.test(ch); }).slice(0, cap).join('').trim(); }
 
 /* ---------- sight-blockers (line-of-sight occlusion, v1: static walls) ----------
    Pure & item-blind: fog.js converts flagged board items to a Set of opaque cell KEYS and passes
@@ -338,14 +358,26 @@ function seenCells(viewer, grid, blockers, ctx) {
 }
 // Lighting (L2): a board item's light — { bright, dim } radii in yards (dim, the outer edge, at least bright: equal is no dim fringe, as a
 // ShadowBase glowrod), off: true while switched off. null when it gives none. Numbers only, clamped, read by comparison (an import can hold
-// anything)
+// anything). L4: unit, what the radii count in when not yards (ft, m or cells), and name, the preset it was copied from (text, shown escaped)
 function cleanLight(l) {
     if (!isObj(l)) return null;
     var b = fin(l.bright) ? clamp(l.bright, 0, 1000) : 0, d = fin(l.dim) ? clamp(l.dim, 0, 1000) : 0;
     if (d < b) d = b;
     if (b <= 0 && d <= 0) return null;
     var out = { bright: b, dim: d }; if (l.off === true) out.off = true;
+    var u = lightUnit(l.unit); if (u) out.unit = u;
+    var nm = cleanName(l.name, LIMITS.lightName); if (nm) out.name = nm;
     return out;
+}
+// Whether a cell lies in a viewer's facing arc — visibleCells' own test, for a point query: all around, or within half the arc of its facing;
+// its own cell always
+function cellInArc(viewer, cell, grid) {
+    if (!viewer || !cell || !grid || !fin(viewer.x) || !fin(viewer.y)) return false;
+    var arc = fin(viewer.arc) ? clamp(viewer.arc, 0, 360) : (grid.type === 'square' ? 360 : LIMITS.arcDeg);
+    if (arc >= 360) return true;
+    var here = cellOf(viewer.x, viewer.y, grid); if (cellKey(here, grid) === cellKey(cell, grid)) return true;
+    var vc = cellCenter(here, grid), ctr = cellCenter(cell, grid), bearing = Math.atan2(ctr.x - vc.x, -(ctr.y - vc.y)) * 180 / Math.PI;
+    return Math.abs(norm180(bearing - (fin(viewer.front) ? viewer.front : 0))) <= arc / 2 + 1e-9;
 }
 // Lighting (L2): the light each cell gets from a map's light sources — 2 within a source's bright radius, 1 out to its dim radius — along a clear
 // line from the source's cell (walls stop light as they stop sight). A wall's own cell takes none: a viewer's rule shows its lit face. sources:
@@ -421,17 +453,18 @@ function cleanFog(fog) {   // per-map: { on, mode, vision?, cell?, manual:{adds,
     out.manual = { adds: adds, cuts: cuts };
     return out;
 }
-function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sight, vision?, on?} } — vision/on = the new-map defaults
+function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, defaults:{sight, vision?, on?} } — vision/on = the new-map defaults
     if (!isObj(cf)) return { fields: {}, defaults: { sight: 0 } };
     var f = isObj(cf.fields) ? cf.fields : {}, d = isObj(cf.defaults) ? cf.defaults : {};
     var out = { fields: {}, defaults: { sight: fin(d.sight) ? clamp(d.sight, 0, 100000) : 0 } };
     if (typeof f.sight === 'string' && /^f_[A-Za-z0-9_]{1,24}$/.test(f.sight)) out.fields.sight = f.sight;
+    var su = lightUnit(f.sightUnit); if (su) out.fields.sightUnit = su;   // lighting (L4): what sight counts in (the field and the default) when not yards — ft, m or cells
     var dv = cleanVision(d.vision); if (dv) out.defaults.vision = dv;   // stamped onto new maps only (never retroactive)
     if (d.on === true) out.defaults.on = true;   // "new maps start with fog on" — stamped onto new maps only, never retroactive (stored only when true)
     if (d.emptyFog === 'none') out.defaults.emptyFog = 'none';   // a map with NO play-area item marked: 'none' = no fog; default (absent) = fog the whole map
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

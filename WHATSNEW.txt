@@ -797,10 +797,11 @@ Fog of war
   every map — turn it on where you want it. While a fog map is open you
   always see the see-through fog overlay, across every tool and while
   dragging items, not only in fog mode.
-- Sight: a default sight range in yards, and a "sight from" picker that
-  reads each character's range from a field on their sheet, falling back to
-  the default. Preview any player's view from the panel to see the map
-  exactly as they will.
+- Sight: a default sight range, and a "sight from" picker that reads each
+  character's range from a field on their sheet, falling back to the
+  default. Sight counts in yards, feet, metres or grid cells, and each map's
+  scale converts it (60 ft on 5 ft squares is 12 squares). Preview any
+  player's view from the panel to see the map exactly as they will.
 - Players see an opaque fog over everything their own characters cannot see,
   and never receive what is hidden: your machine works out each player's
   vision and drops the creatures they cannot see from what it sends, so
@@ -832,8 +833,16 @@ Fog of war
   spreads bright to the first radius and dim to the second, walls and closed
   doors stop it, and players see a light, never its marker. A torch carried
   round a corner lights what a player sees without telling them who holds
-  it. With Lighting
-  off, a token sees only as far as its sight, as before.
+  it. With Lighting off, a token sees only as far as its sight, as before.
+- Light by your system's rules: the Combat card (the System editor's Items
+  tab) has a Light box for what your game calls a dim and a dark place and
+  for its light presets (a torch, a lantern), each with its radii in yards,
+  feet, metres or grid cells. A light's Properties offer the presets. Name
+  the levels, wording your penalty into the name, and the ruler between two
+  tokens shows the light the far one stands in, and a target mark carries
+  it at its corner with the name under the target: on the GM's screen for
+  every targeter with a token on the map, on a player's for their own
+  mark. The starter systems come with a few lights.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
   block sight also give cover, and a piece's Cover setting in its
   Properties can make it cover you can see over (a crate or a low wall:

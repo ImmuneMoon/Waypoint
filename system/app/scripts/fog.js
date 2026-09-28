@@ -52,7 +52,8 @@ function cellYardsForMap(map) {
     var per = (typeof meta.cellValue === 'number' && meta.cellValue > 0) ? meta.cellValue : (hex ? 1 : 5);
     return per * (UNIT_YD[meta.cellUnit] || (hex ? 1 : UNIT_YD.ft));
 }
-// One token's sight, in cells: the mapped sheet field via the formula engine, else the campaign default; clamped
+// One token's sight, in cells: the mapped sheet field via the formula engine, else the campaign default; clamped. Counted in yards unless the
+// campaign says feet, metres or cells (camp.fog.fields.sightUnit, L4: a d20 game's 60 ft on 5 ft squares is 12 cells)
 function tokenSightCells(token, map, camp) {
     var C = core(); if (!C || !token) return 0;
     var cf = campFog(camp), yards = cf.defaults.sight || 0;
@@ -67,7 +68,7 @@ function tokenSightCells(token, map, camp) {
             }
         }
     }
-    return C.rangeToCells(yards, cellYardsForMap(map));
+    return C.unitCells(yards, cf.fields.sightUnit, cellYardsForMap(map));
 }
 
 /* ---------- who reveals what ----------
@@ -308,7 +309,7 @@ function lightSources(map, grid, blk, skip) {   // skip: ids left out (L3: the i
             if (Math.abs(cx - cc.x) < 1 && Math.abs(cy - cc.y) < 1) { var fb = ((w.rot || 0) + (w.front || 0)) * Math.PI / 180; tx = cx + Math.sin(fb) * 50; ty = cy - Math.cos(fb) * 50; }
             var st = C.openSeat(cx, cy, tx, ty, grid, blk); if (!st) continue; cell = C.cellOf(st.x, st.y, grid);
         }
-        out.push({ cell: cell, bright: L.bright > 0 ? C.rangeToCells(L.bright, per) : -1, dim: C.rangeToCells(L.dim, per) });   // bright -1: a dim-only light
+        out.push({ cell: cell, bright: L.bright > 0 ? C.unitCells(L.bright, L.unit, per) : -1, dim: C.unitCells(L.dim, L.unit, per) });   // bright -1: a dim-only light; L4: the radii in the light's own unit
     }
     if (!skip) _lightsOver[map.id] = out.length > C.LIMITS.lights;
     if (out.length > C.LIMITS.lights) { if (!_lightsWarned[map.id] && isGmView()) { _lightsWarned[map.id] = 1; toast('Too many light sources on this map — it reads dark until there are fewer.'); } return []; }
@@ -412,6 +413,35 @@ function revealedCellList(map, camp, ownerId) {
     if (!gridForMap(map)) return [];
     var t = revealedTiers(map, camp, ownerId);
     return t === null ? null : t.list.map(function(o) { return o.cell; });
+}
+
+// Lighting (L4): the light one token sees another in, for the ruler's line and a target mark's tag — 0 dark, 1 dim, 2 clear (bright, a cell the
+// GM revealed by hand, or within its own sight in the dark). null where no light is read: lighting or fog off, fog not on Auto for the map, no
+// grid, the target where this map draws no fog (outside its play areas) or hidden by hand, or out of the viewer's arc, line of sight or reach —
+// so a lit level is read only for the cells a player's copy is given lit cells for (fogLitFor), and the GM's screen and the player's agree.
+// A point query on what is already kept (the map's walls, its fog areas, its lights' lit cells), never a viewer's whole disc; on a player's
+// copy the lit cells the host sent count too (litFor). A target in a wall's or a closed door's own cell reads the light on its near face, as
+// seenCells shows it: the brightest of the open cells beside it this viewer sees, at least the map's own
+function lightSeen(from, to, map, camp) {
+    if (!fogFeatureOn() || !map || map.type !== 'map' || !from || !to) return null;
+    var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
+    var C = core(), grid = gridForMap(map); if (!C || !grid) return null;
+    var lvl = mapLevel(map); if (lvl === null) return null;
+    var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], turningOn = !window.wpVtt || window.wpVtt.on('turning');
+    var v = { x: from.x + (from.w || 60) / 2, y: from.y + (from.h || 52) / 2, front: (from.rot || 0) + (from.front || 0), arc: turningOn ? visionOf(map).arc : 360 };
+    var a = C.cellOf(v.x, v.y, grid), b = C.cellOf(to.x + (to.w || 60) / 2, to.y + (to.h || 52) / 2, grid), bk = C.cellKey(b, grid);
+    var mask = fogMask(map, camp, grid); if (mask.mode === 'none' || !inMask(mask, bk)) return null;   // no fog is drawn there
+    var byHand = function(list) { return (list || []).some(function(c) { return C.cellKey(c, grid) === bk; }); };
+    if (byHand(mf.manual.cuts)) return null;
+    if (byHand(mf.manual.adds)) return 2;
+    var d = C.cellDist(a, b, grid); if (!(d <= C.LIMITS.rangeCells + 1e-9) || !C.cellInArc(v, b, grid) || !C.lineClear(a, b, grid, blk)) return null;
+    if (d <= tokenSightCells(from, map, camp) + 1e-9) return 2;
+    if (over) return 0;   // walls over their cap: the map reads by sight alone, never by a light judged through them
+    var lc = litFor(map, grid, blk), lit = lc ? lc.lit : null;
+    if (!blk || !blk[bk]) return Math.max(lvl, (lit && lit[bk]) || 0);
+    var best = lvl;
+    C.neighbourCells(b, grid).forEach(function(n) { var nk = C.cellKey(n, grid); if (blk[nk] || !C.cellInArc(v, n, grid) || !C.lineClear(a, n, grid, blk)) return; var l = Math.max(lvl, (lit && lit[nk]) || 0); if (l > best) best = l; });
+    return best;
 }
 
 /* ---------- host enforcement helpers (called by net.js) ---------- */
@@ -526,6 +556,27 @@ function draw() {
     ctx.fill();                                                    // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
+    drawCaptions(ctx, s);
+}
+// Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own
+// layers lie under it, and on a player's screen the cells beneath a token are often dark. whiteboard.js marks the token with the words it
+// worked out for this screen (data-light-cap); they are drawn as text (fillText: never markup), level however the token is turned, where the
+// token is on screen now (a drag, a zoom or a scroll moves them with it at the overlay's own pace)
+var CAPTIONS_MOST = 40;
+function drawCaptions(ctx, s) {
+    var els = document.querySelectorAll('#whiteboardWrap .wb-item[data-light-cap]'); if (!els.length || !ctx.fillText) return;
+    var sr = s.getBoundingClientRect();
+    ctx.save();
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (var i = 0; i < els.length && i < CAPTIONS_MOST; i++) {
+        var t = String(els[i].dataset.lightCap || '').slice(0, 200); if (!t) continue;
+        var r = els[i].getBoundingClientRect(), cx = r.left + r.width / 2 - sr.left, cy = r.bottom - sr.top + 12, w = Math.min(ctx.measureText(t).width + 14, 360), h = 17;
+        if (cx + w / 2 < 0 || cy + h < 0 || cx - w / 2 > sr.width || cy - h > sr.height) continue;   // off the board's view
+        ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1;
+        ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e8e6f5'; ctx.fillText(t, cx, cy + 0.5, 346);
+    }
+    ctx.restore();
 }
 
 /* ---------- the throttled redraw loop (runs only while the overlay is active) ---------- */
@@ -594,6 +645,7 @@ function syncMenu() {
         var len = ui('fogCellLen'); if (len && document.activeElement !== len) len.value = cell.len;
     }
     var sight = ui('fogSight'); if (sight && document.activeElement !== sight) sight.value = cf.defaults.sight || 0;
+    var sunit = ui('fogSightUnit'); if (sunit && document.activeElement !== sunit) sunit.value = cf.fields.sightUnit || 'yd';   // lighting (L4): what sight counts in
     fillSightField();
     // vision mode (all-around vs a facing cone), decoupled from grid type
     var vis = visionOf(map), vsel = ui('fogVision');
@@ -640,6 +692,12 @@ var LIGHT_SAID = {
     if (sight) sight.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp), v = Math.round(Number(sight.value) || 0); cf.defaults.sight = Math.max(0, Math.min(100000, v)); save(); syncMenu(); redraw(); });
     var sfield = ui('fogSightField');
     if (sfield) sfield.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp); cf.fields.sight = sfield.value || undefined; if (!sfield.value) delete cf.fields.sight; save(); syncMenu(); redraw(); });
+    var sunit = ui('fogSightUnit');
+    if (sunit) sunit.addEventListener('change', function() {
+        var camp = activeCamp(), C = core(); if (!camp || !C) return; var cf = campFog(camp), u = C.lightUnit(sunit.value);
+        if (u) cf.fields.sightUnit = u; else delete cf.fields.sightUnit;   // yards: the absent default
+        save(); invalidateVision(); syncMenu(); redraw();
+    });
     var vsel = ui('fogVision');
     if (vsel) vsel.addEventListener('change', function() {
         var map = activeMap(); if (!map) return; var mf = mapFog(map), C = core();
@@ -733,5 +791,6 @@ window.wpFog = {
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     lightLevel: mapLevel, lightCount: lightCount,
+    lightSeen: lightSeen,
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

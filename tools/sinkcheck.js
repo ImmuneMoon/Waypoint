@@ -729,6 +729,186 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(lgP.props) === j({ '--card-primary': '#abcdef', '--card-t-primary': '#abcdef', '--card-bad': '#123456', '--card-t-bad': '#123456' }) && lgP.dataset.cardTone === 'light' && rS.posts.length === 0,
             j([lgM.props, post1 && post1.look, post2 && post2.look, lgP.props, rS.posts.length]));
     }
+    /* ---- Lighting L4: the system's light rules on the GM's screen — a preset's name and a level's name come from a system file, a light's own name from a save or the wire ---- */
+    {
+        const j = JSON.stringify, FCl = await import(modUrl('fogcore.js')), SYl = await import(modUrl('systemcore.js'));
+        const inspL = read('inspector.js'), wbL = read('whiteboard.js');
+        const escLine = /\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspL);
+        const escI = escLine ? new Function(escLine[0] + '\nreturn esc;')() : null;
+        check('light block: the inspector\'s own esc slices out and turns a tag and a quote into text', !!escI && escI(T + '"') === '&lt;img src=x onerror=alert(1)&gt;&quot;');
+        const hostileSys = () => ({ combat: { light: { names: { dim: T, dark: P }, presets: [{ name: T, bright: 5, dim: 10 }, { name: P, bright: 20, dim: 40, unit: 'ft', pick: true }, { name: 'Lantern', bright: 3, dim: 3, unit: 'cells' }, { name: '', bright: 4, dim: 4 }, { name: 'Junk unit', bright: 2, dim: 6, unit: P }] } } });
+        const mkInsp = (camp, opt) => {
+            const calls = { toasts: [], saves: 0, renders: 0, inspectors: 0, vision: 0 }, o = opt || {};
+            const win = { wpSystemCore: SYl, wpFog: { lightCount: () => o.count || 0, invalidateVision() { calls.vision++; }, redraw() {} } };
+            if (!o.noCore) win.wpFogCore = FCl;
+            const env = { getActiveCampaign: () => camp, window: win, toast: m => calls.toasts.push(m), save: () => { calls.saves++; }, render: () => { calls.renders++; }, renderInspector: () => { calls.inspectors++; } };
+            const api = new Function('env', 'esc', "'use strict';\nvar getActiveCampaign = env.getActiveCampaign, window = env.window, toast = env.toast, save = env.save, render = env.render, renderInspector = env.renderInspector;\n" + slice('inspector.js', 'lightfield') + '\nreturn { lightPresetsNow: lightPresetsNow, lightFieldHtml: lightFieldHtml, applyLightPreset: applyLightPreset };')(env, escI || SC.esc);
+            api.calls = calls; return api;
+        };
+        const optsOf = (html, id) => { const m = new RegExp('<select id="' + id + '"[^>]*>([\\s\\S]*?)</select>').exec(html); return m ? Array.from(m[1].matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)).map(x => [x[1], !!x[2], x[3]]) : null; };
+        const valOf = (html, id) => { const m = new RegExp('<input type="number" id="' + id + '"[^>]* value="([^"]*)"').exec(html); return m ? m[1] : null; };
+        const campL = { id: 'c1', system: hostileSys() }, I1 = mkInsp(campL), presets = I1.lightPresetsNow();
+        check('light block: the presets offered are the system\'s cleaned ones (one with no name goes, a unit the app does not know is dropped); none without a campaign or a system',
+            j(presets) === j([{ name: T, bright: 5, dim: 10 }, { name: P, bright: 20, dim: 40, unit: 'ft', pick: true }, { name: 'Lantern', bright: 3, dim: 3, unit: 'cells' }, { name: 'Junk unit', bright: 2, dim: 6 }])
+            && j(mkInsp(null).lightPresetsNow()) === '[]' && j(mkInsp({ id: 'c2' }).lightPresetsNow()) === '[]' && j(mkInsp({ id: 'c3', system: { combat: { light: 'x' } } }).lightPresetsNow()) === '[]', j(presets));
+        // a light whose own name is hostile and matches no preset, over hostile presets
+        const ownName = P + T, hA = I1.lightFieldHtml({ type: 'light' }, FCl.cleanLight({ bright: 7, dim: 9, name: ownName }), presets), oA = optsOf(hA, 'wbLightPreset');
+        check('light block: hostile preset names and a light\'s own hostile name render without a crash and nothing in the block can run or call out', risks(hA).length === 0 && hA.indexOf(T) < 0 && hA.indexOf(P) < 0 && hA.indexOf('onmouseover="') < 0, risks(hA));
+        check('light block: every name lands escaped as an option\'s text; the option values are the empty one and list positions only',
+            !!oA && oA.length === 5 && j(oA.map(o => o[0])) === j(['', '0', '1', '2', '3']) && oA[0][2] === escI(ownName) + ' (as placed)' && oA[1][2] === escI(T) + ' (5 / 10 yd)' && oA[2][2] === escI(P) + ' (20 / 40 ft)' && oA[3][2] === 'Lantern (3 / 3 cells)' && oA[4][2] === 'Junk unit (2 / 6 yd)', oA);
+        check('light block: a light whose name matches no preset reads "(as placed)" and is the one selected; the same name with other radii or another unit is as placed too',
+            !!oA && j(oA.map(o => o[1])) === j([true, false, false, false, false])
+            && j(optsOf(I1.lightFieldHtml({ type: 'light' }, { bright: 3, dim: 4, unit: 'cells', name: 'Lantern' }, presets), 'wbLightPreset').map(o => o[1])) === j([true, false, false, false, false])
+            && j(optsOf(I1.lightFieldHtml({ type: 'light' }, { bright: 3, dim: 3, name: 'Lantern' }, presets), 'wbLightPreset').map(o => [o[1], o[2]])[0]) === j([true, 'Lantern (as placed)']), oA);
+        const oB = optsOf(I1.lightFieldHtml({ isChar: true }, { bright: 3, dim: 3, unit: 'cells', name: 'Lantern' }, presets), 'wbLightPreset'), oC = optsOf(I1.lightFieldHtml({ isChar: true }, { bright: 5, dim: 10 }, presets), 'wbLightPreset'), oD = optsOf(I1.lightFieldHtml({ isChar: true }, { bright: 20, dim: 40, unit: 'ft', name: P }, presets), 'wbLightPreset');
+        check('light block: a light copied from a preset (the same name, radii and unit) shows that preset selected; a light with no name shows Custom',
+            j(oB.map(o => o[1])) === j([false, false, false, true, false]) && oB[0][2] === 'Custom' && j(oC.map(o => o[1])) === j([true, false, false, false, false]) && oC[0][2] === 'Custom' && j(oD.map(o => o[1])) === j([false, false, true, false, false]), [oB, oC, oD]);
+        const noPre = I1.lightFieldHtml({ type: 'light' }, { bright: 5, dim: 10 }, []), noPreNull = I1.lightFieldHtml({ isChar: true }, null, 'junk'), nameOnly = I1.lightFieldHtml({ type: 'light' }, { bright: 5, dim: 10, name: T }, []);
+        check('light block: no preset select when the system has no presets and the light no name; a named light alone shows its one "(as placed)" option',
+            noPre.indexOf('wbLightPreset') < 0 && noPreNull.indexOf('wbLightPreset') < 0 && valOf(noPreNull, 'wbLightBright') === '0' && valOf(noPreNull, 'wbLightDim') === '0' && !/id="wbLightOn" checked/.test(noPreNull) && /id="wbLightOn" checked/.test(noPre)
+            && j(optsOf(nameOnly, 'wbLightPreset')) === j([['', true, escI(T) + ' (as placed)']]) && risks(nameOnly).length === 0, [noPre.slice(0, 200), optsOf(nameOnly, 'wbLightPreset')]);
+        const unitSel = u => { const o = optsOf(I1.lightFieldHtml({ type: 'light' }, u === undefined ? { bright: 5, dim: 10 } : { bright: 5, dim: 10, unit: u }, presets), 'wbLightUnit'); return o ? [o.map(x => x[0]).join(), o.map(x => x[2]).join(), o.filter(x => x[1]).map(x => x[0]).join()] : null; };
+        const hJunk = I1.lightFieldHtml({ type: 'light' }, { bright: 5, dim: 10, unit: P, name: 'n' }, presets);
+        check('light block: the unit select offers exactly yd, ft, m and cells with the light\'s own selected; no unit, or one the app does not know, shows yd and never reaches the markup',
+            j(unitSel(undefined)) === j(['yd,ft,m,cells', 'yd,ft,m,cells', 'yd']) && unitSel('ft')[2] === 'ft' && unitSel('m')[2] === 'm' && unitSel('cells')[2] === 'cells' && unitSel(P)[2] === 'yd' && unitSel('constructor')[2] === 'yd' && unitSel(T)[2] === 'yd'
+            && hJunk.indexOf(P) < 0 && risks(hJunk).length === 0, [unitSel(undefined), unitSel(P)]);
+        const hStr = I1.lightFieldHtml({ type: 'light' }, { bright: '7" onfocus="alert(1)', dim: '12', off: true }, [{ name: 'Odd', bright: T, dim: '9" onfocus="x', unit: T }]);
+        check('light block: the radii in value="" are numbers even when the light or a preset holds strings; a light switched off shows unticked',
+            valOf(hStr, 'wbLightBright') === '0' && valOf(hStr, 'wbLightDim') === '12' && risks(hStr).length === 0 && hStr.indexOf('onfocus') < 0 && hStr.indexOf(T) < 0 && j(optsOf(hStr, 'wbLightPreset')) === j([['', true, 'Custom'], ['0', false, 'Odd (0 / 0 yd)']]) && !/id="wbLightOn" checked/.test(hStr), [valOf(hStr, 'wbLightBright'), valOf(hStr, 'wbLightDim'), optsOf(hStr, 'wbLightPreset')]);
+        check('light block: a light source and a token that carries a light read as before (their label, the note that players never see the marker)',
+            /<label for="wbLightBright">Light<\/label>/.test(noPre) && / Players see its light, never this marker\.<\/div>$/.test(noPre) && /<label for="wbLightBright">Carries a light<\/label>/.test(noPreNull) && noPreNull.indexOf('never this marker') < 0);
+
+        // applyLightPreset, run for real against the real fogcore and the real systemcore
+        const campP = { id: 'c1', system: hostileSys() }, I2 = mkInsp(campP), tokP = { id: 't', isChar: true, light: { bright: 1, dim: 2, off: true } };
+        I2.applyLightPreset(tokP, '1', { id: 'm' });
+        const copied = j(tokP.light), heldBefore = tokP.light;
+        campP.system.combat.light.presets[1].bright = 33; campP.system.combat.light.presets[1].name = 'Renamed'; campP.system.combat.light.presets.length = 0;
+        check('light preset: a preset picked is copied onto the item by value, its name with it, on or off as the light was (never "players may pick"); a later change to the list changes no light',
+            copied === j({ bright: 20, dim: 40, off: true, unit: 'ft', name: P }) && j(tokP.light) === copied && tokP.light === heldBefore && I2.calls.saves === 1 && I2.calls.renders === 1 && I2.calls.inspectors === 1 && I2.calls.vision === 1 && I2.calls.toasts.length === 0, [copied, tokP.light, I2.calls]);
+        const I3 = mkInsp({ id: 'c1', system: hostileSys() }), tokOn = { id: 't', isChar: true, light: { bright: 9, dim: 9 } }, srcNew = { id: 's', type: 'light' };
+        I3.applyLightPreset(tokOn, '2', { id: 'm' }); I3.applyLightPreset(srcNew, '0', { id: 'm' });
+        check('light preset: a light that was on stays on; a light source with no light yet takes the preset (yards carry no unit)', j(tokOn.light) === j({ bright: 3, dim: 3, unit: 'cells', name: 'Lantern' }) && j(srcNew.light) === j({ bright: 5, dim: 10, name: T }) && I3.calls.saves === 2, [tokOn.light, srcNew.light]);
+        const tokC = { id: 't', isChar: true, light: { bright: 20, dim: 40, off: true, unit: 'ft', name: 'Torch' } };
+        I3.applyLightPreset(tokC, '', { id: 'm' });
+        check('light preset: "Custom" keeps the radii, the unit and on or off, and lets the name go', j(tokC.light) === j({ bright: 20, dim: 40, off: true, unit: 'ft' }), tokC.light);
+        const oddSaves = I3.calls.saves, oddInsp = I3.calls.inspectors;
+        const odd = ['99', '4', '-1', '1.5', '__proto__', 'constructor', 'length', 'toString', 'NaN', 'Infinity', '1e9', ' ', '0x1', '1e0', ' 1', '0.0', '+1', '0000'].map(v => { const w = { id: 't', isChar: true, light: { bright: 20, dim: 40, unit: 'ft', name: 'Torch' } }, bare = { id: 'b', isChar: true }; let threw = false; try { I3.applyLightPreset(w, v, { id: 'm' }); I3.applyLightPreset(bare, v, { id: 'm' }); } catch (e) { threw = true; } return [v, threw, j(w.light), 'light' in bare]; });
+        [null, undefined, 1, 0, {}, []].forEach(v => { const w = { id: 't', isChar: true, light: { bright: 20, dim: 40, unit: 'ft', name: 'Torch' } }; let threw = false; try { I3.applyLightPreset(w, v, { id: 'm' }); } catch (e) { threw = true; } odd.push([String(v), threw, j(w.light), false]); });
+        check('light preset: only a place in the list written in digits picks a preset — a position past the list (the panel drawn before the list changed), a negative or fractional one, blanks, another way of writing a number, a prototype\'s name or anything that is no text copies nothing and saves nothing: the light keeps its radii, its unit and its name, a token with no light gains none, and the panel is drawn afresh',
+            odd.every(r => r[1] === false && r[2] === j({ bright: 20, dim: 40, unit: 'ft', name: 'Torch' }) && r[3] === false) && I3.calls.saves === oddSaves && I3.calls.inspectors === oddInsp + 18 * 2 + 6, [odd, I3.calls.saves - oddSaves, I3.calls.inspectors - oddInsp]);
+        const I4 = mkInsp({ id: 'c1', system: hostileSys() }, { count: FCl.LIMITS.lights }), fresh = { id: 'n', isChar: true }, freshSrc = { id: 'n2', type: 'light', light: { bright: 0, dim: 0 } }, lit = { id: 'l', isChar: true, light: { bright: 1, dim: 1 } };
+        I4.applyLightPreset(fresh, '0', { id: 'm' }); I4.applyLightPreset(freshSrc, '0', { id: 'm' });
+        const refusedCalls = j(I4.calls); I4.applyLightPreset(lit, '0', { id: 'm' });
+        const I5 = mkInsp({ id: 'c1', system: hostileSys() }, { count: FCl.LIMITS.lights - 1 }), under = { id: 'u', isChar: true }; I5.applyLightPreset(under, '0', { id: 'm' });
+        check('light preset: a new light past the map\'s cap is refused with a toast and no save (the block drawn again); a light the map already counts may still change; one under the cap comes in',
+            !('light' in fresh) && j(freshSrc.light) === j({ bright: 0, dim: 0 }) && refusedCalls === j({ toasts: [I4.calls.toasts[0], I4.calls.toasts[0]], saves: 0, renders: 0, inspectors: 2, vision: 0 }) && /most light sources it can hold \(200\)/.test(I4.calls.toasts[0] || '')
+            && j(lit.light) === j({ bright: 5, dim: 10, name: T }) && I4.calls.saves === 1 && I4.calls.toasts.length === 2 && j(under.light) === j({ bright: 5, dim: 10, name: T }) && I5.calls.toasts.length === 0, [refusedCalls, lit.light, under.light]);
+        const I6 = mkInsp({ id: 'c1', system: hostileSys() }), srcNone = { id: 's', type: 'light', light: { bright: 0, dim: 0, name: 'Gone' } }, tokNone = { id: 't', isChar: true, light: { bright: 0, dim: 0, name: 'Gone' } }, srcJunk = { id: 's2', type: 'light', light: T };
+        I6.applyLightPreset(srcNone, '', { id: 'm' }); I6.applyLightPreset(tokNone, '', { id: 'm' }); I6.applyLightPreset(srcJunk, '', { id: 'm' });
+        const I7 = mkInsp({ id: 'c1', system: hostileSys() }, { noCore: true }), tokKeep = { id: 't', isChar: true, light: { bright: 1, dim: 2 } }; I7.applyLightPreset(tokKeep, '0', { id: 'm' });
+        check('light preset: a light source with no light left reads { bright: 0, dim: 0 } and a token loses the key; with no cleaner on hand nothing changes and nothing is saved',
+            j(srcNone.light) === j({ bright: 0, dim: 0 }) && !('light' in tokNone) && j(srcJunk.light) === j({ bright: 0, dim: 0 }) && I6.calls.saves === 3 && j(tokKeep.light) === j({ bright: 1, dim: 2 }) && I7.calls.saves === 0 && I7.calls.renders === 0 && throwsNot(function() { I6.applyLightPreset(null, '0', { id: 'm' }); }), [srcNone, tokNone, srcJunk, tokKeep]);
+        check('light block (inspector.js): the Light block is built by lightFieldHtml from the cleaned light and the system\'s presets, a preset picked goes through applyLightPreset, and a radius set by hand reads the unit select',
+            /var L = window\.wpFogCore && window\.wpFogCore\.cleanLight \? window\.wpFogCore\.cleanLight\(w\.light\) : null;\n\s*return lightFieldHtml\(w, L, lightPresetsNow\(\)\);/.test(inspL)
+            && /if \(_el_wbLP\) _el_wbLP\.addEventListener\('change', function\(\) \{ applyLightPreset\(w, this\.value, activeMap\); \}\);/.test(inspL) && /unit: _el_wbLU \? _el_wbLU\.value : old \? old\.unit : ''/.test(inspL));
+
+        // the ruler's line, a target mark's tag and the caption (whiteboard.js), run for real
+        const mkLabel = (win, camp) => new Function('esc', 'window', 'getActiveCampaign', "'use strict';\n" + slice('whiteboard.js', 'lightlabel') + '\nreturn { litViewer: litViewer, lightSeenBy: lightSeenBy, rulerLightText: rulerLightText, TARGET_LIGHT_GLYPH: TARGET_LIGHT_GLYPH, targetLightHtml: targetLightHtml, targetLightCaption: targetLightCaption };')(SC.esc, win, () => camp || null);
+        const LB = mkLabel({});
+        const rT = LB.rulerLightText(10, 20, { lv: 1, name: T }), rP = LB.rulerLightText(1, 2, { lv: 0, name: P + '</text><a href="' + U + '">x</a>' });
+        check('ruler light: a hostile level name lands escaped inside its <text>, whole; no name, no line', rT === '<text x="10" y="20">' + SC.esc(T) + '</text>' && risks(rT).length === 0 && risks(rP).length === 0 && rP.split('<').length === 3 && rP.indexOf('<a') < 0
+            && LB.rulerLightText(1, 2, null) === '' && LB.rulerLightText(1, 2, { lv: 1, name: '' }) === '' && LB.rulerLightText(1, 2, { lv: 1 }) === '', [rT, rP]);
+        const MK = '<span class="target-mark target-mark-ini" title="Ana" style="background:hsl(10,75%,55%);">A</span>';
+        const tDark = LB.targetLightHtml(MK, { lv: 0, name: P }), tDim = LB.targetLightHtml(MK, { lv: 1, name: T }), tOdd = LB.targetLightHtml(MK, { lv: T, name: 'n' }), tProto = LB.targetLightHtml(MK, { lv: '__proto__', name: 'n' });
+        check('target light: the level\'s name is escaped in the tag\'s title and the tag holds only its own two glyphs, whatever the level reads; no light leaves the mark as it was',
+            tDark === '<span class="target-pair">' + MK + '<span class="target-light dark" title="' + SC.esc(P) + '">●</span></span>' && tDim === '<span class="target-pair">' + MK + '<span class="target-light" title="' + SC.esc(T) + '">☽</span></span>'
+            && tOdd === '<span class="target-pair">' + MK + '<span class="target-light" title="n">☽</span></span>' && tProto === tOdd && [tDark, tDim, tOdd].every(h => risks(h).length === 0) && LB.targetLightHtml(MK, null) === MK && LB.targetLightHtml(MK, undefined) === MK
+            && j(LB.TARGET_LIGHT_GLYPH) === j(['●', '☽']), [tDark, tDim, tOdd]);
+        check('target light: the caption is plain text — each name once, in order, joined by a middle dot; anything that is not a named light is skipped',
+            LB.targetLightCaption([{ lv: 1, name: T }, null, { lv: 1, name: T }, { lv: 0, name: 'Darkness (-9)' }, { lv: 0, name: 5 }, { lv: 0, name: '' }, 'x', { lv: 1, name: '__proto__' }, { lv: 1, name: 'constructor' }]) === T + ' · Darkness (-9) · __proto__ · constructor'
+            && LB.targetLightCaption([]) === '' && LB.targetLightCaption(null) === '' && LB.targetLightCaption('names') === '' && LB.targetLightCaption([null, null]) === '');
+        // whose eyes a screen may read through, and the name from the system as cleaned
+        const sysN = { combat: { light: { names: { dim: '  ' + T + '  ', dark: 'D'.repeat(200) } } } }, seenLog = [];
+        const winOf = (netL, lv, sys) => ({ wpNet: netL, wpFog: { lightSeen: (a, b, m, c) => { seenLog.push([a.id, b.id, m && m.id, c && c.id]); return lv; } }, wpSystemCore: SYl, wpSheets: { systemOf: () => sys } });
+        const mine = { id: 'mine', ownerId: 'pA' }, theirs = { id: 'theirs', ownerId: 'pB' }, far = { id: 'far' }, mapL = { id: 'mL' }, campS = { id: 'cS' };
+        const gmDim = mkLabel(winOf(null, 1, sysN), campS).lightSeenBy(theirs, far, mapL), hostDark = mkLabel(winOf({ active: true, role: 'host', myId: 'pH' }, 0, sysN), campS).lightSeenBy(theirs, far, mapL);
+        const nSeenGm = seenLog.length, clientOther = mkLabel(winOf({ active: true, role: 'client', myId: 'pA' }, 1, sysN), campS).lightSeenBy(theirs, far, mapL), nSeenOther = seenLog.length, clientMine = mkLabel(winOf({ active: true, role: 'client', myId: 'pA' }, 1, sysN), campS).lightSeenBy(mine, far, mapL);
+        check('light seen: the GM\'s screen reads through any token, a player\'s only through a token of their own (another\'s is never even worked out); the name is the system\'s, cleaned and cut',
+            j(gmDim) === j({ lv: 1, name: T }) && j(hostDark) === j({ lv: 0, name: 'D'.repeat(SYl.LIMITS.label) }) && j(seenLog[0]) === j(['theirs', 'far', 'mL', 'cS']) && nSeenGm === 2 && clientOther === null && nSeenOther === nSeenGm && j(clientMine) === j({ lv: 1, name: T }), [gmDim, hostDark, clientOther, clientMine, seenLog]);
+        check('light seen: bright or clear sight, no answer, a level the system gives no name, or a missing token shows nothing',
+            [2, null, undefined, 3, '1', true].every(lv => mkLabel(winOf(null, lv, sysN), campS).lightSeenBy(mine, far, mapL) === null) && mkLabel(winOf(null, 0, { combat: { light: { names: { dim: 'Dim' } } } }), campS).lightSeenBy(mine, far, mapL) === null
+            && mkLabel(winOf(null, 1, null), campS).lightSeenBy(mine, far, mapL) === null && mkLabel(winOf(null, 1, sysN), campS).lightSeenBy(null, far, mapL) === null && mkLabel(winOf(null, 1, sysN), campS).lightSeenBy(mine, null, mapL) === null && mkLabel({}, campS).lightSeenBy(mine, far, mapL) === null);
+        check('ruler light (whiteboard.js): the ruler adds the line through rulerLightText (the name never joined raw), a target mark through targetLightHtml, and the caption under a token is handed to the fog\'s overlay as a mark on the token (a data attribute), which draws it as text on its canvas (fillText), never as markup',
+            /if \(litR\) html \+= rulerLightText\(mx \+ 8, _covY \+ \(labCov \? 19 : 0\), litR\);/.test(wbL) && !/litR\.name/.test(wbL) && /\}\)\.map\(function\(mkH, ti\) \{ return targetLightHtml\(mkH, tlit\[ti\]\); \}\)\.join\(''\);/.test(wbL)
+            && /capT = tgs\.length \? targetLightCaption\(tlit\) : '';/.test(wbL) && /if \(capT\) \{ if \(el\.dataset\.lightCap !== capT\) el\.dataset\.lightCap = capT; \}\n\s*else if \(el\.dataset\.lightCap !== undefined\) delete el\.dataset\.lightCap;/.test(wbL) && !/lightCap[^\n]*innerHTML|innerHTML[^\n]*capT/.test(wbL)
+            && (() => { const fg = fs.readFileSync(path.join(dir, 'fog.js'), 'utf8').replace(/\r\n/g, '\n'), a = fg.indexOf('function drawCaptions('), dc = a >= 0 ? fg.slice(a, fg.indexOf('\n}\n', a)) : ''; return /ctx\.fillText\(t, cx, cy \+ 0\.5, 346\);/.test(dc) && /var t = String\(els\[i\]\.dataset\.lightCap \|\| ''\)\.slice\(0, 200\);/.test(dc) && !/innerHTML|insertAdjacentHTML|outerHTML|createElement/.test(dc); })() && (wbL.match(/targetLightCaption\(/g) || []).length === 2 && (wbL.match(/rulerLightText\(/g) || []).length === 2);
+        const tipLine = wbL.slice(wbL.indexOf('var lgU = '), wbL.indexOf('\n', wbL.indexOf('var lgU = '))), tipSrc = fs.readFileSync(path.join(dir, 'tooltips.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('light marker: its tooltip (the preset\'s name and the unit) is built from the cleaned light and set through dataset.tip, which the tooltip shows as text — never markup',
+            /^var lgU = lgL && lgL\.unit \? lgL\.unit : 'yd', lgT = 'Light source' \+ \(lgL && lgL\.name \? ' \(' \+ lgL\.name \+ '\)' : ''\) \+ /.test(tipLine) && /var lgL = window\.wpFogCore && window\.wpFogCore\.cleanLight \? window\.wpFogCore\.cleanLight\(item\.light\) : null;/.test(wbL)
+            && /\n\s*if \(el\.dataset\.tip !== lgT\) el\.dataset\.tip = lgT;\n/.test(wbL) && !/innerHTML[^\n]*lgT|lgT[^\n]*innerHTML/.test(wbL) && /return el\.dataset\.tip \|\| '';/.test(tipSrc) && /t\.textContent = text;/.test(tipSrc) && !/innerHTML/.test(tipSrc), tipLine);
+
+        // the Combat card's Light box (sheets.js lightBox), run for real on a page that records every node and any use of innerHTML
+        const shL = read('sheets.js'), boxSrc = slice('sheets.js', 'lightbox');
+        const lineAt = k => { const i = shL.indexOf('\n' + k); if (i < 0) throw new Error('sinkcheck: sheets.js ' + k + ' not found'); return shL.slice(i + 1, shL.indexOf('\n', i + 1)); };
+        const mkBox = (draft0, errs) => {
+            const made = [], htmlSet = [], calls = { dirty: 0, patched: 0, all: 0, toasts: [] };
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            const env = { draft: draft0, document: doc, LIMITS: SYl.LIMITS, LIGHT_UNITS: SYl.LIGHT_UNITS, markDirty: () => { calls.dirty++; }, patchErrors: () => { calls.patched++; }, renderAll: () => { calls.all++; }, toast: m => calls.toasts.push(m), errs: errs || [] };
+            const api = new Function('env', "'use strict';\nvar draft = env.draft, document = env.document, LIMITS = env.LIMITS, LIGHT_UNITS = env.LIGHT_UNITS, markDirty = env.markDirty, patchErrors = env.patchErrors, renderAll = env.renderAll, toast = env.toast;\n"
+                + lineAt('function el(tag, cls, text) {') + '\n' + lineAt('function opt(value, text, selected) {') + '\n' + lineAt('function input(cls, value, title, placeholder) {') + '\n' + lineAt('function select(cls, options, value, title) {') + '\n'
+                + "function errorCell(id) { var cell = el('div', 'sys-err'); env.errs.forEach(function(m) { cell.appendChild(el('div', 'sys-err-line', m)); }); return cell; }\n"
+                + boxSrc + '\nreturn { lightDraft: lightDraft, lightBox: lightBox, onLightInput: onLightInput, onLightChange: onLightChange, lightClick: lightClick, draft: function() { return draft; } };')(env);
+            api.made = made; api.htmlSet = htmlSet; api.calls = calls; api.fake = fake; return api;
+        };
+        const byCls = (B, c) => B.made.filter(e => typeof e.className === 'string' && e.className.split(' ').indexOf(c) >= 0);
+        const inherited = Object.create({ dim: 'Inherited dim', dark: 'Inherited dark' });
+        const cmH = { light: { names: { dim: T, dark: P }, presets: [{ name: T, bright: 5, dim: 10, unit: P, pick: 'yes' }, { name: P, bright: '<b>', dim: 3, unit: 'ft', pick: true }, null, { name: 7, bright: 1, dim: 1, unit: 'constructor' }] } };
+        const B1 = mkBox({ combat: cmH }, [T]), root1 = B1.fake('div'); B1.lightBox(root1, cmH);
+        const names1 = byCls(B1, 'sys-light-name'), pn1 = byCls(B1, 'sys-light-pname'), pb1 = byCls(B1, 'sys-light-pbright'), pd1 = byCls(B1, 'sys-light-pdim'), pu1 = byCls(B1, 'sys-light-punit'), pp1 = byCls(B1, 'sys-light-ppick'), rows1 = byCls(B1, 'sys-light-row');
+        const texts1 = B1.made.map(e => e.textContent).filter(Boolean);
+        check('light box: the sliced source writes no markup (no innerHTML, insertAdjacentHTML or outerHTML) and the page helpers it runs on are the sheet\'s own text-only ones',
+            !/innerHTML|insertAdjacentHTML|outerHTML/.test(boxSrc) && !/innerHTML|insertAdjacentHTML|outerHTML/.test(lineAt('function el(tag, cls, text) {') + lineAt('function opt(value, text, selected) {') + lineAt('function input(cls, value, title, placeholder) {') + lineAt('function select(cls, options, value, title) {')));
+        check('light box: hostile level names and preset names arrive as input values, what Save would drop as a text node, and nothing is written through innerHTML',
+            B1.htmlSet.length === 0 && root1.children.length === 1 && root1.children[0].className === 'sys-light' && j(names1.map(i => [i.dataset.lvl, i.value, i.type, i.maxLength])) === j([['dim', T, 'text', SYl.LIMITS.label], ['dark', P, 'text', SYl.LIMITS.label]])
+            && j(pn1.map(i => i.value)) === j([T, P, '', '']) && pn1.every(i => i.type === 'text' && i.maxLength === SYl.LIMITS.label) && texts1.indexOf(T) >= 0 && B1.made.every(e => e.tag !== 'script' && e.tag !== 'img' && e.tag !== 'a'), j([B1.htmlSet, names1.map(i => i.value), pn1.map(i => i.value)]));
+        check('light box: a preset\'s radii show only when they are numbers, its unit only when the app knows it (yards otherwise), "players may pick" only when it is true; each row keeps its place in the list',
+            j(pb1.map(i => i.value)) === j(['5', '', '', '1']) && j(pd1.map(i => i.value)) === j(['10', '3', '', '1']) && pb1.concat(pd1).every(i => i.type === 'number') && j(pu1.map(s => s.children.map(o => o.value).join())) === j(['yd,ft,m,cells', 'yd,ft,m,cells', 'yd,ft,m,cells', 'yd,ft,m,cells'])
+            && j(pu1.map(s => s.children.filter(o => o.selected).map(o => o.value).join())) === j(['yd', 'ft', 'yd', 'yd']) && j(pp1.map(c => [c.type, c.checked])) === j([['checkbox', false], ['checkbox', true], ['checkbox', false], ['checkbox', false]]) && j(rows1.map(r => r.dataset.li)) === j(['0', '1', '2', '3']), j([pb1.map(i => i.value), pd1.map(i => i.value), pu1.map(s => s.children.filter(o => o.selected).map(o => o.value)), pp1.map(c => c.checked)]));
+        const cmI = { light: { names: inherited, presets: 'junk' } }, B2 = mkBox({ combat: cmI }), root2 = B2.fake('div'); B2.lightBox(root2, cmI);
+        const cmN = {}, B3 = mkBox({ combat: cmN }), root3 = B3.fake('div'); B3.lightBox(root3, cmN);
+        const cmA = { light: [T] }, B3a = mkBox({ combat: cmA }), root3a = B3a.fake('div');
+        check('light box: a level name is read by its own key (an inherited one shows empty), a name that is not text shows empty, and a system with no light rules (or rules that are not an object) shows the empty box without a crash',
+            j(byCls(B2, 'sys-light-name').map(i => i.value)) === j(['', '']) && byCls(B2, 'sys-light-row').length === 0 && j(byCls(B3, 'sys-light-name').map(i => i.value)) === j(['', '']) && byCls(B3, 'sys-light-row').length === 0 && !('light' in cmN) && byCls(B3, 'sys-light-add')[0].disabled === false
+            && throwsNot(function() { B3a.lightBox(root3a, cmA); }) && byCls(B3a, 'sys-light-row').length === 0 && j(byCls(mkBoxNames({ dim: 5, dark: { a: 1 } }), 'sys-light-name').map(i => i.value)) === j(['', '']));
+        function mkBoxNames(nm) { const cm = { light: { names: nm } }, B = mkBox({ combat: cm }); B.lightBox(B.fake('div'), cm); return B; }
+        const full = []; for (let i = 0; i < SYl.LIMITS.lightPresets; i++) full.push({ name: 'L' + i, bright: 1, dim: 2 });
+        const cmF = { light: { presets: full } }, B4 = mkBox({ combat: cmF }), root4 = B4.fake('div'); B4.lightBox(root4, cmF);
+        const rowOf = i => ({ dataset: { li: String(i) } }), btn = (act, i) => ({ dataset: { act: act }, closest: () => i === undefined ? null : rowOf(i) }), fld = (cls, i, more) => Object.assign({ className: cls, dataset: {}, closest: () => i === undefined ? null : rowOf(i) }, more);
+        const addFull = B4.lightClick(btn('lpadd'));
+        check('light box: at the most presets a system holds the add button is off and a click adds none (a toast says so)', byCls(B4, 'sys-light-add')[0].disabled === true && addFull === true && full.length === SYl.LIMITS.lightPresets && B4.calls.toasts.length === 1 && B4.calls.dirty === 0 && B4.calls.all === 0 && byCls(B4, 'sys-light-row').length === SYl.LIMITS.lightPresets, [full.length, B4.calls]);
+        const dE = { combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', light: { presets: [{ name: 'A', bright: 1, dim: 2 }, { name: 'B', bright: 3, dim: 4, unit: 'ft', pick: true }, { name: 'C', bright: 5, dim: 6 }] } } }, B5 = mkBox(dE), ps = () => dE.combat.light.presets;
+        const order = () => ps().map(p => p.name).join('');
+        B5.lightClick(btn('lpup', 2)); const o1 = order(); B5.lightClick(btn('lpdown', 0)); const o2 = order(); B5.lightClick(btn('lpup', 0)); B5.lightClick(btn('lpdown', 2)); const o3 = order(); B5.lightClick(btn('lpdel', 1)); const o4 = order();
+        ['-1', '7', '__proto__', 'length', 'x'].forEach(i => { B5.lightClick(btn('lpdel', i)); B5.lightClick(btn('lpup', i)); B5.lightClick(btn('lpdown', i)); }); const o5 = order(), allBefore = B5.calls.all;
+        B5.lightClick(btn('lpadd')); const added = j(ps()[ps().length - 1]);
+        check('light box: the row buttons move and remove the preset of their own row only (a row that is not in the list does nothing); a new preset starts with no name; any other button is not the Light box\'s',
+            o1 === 'ACB' && o2 === 'CAB' && o3 === 'CAB' && o4 === 'CB' && o5 === 'CB' && added === j({ name: '', bright: 5, dim: 10 }) && B5.calls.all === allBefore + 1 && B5.lightClick(btn('tadd')) === false && B5.lightClick(btn('lpdelx', 0)) === false && B5.lightClick({ dataset: {} }) === false && order() === 'CB', [o1, o2, o3, o4, o5, added]);
+        const dI = { combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', light: { names: { dim: 'Dim' }, presets: [{ name: 'A', bright: 1, dim: 2, unit: 'ft', pick: true }] } } }, B6 = mkBox(dI), p0 = () => dI.combat.light.presets[0], long = T + 'x'.repeat(200);
+        const rIn = [B6.onLightInput(fld('sys-light-name field', undefined, { value: long, dataset: { lvl: T } })), B6.onLightInput(fld('sys-light-name field', undefined, { value: P, dataset: { lvl: 'dark' } })), B6.onLightInput(fld('sys-light-pname field', 0, { value: long })), B6.onLightInput(fld('field sys-light-pbright', 0, { value: '7.5' })), B6.onLightInput(fld('field sys-light-pdim', 0, { value: '1" onfocus="x' })), B6.onLightInput(fld('sys-key field', 0, { value: 'x' })), B6.onLightInput(fld('sys-light-pname field', '__proto__', { value: 'x' })), B6.onLightInput(fld('sys-light-pname field', 5, { value: 'x' }))];
+        const afterIn = j(dI.combat.light);
+        const rCh = [B6.onLightChange(fld('sys-light-punit', 0, { value: P })), j(p0()), B6.onLightChange(fld('sys-light-punit', 0, { value: 'cells' })), p0().unit, B6.onLightChange(fld('sys-light-punit', 0, { value: 'constructor' })), 'unit' in p0(), B6.onLightChange(fld('sys-light-ppick', 0, { checked: false })), 'pick' in p0(), B6.onLightChange(fld('sys-light-ppick', 0, { checked: true })), p0().pick, B6.onLightChange(fld('sys-combat-auto', 0, { value: 'x' })), B6.onLightChange(fld('sys-light-punit', 9, { value: 'ft' }))];
+        B6.onLightInput(fld('sys-light-name field', undefined, { value: '  ', dataset: { lvl: 'dim' } })); B6.onLightInput(fld('sys-light-name field', undefined, { value: '', dataset: { lvl: 'dark' } }));
+        check('light box: what is typed is kept as text cut to the label\'s length, a level other than dark is dim, a radius only when it is a number, a unit only one the app knows, "players may pick" only as true; an emptied name goes; a box of another card is not the Light box\'s',
+            j(rIn) === j([true, true, true, true, true, false, true, true]) && afterIn === j({ names: { dim: long.slice(0, SYl.LIMITS.label), dark: P }, presets: [{ name: long.slice(0, SYl.LIMITS.label), bright: 7.5, unit: 'ft', pick: true }] })
+            && j(rCh) === j([true, j({ name: long.slice(0, SYl.LIMITS.label), bright: 7.5, pick: true }), true, 'cells', true, false, true, false, true, true, false, true]) && !('names' in dI.combat.light) && B6.htmlSet.length === 0 && dI.combat.light.presets.length === 1, [rIn, afterIn, rCh, dI.combat.light]);
+        const savedL = SYl.cleanLightRules(JSON.parse(afterIn)), dNew = {}, B7 = mkBox(dNew), made7 = B7.lightDraft();
+        check('light box: what the box keeps, Save cleans (a preset with a bright radius alone takes it as its dim edge); a draft with no combat rules gains them with its light rules, a light that is not an object is replaced',
+            j(savedL) === j({ names: { dim: long.slice(0, SYl.LIMITS.label), dark: P }, presets: [{ name: long.slice(0, SYl.LIMITS.label), bright: 7.5, dim: 7.5, unit: 'ft', pick: true }] }) && j(dNew) === j({ combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', light: {} } }) && made7 === dNew.combat.light
+            && j(mkBox({ combat: { light: [1] } }).lightDraft()) === '{}' && j(mkBox({ combat: { light: T } }).lightDraft()) === '{}', [savedL, dNew]);
+        check('light box (sheets.js): the Combat card builds it, and its boxes, selects and buttons are handled before the card\'s other handlers',
+            /\n    lightBox\(box, cm\);[^\n]*\n    turnBox\(box, cm\);/.test(shL) && /\n    if \(onLightInput\(t\)\) return;/.test(shL) && /\n    if \(onLightChange\(t\)\) return;/.test(shL) && /\n    if \(lightClick\(b\)\) return;/.test(shL));
+    }
     delete global.window;
 
     summed = true;

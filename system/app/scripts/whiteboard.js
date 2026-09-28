@@ -788,7 +788,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (!(state.selWbIds && state.selWbIds.length > 1 && state.selWbIds.includes(item.id))) el.style.boxShadow = '';   // the marker's glow ring is the stylesheet's (an inline none would hide it)
               var lgG = el.querySelector(':scope > .wb-light-glyph');
               if (!lgG) { el.textContent = ''; lgG = document.createElement('span'); lgG.className = 'wb-light-glyph'; lgG.textContent = '\ud83d\udca1'; el.appendChild(lgG); }
-              var lgT = 'Light source' + (lgL ? ' · bright ' + lgL.bright + ' yd, dim to ' + lgL.dim + ' yd' + (lgL.off ? ' (off)' : '') : ' (no light set)');
+              var lgU = lgL && lgL.unit ? lgL.unit : 'yd', lgT = 'Light source' + (lgL && lgL.name ? ' (' + lgL.name + ')' : '') + (lgL ? ': bright ' + lgL.bright + ' ' + lgU + ', dim to ' + lgL.dim + ' ' + lgU + (lgL.off ? ' (off)' : '') : ' (no light set)');
               if (el.dataset.tip !== lgT) el.dataset.tip = lgT;
           } else if(item.type === 'path') {
 
@@ -860,6 +860,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (!marksEl) { marksEl = document.createElement('div'); marksEl.className = 'target-marks'; el.appendChild(marksEl); }
               var tcov = tgs.map(function(t) { var mt = targeterTok(t.id, activeMap); if (!mt || !window.wpFog || !window.wpFog.coverBetween) return null; return window.wpFog.coverBetween(mt.x + (mt.w || 60) / 2, mt.y + (mt.h || 52) / 2, item.x + (item.w || 60) / 2, item.y + (item.h || 52) / 2); });   // cover follow-ups (owner 2026-09-28): the cover between each targeter's token here and this one, worked out from this viewer's own board
               var tsig = tgs.map(function(t, ti) { return t.id + ':' + (tcov[ti] ? tcov[ti].name : ''); }).join(',');
+              var tlit = tgs.map(function(t) { var ml = targeterTok(t.id, activeMap); return ml ? lightSeenBy(ml, item, activeMap) : null; });   // lighting L4: the light this token stands in as each targeter's token sees it — on the GM's screen, and on a player's for their own mark alone
+              tsig += '|' + tlit.map(function(l) { return l ? l.lv + ':' + l.name : ''; }).join(',');
               if (marksEl.dataset.sig !== tsig) {
                   marksEl.dataset.sig = tsig;
                   var n = tgs.length, side = Math.min(item.w || 60, item.h || 52);
@@ -874,10 +876,13 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       var ini = String(t.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
                       if (mine && mine.src) return pair('<img class="target-mark" src="' + esc(resolveImg(mine.src)) + '" alt="" title="' + tip + '" style="border-color:hsl(' + t.hue + ',75%,55%);">');
                       return pair('<span class="target-mark target-mark-ini" title="' + tip + '" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>');
-                  }).join('');
+                  }).map(function(mkH, ti) { return targetLightHtml(mkH, tlit[ti]); }).join('');
               }
               el.classList.toggle('targeted-by-me', tgs.some(function(t) { return t.id === window.wpNet.myId; }));
           } else if (marksEl) { marksEl.remove(); el.classList.remove('targeted-by-me'); }
+          var capT = tgs.length ? targetLightCaption(tlit) : '';   // lighting L4: the light's name, under the targeted token. The token is marked with it and the fog's overlay draws it (fog.js drawCaptions): over the fog, where a player can read it whatever the cells beneath, and level however the token is turned
+          if (capT) { if (el.dataset.lightCap !== capT) el.dataset.lightCap = capT; }
+          else if (el.dataset.lightCap !== undefined) delete el.dataset.lightCap;
           // Condition overlay: 'down' = red X over the token, 'dead' = skull + darkened art
           var stv = item.isChar && (item.status === 'down' || item.status === 'dead') ? item.status : '';
           var stEl = el.querySelector(':scope > .token-status');
@@ -2679,6 +2684,23 @@ window.wpFitToGrid = fitToGrid;
   }
 
   // [sinkcheck:measure-end]
+  // [sinkcheck:lightlabel-start]
+  // Lighting L4 (owner answers 4 and 7): the light a token stands in, by the name its system gives it (Dim light, Darkness, with whatever
+  // penalty the name words in), on the ruler between two tokens and at a target mark. Worked out on this screen from its own copy of the
+  // map: nothing on the wire. Whose eyes a screen may read through: the GM's any token's; a player's only their own token's (another player's
+  // sight is a sheet they do not hold). A name is a system file's text, or the host's on a player's screen: it lands through esc or as a text node
+  function litViewer(tok) { var n = window.wpNet; return !!tok && (!(n && (n.foreign || (n.active && n.role === 'client'))) || (typeof n.myId === 'string' && !!n.myId && tok.ownerId === n.myId)); }   // a GM's campaign still on a player's screen after the link went is a player's screen too (io.js wpCanPersistLocal's test); a screen with no id of its own reads through no token
+  function lightSeenBy(from, to, map) {   // { lv: 0 dark | 1 dim, name } or null: bright or seen clear, a level the system does not name, not this screen's to read
+      var F = window.wpFog, S = window.wpSystemCore; if (!F || !F.lightSeen || !S || !S.lightName || !from || !to || !litViewer(from)) return null;
+      var lv = F.lightSeen(from, to, map, getActiveCampaign()); if (lv !== 0 && lv !== 1) return null;
+      var name = S.lightName(window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, lv);
+      return name ? { lv: lv, name: name } : null;
+  }
+  function rulerLightText(x, y, l) { return l && l.name ? '<text x="' + x + '" y="' + y + '">' + esc(l.name) + '</text>' : ''; }
+  var TARGET_LIGHT_GLYPH = ['\u25cf', '\u263d'];   // dark, dim: the tag at a target mark's upper corner (the level's name in the caption under the token)
+  function targetLightHtml(markHtml, l) { return l ? '<span class="target-pair">' + markHtml + '<span class="target-light' + (l.lv === 0 ? ' dark' : '') + '" title="' + esc(l.name) + '">' + TARGET_LIGHT_GLYPH[l.lv === 0 ? 0 : 1] + '</span></span>' : markHtml; }
+  function targetLightCaption(list) { var seen = Object.create(null), out = []; (Array.isArray(list) ? list : []).forEach(function(l) { if (l && typeof l.name === 'string' && l.name && !seen[l.name]) { seen[l.name] = 1; out.push(l.name); } }); return out.join(' \u00b7 '); }
+  // [sinkcheck:lightlabel-end]
   // Turn-based combat T1 (D8): on a square grid the ruler counts a diagonal as the system says (every diagonal 1 square, or alternating 1-2);
   // null keeps the straight line (no rule, a hex grid, no grid)
   function diagCells(m) {
@@ -2729,6 +2751,8 @@ window.wpFitToGrid = fitToGrid;
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
+          var litR = bothTok ? lightSeenBy(tA, tB, amR) : null;   // lighting L4: the light the far token stands in, as the near one (where the ruler began) sees it
+          if (litR) html += rulerLightText(mx + 8, _covY + (labCov ? 19 : 0), litR);
           html += '</g>';
 
       });

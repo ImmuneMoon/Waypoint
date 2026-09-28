@@ -892,8 +892,8 @@
   #campSearchInput::placeholder, #plannerSearchInput::placeholder, #mapSearchInput::placeholder,
   #imgLibSearch::placeholder, #chatInput::placeholder { color: var(--dim); }
 
-  /* Multiplayer panel dropdowns (campaign / arrival / first-timers' map / whisper) */
-  #netCampSelect, #netStageSelect, #netStageFallbackSelect, #netWaitingSelect, #chatTo {
+  /* Multiplayer panel dropdowns (campaign / arrival / first-timers' map / waiting tokens / making a character / whisper) */
+  #netCampSelect, #netStageSelect, #netStageFallbackSelect, #netWaitingSelect, #netMakeSelect, #chatTo {
     appearance: none; -webkit-appearance: none;
     background-color: var(--panel); color: var(--ink);
     border: 1px solid var(--edge); border-radius: 6px;
@@ -903,9 +903,9 @@
     background-repeat: no-repeat; background-position: right 10px center;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  #netCampSelect:hover, #netStageSelect:hover, #netStageFallbackSelect:hover, #netWaitingSelect:hover, #chatTo:hover { border-color: var(--gold); }
-  #netCampSelect:focus, #netStageSelect:focus, #netStageFallbackSelect:focus, #netWaitingSelect:focus, #chatTo:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.15); }
-  #netCampSelect option, #netStageSelect option, #netStageFallbackSelect option, #netWaitingSelect option, #chatTo option { background: var(--panel2); color: var(--ink); }
+  #netCampSelect:hover, #netStageSelect:hover, #netStageFallbackSelect:hover, #netWaitingSelect:hover, #netMakeSelect:hover, #chatTo:hover { border-color: var(--gold); }
+  #netCampSelect:focus, #netStageSelect:focus, #netStageFallbackSelect:focus, #netWaitingSelect:focus, #netMakeSelect:focus, #chatTo:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.15); }
+  #netCampSelect option, #netStageSelect option, #netStageFallbackSelect option, #netWaitingSelect option, #netMakeSelect option, #chatTo option { background: var(--panel2); color: var(--ink); }
 
   /* Multiplayer roster chips */
   #netRoster { display: flex; flex-wrap: wrap; gap: 6px; }

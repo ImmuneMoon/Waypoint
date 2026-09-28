@@ -322,7 +322,7 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
     fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.'],
     fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
-    lighting: ['Lighting on \u2014 a fogged map is lit, so every token sees what is in its line of sight.', 'Lighting off for this campaign \u2014 a token sees only as far as its sight, as before.'],
+    lighting: ['Lighting on \u2014 a fogged map is lit until you place a light source, so every token sees what is in its line of sight.', 'Lighting off for this campaign \u2014 a token sees only as far as its sight, as before.'],
     turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.'],
     turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.']
 };

@@ -12,6 +12,8 @@ var LIMITS = Object.freeze({
     cells: 12000,       // the most visible cells one recompute yields (the whole disc at rangeCells: 11,289 on square, 10,981 on hex)
     manual: 4000,       // manual reveal/hide cells stored per map
     blockerCells: 6000, // sight-blocker cells resolved per map — over this, occlusion falls open (no blocking)
+    lights: 200,        // lighting (L2): light sources counted per map — over this the map reads dark (never more light than there is)
+    lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
     arcDeg: 180,        // GURPS front arc
     len: [10, 4000]     // a gridless cell length in board px
 });
@@ -309,14 +311,65 @@ function visibleCells(viewer, grid, blockers) {
 // number (lighting off): exactly visibleCells, every cell tier 2. ctx.level, the map's light (0 dark, 1 dim, 2 bright): a cell within the
 // viewer's Sight (viewer.range: its sight in the dark) is seen clear whatever the light; beyond it, out to the vision cap, a dim or bright cell
 // in the arc and the line of sight is seen at its level, a dark one is not
+// L2: ctx.lit, the cells a map's light sources light ({ key: 1 | 2 }, litLevels): a cell is at the brighter of the map's light and its own. A
+// wall's cell beyond the viewer's sight shows at the light on its near face — the brightest light of the open cells beside it this viewer sees,
+// at least the map's own — never lit from behind, never by the viewer's sight in the dark; within the viewer's sight, clear
 function seenCells(viewer, grid, blockers, ctx) {
-    var lvl = ctx && fin(ctx.level) ? clamp(Math.round(ctx.level), 0, 2) : null, out = [];
+    var lvl = ctx && fin(ctx.level) ? clamp(Math.round(ctx.level), 0, 2) : null, lit = ctx && isObj(ctx.lit) ? ctx.lit : null, out = [], anyLit = false;
     if (!viewer || !grid) return out;
-    if (lvl === null || lvl === 0) { var base = visibleCells(viewer, grid, blockers); for (var i = 0; i < base.length; i++) out.push({ key: base[i].key, cell: base[i].cell, tier: 2 }); return out; }
+    if (lit) for (var lk in lit) { anyLit = true; break; }
+    if (lvl === null || (lvl === 0 && !anyLit)) { var base = visibleCells(viewer, grid, blockers); for (var i = 0; i < base.length; i++) out.push({ key: base[i].key, cell: base[i].cell, tier: 2 }); return out; }
     var sight = clamp(viewer.range | 0, 0, LIMITS.rangeCells), here = fin(viewer.x) && fin(viewer.y) ? cellOf(viewer.x, viewer.y, grid) : null;
     var far = visibleCells({ x: viewer.x, y: viewer.y, front: viewer.front, arc: viewer.arc, range: LIMITS.rangeCells }, grid, blockers);
-    for (var j = 0; j < far.length; j++) out.push({ key: far[j].key, cell: far[j].cell, tier: cellDist(here, far[j].cell, grid) <= sight + 1e-9 ? 2 : lvl });
+    var olit = Object.create(null), walls = [];   // the light on each open cell this viewer sees (never its sight in the dark)
+    for (var j = 0; j < far.length; j++) {
+        var o = far[j], isWall = !!(blockers && blockers[o.key]), lv = isWall ? 0 : Math.max(lvl, (lit && lit[o.key]) || 0);
+        if (!isWall) olit[o.key] = lv;
+        if (cellDist(here, o.cell, grid) <= sight + 1e-9) { out.push({ key: o.key, cell: o.cell, tier: 2 }); continue; }
+        if (isWall) { walls.push(o); continue; }
+        if (lv > 0) out.push({ key: o.key, cell: o.cell, tier: lv });
+    }
+    for (var w = 0; w < walls.length; w++) {
+        var nb = neighbourCells(walls[w].cell, grid), best = lvl;
+        for (var n = 0; n < nb.length; n++) { var nk = cellKey(nb[n], grid); if (olit[nk] > best) best = olit[nk]; }
+        if (best > 0) out.push({ key: walls[w].key, cell: walls[w].cell, tier: best });
+    }
     return out;
+}
+// Lighting (L2): a board item's light — { bright, dim } radii in yards (dim, the outer edge, at least bright: equal is no dim fringe, as a
+// ShadowBase glowrod), off: true while switched off. null when it gives none. Numbers only, clamped, read by comparison (an import can hold
+// anything)
+function cleanLight(l) {
+    if (!isObj(l)) return null;
+    var b = fin(l.bright) ? clamp(l.bright, 0, 1000) : 0, d = fin(l.dim) ? clamp(l.dim, 0, 1000) : 0;
+    if (d < b) d = b;
+    if (b <= 0 && d <= 0) return null;
+    var out = { bright: b, dim: d }; if (l.off === true) out.off = true;
+    return out;
+}
+// Lighting (L2): the light each cell gets from a map's light sources — 2 within a source's bright radius, 1 out to its dim radius — along a clear
+// line from the source's cell (walls stop light as they stop sight). A wall's own cell takes none: a viewer's rule shows its lit face. sources:
+// [{ cell, bright, dim }], radii in cells. Past LIMITS.lightVisits cells walked: null (the map reads dark, never lit by half)
+function litLevels(sources, grid, blockers) {
+    var out = Object.create(null), visits = 0;
+    if (!grid || !Array.isArray(sources)) return out;
+    for (var i = 0; i < sources.length; i++) {
+        var s = sources[i]; if (!s || !s.cell) continue;
+        var R = clamp(Math.max(s.bright | 0, s.dim | 0), 0, LIMITS.rangeCells), B = s.bright < 0 ? -1 : clamp(s.bright | 0, 0, R), src = cellCenter(s.cell, grid);   // bright -1: a dim-only light (its own cell dim too)
+        var cells = visibleCells({ x: src.x, y: src.y, range: R, arc: 360 }, grid, blockers);
+        visits += cells.length; if (visits > LIMITS.lightVisits) return null;
+        for (var j = 0; j < cells.length; j++) {
+            var c = cells[j]; if (blockers && blockers[c.key]) continue;
+            var lv = cellDist(s.cell, c.cell, grid) <= B + 1e-9 ? 2 : 1;
+            if (!(out[c.key] >= lv)) out[c.key] = lv;
+        }
+    }
+    return out;
+}
+// A cell's neighbours: 8 on a square grid, 6 on a hex one
+function neighbourCells(cell, grid) {
+    if (grid.type === 'square') { var sq = []; for (var dc = -1; dc <= 1; dc++) for (var dr = -1; dr <= 1; dr++) if (dc || dr) sq.push({ c: cell.c + dc, r: cell.r + dr }); return sq; }
+    return [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]].map(function(d) { return { q: cell.q + d[0], r: cell.r + d[1] }; });
 }
 // The distance between two cells as vision measures it: straight-line cells on a square grid, hex steps on a hex grid
 function cellDist(a, b, grid) { if (!a || !b || !grid) return Infinity; if (grid.type === 'square') { var dc = a.c - b.c, dr = a.r - b.r; return Math.sqrt(dc * dc + dr * dr); } return hexDist(a, b); }
@@ -371,6 +424,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, litLevels: litLevels, neighbourCells: neighbourCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, litLevels, neighbourCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

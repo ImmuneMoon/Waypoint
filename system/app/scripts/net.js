@@ -1280,8 +1280,18 @@ net.syncStance = function() {
     if (s === net._lastStanceSig) return;
     net._lastStanceSig = s;
     net.broadcastStance();
+    if (net.resendFogged) net.resendFogged();   // the vision rules may have moved (fog, lighting, facing): every fogged map, re-filtered
     if (window.wpSettingsSync) window.wpSettingsSync();
 };
+// [netcheck:resendfogged-start]
+// A change to the table's vision rules (the fog, lighting or facing switch, the master, the campaign's fog defaults) reaches every player's copy
+// of every fogged map of the hosted campaign, not only the map on screen: each is re-sent filtered per player under the new rule (lighting review)
+net.resendFogged = function() {
+    if (!net.active || net.role !== 'host' || !net.broadcastItemFiltered) return;
+    var camp = getActiveCampaign(); if (!camp || !camp.items || typeof camp.items !== 'object') return;
+    Object.keys(camp.items).forEach(function(id) { var m = camp.items[id]; if (m && m.type === 'map' && m.fog && m.fog.on === true) net.broadcastItemFiltered(camp.id, id); });
+};
+// [netcheck:resendfogged-end]
 // The hosted campaign's sounds reach the table as a list (uploads by path, bundled defaults by id, what is playing
 // now): to one peer at admit, to every admitted peer on a save that changed the index, and straight from the
 // library (hiding a default never passes through save()). Never broadcast(): admitted peers only. The signature
@@ -1408,6 +1418,7 @@ net.syncCampFog = function() {
     if (s === net._lastCampFogSig) return;
     net._lastCampFogSig = s;
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+    if (net.resendFogged) net.resendFogged();   // a default sight changed: every fogged map, re-filtered
 };
 // [netcheck:campfogsync-end]
 // Turn-based combat T5b: who may pause, reset or stop an effect's countdown (camp.turnRules.timers) — a player's sheet shows the controls

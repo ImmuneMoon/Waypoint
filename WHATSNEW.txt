@@ -821,6 +821,13 @@ Fog of war
   tied to the grid type — a square map can use a cone, a hex map can see all
   around — with a "use for new maps" campaign default that never changes
   maps you already made.
+- Lighting, a VTT feature on by default: a fogged map is lit, so every token
+  sees what is in its line of sight (walls and closed doors still stop it),
+  and a token's sight becomes how far it
+  sees in the dark. The fog menu sets a map's light: Auto, Bright, Dim
+  (beyond a token's sight in the dark the map shows darkened) or Dark (a
+  token sees only as far as its sight). With Lighting off, a token sees only
+  as far as its sight, as before.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
   block sight also give cover, and a piece's Cover setting in its
   Properties can make it cover you can see over (a crate or a low wall:

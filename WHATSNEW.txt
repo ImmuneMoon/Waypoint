@@ -843,6 +843,14 @@ Fog of war
   it at its corner with the name under the target: on the GM's screen for
   every targeter with a token on the map, on a player's for their own
   mark. The starter systems come with a few lights.
+- A player's own light: a player switches the light of their own token off
+  or on, or picks one of the lights you ticked Players may pick, from the
+  token's right-click menu, on any map. Your machine copies the light from
+  your own list, so no number is taken from a player, and you are told.
+  Lock a token's light in its Properties to keep it yours alone. Your Undo
+  leaves the light of a player's token as it is now, your own changes to
+  it included. A token's or a light source's right-click menu switches its
+  light for you as well.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
   block sight also give cover, and a piece's Cover setting in its
   Properties can make it cover you can see over (a crate or a low wall:

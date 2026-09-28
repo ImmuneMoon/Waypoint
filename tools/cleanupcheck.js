@@ -587,6 +587,88 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rHost = reload({ active: true, role: 'host' }), rClient = reload({ active: true, role: 'client' }), rOff = reload({ active: false, role: null }), rNone = reload(undefined);
         check('reload from disk: refused while hosting (the load\'s normaliser and cleanup never run under the live table) and while joined; allowed otherwise',
             ri > 0 && rHost.load === 0 && rHost.ret === false && /hosting/.test(rHost.toasts[0] || '') && rClient.load === 0 && rClient.ret === false && rOff.load === 1 && rOff.cleared === 1 && rOff.ret === true && rNone.load === 1, JSON.stringify([rHost, rClient, rOff]));
+        // lighting L5: the GM's undo while hosting (io.js mergeLivePlayerState, sliced and run strict) — a player's own light stays as it is live, its lock follows the snapshot
+        {
+            const gi = ioSrc.indexOf('  function mergeLivePlayerState(snapC, live) {'), gk = ioSrc.indexOf('  // Where the planner was being looked at', gi);
+            const jm = JSON.stringify, cp = o => JSON.parse(jm(o));
+            let merge = null, mergeErr = '';
+            try { if (gi > 0 && gk > gi) merge = new Function('"use strict";\n' + ioSrc.slice(gi, gk) + '\nreturn mergeLivePlayerState;')(); } catch (e) { mergeErr = e.message; }
+            check('undo merge: the host\'s merge is found in io.js and runs on its own, strict, with nothing of the page on hand', typeof merge === 'function', mergeErr || jm([gi, gk]));
+            if (typeof merge === 'function') {
+                const torch = { bright: 4, dim: 8, unit: 'cells', name: 'Torch' }, lamp = { bright: 2, dim: 4, unit: 'ft', name: 'Lamp' }, glow = { bright: 1, dim: 2, name: 'Glow' };
+                const tok = (id, more) => Object.assign({ id: id, type: 'circle', isChar: true, charId: 'c_' + id, charName: 'N' + id, x: 1, y: 2, rot: 0 }, more);
+                // what the map held when the snapshot was taken
+                const snapBoard = [
+                    tok('lit', { ownerId: 'u_a' }),                                               // lit since the snapshot
+                    tok('out', { ownerId: 'u_a', light: cp(torch) }),                              // put out since
+                    tok('gone', { ownerId: 'u_b', light: cp(torch) }),                             // its light taken off since
+                    tok('swap', { ownerId: 'u_b', light: cp(torch) }),                             // another light picked since
+                    tok('same', { ownerId: 'u_b', light: cp(lamp), lightLock: true }),             // untouched, locked in the snapshot
+                    tok('npc', { light: cp(lamp) }),                                               // nobody's: the GM's own
+                    tok('npcOff', {}),                                                             // nobody's, no light in the snapshot
+                    tok('demoted', { ownerId: 'u_c', light: cp(lamp) }),                           // owned then, nobody's now
+                    tok('locked', { ownerId: 'u_a', light: cp(lamp), lightLock: true }),           // locked in the snapshot, unlocked since
+                    tok('freed', { ownerId: 'u_a', light: cp(lamp) }),                             // free in the snapshot, locked since
+                    tok('moved', { ownerId: 'u_d', x: 10, y: 20, rot: 90, front: 1, elevation: 15, posture: 'prone', hidden: true, name: 'Snapshot name', w: 50 }),
+                    { id: 'lamp', type: 'light', x: 5, y: 5, light: cp(lamp) },                     // a placed light source
+                    { id: 'erased', type: 'path', byPlayer: 'u_a', ownerId: 'u_a', pts: [1, 2] },   // a player erased it since
+                    { id: 'gmPath', type: 'path', pts: [3, 4] },                                    // the GM deleted it since
+                    { id: 'stroke', type: 'path', byPlayer: 'u_a', ownerId: 'u_a', pts: [5, 6], color: '#111111' }
+                ];
+                const liveBoard = [
+                    tok('lit', { ownerId: 'u_a', light: cp(torch) }),
+                    tok('out', { ownerId: 'u_a', light: Object.assign(cp(torch), { off: true }) }),
+                    tok('gone', { ownerId: 'u_b' }),
+                    tok('swap', { ownerId: 'u_b', light: cp(glow) }),
+                    tok('same', { ownerId: 'u_b', light: cp(lamp), lightLock: true }),
+                    tok('npc', { light: cp(torch) }),
+                    tok('npcOff', { light: cp(torch) }),
+                    tok('demoted', { light: cp(torch) }),
+                    tok('locked', { ownerId: 'u_a', light: cp(lamp) }),
+                    tok('freed', { ownerId: 'u_a', light: cp(lamp), lightLock: true }),
+                    tok('moved', { ownerId: 'u_d', x: 77, y: 88, rot: 180, posture: 'crouched', name: 'Live name', w: 99 }),
+                    { id: 'lamp', type: 'light', x: 5, y: 5, light: Object.assign(cp(glow), { off: true }) },
+                    { id: 'stroke', type: 'path', byPlayer: 'u_a', ownerId: 'u_a', pts: [5, 6, 7, 8], color: '#222222' },
+                    tok('newcomer', { ownerId: 'u_e', light: cp(glow), lightLock: true })
+                ];
+                const live = { id: 'm', type: 'map', whiteboard: liveBoard }, liveWas = jm(live);
+                const snapC = { whiteboard: cp(snapBoard), rooms: [] };
+                let threw = '';
+                try { merge(snapC, live); } catch (e) { threw = e.message; }
+                const by = {}; (Array.isArray(snapC.whiteboard) ? snapC.whiteboard : []).forEach(w => { if (w && w.id) by[w.id] = w; });
+                const has = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+                check('undo merge: runs through a map of owned and unowned tokens, light sources and strokes, and leaves the live map exactly as it was', threw === '' && jm(live) === liveWas && Array.isArray(snapC.whiteboard), threw || jm(snapC.whiteboard));
+                check('undo merge: a light a player lit since the snapshot stays lit', jm(by.lit && by.lit.light) === jm(torch), jm(by.lit));
+                check('undo merge: a light a player put out since the snapshot stays out', jm(by.out && by.out.light) === jm(Object.assign(cp(torch), { off: true })) && !!by.out && by.out.light.off === true, jm(by.out));
+                check('undo merge: a player\'s token with no light live ends with none, though the snapshot held one', !!by.gone && !has(by.gone, 'light') && by.gone.ownerId === 'u_b', jm(by.gone));
+                check('undo merge: a player\'s token keeps the light picked since the snapshot, whole — nothing of the snapshot\'s light mixed in', jm(by.swap && by.swap.light) === jm(glow) && !!by.swap && !has(by.swap.light, 'unit'), jm(by.swap));
+                check('undo merge: a player\'s light nobody touched comes through unchanged', jm(by.same && by.same.light) === jm(lamp), jm(by.same));
+                const owned = ['lit', 'out', 'swap', 'same', 'locked', 'freed'];
+                const apart = owned.every(id => { const lv = liveBoard.find(w => w.id === id); return !!by[id] && !!by[id].light && by[id].light !== lv.light; });
+                const before = jm(liveBoard);
+                owned.forEach(id => { if (by[id] && by[id].light) { by[id].light.bright = 999; by[id].light.name = 'changed'; by[id].light.off = true; } });
+                check('undo merge: the kept light is a copy — changing the merged light afterwards never changes the live token\'s', apart && jm(liveBoard) === before && liveBoard[0].light.bright === 4, jm([apart, liveBoard[0]]));
+                check('undo merge: a token with no owner takes the snapshot\'s light — the one it held, or none', jm(by.npc && by.npc.light) === jm(lamp) && !!by.npcOff && !has(by.npcOff, 'light') && !has(by.npc, 'ownerId'), jm([by.npc, by.npcOff]));
+                check('undo merge: a token that is nobody\'s live, though owned in the snapshot, takes the snapshot\'s light and no owner', jm(by.demoted && by.demoted.light) === jm(lamp) && !!by.demoted && !has(by.demoted, 'ownerId'), jm(by.demoted));
+                check('undo merge: a placed light source takes the snapshot\'s light', jm(by.lamp && by.lamp.light) === jm(lamp), jm(by.lamp));
+                check('undo merge: the lock on a player\'s light follows the snapshot — one locked then stays locked, one locked since is free again', !!by.locked && by.locked.lightLock === true && !!by.same && by.same.lightLock === true && !!by.freed && !has(by.freed, 'lightLock') && !!by.lit && !has(by.lit, 'lightLock'), jm([by.locked, by.same, by.freed, by.lit]));
+                const mv = by.moved || {};
+                check('undo merge: a player\'s token keeps its live place, turn and posture (a key it lacks live is dropped), while what is the GM\'s — hidden, the name, the size — follows the snapshot',
+                    mv.x === 77 && mv.y === 88 && mv.rot === 180 && mv.posture === 'crouched' && !has(mv, 'front') && !has(mv, 'elevation') && mv.hidden === true && mv.name === 'Snapshot name' && mv.w === 50 && mv.ownerId === 'u_d' && !has(mv, 'light'), jm(mv));
+                check('undo merge: a token with no owner takes the snapshot\'s place as well', !!by.npc && by.npc.x === 1 && by.npc.y === 2, jm(by.npc));
+                check('undo merge: a stroke a player erased stays erased, one the GM deleted comes back, and a player\'s stroke stays as they have it now', !by.erased && jm(by.gmPath) === jm(snapBoard[13]) && jm(by.stroke) === jm(liveBoard[12]) && by.stroke !== liveBoard[12], jm([by.erased, by.gmPath, by.stroke]));
+                check('undo merge: a player\'s token that arrived since the snapshot stays, with its light and lock as they are live, as a copy', jm(by.newcomer) === jm(liveBoard[13]) && by.newcomer !== liveBoard[13] && snapC.whiteboard.length === 15, jm([by.newcomer, snapC.whiteboard.length]));
+                check('undo merge: every item comes through once, in the snapshot\'s order', jm(snapC.whiteboard.map(w => w.id)) === jm(['lit', 'out', 'gone', 'swap', 'same', 'npc', 'npcOff', 'demoted', 'locked', 'freed', 'moved', 'lamp', 'gmPath', 'newcomer', 'stroke']), jm(snapC.whiteboard.map(w => w.id)));
+                // a second undo over the merged result changes nothing more (the live map is what the first left)
+                const live2 = { id: 'm', type: 'map', whiteboard: cp(liveBoard) }, snap2 = { whiteboard: cp(snapBoard) }, snap3 = { whiteboard: cp(snapBoard) };
+                merge(snap2, live2); merge(snap3, { id: 'm', type: 'map', whiteboard: cp(snap2.whiteboard) });
+                check('undo merge: merging the same snapshot over its own result changes nothing more', jm(snap3.whiteboard) === jm(snap2.whiteboard), jm([snap2.whiteboard, snap3.whiteboard]));
+            }
+            // where it is called: the host only, a map only, before the snapshot is applied
+            const ui = ioSrc.indexOf('var parsed = JSON.parse(snap);'), ua = ioSrc.indexOf('applyContent(item, parsed);', ui), undoSrc = ui > 0 && ua > ui ? ioSrc.slice(ui, ua) : '';
+            check('undo merge: called for a map only while hosting, on the snapshot before it is applied, and nowhere else',
+                /var hosting = !!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'host'\);\n\s*if \(hosting && item\.type === 'map'\) mergeLivePlayerState\(parsed\.c, item\);/.test(undoSrc) && (ioSrc.match(/mergeLivePlayerState\(/g) || []).length === 2, jm([ui, ua, (ioSrc.match(/mergeLivePlayerState\(/g) || []).length]));
+        }
     }
 
     // the owner's real save, read-only, counts only

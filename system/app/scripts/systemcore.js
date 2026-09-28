@@ -388,7 +388,7 @@ function coverTier(sys, coverage, lineOfEffect) {
 // Lighting L4 (owner answers 3 and 4, 2026-09-28): camp.system.combat.light, the system's light rules, absent when it holds none. names: what
 // the system calls a dim and a dark place (with whatever penalty it words into them: the ruler and a target mark show them; bright has no
 // name). presets: its lights (a torch, a lantern) — a name and the two radii a light takes (dim, the outer edge, at least bright), unit what
-// they count in when not yards (ft, m or cells), pick: true marks one meant for players' own tokens (a player's own light: L5). A light's
+// they count in when not yards (ft, m or cells), pick: true where a player may pick it for their own token (net.js tok-light). A light's
 // Properties offer them; one is copied onto the item, so a later change to the list rewrites no light on the board. Names are cut by code
 // points (never half an emoji), as a light's own name is (fogcore cleanName). No vis and no field refs: both views carry it whole
 var LIGHT_UNITS = Object.freeze({ ft: 1, m: 1, cells: 1 });

@@ -4449,14 +4449,14 @@ function renderCombat() {
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
 }
 // Lighting L4: the system's light rules on the Combat card — what it calls a dim and a dark place (the ruler and a target mark show the names)
-// and its light presets (a light's Properties offer them; a tick marks one meant for players' own tokens). Every text lands as a value or
+// and its light presets (a light's Properties offer them; ticked, a player may pick one for their own token). Every text lands as a value or
 // a text node. Save cleans them; refreshErrors says what it would drop
 // [sinkcheck:lightbox-start]
 function lightDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.light && typeof cm.light === 'object' && !Array.isArray(cm.light) ? cm.light : (cm.light = {}); }
 function lightBox(box, cm) {
     var lt = cm.light && typeof cm.light === 'object' && !Array.isArray(cm.light) ? cm.light : {}, nm = lt.names && typeof lt.names === 'object' && !Array.isArray(lt.names) ? lt.names : {}, wrap = el('div', 'sys-light');
     wrap.appendChild(el('div', 'sys-light-head', 'Light'));
-    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s light, for fogged maps with Lighting on: what it calls a dim and a dark place (the ruler between two tokens and a target mark show the name, so word its penalty into it), and its lights. A light\u2019s Properties offer these presets.'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s light, for fogged maps with Lighting on: what it calls a dim and a dark place (the ruler between two tokens and a target mark show the name, so word its penalty into it), and its lights. A light\u2019s Properties offer these presets; one that is ticked, a player may pick for their own token, from its right-click menu.'));
     var r1 = el('div', 'sys-flags sys-light-names');
     [['dim', 'Dim light is called', 'e.g. Dim light (-2 to see)'], ['dark', 'Darkness is called', 'e.g. Darkness (-9)']].forEach(function(g) {
         var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', g[1]));
@@ -4473,7 +4473,7 @@ function lightBox(box, cm) {
             var ni = el('input', 'field sys-light-p' + g[0]); ni.type = 'number'; ni.min = '0'; ni.max = '1000'; ni.step = 'any'; ni.value = typeof p[g[0]] === 'number' ? String(p[g[0]]) : ''; ni.title = g[2]; nl.appendChild(ni); rw.appendChild(nl);
         });
         rw.appendChild(select('sys-light-punit', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']], typeof p.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, p.unit) ? p.unit : 'yd', 'What the two radii count in: each map\u2019s scale converts it (a 20 ft torch on 5 ft squares lights 4 squares)'));
-        var pk = el('label', 'sys-hover'), pc = el('input', 'sys-light-ppick'); pc.type = 'checkbox'; pc.checked = p.pick === true; pk.appendChild(pc); pk.appendChild(document.createTextNode(' Players may pick')); pk.title = 'Marks a light meant for players\u2019 own tokens. For now only you set a light, in a token\u2019s Properties'; rw.appendChild(pk);
+        var pk = el('label', 'sys-hover'), pc = el('input', 'sys-light-ppick'); pc.type = 'checkbox'; pc.checked = p.pick === true; pk.appendChild(pc); pk.appendChild(document.createTextNode(' Players may pick')); pk.title = 'Ticked: a player may pick this light for their own token, from its right-click menu (your machine copies it from this list). Unticked: only you set it, in a token\u2019s Properties'; rw.appendChild(pk);
         [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'lp' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         wrap.appendChild(rw);
     });

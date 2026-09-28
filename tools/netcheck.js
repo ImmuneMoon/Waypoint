@@ -2925,12 +2925,12 @@ pendingChecks.push((async () => {
         dRef('notmaking', {}, { charId: 'c_f' }) && dRef('owner', {}, { charId: 'c_o' }) && dRef('owner', { chars: Object.assign({}, mkC, { c_n: { id: 'c_n', name: 'N', ownerId: 'u_a', npc: true, making: 1, values: {} } }) }, { charId: 'c_n' }) && dRef('missing', {}, { charId: 'c_9' }) && dRef('missing', {}, { charId: 'constructor' })
         && dRef('paused', { paused: true }) && dRef('paused', { peerPaused: true }) && dRef('slow', { slow: 'chardone' }) && dn({}, { rid: 'd 1' }).answer.length === 0);
     // the player's side: the answers, the GM's verdict
-    const mkWhy = lineOf('var MK_WHY = {') + '\n' + lineOf('var TOK_WHY = {'), ansSrc = between('// [netcheck:charmakeans-start]', '// [netcheck:charmakeans-end]', 'charmakeans');
+    const mkWhy = lineOf('var MK_WHY = {') + '\n' + lineOf('var TOK_WHY = {') + '\n' + lineOf('var LIGHT_WHY = {'), ansSrc = between('// [netcheck:charmakeans-start]', '// [netcheck:charmakeans-end]', 'charmakeans');
     const mkAns = (msg, kind) => { const got = [], pend = { k1: { kind, done: a => got.push(a), timer: 1 } }; let cleared = 0; new Function('msg', '_mkPending', 'clearTimeout', mkWhy + '\n' + ansSrc)(msg, pend, () => { cleared++; }); return { got, left: Object.keys(pend).length, cleared }; };
     const aOk = mkAns({ rid: 'k1', ok: true, charId: 'c_ab12' }), aBadId = mkAns({ rid: 'k1', ok: true, charId: '<img>' }), aHave = mkAns({ rid: 'k1', reason: 'have' }), aProto = ['__proto__', 'constructor', 'toString', 'nope', 5].map(r => mkAns({ rid: 'k1', reason: r }).got[0].error), aNo = mkAns({ rid: 'k9', ok: true }), aProtoRid = mkAns({ rid: '__proto__', ok: true }), aKept = mkAns({ rid: 'k1', ok: true, kept: true }), aKeptStr = mkAns({ rid: 'k1', ok: true, kept: 'yes' });
     check('F3a char-make / char-name / char-done answers (player, run for real): ok with a well-formed id only (else none), a reason of ours in words, a prototype-named or unknown reason a plain refusal; an answer to no question of ours does nothing',
         j(aOk.got) === j([{ ok: true, charId: 'c_ab12' }]) && aOk.left === 0 && aOk.cleared === 1 && j(aBadId.got) === j([{ ok: true, charId: null }]) && aHave.got[0].error === 'You already play a character here.' && aProto.every(e => e === 'The GM could not do that.')
-        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans' \|\| msg\.type === 'char-token-ans' \|\| msg\.type === 'tok-pic-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
+        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans' \|\| msg\.type === 'char-token-ans' \|\| msg\.type === 'tok-pic-ans' \|\| msg\.type === 'tok-light-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
     {   // the token creator's review: tok-pic's answers read in a token's words (the table chosen by what we asked, never by the host)
         const tw = r => mkAns({ rid: 'k1', reason: r }, 'tok-pic').got[0].error, cw = r => mkAns({ rid: 'k1', reason: r }).got[0].error, ckw = r => mkAns({ rid: 'k1', reason: r }, 'char-make').got[0].error;
         check('token creator review: tok-pic answers (player, run for real) read as a token\'s — gone (it may have moved to another map), not yours, locked, a picture that could not be used, the GM cannot take pictures, could not save it, a moment between pictures — the same reasons to char-make still read as a character\'s; a prototype-named reason a plain refusal either way; ok is ok',
@@ -3301,6 +3301,225 @@ pendingChecks.push((async () => {
         siA > 0 && outS.whiteboard.length === 6 && j(outS.whiteboard[0].light) === j(torch) && j(outS.whiteboard[1].light) === j(lamp) && outS.whiteboard[1].type === 'light' && j(outS.whiteboard[2].light) === j(torch) && !ownK(outS.whiteboard[2], 'sheet') && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'frame')
         && [3, 4].every(i => j(Object.keys(outS.whiteboard[i]).sort()) === stubKeys && outS.whiteboard[i].type === 'rect' && !ownK(outS.whiteboard[i], 'light')) && !/Secret|"unit":"m"/.test(j(outS)) && !ownK(outS.whiteboard[5], 'light') && packedS === true && j(mapS) === before
         && j(CL.cleanHostWbItem(JSON.parse(j(outS.whiteboard[0]))).light) === j(torch) && j(CL.cleanHostMap(JSON.parse(j(outS))).whiteboard.map(w => w.light || 0)) === j([torch, lamp, torch, 0, 0, 0]), j(outS.whiteboard));
+})());
+// Lighting L5 (a player's own light) on the wire: the host's tok-light (the [netcheck:toklight] slice, run for real with the real fogcore and
+// systemcore), the player's sender and its answers (LIGHT_WHY), and no other door in: the patch gate takes no light, a hidden token's stub none
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js'));
+    const ownK = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const tlS = between('// [netcheck:toklight-start]', '// [netcheck:toklight-end]', 'toklight');
+    const runTL = new Function('msg', 'conn', 'net', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'toast', 'logEvent', 'own', 'allow', 'save', 'render', '"use strict";\n' + tlS);
+    const torch = { bright: 20, dim: 40, unit: 'ft', name: 'Torch' }, torchOff = { bright: 20, dim: 40, off: true, unit: 'ft', name: 'Torch' }, candle = { bright: 5, dim: 10, unit: 'ft', name: 'Candle' }, candleOff = { bright: 5, dim: 10, off: true, unit: 'ft', name: 'Candle' };
+    const glow = { bright: 0, dim: 2, unit: 'm', name: 'Glow' }, sun = { bright: 30, dim: 30, name: 'Sun' }, lamp = { bright: 2, dim: 4, unit: 'cells', name: 'Lamp' };
+    // the host's own list as a system file holds it: the cleaner drops what is no preset, so a place counts in the CLEANED list
+    const presetsRaw = () => [null, { name: 'Candle', bright: 5, dim: 10, unit: 'ft', pick: true, html: '<img>' }, { name: 'Torch', bright: 20, dim: 40, unit: 'ft' }, { name: '', bright: 1, dim: 1, pick: true }, { name: 'Glow', dim: 2, unit: 'm', pick: true },
+        { name: 'Lantern', bright: 30, dim: 60, pick: 'yes' }, { name: 'Sun', bright: 30, dim: 30, pick: true }];
+    const sysOf = () => ({ combat: { light: { presets: presetsRaw() } } });
+    const tl = (o) => {
+        o = o || {};
+        const tok = Object.assign({ id: 'wt', isChar: true, charName: 'Vex', ownerId: 'u_a', type: 'image', x: 0, y: 0, w: 60, h: 52, light: JSON.parse(j(torch)) }, o.tok || {});
+        if (tok.light === undefined) delete tok.light;
+        const tok2 = { id: 'wt', isChar: true, charName: 'Vex', ownerId: 'u_a', type: 'image', x: 9, y: 9, w: 60, h: 52, light: JSON.parse(j(lamp)) };
+        const camp = { id: 'k', activeItemId: o.active || 'm1', items: { m1: { id: 'm1', type: 'map', whiteboard: 'board' in o ? o.board : [null, { id: 'wo', isChar: true, ownerId: 'u_b', light: JSON.parse(j(lamp)) }, tok] }, m2: { id: 'm2', type: 'map', whiteboard: [tok2] }, d1: { id: 'd1', type: 'page', whiteboard: [tok2] } } };
+        if (!o.noSystem) camp.system = 'system' in o ? o.system : sysOf();
+        const msg = Object.assign({ type: 'tok-light', rid: 'l1', mapId: 'm1', wbId: 'wt', on: true }, o.msg || {});
+        (o.drop || []).forEach(k => { delete msg[k]; });
+        const target = msg.mapId === 'm2' ? tok2 : tok, lightNow = () => j(target.light === undefined ? null : target.light);
+        const out = { answer: [], ev: [], allowed: [], budgets: [], counted: [], asked: 0, threw: '' };
+        const conn = { peer: o.peer || 'pA', send: m => { packCheck(m); out.ev.push('ans'); out.answer.push(JSON.parse(JSON.stringify(m))); } };
+        const netT = { active: true, role: 'host', paused: !!o.paused, applyingRemote: 'was' in o ? o.was : false, roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' }, pN: { id: 'u_n', name: '' } },
+            broadcastItemFiltered: (c, m) => { out.ev.push('send:' + c + ':' + m + ':' + String(netT.applyingRemote)); } };
+        const off = () => { out.asked++; return false; };
+        const win = { wpFogCore: FCx, wpSystemCore: Sx, wpVtt: { on: off, campaignOn: off, enabled: off, featureOn: off }, wpHistFlush: () => { out.ev.push('flush:' + lightNow()); },
+            wpFog: { invalidateVision: () => { out.ev.push('inv:' + lightNow()); }, redraw: () => { out.ev.push('redraw'); }, lightCount: m => { out.counted.push(m && m.id); return o.count || 0; } } };
+        if (o.win) o.win(win);
+        out.before = j(camp);
+        try {
+            runTL(msg, conn, netT, win, () => !!o.peerPaused, () => (o.noCamp ? null : camp), e => { throw e; }, t => { out.ev.push('toast'); out.toast = t; }, (k, t) => { out.ev.push('log'); out.log = [k, t]; }, H.own,
+                (k, b, p) => { out.allowed.push([k, p]); out.budgets.push(b); return o.slow !== k; }, a => { out.ev.push('save:' + String(a) + ':' + String(netT.applyingRemote) + ':' + lightNow()); if (o.saveThrows) throw new Error('disk full'); }, () => { out.ev.push('render'); });
+        } catch (e) { out.threw = e.message; }
+        out.after = j(camp); out.flag = netT.applyingRemote; out.light = target.light; out.tok = tok; out.tok2 = tok2;
+        return out;
+    };
+    const okAns = j([{ ok: true, type: 'tok-light-ans', rid: 'l1' }]);
+    const steps = (from, to, extra) => j(['flush:' + j(from), 'inv:' + j(to), 'save:true:true:' + j(to), 'send:k:' + ((extra && extra.map) || 'm1') + ':false'].concat(extra && extra.away ? [] : ['render', 'redraw']).concat(['ans', 'toast', 'log']));
+    const told = (r, words) => r.toast === words + '.' && j(r.log) === j(['char', words]) && r.ev.filter(e => e === 'toast').length === 1 && r.ev.filter(e => e === 'log').length === 1;
+    const done = (r, from, to, words, extra) => j(r.answer) === okAns && j(r.light) === j(to) && j(r.ev) === steps(from, to, extra) && told(r, words) && r.flag === false && r.threw === '' && j(r.allowed) === j([['toklight', 'pA']]);
+    const still = r => j(r.answer) === okAns && j(r.ev) === j(['ans']) && r.after === r.before && r.allowed.length === 0 && r.flag === false && r.threw === '';   // answered ok, nothing written, nobody told
+
+    const cleaned = Sx.lightPresets(sysOf());
+    check('a player\'s own light: the places a pick names are those of the host\'s cleaned list of presets — what is no preset is dropped before the places are counted, and the pick mark is kept only when it is true',
+        j(cleaned) === j([{ name: 'Candle', bright: 5, dim: 10, unit: 'ft', pick: true }, { name: 'Torch', bright: 20, dim: 40, unit: 'ft' }, { name: 'Glow', bright: 0, dim: 2, unit: 'm', pick: true }, { name: 'Lantern', bright: 30, dim: 60 }, { name: 'Sun', bright: 30, dim: 30, pick: true }]), j(cleaned));
+
+    // (a) the host: a plain switch
+    const swOff = tl({ msg: { on: false } }), swOn = tl({ tok: { light: JSON.parse(j(torchOff)) } }), swBare = tl({ tok: { light: { bright: 3, dim: 3, off: true } } });
+    check('a player\'s own light (host, run for real): their own token\'s light is put out and lit again with its radii, unit and name kept, answered ok, and the GM is told once in a toast and once in the log in words that name the player, the light and the token',
+        done(swOff, torch, torchOff, 'Pat put out the light of their token (Vex)') && done(swOn, torchOff, torch, 'Pat lit Torch on their token (Vex)') && done(swBare, { bright: 3, dim: 3, off: true }, { bright: 3, dim: 3 }, 'Pat lit the light of their token (Vex)')
+        && j(swOff.budgets.map(b => [typeof b.perMs, typeof b.burst, b.perMs > 0, b.burst >= 1])) === j([['number', 'number', true, true]]), j([swOff, swOn, swBare]));
+    const hostile = { bright: 999, dim: 999, unit: 'cells', light: { bright: 500, dim: 500, unit: 'm', name: 'Mine' }, off: true, radius: 77, pick: true, html: '<img src=x onerror=alert(1)>', lightLock: false, locked: false, ownerId: 'u_a', charName: '<b>x</b>' };
+    const swX = tl({ msg: Object.assign({}, hostile, { on: false, off: false }) }), swXon = tl({ tok: { light: JSON.parse(j(torchOff)) }, msg: Object.assign({}, hostile, { on: true }) });
+    const onWords = ['false', 0, null, '', 'off', NaN, {}, []].map(v => [tl({ msg: { on: v } }), tl({ tok: { light: JSON.parse(j(torchOff)) }, msg: { on: v } })]), onGone = tl({ tok: { light: JSON.parse(j(torchOff)) }, drop: ['on'] });
+    check('a player\'s own light (host): a switch takes nothing but on or off from the message — radii, a unit, a whole light, an off mark, a lock or a name for the token sent with it change nothing, and only the word false puts a light out (anything else lights it)',
+        done(swX, torch, torchOff, 'Pat put out the light of their token (Vex)') && done(swXon, torchOff, torch, 'Pat lit Torch on their token (Vex)') && j(Object.keys(swX.tok).sort()) === j(['charName', 'h', 'id', 'isChar', 'light', 'ownerId', 'type', 'w', 'x', 'y']) && swX.tok.charName === 'Vex'
+        && onWords.every(p => still(p[0]) && done(p[1], torchOff, torch, 'Pat lit Torch on their token (Vex)')) && done(onGone, torchOff, torch, 'Pat lit Torch on their token (Vex)'), j([swX, swXon]));
+
+    // a pick
+    const pkC = tl({ msg: { preset: 0, name: 'Candle' } }), pkG = tl({ msg: { preset: 2, name: 'Glow' } }), pkS = tl({ msg: { preset: 4, name: 'Sun' } }), pkOff = tl({ msg: { preset: 0, name: 'Candle', on: false } }), pkNew = tl({ tok: { light: undefined }, msg: { preset: 0, name: 'Candle' } });
+    const pkX = tl({ msg: Object.assign({}, hostile, { preset: 0, name: 'Candle', on: true }) }), pkList = tl({ msg: { preset: 0, name: 'Candle' } });
+    check('a player\'s own light (host): a pick copies the preset at that place of the host\'s own list by value — its radii, unit and name, a preset without a unit leaving none of the old light\'s — and takes nothing else from the message; a pick sent with on false gives the preset switched off; a token that had no light gets one',
+        done(pkC, torch, candle, 'Pat lit Candle on their token (Vex)') && done(pkG, torch, glow, 'Pat lit Glow on their token (Vex)') && done(pkS, torch, sun, 'Pat lit Sun on their token (Vex)') && !ownK(pkS.light, 'unit') && done(pkOff, torch, candleOff, 'Pat put out the light of their token (Vex)')
+        && done(pkNew, null, candle, 'Pat lit Candle on their token (Vex)') && j(pkNew.counted) === j(['m1']) && done(pkX, torch, candle, 'Pat lit Candle on their token (Vex)') && j(Object.keys(pkX.light)) === j(['bright', 'dim', 'unit', 'name'])
+        && j(Sx.lightPresets(sysOf())) === j(cleaned) && !ownK(pkList.light, 'pick'), j([pkC, pkG, pkS, pkOff, pkNew, pkX]));
+
+    // nothing to change
+    const same = [tl({}), tl({ tok: { light: JSON.parse(j(torchOff)) }, msg: { on: false } }), tl({ tok: { light: JSON.parse(j(candle)) }, msg: { preset: 0, name: 'Candle' } }), tl({ tok: { light: JSON.parse(j(candleOff)) }, msg: { preset: 0, name: 'Candle', on: false } }),
+        tl({ tok: { light: { bright: 20, dim: 40, unit: 'ft', name: 'Torch', html: '<img>' } } }), tl({ count: 1e9 }), tl({ slow: 'toklight' })];
+    check('a player\'s own light (host): a light that is already as asked is answered ok with nothing written, saved or sent and nobody told — no history step, no count against the rate, the map\'s cap never in its way',
+        same.every(still) && same.every(r => r.counted.length === 0), j(same));
+
+    // one refusal per gate
+    const why = (o, reason) => { const r = tl(o); return j(r.answer) === j([{ reason, type: 'tok-light-ans', rid: 'l1' }]) && j(r.ev) === j(['ans']) && r.after === r.before && j(r.allowed) === j(reason === 'slow' ? [['toklight', o.peer || 'pA']] : []) && r.flag === false && r.threw === '' && r.toast === undefined && r.log === undefined; };
+    const pick = (p, n, more) => Object.assign({ msg: { preset: p, name: n } }, more || {}), bare = { light: undefined };
+    const cases = [
+        [{ paused: true }, 'paused'], [{ peerPaused: true }, 'paused'], [{ paused: true, msg: { mapId: 'nope' } }, 'paused'], [{ peerPaused: true, tok: { locked: true } }, 'paused'],
+        [{ msg: { mapId: 'nope' } }, 'missing'], [{ msg: { mapId: 'd1' } }, 'missing'], [{ msg: { mapId: '__proto__' } }, 'missing'], [{ msg: { mapId: 'constructor' } }, 'missing'], [{ msg: { mapId: 'hasOwnProperty' } }, 'missing'], [{ msg: { mapId: 7 } }, 'missing'], [{ msg: { mapId: ['m1'] } }, 'missing'], [{ drop: ['mapId'] }, 'missing'],
+        [{ msg: { wbId: 'nope' } }, 'missing'], [{ msg: { wbId: 7 } }, 'missing'], [{ msg: { wbId: ['wt'] } }, 'missing'], [{ drop: ['wbId'] }, 'missing'], [{ board: [] }, 'missing'], [{ board: {} }, 'missing'], [{ board: null }, 'missing'], [{ noCamp: true }, 'missing'],
+        [{ peer: 'pB' }, 'tokowner'], [{ msg: { wbId: 'wo' } }, 'tokowner'], [{ tok: { ownerId: undefined } }, 'tokowner'], [{ tok: { ownerId: null } }, 'tokowner'], [{ tok: { ownerId: '' } }, 'tokowner'], [{ tok: { isChar: false } }, 'tokowner'], [{ tok: { isChar: false, type: 'light' } }, 'tokowner'],
+        [{ tok: { waiting: 1 } }, 'tokowner'], [{ tok: { waiting: true, isChar: true } }, 'tokowner'], [{ peer: 'pB', tok: { locked: true, lightLock: true } }, 'tokowner'],
+        [{ tok: { locked: true } }, 'locked'], [{ tok: { hidden: true } }, 'locked'], [{ tok: { locked: true, lightLock: true } }, 'locked'], [{ tok: { hidden: true }, msg: { preset: 0, name: 'Candle' } }, 'locked'],
+        [{ tok: { lightLock: true } }, 'lightlock'], [{ tok: { lightLock: true }, msg: { on: false } }, 'lightlock'], [pick(0, 'Candle', { tok: { lightLock: true } }), 'lightlock'], [{ tok: { lightLock: true }, win: w => { delete w.wpFogCore; } }, 'lightlock'],
+        [{ win: w => { delete w.wpFogCore; } }, 'off'], [{ win: w => { w.wpFogCore = {}; } }, 'off'], [{ win: w => { delete w.wpSystemCore; } }, 'off'], [{ win: w => { w.wpSystemCore = {}; } }, 'off'], [pick(77, 'Nope', { win: w => { delete w.wpSystemCore; } }), 'off'],
+        [pick(5, 'Sun'), 'preset'], [pick(99, 'Candle'), 'preset'], [pick(-1, 'Candle'), 'preset'], [pick(0.5, 'Candle'), 'preset'], [pick(1e300, 'Candle'), 'preset'], [pick('0', 'Candle'), 'preset'], [pick(NaN, 'Candle'), 'preset'], [pick(null, 'Candle'), 'preset'],
+        [pick([0], 'Candle'), 'preset'], [pick(true, 'Candle'), 'preset'], [pick('length', 'Candle'), 'preset'], [pick('constructor', 'Candle'), 'preset'], [pick('__proto__', 'Candle'), 'preset'],
+        [pick(1, 'Torch'), 'preset'], [pick(3, 'Lantern'), 'preset'], [pick(0, 'Glow'), 'preset'], [pick(2, 'Candle'), 'preset'], [pick(0, 'candle'), 'preset'], [pick(0, 'Candle '), 'preset'], [pick(0, ''), 'preset'], [pick(0, 7), 'preset'], [pick(0, null), 'preset'], [pick(0, ['Candle']), 'preset'],
+        [pick(0, 'constructor'), 'preset'], [pick(0, '__proto__'), 'preset'], [pick(0, 'toString'), 'preset'], [{ msg: { preset: 0 } }, 'preset'], [{ msg: { name: 'Candle' } }, 'preset'],
+        [pick(0, 'Candle', { system: null }), 'preset'], [pick(0, 'Candle', { noSystem: true }), 'preset'], [pick(0, 'Candle', { system: { combat: { light: { presets: [{ name: 'Candle', bright: 5, dim: 10, unit: 'ft' }] } } } }), 'preset'],
+        [pick(0, 'Candle', { system: { combat: { light: { presets: [{ name: 'Lamp', bright: 5, dim: 10, pick: true }, { name: 'Candle', bright: 5, dim: 10, unit: 'ft', pick: true }] } } } }), 'preset'], [pick(1, 'Torch', { tok: bare, count: 200 }), 'preset'],
+        [{ tok: bare }, 'nolight'], [{ tok: bare, msg: { on: false } }, 'nolight'], [{ tok: { light: { bright: 0, dim: 0, name: 'Dark' } } }, 'nolight'], [{ tok: { light: '<img>' } }, 'nolight'], [{ tok: bare, count: 200 }, 'nolight'], [{ tok: bare, msg: hostile }, 'nolight'],
+        [pick(0, 'Candle', { tok: bare, count: 200 }), 'cap'], [pick(0, 'Candle', { tok: bare, count: 201 }), 'cap'], [pick(0, 'Candle', { tok: bare, count: 200, slow: 'toklight' }), 'cap'], [pick(0, 'Candle', { tok: { light: null }, count: 1e9 }), 'cap'],
+        [{ slow: 'toklight', msg: { on: false } }, 'slow'], [pick(0, 'Candle', { slow: 'toklight' }), 'slow'], [pick(0, 'Candle', { slow: 'toklight', tok: bare, count: 199 }), 'slow'], [{ slow: 'toklight', msg: { on: false }, peer: 'pN', tok: { ownerId: 'u_n' } }, 'slow']];
+    const wrong = cases.filter(c => !why(c[0], c[1])).map(c => j([c[0], c[1], tl(c[0]).answer]));
+    check('a player\'s own light (host): each gate refuses with its own reason and nothing is written, saved, sent, toasted or logged — a paused table or player (paused), a map that is no own key of the campaign, a page, a prototype name or not text, a token that is not there (missing), another player\'s token, one with no owner, an item that is no character, a waiting token (tokowner), a locked or hidden one (locked), a light the GM locked (lightlock), no fog core or no system core (off), a place out of range, negative, fractional, not a number or a prototype name, a preset not ticked for players, a name that is not that preset\'s or names a prototype key (preset), a switch on a token with no light (nolight), a new light at the map\'s cap (cap), the rate by its own budget (slow); the gates are asked in that order',
+        wrong.length === 0 && cases.length > 80, wrong);
+    const quiet = [tl({ msg: { rid: 'l 1' } }), tl({ msg: { rid: '' } }), tl({ msg: { rid: 7 } }), tl({ msg: { rid: 'x'.repeat(25) } }), tl({ msg: { rid: '<img>' } }), tl({ drop: ['rid'] }), tl({ msg: { rid: ['l1'] } }),
+        tl({ peer: 'pZ' }), tl({ peer: 'constructor' }), tl({ peer: '__proto__' }), tl({ peer: 'hasOwnProperty' }), tl({ peer: 'pZ', paused: true }), tl({ peer: 'pZ', msg: { on: false } })];
+    check('a player\'s own light (host): a request whose id is malformed and a peer who is not admitted (a prototype name is no player) get no answer at all, and nothing changes',
+        quiet.every(r => r.answer.length === 0 && r.ev.length === 0 && r.after === r.before && r.allowed.length === 0 && r.threw === ''), j(quiet));
+
+    // the lock is the word true only; the cap is for a new light only
+    const lk = [tl({ tok: { lightLock: 'yes' }, msg: { on: false } }), tl({ tok: { lightLock: 1 }, msg: { on: false } }), tl({ tok: { lightLock: false }, msg: { on: false } }), tl({ tok: { lightLock: 'true' }, msg: { on: false } })];
+    const capOld = tl({ count: 200, msg: { preset: 0, name: 'Candle' } }), capSw = tl({ count: 1e9, msg: { on: false } }), capUnder = tl({ tok: { light: undefined }, count: 199, msg: { preset: 0, name: 'Candle' } }), capNone = tl({ tok: { light: undefined }, count: 1e9, msg: { preset: 0, name: 'Candle' }, win: w => { delete w.wpFog; } });
+    check('a player\'s own light (host): only a light lock that is true locks a light; the map\'s cap of ' + FCx.LIMITS.lights + ' light sources stops a new light only — a token that already carries a light may switch it or take another preset at the cap, and one light under the cap a new light is taken',
+        lk.every(r => done(r, torch, torchOff, 'Pat put out the light of their token (Vex)')) && done(capOld, torch, candle, 'Pat lit Candle on their token (Vex)') && capOld.counted.length === 0 && done(capSw, torch, torchOff, 'Pat put out the light of their token (Vex)')
+        && done(capUnder, null, candle, 'Pat lit Candle on their token (Vex)') && j(capUnder.counted) === j(['m1']) && FCx.LIMITS.lights === 200
+        && j(capNone.answer) === okAns && j(capNone.light) === j(candle) && j(capNone.ev) === j(['flush:null', 'save:true:true:' + j(candle), 'send:k:m1:false', 'render', 'ans', 'toast', 'log']), j([lk, capOld, capSw, capUnder, capNone]));
+
+    // the order of effects, the map sent, the GM's words
+    const away = tl({ active: 'm2', msg: { on: false } }), other = tl({ msg: { mapId: 'm2', on: false } }), otherOn = tl({ active: 'm2', msg: { mapId: 'm2', preset: 4, name: 'Sun' } }), lampOff = Object.assign({}, { bright: 2, dim: 4, off: true }, { unit: 'cells', name: 'Lamp' });
+    const wasOn = tl({ was: true, msg: { on: false } }), noFlush = tl({ msg: { on: false }, win: w => { delete w.wpHistFlush; } });
+    check('a player\'s own light (host): the GM\'s pending edit is flushed to the history before the light is written, the vision is worked out afresh before the map goes out, the save runs as a remote change and the mark is back to what it was before the map is sent; the map sent is the message\'s map whichever map the GM is on, and only the GM\'s own open map is drawn again',
+        done(swOff, torch, torchOff, 'Pat put out the light of their token (Vex)') && done(away, torch, torchOff, 'Pat put out the light of their token (Vex)', { away: true }) && done(other, lamp, lampOff, 'Pat put out the light of their token (Vex)', { map: 'm2', away: true }) && j(other.tok.light) === j(torch)
+        && done(otherOn, lamp, sun, 'Pat lit Sun on their token (Vex)', { map: 'm2' }) && j(otherOn.tok.light) === j(torch)
+        && j(wasOn.answer) === okAns && wasOn.flag === true && j(wasOn.ev) === j(['flush:' + j(torch), 'inv:' + j(torchOff), 'save:true:true:' + j(torchOff), 'send:k:m1:true', 'render', 'redraw', 'ans', 'toast', 'log'])
+        && j(noFlush.answer) === okAns && j(noFlush.light) === j(torchOff) && j(noFlush.ev) === j(['inv:' + j(torchOff), 'save:true:true:' + j(torchOff), 'send:k:m1:false', 'render', 'redraw', 'ans', 'toast', 'log']), j([away, other, otherOn, wasOn, noFlush]));
+    const thrown = [tl({ saveThrows: true, msg: { on: false } }), tl({ saveThrows: true, was: true, msg: { preset: 0, name: 'Candle' } }), tl({ saveThrows: true, tok: { light: undefined }, msg: { preset: 0, name: 'Candle' } })];
+    check('a player\'s own light (host): when the save fails the light is put back as it was (none, where the token had none) and the vision worked out afresh, the mark of a remote change is put back to what it was, and nothing is sent, answered, drawn, toasted or logged',
+        thrown[0].threw === 'disk full' && thrown[0].flag === false && j(thrown[0].ev) === j(['flush:' + j(torch), 'inv:' + j(torchOff), 'save:true:true:' + j(torchOff), 'inv:' + j(torch)]) && thrown[0].answer.length === 0 && j(thrown[0].light) === j(torch) && thrown[0].after === thrown[0].before
+        && thrown[1].threw === 'disk full' && thrown[1].flag === true && j(thrown[1].ev) === j(['flush:' + j(torch), 'inv:' + j(candle), 'save:true:true:' + j(candle), 'inv:' + j(torch)]) && thrown[1].answer.length === 0 && j(thrown[1].light) === j(torch) && thrown[1].after === thrown[1].before
+        && thrown[2].threw === 'disk full' && j(thrown[2].ev) === j(['flush:null', 'inv:' + j(candle), 'save:true:true:' + j(candle), 'inv:null']) && thrown[2].light === undefined && !('light' in thrown[2].tok) && thrown[2].after === thrown[2].before && thrown[2].answer.length === 0, j(thrown));
+    {   // review: a whole map sent to the table becomes the baseline the next delta is worked out from (a light switched off by its player and on again by the GM went unsent, the same as the older baseline)
+        const bfA = src.indexOf('net.broadcastItemFiltered = function(campId, itemId) {'), bfSrc = bfA >= 0 ? src.slice(bfA, src.indexOf('\n};\n', bfA) + 4) : '';
+        const runBF = (fogged, had) => { const last = had ? { m1: { old: 1 } } : {}, sent = [], netB = { conns: [{ peer: 'pA', open: true, send: m => sent.push(['one', m.item.tag]) }], roster: { pA: { id: 'u_a' } } }, map = { id: 'm1', type: 'map', whiteboard: [{ id: 't', light: { bright: 1, dim: 2, off: true } }] };
+            new Function('net', 'state', 'sanitizeItem', 'mapFogged', 'broadcast', '_lastSent', 'fogCopyFor', 'sendFailed', bfSrc)(netB, { appState: { campaigns: { k: { id: 'k', items: { m1: map } } } } }, it => JSON.parse(JSON.stringify(it)), () => fogged, (m, x) => sent.push(['all', m.type, m.itemId, x]), last, (clean) => Object.assign({ tag: 'mine' }, clean), e => { throw e; });
+            netB.broadcastItemFiltered('k', 'm1'); netB.broadcastItemFiltered('k', 'nope'); map.whiteboard[0].light.off = false; return { last, sent, map }; };
+        const bfOpen = runBF(false, true), bfNew = runBF(false, false), bfFog = runBF(true, true);
+        check('sending a whole map to the table (broadcastItemFiltered, run for real): an unfogged one becomes the baseline of the next delta, as a copy (a later change to the map is a change against it); a fogged one, sent to each player through their own fog, leaves no shared baseline; a map that is not there sends nothing',
+            bfSrc.length > 0 && j(bfOpen.sent) === j([['all', 'item', 'm1', null]]) && j(bfOpen.last.m1) === j({ id: 'm1', type: 'map', whiteboard: [{ id: 't', light: { bright: 1, dim: 2, off: true } }] }) && bfOpen.last.m1 !== bfOpen.map && j(bfNew.last.m1) === j(bfOpen.last.m1)
+            && j(bfFog.sent) === j([['one', 'mine']]) && !('m1' in bfFog.last), j([bfOpen.sent, bfOpen.last, bfFog.sent, bfFog.last]));
+    }
+    const anon = tl({ peer: 'pN', tok: { ownerId: 'u_n', charName: '' }, msg: { on: false } }), anonPick = tl({ peer: 'pN', tok: { ownerId: 'u_n', charName: undefined }, msg: { preset: 2, name: 'Glow' } });
+    check('a player\'s own light (host): a player with no name is "A player" to the GM and a token with no name "their token"',
+        told(anon, 'A player put out the light of their token (their token)') && told(anonPick, 'A player lit Glow on their token (their token)') && j(anon.allowed) === j([['toklight', 'pN']]) && j(anonPick.light) === j(glow), j([anon.toast, anonPick.toast]));
+    const gateless = tl({ msg: { preset: 0, name: 'Candle' } });
+    check('a player\'s own light (host): no fog or lighting switch stands in its way — with every feature reading off and a map without fog, a light is still taken (a torch set ready beforehand)',
+        done(gateless, torch, candle, 'Pat lit Candle on their token (Vex)') && !/wpVtt|campaignOn|\.fog\b|lighting/.test(tlS.replace(/^\s*\/\/[^\n]*$/gm, '').replace(/\/\/[^\n]*/g, '')) && !ownK(JSON.parse(gateless.before), 'fog'), j(gateless));
+    check('a player\'s own light: the host\'s branch is taken for a tok-light message on the host only',
+        /\} else if \(msg\.type === 'tok-light' && net\.role === 'host'\) \{\n\s*\/\/ \[netcheck:toklight-start\]/.test(src));
+
+    // (b) the player's sender
+    const mkA = src.indexOf('var _mkPending = {};'), mkB = src.indexOf('// Onboarding F1b: a player\'s changed face reaches the host');
+    const sendTL = (o, more) => { more = more || {}; const sent = []; const netC = Object.assign({ active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', paused: false, selfPaused: false, myId: 'u_a', conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } }] }, more.net || {});
+        const pend = new Function('net', 'safeAvatar', 'cleanCharName', 'setTimeout', 'clearTimeout', src.slice(mkA, mkB) + '\nreturn _mkPending;')(netC, H.safeAvatar, v => String(v), () => 0, () => {});
+        let called = 0; const r = netC.tokLight('map' in more ? more.map : 'm1', 'wb' in more ? more.wb : 'wt', o, () => { called++; }); return { r, sent, kinds: Object.keys(pend).map(k => pend[k].kind), called, keys: sent.map(m => Object.keys(m).sort()) }; };
+    const sw = [sendTL({ on: true }), sendTL({ on: false }), sendTL(undefined), sendTL(null), sendTL({}), sendTL({ on: 0 }), sendTL({ on: 'false' }), sendTL({ on: false, bright: 9, dim: 9, unit: 'm', light: torch, name: 'Torch' })];
+    const swKeys = j(['mapId', 'on', 'rid', 'type', 'wbId']), pkKeys = j(['mapId', 'name', 'on', 'preset', 'rid', 'type', 'wbId']);
+    const pks = [sendTL({ on: true, preset: 2, name: 'Glow' }), sendTL({ preset: 0, name: 'Candle' }), sendTL({ on: false, preset: 99, name: 'Far' }), sendTL({ on: true, preset: 3, name: 'N'.repeat(200), bright: 50, dim: 50, unit: 'm' })];
+    const idS = sendTL({ on: true }, { map: 12, wb: 34 });
+    check('a player\'s own light: the sender (run for real) sends a switch as { type, rid, mapId, wbId, on } and a pick with its place and name besides — never a radius or a unit; only the word false puts out, the ids travel as text, a name is cut at 120 characters, and it remembers what it asked',
+        mkA > 0 && mkB > mkA && sw.every(s => s.r.ok === true && s.sent.length === 1 && j(s.keys[0]) === swKeys && s.sent[0].type === 'tok-light' && s.sent[0].mapId === 'm1' && s.sent[0].wbId === 'wt' && /^k[a-z0-9]+$/.test(s.sent[0].rid) && j(s.kinds) === j(['tok-light']) && s.called === 0)
+        && j(sw.map(s => s.sent[0].on)) === j([true, false, true, true, true, true, true, false])
+        && pks.every(s => s.r.ok === true && s.sent.length === 1 && j(s.keys[0]) === pkKeys && s.sent[0].type === 'tok-light' && j(s.kinds) === j(['tok-light']))
+        && j(pks.map(s => [s.sent[0].on, s.sent[0].preset, s.sent[0].name.length])) === j([[true, 2, 4], [true, 0, 6], [false, 99, 3], [true, 3, 120]]) && pks[0].sent[0].name === 'Glow' && pks[3].sent[0].name === 'N'.repeat(120)
+        && idS.sent[0].mapId === '12' && idS.sent[0].wbId === '34', j([sw.map(s => s.sent), pks.map(s => s.sent)]));
+    const sBad = [{ preset: 1.5, name: 'x' }, { preset: -1, name: 'x' }, { preset: 100, name: 'x' }, { preset: '1', name: 'x' }, { preset: NaN, name: 'x' }, { preset: Infinity, name: 'x' }, { preset: null, name: 'x' }, { preset: [1], name: 'x' }, { preset: true, name: 'x' },
+        { preset: 1, name: '' }, { preset: 1 }, { preset: 1, name: 7 }, { preset: 1, name: null }, { preset: 1, name: ['x'] }, { preset: 1, name: { length: 3 } }].map(o => sendTL(o));
+    const sAway = [sendTL({ on: false }, { net: { paused: true } }), sendTL({ on: false }, { net: { selfPaused: true } }), sendTL({ on: false }, { net: { role: 'host' } }), sendTL({ on: false }, { net: { syncedPeer: 'other' } }), sendTL({ on: false }, { net: { stream: true } })];
+    check('a player\'s own light: the sender refuses a pick before anything is sent when its place is no whole number from 0 to 99 or it has no name of text, and sends nothing while paused, as a host, in a stream window or before the table is joined; nothing is left waiting for an answer',
+        sBad.every(s => s.r.error === 'That light cannot be picked.' && s.sent.length === 0 && s.kinds.length === 0) && sAway.every(s => typeof s.r.error === 'string' && !!s.r.error && s.sent.length === 0 && s.kinds.length === 0) && sAway[0].r.error === 'The table is paused.', j([sBad.map(s => s.r), sAway.map(s => s.r)]));
+
+    // (c) the answers
+    const whySrc = lineOf('var MK_WHY = {') + '\n' + lineOf('var TOK_WHY = {') + '\n' + lineOf('var LIGHT_WHY = {'), ansSrc = between('// [netcheck:charmakeans-start]', '// [netcheck:charmakeans-end]', 'charmakeans');
+    const ansOf = (msg, kind) => { const got = [], pend = { k1: { kind, done: a => got.push(a), timer: 1 } }; new Function('msg', '_mkPending', 'clearTimeout', whySrc + '\n' + ansSrc)(msg, pend, () => {}); return { got, left: Object.keys(pend).length }; };
+    const lw = r => ansOf({ rid: 'k1', reason: r }, 'tok-light').got[0].error, tw = r => ansOf({ rid: 'k1', reason: r }, 'tok-pic').got[0].error, cw = r => ansOf({ rid: 'k1', reason: r }, 'char-make').got[0].error, plainNo = 'The GM could not do that.';
+    const WHY = new Function(whySrc + '\nreturn { MK_WHY: MK_WHY, TOK_WHY: TOK_WHY, LIGHT_WHY: LIGHT_WHY };')();
+    const hostReasons = Array.from(new Set((tlS.match(/reason: '([a-z]+)'/g) || []).map(s => s.slice(9, -1)))).sort();
+    const words = { paused: 'The table is paused.', slow: 'A moment between changes of light, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', lightlock: 'The GM has locked that token’s light.',
+        preset: 'That light is no longer on offer (the GM changed the list).', nolight: 'That token carries no light to switch.', cap: 'This map already has the most light sources it can hold.', off: 'The GM cannot take a light here.' };
+    check('a player\'s own light: every reason the host gives has its words on the player\'s side and no other reason is listed — paused, slow, missing, tokowner, locked, lightlock, preset, nolight, cap, off',
+        j(hostReasons) === j(Object.keys(words).sort()) && j(Object.keys(WHY.LIGHT_WHY).sort()) === j(hostReasons) && Object.keys(words).every(k => WHY.LIGHT_WHY[k] === words[k]), j([hostReasons, WHY.LIGHT_WHY]));
+    const okL = ansOf({ rid: 'k1', ok: true }, 'tok-light'), okJunk = ansOf({ rid: 'k1', ok: true, light: torch, charId: '<img>', reason: 'cap' }, 'tok-light'), notOk = [ansOf({ rid: 'k1', ok: 'true', reason: 'cap' }, 'tok-light'), ansOf({ rid: 'k1', ok: 1 }, 'tok-light')], noQ = ansOf({ rid: 'k9', reason: 'cap' }, 'tok-light');
+    check('a player\'s own light: the answers (player, run for real) are read in a light\'s words when a light was asked — each reason its own sentence; a reason of another table (have, closed, bad, failed, owner), a prototype name, an unknown word or something that is no text reads as a plain refusal; ok is ok only when true and carries nothing of a light; an answer to no question of ours does nothing',
+        Object.keys(words).every(k => lw(k) === words[k]) && ['have', 'closed', 'bad', 'failed', 'owner', 'making', 'nomap', 'busy', 'notmaking', '__proto__', 'constructor', 'toString', 'hasOwnProperty', 'nope', '', 5, null, ['cap'], { cap: 1 }].every(r => lw(r) === plainNo)
+        && j(okL.got) === j([{ ok: true, charId: null }]) && okL.left === 0 && j(okJunk.got) === j([{ ok: true, charId: null }]) && j(notOk[0].got) === j([{ error: words.cap }]) && j(notOk[1].got) === j([{ error: plainNo }]) && noQ.got.length === 0 && noQ.left === 1, j([Object.keys(words).map(lw), okL, okJunk, notOk]));
+    check('a player\'s own light: the answers to a picture for a token and to a character in the making read as before — their own words for their own reasons, and a reason only a light has (lightlock, preset, nolight, cap) a plain refusal to them',
+        tw('slow') === 'A moment between pictures, please.' && tw('missing') === 'That token is no longer here (it may have moved to another map).' && tw('off') === 'The GM cannot take pictures here.' && tw('bad') === 'That picture could not be used.' && tw('failed') === 'The GM could not save that picture.'
+        && cw('slow') === 'A moment, please.' && cw('missing') === 'That character is gone.' && cw('off') === 'Character sheets are off here.' && cw('have') === 'You already play a character here.' && ansOf({ rid: 'k1', reason: 'slow' }).got[0].error === 'A moment, please.'
+        && ['lightlock', 'preset', 'nolight', 'cap'].every(r => tw(r) === plainNo && cw(r) === plainNo && ansOf({ rid: 'k1', reason: r }).got[0].error === plainNo) && lw('slow') !== tw('slow') && lw('off') !== tw('off') && lw('off') !== cw('off')
+        && j(Object.keys(WHY.TOK_WHY).sort()) === j(['bad', 'failed', 'locked', 'missing', 'off', 'paused', 'slow', 'tokowner']), j([tw('slow'), cw('slow'), tw('cap'), cw('cap')]));
+    check('a player\'s own light: the answer to a light comes in by the same door as the other answers of its kind, on a player\'s side only',
+        /\} else if \(\((?:msg\.type === '[a-z-]+' \|\| )+msg\.type === 'tok-light-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src));
+
+    // (d) no other door in: the patch gate, the wire copy
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const stroke = (w, pid) => (w && w.type === 'path' && w.ownerId === pid && Array.isArray(w.pts)) ? { id: w.id, type: 'path', byPlayer: true, ownerId: pid, pts: w.pts, x: w.x || 0, y: w.y || 0 } : null;
+    const runPatch = (camps, msg) => { try { return new Function('state', 'window', 'playerStroke', 'msg', 'prof', cleanersSrc + ownKeySrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCx, wpSystemCore: Sx }, stroke, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
+    const liveP = () => ({ c1: { id: 'c1', system: sysOf(), items: { m1: { type: 'map', whiteboard: [
+        { id: 't1', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, light: JSON.parse(j(torch)), lightLock: true },
+        { id: 't2', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 },
+        { id: 't3', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, light: JSON.parse(j(torchOff)) },
+        { id: 't4', waiting: 1, ownerId: 'u_p', x: 0, y: 0 }] } } } });
+    const csP = liveP(), big = { bright: 1000, dim: 1000, unit: 'cells', name: 'Mine' };
+    const chgP = runPatch(csP, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 't1', x: 40, y: 50, rot: 90, front: 45, light: big, lightLock: false }, { id: 't2', x: 40, y: 50, light: big, lightLock: true }, { id: 't3', x: 40, y: 50, light: null }, { id: 't4', x: 40, y: 50, light: big, lightLock: true }] } });
+    const wbP = csP.c1.items.m1.whiteboard, csQ = liveP(), chgQ = runPatch(csQ, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 't1', x: 0, y: 0, rot: 0, front: 0, light: big }, { id: 't2', x: 0, y: 0, light: big, lightLock: true }, { id: 't3', x: 0, y: 0 }, { id: 't4', x: 0, y: 0, light: big }] } });
+    check('a player\'s own light: a player\'s copy of the map brings no light in — the patch gate (run for real) moves their own token and takes no light, no change of one, no removal of one and no light lock from it, on a token in play and on a waiting one; a copy that changes nothing but a light changes nothing',
+        chgP === true && j(wbP[0]) === j({ id: 't1', isChar: true, ownerId: 'u_p', x: 40, y: 50, rot: 90, front: 45, light: torch, lightLock: true }) && j(wbP[1]) === j({ id: 't2', isChar: true, ownerId: 'u_p', x: 40, y: 50, rot: 0, front: 0 })
+        && j(wbP[2]) === j({ id: 't3', isChar: true, ownerId: 'u_p', x: 40, y: 50, rot: 0, front: 0, light: torchOff }) && j(wbP[3]) === j({ id: 't4', waiting: 1, ownerId: 'u_p', x: 40, y: 50 }) && chgQ === false && j(csQ) === j(liveP()), j([chgP, wbP, chgQ]));
+    const siA = src.indexOf('function sanitizeItem('), siB = src.indexOf('\n}\n', siA) + 2, wn = (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0];
+    const siL = new Function('window', '"use strict";\n' + wn + '\n' + src.slice(siA, siB) + '\nreturn sanitizeItem;')({});
+    const mapS = { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [
+        { id: 'w1', type: 'image', isChar: true, ownerId: 'u_a', x: 1, y: 2, w: 3, h: 4, light: torch, lightLock: true }, { id: 'w2', type: 'image', isChar: true, ownerId: 'u_a', x: 1, y: 2, w: 3, h: 4, light: candleOff },
+        { id: 'w3', type: 'image', isChar: true, ownerId: 'u_a', gmInfo: 'secret', sheet: { a: 1 }, x: 1, y: 2, w: 3, h: 4, lightLock: true },
+        { id: 'w4', type: 'image', isChar: true, ownerId: 'u_a', hidden: true, x: 1, y: 2, w: 3, h: 4, light: { bright: 9, dim: 9, unit: 'm', name: 'Secret lantern' }, lightLock: true }] };
+    const beforeS = j(mapS), outS = siL(mapS); let packedS = true; try { packCheck(outS); } catch (e) { packedS = e.message; }
+    const lineC = k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
+    const cleanC = new Function('window', 'cleanWaitingItem', 'sanitizeRichText', '"use strict";\n' + lineC('function cleanHostWbItem(w) {') + '\n' + lineC('function cleanHostLight(w) {') + '\nreturn cleanHostWbItem;')({ wpFogCore: FCx }, H.cleanWaitingItem, t => t);
+    const gotC = JSON.parse(j(outS)).whiteboard.map(w => cleanC(w));
+    check('a player\'s own light: a player\'s copy of a map (sanitizeItem, run for real) carries a visible token\'s light lock with its light — their menu reads it, also on a token whose GM prep is stripped — and a client keeps both; a hidden token is only a stub with neither its light nor its lock; the host\'s own map is unchanged',
+        siA > 0 && outS.whiteboard.length === 4 && outS.whiteboard[0].lightLock === true && j(outS.whiteboard[0].light) === j(torch) && !ownK(outS.whiteboard[1], 'lightLock') && j(outS.whiteboard[1].light) === j(candleOff)
+        && outS.whiteboard[2].lightLock === true && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'sheet') && j(Object.keys(outS.whiteboard[3]).sort()) === j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y'])
+        && !ownK(outS.whiteboard[3], 'light') && !ownK(outS.whiteboard[3], 'lightLock') && !/Secret/.test(j(outS)) && (j(outS).match(/lightLock/g) || []).length === 2 && packedS === true && j(mapS) === beforeS
+        && gotC[0].lightLock === true && j(gotC[0].light) === j(torch) && j(gotC[1].light) === j(candleOff) && gotC[2].lightLock === true && !ownK(gotC[3], 'light') && !ownK(gotC[3], 'lightLock'), j(outS.whiteboard));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

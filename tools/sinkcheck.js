@@ -792,10 +792,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         I3.applyLightPreset(tokC, '', { id: 'm' });
         check('light preset: "Custom" keeps the radii, the unit and on or off, and lets the name go', j(tokC.light) === j({ bright: 20, dim: 40, off: true, unit: 'ft' }), tokC.light);
         const oddSaves = I3.calls.saves, oddInsp = I3.calls.inspectors;
-        const odd = ['99', '4', '-1', '1.5', '__proto__', 'constructor', 'length', 'toString', 'NaN', 'Infinity', '1e9', ' ', '0x1', '1e0', ' 1', '0.0', '+1', '0000'].map(v => { const w = { id: 't', isChar: true, light: { bright: 20, dim: 40, unit: 'ft', name: 'Torch' } }, bare = { id: 'b', isChar: true }; let threw = false; try { I3.applyLightPreset(w, v, { id: 'm' }); I3.applyLightPreset(bare, v, { id: 'm' }); } catch (e) { threw = true; } return [v, threw, j(w.light), 'light' in bare]; });
+        const odd = ['99', '4', '-1', '1.5', '__proto__', 'constructor', 'length', 'toString', 'NaN', 'Infinity', '1e9', ' ', '0x1', '1e0', ' 1', '0.0', '+1', '0000', '00', '01', '002'].map(v => { const w = { id: 't', isChar: true, light: { bright: 20, dim: 40, unit: 'ft', name: 'Torch' } }, bare = { id: 'b', isChar: true }; let threw = false; try { I3.applyLightPreset(w, v, { id: 'm' }); I3.applyLightPreset(bare, v, { id: 'm' }); } catch (e) { threw = true; } return [v, threw, j(w.light), 'light' in bare]; });
         [null, undefined, 1, 0, {}, []].forEach(v => { const w = { id: 't', isChar: true, light: { bright: 20, dim: 40, unit: 'ft', name: 'Torch' } }; let threw = false; try { I3.applyLightPreset(w, v, { id: 'm' }); } catch (e) { threw = true; } odd.push([String(v), threw, j(w.light), false]); });
         check('light preset: only a place in the list written in digits picks a preset — a position past the list (the panel drawn before the list changed), a negative or fractional one, blanks, another way of writing a number, a prototype\'s name or anything that is no text copies nothing and saves nothing: the light keeps its radii, its unit and its name, a token with no light gains none, and the panel is drawn afresh',
-            odd.every(r => r[1] === false && r[2] === j({ bright: 20, dim: 40, unit: 'ft', name: 'Torch' }) && r[3] === false) && I3.calls.saves === oddSaves && I3.calls.inspectors === oddInsp + 18 * 2 + 6, [odd, I3.calls.saves - oddSaves, I3.calls.inspectors - oddInsp]);
+            odd.every(r => r[1] === false && r[2] === j({ bright: 20, dim: 40, unit: 'ft', name: 'Torch' }) && r[3] === false) && I3.calls.saves === oddSaves && I3.calls.inspectors === oddInsp + 21 * 2 + 6, [odd, I3.calls.saves - oddSaves, I3.calls.inspectors - oddInsp]);
         const I4 = mkInsp({ id: 'c1', system: hostileSys() }, { count: FCl.LIMITS.lights }), fresh = { id: 'n', isChar: true }, freshSrc = { id: 'n2', type: 'light', light: { bright: 0, dim: 0 } }, lit = { id: 'l', isChar: true, light: { bright: 1, dim: 1 } };
         I4.applyLightPreset(fresh, '0', { id: 'm' }); I4.applyLightPreset(freshSrc, '0', { id: 'm' });
         const refusedCalls = j(I4.calls); I4.applyLightPreset(lit, '0', { id: 'm' });
@@ -908,6 +908,163 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(mkBox({ combat: { light: [1] } }).lightDraft()) === '{}' && j(mkBox({ combat: { light: T } }).lightDraft()) === '{}', [savedL, dNew]);
         check('light box (sheets.js): the Combat card builds it, and its boxes, selects and buttons are handled before the card\'s other handlers',
             /\n    lightBox\(box, cm\);[^\n]*\n    turnBox\(box, cm\);/.test(shL) && /\n    if \(onLightInput\(t\)\) return;/.test(shL) && /\n    if \(onLightChange\(t\)\) return;/.test(shL) && /\n    if \(lightClick\(b\)\) return;/.test(shL));
+    }
+    /* ---- Lighting L5: a player's own light — a preset's name comes from a system file, a light's own name from the host's map, a player's and a token's name from the wire ---- */
+    {
+        const j = JSON.stringify, FCo = await import(modUrl('fogcore.js')), SYo = await import(modUrl('systemcore.js'));
+        const wbO = read('whiteboard.js'), inspO = read('inspector.js'), netO = read('net.js'), ioO = read('io.js');
+        const escLineO = /\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspO), escO = escLineO ? new Function(escLineO[0] + '\nreturn esc;')() : SC.esc;   // whiteboard.js takes its esc from inspector.js
+        const sysO = () => ({ combat: { light: { presets: [{ name: T, bright: 5, dim: 10, pick: true }, { name: P, bright: 20, dim: 40, unit: 'ft', pick: true }, { name: 'Lantern', bright: 3, dim: 3, unit: 'cells' }, { name: '', bright: 4, dim: 4, pick: true }, { name: 'Junk unit', bright: 2, dim: 6, unit: P, pick: true }, { name: 'Said yes', bright: 1, dim: 1, pick: 'true' }] } } });
+        const mkOwn = opt => {
+            const o = opt || {}, calls = { sent: [], toasts: [], done: null };
+            const win = { wpSystemCore: o.core || SYo, wpSheets: { systemOf: () => (o.sys === undefined ? sysO() : o.sys) } };
+            if (!o.noCore) win.wpFogCore = FCo;
+            if (!o.noNet) win.wpNet = o.noSender ? {} : { tokLight(mapId, wbId, ob, done) { calls.sent.push([mapId, wbId, ob]); calls.done = done; return o.ret; } };
+            const api = new Function('esc', 'window', 'getActiveMap', 'toast', "'use strict';\n" + slice('whiteboard.js', 'ownlight') + '\nreturn { ownLightPicks: ownLightPicks, ownLightHtml: ownLightHtml, askOwnLight: askOwnLight, gmLightToggle: gmLightToggle };')(escO, win, () => (o.noMap ? null : { id: 'm1' }), m => calls.toasts.push(m));
+            api.calls = calls; return api;
+        };
+        const ROW_A = '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Light</span><select class="cm-stance own-light" title="Your token&rsquo;s light: off, on, or one of the lights your GM offers" style="max-width:190px; padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">', ROW_B = '</select></div>';
+        const LOCKED_ROW = '<div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Light locked by the GM</div>';
+        const optsOwn = html => { const m = /<select class="cm-stance own-light"[^>]*>([\s\S]*?)<\/select>/.exec(html); return m ? Array.from(m[1].matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)).map(x => [x[1], !!x[2], x[3]]) : null; };
+        const optText = os => os.map(x => '<option value="' + x[0] + '"' + (x[1] ? ' selected' : '') + '>' + x[2] + '</option>').join('');
+        const tokO = extra => Object.assign({ id: 't1', isChar: true, ownerId: 'u_a', charName: T, name: P, label: T, color: P }, extra || {});
+        const O1 = mkOwn(), picks = O1.ownLightPicks();
+        check('own light: the lights on offer are the system\'s cleaned presets ticked "players may pick" (only as true), each by its place in the whole list; none without a system or the system core',
+            j(picks.map(k => [k.i, k.p.name])) === j([[0, T], [1, P], [3, 'Junk unit']]) && !('unit' in picks[2].p) && j(mkOwn({ sys: null }).ownLightPicks()) === '[]' && j(mkOwn({ sys: { combat: { light: T } } }).ownLightPicks()) === '[]'
+            && j(new Function('esc', 'window', 'getActiveMap', 'toast', "'use strict';\n" + slice('whiteboard.js', 'ownlight') + '\nreturn ownLightPicks;')(escO, {}, () => null, () => {})()) === '[]', picks);
+        const ownName = P + T, cleanedName = (FCo.cleanLight({ bright: 7, dim: 9, name: ownName }) || {}).name;
+        const hA = O1.ownLightHtml(tokO({ light: { bright: 7, dim: 9, name: ownName } })), oA = optsOwn(hA);
+        check('own light: hostile preset names and the light\'s own hostile name render without a crash and nothing in the row can run or call out', typeof hA === 'string' && hA.length > 0 && risks(hA).length === 0 && hA.indexOf(T) < 0 && hA.indexOf(P) < 0 && hA.indexOf('onmouseover="') < 0 && hA.indexOf('<img') < 0, risks(hA));
+        check('own light: every name lands escaped as an option\'s text, and the option values are "off", "on" and places in the list only',
+            !!oA && j(oA) === j([['off', false, 'Off'], ['on', true, escO(cleanedName)], ['0', false, escO(T) + ' (5 / 10 yd)'], ['1', false, escO(P) + ' (20 / 40 ft)'], ['3', false, 'Junk unit (2 / 6 yd)']]) && cleanedName === ownName
+            && oA.every(x => /^(off|on|[0-9]{1,3})$/.test(x[0])), oA);
+        check('own light: around its options the row is fixed text — the label, the select\'s title and its style hold nothing of the campaign', !!oA && hA === ROW_A + optText(oA) + ROW_B, hA);
+        const hNone = O1.ownLightHtml(tokO()), oNone = optsOwn(hNone), hNoName = O1.ownLightHtml(tokO({ light: { bright: 2, dim: 2, off: true } })), oNoName = optsOwn(hNoName);
+        check('own light: a token with no light yet reads "No light" (an empty value, selected) before the lights on offer; a light with no name reads "Its light", and one put out shows Off selected',
+            j(oNone) === j([['', true, 'No light'], ['0', false, escO(T) + ' (5 / 10 yd)'], ['1', false, escO(P) + ' (20 / 40 ft)'], ['3', false, 'Junk unit (2 / 6 yd)']]) && hNone === ROW_A + optText(oNone) + ROW_B && risks(hNone).length === 0
+            && j(oNoName.slice(0, 2)) === j([['off', true, 'Off'], ['on', false, 'Its light']]) && oNoName.length === 5 && hNoName === ROW_A + optText(oNoName) + ROW_B, [oNone, oNoName]);
+        const oSame = optsOwn(O1.ownLightHtml(tokO({ light: { bright: 20, dim: 40, unit: 'ft', name: P } }))), oSameOff = optsOwn(O1.ownLightHtml(tokO({ light: { bright: 20, dim: 40, unit: 'ft', name: P, off: true } }))), oOther = optsOwn(O1.ownLightHtml(tokO({ light: { bright: 20, dim: 41, unit: 'ft', name: P } }))), oNoPick = optsOwn(O1.ownLightHtml(tokO({ light: { bright: 3, dim: 3, unit: 'cells', name: 'Lantern' } })));
+        check('own light: a light copied from a light on offer shows that one selected and no "on" of its own; put out, Off is selected; the same name with other radii, or a preset not on offer, reads as the token\'s own light',
+            j(oSame) === j([['off', false, 'Off'], ['0', false, escO(T) + ' (5 / 10 yd)'], ['1', true, escO(P) + ' (20 / 40 ft)'], ['3', false, 'Junk unit (2 / 6 yd)']]) && j(oSameOff.map(x => [x[0], x[1]])) === j([['off', true], ['0', false], ['1', false], ['3', false]])
+            && j(oOther.map(x => [x[0], x[1]])) === j([['off', false], ['on', true], ['0', false], ['1', false], ['3', false]]) && oOther[1][2] === escO(P)
+            && j(oNoPick.map(x => [x[0], x[1], x[2]]).slice(0, 2)) === j([['off', false, 'Off'], ['on', true, 'Lantern']]) && oNoPick.every(x => x[0] !== '2'), [oSame, oSameOff, oOther, oNoPick]);
+        const hUnit = O1.ownLightHtml(tokO({ light: { bright: '7" onfocus="alert(1)', dim: 12, unit: P, name: 'n', off: T } })), oUnit = optsOwn(hUnit);
+        const junkLights = [T, P, 5, true, [], 0, { bright: T, dim: P, unit: U, name: T }, { bright: 0, dim: 0, name: T }, { bright: NaN, dim: -4, name: P }, { name: T, unit: P }, null].map(l => O1.ownLightHtml(tokO({ light: l })));
+        check('own light: the token\'s light is cleaned first — a hostile unit, radii that are no numbers or an "off" that is not true never reach the row, and a light that is no light reads as none',
+            j(oUnit.slice(0, 2)) === j([['off', false, 'Off'], ['on', true, 'n']]) && hUnit === ROW_A + optText(oUnit) + ROW_B && hUnit.indexOf('onfocus') < 0 && hUnit.indexOf(P) < 0 && risks(hUnit).length === 0
+            && junkLights.every(h => h === hNone), [oUnit, junkLights.filter(h => h !== hNone).length]);
+        const oddSys = { combat: { light: { presets: [{ name: 'Odd', bright: T, dim: '9" onfocus="x', unit: T, pick: true }, { name: 'Far', bright: 5000, dim: -3, unit: 'm', pick: true }, { name: T.repeat(40) + P, bright: 1, dim: 2, pick: true }] } } }, O2 = mkOwn({ sys: oddSys }), hOdd = O2.ownLightHtml(tokO()), oOdd = optsOwn(hOdd);
+        check('own light: a preset\'s radii read as numbers and its unit as one of the four the app knows, whatever the system file held; a long hostile name is cut and escaped',
+            !!oOdd && hOdd === ROW_A + optText(oOdd) + ROW_B && risks(hOdd).length === 0 && hOdd.indexOf('onfocus') < 0 && hOdd.indexOf(T) < 0 && oOdd.length >= 2 && oOdd[0][0] === ''
+            && oOdd.slice(1).every(x => /^[0-9]{1,3}$/.test(x[0]) && / \((\d+(\.\d+)?) \/ (\d+(\.\d+)?) (yd|ft|m|cells)\)$/.test(x[2])), oOdd);
+        const rawCore = { lightPresets: () => [{ name: T, bright: T, dim: '9" onfocus="x', unit: P, pick: true }, { name: P, bright: 1, dim: 2, unit: T, pick: true }, null, { name: 'Feet', bright: 1, dim: 2, unit: 'ft', pick: true }] }, hRaw = mkOwn({ core: rawCore }).ownLightHtml(tokO()), oRaw = optsOwn(hRaw);
+        check('own light: even a list handed over uncleaned writes only numbers for the radii and one of the four units the app knows',
+            j(oRaw) === j([['', true, 'No light'], ['0', false, escO(T) + ' (0 / 0 yd)'], ['1', false, escO(P) + ' (1 / 2 yd)'], ['3', false, 'Feet (1 / 2 ft)']]) && hRaw === ROW_A + optText(oRaw) + ROW_B && risks(hRaw).length === 0 && hRaw.indexOf(P) < 0 && hRaw.indexOf(T) < 0 && hRaw.indexOf('onfocus') < 0, oRaw);
+        const hLock = O1.ownLightHtml(tokO({ lightLock: true, light: { bright: 7, dim: 9, name: ownName } })), hLockBare = O1.ownLightHtml(tokO({ lightLock: true }));
+        check('own light: a light the GM locked shows one dim row of fixed words, with no select and nothing of the campaign in it', hLock === LOCKED_ROW && hLockBare === LOCKED_ROW && risks(hLock).length === 0);
+        check('own light: only a lock that is exactly true locks — a lock that reads as text, a number or an object leaves the select as it was',
+            ['"><img', {}, 1, 'true', [true], null, false, undefined].every(v => O1.ownLightHtml(tokO({ lightLock: v, light: { bright: 7, dim: 9, name: ownName } })) === hA));
+        const litTok = { light: { bright: 7, dim: 9, name: ownName } };
+        const empties = [O1.ownLightHtml(null), O1.ownLightHtml(undefined), O1.ownLightHtml(tokO(Object.assign({ isChar: false }, litTok))), O1.ownLightHtml(tokO(Object.assign({ waiting: 1 }, litTok))), O1.ownLightHtml(tokO(Object.assign({ locked: true }, litTok))), O1.ownLightHtml(tokO(Object.assign({ hidden: true }, litTok))),
+            O1.ownLightHtml(tokO(Object.assign({ locked: true, lightLock: true }, litTok))), O1.ownLightHtml(tokO(Object.assign({ hidden: true, lightLock: true }, litTok))), O1.ownLightHtml(tokO(Object.assign({ waiting: 1, lightLock: true }, litTok))),
+            mkOwn({ noNet: true }).ownLightHtml(tokO(litTok)), mkOwn({ noSender: true }).ownLightHtml(tokO(litTok)), mkOwn({ noCore: true }).ownLightHtml(tokO(litTok)),
+            mkOwn({ sys: null }).ownLightHtml(tokO()), mkOwn({ sys: { combat: { light: { presets: [{ name: T, bright: 5, dim: 10 }] } } } }).ownLightHtml(tokO()), mkOwn({ sys: null }).ownLightHtml(tokO({ lightLock: true }))];
+        check('own light: no row at all (an empty string, no campaign text) for no token, a token that is no character, a waiting, locked or hidden one, with no sender or no fog core, or with neither a light nor a light on offer',
+            empties.every(h => h === ''), empties.map(h => h.length));
+        check('own light: a token with a light keeps its switch where the system offers nothing to pick', j(optsOwn(mkOwn({ sys: null }).ownLightHtml(tokO({ light: { bright: 1, dim: 1, name: T } })))) === j([['off', false, 'Off'], ['on', true, escO(T)]]));
+
+        // askOwnLight, run for real: what is asked of the host, and what is said
+        const A1 = mkOwn(), tA = tokO({ light: { bright: 7, dim: 9 } });
+        A1.askOwnLight(tA, 'off'); A1.askOwnLight(tA, 'on'); A1.askOwnLight(tA, '1'); A1.askOwnLight(tA, '3');
+        check('own light: "off" and "on" ask the host for a plain switch, a place in digits for that preset by its place and its name — never a radius or a unit',
+            j(A1.calls.sent) === j([['m1', 't1', { on: false }], ['m1', 't1', { on: true }], ['m1', 't1', { on: true, preset: 1, name: P }], ['m1', 't1', { on: true, preset: 3, name: 'Junk unit' }]]) && A1.calls.toasts.length === 0, A1.calls.sent);
+        const A2 = mkOwn(), gone = ['2', '4', '5', '99', '999', '1000', '-1', '1.5', ' 1', '1 ', '+1', '0x1', '1e0', '__proto__', 'constructor', 'length', 'toString', 'NaN', 'On', 'OFF', T, P];
+        gone.forEach(v => A2.askOwnLight(tA, v));
+        const A3 = mkOwn(); ['', null, undefined, 0, 1, true, {}, ['1'], ['off']].forEach(v => A3.askOwnLight(tA, v)); A3.askOwnLight(null, 'off'); const A4 = mkOwn({ noMap: true }); A4.askOwnLight(tA, 'off'); const A5 = mkOwn({ noSender: true }); A5.askOwnLight(tA, 'off');
+        check('own light: a place that is not on offer (a preset not ticked, one past the list, a prototype\'s name, another way of writing a number) sends nothing and says so; an empty value, one that is no text, no token, no map or no sender does nothing',
+            A2.calls.sent.length === 0 && A2.calls.toasts.length === gone.length && A2.calls.toasts.every(m => m === 'That light is no longer on offer.') && A3.calls.sent.length === 0 && A3.calls.toasts.length === 0 && A4.calls.sent.length === 0 && A4.calls.toasts.length === 0 && A5.calls.toasts.length === 0,
+            [A2.calls.sent, A2.calls.toasts.length, A3.calls.sent, A3.calls.toasts]);
+        const A6 = mkOwn(); A6.askOwnLight(tA, 'on'); A6.calls.done({ ok: true }); A6.askOwnLight(tA, 'off'); A6.calls.done({ ok: true }); A6.askOwnLight(tA, '0'); A6.calls.done({ error: T }); const A7 = mkOwn({ ret: { error: P } }); A7.askOwnLight(tA, 'on');
+        check('own light: the host\'s answer and the sender\'s own refusal are said by toast (text, as given); a change made says lit or out in fixed words',
+            j(A6.calls.toasts) === j(['Your token’s light is lit.', 'Your token’s light is out.', T]) && j(A7.calls.toasts) === j([P]) && /\nfunction toast\(msg\) \{ if\(window\.appToast\) window\.appToast\(msg\); \}/.test(wbO) && /\nwindow\.appToast = toast;/.test(ioO), [A6.calls.toasts, A7.calls.toasts]);
+
+        // the GM's own switch (whiteboard.js gmLightToggle), run for real
+        const G1 = mkOwn({ noNet: true }), gOn = { id: 'a', isChar: true, charName: T, light: { bright: 5, dim: 10, unit: 'ft', name: T } }, gOff = { id: 'b', type: 'light', light: { bright: 2, dim: 3, off: true, name: P } }, gNone = { id: 'c', isChar: true, light: { bright: 0, dim: 0 } }, gWait = { id: 'd', isChar: true, waiting: 1, light: { bright: 4, dim: 4 } }, gJunk = { id: 'e', isChar: true, light: T };
+        const keyed = l => (l && typeof l === 'object' ? Object.keys(l).sort().map(k => [k, l[k]]) : l);   // a light by its keys in order: the switch may write them in another
+        const g1 = G1.gmLightToggle([gOn, null, gOff, gNone, gWait, gJunk, undefined]), g1was = g1 && [g1.anyOn, g1.lit.length], went1 = g1 && g1.apply(), after1 = j([gOn.light, gOff.light, gNone.light, gWait.light, gJunk.light].map(keyed));
+        const g2 = G1.gmLightToggle([gOn, gOff]), went2 = g2 && g2.apply(), after2 = j([gOn.light, gOff.light].map(keyed));
+        check('GM light switch: the selected lights go off when any of them is on, else on — radii, unit and name kept, the light cleaned; a waiting token and an item with no light are left alone; nothing to switch gives no row',
+            j(g1was) === j([true, 2]) && went1 === 'off' && after1 === j([{ bright: 5, dim: 10, off: true, unit: 'ft', name: T }, { bright: 2, dim: 3, off: true, name: P }, { bright: 0, dim: 0 }, { bright: 4, dim: 4 }, T].map(keyed))
+            && !!g2 && g2.anyOn === false && went2 === 'on' && after2 === j([{ bright: 5, dim: 10, unit: 'ft', name: T }, { bright: 2, dim: 3, name: P }].map(keyed))
+            && G1.gmLightToggle([gNone, gWait, gJunk, null]) === null && G1.gmLightToggle([]) === null && G1.gmLightToggle(null) === null && mkOwn({ noCore: true }).gmLightToggle([gOn]) === null, [g1was, went1, after1, went2, after2]);
+        check('GM light switch (whiteboard.js): the menu row is fixed text — "Light off" or "Light on", no name of a light or a token — and what it did is said in fixed words',
+            /\n            if \(gmLit\) html \+= '<div class="menu-item cm-light">&#128161; ' \+ \(gmLit\.anyOn \? 'Light off' : 'Light on'\) \+ '<\/div>';\n/.test(wbO) && (wbO.match(/cm-light"/g) || []).length === 1
+            && /\} else if \(action\.includes\('cm-light'\)\) \{\n\s*var gmLitNow = gmLightToggle\(selectedIds\.map\(function\(sid\) \{ return am\.whiteboard\.find\(function\(x\) \{ return x\.id === sid; \}\); \}\)\);\n\s*if \(gmLitNow\) \{ var wentL = gmLitNow\.apply\(\);[^\n]*m\.toast\(wentL === 'off' \? 'Light off\.' : 'Light on\.'\)\); \}\n\s*\} else if \(action\.includes\('cm-grid'\)\) \{/.test(wbO));
+        check('own light (whiteboard.js): the player\'s menu takes the row from ownLightHtml alone, and the select\'s own value is all that is asked with',
+            /\n    rows \+= ownLightHtml\(tok\);[^\n]*\n    if \(!rows && !sheetRow && !hudRow && !picRow\) return;\n/.test(wbO)
+            && /\n    var ownLight = cMenu\.querySelector\('\.own-light'\);\n    if \(ownLight\) \{ ownLight\.addEventListener\('click', function\(ce\) \{ ce\.stopPropagation\(\); \}\); ownLight\.addEventListener\('change', function\(ce\) \{ ce\.stopPropagation\(\); cMenu\.style\.display = 'none'; askOwnLight\(tok, ownLight\.value\); \}\); \}\n/.test(wbO)
+            && /\|\| ownLightHtml\(tokO\) \|\| ownPicOk\(tokO\)\)\) \{ e\.preventDefault\(\); showStanceMenu\(e, tokO\); \}/.test(wbO));
+
+        // the GM's Light block with the lock tick (inspector.js lightFieldHtml), run for real
+        const envI = { getActiveCampaign: () => ({ id: 'c1', system: sysO() }), window: { wpSystemCore: SYo, wpFogCore: FCo }, toast() {}, save() {}, render() {}, renderInspector() {} };
+        const II = new Function('env', 'esc', "'use strict';\nvar getActiveCampaign = env.getActiveCampaign, window = env.window, toast = env.toast, save = env.save, render = env.render, renderInspector = env.renderInspector;\n" + slice('inspector.js', 'lightfield') + '\nreturn { lightPresetsNow: lightPresetsNow, lightFieldHtml: lightFieldHtml };')(envI, escO);
+        const presI = II.lightPresetsNow(), LI = FCo.cleanLight({ bright: 7, dim: 9, name: ownName });
+        const TICK = '<div class="field check-row"><input type="checkbox" id="wbLightLock" > <label for="wbLightLock" title="Its player may switch this token&rsquo;s light and pick one of the presets you ticked Players may pick, from the token&rsquo;s right-click menu. Locked: only you change it.">Light locked (its player can&rsquo;t change it)</label></div>';
+        const NOTE = '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (&#9881; Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.';
+        const tokBase = II.lightFieldHtml(tokO(), LI, presI), tokTicked = II.lightFieldHtml(tokO({ lightLock: true }), LI, presI), tokBare = II.lightFieldHtml(tokO(), null, []);
+        check('light lock: a token\'s Light block holds the tick and its label in fixed words, last before the note; nothing in the block can run or call out',
+            tokBase.split('id="wbLightLock"').length === 2 && tokBase.endsWith(TICK + NOTE + '</div>') && tokBare.endsWith(TICK + NOTE + '</div>') && risks(tokBase).length === 0 && risks(tokTicked).length === 0 && tokBase.indexOf(T) < 0 && tokBase.indexOf(P) < 0, tokBase.slice(-700));
+        check('light lock: a locked light shows the tick ticked, and that is all that differs', tokTicked === tokBase.replace('id="wbLightLock" >', 'id="wbLightLock" checked>') && tokTicked !== tokBase && /id="wbLightLock" checked>/.test(tokTicked));
+        check('light lock: a lock that is not exactly true — markup, an object, a number, the word — reads unticked and never reaches the block',
+            ['"><img', '"><img src=x onerror=alert(1)>', T, P, {}, { toString: () => 'checked' }, 1, 'true', 'checked', [true], null, false, 0].every(v => II.lightFieldHtml(tokO({ lightLock: v }), LI, presI) === tokBase));
+        const srcBase = II.lightFieldHtml({ type: 'light' }, LI, presI), srcLocked = II.lightFieldHtml({ type: 'light', lightLock: true, name: T }, LI, presI);
+        check('light lock: a light source has no tick, locked or not, and its block still ends with the note that players never see the marker',
+            srcBase.indexOf('wbLightLock') < 0 && srcLocked === srcBase && srcBase.endsWith('<div class="field check-row"><input type="checkbox" id="wbLightOn" checked> <label for="wbLightOn">Light is on</label></div>' + NOTE + ' Players see its light, never this marker.</div>') && tokBase.indexOf('never this marker') < 0 && risks(srcBase).length === 0, srcBase.slice(-500));
+        check('light lock (inspector.js): the tick writes true or takes the key away, nothing else, and saves',
+            /\n\s*var _el_wbLK = document\.getElementById\('wbLightLock'\);\n\s*if \(_el_wbLK\) _el_wbLK\.addEventListener\('change', function\(\) \{ if \(this\.checked\) w\.lightLock = true; else delete w\.lightLock; save\(\); \}\);\n/.test(inspO));
+
+        // the host's words for the GM (net.js tok-light), run for real: a toast and a line of the session log
+        const tlA = netO.indexOf('// [netcheck:toklight-start]'), tlB = netO.indexOf('// [netcheck:toklight-end]'), tlS = tlA >= 0 && tlB > tlA && netO.indexOf('// [netcheck:toklight-start]', tlA + 1) < 0 ? netO.slice(tlA, tlB) : '';
+        const ownLine = /\nfunction own\(o, k\) \{[^\n]*\}\n/.exec(netO), ownN = ownLine ? new Function(ownLine[0] + '\nreturn own;')() : null;
+        check('tok-light: the host\'s branch and the own-key helper slice out of net.js', tlS.length > 0 && typeof ownN === 'function' && ownN({ a: 1 }, 'a') === true && ownN({}, '__proto__') === false && ownN({}, 'constructor') === false);
+        const runTL = (msg, o) => {
+            const calls = { sent: [], toasts: [], logs: [], saves: 0, casts: [], threw: null };
+            const camp = { id: 'c1', system: sysO(), activeItemId: 'm9', items: { m1: { id: 'm1', type: 'map', whiteboard: [o.tok] } } };
+            const netT = { roster: { peerA: { id: 'u_a', name: o.player } }, paused: false, applyingRemote: false, broadcastItemFiltered(c, m) { calls.casts.push([c, m]); } };
+            const winT = { wpFogCore: FCo, wpSystemCore: SYo, wpFog: { lightCount: () => 0, invalidateVision() {}, redraw() {} } };
+            try {
+                new Function('msg', 'conn', 'net', 'window', 'own', 'peerPaused', 'getActiveCampaign', 'allow', 'save', 'render', 'toast', 'logEvent', 'sendFailed', "'use strict';\n" + tlS)(
+                    msg, { peer: 'peerA', send: m => calls.sent.push(m) }, netT, winT, ownN, () => false, () => camp, () => true, () => { calls.saves++; }, () => {}, m => calls.toasts.push(m), (k, t) => calls.logs.push([k, t]), () => {});
+            } catch (e) { calls.threw = String(e); }
+            return calls;
+        };
+        const tokName = P + T, tk = extra => Object.assign({ id: 't1', isChar: true, ownerId: 'u_a', charName: tokName }, extra || {});
+        const tkPick = tk(), rPick = runTL({ type: 'tok-light', rid: 'r1', mapId: 'm1', wbId: 't1', on: true, preset: 1, name: P, bright: 999, dim: 999, unit: T }, { player: T, tok: tkPick });
+        const tkOff = tk({ light: { bright: 5, dim: 10, name: T } }), rOff = runTL({ type: 'tok-light', rid: 'r2', mapId: 'm1', wbId: 't1', on: false }, { player: P, tok: tkOff });
+        const tkOn = tk({ light: { bright: 5, dim: 10, off: true }, charName: '' }), rOn = runTL({ type: 'tok-light', rid: 'r3', mapId: 'm1', wbId: 't1', on: true }, { player: '', tok: tkOn });
+        const saidPick = T + ' lit ' + P + ' on their token (' + tokName + ')', saidOff = P + ' put out the light of their token (' + tokName + ')', saidOn = 'A player lit the light of their token (their token)';
+        check('tok-light: the GM is told by a toast and a line of the log, both plain text made of the player\'s name, the light\'s name and the token\'s name as they are (no markup is built of them)',
+            rPick.threw === null && j(rPick.toasts) === j([saidPick + '.']) && j(rPick.logs) === j([['char', saidPick]]) && j(rOff.toasts) === j([saidOff + '.']) && j(rOff.logs) === j([['char', saidOff]]) && j(rOn.toasts) === j([saidOn + '.']) && j(rOn.logs) === j([['char', saidOn]])
+            && rPick.saves === 1 && j(rPick.casts) === j([['c1', 'm1']]), [rPick, rOff, rOn]);
+        check('tok-light: the light written is the host\'s own preset by value (no number or unit of the message), and the token\'s own light keeps its radii and name when switched',
+            j(tkPick.light) === j({ bright: 20, dim: 40, unit: 'ft', name: P }) && j(tkOff.light) === j({ bright: 5, dim: 10, off: true, name: T }) && j(tkOn.light) === j({ bright: 5, dim: 10 }), [tkPick.light, tkOff.light, tkOn.light]);
+        check('tok-light: the answer to the player holds no name at all — ok, the kind and the request\'s own id',
+            j(rPick.sent) === j([{ ok: true, type: 'tok-light-ans', rid: 'r1' }]) && j(rOff.sent) === j([{ ok: true, type: 'tok-light-ans', rid: 'r2' }]) && j(rOn.sent) === j([{ ok: true, type: 'tok-light-ans', rid: 'r3' }]), [rPick.sent, rOff.sent, rOn.sent]);
+        const rBad = [runTL({ type: 'tok-light', rid: 'r4', mapId: 'm1', wbId: 't1', on: true, preset: 1, name: T }, { player: T, tok: tk() }), runTL({ type: 'tok-light', rid: 'r5', mapId: 'm1', wbId: 't1', on: true }, { player: T, tok: tk() }), runTL({ type: 'tok-light', rid: 'r6', mapId: 'm1', wbId: T, on: true }, { player: T, tok: tk() }), runTL({ type: 'tok-light', rid: 'r7', mapId: 'm1', wbId: 't1', on: false }, { player: T, tok: tk({ lightLock: true, light: { bright: 1, dim: 1, name: T } }) })];
+        check('tok-light: a refusal says nothing to the GM and answers the player with one of the host\'s own short reasons, never a name',
+            rBad.every(r => r.threw === null && r.toasts.length === 0 && r.logs.length === 0 && r.saves === 0 && r.casts.length === 0 && r.sent.length === 1 && j(Object.keys(r.sent[0]).sort()) === j(['reason', 'rid', 'type']) && /^[a-z]{2,12}$/.test(r.sent[0].reason))
+            && j(rBad.map(r => r.sent[0].reason)) === j(['preset', 'nolight', 'missing', 'lightlock']), rBad.map(r => r.sent));
+        check('tok-light (net.js): the branch builds no markup (no innerHTML, no element, no document) — its words go to toast, which writes textContent, and to the session log, whose lines are shown through escText',
+            tlS.length > 0 && !/innerHTML|outerHTML|insertAdjacentHTML|createElement|document\.|\.html\(|setAttribute|\.title\s*=/.test(tlS)
+            && /\n        var tL = \(prL\.name \|\| 'A player'\) \+ \(newL\.off \? ' put out the light of their token \(' : newL\.name \? ' lit ' \+ newL\.name \+ ' on their token \(' : ' lit the light of their token \('\) \+ \(wL\.charName \|\| 'their token'\) \+ '\)';\n        toast\(tL \+ '\.'\); logEvent\('char', tL\);\n/.test(netO)
+            && (tlS.match(/\btoast\(/g) || []).length === 1 && (tlS.match(/\blogEvent\(/g) || []).length === 1
+            && /\nimport \{ save, toast, load \} from '\.\/io\.js';/.test(netO) && /export function toast\(msg\) \{[\s\S]{0,120}document\.getElementById\('toastMsg'\)\.textContent = msg;/.test(ioO)
+            && /camp\.sessionLog\.push\(\{ at: Date\.now\(\), kind: kind, text: String\(text \|\| ''\)\.slice\(0, 400\) \}\);/.test(netO) && /<span class="log-text">' \+ escText\(e\.text\) \+ '<\/span>/.test(netO));
+        const whyLine = /\nvar LIGHT_WHY = (\{[^\n]*\});[^\n]*\n/.exec(netO), WHY = whyLine ? new Function('return ' + whyLine[1] + ';')() : null;
+        check('tok-light: the words a player reads for a refusal are the app\'s own fixed sentences, one for each reason the host gives, holding no markup',
+            !!WHY && ['paused', 'slow', 'missing', 'tokowner', 'locked', 'lightlock', 'preset', 'nolight', 'cap', 'off'].every(k => Object.prototype.hasOwnProperty.call(WHY, k) && typeof WHY[k] === 'string' && WHY[k].length > 0 && !/[<>"&]/.test(WHY[k]))
+            && (tlS.match(/reason: '([a-z]+)'/g) || []).every(r => Object.prototype.hasOwnProperty.call(WHY, /'([a-z]+)'/.exec(r)[1])) && (tlS.match(/reason: '([a-z]+)'/g) || []).length >= 10
+            && /var WK = pK\.kind === 'tok-pic' \? TOK_WHY : pK\.kind === 'tok-light' \? LIGHT_WHY : MK_WHY; pK\.done\(\{ error: typeof msg\.reason === 'string' && Object\.prototype\.hasOwnProperty\.call\(WK, msg\.reason\) \? WK\[msg\.reason\] : 'The GM could not do that\.' \}\);/.test(netO), WHY);
     }
     delete global.window;
 

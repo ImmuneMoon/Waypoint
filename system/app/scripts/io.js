@@ -773,6 +773,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
               ['x', 'y', 'rot', 'front', 'elevation', 'posture'].forEach(function(k) { if (l[k] !== undefined) s[k] = l[k]; else delete s[k]; });
 
+              if (l.light !== undefined) s.light = JSON.parse(JSON.stringify(l.light)); else delete s.light;   // lighting L5 (owner answer 9): a player's own light stays as it is now (theirs to switch: net.js tok-light); the lock on it (lightLock) is the GM's and follows the snapshot
+
           }
 
           out.push(s);

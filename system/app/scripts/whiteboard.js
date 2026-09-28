@@ -110,10 +110,12 @@ function newOwnPicture(tok) {
 // A player's own token: the one edit menu they get (same permission line as moving it)
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
+    cMenu.onclick = null;   // a machine that hosted earlier in this run still holds the GM's item menu's handler: a player's rows are never its business
     var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
     var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;</div>' : '';   // HUD frame (HF2b)
     var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own">&#128444;&#65039; New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
+    rows += ownLightHtml(tok);   // lighting L5: their own light
     if (!rows && !sheetRow && !hudRow && !picRow) return;
     cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
@@ -122,7 +124,44 @@ function showStanceMenu(e, tok) {
     var ownHud = cMenu.querySelector('.cm-hud-own'); if (ownHud) ownHud.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openHud(tok.charId); });
     var ownPic = cMenu.querySelector('.cm-pic-own'); if (ownPic) ownPic.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; newOwnPicture(tok); });
     wireStanceMenu(cMenu, [tok], function() { save(); render(); });
+    var ownLight = cMenu.querySelector('.own-light');
+    if (ownLight) { ownLight.addEventListener('click', function(ce) { ce.stopPropagation(); }); ownLight.addEventListener('change', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; askOwnLight(tok, ownLight.value); }); }
 }
+// [sinkcheck:ownlight-start]
+// Lighting L5 (owner answer 3): a player's own light, on their own token's menu — off, on, or one of the system's presets the GM ticked
+// "players may pick". Nothing is written here: the host is asked (net.js tokLight) and its answer is said; the map it sends back is the truth.
+// A preset's name is a system file's text and a light's the host's: both through esc. Offered anywhere (owner answer 11), never on a waiting
+// or a locked token; a light the GM locked says so
+function ownLightPicks() {
+    var S = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, all = S && S.lightPresets && sys ? S.lightPresets(sys) : [], out = [];
+    all.forEach(function(p, i) { if (p && p.pick === true) out.push({ i: i, p: p }); });   // each by its place in the whole list: the host reads the same list
+    return out;
+}
+function ownLightHtml(tok) {
+    var n = window.wpNet, C = window.wpFogCore; if (!tok || !tok.isChar || tok.waiting || tok.locked || tok.hidden || !n || !n.tokLight || !C || !C.cleanLight) return '';
+    var L = C.cleanLight(tok.light), picks = ownLightPicks(); if (!L && !picks.length) return '';
+    if (tok.lightLock === true) return '<div class="menu-item" style="color:var(--dim); cursor:default;">&#128274; Light locked by the GM</div>';
+    var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; }, cur = -1;
+    if (L && L.name) picks.forEach(function(k) { if (cur < 0 && k.p.name === L.name && k.p.bright === L.bright && k.p.dim === L.dim && word(k.p.unit) === word(L.unit)) cur = k.i; });
+    var opts = L ? '<option value="off"' + (L.off ? ' selected' : '') + '>Off</option>' + (cur < 0 ? '<option value="on"' + (L.off ? '' : ' selected') + '>' + (L.name ? esc(L.name) : 'Its light') + '</option>' : '') : '<option value="" selected>No light</option>';
+    picks.forEach(function(k) { opts += '<option value="' + k.i + '"' + (L && !L.off && cur === k.i ? ' selected' : '') + '>' + esc(k.p.name) + ' (' + esc(String(Number(k.p.bright) || 0)) + ' / ' + esc(String(Number(k.p.dim) || 0)) + ' ' + word(k.p.unit) + ')</option>'; });
+    return '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Light</span><select class="cm-stance own-light" title="Your token&rsquo;s light: off, on, or one of the lights your GM offers" style="max-width:190px; padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">' + opts + '</select></div>';
+}
+function askOwnLight(tok, value) {
+    var n = window.wpNet, am = getActiveMap(); if (!n || !n.tokLight || !am || !tok || typeof value !== 'string' || value === '') return;
+    var o = value === 'off' ? { on: false } : value === 'on' ? { on: true } : null;
+    if (!o) { var i = /^(0|[1-9][0-9]{0,2})$/.test(value) ? Number(value) : -1, k = ownLightPicks().filter(function(x) { return x.i === i; })[0]; if (!k) { toast('That light is no longer on offer.'); return; } o = { on: true, preset: k.i, name: k.p.name }; }
+    var r = n.tokLight(am.id, tok.id, o, function(a) { toast(a.error || (o.on ? 'Your token\u2019s light is lit.' : 'Your token\u2019s light is out.')); });
+    if (r && r.error) toast(r.error);
+}
+// The GM's token menu: the selected lights switched off (when any of them is on) or on — their radii, unit and name stay
+function gmLightToggle(items) {
+    var C = window.wpFogCore; if (!C || !C.cleanLight) return null;
+    var lit = (items || []).filter(function(it) { return it && !it.waiting && !!C.cleanLight(it.light); }); if (!lit.length) return null;
+    var anyOn = lit.some(function(it) { return !C.cleanLight(it.light).off; });
+    return { lit: lit, anyOn: anyOn, apply: function() { lit.forEach(function(it) { var L = C.cleanLight(it.light); if (anyOn) L.off = true; else delete L.off; it.light = L; }); return anyOn ? 'off' : 'on'; } };
+}
+// [sinkcheck:ownlight-end]
 
 // [sinkcheck:gmframe-start]
 // The token creator, the GM's side (owner, 2026-09-27): Frame picture… on a picture token — its kept original (Keep the original: the whole
@@ -5878,7 +5917,7 @@ document.addEventListener('contextmenu', function(e) {
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
-                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownPicOk(tokO))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO))) { e.preventDefault(); showStanceMenu(e, tokO); }
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;
@@ -6014,6 +6053,8 @@ document.addEventListener('contextmenu', function(e) {
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
             if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
             if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';   // the token creator: the selected tokens (a character's change together)
+            var gmLit = isWb ? gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // lighting L5: the selected lights, switched together
+            if (gmLit) html += '<div class="menu-item cm-light">&#128161; ' + (gmLit.anyOn ? 'Light off' : 'Light on') + '</div>';
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(firstItem.ownerId)) {
                 var pausedTok = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(firstItem.ownerId);
                 html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '&#9654;&#65039; Resume this player' : '&#9208;&#65039; Pause this player') + '</div>';
@@ -6188,6 +6229,9 @@ document.addEventListener('contextmenu', function(e) {
                         if (it) it.locked = lockThem;
                     });
                     import('./io.js').then(m => m.toast(lockThem ? 'Locked.' : 'Unlocked.'));
+                } else if (action.includes('cm-light')) {
+                    var gmLitNow = gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
+                    if (gmLitNow) { var wentL = gmLitNow.apply(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } import('./io.js').then(m => m.toast(wentL === 'off' ? 'Light off.' : 'Light on.')); }
                 } else if (action.includes('cm-grid')) {
                     var liftThem = selectedIds.some(function(sid) {
                         var it = am.whiteboard.find(function(x) { return x.id === sid; });

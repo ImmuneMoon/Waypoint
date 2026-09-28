@@ -1136,7 +1136,8 @@ net.sendItem = function(campId, itemId, onlyConn) {
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     var clean = sanitizeItem(it); if (!clean) return;
-    if (!mapFogged(it)) { broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); return; }
+    if (!mapFogged(it)) { broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
+    delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     net.conns.forEach(function(conn) {
         var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
         var out = fogCopyFor(clean, camp, it, pr.id);
@@ -3010,6 +3011,7 @@ net.charPic = function(charId, face, img, done) {
 var _mkPending = {};
 var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
 var TOK_WHY = { paused: 'The table is paused.', slow: 'A moment between pictures, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', bad: 'That picture could not be used.', off: 'The GM cannot take pictures here.', failed: 'The GM could not save that picture.' };   // tok-pic's answers, read by what we asked
+var LIGHT_WHY = { paused: 'The table is paused.', slow: 'A moment between changes of light, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', lightlock: 'The GM has locked that token\u2019s light.', preset: 'That light is no longer on offer (the GM changed the list).', nolight: 'That token carries no light to switch.', cap: 'This map already has the most light sources it can hold.', off: 'The GM cannot take a light here.' };   // tok-light's answers, read by what we asked
 function mkSend(type, m, done) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
@@ -3027,6 +3029,14 @@ net.charDone = function(charId, done) { return mkSend('char-done', { charId: Str
 net.charToken = function(name, done) { return mkSend('char-token', { name: cleanCharName(name) }, done); };
 // The token creator (owner, 2026-09-27): a player's framed picture for their own plain token (a character's goes through char-pic)
 net.tokPic = function(mapId, wbId, img, done) { if (!safeAvatar(img)) return { error: 'That picture cannot be used.' }; return mkSend('tok-pic', { mapId: String(mapId), wbId: String(wbId), img: img }, done); };
+// Lighting L5 (owner answer 3): a player's own light — their token's light switched on or off (o.on), or one of the system's presets the GM
+// ticked "players may pick", named by its place in the list and its name (o.preset, o.name). Never a radius: the host takes no number of a
+// light from a player, it copies the light from its own list
+net.tokLight = function(mapId, wbId, o, done) {
+    var m = { mapId: String(mapId), wbId: String(wbId), on: !(o && o.on === false) };
+    if (o && o.preset !== undefined) { if (typeof o.preset !== 'number' || Math.floor(o.preset) !== o.preset || o.preset < 0 || o.preset > 99 || typeof o.name !== 'string' || !o.name) return { error: 'That light cannot be picked.' }; m.preset = o.preset; m.name = o.name.slice(0, 120); }
+    return mkSend('tok-light', m, done);
+};
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
     if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
@@ -3441,13 +3451,13 @@ function handleMessage(msg, conn) {
         var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
-    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
+    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans' || msg.type === 'tok-light-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
         // [netcheck:charmakeans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_mkPending, msg.rid)) return;
         var pK = _mkPending[msg.rid]; delete _mkPending[msg.rid]; clearTimeout(pK.timer);
         if (typeof pK.done !== 'function') return;
         if (msg.ok === true) { var aK = { ok: true, charId: typeof msg.charId === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId) ? msg.charId : null }; if (msg.kept === true) aK.kept = true; pK.done(aK); }
-        else { var WK = pK.kind === 'tok-pic' ? TOK_WHY : MK_WHY; pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(WK, msg.reason) ? WK[msg.reason] : 'The GM could not do that.' }); }   // in the words of what we asked
+        else { var WK = pK.kind === 'tok-pic' ? TOK_WHY : pK.kind === 'tok-light' ? LIGHT_WHY : MK_WHY; pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(WK, msg.reason) ? WK[msg.reason] : 'The GM could not do that.' }); }   // in the words of what we asked
         // [netcheck:charmakeans-end]
     } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
         // [netcheck:charreview-start]
@@ -4038,6 +4048,51 @@ function handleMessage(msg, conn) {
             if (ok) { var tP2 = (prP2.name || 'A player') + ' changed the picture of their token (' + nmP2 + ')'; toast(tP2 + '.'); logEvent('char', tP2); }
         });
         // [netcheck:tokpic-end]
+    } else if (msg.type === 'tok-light' && net.role === 'host') {
+        // [netcheck:toklight-start]
+        // Lighting L5 (owner answers 3, 9, 10, 11): a player's own light — a token they own switched on or off, or given one of the system's
+        // presets the GM ticked "players may pick" (its place in the list AND its name: the list may have changed since their menu was drawn).
+        // No number of a light is taken from the player: it is copied from the host's own list, or the token's own light is kept. Anywhere
+        // (no fog or lighting gate: a torch set ready beforehand); never a waiting, hidden or locked token, never one whose light the GM
+        // locked; a new light never past the map's cap. Written as a remote change (never a step of the GM's undo), then that map goes to
+        // every player again, each through their own fog, whichever map the GM is on; the GM is told
+        var ridL = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridL) return;
+        var ansL = function(o) { o.type = 'tok-light-ans'; o.rid = ridL; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prL = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prL) return;
+        if (net.paused || peerPaused(conn.peer)) { ansL({ reason: 'paused' }); return; }
+        var campL = getActiveCampaign(), mL = campL && typeof msg.mapId === 'string' && own(campL.items, msg.mapId) ? campL.items[msg.mapId] : null;
+        var wL = mL && mL.type === 'map' && Array.isArray(mL.whiteboard) && typeof msg.wbId === 'string' ? mL.whiteboard.find(function(w) { return w && w.id === msg.wbId; }) : null;
+        if (!wL) { ansL({ reason: 'missing' }); return; }
+        if (!wL.isChar || wL.waiting || wL.ownerId !== prL.id) { ansL({ reason: 'tokowner' }); return; }
+        if (wL.locked || wL.hidden) { ansL({ reason: 'locked' }); return; }
+        if (wL.lightLock === true) { ansL({ reason: 'lightlock' }); return; }
+        var FCL = window.wpFogCore, SCL = window.wpSystemCore; if (!FCL || !FCL.cleanLight || !SCL || !SCL.lightPresets) { ansL({ reason: 'off' }); return; }
+        var oldL = FCL.cleanLight(wL.light), offL = msg.on === false, pickL = msg.preset !== undefined || msg.name !== undefined, newL = null;
+        if (pickL) {
+            var listL = SCL.lightPresets(campL.system), pL = typeof msg.preset === 'number' && Math.floor(msg.preset) === msg.preset && msg.preset >= 0 && msg.preset < listL.length ? listL[msg.preset] : null;
+            if (!pL || pL.pick !== true || typeof msg.name !== 'string' || pL.name !== msg.name) { ansL({ reason: 'preset' }); return; }
+            newL = FCL.cleanLight({ bright: pL.bright, dim: pL.dim, unit: pL.unit, name: pL.name, off: offL });
+            if (!newL) { ansL({ reason: 'preset' }); return; }
+        } else {
+            if (!oldL) { ansL({ reason: 'nolight' }); return; }
+            newL = FCL.cleanLight({ bright: oldL.bright, dim: oldL.dim, unit: oldL.unit, name: oldL.name, off: offL });
+        }
+        if (JSON.stringify(newL) === JSON.stringify(oldL)) { ansL({ ok: true }); return; }   // as it is already: nothing written, nobody told
+        if (!oldL && window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(mL) >= FCL.LIMITS.lights) { ansL({ reason: 'cap' }); return; }
+        if (!allow('toklight', { perMs: 400, burst: 5, windowMs: 10000, table: 80 }, conn.peer)) { ansL({ reason: 'slow' }); return; }
+        if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's light is written
+        var hadL = Object.prototype.hasOwnProperty.call(wL, 'light'), wasL = wL.light, wasRL = net.applyingRemote, savedL = false;
+        wL.light = newL;
+        if (window.wpFog) window.wpFog.invalidateVision();   // a save as a remote change tells nobody: the vision is worked out afresh here, before the map goes out
+        net.applyingRemote = true;
+        try { save(true); savedL = true; }
+        finally { net.applyingRemote = wasRL; if (!savedL) { if (hadL) wL.light = wasL; else delete wL.light; if (window.wpFog) window.wpFog.invalidateVision(); } }   // a save that failed: the light is as it was, on the host as on every player's copy
+        net.broadcastItemFiltered(campL.id, mL.id);
+        if (campL.activeItemId === mL.id) { render(); if (window.wpFog) window.wpFog.redraw(); }
+        ansL({ ok: true });
+        var tL = (prL.name || 'A player') + (newL.off ? ' put out the light of their token (' : newL.name ? ' lit ' + newL.name + ' on their token (' : ' lit the light of their token (') + (wL.charName || 'their token') + ')';
+        toast(tL + '.'); logEvent('char', tL);
+        // [netcheck:toklight-end]
     } else if (msg.type === 'my-look' && net.role === 'host') {
         // [netcheck:mylook-start]
         // Onboarding F1b: an admitted player changes their token face mid-session — cleaned, about one change a second (a burst of five), not

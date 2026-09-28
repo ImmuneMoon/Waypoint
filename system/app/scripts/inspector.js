@@ -1301,6 +1301,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbLU) _el_wbLU.addEventListener('change', setLight);
             var _el_wbLP = document.getElementById('wbLightPreset');
             if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
+            var _el_wbLK = document.getElementById('wbLightLock');
+            if (_el_wbLK) _el_wbLK.addEventListener('change', function() { if (this.checked) w.lightLock = true; else delete w.lightLock; save(); });
             var _el_wbFogged = document.getElementById('wbFogged');
             if(_el_wbFogged) _el_wbFogged.addEventListener('change', function() {
                 if (this.checked) w.fogged = true; else delete w.fogged;   // marks this item as a play area — fog is confined to the union of such items' footprints
@@ -1673,13 +1675,14 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       return pre + '<div class="field"><label for="wbLightBright">' + (w.type === 'light' ? 'Light' : 'Carries a light') + '</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><span class="muted">Bright to</span><input type="number" id="wbLightBright" min="0" max="1000" step="1" value="' + (L ? Number(L.bright) || 0 : 0) + '" style="width:64px;"><span class="muted">dim to</span><input type="number" id="wbLightDim" min="0" max="1000" step="1" value="' + (L ? Number(L.dim) || 0 : 0) + '" style="width:64px;">'
           + '<select id="wbLightUnit" title="What the two radii count in: the map&rsquo;s scale turns yards, feet or metres into cells; grid cells count as they are">' + ['yd', 'ft', 'm', 'cells'].map(function(u) { return '<option value="' + u + '"' + (u === word(unit) ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></div></div>'
           + '<div class="field check-row"><input type="checkbox" id="wbLightOn" ' + (L && !L.off ? 'checked' : '') + '> <label for="wbLightOn">Light is on</label></div>'
+          + (w.type !== 'light' ? '<div class="field check-row"><input type="checkbox" id="wbLightLock" ' + (w.lightLock === true ? 'checked' : '') + '> <label for="wbLightLock" title="Its player may switch this token&rsquo;s light and pick one of the presets you ticked Players may pick, from the token&rsquo;s right-click menu. Locked: only you change it.">Light locked (its player can&rsquo;t change it)</label></div>' : '')
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (&#9881; Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
   }
   // A preset picked in the Light block: copied onto the item by value (its name kept with it), on or off as the light was. "Custom" keeps the
   // radii and lets the name go. A new light past the map's cap is refused, as a radius typed in is
   function applyLightPreset(w, value, map) {
       var C = window.wpFogCore; if (!C || !w) return;
-      var list = lightPresetsNow(), i = typeof value === 'string' && /^[0-9]{1,3}$/.test(value) ? Number(value) : -1, p = i >= 0 && i < list.length ? list[i] : null, old = C.cleanLight(w.light);   // a place in the list, written in digits alone
+      var list = lightPresetsNow(), i = typeof value === 'string' && /^(0|[1-9][0-9]{0,2})$/.test(value) ? Number(value) : -1, p = i >= 0 && i < list.length ? list[i] : null, old = C.cleanLight(w.light);   // a place in the list, written in digits alone
       if (value !== '' && !p) { renderInspector(); return; }   // a preset the list no longer holds there (the panel was drawn before the list changed): nothing is copied, the panel is drawn afresh
       var L = p ? C.cleanLight({ bright: p.bright, dim: p.dim, unit: p.unit, name: p.name, off: !!(old && old.off) }) : old ? C.cleanLight({ bright: old.bright, dim: old.dim, unit: old.unit, off: old.off }) : null;
       if (L && !old && window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(map) >= C.LIMITS.lights) { toast('This map already has the most light sources it can hold (' + C.LIMITS.lights + ').'); renderInspector(); return; }

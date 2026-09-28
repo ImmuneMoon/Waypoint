@@ -911,8 +911,9 @@ function cleanSystem(sys, opts) {
         if (seenId[c.id] || seenKey[lower(c.key)]) return;
         seenId[c.id] = 1; seenKey[lower(c.key)] = 1; out.fields.push(c);
     });
-    if (!gmView && gmFields.length && out.fields.some(function(f) { return f.kind === 'resource' && !!f.maxFormula; })) {   // a pool whose max is GM-only is GM-only as a whole: gone, as a GM-only field is (the GM-only fields last: one wins a key both use)
-        var gmP = gmPools({ fields: out.fields.concat(gmFields) }, F);
+    var gmEnt = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && it.vis === 'gm'; });   // owed review leftover (b): a GM-only entry a pool's max reads is a secret too
+    if (!gmView && (gmFields.length || gmEnt) && out.fields.some(function(f) { return f.kind === 'resource' && !!f.maxFormula; })) {   // a pool whose max is GM-only is GM-only as a whole: gone, as a GM-only field is (the GM-only fields last: one wins a key both use)
+        var gmP = gmPools({ fields: out.fields.concat(gmFields), items: sys.items, core: sys.core }, F);
         out.fields = out.fields.filter(function(f) { if (gmP[f.id] !== 1) return true; dropped.push(lower(f.key)); return false; });
     }
     if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order

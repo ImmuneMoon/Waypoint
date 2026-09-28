@@ -2355,6 +2355,29 @@ pendingChecks.push((async () => {
         JSON.stringify(r1) === JSON.stringify(['<img src=x onerror=alert(1)>', 1]) && JSON.stringify([r2, r3, r4, r5, r6, r8]) === JSON.stringify(Array(6).fill(['Old', 0])) && r7[0].length === 200 && r7[1] === 1, JSON.stringify([r1, r2, r3, r4, r5, r6, r7[1], r8]));
 }
 
+// Fog play areas (review follow-up a): a campaign's fog defaults changed mid-session reach admitted players once per change (the real host
+// sync, sliced), and a client takes them only from its synced host, for the hosted campaign, cleaned again, then redraws (the real branch)
+pendingChecks.push((async () => {
+    const FCx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+    const syncF = between('// [netcheck:campfogsync-start]', '// [netcheck:campfogsync-end]', 'campfogsync'), rcvF = between('// [netcheck:campfog-start]', '// [netcheck:campfog-end]', 'campfog');
+    const sentF = { a: [], w: [] }, campF = { id: 'k_1', fog: { defaults: { sight: 6 } } };
+    const netF = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); sentF.a.push(JSON.parse(JSON.stringify(m))); } }, { peer: 'pW', open: true, send: m => sentF.w.push(m) }], roster: { pA: { id: 'u_a' } } };
+    new Function('net', 'getActiveCampaign', 'own', 'sendFailed', 'window', syncF)(netF, () => campF, (o, k) => Object.prototype.hasOwnProperty.call(o, k), e => { throw e; }, { wpFogCore: FCx });
+    netF.syncCampFog(); const f1 = sentF.a.length; netF.syncCampFog(); const f2 = sentF.a.length; campF.fog = { defaults: { sight: 6, emptyFog: 'none', vision: 'nope' }, fields: { sight: 'x y' } }; netF.syncCampFog(); netF.role = 'client'; netF.syncCampFog();
+    check('Fog play areas: a campaign\'s fog defaults changed mid-session go to admitted players once per change (a waiting peer gets nothing), cleaned (a malformed field or vision dropped); a client never sends them; every host save sends them, the snapshot sets their signature',
+        f1 === 1 && f2 === 1 && sentF.a.length === 2 && sentF.w.length === 0 && j(sentF.a[1]) === j({ type: 'campFog', campId: 'k_1', fog: { fields: {}, defaults: { sight: 6, emptyFog: 'none' } } })
+        && /net\.syncNewPlayers\(\); \/\/ [^\n]*\n\s*net\.syncCampFog\(\);/.test(src) && /var cfm = net\.campFogMessage\(\); if \(cfm\) net\._lastCampFogSig = cfm\.campId \+ '\\n' \+ JSON\.stringify\(cfm\.fog\);/.test(src)
+        && !/msg\.type === 'campFog' && net\.role === 'host'/.test(src), j(sentF));
+    const runF = (netC, msg, peer) => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', fog: { defaults: { sight: 2 } } } } } }, calls = [];
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvF)(netC, { peer }, msg, st, id => (Object.prototype.hasOwnProperty.call(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpFogCore: FCx, wpFog: { invalidateVision: () => calls.push('inv'), redraw: () => calls.push('draw') } });
+        return [st.appState.campaigns.k_1.fog, calls]; };
+    const okF = { role: 'client', foreign: true, syncedPeer: 'host1', stream: false }, mkF = fog => ({ type: 'campFog', campId: 'k_1', fog });
+    const g1 = runF(okF, mkF({ defaults: { sight: 9, emptyFog: 'none', on: true }, fields: { sight: 'f_sight' } }), 'host1'), g2 = runF(okF, mkF({ defaults: { sight: 9 } }), 'evil'), g3 = runF(Object.assign({}, okF, { stream: true }), mkF({ defaults: { sight: 9 } }), 'host1');
+    const g4 = runF(okF, { type: 'campFog', campId: 'k_2', fog: {} }, 'host1'), g5 = runF(okF, mkF('<img>'), 'host1'), g6 = runF(okF, { type: 'campFog', campId: '__proto__', fog: {} }, 'host1');
+    check('Fog play areas: a client takes the campaign\'s fog defaults only from its synced host, for the hosted campaign, cleaned again, then works the fog out afresh and redraws; another peer, the stream window, another campaign or a prototype id changes nothing; garbage cleans to the plain default',
+        j(g1) === j([{ fields: { sight: 'f_sight' }, defaults: { sight: 9, on: true, emptyFog: 'none' } }, ['inv', 'draw']]) && j([g2, g3, g4, g6]) === j(Array(4).fill([{ defaults: { sight: 2 } }, []])) && j(g5) === j([{ fields: {}, defaults: { sight: 0 } }, ['inv', 'draw']]), j([g1, g2, g4, g5]));
+})());
+
 // Stage 6 library L3: the library on the wire, host side — the manifest players get (the real syncLibrary), a pack's index and entries by id
 // (the real lib-idx / lib-get handler, over a real players' index), and a player's pick of a library entry through the real char-item handler
 pendingChecks.push((async () => {

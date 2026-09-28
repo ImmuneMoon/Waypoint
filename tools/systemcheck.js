@@ -1918,15 +1918,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const a1_ch1 = { id: 'c_a1', ownerId: 'u_a1', values: { f_sk: [{ id: 'w_k', defId: 'i_kar', qty: 1 }, { id: 'w_h', defId: 'i_hush', qty: 1, lvl: 5 }] } };
             const a1_g1 = S.resolveAll(a1_sys1, a1_ch1, F), a1_v1 = S.validateSystem(a1_sys1, F);
             check('owed F5a1#1 a GM-only library entry in the system\'s core (a GM-only entry, and a GM-only pack\'s through keyIndex) is a GM-only key: the players\' view blanks a visible formula and a pool\'s max naming it and drops the roll, gmOnlyNames names it, gmPools marks the pool, a player\'s edit of that pool is refused ("field") and the validator warns; the GM\'s sheet still reads it (47, HP max 17)',
-                j(a1_core.core.map(e => [e.id, e.vis])) === j([['i_sec', 'gm'], ['i_pk', 'gm']]) && a1_pf1('f_x').formula === null && a1_pf1('f_pk').formula === null && a1_pf1('f_hp').maxFormula === null && !a1_pv1.rolls.some(r => r.id === 'r_sec') && a1_pf1('f_ok').formula === 'Skills.Karate.lvl' && !/Skills\.(Secret|Packed)/.test(j(a1_pv1))
+                j(a1_core.core.map(e => [e.id, e.vis])) === j([['i_sec', 'gm'], ['i_pk', 'gm']]) && a1_pf1('f_x').formula === null && a1_pf1('f_pk').formula === null && !a1_pf1('f_hp') && !a1_pv1.rolls.some(r => r.id === 'r_sec') && a1_pf1('f_ok').formula === 'Skills.Karate.lvl' && !/Skills\.(Secret|Packed)/.test(j(a1_pv1))
                 && j(S.gmOnlyNames(a1_sys1, [{ name: 'Skills.Secret.lvl' }, { name: 'Skills.Packed.lvl' }, { name: 'Skills.Karate.lvl' }])) === j(['Skills.Secret.lvl', 'Skills.Packed.lvl']) && S.gmPools(a1_sys1, F).f_hp === 1
                 && j(S.applyEdit(a1_sys1, a1_ch1, 'f_hp', { cur: 999 }, F, { player: true })) === j({ ok: false, reason: 'field' }) && a1_v1.warnings.some(w => w.id === 'f_x' && /"Skills\.Secret\.lvl" names a GM-only item/.test(w.message)) && a1_v1.warnings.some(w => w.id === 'f_pk' && /"Skills\.Packed\.lvl" names a GM-only item/.test(w.message))
                 && a1_g1.f_x.value === 47 && a1_g1.f_hp.max === 17 && a1_g1.f_pk.value === 3,
                 j([a1_core.core.map(e => [e.id, e.vis]), a1_pf1('f_x'), a1_pf1('f_hp'), a1_pv1.rolls, S.gmPools(a1_sys1, F), a1_v1.warnings.map(w => w.id)]));
             // #8: the same system with no core — its only secret a GM-only item (no GM-only field, no choice)
             const a1_sysI = cleanSystem(a1_raw1, { F, gmView: true }), a1_pvI = cleanSystem(a1_sysI, { F, gmView: false }), a1_pfI = id => a1_pvI.fields.find(f => f.id === id);
-            check('owed F5a1#8 (1) a system whose only secret is a GM-only item (no GM-only field, no choice): the players\' view still blanks a visible formula and a pool\'s max naming the item\'s key (Skills.Hush.lvl) and keeps one naming a visible entry',
-                !a1_sysI.fields.some(f => f.vis === 'gm') && a1_pfI('f_hl').formula === null && a1_pfI('f_fp').maxFormula === null && a1_pfI('f_ok').formula === 'Skills.Karate.lvl' && !/Skills\.Hush/.test(j(a1_pvI)), j([a1_pfI('f_hl'), a1_pfI('f_fp')]));
+            check('owed F5a1#8 (1) a system whose only secret is a GM-only item (no GM-only field, no choice): the players\' view still blanks a visible formula naming the item\'s key (Skills.Hush.lvl), drops a pool whose max names it (owed leftover b) and keeps one naming a visible entry',
+                !a1_sysI.fields.some(f => f.vis === 'gm') && a1_pfI('f_hl').formula === null && !a1_pfI('f_fp') && a1_pfI('f_ok').formula === 'Skills.Karate.lvl' && !/Skills\.Hush/.test(j(a1_pvI)), j([a1_pfI('f_hl'), a1_pfI('f_fp')]));
             const a1_dI = S.gmDerivedNames(a1_sysI, F, [{ name: 'HushL' }, { name: 'OkL' }]), a1_edI = S.applyEdit(a1_sysI, a1_ch1, 'f_fp', { cur: 999 }, F, { player: true });
             check('owed F5a1#8 (2) gmDerivedNames reads a GM-only item\'s key in a list as GM-only: a visible formula reading Skills.Hush.lvl is derived from one, gmPools marks the pool whose max reads it, and a player\'s edit of that pool is refused ("field") where the host would have clamped it to the GM-only level (15)',
                 j(a1_dI) === j(['HushL']) && j(S.gmPools(a1_sysI, F)) === j({ f_fp: 1 }) && j(a1_edI) === j({ ok: false, reason: 'field' }), j([a1_dI, S.gmPools(a1_sysI, F), a1_edI]));
@@ -2281,6 +2281,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && /var chS = window\.wpChat; if \(chS && chS\.lookSync\) chS\.lookSync\(\);/.test(shCD) && /var chI = window\.wpChat; if \(chI && chI\.lookSync\) chI\.lookSync\(\); \}, 1000\);/.test(shCD)
                 && /A roll ticked <b>Damage<\/b> in the System editor/.test(htCD) && /A card carries the roll&rsquo;s name as its title/.test(htCD) && /ticked <b>Damage<\/b> \(on the Rolls tab, or a list&rsquo;s roll\) for a damage card in chat/.test(tuCD)
                 && ![htCD, tuCD, wnCD].some(t => /foundry/i.test(t)));
+        }
+        // owed review leftover (b): with no GM-only field, a pool whose max reads a GM-only entry's key (an item, or the core) leaves the players' view too
+        {
+            const lfB = { v: 1, name: 'LB', rolls: [], fields: [{ id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', list: { cats: ['Skill'] } }, { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', maxFormula: '10 + Skills.Hush.lvl' }, { id: 'f_fp', key: 'FP', label: 'FP', kind: 'resource', vis: 'all', maxFormula: '10' }] };
+            const lbI = cleanSystem(Object.assign({}, lfB, { items: [{ id: 'i_hush', name: 'Hush', key: 'Hush', category: 'Skill', vis: 'gm' }] }), { F, gmView: true }), lbC = cleanSystem(Object.assign({}, lfB, { core: [{ id: 'i_hush', name: 'Hush', key: 'Hush', category: 'Skill', vis: 'gm' }] }), { F, gmView: true });
+            const lbV = cleanSystem(Object.assign({}, lfB, { items: [{ id: 'i_hush', name: 'Hush', key: 'Hush', category: 'Skill' }] }), { F, gmView: true });
+            const ids = s => cleanSystem(s, { F, gmView: false }).fields.map(f => f.id).join();
+            check('owed review leftover (b): a pool whose max reads a GM-only entry (an item or a core entry) leaves the players\' view even when the system has no GM-only field; a visible entry\'s keeps it; a pool reading nothing secret stays',
+                ids(lbI) === 'f_sk,f_fp' && ids(lbC) === 'f_sk,f_fp' && ids(lbV) === 'f_sk,f_hp,f_fp', j([ids(lbI), ids(lbC), ids(lbV)]));
         }
         // owed review F5b: rowRollNames follows every column however deep (a list has six), a visible item's row on a GM-only list is the GM's, a curse
         // the GM keeps on is marked kept (never gm: its owner's own roll stays theirs); the validator says a list roll naming a GM-only value is not the players'

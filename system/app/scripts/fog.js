@@ -20,6 +20,7 @@ function isGmView() { var m = roleNow(); return m === 'solo' || m === 'host'; }
 function isClientView() { return roleNow() === 'client'; }   // a foreign player past the snapshot (never the stream or awaiting)
 function myId() { var n = net(); return (n && n.myId) || ''; }
 function fogFeatureOn() { var v = vtt(); return v ? !!v.on('fog') : false; }   // host: the campaign setting; client: the GM's ceiling
+function lightingOn() { var v = vtt(); return v ? !!v.on('lighting') : false; }   // lighting (backlog 14): the GM's switch, on by default (an absent flag reads on, as every feature's)
 function canWrite() { return !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream; }
 function activeMap() { var m = getActiveMap(); return m && m.type === 'map' ? m : null; }
 function activeCamp() { return getActiveCampaign() || null; }
@@ -95,8 +96,10 @@ function viewersFor(map, camp, ownerId) {
 }
 // ---- sight-blockers: the opaque-cell key set for a map, built from flagged board items (v1: static walls) ----
 var _blockerCache = Object.create(null), _blockerStamp = Object.create(null), _blockerWarned = Object.create(null);
+var _blockerSig = Object.create(null), _blockerVer = Object.create(null);   // lighting review: a map's blocker CONTENT version (the viewer memo keys on it, not on every save)
 function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
+    if (w.isChar || w.waiting) return false;                        // a token never blocks sight: a player's copy may lack it (fog drops it), so host and client would disagree
     if (w.sightType === 'door' && w.doorOpen) return false;         // an OPEN door blocks nothing; a closed one blocks like a wall
     if (w.type === 'circle') return true;                           // a pillar; its footprint is rotation-invariant
     if (w.rot) return false;                                        // a rotated rect/hex/diamond footprint is not supported in v1
@@ -126,6 +129,8 @@ function blockersFor(map, grid) {
     if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
     if (!over) _blockerWarned[map.id] = 0;
     var result = (over || n === 0) ? null : set;                    // over cap or none → no occlusion (fail open)
+    var bsig = result ? Object.keys(result).sort().join(';') : '';
+    if (_blockerSig[map.id] !== bsig) { _blockerSig[map.id] = bsig; _blockerVer[map.id] = (_blockerVer[map.id] || 0) + 1; }
     _blockerStamp[map.id] = stamp;
     _blockerCache[map.id] = result;
     return result;
@@ -276,18 +281,53 @@ function toggleDoorAt(boardX, boardY) {
     return false;
 }
 
-// The cells revealed to ownerId: their tokens' vision ∪ manual adds − manual cuts. null = the whole map (reveal mode).
-function revealedCellList(map, camp, ownerId) {
-    var C = core(), grid = gridForMap(map); if (!grid) return [];
+// Lighting (backlog 14, owner 2026-09-28): with the `lighting` VTT feature on (the default), a map's light — map.fog.light bright, dim or dark, or
+// absent = auto: bright while no light source is placed on it, dark once the GM places one (a light item; a token's own light never darkens a
+// map) — lets a token see every lit cell in its line of sight out to the vision cap, and its Sight becomes how far it sees in the dark. Off:
+// null, fog exactly as before (Sight is a radius). Host and client read the same map.fog and the GM's switch
+function placedLights(map) { var wb = (map && map.whiteboard) || []; for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (w && w.type === 'light' && !w.hidden) return true; } return false; }
+function mapLevel(map) {
+    if (!lightingOn() || !map) return null;
+    var l = mapFog(map).light;
+    return l === 'dark' ? 0 : l === 'dim' ? 1 : l === 'bright' ? 2 : placedLights(map) ? 0 : 2;
+}
+// One viewer's seen cells, memoised per map on its cell, facing (only for a cone: all-around vision never reads it), sight and arc, so a drag
+// recomputes only the token that moves. The memo is stamped on exactly what seenCells reads beyond the viewer — the grid, the map's light level
+// and its blockers' content version — so a save that changes none of them (a token moved, a note typed) keeps it. Bounded by cells across
+// every map: past the budget it starts afresh
+var _viewCache = Object.create(null), _viewCells = 0, VIEW_BUDGET = 250000;
+function viewSeen(map, grid, blk, lvl, v) {
+    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0), mc = _viewCache[map.id];
+    if (!mc || mc.stamp !== stamp) { if (mc) _viewCells -= mc.cells; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
+    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc, hit = mc.m[k];
+    if (hit) return hit;
+    hit = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl });
+    if (_viewCells + hit.length > VIEW_BUDGET) { _viewCache = Object.create(null); _viewCells = 0; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
+    mc.m[k] = hit; mc.cells += hit.length; _viewCells += hit.length;
+    return hit;
+}
+// The cells revealed to ownerId, each with its tier (2 clear or bright, 1 dim): their tokens' vision ∪ manual adds (clear) − manual cuts.
+// null = the whole map (reveal mode); else { list: [{key, cell}], keys: {key: tier} }
+function revealedTiers(map, camp, ownerId) {
+    var C = core(), grid = gridForMap(map); if (!grid) return { list: [], keys: Object.create(null) };
     var mf = mapFog(map);
     if (mf.mode === 'reveal') return null;
-    var seen = Object.create(null), out = [];
-    var add = function(cell) { var k = C.cellKey(cell, grid); if (!seen[k]) { seen[k] = 1; out.push(cell); } };
-    var blk = blockersFor(map, grid);
-    if (mf.mode !== 'cover') viewersFor(map, camp, ownerId).forEach(function(v) { C.visibleCells(v, grid, blk).forEach(function(o) { add(o.cell); }); });
-    (mf.manual.adds || []).forEach(add);
+    var keys = Object.create(null), list = [];
+    var put = function(key, cell, t) { var o = keys[key]; if (o === undefined) { keys[key] = t; list.push({ key: key, cell: cell }); } else if (t > o) keys[key] = t; };
+    if (mf.mode !== 'cover') {
+        var blk = blockersFor(map, grid), lvl = mapLevel(map);
+        viewersFor(map, camp, ownerId).forEach(function(v) { var s = viewSeen(map, grid, blk, lvl, v); for (var i = 0; i < s.length; i++) put(s[i].key, s[i].cell, s[i].tier); });
+    }
+    (mf.manual.adds || []).forEach(function(c) { put(C.cellKey(c, grid), c, 2); });
     var cut = Object.create(null); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
-    return out.filter(function(cell) { return !cut[C.cellKey(cell, grid)]; });
+    list = list.filter(function(o) { if (cut[o.key]) { delete keys[o.key]; return false; } return true; });
+    return { list: list, keys: keys };
+}
+// The cells revealed to ownerId at any tier (what host enforcement drops by). null = the whole map (reveal mode)
+function revealedCellList(map, camp, ownerId) {
+    if (!gridForMap(map)) return [];
+    var t = revealedTiers(map, camp, ownerId);
+    return t === null ? null : t.list.map(function(o) { return o.cell; });
 }
 
 /* ---------- host enforcement helpers (called by net.js) ---------- */
@@ -371,8 +411,8 @@ function draw() {
     var map = activeMap(), camp = activeCamp(), grid = gridForMap(map);
     var mask = fogMask(map, camp, grid);
     if (mask.mode === 'none') return;                              // no play area marked + default 'none': nothing to fog
-    var cells = revealedCellList(map, camp, drawOwner());
-    if (cells === null) return;                                    // reveal-all: no fog
+    var tiers = revealedTiers(map, camp, drawOwner());
+    if (tiers === null) return;                                    // reveal-all: no fog
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
     var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
     var traceCell = function(cell) {                               // add one cell's outline to the current path (screen space); off-view cells are skipped
@@ -391,10 +431,15 @@ function draw() {
     ctx.fillStyle = isClientView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players: opaque; the GM: see-through
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
+    // lighting: a dim cell is punched part-way (its terrain shows, darkened), a clear or bright one fully — each tier one path filled once, so
+    // padded cells never double-punch a seam. Lighting off: every cell is tier 2, exactly as before
+    var tl = tiers.list, tk = tiers.keys, anyDim = false;
+    for (var di = 0; di < tl.length && !anyDim; di++) if (tk[tl[di].key] === 1) anyDim = true;
+    if (anyDim) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell); ctx.fill(); }
     ctx.fillStyle = 'rgba(0,0,0,1)';
     ctx.beginPath();
-    for (var i = 0; i < cells.length; i++) traceCell(cells[i]);
-    ctx.fill();                                                    // punch every revealed cell in one pass
+    for (var i = 0; i < tl.length; i++) if (tk[tl[i].key] !== 1) traceCell(tl[i].cell);
+    ctx.fill();                                                    // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
 }
@@ -473,6 +518,8 @@ function syncMenu() {
     var arcIn = ui('fogVisionArc'); if (arcIn && document.activeElement !== arcIn) arcIn.value = vis.arc;
     var vdef = ui('fogVisionDefault'); if (vdef) { var dv = cf.defaults.vision; vdef.checked = !!(dv && dv.mode === vis.mode && (dv.mode === 'all' || dv.arc === vis.arc)); }
     var fDef = ui('fogOnDefault'); if (fDef) fDef.checked = !!cf.defaults.on;   // "new maps start with fog on" (campaign default)
+    var lrow = ui('fogLightRow'); if (lrow) lrow.style.display = lightingOn() ? '' : 'none';   // lighting: the map's light
+    var lsel = ui('fogLight'); if (lsel && document.activeElement !== lsel) lsel.value = mf.light === 'bright' || mf.light === 'dim' || mf.light === 'dark' ? mf.light : 'auto';
     var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.fbrush === brush); });
     fillPreviewOptions();
@@ -480,6 +527,13 @@ function syncMenu() {
 }
 function openMenu() { var m = ui('fogMenu'); if (!m || !canWrite()) return; syncMenu(); m.classList.add('show'); redraw(); }
 function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show'); }
+
+var LIGHT_SAID = {
+    auto: 'This map is lit: every token sees what is in its line of sight.',
+    bright: 'This map is lit: every token sees what is in its line of sight.',
+    dim: 'This map is dim: beyond a token\'s sight in the dark it shows darkened.',
+    dark: 'This map is dark: a token sees only as far as its sight in the dark.'
+};
 
 /* ---------- wiring ---------- */
 (function wire() {
@@ -532,6 +586,13 @@ function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show');
         if (hosting && N.broadcastItemFiltered) ids.forEach(function(id) { N.broadcastItemFiltered(camp.id, id); });
         toast('Fog on for all ' + n + ' map' + (n === 1 ? '' : 's') + ' in this campaign.');
     });
+    var lsel = ui('fogLight');
+    if (lsel) lsel.addEventListener('change', function() {
+        var map = activeMap(); if (!map) return; var mf = mapFog(map);
+        if (lsel.value === 'bright' || lsel.value === 'dim' || lsel.value === 'dark') mf.light = lsel.value; else delete mf.light;
+        save(); invalidateVision(); syncMenu(); redraw();
+        toast(LIGHT_SAID[mf.light || 'auto']);
+    });
     var fDef = ui('fogOnDefault');
     if (fDef) fDef.addEventListener('change', function() {
         var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
@@ -567,6 +628,7 @@ function sync() {   // the VTT switch moved, or a session started / ended
     var b = ui('fogModeBtn'), showBtn = fogFeatureOn() && isGmView() && canWrite();
     if (b) { b.style.display = showBtn ? '' : 'none'; if (b.parentNode) b.parentNode.style.display = showBtn ? '' : 'none'; }   // hide the wrapper too, else its empty flex slot leaves a double gap in the toolbar
     if (!showBtn) { closeMenu(); if (window.isFogMode && window.wpExitFogMode) { window.isFogMode = false; window.wpExitFogMode(); } }
+    var fmu = ui('fogMenu'); if (showBtn && fmu && fmu.classList.contains('show')) syncMenu();   // an open menu follows a switch moved under it (the Light row)
     invalidateVision();
     redraw();
 }
@@ -584,5 +646,6 @@ window.wpFog = {
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
-    stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
+    lightLevel: mapLevel,
+    stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

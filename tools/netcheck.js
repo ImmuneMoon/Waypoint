@@ -2368,6 +2368,15 @@ pendingChecks.push((async () => {
         f1 === 1 && f2 === 1 && sentF.a.length === 2 && sentF.w.length === 0 && j(sentF.a[1]) === j({ type: 'campFog', campId: 'k_1', fog: { fields: {}, defaults: { sight: 6, emptyFog: 'none' } } })
         && /net\.syncNewPlayers\(\); \/\/ [^\n]*\n\s*net\.syncCampFog\(\);/.test(src) && /var cfm = net\.campFogMessage\(\); if \(cfm\) net\._lastCampFogSig = cfm\.campId \+ '\\n' \+ JSON\.stringify\(cfm\.fog\);/.test(src)
         && !/msg\.type === 'campFog' && net\.role === 'host'/.test(src), j(sentF));
+    // lighting review: a change to the vision rules re-sends every fogged map of the hosted campaign, filtered per player (the real resendFogged)
+    const rsF = between('// [netcheck:resendfogged-start]', '// [netcheck:resendfogged-end]', 'resendfogged'), sentR = [];
+    const campR = { id: 'k_r', items: { mA: { id: 'mA', type: 'map', fog: { on: true } }, mB: { id: 'mB', type: 'map', fog: { on: false } }, mC: { id: 'mC', type: 'map', fog: { on: 'yes' } }, dD: { id: 'dD', type: 'doc', fog: { on: true } }, mE: { id: 'mE', type: 'map' }, mF: { id: 'mF', type: 'map', fog: { on: true } } } };
+    const netR = { active: true, role: 'host', broadcastItemFiltered: (cid, id) => sentR.push(cid + '/' + id) };
+    new Function('net', 'getActiveCampaign', rsF)(netR, () => campR);
+    netR.resendFogged(); const r1 = sentR.slice(); netR.role = 'client'; netR.resendFogged(); netR.role = 'host'; netR.active = false; netR.resendFogged();
+    check('Lighting: a change to the table\'s vision rules (the fog, lighting or facing switch, the master, the fog defaults) re-sends every fogged map of the hosted campaign to the players, filtered for each (not only the map on screen); nothing from a client or off a session',
+        j(r1) === j(['k_r/mA', 'k_r/mF']) && sentR.length === 2
+        && /net\.broadcastStance\(\);\n\s*if \(net\.resendFogged\) net\.resendFogged\(\);/.test(src) && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); \} \} \}\);\n\s*if \(net\.resendFogged\) net\.resendFogged\(\);   \/\/ a default sight changed/.test(src), j(sentR));
     const runF = (netC, msg, peer) => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', fog: { defaults: { sight: 2 } } } } } }, calls = [];
         new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvF)(netC, { peer }, msg, st, id => (Object.prototype.hasOwnProperty.call(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpFogCore: FCx, wpFog: { invalidateVision: () => calls.push('inv'), redraw: () => calls.push('draw') } });
         return [st.appState.campaigns.k_1.fog, calls]; };

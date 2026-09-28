@@ -29,7 +29,8 @@ var FEATURES = [
     { id: 'fog',       label: 'Fog of war',       legacyKey: null, noLocal: true },  // 1.5.0: per-player token vision; GM-controlled, no player self-toggle; on by default (GM still paints the fog)
     { id: 'turning',   label: 'Token facing',     legacyKey: null, noLocal: true },  // 1.5.0: token facing/turning — the front wedge + the fog facing cone follow it; GM-controlled like fog (off ⇒ no wedge, fog falls back to all-around)
     { id: 'music',     label: 'Music',            legacyKey: null },
-    { id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false }   // 1.5.0 turn-based combat (owner, 2026-09-26): while a combat runs, turns are taken in order — the player on turn ends it; OFF by default (opt-in); GM-controlled                  // 1.5.0: per-campaign named playlists, per-map auto-play, GM take-control; a self-toggle with its OWN volume, separate from Sound/SFX
+    { id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false },  // 1.5.0 turn-based combat (owner, 2026-09-26): while a combat runs, turns are taken in order — the player on turn ends it; OFF by default (opt-in); GM-controlled                  // 1.5.0: per-campaign named playlists, per-map auto-play, GM take-control; a self-toggle with its OWN volume, separate from Sound/SFX
+    { id: 'lighting',  label: 'Lighting',         legacyKey: null, noLocal: true }   // 1.5.0 light & darkness (owner 2026-09-28): a fogged map is lit until the GM places a light source; GM-controlled like fog; ON by default
 ];
 // noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: an optional default-off flag
 // (def:false) for a future opt-in feature; absent → on, so every feature (fog included) is on by default.

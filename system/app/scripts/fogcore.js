@@ -9,7 +9,7 @@
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
     rangeCells: 60,     // a viewer's sight, in cells, after conversion — hard cap so a bad field can't sweep the board
-    cells: 8000,        // the most visible cells one recompute yields
+    cells: 12000,       // the most visible cells one recompute yields (the whole disc at rangeCells: 11,289 on square, 10,981 on hex)
     manual: 4000,       // manual reveal/hide cells stored per map
     blockerCells: 6000, // sight-blocker cells resolved per map — over this, occlusion falls open (no blocking)
     arcDeg: 180,        // GURPS front arc
@@ -262,12 +262,35 @@ function visibleCells(viewer, grid, blockers) {
     var push = function(cell) { if (out.length >= LIMITS.cells) return; var k = cellKey(cell, grid); if (!seen[k]) { seen[k] = 1; out.push({ key: k, cell: cell }); } };
     push(here);
     if (R <= 0) return out;
+    // the line of sight to each cell, as lineClear walks it (centre to centre, every half cell, both end cells skipped) — over only the blockers
+    // within R + 2 of the viewer (a segment inside the disc never samples a cell further out) and numeric cell codes, so a lit disc of 60 cells
+    // stays quick; the same cells as lineClear over the whole set
+    var sqG = grid.type === 'square', OFF = R + 3, STR = 2 * OFF + 1, bset = null;
+    var code = function(cc) { return sqG ? (cc.c - here.c + OFF) * STR + (cc.r - here.r + OFF) : (cc.q - here.q + OFF) * STR + (cc.r - here.r + OFF); };
+    if (blockers) {
+        for (var bk in blockers) {
+            var sp = bk.split(sqG ? ',' : ':'), bc = sqG ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] };
+            if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
+            var bd = sqG ? Math.sqrt((bc.c - here.c) * (bc.c - here.c) + (bc.r - here.r) * (bc.r - here.r)) : hexDist(here, bc);
+            if (bd > R + 2) continue;
+            if (!bset) bset = Object.create(null);
+            bset[code(bc)] = 1;
+        }
+    }
+    var stepPx = (sqG ? grid.size : grid.s) / 2, hereCode = code(here);
+    var lineClear = function(a, cell) {
+        if (!bset) return true;
+        var pa = cellCenter(a, grid), pb = cellCenter(cell, grid), dx = pb.x - pa.x, dy = pb.y - pa.y, cellCode = code(cell);
+        var steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / stepPx));
+        for (var i = 1; i < steps; i++) { var t = i / steps, cd = code(cellOf(pa.x + dx * t, pa.y + dy * t, grid)); if (cd !== hereCode && cd !== cellCode && bset[cd]) return false; }   // t as segClear computes it: the same floats, the same cells
+        return true;
+    };
     if (grid.type === 'square') {
         for (var c = here.c - R; c <= here.c + R && out.length < LIMITS.cells; c++)
             for (var r = here.r - R; r <= here.r + R; r++) {
                 var dc = c - here.c, dr = r - here.r;
                 if (dc === 0 && dr === 0) continue;
-                if (Math.sqrt(dc * dc + dr * dr) <= R + 1e-9 && inArc({ c: c, r: r }) && lineClear(here, { c: c, r: r }, grid, blockers)) push({ c: c, r: r });
+                if (Math.sqrt(dc * dc + dr * dr) <= R + 1e-9 && inArc({ c: c, r: r }) && lineClear(here, { c: c, r: r })) push({ c: c, r: r });
             }
         return out;
     }
@@ -277,10 +300,26 @@ function visibleCells(viewer, grid, blockers) {
             var cell = { q: q, r: rr };
             if (hexDist(here, cell) > R) continue;
             if (q === here.q && rr === here.r) continue;
-            if (inArc(cell) && lineClear(here, cell, grid, blockers)) push(cell);
+            if (inArc(cell) && lineClear(here, cell)) push(cell);
         }
     return out;
 }
+
+// Lighting (backlog 14, owner 2026-09-28): one viewer's seen cells, each with its tier — 2 clear or bright, 1 dim. ctx absent or its level not a
+// number (lighting off): exactly visibleCells, every cell tier 2. ctx.level, the map's light (0 dark, 1 dim, 2 bright): a cell within the
+// viewer's Sight (viewer.range: its sight in the dark) is seen clear whatever the light; beyond it, out to the vision cap, a dim or bright cell
+// in the arc and the line of sight is seen at its level, a dark one is not
+function seenCells(viewer, grid, blockers, ctx) {
+    var lvl = ctx && fin(ctx.level) ? clamp(Math.round(ctx.level), 0, 2) : null, out = [];
+    if (!viewer || !grid) return out;
+    if (lvl === null || lvl === 0) { var base = visibleCells(viewer, grid, blockers); for (var i = 0; i < base.length; i++) out.push({ key: base[i].key, cell: base[i].cell, tier: 2 }); return out; }
+    var sight = clamp(viewer.range | 0, 0, LIMITS.rangeCells), here = fin(viewer.x) && fin(viewer.y) ? cellOf(viewer.x, viewer.y, grid) : null;
+    var far = visibleCells({ x: viewer.x, y: viewer.y, front: viewer.front, arc: viewer.arc, range: LIMITS.rangeCells }, grid, blockers);
+    for (var j = 0; j < far.length; j++) out.push({ key: far[j].key, cell: far[j].cell, tier: cellDist(here, far[j].cell, grid) <= sight + 1e-9 ? 2 : lvl });
+    return out;
+}
+// The distance between two cells as vision measures it: straight-line cells on a square grid, hex steps on a hex grid
+function cellDist(a, b, grid) { if (!a || !b || !grid) return Infinity; if (grid.type === 'square') { var dc = a.c - b.c, dr = a.r - b.r; return Math.sqrt(dc * dc + dr * dr); } return hexDist(a, b); }
 
 // The union of a party's viewers → a Set of revealed cell keys (plus manual adds, minus manual cuts).
 function revealedKeys(viewers, grid, manual, blockers) {
@@ -312,6 +351,7 @@ function cleanFog(fog) {   // per-map: { on, mode, vision?, cell?, manual:{adds,
     if (!isObj(fog)) return null;
     var out = { on: fog.on === true, mode: MODES[fog.mode] ? fog.mode : 'auto' };
     var vis = cleanVision(fog.vision); if (vis) out.vision = vis;   // absent → grid-type default is resolved at read time
+    if (fog.light === 'bright' || fog.light === 'dim' || fog.light === 'dark') out.light = fog.light;   // lighting (backlog 14): the map's light; absent = auto
     if (isObj(fog.cell) && (fog.cell.grid === 'square' || fog.cell.grid === 'hex') && fin(fog.cell.len)) out.cell = { grid: fog.cell.grid, len: clamp(fog.cell.len, LIMITS.len[0], LIMITS.len[1]) };
     var m = isObj(fog.manual) ? fog.manual : {};
     var adds = [], cuts = [];
@@ -331,6 +371,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight}, defaults:{sig
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

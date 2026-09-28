@@ -212,6 +212,40 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && oj(oFar) === oj({ x: 325, y: 225 }) && !!oInf && Math.hypot(oInf.x - 275, oInf.y - 225) === 50 && oj(oOblique) === oj({ x: 225, y: 525 }) && oj(oTwo) === oj({ x: 175, y: 525 })
             && !!oHexSK && oHexSK.q === 2 && Math.hypot(oHexS.x - hHit.x, oHexS.y - hHit.y) < hx.s * 1.8 && !hW[oHexK] && Math.abs(oHex.x - hp0.x) < hp0.x - hT.x, oj([oL, oR, oClick, oRing, oHex]));
     }
+    /* ---- lighting (backlog 14, owner 2026-09-28): a viewer's seen cells with their light tier ---- */
+    {
+        const { seenCells, cellDist, visibleCells: VC } = X, lj = JSON.stringify;
+        const v0 = { x: 125, y: 125, range: 2 }, keysT = arr => arr.map(o => o.key + ':' + o.tier).sort().join(' ');
+        const off = seenCells(v0, sq, null), dark = seenCells(v0, sq, null, { level: 0 }), plain = VC(v0, sq, null);
+        check('Lighting: seenCells with lighting off (no level) or a dark map is exactly visibleCells, every cell clear (tier 2): the same cells as before',
+            keysT(off) === keysT(plain.map(o => ({ key: o.key, tier: 2 }))) && keysT(dark) === keysT(off) && off.length === plain.length && off.length > 1);
+        const bright = seenCells(v0, sq, null, { level: 2 }), dim = seenCells(v0, sq, null, { level: 1 }), tierAt = (arr, k) => { const o = arr.find(e => e.key === k); return o ? o.tier : 0; };
+        const wallL = {}; for (let r = 0; r <= 30; r++) wallL['6,' + r] = 1;
+        const brightW = seenCells(v0, sq, wallL, { level: 2 }), cone = seenCells(Object.assign({ front: 90, arc: 90 }, v0), sq, null, { level: 2 });
+        check('Lighting: on a bright map a token sees every cell in its line of sight out to the vision cap, clear; on a dim one clear within its sight in the dark and dim (tier 1) beyond; walls stop it; a facing cone still aims it',
+            tierAt(bright, '22,2') === 2 && tierAt(bright, '2,62') === 2 && tierAt(bright, '2,63') === 0 && tierAt(dim, '3,2') === 2 && tierAt(dim, '4,2') === 2 && tierAt(dim, '5,2') === 1 && tierAt(dim, '22,2') === 1
+            && tierAt(brightW, '5,2') === 2 && tierAt(brightW, '6,2') === 2 && tierAt(brightW, '9,2') === 0 && tierAt(cone, '22,2') === 2 && tierAt(cone, '2,22') === 0 && tierAt(cone, '2,0') === 0,
+            lj([tierAt(bright, '22,2'), tierAt(dim, '5,2'), tierAt(brightW, '9,2'), tierAt(cone, '2,22')]));
+        const far = VC({ x: 5025, y: 5025, range: 60 }, sq, null), farH = VC({ x: cellCenter({ q: 0, r: 0 }, hx).x, y: cellCenter({ q: 0, r: 0 }, hx).y, range: 60, arc: 360 }, hx, null);
+        check('Lighting: the vision cap holds the whole disc at 60 cells (the east side is no longer cut off at 51 and past): 11,289 cells on a square grid, 10,981 on a hex one, the east edge included',
+            LIMITS.cells === 12000 && far.some(o => o.key === '160,100') && far.some(o => o.key === '40,100') && far.length === 11289 && farH.length === 10981 && farH.some(o => o.key === '60:0') && farH.some(o => o.key === '-60:0'), far.length + ' ' + farH.length);
+        // the line of sight inside visibleCells walks only the walls within reach, on numeric codes: exactly the cells lineClear over every blocker gives
+        let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+        const refVis = (v, g, blk) => { const here = cellOf(v.x, v.y, g), hk = cellKey(here, g); return VC(v, g, null).filter(o => o.key === hk || lineClear(here, o.cell, g, blk)).map(o => o.key).sort().join(' '); };
+        let same = 0, runs = 0;
+        [[sq, { x: 1025, y: 1025 }], [hx, cellCenter({ q: 10, r: 10 }, hx)]].forEach(([g, p]) => {
+            for (let t = 0; t < 6; t++) {
+                const blk = {}, hc = cellOf(p.x, p.y, g); for (let n = 0; n < 140; n++) { const dc = Math.round((rnd() - 0.5) * 60), dr = Math.round((rnd() - 0.5) * 60); if (dc || dr) blk[g.type === 'square' ? (hc.c + dc) + ',' + (hc.r + dr) : (hc.q + dc) + ':' + (hc.r + dr)] = 1; }
+                blk[g.type === 'square' ? '999,999' : '999:999'] = 1;
+                const v = { x: p.x, y: p.y, range: t < 3 ? 12 : 60, arc: t % 2 ? 360 : 120, front: 45 * t };
+                runs++; if (VC(v, g, blk).map(o => o.key).sort().join(' ') === refVis(v, g, blk)) same++;
+            }
+        });
+        check('Lighting: a token\'s line of sight walks only the walls within its reach, on numeric cell codes — the same cells as lineClear over every wall on the map (square and hex, sight 12 and the full 60, a facing cone and all around, walls far off ignored)', same === runs && runs === 12, same + '/' + runs);
+        check('Lighting: cleanFog keeps a map\'s light (bright, dim or dark) and drops anything else (absent = auto); cellDist measures cells as vision does',
+            cleanFog({ on: true, light: 'dim' }).light === 'dim' && cleanFog({ on: true, light: 'dark' }).light === 'dark' && cleanFog({ on: true, light: 'bright' }).light === 'bright' && cleanFog({ on: true, light: 'Dark' }).light === undefined
+            && !('light' in cleanFog({ on: true, light: { toString: 'dim' } })) && cellDist({ c: 0, r: 0 }, { c: 3, r: 4 }, sq) === 5 && cellDist({ q: 0, r: 0 }, { q: 2, r: -1 }, hx) === 2 && cellDist(null, { c: 0, r: 0 }, sq) === Infinity);
+    }
     /* ---- union + revealed test + manual ---- */
     check('revealedKeys unions viewers and applies manual adds/cuts; pointRevealed tests a board point', (() => {
         const v1 = { x: 125, y: 125, range: 1, ruleset: 'dnd' };
@@ -307,9 +341,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             k0.length === 1 && k1.length === 1 && k0[0] !== k1[0] && JSON.stringify(k1) === JSON.stringify(k2), JSON.stringify([k0, k1]));
         // cover follow-ups: fog.js's cover — a map's pieces (coverSetsFor), the ruler (coverBetween), a blast point to a token (coverAt), where a
         // thrown blast goes off (blastSeat) and the caches' reset (invalidateVision) — sliced and run strict on the real fogcore
-        const js = JSON.stringify, lineOf = a => { const i = fogSrc.indexOf(a), k = fogSrc.indexOf(NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogSrc.slice(i, k + 1); };
+        const ixF = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, NL);
+        const js = JSON.stringify, lj = JSON.stringify, lineOf = a => { const i = fogSrc.indexOf(a), k = fogSrc.indexOf(NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogSrc.slice(i, k + 1); };
         let campCv = { system: { combat: { cover: { on: true } } } }, mapNow = null;
-        const CV = new Function('core', 'activeCamp', 'activeMap', 'gridForMap', 'window', "'use strict'; var _coverCache = Object.create(null), _coverStamp = Object.create(null), _keyCache, _blockerCache, _blockerStamp, _maskCache, _maskStamp;" + NL
+        const CV = new Function('core', 'activeCamp', 'activeMap', 'gridForMap', 'window', "'use strict'; var _viewCache, _coverCache = Object.create(null), _coverStamp = Object.create(null), _keyCache, _blockerCache, _blockerStamp, _maskCache, _maskStamp;" + NL
             + lineOf('function invalidateVision()') + lineOf('function coverOn(') + cut('function footprintCells(') + cut('function coverBetween(x1') + cut('function coverSetsFor(') + cut('function coverAt(') + cut('function blastSeat(')
             + NL + 'return { coverSetsFor: coverSetsFor, coverAt: coverAt, coverBetween: coverBetween, blastSeat: blastSeat, invalidateVision: invalidateVision };')(
             () => FC, () => campCv, () => mapNow, () => grid, { wpSystemCore: { coverTier: (sys, coverage, lineOfEffect) => ({ coverage: coverage, lineOfEffect: lineOfEffect }) } });
@@ -359,6 +394,76 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('Cover: a blast seated in a wall (blastSeat, run strict) goes off in the open cell in front of it, toward the thrower (either side); an open cell, a see-over crate\'s cell or a map with no walls leave it; with cover off (the default) the ruler, a blast\'s cover and its seat work nothing out',
             js(sW) === js({ x: 75, y: 125 }) && js(sFar) === js({ x: 175, y: 125 }) && sOpen === null && sCrate === null && sEmpty === null && offA === null && offR === null && offS === null, js([sW, sFar, sOpen, sCrate, sEmpty, offA, offR, offS]));
         check('Cover: window.wpFog publishes the blast\'s cover and its seat', /coverAt: coverAt, blastSeat: blastSeat,/.test(fogSrc) && /coverBetween: coverBetween,/.test(fogSrc));
+        // lighting (backlog 14): the map's light level, the blockers' content version, the per-viewer memo, the tiered reveal and host enforcement on
+        // a lit map (fog.js, sliced and run strict)
+        let litOn = true;
+        const LT = new Function('core', 'vtt', 'mapFog', 'gridForMap', 'viewersFor', 'fogFeatureOn', 'fogMask', 'inMask', 'toast', "'use strict';" + NL
+            + lineOf('function lightingOn()') + lineOf('function placedLights(') + cut('function mapLevel(') + lineOf('var _blockerCache = Object.create(null)') + lineOf('var _blockerSig = Object.create(null)')
+            + cut('function eligibleBlocker(') + cut('function footprintCells(') + cut('function blockersFor(') + lineOf('var _viewCache = Object.create(null), _viewCells = 0') + cut('function viewSeen(') + cut('function revealedTiers(') + cut('function revealedCellList(') + cut('function fogDropIds(')
+            + NL + 'return { mapLevel: mapLevel, blockersFor: blockersFor, viewSeen: viewSeen, revealedTiers: revealedTiers, revealedCellList: revealedCellList, fogDropIds: fogDropIds, reset: function() { _viewCache = Object.create(null); _viewCells = 0; }, cells: function() { return _viewCells; }, setBudget: function(n) { VIEW_BUDGET = n; } };')(
+            () => FC, () => ({ on: f => f === 'lighting' ? litOn : true }), m => m.fog, () => grid, (m, camp, owner) => m.viewers.filter(v => owner === '*' || v.owner === owner), () => true, () => ({ mode: 'all' }), () => true, () => {});
+        let lmN = 0; const lmap = (fog, wb, viewers) => ({ id: 'lm' + (++lmN), type: 'map', meta: { updated: 1 }, fog: Object.assign({ on: true, mode: 'auto', manual: { adds: [], cuts: [] } }, fog), whiteboard: wb || [], viewers: viewers || [] });
+        const lamp = { id: 'lamp', type: 'light', x: 0, y: 0, w: 20, h: 20 };
+        const lvls = [LT.mapLevel(lmap({})), LT.mapLevel(lmap({}, [lamp])), LT.mapLevel(lmap({}, [Object.assign({ hidden: true }, lamp)])), LT.mapLevel(lmap({ light: 'dim' })), LT.mapLevel(lmap({ light: 'dark' })), LT.mapLevel(lmap({ light: 'bright' }, [lamp]))];
+        litOn = false; const lvlOff = LT.mapLevel(lmap({ light: 'bright' })); litOn = true;
+        check('Lighting: a map\'s light — auto is bright until a light source is placed on it (a hidden one does not count), then dark; bright, dim or dark as set; the Lighting switch off leaves fog as before (no level)',
+            lj(lvls) === lj([2, 0, 2, 1, 0, 2]) && lvlOff === null, lj([lvls, lvlOff]));
+        const pv = { x: 125, y: 125, range: 2, arc: 360, owner: 'p1' }, lmB = lmap({ light: 'bright', manual: { adds: [{ c: 40, r: 40 }], cuts: [{ c: 2, r: 3 }] } }, [], [pv]);
+        const tB = LT.revealedTiers(lmB, {}, 'p1'), lmD = lmap({ light: 'dim', manual: { adds: [{ c: 20, r: 2 }], cuts: [] } }, [], [pv]), tD = LT.revealedTiers(lmD, {}, 'p1');
+        const pv2 = { x: 1025, y: 125, range: 3, arc: 360, owner: 'p1' }, tTwo = LT.revealedTiers(lmap({ light: 'dim' }, [], [pv, pv2]), {}, 'p1');
+        litOn = false; LT.reset(); const tOff = LT.revealedTiers(lmap({ light: 'bright' }, [], [pv]), {}, 'p1'); litOn = true;
+        check('Lighting: the cells revealed to a player carry their tier (a manual reveal clear even on a dim map, a manual hide removed, a dim map\'s far cells dim, the clearest tier any of their tokens gives); with the switch off only its sight shows, all clear; revealedCellList is every tier\'s cell',
+            tB.keys['22,2'] === 2 && tB.keys['40,40'] === 2 && tB.keys['2,3'] === undefined && !tB.list.some(o => o.key === '2,3') && tD.keys['22,2'] === 1 && tD.keys['3,2'] === 2
+            && tOff.keys['22,2'] === undefined && tOff.keys['3,2'] === 2 && Object.keys(tOff.keys).every(k => tOff.keys[k] === 2)
+            && tD.keys['20,2'] === 2 && tD.keys['21,2'] === 1 && tTwo.keys['21,2'] === 2 && tTwo.keys['4,2'] === 2 && tTwo.keys['12,2'] === 1
+            && LT.revealedCellList(lmD, {}, 'p1').length === tD.list.length && tD.list.some(o => tD.keys[o.key] === 1) && LT.revealedTiers(lmap({ mode: 'reveal' }, [], [pv]), {}, 'p1') === null && Object.keys(LT.revealedTiers(lmap({ light: 'bright', mode: 'cover' }, [], [pv]), {}, 'p1').keys).length === 0,
+            lj([tB.keys['22,2'], tD.keys['22,2'], tOff.keys['22,2']]));
+        // the memo: the same answer while nothing it reads changes (a save that moves nothing it reads keeps it), afresh for a new sight, cell,
+        // cone, level or wall; all-around vision never keys on facing; bounded by cells
+        LT.reset(); const mm = lmap({ light: 'bright' }, [], [pv]), bl0 = LT.blockersFor(mm, grid), s1 = LT.viewSeen(mm, grid, bl0, 2, pv), s2 = LT.viewSeen(mm, grid, bl0, 2, pv), s3 = LT.viewSeen(mm, grid, bl0, 2, Object.assign({}, pv, { range: 3 }));
+        const sTurn = LT.viewSeen(mm, grid, bl0, 2, Object.assign({}, pv, { front: 137 }));
+        mm.meta.updated = 2; const bl1 = LT.blockersFor(mm, grid), s4 = LT.viewSeen(mm, grid, bl1, 2, pv), s5 = LT.viewSeen(mm, grid, bl1, 1, pv);
+        mm.whiteboard.push({ id: 'wl', type: 'rect', x: 500, y: 0, w: 50, h: 1550, blocksSight: true }); mm.meta.updated = 3;
+        const bl2 = LT.blockersFor(mm, grid), s6 = LT.viewSeen(mm, grid, bl2, 2, pv), s6b = (() => { mm.whiteboard.push({ id: 'wl3', type: 'rect', x: 250, y: 0, w: 50, h: 1550, blocksSight: true }); mm.meta.updated = 4; return LT.viewSeen(mm, grid, LT.blockersFor(mm, grid), 2, pv); })(), sTok = LT.blockersFor(lmap({}, [{ id: 'tk', type: 'circle', isChar: true, blocksSight: true, x: 0, y: 0, w: 50, h: 50 }, { id: 'wt', type: 'circle', waiting: 1, blocksSight: true, x: 100, y: 0, w: 50, h: 50 }]), grid);
+        check('Lighting: one viewer\'s seen cells are worked out once per map — the same answer again while nothing it reads changes (a save that moves no wall keeps it; an all-around token turning keeps it), afresh for a different sight, light level or wall; a token (a character or a waiting one) never blocks sight',
+            s1 === s2 && s3 !== s1 && sTurn === s1 && s4 === s1 && s5 !== s4 && s5.some(o => o.tier === 1) && s6 !== s1 && s6.length < s1.length && !s6.some(o => o.key === '22,2') && s6b !== s6 && !s6b.some(o => o.key === '7,2') && s6.some(o => o.key === '7,2') && sTok === null);
+        const cone = (front, arc) => ({ x: 1525, y: 125, range: 0, arc: arc, front: front, owner: 'p1' });
+        const eastFoe = { id: 'east', isChar: true, ownerId: 'gm', x: 2500, y: 100, w: 50, h: 50 }, westFoe = { id: 'west', isChar: true, ownerId: 'gm', x: 500, y: 100, w: 50, h: 50 };
+        LT.reset(); const cm = lmap({ light: 'bright' }, [eastFoe, westFoe], [cone(90, 90)]), dE = LT.fogDropIds('p1', {}, cm); cm.viewers = [cone(270, 90)]; const dW = LT.fogDropIds('p1', {}, cm); cm.viewers = [cone(270, 360)]; const dA = LT.fogDropIds('p1', {}, cm);
+        cm.viewers = [Object.assign(cone(90, 90), { x: 125 })]; const dMoved = LT.fogDropIds('p1', {}, cm);
+        check('Lighting: the memo keys on the token\'s cell, its facing (for a cone) and its arc — a cone turned from east to west now drops the east creature, all around drops none, the cone moved to the west edge sees both creatures ahead of it',
+            lj(dE) === lj({ west: 1 }) && lj(dW) === lj({ east: 1 }) && dA === null && dMoved === null, lj([dE, dW, dA, dMoved]));
+        LT.reset(); LT.setBudget(400); const bm = lmap({ light: 'bright' }, [], []), bb = LT.blockersFor(bm, grid); LT.viewSeen(bm, grid, bb, 2, Object.assign({}, pv, { range: 60 })); const c1 = LT.cells(); LT.viewSeen(bm, grid, bb, 2, Object.assign({}, pv, { x: 525 })); const c2 = LT.cells(); LT.setBudget(250000); LT.reset();
+        check('Lighting: the memo is bounded by cells across every map — past its budget it starts afresh rather than growing (two full discs over a small budget hold one)', c1 > 11000 && c2 === c1, c1 + ' ' + c2);
+        const foe = { id: 'foe', isChar: true, ownerId: 'gm', x: 1000, y: 100, w: 50, h: 50 }, me = { id: 'me', isChar: true, ownerId: 'p1', x: 100, y: 100, w: 50, h: 50 };
+        LT.reset(); const dropB = LT.fogDropIds('p1', {}, lmap({ light: 'bright' }, [me, foe], [pv])), dropK = LT.fogDropIds('p1', {}, lmap({ light: 'dark' }, [me, foe], [pv]));
+        LT.reset(); const wallFoe = lmap({ light: 'bright' }, [me, foe, { id: 'wl2', type: 'rect', x: 500, y: 0, w: 50, h: 1550, blocksSight: true }], [pv]); const dropW = LT.fogDropIds('p1', {}, wallFoe);
+        check('Lighting: a player\'s copy of a lit map keeps a creature in their line of sight at any distance; a dark map or a wall between still drops it',
+            dropB === null && !!dropK && dropK.foe === 1 && !!dropW && dropW.foe === 1 && !dropK.me, lj([dropB, dropK, dropW]));
+        // the overlay's punch (draw, run strict on a recording canvas): a dim cell part-way, a clear one fully, each tier one path filled once
+        const drawRun = (tiersRes) => { const rec = [], cx = { save() {}, restore() {}, clearRect() {}, fillRect() { rec.push({ base: true, style: this.fillStyle }); }, beginPath() { this._n = 0; }, rect() { this._n++; }, moveTo() {}, lineTo() {}, closePath() { this._n++; }, clip() {}, fill() { rec.push({ op: this.globalCompositeOperation, style: this.fillStyle, n: this._n }); } };
+            const canvas = { getContext: () => cx }, scr = { clientWidth: 2000, clientHeight: 2000, querySelector: () => canvas };
+            new Function('screenEl', 'placeScreen', 'ui', 'core', 'active', 'activeMap', 'activeCamp', 'gridForMap', 'fogMask', 'revealedTiers', 'drawOwner', 'isClientView', 'state', 'hexPath', "'use strict';" + NL + cut('function draw(') + NL + 'return draw;')(
+                () => scr, () => {}, () => ({ scrollLeft: 0, scrollTop: 0 }), () => FC, () => true, () => ({}), () => ({}), () => grid, () => ({ mode: 'all' }), () => tiersRes, () => '*', () => true, { zoomLevel: 1 }, () => {})();
+            return rec.filter(r => !r.base); };
+        const cellsT = [[0, 0, 2], [1, 0, 1], [2, 0, 1], [3, 0, 2], [4, 0, 2]], tiersMix = { list: cellsT.map(([c, r]) => ({ key: c + ',' + r, cell: { c, r } })), keys: {} }; cellsT.forEach(([c, r, t]) => { tiersMix.keys[c + ',' + r] = t; });
+        const tiersClear = { list: tiersMix.list, keys: Object.fromEntries(Object.keys(tiersMix.keys).map(k => [k, 2])) }, pm = drawRun(tiersMix), pc = drawRun(tiersClear);
+        check('Lighting: the overlay punches the dim cells part-way in one pass and the clear or bright ones fully in the next (drawn for real on a recording canvas); with no dim cell, one full pass as before',
+            lj(pm) === lj([{ op: 'destination-out', style: 'rgba(0,0,0,0.5)', n: 2 }, { op: 'destination-out', style: 'rgba(0,0,0,1)', n: 3 }]) && lj(pc) === lj([{ op: 'destination-out', style: 'rgba(0,0,0,1)', n: 5 }]), lj([pm, pc]));
+        check('Lighting: the fog menu sets a map\'s light (Auto, Bright, Dim, Dark) only while Lighting is on, saved, and follows the switch while open; window.wpFog reports it; a save or a received change no longer clears the viewer memo',
+            /var lrow = ui\('fogLightRow'\); if \(lrow\) lrow\.style\.display = lightingOn\(\) \? '' : 'none';/.test(fogSrc)
+            && /if \(lsel\.value === 'bright' \|\| lsel\.value === 'dim' \|\| lsel\.value === 'dark'\) mf\.light = lsel\.value; else delete mf\.light;\n\s*save\(\); invalidateVision\(\); syncMenu\(\); redraw\(\);/.test(fogSrc) && /lightLevel: mapLevel,/.test(fogSrc)
+            && /<div id="fogLightRow" style="display:none;">[\s\S]{0,700}<select id="fogLight"[^>]*>\s*<option value="auto">Auto &mdash; lit<\/option>\s*<option value="bright">Bright<\/option>\s*<option value="dim">Dim<\/option>\s*<option value="dark">Dark<\/option>/.test(ixF)
+            && /id="setLightingBtn"/.test(ixF) && /id="setVttGlobalLightingBtn"/.test(ixF) && /function invalidateVision\(\) \{ _coverCache = Object\.create\(null\);/.test(fogSrc) && !/_viewCache = Object\.create\(null\); _coverCache/.test(fogSrc)
+            && /var fmu = ui\('fogMenu'\); if \(showBtn && fmu && fmu\.classList\.contains\('show'\)\) syncMenu\(\);/.test(fogSrc) && !/until you place a light/.test(ixF));
+        const inF = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, NL);
+        check('Lighting: a token\'s Properties never offer Blocks sight (a token never blocks sight, as the fog rule says)',
+            /\(\['rect','hexagon','circle','diamond'\]\.indexOf\(w\.type\) >= 0 && !w\.hidden && !w\.isChar && !w\.waiting \? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight"/.test(inF));
+        const tuF = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, NL);
+        check('Lighting: the Tutorial\'s Dark Cellar is dark (a new Tutorial, and an older one once, on its next start; a GM\'s own later choice stays), so Bren\'s sight in the dark is what lights it and the Lurker stays out of view',
+            /fm\.fog = \{ on: true, mode: 'auto', light: 'dark', manual: \{ adds: \[\], cuts: \[\] \} \};/.test(tuF)
+            && /if \(!camp\.tutorialLight\) \{ var tfog = camp\.items\.map_tut_fog\.fog; if \(tfog && typeof tfog === 'object' && tfog\.light === undefined\) tfog\.light = 'dark'; camp\.tutorialLight = 1; \}/.test(tuF)
+            && tuF.indexOf('if (!camp.tutorialLight)') > tuF.indexOf('// 1.5.0 sight-blocking: the demo pillars block'));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

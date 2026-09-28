@@ -2343,17 +2343,25 @@ function editBtn(entry, c, f, mode, cust) {   // ✎ opens this row's form (or c
 // when a custom row asks. A custom row its owner sees whose key one of those has gets a mark on the GM's sheet: their sheet (and the host's roll
 // path) see only theirs, so F5a's addressed lookup reads the rows its owner can see first, on every machine
 function unseenKeys(c, f, carried, sysI) {
-    var m = null;
-    return function() {
+    var m = null, dup = null, all = function() { return c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : carried; };
+    var get = function() {
         if (m) return m; m = Object.create(null);
-        var all = c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : carried;
-        all.forEach(function(r) { var d = r && typeof r === 'object' ? rowDef(sysI, r) : null, k = d && d.def && typeof d.def.key === 'string' ? d.def.key.toLowerCase() : ''; if (k && (r.hid === 1 || d.def.vis === 'gm')) m[k] = 1; });
+        all().forEach(function(r) { var d = r && typeof r === 'object' ? rowDef(sysI, r) : null, k = d && d.def && typeof d.def.key === 'string' ? d.def.key.toLowerCase() : ''; if (k && (r.hid === 1 || d.def.vis === 'gm')) m[k] = 1; });
         return m;
     };
+    get.dup = function() {   // owed review F4c3#3: a key two of its visible rows hold, or a row and an item or core entry of the list (taken after the custom row had it)
+        if (dup) return dup; dup = Object.create(null); var n = Object.create(null), cats = f.list && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(x) { return String(x).toLowerCase(); }) : null;
+        all().forEach(function(r) { var d = r && typeof r === 'object' ? rowDef(sysI, r) : null, k = d && d.def && typeof d.def.key === 'string' ? d.def.key.toLowerCase() : ''; if (k && r.hid !== 1 && d.def.vis !== 'gm' && d.src !== 'lib' && d.src !== 'item') n[k] = (n[k] | 0) + 1; });
+        ((sysI && sysI.items) || []).concat((sysI && sysI.core) || []).forEach(function(it) { var k = it && typeof it.key === 'string' ? it.key.toLowerCase() : ''; if (k && (!cats || cats.indexOf(String(it.category || '').toLowerCase()) >= 0)) n[k] = (n[k] | 0) + 1; });
+        Object.keys(n).forEach(function(k) { if (n[k] > 1) dup[k] = 1; });
+        return dup;
+    };
+    return get;
 }
 function keyShareChip(host, entry, rd, unseen) {
     var d = rd && rd.src === 'custom' ? rd.def : null, k = d && typeof d.key === 'string' ? d.key.toLowerCase() : '';
-    if (!unseen || !k || entry.hid === 1 || d.vis === 'gm' || unseen()[k] !== 1) return;
+    if (!unseen || !k || entry.hid === 1 || d.vis === 'gm') return;
+    if (unseen()[k] !== 1) { if (unseen.dup && unseen.dup()[k] === 1) { var cd = el('span', 'sheet-chip sheet-item-keyshare', 'key shared with another row or item'); cd.title = 'Another row or an item of this list has the key ' + d.key + ' too; formulas that read the key (List.key.lvl) find this row first'; host.appendChild(cd); } return; }
     var ch = el('span', 'sheet-chip sheet-item-keyshare', 'key shared with a GM-only row'); ch.title = 'A row its player cannot see (GM-only, or kept out of their sight) on this list has the key ' + d.key + ' too; formulas that read the key (List.key.lvl) find this row on their sheet'; host.appendChild(ch);
 }
 function ovDot(title) { var d = el('span', 'sheet-ov', '•'); d.title = title; return d; }
@@ -2382,6 +2390,13 @@ function statDot(s, spec, ovc) {   // a stat's dot ("Changed on this copy · lib
 var _rfClearing = false;   // F4c2 review: true while buildSections clears a view (a blur there fires change: the form keeps what was typed instead)
 // The form: mode 'gm' — a linked copy's own name, icon, category, notes, stats, blast, formulas and its removal and switch locks; mode 'stats' —
 // its owner's own stats (one the GM set is read-only, "Set by the GM"). Drawn only where ✎ is (editable, rowRights)
+// A list naming no categories: the categories of the items and core entries in sight, and on the GM's machine the library's (owed review
+// F4c3#9: once the items moved into the library, a custom row found none); a player never gets the library's hidden ones
+function catChoices(sysI) {
+    var out = []; ((sysI && sysI.items) || []).concat((sysI && sysI.core) || []).forEach(function(it) { if (it && it.category) out.push(it.category); });
+    var LBk = window.wpLibrary; if (typeof isClient === 'function' && !isClient() && LBk && LBk.catsFor) { var lcs = LBk.catsFor(); if (lcs) out = out.concat(lcs.show || [], lcs.hide || []); }
+    return out;
+}
 function rowForm(entry, rd, c, f, spec, sysI, mode) {
     if (rd.src === 'custom') return customForm(entry, rd, c, f, spec, sysI, mode);   // F4c3: a custom row's own form (its values are its own: nothing behind them)
     var rid = rowIdOf(entry), ov = entry.ov && typeof entry.ov === 'object' ? entry.ov : {}, base = rd.base || {}, lost = rd.src === 'lost', stRef = _rowForm, typed = stRef && stRef.typed ? stRef.typed : {};
@@ -2420,7 +2435,7 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
         text('name', 'Name', LIMITS.name, base.name || '');
         text('icon', 'Icon', 48, base.icon || 'An emoji, or icon:name');
         var cats = [], seenC = Object.create(null), pushC = function(x) { var t = String(x || '').trim(); if (t && !seenC[t.toLowerCase()]) { seenC[t.toLowerCase()] = 1; cats.push(t); } };
-        if (spec && Array.isArray(spec.cats) && spec.cats.length) spec.cats.forEach(pushC); else ((sysI && sysI.items) || []).forEach(function(it) { pushC(it && it.category); });
+        if (spec && Array.isArray(spec.cats) && spec.cats.length) spec.cats.forEach(pushC); else catChoices(sysI).forEach(pushC);
         if (typeof ov.category === 'string' && ov.category && cats.indexOf(ov.category) < 0) cats.push(ov.category);   // its own spelling (blade where the list says Blade) is an option of its own, chosen
         var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', lib + (base.category || '(none)'), ov.category === undefined)); cats.forEach(function(x) { cs.appendChild(opt(x, x, ov.category === x)); });
         cs.addEventListener('change', function() { one('category', cs.value || null); });
@@ -2488,7 +2503,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     var nb = text('name', 'Name', LIMITS.name, d.name || '', 'Its name (blank keeps it)');
     text('icon', 'Icon', 48, d.icon || '', 'An emoji, or icon:name');
     var cats = [], seenC = Object.create(null), curC = typeof d.category === 'string' ? d.category : '', pushC = function(x) { var t = String(x || '').trim(); if (t && !seenC[t.toLowerCase()]) { seenC[t.toLowerCase()] = 1; cats.push(t); } };
-    if (spec && Array.isArray(spec.cats) && spec.cats.length) spec.cats.forEach(pushC); else ((sysI && sysI.items) || []).forEach(function(it) { pushC(it && it.category); });
+    if (spec && Array.isArray(spec.cats)) spec.cats.forEach(pushC); else catChoices(sysI).forEach(pushC);   // owed review F5a1#7: a players' view's empty list (every category GM-only) offers none
     if (curC && cats.indexOf(curC) < 0) cats.push(curC);   // its own (a spelling the list does not have) stays chosen
     var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', '(none)', !curC)); cats.forEach(function(x) { cs.appendChild(opt(x, x, x === curC)); });
     cs.addEventListener('change', function() { one('category', cs.value || null); }); add('Category', cs, 'category');
@@ -2989,10 +3004,11 @@ function applyAction(r, c, label, row) {   // row (H7b): { f, r, i } — a list'
     c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; });
     afterCharChange(c, false, res.values);
     var hit = [], low = [], keep = function(x) { var l = String(x).toLowerCase(); if (low.indexOf(l) < 0) { low.push(l); hit.push(String(x)); } };
-    var rowP = row ? rowRollNames(sys, c, row.f, row.r, res.names, F()) : null, nmA = rowP ? rowP.names : res.names, gmRow = !!(rowP && rowP.gm);   // H7b: what Row.* read (a column's own names, a choice's option) and a GM-only row
+    var rowP = row ? rowRollNames(sys, c, row.f, row.r, res.names, F()) : null, nmA = rowP ? rowP.names : res.names, gmRow = !!(rowP && rowP.gm), keptRow = !!(rowP && rowP.kept);   // owed review F5b#2: a curse the GM keeps on (its owner sees it off)   // H7b: what Row.* read (a column's own names, a choice's option) and a GM-only row
     if (n && n.active && n.role === 'host' && act.vis !== 'gm') { gmOnlyNames(sys, nmA).concat(gmDerivedNames(sys, F(), nmA), gmEffectNames(vv, nmA)).forEach(keep); var ls = row ? '' : labelSecret(sys, vv, act.label); if (ls) keep(ls); }
-    var scope = applyScope(sys, c, act, hit.length > 0 || gmRow, F()), pub = applyScope(sys, c, act, false, F()) !== 'gm';
-    if (gmRow && pub) toast('Kept private: that is on a GM-only item.');
+    var scope = applyScope(sys, c, act, hit.length > 0 || gmRow || keptRow, F()), pub = applyScope(sys, c, act, false, F()) !== 'gm';
+    if (gmRow && pub) toast('Kept private: that is on a GM-only item or list.');
+    else if (keptRow && pub) toast('Kept private: its owner sees that item switched off.');
     else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
     if (n && n.postApplyCard) n.postApplyCard(c, label, res.lines, scope);
 }
@@ -3119,14 +3135,15 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
     c.values = c.values || {}; c.values[f.id] = res.value;
     var d = {}; d[f.id] = res.value;
-    if (ownerSeesSame(camp, sys, prev, res.value)) d = {};   // Stage 6: a change only to a row its owner never holds (a kept curse) is saved and never sent — even an unchanged copy would tell them
+    if (ownerSeesSame(camp, sys, prev, res.value, f.id)) d = {};   // Stage 6: a change only to a row its owner never holds (a kept curse) is saved and never sent — even an unchanged copy would tell them
     afterCharChange(c, false, d);
 }
 // Stage 6: whether the owner's copy of a list is the same before and after (the players' view, the full library for GM-only inline rows)
-function ownerSeesSame(camp, sys, a, b) {
+function ownerSeesSame(camp, sys, a, b, fid) {
     var pv = playerSystem(camp); if (!pv) return false;
     var lib = {}; (sys.items || []).forEach(function(it) { if (it && typeof it.id === 'string') lib[it.id] = it; });
-    return JSON.stringify(projectRows(Array.isArray(a) ? a : [], pv, lib, true)) === JSON.stringify(projectRows(Array.isArray(b) ? b : [], pv, lib, true));   // F4c1 (critic 1): compare only — every stat kept (a list's own narrowing is a function of these), damage, cost and locks never
+    var pf = null; (pv.fields || []).forEach(function(x) { if (x && x.id === fid) pf = x; }); var sp = pf && pf.list ? pf.list : true;   // owed review F5a2#4: the list as its owner gets it (a choice's secret label narrowed away); not in their view: every stat (fail closed toward sending)
+    return JSON.stringify(projectRows(Array.isArray(a) ? a : [], pv, lib, sp)) === JSON.stringify(projectRows(Array.isArray(b) ? b : [], pv, lib, sp));   // F4c1 (critic 1): damage, cost and locks never
 }
 function revertLast() {
     if (!lastChange || isClient()) return;
@@ -3135,7 +3152,7 @@ function revertLast() {
     if (lastChange.prev === undefined) { delete c.values[lastChange.fieldId]; d[lastChange.fieldId] = null; }
     else { c.values[lastChange.fieldId] = lastChange.prev; d[lastChange.fieldId] = lastChange.prev; }
     if (lastChange.extra) Object.keys(lastChange.extra).forEach(function(fid) { var pv = lastChange.extra[fid]; if (pv === undefined) { delete c.values[fid]; d[fid] = null; } else { c.values[fid] = pv; d[fid] = pv; } });   // 5h: a pool an effect's end brought down
-    if (fR && fR.kind === 'item-list' && ownerSeesSame(camp, sysR, curR, lastChange.prev)) delete d[fidR];   // F4b review: taking back a change its owner never held (a kept curse, a kept-on switch) tells them nothing
+    if (fR && fR.kind === 'item-list' && ownerSeesSame(camp, sysR, curR, lastChange.prev, fidR)) delete d[fidR];   // F4b review: taking back a change its owner never held (a kept curse, a kept-on switch) tells them nothing
     lastChange = null;
     afterCharChange(c, d[Object.keys(d)[0]] === null, d);
     toast('Reverted.');
@@ -3433,7 +3450,7 @@ function removeMade(id, note) {
 // What a download holds (sheetexport.js writes it): a player — their own whole copy as their sheet shows it; the GM — the players' view of any
 // character (the owner's projection, as the host sends it; an NPC or an unassigned one too), or with "Include GM-only fields" their full copy
 function fxLibOf(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }   // net.js fxLib, alike
-function itemLibOf(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = window.wpLibrary; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : L.entry(id); } : lib; }   // net.js itemLib, alike
+function itemLibOf(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = window.wpLibrary; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : (L.entryFor || L.entry)(id); } : lib; }   // net.js itemLib, alike (a GM-only pack's entry reads GM-only: owed review F4c3#2)
 function exportView(charId, gmAll) {
     var camp = getActiveCampaign(), c0 = camp ? charById(charId, camp) : null; if (!camp || !c0 || c0.partial || !canOpen(c0.id)) return null;
     var sys = null, view = null, gm = false;
@@ -3844,7 +3861,7 @@ function refreshErrors() {
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past ten, a price naming none, another list's spelling),
     // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
-    var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null);
+    var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null), firstDef = Object.create(null);
     draft.fields.forEach(function(f) {
         if (!f || f.kind !== 'item-list') return;
         var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
@@ -3855,7 +3872,7 @@ function refreshErrors() {
             var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: 'Stat key "' + k + '" repeats "' + mine[l] + '" (keys ignore case): Save keeps the first.' }); return; }
             mine[l] = k; if (++n > capS) return;
             if (typeof s.def === 'number' && isFinite(s.def) && Math.abs(s.def) > LIMITS.statAbs) errs.push({ message: 'Stat "' + k + '" has a default past ±1,000,000,000: Save drops it.' });
-            keptAll[l] = 1;
+            keptAll[l] = 1; if (!firstDef[l]) firstDef[l] = s;
             if (!firstSp[l]) firstSp[l] = { key: k, list: nm }; else if (firstSp[l].key !== k) errs.push({ message: 'Stat "' + k + '" is spelled "' + firstSp[l].key + '" on ' + firstSp[l].list + ': Save uses that spelling here too (one key, one spelling).' });
         });
         if (n > capS) errs.push({ message: 'At most ' + capS + ' stats a list: Save keeps the first ' + capS + '.' });
@@ -3864,11 +3881,23 @@ function refreshErrors() {
         if (errs.length) errorsById['list:' + f.id] = errs;
     });
     var camp0 = getActiveCampaign(), saved = systemOf(camp0), toldI = Object.create(null), hasKey = function(m, l) { return !!m && typeof m === 'object' && !Array.isArray(m) && Object.keys(m).some(function(k) { return k.toLowerCase() === l; }); };
+    var valOf = function(m, l) { var out; if (m && typeof m === 'object' && !Array.isArray(m)) Object.keys(m).forEach(function(k) { if (k.toLowerCase() === l) out = m[k]; }); return out; };
+    var misfits = function(ds, v) { return v !== undefined && v !== null && (ds.kind === 'pick' ? !(typeof v === 'string' && (Array.isArray(ds.opts) ? ds.opts : []).some(function(o) { return o && typeof o.label === 'string' && o.label.toLowerCase() === v.trim().toLowerCase(); })) : typeof v !== 'number'); };
+    var stillOn = function(sf, s, l) {   // a saved stat still on the card: characters' own values its kind or its options no longer take (the items' are said on their rows)
+        var df = null, ds = null; (draft.fields || []).forEach(function(x) { if (x && x.id === sf.id) df = x; });
+        (df && df.list && Array.isArray(df.list.stats) ? df.list.stats : []).forEach(function(x) { if (!ds && x && typeof x.key === 'string' && x.key.toLowerCase() === l) ds = x; });
+        if (!ds) return;
+        var nC = 0; Object.keys((camp0 && camp0.chars) || {}).forEach(function(cid) { var ch = camp0.chars[cid], rows = ch && ch.values && Array.isArray(ch.values[sf.id]) ? ch.values[sf.id] : []; if (rows.some(function(r) { return r && misfits(ds, (typeof r.defId !== 'string' && r.lnk !== 1 && r.def) ? valOf(r.def.stats, l) : (typeof r.defId === 'string' && r.ov) ? valOf(r.ov.stats, l) : undefined); })) nC++; });
+        if (!nC) return;
+        var why = (s.kind === 'pick') !== (ds.kind === 'pick') ? (ds.kind === 'pick' ? 'it is a choice now' : 'it is a number now') : 'an option they name is gone';
+        (errorsById['list:' + sf.id] = errorsById['list:' + sf.id] || []).push({ message: 'Save drops the \u201c' + ds.key + '\u201d values of ' + nC + ' character' + (nC === 1 ? '\u2019s copy' : 's\u2019 copies') + ' (' + why + ').' });
+    };
     (saved && Array.isArray(saved.fields) ? saved.fields : []).forEach(function(sf) {
         if (!sf || sf.kind !== 'item-list' || !sf.list || !Array.isArray(sf.list.stats)) return;
         var card = keptBy[sf.id];   // a list gone from the draft (or no longer a list) has no card: its items are told on their own rows (F4c1 review)
         sf.list.stats.forEach(function(s) {
-            var l = s && typeof s.key === 'string' ? s.key.toLowerCase() : ''; if (!l || (card && card[l])) return;   // still on this list (another spelling keeps the values)
+            var l = s && typeof s.key === 'string' ? s.key.toLowerCase() : ''; if (!l) return;
+            if (card && card[l]) { stillOn(sf, s, l); return; }   // still on this list (another spelling keeps the values) — unless its kind changed or an option is gone (owed review F5a2#6)
             if (!card) { if (!keptAll[l] && !toldI[l]) { toldI[l] = 1; (draft.items || []).forEach(function(it) { if (it && hasKey(it.stats, l)) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'Save drops its “' + s.key + '” value: no list has that stat now (a stat’s key is its identity).' }); }); } return; }
             var nI = 0, nC = 0;
             if (!keptAll[l] && !toldI[l]) { toldI[l] = 1; (draft.items || []).forEach(function(it) { if (it && hasKey(it.stats, l)) nI++; }); }   // an item keeps a stat while any list has it
@@ -3886,9 +3915,10 @@ function refreshErrors() {
     var cleanById = Object.create(null); (clean.items || []).forEach(function(ci) { if (ci && ci.id) cleanById[ci.id] = ci; });
     (draft.items || []).forEach(function(it) {
         var ci = it && cleanById[it.id]; if (!ci || !it.stats || typeof it.stats !== 'object' || Array.isArray(it.stats)) return;
-        var keptL = Object.create(null), big = [], over = [];
+        var keptL = Object.create(null), big = [], over = [], mis = [];
         Object.keys(ci.stats || {}).forEach(function(k) { keptL[k.toLowerCase()] = 1; });
-        Object.keys(it.stats).forEach(function(k) { var sv = it.stats[k], l = k.toLowerCase(); if (!keptAll[l] || keptL[l] || typeof sv !== 'number' || !isFinite(sv)) return; if (Math.abs(sv) > LIMITS.statAbs) big.push(k); else over.push(k); });
+        Object.keys(it.stats).forEach(function(k) { var sv = it.stats[k], l = k.toLowerCase(); if (!keptAll[l] || keptL[l]) return; if (firstDef[l] && misfits(firstDef[l], sv)) { mis.push([k, firstDef[l], sv]); return; } if (typeof sv !== 'number' || !isFinite(sv)) return; if (Math.abs(sv) > LIMITS.statAbs) big.push(k); else over.push(k); });   // owed review F5a2#6: a value its stat no longer takes is said as that, never as past 16
+        mis.forEach(function(x) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: x[1].kind === 'pick' ? (typeof x[2] === 'string' ? '\u201c' + x[0] + '\u201d has no option \u201c' + x[2] + '\u201d now: Save drops it.' : '\u201c' + x[0] + '\u201d is a choice now: Save drops its number.') : '\u201c' + x[0] + '\u201d is a number now: Save drops its choice.' }); });
         big.forEach(function(k) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: '“' + k + '” is past ±1,000,000,000: Save drops it.' }); });
         if (over.length) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'At most ' + LIMITS.entryStats + ' stats an item: Save drops ' + over.map(function(k) { return '“' + k + '”'; }).join(', ') + ' (the first ' + LIMITS.entryStats + ' are kept; clear the ones it does not need).' });
     });
@@ -4340,6 +4370,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
 // F5a1: the names a list offers formulas, as one line of text for its card (its key as typed)
 function listNamesText(key, sp) {
     var k = String(key || 'List'), own = [];
+    if (k.indexOf('.') >= 0) return 'A list whose key has a dot has no names formulas can read (they would read ' + k.split('.')[0] + '.\u2026): give it a key without one.';   // owed review F5a1#6
     (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) own.push(x.key); });
     return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key. A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
 }

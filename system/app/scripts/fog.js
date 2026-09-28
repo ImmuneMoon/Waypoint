@@ -88,7 +88,7 @@ function viewersFor(map, camp, ownerId) {
     var turningOn = !window.wpVtt || window.wpVtt.on('turning'); var out = [], arc = turningOn ? visionOf(map).arc : 360;   // facing feature off ⇒ the cone falls back to all-around (nothing can aim it); host + client agree via the shared turning flag
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);   // Onboarding F1a: a waiting token sees only when the campaign says so
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || w.hidden || !(w.isChar || (w.waiting && waitSight))) return;
+        if (!w || w.hidden || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
         out.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, front: ((w.rot || 0) + (w.front || 0)), range: tokenSightCells(w, map, camp), arc: arc });   // world facing = rot + front, so the arc follows the token's rotation
     });
@@ -96,7 +96,7 @@ function viewersFor(map, camp, ownerId) {
 }
 // ---- sight-blockers: the opaque-cell key set for a map, built from flagged board items (v1: static walls) ----
 var _blockerCache = Object.create(null), _blockerStamp = Object.create(null), _blockerWarned = Object.create(null);
-var _blockerSig = Object.create(null), _blockerVer = Object.create(null);   // lighting review: a map's blocker CONTENT version (the viewer memo keys on it, not on every save)
+var _blockerSig = Object.create(null), _blockerVer = Object.create(null), _blockerOver = Object.create(null);   // lighting review: a map's blocker CONTENT version (the viewer memo keys on it, not on every save)
 function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
     if (w.isChar || w.waiting) return false;                        // a token never blocks sight: a player's copy may lack it (fog drops it), so host and client would disagree
@@ -129,6 +129,7 @@ function blockersFor(map, grid) {
     if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
     if (!over) _blockerWarned[map.id] = 0;
     var result = (over || n === 0) ? null : set;                    // over cap or none → no occlusion (fail open)
+    _blockerOver[map.id] = over;   // lighting review: over the cap no wall blocks, so no light may be judged through them (the map reads by sight only)
     var bsig = result ? Object.keys(result).sort().join(';') : '';
     if (_blockerSig[map.id] !== bsig) { _blockerSig[map.id] = bsig; _blockerVer[map.id] = (_blockerVer[map.id] || 0) + 1; }
     _blockerStamp[map.id] = stamp;
@@ -285,23 +286,58 @@ function toggleDoorAt(boardX, boardY) {
 // absent = auto: bright while no light source is placed on it, dark once the GM places one (a light item; a token's own light never darkens a
 // map) — lets a token see every lit cell in its line of sight out to the vision cap, and its Sight becomes how far it sees in the dark. Off:
 // null, fog exactly as before (Sight is a radius). Host and client read the same map.fog and the GM's switch
-function placedLights(map) { var wb = (map && map.whiteboard) || []; for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (w && w.type === 'light' && !w.hidden) return true; } return false; }
+function placedLights(map) { var wb = (map && map.whiteboard) || []; for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (w && w.type === 'light' && !w.hidden && !w.gmNoteFor) return true; } return false; }
 function mapLevel(map) {
     if (!lightingOn() || !map) return null;
     var l = mapFog(map).light;
     return l === 'dark' ? 0 : l === 'dim' ? 1 : l === 'bright' ? 2 : placedLights(map) ? 0 : 2;
 }
+// Lighting (L2): a map's light sources — every item with a light (a light source the GM placed, a token's own light), not hidden and not switched
+// off; its origin the item's centre cell (in a wall or a closed door: the open cell beside it, so it never lights both sides); radii from yards
+// to this map's cells. Over LIMITS.lights sources, none: the map reads dark (the GM is told once)
+var _litCache = Object.create(null), _lightsWarned = Object.create(null), _visitsWarned = Object.create(null);
+function lightSources(map, grid, blk) {
+    var C = core(), out = [], wb = map.whiteboard || [], per = cellYardsForMap(map);
+    for (var i = 0; i < wb.length; i++) {
+        var w = wb[i]; if (!w || w.hidden || w.gmNoteFor || !w.light) continue;   // a GM-note card never reaches a player: its light would too
+        var L = C.cleanLight(w.light); if (!L || L.off) continue;
+        var cx = w.x + (w.w || 0) / 2, cy = w.y + (w.h || 0) / 2, cell = C.cellOf(cx, cy, grid);
+        if (blk && blk[C.cellKey(cell, grid)]) {   // in a wall or a closed door: the open cell on the side the item sits (centred on the cell: the side it faces, up when unturned)
+            var cc = C.cellCenter(cell, grid), tx = cx, ty = cy;
+            if (Math.abs(cx - cc.x) < 1 && Math.abs(cy - cc.y) < 1) { var fb = ((w.rot || 0) + (w.front || 0)) * Math.PI / 180; tx = cx + Math.sin(fb) * 50; ty = cy - Math.cos(fb) * 50; }
+            var st = C.openSeat(cx, cy, tx, ty, grid, blk); if (!st) continue; cell = C.cellOf(st.x, st.y, grid);
+        }
+        out.push({ cell: cell, bright: L.bright > 0 ? C.rangeToCells(L.bright, per) : -1, dim: C.rangeToCells(L.dim, per) });   // bright -1: a dim-only light
+    }
+    if (out.length > C.LIMITS.lights) { if (!_lightsWarned[map.id] && isGmView()) { _lightsWarned[map.id] = 1; toast('Too many light sources on this map — it reads dark until there are fewer.'); } return []; }
+    _lightsWarned[map.id] = 0;
+    return out;
+}
+// The cells a map's lights light (fogcore litLevels), memoised on the sources, the grid and the blockers' content: { sig, lit, ver } or null with
+// no light source. Too much to walk: lit nothing (dark)
+function litFor(map, grid, blk) {
+    var C = core(), src = lightSources(map, grid, blk); if (!src.length) return null;
+    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + src.map(function(s) { return C.cellKey(s.cell, grid) + ':' + s.bright + ':' + s.dim; }).join(';');
+    var mc = _litCache[map.id]; if (mc && mc.sig === sig) return mc;
+    var lit = C.litLevels(src, grid, blk);
+    if (!lit) { if (!_visitsWarned[map.id] && isGmView()) { _visitsWarned[map.id] = 1; toast('These lights reach too far to work out together — the map reads dark until there are fewer or smaller ones.'); } }
+    else _visitsWarned[map.id] = 0;
+    mc = _litCache[map.id] = { sig: sig, lit: lit || Object.create(null), ver: ((mc && mc.ver) || 0) + 1 };
+    return mc;
+}
+// How many light sources a map holds (the cap is refused when a light is added)
+function lightCount(map) { var C = core(), n = 0; ((map && map.whiteboard) || []).forEach(function(w) { if (w && !w.hidden && !w.gmNoteFor && w.light && C && C.cleanLight(w.light)) n++; }); return n; }
 // One viewer's seen cells, memoised per map on its cell, facing (only for a cone: all-around vision never reads it), sight and arc, so a drag
 // recomputes only the token that moves. The memo is stamped on exactly what seenCells reads beyond the viewer — the grid, the map's light level
 // and its blockers' content version — so a save that changes none of them (a token moved, a note typed) keeps it. Bounded by cells across
 // every map: past the budget it starts afresh
 var _viewCache = Object.create(null), _viewCells = 0, VIEW_BUDGET = 250000;
-function viewSeen(map, grid, blk, lvl, v) {
-    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0), mc = _viewCache[map.id];
+function viewSeen(map, grid, blk, lvl, v, lc) {
+    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (lc ? lc.ver : 0), mc = _viewCache[map.id];
     if (!mc || mc.stamp !== stamp) { if (mc) _viewCells -= mc.cells; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
     var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc, hit = mc.m[k];
     if (hit) return hit;
-    hit = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl });
+    hit = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
     if (_viewCells + hit.length > VIEW_BUDGET) { _viewCache = Object.create(null); _viewCells = 0; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
     mc.m[k] = hit; mc.cells += hit.length; _viewCells += hit.length;
     return hit;
@@ -315,8 +351,10 @@ function revealedTiers(map, camp, ownerId) {
     var keys = Object.create(null), list = [];
     var put = function(key, cell, t) { var o = keys[key]; if (o === undefined) { keys[key] = t; list.push({ key: key, cell: cell }); } else if (t > o) keys[key] = t; };
     if (mf.mode !== 'cover') {
-        var blk = blockersFor(map, grid), lvl = mapLevel(map);
-        viewersFor(map, camp, ownerId).forEach(function(v) { var s = viewSeen(map, grid, blk, lvl, v); for (var i = 0; i < s.length; i++) put(s[i].key, s[i].cell, s[i].tier); });
+        var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lvl = mapLevel(map);
+        if (over && lvl !== null) lvl = 0;   // walls over the cap block nothing: the map reads by sight alone, never lit through them
+        var lc = lvl === null || over ? null : litFor(map, grid, blk);   // lighting off: no light sources either
+        viewersFor(map, camp, ownerId).forEach(function(v) { var s = viewSeen(map, grid, blk, lvl, v, lc); for (var i = 0; i < s.length; i++) put(s[i].key, s[i].cell, s[i].tier); });
     }
     (mf.manual.adds || []).forEach(function(c) { put(C.cellKey(c, grid), c, 2); });
     var cut = Object.create(null); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
@@ -342,7 +380,7 @@ function fogDropIds(recipientId, camp, map) {
     var C = core(), keys = Object.create(null); list.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
     var drop = Object.create(null), any = false;
     (map.whiteboard || []).forEach(function(w) {
-        if (!w || !(w.isChar || w.waiting)) return;   // Onboarding F1a: another player's waiting token hides in fog like a character's
+        if (!w || w.type === 'light' || !(w.isChar || w.waiting)) return;   // a light source is never a creature; Onboarding F1a: another player's waiting token hides in fog like a character's
         if (w.ownerId === recipientId) return;                          // your own token is always yours
         var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
         if (inMask(mask, tk) && !keys[tk]) { drop[w.id] = 1; any = true; }   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
@@ -529,7 +567,7 @@ function openMenu() { var m = ui('fogMenu'); if (!m || !canWrite()) return; sync
 function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show'); }
 
 var LIGHT_SAID = {
-    auto: 'This map is lit: every token sees what is in its line of sight.',
+    auto: 'This map is lit until you place a light source on it (the \u2728 effects panel).',
     bright: 'This map is lit: every token sees what is in its line of sight.',
     dim: 'This map is dim: beyond a token\'s sight in the dark it shows darkened.',
     dark: 'This map is dark: a token sees only as far as its sight in the dark.'
@@ -586,6 +624,8 @@ var LIGHT_SAID = {
         if (hosting && N.broadcastItemFiltered) ids.forEach(function(id) { N.broadcastItemFiltered(camp.id, id); });
         toast('Fog on for all ' + n + ' map' + (n === 1 ? '' : 's') + ' in this campaign.');
     });
+    var lplace = ui('fogLightPlace');
+    if (lplace) lplace.addEventListener('click', function() { closeMenu(); if (window.wpArmLight) window.wpArmLight(); });   // lighting: the same Light source as the effects panel's (Visual effects may be off)
     var lsel = ui('fogLight');
     if (lsel) lsel.addEventListener('change', function() {
         var map = activeMap(); if (!map) return; var mf = mapFog(map);
@@ -646,6 +686,6 @@ window.wpFog = {
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
-    lightLevel: mapLevel,
+    lightLevel: mapLevel, lightCount: lightCount,
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

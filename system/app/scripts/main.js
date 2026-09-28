@@ -1107,7 +1107,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var z = state.zoomLevel || 1;
         var items = state.viewMode === 'data'
             ? (am.rooms || []).map(function(r) { return { x: r.x, y: r.y, w: 140, h: 60, c: (am.cats && am.cats[r.cat] && am.cats[r.cat].color) || '#e0a54f' }; })
-            : (am.whiteboard || []).map(function(w) { return { x: w.x, y: w.y, w: w.w || 50, h: w.h || 50, c: w.type === 'image' ? '#8a8a97' : (/^#/.test(w.color || '') ? w.color : '#4db3d3') }; });
+            : (am.whiteboard || []).filter(function(w) { return !(w && w.type === 'light' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client'); }).map(function(w) { return { x: w.x, y: w.y, w: w.w || 50, h: w.h || 50, c: w.type === 'image' ? '#8a8a97' : (/^#/.test(w.color || '') ? w.color : '#4db3d3') }; });   // a player never sees a light source's marker
         var vx = wrap.scrollLeft / z, vy = wrap.scrollTop / z, vw = wrap.clientWidth / z, vh = wrap.clientHeight / z;
         var W = cv.width, H = cv.height;
         var sc, ox, oy;
@@ -1476,6 +1476,7 @@ function fitView(selectionOnly) {
     var wrap = state.viewMode === 'data' ? document.getElementById('canvasWrap') : document.getElementById('whiteboardWrap');
     if(!wrap || !wrap.clientWidth || !wrap.clientHeight) return;    // no laid-out viewport to fit into — leave the camera alone
     var items = (state.viewMode === 'data' ? m.rooms : m.whiteboard) || [];
+    if (state.viewMode !== 'data' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client') items = items.filter(function(w) { return !(w && w.type === 'light'); });   // nor frames to one
     if(selectionOnly) {
         var sel = state.viewMode === 'data'
             ? (state.selId ? [state.selId] : [])

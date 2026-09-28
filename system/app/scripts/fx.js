@@ -254,6 +254,7 @@ function renderPanel() {
     html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear</button></div>';
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>';
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Burst radius">Radius <input type="range" id="fxRadius" min="20" max="1200" value="160"><span id="fxRadiusVal" class="fx-dim"></span></label></div>';
+    if (window.wpVtt && window.wpVtt.on('lighting') && window.wpVtt.on('fog')) html += '<div class="snd-row"><span class="snd-label">Light</span><button class="journal-from fx-light-btn" title="Click, then click the map: a light source that lights the fog (its radii in its Properties). On a map whose Light is Auto, placing one makes it dark outside its lights.">Light source</button></div>';   // lighting (L2)
     html += '<div class="snd-row"><span class="snd-label">Weather</span>' + byRow('weather').map(function(p) { return chip('fx-weather-btn', p.fx.look, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop</button></div>';
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Weather thickness">Density <input type="range" id="fxDensity" min="20" max="100" value="60"></label></div>';
     html += '<div class="snd-row"><span class="snd-label">Banner</span><input type="text" id="fxBanner" class="field" maxlength="120" placeholder="Round 3 &middot; Enter to send" style="flex:1;"></div>';
@@ -276,6 +277,7 @@ function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && wind
         if (act === 'stop-weather') { play({ kind: 'stop', what: 'weather' }); return; }
         if (btn.classList.contains('fx-screen-btn')) { var pr = PRESETS.find(function(x) { return x.id === btn.dataset.id; }); if (pr) withCue(function() { play(Object.assign({ mapId: mapNow() }, pr.fx)); }); return; }
         if (btn.classList.contains('fx-weather-btn')) { var pw = PRESETS.find(function(x) { return x.id === btn.dataset.id; }); if (pw) { var dn = ui('fxDensity'); play(Object.assign({ mapId: mapNow(), density: dn ? +dn.value / 100 : 0.6 }, pw.fx, { density: dn ? +dn.value / 100 : pw.fx.density })); } return; }
+        if (btn.classList.contains('fx-light-btn')) { if (window.wpArmLight) window.wpArmLight(); return; }
         if (btn.classList.contains('fx-burst-btn')) { var rv = ui('fxRadius'); armBurst(btn.dataset.look, rv ? +rv.value : 160); }
     });
     var banner = ui('fxBanner');

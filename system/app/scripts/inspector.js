@@ -914,7 +914,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
             if (w.type === 'trigger') {
                 html += '<div class="field"><label for="wbEventMsg">Event Message</label><textarea id="wbEventMsg" placeholder="Message when character drops here...">'+esc(w.eventMessage||'')+'</textarea></div>';
-            } else {
+            } else if (w.type !== 'light') {   // a light source is never a character
                 html += '<div class="field check-row"><input type="checkbox" id="wbIsChar" '+(w.isChar?'checked':'')+'> <label for="wbIsChar">Is Character</label></div>';
                 if(w.isChar) {
                     html += '<div class="field"><label for="wbCharName">Character Name</label><input type="text" id="wbCharName" value="'+esc(w.charName||'')+'"></div>';
@@ -1018,7 +1018,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             }
             html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal">⚠️ Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map still blocks it.</div>' : '');
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
-              (w.type !== 'image' && w.type !== 'trigger' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
+              (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
               (w.type === 'path' ? '<div class="field"><label for="wbStrokeWidth">Pen Size <span class="muted" id="wbStrokeWidthVal">' + (num(w.strokeWidth, 0)||3) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbStrokeWidth" min="1" max="20" value="'+(num(w.strokeWidth, 0)||3)+'" style="flex:1"><input type="number" id="wbStrokeWidthNum" value="'+(num(w.strokeWidth, 0)||3)+'" min="1" max="20" style="width:56px" aria-label="Pen size in pixels"></div></div>' : '') +
@@ -1037,6 +1037,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (w.blocksSight && w.sightType==='door' && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" '+(w.doorOpen?'checked':'')+'> <label for="wbDoorOpen">Door is open (sight passes through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" '+(w.doorLock?'checked':'')+'> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')+
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? (w.type !== 'circle' && w.rot ? '<div class="field"><label>Cover</label><div class="muted" style="font-size:10.5px;">A turned shape gives no cover (a circle can turn): straighten it to use it as cover.</div></div>' : '<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':'No cover (it does not block sight)')+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option></select></div>') : '')+
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the &#127787; menu.</div>' : '')+
+              ((w.type === 'light' || w.isChar || w.waiting) && !w.hidden && window.wpCanPersistLocal && window.wpCanPersistLocal() ? (function() {   // lighting (L2): the GM sets a light's radii (a player's own light: the host takes none of this from them)
+                  var L = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(w.light) : null;
+                  return '<div class="field"><label for="wbLightBright">' + (w.type === 'light' ? 'Light' : 'Carries a light') + '</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><span class="muted">Bright to</span><input type="number" id="wbLightBright" min="0" max="1000" step="1" value="' + (L ? L.bright : 0) + '" style="width:64px;"><span class="muted">dim to</span><input type="number" id="wbLightDim" min="0" max="1000" step="1" value="' + (L ? L.dim : 0) + '" style="width:64px;"><span class="muted">yd</span></div></div>'
+                      + '<div class="field check-row"><input type="checkbox" id="wbLightOn" ' + (L && !L.off ? 'checked' : '') + '> <label for="wbLightOn">Light is on</label></div>'
+                      + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Lights the fog while Lighting is on (&#9881; Settings &#9656; VTT features): bright out to the first radius, dim to the second; walls and closed doors stop it.' + (w.type === 'light' ? ' Players see its light, never this marker.' : '') + '</div>';
+              })() : '')+
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1280,6 +1286,17 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 save(); render();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
+            var _el_wbLB = document.getElementById('wbLightBright'), _el_wbLD = document.getElementById('wbLightDim'), _el_wbLO = document.getElementById('wbLightOn');
+            var setLight = function() {   // lighting (L2): the light a light source or a token gives; none when both radii are 0
+                var C = window.wpFogCore; if (!C) return;
+                var had = !!C.cleanLight(w.light), b = Number(_el_wbLB && _el_wbLB.value) || 0, d = Number(_el_wbLD && _el_wbLD.value) || 0;
+                var L = C.cleanLight({ bright: b, dim: Math.max(b, d), off: _el_wbLO ? !_el_wbLO.checked && had : false });
+                if (L && !had && window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(activeMap) >= C.LIMITS.lights) { toast('This map already has the most light sources it can hold (' + C.LIMITS.lights + ').'); renderInspector(); return; }
+                if (L) w.light = L; else if (w.type === 'light') w.light = { bright: 0, dim: 0 }; else delete w.light;
+                save(); render(); if (!had) renderInspector();
+                if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+            };
+            [_el_wbLB, _el_wbLD, _el_wbLO].forEach(function(el) { if (el) el.addEventListener('change', setLight); });
             var _el_wbFogged = document.getElementById('wbFogged');
             if(_el_wbFogged) _el_wbFogged.addEventListener('change', function() {
                 if (this.checked) w.fogged = true; else delete w.fogged;   // marks this item as a play area — fog is confined to the union of such items' footprints

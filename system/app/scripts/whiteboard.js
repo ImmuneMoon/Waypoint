@@ -781,6 +781,15 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (el.dataset.ini !== ini || !el.querySelector(':scope > .token-initials')) { el.textContent = ''; var iniS = document.createElement('span'); iniS.className = 'token-initials'; iniS.textContent = ini; el.appendChild(iniS); el.dataset.ini = ini; }
               }
 
+          } else if (item.type === 'light') {
+              // Lighting (L2): a light source the GM placed — a small marker for the GM (players see its light, never the marker: CSS); dimmed while off
+              var lgL = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(item.light) : null;
+              el.classList.add('wb-light'); el.classList.toggle('off', !lgL || !!lgL.off);
+              if (!(state.selWbIds && state.selWbIds.length > 1 && state.selWbIds.includes(item.id))) el.style.boxShadow = '';   // the marker's glow ring is the stylesheet's (an inline none would hide it)
+              var lgG = el.querySelector(':scope > .wb-light-glyph');
+              if (!lgG) { el.textContent = ''; lgG = document.createElement('span'); lgG.className = 'wb-light-glyph'; lgG.textContent = '\ud83d\udca1'; el.appendChild(lgG); }
+              var lgT = 'Light source' + (lgL ? ' · bright ' + lgL.bright + ' yd, dim to ' + lgL.dim + ' yd' + (lgL.off ? ' (off)' : '') : ' (no light set)');
+              if (el.dataset.tip !== lgT) el.dataset.tip = lgT;
           } else if(item.type === 'path') {
 
               if(!el.querySelector('svg')) {
@@ -5072,6 +5081,13 @@ if (_wbTb) _wbTb.addEventListener('click', function(e) {
 // Picking a shape arms placement: the next click on the board drops it there
 // (default size), and a drag draws the exact box it should fill. Esc cancels.
 window.wpPlace = null;
+// Lighting (L2): the effects panel's Light source — placed like a shape (click, or drag to size it), lighting the fog bright to 5 yd and dim to
+// 10 yd until its Properties say otherwise. Refused past the map's light-source cap
+window.wpArmLight = function() {
+    var map = getActiveMap(), C = window.wpFogCore; if (!map || !C) return;
+    if (window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(map) >= C.LIMITS.lights) { toast('This map already has the most light sources it can hold (' + C.LIMITS.lights + ').'); return; }
+    armPlacement('light', { w: 40, h: 40, color: 'transparent', name: 'Light source', light: { bright: 5, dim: 10 } }, 'light source');
+};
 function armPlacement(type, props, label) {
     // Placement is a mode of its own: leave draw / erase / measure / pan first
     var mv = document.getElementById('moveModeBtn');

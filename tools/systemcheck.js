@@ -851,7 +851,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sh4 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
         check('6 F4a UI: rows drawn through rowDef and addressed by row id; controls inert in the preview and a pop-out; a lost copy marked with Make custom for the GM; the editor\'s removal rule and message; the GM throws a GM-only item; every item has the same controls on a player\'s sheet; a pickup opens its Undo; a save keeps copies of deleted items, keys legacy GM-only rows and resends GM-only inline copies',
             /editable = editable && _fxLive; canThrow = canThrow && _fxLive;/.test(sh4) && /var rd = rowDef\(sysI, entry\), def = rd \? rd\.def : null; if \(!def\) return;/.test(sh4) && /commitItem\(c, f, \{ op: 'keep', rowId: rowIdOf\(entry\) \}\)/.test(sh4)
-            && /select\('sys-item-rmmode'/.test(sh4) && /input\('sys-item-rmtext field'/.test(sh4) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(sh4) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(sh4) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(sh4) && !/commitItem\(c, f, '/.test(sh4));
+            && /select\('sys-item-rmmode'/.test(sh4) && /input\('sys-item-rmtext field'/.test(sh4) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(sh4) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value, f\.id\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(sh4) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(sh4) && !/commitItem\(c, f, '/.test(sh4));
     }
 
     /* ---- Stage 6 F4b: row facts (level, switch, note), list options, the equip lock, the Lists tab ---- */
@@ -1107,7 +1107,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             rvS.length > 0 && j(rvA.out.deltas) === j([{}]) && j(rvA.ch.values.f_g) === j(prevRow) && j(rvA.out.asked) === j([keptRow, prevRow]) && j(rvB.out.deltas) === j([{ f_g: prevRow }]), j([rvA.out, rvB.out]));
         check('F4b review, the source: a refused switch says "It stays on." unless the GM wrote a message (the client passes the op); Revert of a change its owner never held sends nothing; the Layout toggle stays while it is set, so it can be cleared after the list lost its switch; the key\'s error names every reason; the host spends a switch\'s grace once and lets it cover a drop',
             /function editResult\(rid, ok, reason, msg, op\) \{ if \(!ok\) toast\(reason === 'none' \? 'Nothing to apply\.' : .*? reason === 'stays' \? \(msg \|\| \(op === 'set' \? 'It stays on\.' :/.test(shR) && /window\.wpSheets\.editResult\(rid, false, reason, msg, p\.apply \? 'apply' : p\.q \? p\.q\.op : ''\)/.test(ntR)
-            && /if \(fR && fR\.kind === 'item-list' && ownerSeesSame\(camp, sysR, curR, lastChange\.prev\)\) delete d\[fidR\];/.test(shR) && /if \(plOn \|\| \(pl\.on && plf && plf\.kind === 'item-list'\)\)/.test(shR)
+            && /if \(fR && fR\.kind === 'item-list' && ownerSeesSame\(camp, sysR, curR, lastChange\.prev, fidR\)\) delete d\[fidR\];/.test(shR) && /if \(plOn \|\| \(pl\.on && plf && plf\.kind === 'item-list'\)\)/.test(shR)
             && /not a word formulas already use \(count, qty, on, has, lvl, paid, row; max, cur, ranks, base;/.test(shR) && /if \(resI\.onGraceUsed\) delete _rowGrace\[gkI \+ '\|on'\];/.test(ntR) && /var ogI = !!\(_rowGrace\[gkI \+ '\|on'\] && _rowGrace\[gkI \+ '\|on'\]\.until > nowI\);/.test(ntR));
     }
 
@@ -1219,7 +1219,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
         // the GM's own sheet (sliced from sheets.js): ownerSeesSame decides whether a change is sent; gmFacing whether GM-only items' inline copies are
         const shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), cutS = (a, b) => { const i = shS.indexOf(a), k = shS.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('F4c1 slice: ' + a); return shS.slice(i, k); };
-        const OSS = new Function('playerSystem', 'projectRows', cutS('function ownerSeesSame(', 'function revertLast(') + '\nreturn ownerSeesSame;')(() => pvS, S.projectRows);
+        const OSS = new Function('playerSystem', 'projectRows', "'use strict';\n" + cutS('function ownerSeesSame(', 'function revertLast(') + '\nreturn ownerSeesSame;')(() => pvS, S.projectRows);
         const cRow = (st, dmg) => [{ id: 'w_c', qty: 1, def: { name: 'Mine', vis: 'all', damage: dmg || '1d6', stats: st } }], hRow = (p, q) => [{ id: 'w_b', defId: 'i_blaster', qty: 1, paid: p }, { id: 'w_h', defId: 'i_rune', qty: 1, hid: 1, paid: q }];
         check('F4c1 ownerSeesSame (the real one, sliced; critic 1): a GM change of a custom copy\'s stat is sent (compared with every stat), its damage is not; a change of what was paid is sent, one only to a kept curse is not',
             OSS({}, sysS, cRow({ Acc: 1 }), cRow({ Acc: 2 })) === false && OSS({}, sysS, cRow({ Acc: 1 }), cRow({ Acc: 1, Cost: 2 })) === false && OSS({}, sysS, cRow({ Acc: 1 }, '1d6'), cRow({ Acc: 1 }, '9d6')) === true
@@ -1483,7 +1483,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(cleanValue(pT('f_wp'), JSON.parse(j(pw5)), S.valueOpts(pvT))) === j(pw5) && j(cleanValue(pT('f_pl'), JSON.parse(j(pv5.f_pl)), S.valueOpts(pvT))) === j(pv5.f_pl) && quiet5, j(pv5));
 
         const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), cutT = (a, b) => { const i = shT.indexOf(a), k = shT.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('F4c2 slice: ' + a); return shT.slice(i, k); };
-        const OSS5 = new Function('playerSystem', 'projectRows', cutT('function ownerSeesSame(', 'function revertLast(') + '\nreturn ownerSeesSame;')(() => pvT, S.projectRows);
+        const OSS5 = new Function('playerSystem', 'projectRows', "'use strict';\n" + cutT('function ownerSeesSame(', 'function revertLast(') + '\nreturn ownerSeesSame;')(() => pvT, S.projectRows);
         const ovRow = ov => [{ id: 'w_b', defId: 'i_blaster', qty: 1, ov }], ovIn = ov => [{ id: 'w_r', defId: 'i_rune', qty: 1, ov }], same = (a, b, r) => OSS5({}, sysT, (r || ovRow)(a), (r || ovRow)(b));
         check('F4c2 ownerSeesSame (the real one, sliced; critic 1): a GM change of a copy\'s own stats, name, notes, blast or held is sent; one of its damage, cost, lock or lock message is not — on a pointer and on a GM-only item\'s inline copy',
             same({ stats: { Acc: 3 } }, { stats: { Acc: 4 } }) === false && same(undefined, { stats: { Acc: 4 } }) === false && same({ name: 'A' }, { name: 'B' }) === false && same({ notes: 'a' }, { notes: 'b' }) === false && same(undefined, { area: { ft: 5, shape: 'circle', name: '' } }) === false && same({ stats: { Acc: 3 } }, { stats: { Acc: 3 }, held: ['Acc'] }) === false
@@ -1608,7 +1608,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /if \(c\.indexOf\('sys-listrules-stats'\) >= 0\) \{ if \(t\.value === 'owner'\) lr\.ownerStats = true; else delete lr\.ownerStats; \}/.test(shT) && /if \(Object\.keys\(lr\)\.length\) draft\.listRules = lr; else delete draft\.listRules; markDirty\(\); patchErrors\(\); return; \}/.test(shT)
             && /reCleanChars\(camp, clean\);[^\n]*\n[^\n]*stampRows\(clean, camp\.chars \|\| \{\}\);[^\n]*\n\s*var reach = itemReach\(prevSys, clean, camp\.chars \|\| \{\}\), nR = net\(\); if \(nR && nR\.logEvent\) reach\.lines\.forEach\(function\(l\) \{ nR\.logEvent\('items', l\); \}\);[\s\S]{0,800}?\n\s*save\(true\);/.test(shT)
             && /toast\(\(reach\.text \? reach\.text \+ ' ' : ''\) \+ \(orphaned \?/.test(shT) && /reason === 'field' && op === 'ov' \? 'Only the GM changes this copy’s stats now\.' : reason === 'off'/.test(shT) && /toast\(res\.why === 'formula' \? 'Not a formula this sheet can roll\.' :/.test(shT)
-            && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(shT) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(shT) && /if \(ownerSeesSame\(camp, sys, prev, res\.value\)\) d = \{\};/.test(shT) && /if \(fR && fR\.kind === 'item-list' && ownerSeesSame\(camp, sysR, curR, lastChange\.prev\)\) delete d\[fidR\];/.test(shT));
+            && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(shT) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(shT) && /if \(ownerSeesSame\(camp, sys, prev, res\.value, f\.id\)\) d = \{\};/.test(shT) && /if \(fR && fR\.kind === 'item-list' && ownerSeesSame\(camp, sysR, curR, lastChange\.prev, fidR\)\) delete d\[fidR\];/.test(shT));
 
         // F4c2 review: a pickup merged into a copy tells the GM that copy's own lock and name; a player's stat change that can move the price records Paid first
         {
@@ -1673,6 +1673,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const hostK = [{ id: 'w_k1', defId: 'i_karate', qty: 1, lvl: 3 }, { id: 'w_hd', defId: 'i_hidden', qty: 1 }, mineRow, { id: 'w_g', qty: 1, def: { name: 'GMs', damage: '2d6' } }];
             const agreeAll = [[{ rowId: 'w_n1', def: {} }], [{ rowId: 'w_n2', def: { name: 'P', key: 'Hidden', stats: { Rel: 1 } } }], [{ rowId: 'w_o', def: { name: 'M2', stats: { Rel: 4 } } }], [{ rowId: 'w_g', def: { name: 'X' } }], [{ rowId: 'w_n3', def: { key: 'Karate' } }], [{ rowId: 'w_hd', def: { name: 'X' } }]].map(a => agree(hostK, a[0]));
             check('F4c3 the host and the player\'s client agree on every owner custom op (a create, a key a GM-only entry has, an edit of their own row, a GM-made row, a taken key, a GM-only item\'s inline copy): the same answer, and the host\'s list projected equals the client\'s', agreeAll.every(Boolean), j(agreeAll));
+            // owed review F4c3#1, #5, #7 (c3_): D2 over the items and the core (findRow's scope); a kept curse never confirmed by a key or by the capacity; applyCustom's rules on the GM's fields and on text
+            {
+                // #1: once the items moved into the library, the entries formulas address ride the core (sys.core; a player's view.core has no GM-only one)
+                const c3_raw = JSON.parse(j(rawK)); c3_raw.fields.push({ id: 'f_kr', key: 'KR', label: 'KR', kind: 'formula', vis: 'all', formula: 'Skills.Karate.Rel' });
+                c3_raw.core = c3_raw.items.map(i => (i.id === 'i_karate' ? Object.assign({}, i, { stats: { Rel: 1 } }) : i)); c3_raw.items = [];
+                const c3_sys = cleanSystem(c3_raw, { F, gmView: true }), c3_pv = cleanSystem(c3_sys, { F, gmView: false });
+                const c3_cl = q => S.applyRowOp(c3_pv, chK([]), 'f_sk', Object.assign({ op: 'custom' }, q), F, { player: true, view: c3_pv });   // the player's client: their view is its system
+                const c3_k1 = RO([], { rowId: 'w_c1', def: { key: 'Karate', stats: { Rel: 99 } } }, true, c3_sys, c3_pv), c3_k2 = RO([], { rowId: 'w_c1', def: { key: 'karate' } }, false, c3_sys), c3_k1c = c3_cl({ rowId: 'w_c1', def: { key: 'Karate', stats: { Rel: 99 } } });
+                const c3_k3 = RO([], { rowId: 'w_c1', def: { key: 'Hidden' } }, true, c3_sys, c3_pv), c3_k3c = c3_cl({ rowId: 'w_c1', def: { key: 'Hidden' } }), c3_k4 = RO([], { rowId: 'w_c1', def: { key: 'Hidden' } }, false, c3_sys), c3_k5 = RO([], { rowId: 'w_c1', def: { key: 'Axe' } }, true, c3_sys, c3_pv);
+                const c3_rawN = JSON.parse(j(c3_raw)); delete c3_rawN.fields[0].list.custom; const c3_sysN = cleanSystem(c3_rawN, { F, gmView: true }), c3_pvN = cleanSystem(c3_sysN, { F, gmView: false });
+                const c3_fill = S.fillMaking(c3_sysN, { id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, values: {} }, { lists: ['f_sk'], ops: [{ f: 'f_sk', q: { op: 'custom', rowId: 'w_f', def: { name: 'Mine', key: 'Karate', stats: { Rel: 77 } } } }] }, F, { view: c3_pvN, lib: null, now: 1000 });
+                const c3_fr = (c3_fill.values && c3_fill.values.f_sk || [])[0] || {}, c3_kr = S.makeResolver(c3_sysN, { id: 'c_m', ownerId: 'u_a', values: c3_fill.values || {} }, F)('KR');
+                check('owed review F4c3#1 D2 reads the list\'s items and its core (the library\'s addressed entries, where the items went): a core entry\'s key is taken for the player and the GM (why key), the host and the client alike; a GM-only core entry\'s key is free to a player (their view\'s core never has it) and taken for the GM; an entry outside the list\'s categories does not count; a file filling a character in the making keeps its row without that key, so the formula reads the entry (1, never the file\'s 77)',
+                    (c3_sys.items || []).length === 0 && c3_pv.core.some(e => e.key === 'Karate') && !c3_pv.core.some(e => e.key === 'Hidden')
+                    && !c3_k1.ok && c3_k1.reason === 'value' && c3_k1.why === 'key' && !c3_k2.ok && c3_k2.why === 'key' && !c3_k1c.ok && c3_k1c.why === 'key'
+                    && c3_k3.ok && rowIn(c3_k3, 'w_c1').def.key === 'Hidden' && c3_k3c.ok && !c3_k4.ok && c3_k4.why === 'key' && c3_k5.ok
+                    && c3_fill.ok === true && c3_fill.left === 0 && c3_fr.def && c3_fr.def.name === 'Mine' && !('key' in c3_fr.def) && c3_fr.def.stats && c3_fr.def.stats.Rel === 77 && c3_kr === 1,
+                    j([c3_k1, c3_k2, c3_k1c, c3_k3.ok, c3_k3c.ok, c3_k4, c3_k5.ok, c3_fill, c3_kr]));
+                // #2 (the agents' follow-up): every lookup the sheets, the downloads and the wire use reads a GM-only pack's entry as GM-only (library.js entryFor)
+                const c3_net = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8'), c3_sh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), c3_lb = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8');
+                check('owed review F4c3#2 the item lookups take the marked copy: net.js itemLib and sheets.js itemLibOf (the players\' view download) read (L.entryFor || L.entry), the rows\' copies and systemcore\'s lookup entryFor',
+                    /^function itemLib\(sys\) \{[^\n]*: \(L\.entryFor \|\| L\.entry\)\(id\); \} : lib; \}/m.test(c3_net) && /^function itemLibOf\(sys\) \{[^\n]*: \(L\.entryFor \|\| L\.entry\)\(id\); \} : lib; \}/m.test(c3_sh)
+                    && /^setLibraryFind\(entryFor\);/m.test(c3_lb) && (c3_lb.match(/libSnaps\([^)]*, entryFor\)/g) || []).length === 2 && /entryFor: entryFor/.test(c3_lb));
+                // #5: a curse the GM keeps (hid) is never counted for its player — by a key it has, or against the list's capacity
+                const c3_kept = { id: 'w_kept9x', qty: 1, hid: 1, def: { name: 'Idol', key: 'Idol', rm: 'curse' } }, c3_keyed = keyed.concat([c3_kept]);
+                const c3_i1 = RO(c3_keyed, { rowId: 'w_n1', def: { key: 'Idol' } }, true), c3_i2 = RO(c3_keyed, { rowId: 'w_n1', def: { key: 'Idol' } }, false);
+                const c3_fullK = Array.from({ length: S.LIMITS.carried - 1 }, (_, i) => ({ id: 'w_v' + i, qty: 1, own: 1, def: { name: 'V' + i } })).concat([c3_kept]), c3_i3 = RO(c3_fullK, { rowId: 'w_n9', def: {} }, true);
+                const c3_ag = [agree([c3_kept], { rowId: 'w_n1', def: { key: 'Idol' } }), agree(c3_fullK, { rowId: 'w_n9', def: {} })];
+                check('owed review F4c3#5 a kept curse stays unconfirmed: a player\'s key a kept curse has is theirs to take (the GM\'s is refused, why key); a list of ' + (S.LIMITS.carried - 1) + ' rows they see and a kept curse still takes their new row; the host and their client agree on both',
+                    c3_i1.ok && rowIn(c3_i1, 'w_n1').def.key === 'Idol' && !c3_i2.ok && c3_i2.why === 'key' && c3_i3.ok && !!rowIn(c3_i3, 'w_n9') && c3_ag.every(Boolean), j([c3_i1.ok, c3_i2, c3_i3.ok || c3_i3, c3_ag]));
+                // #7: the GM's fields and text, as the op's own rules say (a list without a switch: sysK; one whose switch starts on: c3_sysS)
+                const c3_rawS = JSON.parse(j(rawK)); c3_rawS.fields[0].list.on = { label: 'Worn', def: true }; const c3_sysS = cleanSystem(c3_rawS, { F, gmView: true });
+                const c3_g = (def, rows, sys) => RO(rows || [mineRow], { rowId: 'w_o', def }, false, sys), c3_p = def => RO([mineRow], { rowId: 'w_o', def }, true);
+                const c3_eqB = c3_g({ eq: 'bound' }), c3_eqS = c3_g({ eq: 'bound' }, null, c3_sysS), c3_rmM = c3_g({ rmMsg: 'x' }), c3_rmOk = c3_g({ rm: 'bound', rmMsg: 'x' }), c3_ft = c3_g({ area: { ft: 2.5 } }), c3_ft5 = c3_g({ area: { ft: 5 } });
+                const c3_icG = c3_g({ icon: 'icon:nope' }), c3_icP = c3_p({ icon: 'icon:nope' }), c3_cost = c3_g({ cost: '1d6' }), c3_cost2 = c3_g({ cost: '2 + 1' });
+                const c3_eqRow = [{ id: 'w_o', qty: 1, own: 1, def: { name: 'Mine', eq: 'bound', vis: 'all' } }], c3_eqM = c3_g({ eqMsg: 'x' }, c3_eqRow), c3_eqMS = c3_g({ eqMsg: 'x' }, c3_eqRow, c3_sysS);
+                const c3_nm1 = c3_p({ name: null }), c3_nm2 = c3_p({ name: '' }), c3_stN = RO([Object.assign({}, mineRow, { def: Object.assign({}, mineRow.def, { stats: { Rel: 3 } }) })], { rowId: 'w_o', def: { stats: null } }, true);
+                const c3_onC = RO([], { rowId: 'w_s1', def: {} }, false, c3_sysS), c3_onP = RO([], { rowId: 'w_s1', def: {} }, false);
+                const c3_v = r => !r.ok && r.reason === 'value' && r.why === undefined;
+                check('owed review F4c3#7 a custom op\'s own rules: the switch lock only on a list with a switch (and its message only there, even on a row holding the lock), a removal message only with its lock, a blast in whole feet, an icon that cleans to nothing refused (the GM\'s and the player\'s), a cost with dice refused as a formula (why formula); a blank or null name keeps the name, stats null clears them, and a new row on a list whose switch starts on starts on',
+                    c3_v(c3_eqB) && c3_eqS.ok && rowIn(c3_eqS, 'w_o').def.eq === 'bound' && c3_v(c3_rmM) && c3_rmOk.ok && c3_v(c3_ft) && c3_ft5.ok && rowIn(c3_ft5, 'w_o').def.area.ft === 5
+                    && c3_v(c3_icG) && c3_v(c3_icP) && !c3_cost.ok && c3_cost.why === 'formula' && c3_cost2.ok && c3_v(c3_eqM) && c3_eqMS.ok && rowIn(c3_eqMS, 'w_o').def.eqMsg === 'x'
+                    && c3_nm1.ok && rowIn(c3_nm1, 'w_o').def.name === 'Mine' && c3_nm2.ok && rowIn(c3_nm2, 'w_o').def.name === 'Mine' && c3_stN.ok && !('stats' in rowIn(c3_stN, 'w_o').def)
+                    && c3_onC.ok && rowIn(c3_onC, 'w_s1').on === true && c3_onP.ok && rowIn(c3_onP, 'w_s1').on === undefined,
+                    j([c3_eqB, c3_eqS.ok, c3_rmM, c3_rmOk.ok, c3_ft, c3_icG, c3_icP, c3_cost, c3_cost2.ok, c3_eqM, c3_eqMS.ok, c3_nm1.ok && rowIn(c3_nm1, 'w_o'), c3_nm2.ok && rowIn(c3_nm2, 'w_o'), c3_stN.ok && rowIn(c3_stN, 'w_o'), c3_onC.ok && rowIn(c3_onC, 'w_s1')]));
+            }
             const lsK = S.cleanListSpec({ custom: true, cats: ['Skill'] }, true, F), lsK2 = S.cleanListSpec({ custom: 'yes', cats: ['Skill'] }, true, F);
             const cvK = S.cleanValue(sysK.fields[0], [{ id: 'w_o', qty: 1, own: 1, def: { name: 'M' } }, { id: 'w_i', qty: 1, own: 1, lnk: 1, def: { name: 'I' } }], S.valueOpts(sysK));
             const pjK = S.projectRows([{ id: 'w_o', qty: 1, own: 1, def: { name: 'M', damage: '1d6', rm: 'bound', key: 'Mk' } }, { id: 'w_g', qty: 1, def: { name: 'G', damage: '1d6' } }], pvK, libK, spK);
@@ -1697,6 +1743,67 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && j(commitsO) === j([['f_wp', { op: 'custom', rowId: 'w_own', def: { name: 'Pazaak deck' } }], ['f_wp', { op: 'custom', rowId: 'w_own', def: { key: 'Deck' } }]])
                 && shareG.length === 1 && shareG[0].textContent === 'key shared with a GM-only row' && shareO.length === 0,
                 j([fOwnCaps, fGmCaps, commitsO, shareG.length, shareO.length, find5(gC, 'sheet-item-edit').map(x => x.dataset.part)]));
+            // owed review F4c3#3, #6, #8, #9 (c3_): the GM's shared-key marks, the GM only tick, the fold's messages, a category for a list that names none
+            {
+                // #6: the custom form's GM only tick sends vis, both ways, and shows what the row holds
+                const c3_vis = w => walk5(w, partIs('rf-w_c-vis'), [])[0];
+                commits5.length = 0; const c3_gv = c3_vis(fGm), c3_gv0 = c3_gv.checked; c3_gv.checked = true; c3_gv.on.change(); const c3_tick = commits5.slice(); commits5.length = 0;
+                const c3_rowsV = rowsC.map(r => (r.id === 'w_c' ? Object.assign({}, r, { def: Object.assign({}, r.def, { vis: 'gm' }) }) : r));
+                const c3_fV = formAt(W5, sysTC, c3_rowsV, true, 'w_c'); W5.setForm(null); const c3_gvV = c3_vis(c3_fV), c3_gvV0 = c3_gvV.checked; c3_gvV.checked = false; c3_gvV.on.change(); const c3_untick = commits5.slice(); commits5.length = 0;
+                check('owed review F4c3#6 the custom form\'s GM only tick: unticked on a visible row, ticking it sends vis gm; ticked on a GM-only row, unticking it sends vis all (one custom op each)',
+                    c3_gv.type === 'checkbox' && c3_gv0 === false && j(c3_tick) === j([['f_wp', { op: 'custom', rowId: 'w_c', def: { vis: 'gm' } }]]) && c3_gvV0 === true && j(c3_untick) === j([['f_wp', { op: 'custom', rowId: 'w_c', def: { vis: 'all' } }]]),
+                    j([c3_gv0, c3_tick, c3_gvV0, c3_untick]));
+                // #8: the GM-only-row mark (a kept curse counts, a hidden or GM-only row never carries it), the owner's ✎ never on a row the GM made GM only
+                const c3_chips = (w, rid) => find5(lineOf(w, rid) || fe5('x'), 'sheet-item-keyshare').map(x => x.textContent);
+                const c3_rowsK = clT(seedT()).concat([{ id: 'w_own', qty: 1, own: 1, def: { name: 'Mine', key: 'Pazaak', stats: { Acc: 1 } } }, { id: 'w_kc', qty: 1, hid: 1, def: { name: 'Kept', key: 'Pazaak', rm: 'curse' } }]);
+                const c3_gK = draw5(W5, sysTC, 'f_wp', c3_rowsK, true), c3_rowsO = clT(seedT()).concat([{ id: 'w_own', qty: 1, own: 1, def: { name: 'Mine', key: 'Pazaak', vis: 'gm' } }]);
+                const c3_oG = draw5(W5, pvTC, 'f_wp', S.projectRows(JSON.parse(j(c3_rowsO)), pvTC, libT, pvTC.fields.find(f => f.id === 'f_wp').list), false);
+                check('owed review F4c3#8 the GM\'s shared-key mark: a custom row whose key a kept curse also has is marked (a row its owner cannot see); the kept curse itself and a GM-only row that share it carry no mark; the owner gets no ✎ on their own row once the GM made it GM only',
+                    j(c3_chips(c3_gK, 'w_own')) === j(['key shared with a GM-only row']) && !!lineOf(c3_gK, 'w_kc') && c3_chips(c3_gK, 'w_kc').length === 0 && !!lineOf(gC, 'w_gk') && c3_chips(gC, 'w_gk').length === 0
+                    && !!find5(c3_oG, 'sheet-item-name').length && edOf(c3_oG, 'w_own').length === 0,
+                    j([c3_chips(c3_gK, 'w_own'), c3_chips(c3_gK, 'w_kc'), c3_chips(gC, 'w_gk'), edOf(c3_oG, 'w_own').length]));
+                // #8: the refusals' words — editResult (a custom op's field), the GM's own commitItem (key, badkey, formula; a player's is the answer net.charItem gives)
+                const c3_toasts = [], c3_erL = (() => { const a = shT.indexOf('function editResult('); return shT.slice(a, shT.indexOf('\n', a)); })();
+                const c3_ER = new Function('toast', 'renderViews', c3_erL + '\nreturn editResult;')(t => c3_toasts.push(t), () => {});
+                c3_ER('w_x', false, 'field', '', 'custom'); c3_ER('w_x', false, 'field', '', 'ov'); c3_ER('w_x', false, 'field', '', 'set'); const c3_erT = c3_toasts.splice(0);
+                const c3_ciSrc = cutT('function commitItem(', '// Stage 6: whether the owner\'s copy of a list is the same');
+                const c3_CI = client => new Function('getActiveCampaign', 'systemOf', 'rowQty', 'noteUndo', 'takeBack', 'isClient', 'net', 'toast', 'renderViews', 'canWrite', 'applyRowOp', 'F', 'clone', 'afterCharChange', 'ownerSeesSame', 'lastChange', c3_ciSrc + '\nreturn commitItem;')(
+                    () => ({ id: 'k' }), () => sysK, () => 0, () => {}, () => {}, () => client, () => ({ charItem: () => ({ error: 'From the host.' }) }), t => c3_toasts.push(t), () => {}, () => true, S.applyRowOp, () => F, x => JSON.parse(j(x)), () => {}, () => false, null);
+                const c3_ciG = c3_CI(false), c3_fK = sysK.fields.find(f => f.id === 'f_sk');
+                c3_ciG(chK([]), c3_fK, { op: 'custom', rowId: 'w_n1', def: { key: 'Karate' } }); c3_ciG(chK([]), c3_fK, { op: 'custom', rowId: 'w_n1', def: { key: '1x' } }); c3_ciG(chK([]), c3_fK, { op: 'custom', rowId: 'w_n1', def: { cost: '1d6' } }); c3_CI(true)(chK([]), c3_fK, { op: 'custom', rowId: 'w_n1', def: { key: 'Karate' } });
+                const c3_ciT = c3_toasts.splice(0);
+                check('owed review F4c3#8 the words: a refused custom op tells its player only the GM changes that row now (a copy\'s stats and another field keep theirs); the GM\'s own change says a key is taken, a key is not usable, or a formula cannot be rolled; a player\'s shows what their table answered',
+                    j(c3_erT) === j(['Only the GM changes that row now.', 'Only the GM changes this copy’s stats now.', 'That field cannot be edited.'])
+                    && j(c3_ciT) === j(['That key is already used in this list.', 'Not a usable key: a letter, then letters, digits and _ (up to 40).', 'Not a formula this sheet can roll.', 'From the host.']), j([c3_erT, c3_ciT]));
+                // #3: a key a custom row shares with another row it can see, or with an item or core entry of the list (its categories), taken after the row had it
+                const c3_rawD = JSON.parse(j(rawTC)); c3_rawD.items.find(i => i.id === 'i_knife').key = 'Knife'; c3_rawD.items.find(i => i.id === 'i_sneak').key = 'Sneak';
+                c3_rawD.core = [{ id: 'i_cg', name: 'Core gun', category: 'Gun', key: 'CoreGun' }, { id: 'i_cs', name: 'Core skill', category: 'Skill', key: 'CoreSkill' }];
+                const c3_sysD = cleanSystem(c3_rawD, { F, gmView: true }), c3_pvD = cleanSystem(c3_sysD, { F, gmView: false }), c3_cu = (id, key) => ({ id, qty: 1, own: 1, def: { name: 'N' + id, key } });
+                const c3_rowsD = clT(seedT()).concat([c3_cu('w_t1', 'Twin'), c3_cu('w_t2', 'twin'), c3_cu('w_kn', 'Knife'), c3_cu('w_cg', 'CoreGun'), c3_cu('w_sn', 'Sneak'), c3_cu('w_cs', 'CoreSkill'), c3_cu('w_so', 'Solo'),
+                    { id: 'w_lr', defId: 'i_gone', qty: 1, snap: { name: 'Old relic', key: 'Relic' } }, c3_cu('w_rl', 'Relic')]);
+                const c3_gD = draw5(W5, c3_sysD, 'f_wp', c3_rowsD, true), c3_tD = draw5(W5, c3_sysD, 'f_wp', c3_rowsD, true, true, true), c3_pD = draw5(W5, c3_pvD, 'f_wp', S.projectRows(JSON.parse(j(c3_rowsD)), c3_pvD, libT, c3_pvD.fields.find(f => f.id === 'f_wp').list), false);
+                const c3_DUP = 'key shared with another row or item', c3_marked = ['w_t1', 'w_t2', 'w_kn', 'w_cg', 'w_rl'], c3_clear = ['w_sn', 'w_cs', 'w_so'];
+                const c3_tdChips = find5(c3_tD, 'sheet-item-keyshare').map(x => x.textContent), c3_t1 = find5(lineOf(c3_gD, 'w_t1') || fe5('x'), 'sheet-item-keyshare')[0];
+                check('owed review F4c3#3 the GM\'s sheet marks a custom row whose key another row it can see also has (any case; a deleted item\'s copy too), or an item or core entry of the list (in its categories) — "key shared with another row or item", naming the key; a key only an entry outside the list\'s categories has, or no one else has, is not marked; the table marks the same rows; its owner\'s sheet never',
+                    c3_marked.every(r => j(c3_chips(c3_gD, r)) === j([c3_DUP])) && c3_clear.every(r => !!lineOf(c3_gD, r) && c3_chips(c3_gD, r).length === 0) && !!c3_t1 && /the key Twin too/.test(c3_t1.title)
+                    && c3_tdChips.length === c3_marked.length && c3_tdChips.every(t => t === c3_DUP) && find5(c3_pD, 'sheet-item-keyshare').length === 0 && find5(c3_pD, 'sheet-item-name').length > 0,
+                    j([c3_marked.concat(c3_clear).map(r => [r, c3_chips(c3_gD, r)]), c3_tdChips, find5(c3_pD, 'sheet-item-keyshare').length]));
+                // #9: a list naming no categories offers those of the items and core entries in sight, and on the GM's machine the library's (show and hide); a player's never the library's
+                const c3_ccSrc = cutT('function catChoices(', 'function rowForm('), c3_CC = (win, client) => new Function('window', 'isClient', c3_ccSrc + '\nreturn catChoices;')(win, () => client);
+                const c3_libW = { wpLibrary: { catsFor: () => ({ show: ['Lore'], hide: ['Secret'] }) } }, c3_sI = { items: [{ id: 'i_a', category: 'Gun' }, { id: 'i_b', category: '' }], core: [{ id: 'i_c', category: 'Skill' }] };
+                const c3_cc = [c3_CC(c3_libW, false)(c3_sI), c3_CC({ wpLibrary: { catsFor: () => null } }, false)(c3_sI), c3_CC(c3_libW, true)(c3_sI), c3_CC({}, false)(c3_sI), c3_CC(c3_libW, false)(null)];
+                const c3_mkW = (win, client) => new Function(...deps5, 'isClient', itSrc5 + '\nreturn { itemListInto: itemListInto, setForm: function(v) { _rowForm = v; } };')(fe5, (v, cls) => fe5('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, (c, f, q) => commits5.push([f.id, JSON.parse(j(q))]), opt5, S.fmtNum, v => v || '', S.LIMITS, true, doc5, id => redraws5.push(id), () => {}, () => {}, win, S.rowStat, S.rowPaid, 'sheet', () => client);
+                const c3_rawC = JSON.parse(j(rawTC)); delete c3_rawC.fields[0].list.cats; c3_rawC.core = c3_rawC.items.filter(i => i.id !== 'i_blaster').concat([{ id: 'i_hush', name: 'Hush', category: 'Hush', vis: 'gm' }]); c3_rawC.items = c3_rawC.items.filter(i => i.id === 'i_blaster');
+                const c3_sysC = cleanSystem(c3_rawC, { F, gmView: true }), c3_pvC = cleanSystem(c3_sysC, { F, gmView: false }), c3_WG = c3_mkW(c3_libW, false), c3_WP = c3_mkW(c3_libW, true);
+                const c3_catOpts = (W, sys, rows, gm, rid) => { W.setForm({ charId: 'c_t', fieldId: 'f_wp', rowId: rid, view: 'sheet', typed: {} }); const w = draw5(W, sys, 'f_wp', rows, gm); W.setForm(null); const s = walk5(w, x => x.dataset && x.dataset.part === 'rf-' + rid + '-category' && /sheet-rf-sel/.test(x.className), [])[0]; return s ? kids5(s).map(o => o.textContent) : null; };
+                const c3_cfG = c3_catOpts(c3_WG, c3_sysC, rowsC, true, 'w_c'), c3_ovG = c3_catOpts(c3_WG, c3_sysC, rowsC, true, 'w_b1');
+                const c3_cfP = c3_catOpts(c3_WP, c3_pvC, S.projectRows(JSON.parse(j(rowsC)), c3_pvC, libT, c3_pvC.fields.find(f => f.id === 'f_wp').list), false, 'w_own');
+                check('owed review F4c3#9 a list that names no categories (the items moved into the library): catChoices gives the categories of the items and core entries, then the library\'s shown and hidden ones on the GM\'s machine (none while the library is unread), never the library\'s to a client; the GM\'s custom form and a copy\'s form offer them, a player\'s custom form only those of their own view (no GM-only entry\'s, no library\'s)',
+                    j(c3_cc) === j([['Gun', 'Skill', 'Lore', 'Secret'], ['Gun', 'Skill'], ['Gun', 'Skill'], ['Gun', 'Skill'], ['Lore', 'Secret']])
+                    && j(c3_cfG) === j(['(none)', 'Gun', 'Blade', 'Skill', 'Hush', 'Lore', 'Secret']) && j(c3_ovG) === j(['Library: Gun', 'Gun', 'Blade', 'Skill', 'Hush', 'Lore', 'Secret']) && j(c3_cfP) === j(['(none)', 'Gun', 'Blade', 'Skill']),
+                    j([c3_cc, c3_cfG, c3_ovG, c3_cfP]));
+                commits5.length = 0; W5.setForm(null);
+            }
             check('F4c3 + Custom… and the tick (pinned): the GM\'s on any shaped list, a player\'s where it takes custom rows, drawn even with no library items, never on a plain list; choosing it makes a blank row with its form open on the name, in the view it was chosen in; the Lists card\'s Custom rows tick writes list.custom; the client sends a custom op\'s def',
                 /var custOK = !!specI && \(gm \|\| specI\.custom === true\);/.test(shT) && /if \(editable && _fxLive && sysI && \(\(sysI\.items && sysI\.items\.length\) \|\| custOK \|\| libOK\) && !onOnly\)/.test(shT) && /if \(custOK\) add\.appendChild\(opt\('__custom', '\+ Custom…'\)\);/.test(shT)
                 && /if \(add\.value === '__custom'\) \{ var nr = uid\('w_'\); _rowForm = \{ charId: c\.id, fieldId: f\.id, rowId: nr, view: vwP, typed: \{\}, focus: 'name' \}; commitItem\(c, f, \{ op: 'custom', rowId: nr, def: \{\} \}\); return; \}/.test(shT)
@@ -1792,6 +1899,153 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && /itemListInto\(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e\);/.test(shT) && /itemTableInto\(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e\);/.test(shT),
                 j([find5(cardA, 'sys-list-colkey').map(x => x.value), find5(cardA, 'sys-list-names')[0].textContent]));
         }
+        // ---- owed review F5a1 (a1): list names and GM-only values — a GM-only core entry, a kept curse, a choice naming a GM-only value, a GM-only effect through a list name, a GM-only row out of scope; a dotted list key; a players' list with no categories left; the fold's untested lines ----
+        {
+            const a1_LC = await import(url('librarycore.js'));
+            const a1_raw1 = { v: 1, name: 'A1', rolls: [{ id: 'r_sec', label: 'Sec', formula: 'd20 + Skills.Secret.lvl', vis: 'all' }], fields: [
+                { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Skill'], lvl: { label: 'Level', min: 0, max: 20, def: 1 }, stats: [{ key: 'Rel' }] } },
+                { id: 'f_x', key: 'X', label: 'X', kind: 'formula', vis: 'all', formula: 'Skills.Secret.lvl + Skills.Secret.Rel' },
+                { id: 'f_pk', key: 'PkL', label: 'PkL', kind: 'formula', vis: 'all', formula: 'Skills.Packed.lvl' },
+                { id: 'f_hl', key: 'HushL', label: 'HushL', kind: 'formula', vis: 'all', formula: '10 + Skills.Hush.lvl' },
+                { id: 'f_ok', key: 'OkL', label: 'OkL', kind: 'formula', vis: 'all', formula: 'Skills.Karate.lvl' },
+                { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: '10 + Skills.Secret.lvl', min: 0 },
+                { id: 'f_fp', key: 'FP', label: 'FP', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: '10 + Skills.Hush.lvl', min: 0 }],
+                items: [{ id: 'i_kar', name: 'Karate', category: 'Skill', key: 'Karate', lvl: 4 }, { id: 'i_hush', name: 'Hush', category: 'Skill', key: 'Hush', vis: 'gm', lvl: 5 }] };
+            // the core as library.js refreshCore fills it: coreOf over librarycore's keyIndex (a GM-only pack's entries marked GM-only)
+            const a1_ix = a1_LC.keyIndex({ packs: [{ id: 'p_vis', vis: 'all' }, { id: 'p_gm', vis: 'gm' }] }, pid => pid === 'p_vis' ? [{ id: 'i_sec', name: 'Secret', category: 'Skill', key: 'Secret', vis: 'gm', lvl: 7, stats: { Rel: 40 } }] : [{ id: 'i_pk', name: 'Packed', category: 'Skill', key: 'Packed', lvl: 3 }]);
+            const a1_s0 = cleanSystem(a1_raw1, { F, gmView: true }), a1_core = S.coreOf(a1_s0, k => a1_ix[k] || []); a1_s0.core = a1_core.core;
+            const a1_sys1 = cleanSystem(a1_s0, { F, gmView: true }), a1_pv1 = cleanSystem(a1_sys1, { F, gmView: false }), a1_pf1 = id => a1_pv1.fields.find(f => f.id === id);
+            const a1_ch1 = { id: 'c_a1', ownerId: 'u_a1', values: { f_sk: [{ id: 'w_k', defId: 'i_kar', qty: 1 }, { id: 'w_h', defId: 'i_hush', qty: 1, lvl: 5 }] } };
+            const a1_g1 = S.resolveAll(a1_sys1, a1_ch1, F), a1_v1 = S.validateSystem(a1_sys1, F);
+            check('owed F5a1#1 a GM-only library entry in the system\'s core (a GM-only entry, and a GM-only pack\'s through keyIndex) is a GM-only key: the players\' view blanks a visible formula and a pool\'s max naming it and drops the roll, gmOnlyNames names it, gmPools marks the pool, a player\'s edit of that pool is refused ("field") and the validator warns; the GM\'s sheet still reads it (47, HP max 17)',
+                j(a1_core.core.map(e => [e.id, e.vis])) === j([['i_sec', 'gm'], ['i_pk', 'gm']]) && a1_pf1('f_x').formula === null && a1_pf1('f_pk').formula === null && a1_pf1('f_hp').maxFormula === null && !a1_pv1.rolls.some(r => r.id === 'r_sec') && a1_pf1('f_ok').formula === 'Skills.Karate.lvl' && !/Skills\.(Secret|Packed)/.test(j(a1_pv1))
+                && j(S.gmOnlyNames(a1_sys1, [{ name: 'Skills.Secret.lvl' }, { name: 'Skills.Packed.lvl' }, { name: 'Skills.Karate.lvl' }])) === j(['Skills.Secret.lvl', 'Skills.Packed.lvl']) && S.gmPools(a1_sys1, F).f_hp === 1
+                && j(S.applyEdit(a1_sys1, a1_ch1, 'f_hp', { cur: 999 }, F, { player: true })) === j({ ok: false, reason: 'field' }) && a1_v1.warnings.some(w => w.id === 'f_x' && /"Skills\.Secret\.lvl" names a GM-only item/.test(w.message)) && a1_v1.warnings.some(w => w.id === 'f_pk' && /"Skills\.Packed\.lvl" names a GM-only item/.test(w.message))
+                && a1_g1.f_x.value === 47 && a1_g1.f_hp.max === 17 && a1_g1.f_pk.value === 3,
+                j([a1_core.core.map(e => [e.id, e.vis]), a1_pf1('f_x'), a1_pf1('f_hp'), a1_pv1.rolls, S.gmPools(a1_sys1, F), a1_v1.warnings.map(w => w.id)]));
+            // #8: the same system with no core — its only secret a GM-only item (no GM-only field, no choice)
+            const a1_sysI = cleanSystem(a1_raw1, { F, gmView: true }), a1_pvI = cleanSystem(a1_sysI, { F, gmView: false }), a1_pfI = id => a1_pvI.fields.find(f => f.id === id);
+            check('owed F5a1#8 (1) a system whose only secret is a GM-only item (no GM-only field, no choice): the players\' view still blanks a visible formula and a pool\'s max naming the item\'s key (Skills.Hush.lvl) and keeps one naming a visible entry',
+                !a1_sysI.fields.some(f => f.vis === 'gm') && a1_pfI('f_hl').formula === null && a1_pfI('f_fp').maxFormula === null && a1_pfI('f_ok').formula === 'Skills.Karate.lvl' && !/Skills\.Hush/.test(j(a1_pvI)), j([a1_pfI('f_hl'), a1_pfI('f_fp')]));
+            const a1_dI = S.gmDerivedNames(a1_sysI, F, [{ name: 'HushL' }, { name: 'OkL' }]), a1_edI = S.applyEdit(a1_sysI, a1_ch1, 'f_fp', { cur: 999 }, F, { player: true });
+            check('owed F5a1#8 (2) gmDerivedNames reads a GM-only item\'s key in a list as GM-only: a visible formula reading Skills.Hush.lvl is derived from one, gmPools marks the pool whose max reads it, and a player\'s edit of that pool is refused ("field") where the host would have clamped it to the GM-only level (15)',
+                j(a1_dI) === j(['HushL']) && j(S.gmPools(a1_sysI, F)) === j({ f_fp: 1 }) && j(a1_edI) === j({ ok: false, reason: 'field' }), j([a1_dI, S.gmPools(a1_sysI, F), a1_edI]));
+            const a1_sys8 = cleanSystem({ v: 1, name: 'A8', rolls: [], fields: [{ id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 5 }, { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 }, { id: 'f_dv', key: 'Derived', label: 'D', kind: 'formula', vis: 'all', formula: 'GMFig + 1' },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'Bonus' }], cols: [{ key: 'Hit', label: 'Hit', formula: 'Derived + Row.Bonus' }] } },
+                { id: 'f_ar', key: 'Armor', label: 'Armor', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'Bonus' }], cols: [{ key: 'Def', label: 'Def', formula: 'ST + Row.Bonus' }] } }], items: [{ id: 'i_axe', name: 'Axe', key: 'Axe', stats: { Bonus: 1 } }] }, { F, gmView: true });
+            const a1_d8 = S.gmDerivedNames(a1_sys8, F, [{ name: 'Weapons.Hit' }, { name: 'Weapons.Axe.Hit' }, { name: 'Armor.Def' }]);
+            check('owed F5a1#8 (3) a list column reading a visible formula that reads a GM-only field (Hit = Derived + Row.Bonus, Derived = GMFig + 1) makes the list\'s names derived from one (its total and an addressed row\'s column); a column reading only visible values does not',
+                j(a1_d8) === j(['Weapons.Hit', 'Weapons.Axe.Hit']), j(a1_d8));
+            // #2: a curse the GM keeps on, through the real applyRowOp
+            const a1_sys2 = cleanSystem({ v: 1, name: 'A2', rolls: [], fields: [
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { multi: true, on: { label: 'Readied' }, cats: ['Gear'], stats: [{ key: 'Wt', show: true }], cols: [{ key: 'Ready', label: 'Ready', formula: 'Row.on', foot: true }] } },
+                { id: 'f_ld', key: 'Load', label: 'Load', kind: 'formula', vis: 'all', formula: 'Weapons.on.Wt + Weapons.Ring.on * 100 + Weapons.on.count * 1000' },
+                { id: 'f_st', key: 'Stamina', label: 'Stamina', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: '50 - Weapons.on.Wt', min: 0 }],
+                items: [{ id: 'i_ring', name: 'Ring', category: 'Gear', key: 'Ring', eq: 'curse', eqMsg: 'It clings', stats: { Wt: 10 } }, { id: 'i_axe', name: 'Axe', category: 'Gear', key: 'Axe', stats: { Wt: 4 } }] }, { F, gmView: true });
+            const a1_pv2 = cleanSystem(a1_sys2, { F, gmView: false }), a1_lib2 = {}; a1_sys2.items.forEach(i => { a1_lib2[i.id] = i; });
+            const a1_ch2 = { id: 'c_a2', ownerId: 'u_a2', values: {} }, a1_op2 = q => { const r = S.applyRowOp(a1_sys2, a1_ch2, 'f_wp', q, F, { player: true, view: a1_pv2 }); if (r.ok) a1_ch2.values.f_wp = r.value; return r; };
+            [{ op: 'add', defId: 'i_ring', rowId: 'w_r' }, { op: 'add', defId: 'i_axe', rowId: 'w_a' }, { op: 'set', rowId: 'w_r', facts: { on: true } }, { op: 'set', rowId: 'w_a', facts: { on: true } }].forEach(a1_op2);
+            const a1_off = a1_op2({ op: 'set', rowId: 'w_r', facts: { on: false } });
+            const a1_g2 = S.resolveAll(a1_sys2, a1_ch2, F), a1_own2 = S.charFor(a1_ch2, a1_pv2, 'u_a2', { lib: {}, items: a1_lib2 }), a1_o2 = S.resolveAll(a1_pv2, a1_own2, F), a1_ed2 = S.applyEdit(a1_sys2, a1_ch2, 'f_st', { cur: 999 }, F, { player: true });
+            check('owed F5a1#2 a curse the GM keeps on (keptOn, after its owner switched it off through the real applyRowOp) reads as its owner holds it, off, in list names: the GM\'s sheet and the owner\'s agree on Weapons.on.* totals, Weapons.Ring.on, a Row.on column and its total (Load 1004, Stamina max 46, Ready no, total 1), and the host\'s clamp of a player\'s edit answers the owner\'s max (46)',
+                a1_off.ok && a1_off.keptOn === true && j(a1_ch2.values.f_wp[0]) === j({ id: 'w_r', defId: 'i_ring', qty: 1, on: true, keptOn: 1 }) && a1_own2.values.f_wp[0].on === false
+                && a1_g2.f_ld.value === 1004 && a1_o2.f_ld.value === 1004 && a1_g2.f_st.max === 46 && a1_o2.f_st.max === 46 && a1_g2.f_wp.cells.w_r[0].text === 'no' && j(a1_g2.f_wp.cells) === j(a1_o2.f_wp.cells) && a1_g2.f_wp.foot.Ready.value === 1 && j(a1_g2.f_wp.foot) === j(a1_o2.f_wp.foot)
+                && j(a1_ed2) === j({ ok: true, value: { cur: 46 } }),
+                j([a1_ch2.values.f_wp, a1_g2.f_ld.value, a1_o2.f_ld.value, a1_g2.f_st.max, a1_o2.f_st.max, a1_g2.f_wp.cells, a1_g2.f_wp.foot, a1_ed2]));
+            // #3: a choice whose option names a GM-only field, on a list without columns and one with a column reading it
+            const a1_sys3 = cleanSystem({ v: 1, name: 'A3', rolls: [], fields: [
+                { id: 'f_str', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 13 },
+                { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Skill'], stats: [{ key: 'Attr', kind: 'pick', opts: [{ label: 'Strength', name: 'ST' }, { label: 'Secret', name: 'GMFig' }] }] } },
+                { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Gear'], stats: [{ key: 'Aim', kind: 'pick', opts: [{ label: 'Plain', name: 'ST' }, { label: 'Hidden', name: 'GMFig' }] }], cols: [{ key: 'Val', label: 'Val', formula: 'Row.Aim' }] } },
+                { id: 'f_ot', key: 'Other', label: 'Other', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Other'], stats: [{ key: 'Pk', kind: 'pick', opts: [{ label: 'Plain', name: 'ST' }] }] } },
+                { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'Skills.Karate.Attr', min: 0 },
+                { id: 'f_fp', key: 'FP', label: 'FP', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'Gear.Val', min: 0 },
+                { id: 'f_mp', key: 'MP', label: 'MP', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'Other.Thing.Pk + 5', min: 0 }],
+                items: [{ id: 'i_kar', name: 'Karate', category: 'Skill', key: 'Karate', stats: { Attr: 'Secret' } }, { id: 'i_bow', name: 'Bow', category: 'Gear', key: 'Bow', stats: { Aim: 'Hidden' } }, { id: 'i_thg', name: 'Thing', category: 'Other', key: 'Thing', stats: { Pk: 'Plain' } }] }, { F, gmView: true });
+            const a1_ch3 = { id: 'c_a3', ownerId: 'u_a3', values: { f_sk: [{ id: 'w_k', defId: 'i_kar', qty: 1 }], f_gr: [{ id: 'w_b', defId: 'i_bow', qty: 1 }], f_ot: [{ id: 'w_t', defId: 'i_thg', qty: 1 }] } }, a1_g3 = S.resolveAll(a1_sys3, a1_ch3, F);
+            const a1_d3 = S.gmDerivedNames(a1_sys3, F, [{ name: 'Skills.Karate.Attr' }, { name: 'Gear.Val' }, { name: 'Gear.Bow.Val' }, { name: 'Other.Thing.Pk' }]), a1_ed3 = ['f_hp', 'f_fp', 'f_mp'].map(id => S.applyEdit(a1_sys3, a1_ch3, id, { cur: 999 }, F, { player: true }));
+            check('owed F5a1#3 a choice whose option names a GM-only field (Secret reads GMFig) makes its list\'s names derived from one, on a list without columns (Skills.Karate.Attr) and on one whose column reads it (Gear.Val, Row.Aim): gmPools marks the pools whose max reads them and a player\'s edit of each is refused ("field") where the host would have clamped it to GMFig (13); a choice of visible options only stays public (MP clamps to 15)',
+                a1_g3.f_hp.max === 13 && a1_g3.f_fp.max === 13 && j(a1_d3) === j(['Skills.Karate.Attr', 'Gear.Val', 'Gear.Bow.Val']) && j(S.gmPools(a1_sys3, F)) === j({ f_hp: 1, f_fp: 1 })
+                && j(a1_ed3) === j([{ ok: false, reason: 'field' }, { ok: false, reason: 'field' }, { ok: true, value: { cur: 15 } }]),
+                j([a1_g3.f_hp.max, a1_g3.f_fp.max, a1_d3, S.gmPools(a1_sys3, F), a1_ed3]));
+            // #4: a GM-only effect through an addressed column, a column's total and an addressed choice
+            const a1_sys4 = cleanSystem({ v: 1, name: 'A4', rolls: [], fields: [
+                { id: 'f_str', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 }, { id: 'f_fx', key: 'Fx', label: 'Fx', kind: 'effects', vis: 'all', edit: 'owner' },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'Bonus' }, { key: 'Arm', kind: 'pick', opts: [{ label: 'Str', name: 'ST' }] }], cols: [{ key: 'Hit', label: 'Hit', formula: 'ST + Row.Bonus', foot: true }] } }],
+                items: [{ id: 'i_axe', name: 'Axe', key: 'Axe', stats: { Bonus: 1, Arm: 'Str' } }],
+                effects: [{ id: 'e_curse', name: 'Curse', vis: 'gm', mods: [{ f: 'f_str', op: 'add', v: -4 }] }, { id: 'e_rage', name: 'Rage', vis: 'all', mods: [{ f: 'f_str', op: 'add', v: 2 }] }] }, { F, gmView: true });
+            const a1_ch4 = ref => ({ id: 'c_a4', ownerId: 'u_a4', values: { f_fx: [{ id: 'x_1', ref, on: true }], f_wp: [{ id: 'w_a', defId: 'i_axe', qty: 1 }] } });
+            const a1_fx4 = ref => ['Weapons.Axe.Hit', 'Weapons.Hit', 'Weapons.Axe.Arm'].map(n => { const r = S.makeResolver(a1_sys4, a1_ch4(ref), F); return [n, r(n), S.gmEffectNames(r, [{ name: n }]).join()]; });
+            check('owed F5a1#4 a GM-only effect (Curse, ST -4) is seen through list names: gmEffectNames names an addressed row\'s column (Weapons.Axe.Hit), a column\'s total (Weapons.Hit) and an addressed choice reading ST (Weapons.Axe.Arm), so the GM\'s public roll of them stays private; a visible effect (Rage) names none',
+                j(a1_fx4('e_curse')) === j([['Weapons.Axe.Hit', 7, 'Weapons.Axe.Hit'], ['Weapons.Hit', 7, 'Weapons.Hit'], ['Weapons.Axe.Arm', 6, 'Weapons.Axe.Arm']]) && j(a1_fx4('e_rage')) === j([['Weapons.Axe.Hit', 13, ''], ['Weapons.Hit', 13, ''], ['Weapons.Axe.Arm', 12, '']]),
+                j([a1_fx4('e_curse'), a1_fx4('e_rage')]));
+            // #5: a GM-only item carried outside its list's categories
+            const a1_sys5 = cleanSystem({ v: 1, name: 'A5', rolls: [{ id: 'r_h', label: 'H', formula: 'd20 + Skills.Hush.lvl', vis: 'all' }], fields: [
+                { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Skill'], lvl: { label: 'Level', min: 0, max: 20, def: 1 } } },
+                { id: 'f_hl', key: 'HushL', label: 'HushL', kind: 'formula', vis: 'all', formula: '10 + Skills.Hush.lvl' },
+                { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: '10 + Skills.Hush.lvl', min: 0 }],
+                items: [{ id: 'i_kar', name: 'Karate', category: 'Skill', key: 'Karate' }, { id: 'i_hush', name: 'Hush', category: 'Secret', key: 'Hush', vis: 'gm', lvl: 9 }] }, { F, gmView: true });
+            const a1_pv5 = cleanSystem(a1_sys5, { F, gmView: false }), a1_lib5 = {}; a1_sys5.items.forEach(i => { a1_lib5[i.id] = i; });
+            const a1_ch5 = { id: 'c_a5', ownerId: 'u_a5', values: {} }, a1_add5 = S.applyRowOp(a1_sys5, a1_ch5, 'f_sk', { op: 'add', defId: 'i_hush', rowId: 'w_h' }, F, {}); if (a1_add5.ok) a1_ch5.values.f_sk = a1_add5.value;
+            const a1_g5 = S.resolveAll(a1_sys5, a1_ch5, F), a1_o5 = S.resolveAll(a1_pv5, S.charFor(a1_ch5, a1_pv5, 'u_a5', { lib: {}, items: a1_lib5 }), F), a1_ed5 = S.applyEdit(a1_sys5, a1_ch5, 'f_hp', { cur: 999 }, F, { player: true });
+            check('owed F5a1#5 a GM-only item carried on a visible list outside the list\'s categories (the GM adds it there, level 9) is not the key\'s row: the players\' view keeps "10 + Skills.Hush.lvl" and its roll, and the GM\'s sheet reads what its owner\'s does (the list default: 11), so the host\'s clamp answers the owner\'s max (11), never 19',
+                a1_add5.ok && a1_ch5.values.f_sk[0].lvl === 9 && a1_pv5.fields.find(f => f.id === 'f_hl').formula === '10 + Skills.Hush.lvl' && a1_pv5.rolls.some(r => r.id === 'r_h')
+                && a1_g5.f_hl.value === 11 && a1_o5.f_hl.value === 11 && a1_g5.f_hp.max === 11 && a1_o5.f_hp.max === 11 && j(a1_ed5) === j({ ok: true, value: { cur: 11 } }),
+                j([a1_ch5.values, a1_g5.f_hl, a1_o5.f_hl, a1_g5.f_hp.max, a1_o5.f_hp.max, a1_ed5]));
+            // #6: a dotted list key (the validator, and the Lists card run for real)
+            const a1_sys6 = cleanSystem({ v: 1, name: 'A6', rolls: [], fields: [{ id: 'f_g', key: 'Gear.Main', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Wt' }], cols: [{ key: 'Half', label: 'Half', formula: 'Row.Wt / 2', foot: true }] } }, { id: 'f_pk', key: 'Pack', label: 'Pack', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Wt' }] } }], items: [{ id: 'i_d', name: 'Dust', stats: { Wt: 4 } }] }, { F, gmView: true });
+            const a1_v6 = S.validateSystem(a1_sys6, F);
+            const a1_inp = (cls, v, t, ph) => { const i = fe5('input', cls); i.type = 'text'; i.value = v == null ? '' : String(v); i.title = t || ''; i.placeholder = ph || ''; return i; };
+            const a1_rN = new Function('el', cutT('function numInput(', 'function select(') + '\nreturn { numInput: numInput, numField: numField };')(fe5);
+            const a1_LCd = new Function('el', 'input', 'numField', 'document', 'LIMITS', cutT('function listCard(', 'function renderCombat(') + '\nreturn listCard;')(fe5, a1_inp, a1_rN.numField, doc5, S.LIMITS);
+            const a1_nm6 = f => find5(a1_LCd(JSON.parse(j(f)), []), 'sys-list-names')[0].textContent;
+            check('owed F5a1#6 an item list whose key has a dot (Gear.Main, which validKey allows) is an error before Save that says why (formulas would read Gear.<name>, so its totals and rows have no names), and its Lists card says so instead of promising names that do not resolve; a list with a plain key is neither',
+                j(a1_v6.errors.map(e => [e.id, e.prop])) === j([['f_g', 'key']]) && /An item list’s key cannot contain a dot: formulas read it as Gear\.<name>, so its totals and rows have no names\./.test(a1_v6.errors[0].message)
+                && a1_nm6(a1_sys6.fields[0]) === 'A list whose key has a dot has no names formulas can read (they would read Gear.…): give it a key without one.' && /^Formulas read Pack\.count, Pack\.qty, Pack\.Wt \(/.test(a1_nm6(a1_sys6.fields[1])),
+                j([a1_v6.errors, a1_nm6(a1_sys6.fields[0])]));
+            // #7: a players' view whose list has no categories left — the custom row's form (the real widgets, on a client) and the library picker's note (its filter, run for real)
+            const a1_sys7 = cleanSystem({ v: 1, name: 'A7', rolls: [], fields: [
+                { id: 'f_ru', key: 'Runes', label: 'Runes', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Rune'], custom: true, stats: [{ key: 'Pow' }] } },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Weapon'] } },
+                { id: 'f_br', key: 'Brews', label: 'Brews', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Brew'] } }],
+                items: [{ id: 'i_rn', name: 'Rune of Night', category: 'Rune', vis: 'gm' }, { id: 'i_axe', name: 'Axe', category: 'Weapon' }, { id: 'i_pot', name: 'Potion', category: 'Brew' }] }, { F, gmView: true });
+            const a1_pv7 = cleanSystem(a1_sys7, { F, gmView: false });
+            const a1_W7 = new Function(...deps5, 'isClient', itSrc5 + '\nreturn { itemListInto: itemListInto, setForm: function(v) { _rowForm = v; } };')(fe5, (v, cls) => fe5('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, () => {}, opt5, S.fmtNum, v => v || '', S.LIMITS, true, doc5, () => {}, () => {}, () => {}, {}, S.rowStat, S.rowPaid, 'sheet', () => true);
+            const a1_cats7 = (sys, gm, def) => { const w = fe5('div'); a1_W7.setForm({ charId: 'c_a7', fieldId: 'f_ru', rowId: 'w_own', view: 'sheet', typed: {} }); a1_W7.itemListInto(w, sys.fields.find(f => f.id === 'f_ru'), { id: 'c_a7', ownerId: 'u_a7', values: {} }, [{ id: 'w_own', qty: 1, own: 1, def: Object.assign({ name: 'Mine' }, def || {}) }], sys, false, true, gm); a1_W7.setForm(null); const s = walk5(w, x => x.dataset && x.dataset.part === 'rf-w_own-category', [])[0]; return s ? kids5(s).map(o => o.value) : null; };
+            const a1_pkS = fs.readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
+            const a1_flt = new Function('st', 'el', 'queryWords', 'draw', 'preview', 'addLabel', 'ROW_H', a1_pkS.slice(a1_pkS.indexOf('function filter(keep)'), a1_pkS.indexOf('function isOnce(x)')) + '\nfunction isOnce(x) { return false; }\nreturn filter;');
+            const a1_note = cats => { const list = fe5('div'); list.querySelector = () => null; list.scrollTop = 0; a1_flt({ q: '', pack: '', cat: null, all: [], rows: [], hi: -1, opts: { cats, source: { packs: () => [], entries: () => [] } }, els: { spacer: { style: {} }, list } }, fe5, () => [], () => {}, () => {}, () => {}, 28)(); return kids5(list).map(x => x.textContent).join('|'); };
+            check('owed F5a1#7 a players\' view whose list has no categories left (every one GM-only) offers none: the custom row\'s form offers only (none) and the row\'s own category, never another list\'s (the GM\'s form still offers the list\'s own); the library picker says "Nothing in the library fits this list." instead of "(its categories: )", and still names the categories of a list that has some',
+                j(a1_pv7.fields[0].list.cats) === j([]) && j(a1_cats7(a1_pv7, false)) === j(['']) && j(a1_cats7(a1_pv7, false, { category: 'Mine' })) === j(['', 'Mine']) && j(a1_cats7(a1_sys7, true)) === j(['', 'Rune'])
+                && a1_note([]) === 'Nothing in the library fits this list.' && a1_note(['Rune']) === 'The library has nothing for this list (its categories: Rune).' && a1_note(null) === 'The library has nothing for this list.',
+                j([a1_pv7.fields[0].list, a1_cats7(a1_pv7, false), a1_cats7(a1_sys7, true), a1_note([]), a1_note(['Rune'])]));
+            // #9: the sheet-side and total-side details
+            const a1_sys9 = cleanSystem({ v: 1, name: 'A9', rolls: [], fields: [
+                { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', hover: true, list: { cats: ['Skill'], noQty: true, lvl: { label: 'Level', min: 0, max: 20, def: 1 }, stats: [{ key: 'Rel', show: true }, { key: 'Die', show: true, labels: ['d4', 'd6', 'd8'] }, { key: 'Wt' }],
+                    cols: [{ key: 'Band', label: 'Band', formula: 'Row.lvl > 3', foot: true }, { key: 'Big', label: 'Big', formula: 'Row.Rel * 1000000', foot: true }, { key: 'Wx', label: 'Wx', formula: 'Row.Wt' }, { key: 'Err', label: 'Err', formula: 'Nope + 1' }] } }],
+                items: [{ id: 'i_kar', name: 'Karate', category: 'Skill', key: 'Karate', stats: { Rel: 900000000, Die: 1, Wt: 2.345 } }, { id: 'i_judo', name: 'Judo', category: 'Skill', key: 'Judo', stats: { Rel: 900000000, Die: 2 } }, { id: 'i_sn', name: 'Sneak', category: 'Skill', key: 'Sneak', stats: { Rel: 1 } }] }, { F, gmView: true });
+            const a1_ch9 = { id: 'c_a9', ownerId: 'u_a9', values: { f_sk: [{ id: 'w_k', defId: 'i_kar', qty: 1, lvl: 6 }, { id: 'w_j', defId: 'i_judo', qty: 1, lvl: 5 }, { id: 'w_s', defId: 'i_sn', qty: 1, lvl: 1 }] } };
+            const a1_all9 = S.resolveAll(a1_sys9, a1_ch9, F), a1_nr9 = S.resolveAll(a1_sys9, a1_ch9, F, null, { noRows: true }), a1_ft9 = a1_all9.f_sk.foot, a1_r9 = S.makeResolver(a1_sys9, a1_ch9, F);
+            const a1_scS = fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8').replace(/\r\n/g, '\n');
+            check('owed F5a1#9 list totals and cells: a yes/no column\'s Total counts 1 per true row (2), a column summed past 1e15 stops at 1e15, a value of 1 or more prints two decimals (2.345 reads 2.35), a stat shown on the row that has value names gets no total (Die), and a name of four parts (Skills.Karate.lvl.x) is unknown',
+                a1_ft9.Band.value === 2 && a1_ft9.Big.value === 1e15 && a1_all9.f_sk.cells.w_k[2].text === '2.35' && a1_ft9.Die === undefined && !!a1_ft9.Rel && a1_r9('Skills.Karate.lvl.x') === undefined && a1_r9('Skills.Karate.lvl') === 6,
+                j([a1_ft9, a1_all9.f_sk.cells.w_k, a1_r9('Skills.Karate.lvl.x')]));
+            check('owed F5a1#9 the hover card works no rows out: resolveAll with noRows gives a list no cells and no totals (the same list without it has both), and hoverLines asks for noRows (pinned)',
+                a1_nr9.f_sk.cells === undefined && a1_nr9.f_sk.foot === undefined && !!a1_all9.f_sk.cells && !!a1_all9.f_sk.foot && Array.isArray(S.hoverLines(a1_sys9, a1_ch9, F))
+                && /function hoverLines\(sys, char, F, tctx\) \{\n\s*var all = resolveAll\(sys, char, F, tctx, \{ noRows: true \}\), lines = \[\];/.test(a1_scS), j([Object.keys(a1_nr9.f_sk), Object.keys(a1_all9.f_sk)]));
+            const a1_W9 = mkW5(true, 'sheet'), a1_f9 = Object.assign({}, a1_sys9.fields[0], { table: { footer: true } });
+            const a1_tb = res => { const w = fe5('div'); a1_W9.itemTableInto(w, a1_f9, a1_ch9, a1_ch9.values.f_sk, a1_sys9, false, true, true, '', res); const t = w.children[0], sec = tg => kids5(t).find(x => x.tag === tg), row0 = s => (s ? kids5(s)[0] : null) || fe5('tr'); return { th: kids5(row0(sec('thead'))), ft: kids5(row0(sec('tfoot'))), body: sec('tbody') }; };
+            const a1_span = cs => cs.reduce((n, c) => n + (c.colSpan || 1), 0), a1_tR = a1_tb(a1_all9.f_sk), a1_tN = a1_tb(undefined), a1_errTd = find5(a1_tR.body, 'sheet-item-colerr'), a1_errMsg = a1_all9.f_sk.cells.w_k[3].error;
+            check('owed F5a1#9 the table: its footer spans exactly the header\'s columns, with the totals under their columns and without them (drawn with no resolved entry, the list\'s columns still counted); a column cell that errors carries its message as a title',
+                a1_tR.th.length === 9 && a1_span(a1_tR.ft) === a1_tR.th.length && a1_tN.th.length === 9 && a1_span(a1_tN.ft) === a1_tN.th.length && a1_tR.ft[0].colSpan === 1
+                && typeof a1_errMsg === 'string' && a1_errMsg.length > 0 && a1_errTd.length === 3 && a1_errTd.every(td => td.title === a1_errMsg && td.textContent === '—'),
+                j([a1_tR.th.map(x => x.textContent), a1_tR.ft.map(x => [x.textContent, x.colSpan]), a1_tN.ft.map(x => [x.textContent, x.colSpan]), a1_errTd.map(x => x.title), a1_errMsg]));
+            const a1_sys9b = cleanSystem({ v: 1, name: 'A9b', rolls: [], fields: [{ id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Skill'] } }, { id: 'f_kl', key: 'KarL', label: 'KarL', kind: 'formula', vis: 'all', formula: 'Skills.Karate.lvl + 1' }],
+                items: [{ id: 'i_kar', name: 'Karate', category: 'Skill', key: 'Karate' }, { id: 'i_gk', name: 'Karate scroll', category: 'Secret', key: 'Karate', vis: 'gm' }] }, { F, gmView: true });
+            const a1_pv9b = cleanSystem(a1_sys9b, { F, gmView: false });
+            check('owed F5a1#9 (critic 5) a GM-only item outside a list\'s categories does not make that list\'s same key GM-only: the players\' view keeps a visible formula naming the visible Skills.Karate, and gmOnlyNames does not name it',
+                a1_pv9b.fields.find(f => f.id === 'f_kl').formula === 'Skills.Karate.lvl + 1' && S.gmOnlyNames(a1_sys9b, [{ name: 'Skills.Karate.lvl' }]).length === 0, j([a1_pv9b.fields, S.gmOnlyNames(a1_sys9b, [{ name: 'Skills.Karate.lvl' }])]));
+        }
         // ---- Stage 6 F5a2: choice stats (a pick of named options; stored as the label, never the name; a GM-only option never reaches players) ----
         {
             const html5b = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tut5b = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
@@ -1841,6 +2095,99 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && !!pdefS && j(kids5(pdefS).map(o => [o.value, !!o.selected])) === j([['', false], ['One hand', true], ['Two hands', false]]) && find5(cardP, 'sys-list-statdef').length === 5 && find5(cardP, 'sys-list-statnames').length === 5
                 && /else if \(lcc\.indexOf\('sys-list-statopts'\) >= 0\) stD\.opts = t\.value\.split\(','\)/.test(shT) && /else if \(c\.indexOf\('sys-list-statkind'\) >= 0\) \{/.test(shT) && /else if \(c\.indexOf\('sys-list-statpdef'\) >= 0\) \{/.test(shT) && /typeof s\.key !== 'string' \|\| !s\.key \|\| s\.kind === 'pick'\) return; var o = el\('option'/.test(shT)
                 && /A stat can be a <b>choice<\/b> \(Kind: Choice\)/.test(html5b) && shT.indexOf("ctl = select('sys-item-stat', [['', '—' + (s.def ? ' (' + s.def + ')' : '')]].concat((s.opts || []).map(function(o) { return [o.label, o.label]; })), pv, s.label + ' (' + s.key + ')'); ctl.dataset.pick = '1';") >= 0 && /A stat can be a <b>choice<\/b> of named options/.test(tut5b), j([chipG, gripSel && kids5(gripSel).map(o => [o.value, o.textContent]), gripCommit, optsI && optsI.value, pdefS && kids5(pdefS).map(o => o.value)]));
+        }
+        // owed review F5a2: a GM-only value read through a choice's option, a no-op judged on the actor's own options, a hidden choice the GM set, what
+        // its owner is sent, a loop through a choice, what Save drops when a stat's kind or options change, a GM-only default, the forms' blank choice
+        {
+            const a2_raw = { v: 1, name: 'A2', rolls: [], listRules: { ownerStats: true }, fields: [
+                { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 12 }, { id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: 'all', def: 10 }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 17 },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Acc' }, { key: 'Ability', kind: 'pick', def: 'Plain', opts: [{ label: 'Plain', name: 'ST' }, { label: 'Other', name: 'DX' }, { label: 'Secret', name: 'GMFig' }] }], cols: [{ key: 'Eff', label: 'Eff', formula: 'Row.Ability + 1' }] } },
+                { id: 'f_ab', key: 'AtkBonus', label: 'Atk', kind: 'formula', vis: 'all', formula: 'Weapons.Longsword.Ability + 2' },
+                { id: 'f_gr', key: 'Grit', label: 'Grit', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'Weapons.Longsword.Ability * 2', min: 0, def: 'max' },
+                { id: 'f_sa', key: 'Stam', label: 'Stam', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'ST * 2', min: 0, def: 'max' }],
+                items: [{ id: 'i_ls', name: 'Longsword', key: 'Longsword', stats: { Acc: 1, Ability: 'Secret' } }, { id: 'i_rp', name: 'Rapier', key: 'Rapier', stats: { Acc: 2 } }, { id: 'i_ax', name: 'Axe', key: 'Axe', stats: { Ability: 'Other' } }] };
+            const a2_sys = cleanSystem(a2_raw, { F, gmView: true }), a2_pv = cleanSystem(a2_sys, { F, gmView: false }), a2_lib = {}; a2_sys.items.forEach(i => { a2_lib[i.id] = i; });
+            const a2_pl = a2_pv.fields.find(f => f.id === 'f_wp').list, a2_rows = [{ id: 'w_ls', defId: 'i_ls', qty: 1 }, { id: 'w_rp', defId: 'i_rp', qty: 1 }], a2_ch = { id: 'c_a', ownerId: 'u_a', values: { f_wp: a2_rows } };
+            const a2_pools = S.gmPools(a2_sys, F), a2_der = S.gmDerivedNames(a2_sys, F, [{ name: 'Weapons.Longsword.Ability' }, { name: 'AtkBonus' }, { name: 'Grit.max' }, { name: 'ST' }, { name: 'Weapons.Eff' }, { name: 'Stam.max' }]);
+            const a2_eG = applyEdit(a2_sys, a2_ch, 'f_gr', { cur: 1000 }, F, { player: true }), a2_eS = applyEdit(a2_sys, a2_ch, 'f_sa', { cur: 1000 }, F, { player: true }), a2_v = validateSystem(a2_sys, F);
+            check('F5a2 owed review #1: a GM-only value read through a choice\'s option (Secret = GMFig) makes the list\'s names worked out from one — the choice itself, a visible formula over it, a column reading Row.Ability, a pool whose max reads it (gmPools), never ST; the players\' view drops that pool, a player\'s edit of it is refused (field, never the clamped 34) and the validator says so; a pool over ST stays theirs',
+                a2_pools.f_gr === 1 && !a2_pools.f_sa && j(a2_der) === j(['Weapons.Longsword.Ability', 'AtkBonus', 'Grit.max', 'Weapons.Eff']) && !a2_pv.fields.some(f => f.id === 'f_gr') && a2_pv.fields.some(f => f.id === 'f_sa')
+                && j(a2_eG) === j({ ok: false, reason: 'field' }) && j(a2_eS) === j({ ok: true, value: { cur: 24 } }) && a2_v.warnings.some(w => w.id === 'f_gr' && w.prop === 'maxFormula' && /this pool is GM only/.test(w.message)), j([a2_pools, a2_der, a2_eG, a2_eS, a2_v.warnings]));
+            // the host (the full system, judged on the player's view) and the player's client (the view, over its projected copy) on one op
+            const a2_agree = (rows, q) => { const hc = { id: 'c_a', values: { f_wp: JSON.parse(j(rows)) } }, cc = { id: 'c_a', values: { f_wp: S.projectRows(JSON.parse(j(rows)), a2_pv, a2_lib, a2_pl) } };
+                const h = S.applyRowOp(a2_sys, hc, 'f_wp', q, F, { player: true, view: a2_pv }), c = S.applyRowOp(a2_pv, cc, 'f_wp', q, F, { player: true, view: a2_pv });
+                return { h, c, same: h.ok === c.ok && h.reason === c.reason && (!h.ok || j(S.projectRows(h.value, a2_pv, a2_lib, a2_pl)) === j(c.value)) }; };
+            const a2_n1 = a2_agree(a2_rows, { op: 'ov', rowId: 'w_ls', ov: { stats: { Ability: 'plain' } } }), a2_nG = S.applyRowOp(a2_sys, JSON.parse(j(a2_ch)), 'f_wp', { op: 'ov', rowId: 'w_ls', ov: { stats: { Ability: 'Plain' } } }, F, {});
+            check('F5a2 owed review #2: a player setting the default (plain) on a copy whose library entry picks the secret option stores nothing — judged on their own options, where the entry reads the default, as on their client (host and client agree; no own value that would tell the library holds an option they cannot see); the GM setting it stores it, held',
+                a2_n1.h.ok && a2_n1.same && a2_n1.h.value.find(r => r.id === 'w_ls').ov === undefined && a2_nG.ok && j(a2_nG.value.find(r => r.id === 'w_ls').ov) === j({ stats: { Ability: 'Plain' }, held: ['Ability'] }), j([a2_n1, a2_nG]));
+            const a2_sec = [{ id: 'w_rp', defId: 'i_rp', qty: 1, ov: { stats: { Ability: 'Secret' }, held: ['Ability'] } }];
+            const a2_h1 = a2_agree(a2_sec, { op: 'ov', rowId: 'w_rp', ov: { stats: { Ability: 'Other' } } }), a2_h2 = a2_agree([{ id: 'w_rp', defId: 'i_rp', qty: 1, ov: { stats: { Ability: 'Other' }, held: ['Ability'] } }], { op: 'ov', rowId: 'w_rp', ov: { stats: { Ability: 'Plain' } } });
+            const a2_h3 = a2_agree([{ id: 'w_rp', defId: 'i_rp', qty: 1, ov: { stats: { Acc: 5 }, held: ['Acc'] } }], { op: 'ov', rowId: 'w_rp', ov: { stats: { Acc: 3 } } }), a2_h4 = a2_agree(a2_sec, { op: 'ov', rowId: 'w_rp', ov: { stats: null } });
+            check('F5a2 owed review #3 (owner 2026-09-27): a player\'s change of a hidden choice the GM set and holds on their copy (Secret, which their view never shows) is accepted and replaces it — their own pick, not held — and the host\'s answer names the stat and the item for the GM\'s notice (their client\'s never does); host and client agree; a GM-held visible choice or number still refuses (field) on both; their "every stat back" leaves the GM\'s hidden one in place',
+                a2_h1.h.ok && a2_h1.same && j(a2_h1.h.value[0].ov) === j({ stats: { Ability: 'Other' } }) && a2_h1.h.secretPick === 'Ability' && a2_h1.h.name === 'Rapier' && !('secretPick' in a2_h1.c)
+                && j(a2_h2.h) === j({ ok: false, reason: 'field' }) && a2_h2.same && j(a2_h3.h) === j({ ok: false, reason: 'field' }) && a2_h3.same
+                && a2_h4.h.ok && a2_h4.same && j(a2_h4.h.value[0].ov) === j({ stats: { Ability: 'Secret' }, held: ['Ability'] }) && !('secretPick' in a2_h4.h), j([a2_h1, a2_h2.h, a2_h3.h, a2_h4]));
+            const a2_oss = new Function('playerSystem', 'projectRows', "'use strict';\n" + cutT('function ownerSeesSame(', 'function revertLast(') + '\nreturn ownerSeesSame;')(() => a2_pv, S.projectRows);
+            const a2_p0 = [{ id: 'w_rp', defId: 'i_rp', qty: 1 }], a2_pS = a2_sec, a2_pO = [{ id: 'w_rp', defId: 'i_rp', qty: 1, ov: { stats: { Ability: 'Other' }, held: ['Ability'] } }];
+            check('F5a2 owed review #4: ownerSeesSame (the real one, sliced) compares the list as its owner gets it — the GM setting a hidden choice (Secret) on their copy sends nothing, a visible one (Other) is sent; with no list of theirs to compare (no field id, or one not in their view) every stat counts (fail closed toward sending)',
+                a2_oss({}, a2_sys, a2_p0, a2_pS, 'f_wp') === true && a2_oss({}, a2_sys, a2_p0, a2_pO, 'f_wp') === false && a2_oss({}, a2_sys, a2_p0, a2_pS) === false && a2_oss({}, a2_sys, a2_p0, a2_pS, 'f_nope') === false,
+                j([a2_oss({}, a2_sys, a2_p0, a2_pS, 'f_wp'), a2_oss({}, a2_sys, a2_p0, a2_pO, 'f_wp'), a2_oss({}, a2_sys, a2_p0, a2_pS)]));
+            // a loop through a choice: an option reading the choice itself, and a formula read back through one
+            const a2_raw5 = { v: 1, name: 'L', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 12 },
+                { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Attr', kind: 'pick', opts: [{ label: 'Strength', name: 'ST' }, { label: 'Self', name: 'Skills.Karate.Attr' }] }] } }],
+                items: [{ id: 'i_k', name: 'Karate', key: 'Karate', stats: { Attr: 'Self' } }] };
+            const a2_raw5b = JSON.parse(j(a2_raw5)); a2_raw5b.fields[1].list.stats[0].opts[1] = { label: 'Loop', name: 'KarAttr' }; a2_raw5b.items[0].stats.Attr = 'Loop'; a2_raw5b.fields.push({ id: 'f_ka', key: 'KarAttr', label: 'K', kind: 'formula', vis: 'all', formula: 'Skills.Karate.Attr + 1' });
+            const a2_s5 = cleanSystem(a2_raw5, { F, gmView: true }), a2_s5b = cleanSystem(a2_raw5b, { F, gmView: true }), a2_ch5 = { id: 'c_k', values: { f_sk: [{ id: 'w_k', defId: 'i_k', qty: 1 }] } };
+            let a2_r5; try { a2_r5 = S.makeResolver(a2_s5, a2_ch5, F)('Skills.Karate.Attr'); } catch (e) { a2_r5 = 'threw: ' + e.message; }
+            let a2_r5b; try { a2_r5b = resolveAll(a2_s5b, a2_ch5, F).f_ka; } catch (e) { a2_r5b = 'threw: ' + e.message; }
+            const a2_v5 = validateSystem(a2_s5, F).errors.map(e => e.id + '|' + e.message), a2_v5b = validateSystem(a2_s5b, F).errors.map(e => e.id + '|' + e.message);
+            check('F5a2 owed review #5: a choice whose option reads itself (Self = Skills.Karate.Attr, Karate picking it) reads as a loop naming the row, never a stack overflow; a formula read back through a choice (KarAttr = Skills.Karate.Attr + 1, the row picking an option reading KarAttr) is a loop on the sheet; the validator names both loops through the choice, under the list',
+                !!a2_r5 && typeof a2_r5 === 'object' && !!a2_r5.error && a2_r5.error.message === 'Formulas refer to each other in a loop: Skills[Karate].Attr → Skills[Karate].Attr'
+                && !!a2_r5b && a2_r5b.error === 'Formulas refer to each other in a loop: karattr → Skills[Karate].Attr → karattr'
+                && a2_v5.indexOf('f_sk|Formulas refer to each other in a loop: Skills.Attr (choice) → Skills.Attr (choice)') >= 0 && j(a2_v5b) === j(['f_sk|Formulas refer to each other in a loop: KarAttr → Skills.Attr (choice) → KarAttr']), j([a2_r5, a2_r5b, a2_v5, a2_v5b]));
+            // what Save drops when a saved stat stays on the card but its kind flips or an option is relabelled (refreshErrors, run for real)
+            const a2_reDeps = ['draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf'], a2_reSrc = cutT('function refreshErrors(', 'function errorCell(');
+            const a2_runRE = (dr, cp) => new Function(...a2_reDeps, 'var errorsById = {}, warningsById = {};\n' + a2_reSrc + '\nrefreshErrors(); return errorsById;')(dr, () => F, S.validKey, S.KINDS, S.cleanItemKey, cleanSystem, validateSystem, S.statKey, S.LIMITS, () => cp, c => c && c.system && typeof c.system === 'object' ? c.system : null);
+            const a2_rawE = { v: 1, name: 'E', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 12 }, { id: 'f_dx', key: 'DX', kind: 'number', def: 10 },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'bonus' }, { key: 'Attr', kind: 'pick', opts: [{ label: 'Dexterity', name: 'DX' }, { label: 'Strength', name: 'ST' }] }] } }],
+                items: [{ id: 'i_a', name: 'A', stats: { bonus: 2, Attr: 'Dexterity' } }, { id: 'i_b', name: 'B', stats: { bonus: 3 } }] };
+            const a2_campE = { system: cleanSystem(a2_rawE, { F, gmView: true }), chars: { c_1: { id: 'c_1', values: { f_wp: [{ id: 'w_a', defId: 'i_a', qty: 1, ov: { stats: { bonus: 7 } } }] } }, c_2: { id: 'c_2', values: { f_wp: [{ id: 'w_m', qty: 1, def: { name: 'M', stats: { Attr: 'Dexterity' } } }] } } } };
+            const a2_flip = JSON.parse(j(a2_rawE)); a2_flip.fields[2].list.stats[0] = { key: 'bonus', kind: 'pick', opts: [{ label: 'High', name: 'ST' }] };
+            const a2_rel = JSON.parse(j(a2_rawE)); a2_rel.fields[2].list.stats[1].opts[0].label = 'Agility';
+            const a2_num = JSON.parse(j(a2_rawE)); a2_num.fields[2].list.stats[1] = { key: 'Attr' };
+            const a2_msgs = E => { const o = {}; Object.keys(E).sort().forEach(k => { o[k] = E[k].map(e => e.message); }); return o; }, a2_E1 = a2_msgs(a2_runRE(a2_flip, a2_campE)), a2_E2 = a2_msgs(a2_runRE(a2_rel, a2_campE)), a2_E3 = a2_msgs(a2_runRE(a2_num, a2_campE));
+            check('F5a2 owed review #6: before a Save that drops them, the card says what a stat still on it loses — Number to Choice: each item\'s number ("is a choice now") and the characters\' own copies (it is a choice now), never "At most 16"; an option relabelled (Dexterity to Agility): the items and copies naming it (that option is gone); Choice to Number: the labels ("is a number now")',
+                j(a2_E1) === j({ i_a: ['“bonus” is a choice now: Save drops its number.'], i_b: ['“bonus” is a choice now: Save drops its number.'], 'list:f_wp': ['Save drops the “bonus” values of 1 character’s copy (it is a choice now).'] })
+                && j(a2_E2) === j({ i_a: ['“Attr” has no option “Dexterity” now: Save drops it.'], 'list:f_wp': ['Save drops the “Attr” values of 1 character’s copy (an option they name is gone).'] })
+                && j(a2_E3) === j({ i_a: ['“Attr” is a number now: Save drops its choice.'], 'list:f_wp': ['Save drops the “Attr” values of 1 character’s copy (it is a number now).'] }) && !/At most/.test(j([a2_E1, a2_E2, a2_E3])), j([a2_E1, a2_E2, a2_E3]));
+            // a default naming the GM-only option
+            const a2_raw8 = JSON.parse(j(a2_raw)); a2_raw8.fields[3].list.stats[1].def = 'Secret';
+            const a2_s8 = cleanSystem(a2_raw8, { F, gmView: true }), a2_p8 = cleanSystem(a2_s8, { F, gmView: false }), a2_st8 = a2_p8.fields.find(f => f.id === 'f_wp').list.stats[1];
+            check('F5a2 owed review #8: a choice whose default is its GM-only option keeps it on the GM\'s side (Secret) while the players\' view drops the default with the option (no def, nothing of Secret or GMFig) and is a fixed point',
+                a2_s8.fields.find(f => f.id === 'f_wp').list.stats[1].def === 'Secret' && a2_st8.key === 'Ability' && !('def' in a2_st8) && j(a2_st8.opts.map(o => o.label)) === j(['Plain', 'Other']) && !/Secret|GMFig/.test(j(a2_p8)) && j(cleanSystem(a2_p8, { F, gmView: false })) === j(a2_p8), j([a2_st8]));
+            // the copy form and the custom form: a copy's own choice chosen, and the blank sends null (back to the library / none)
+            const a2_rawF = JSON.parse(j(rawT)); a2_rawF.fields[0].list.custom = true; a2_rawF.fields[0].list.stats.push({ key: 'Grip', kind: 'pick', show: true, def: 'One hand', opts: [{ label: 'One hand', name: 'Acc' }, { label: 'Two hands', name: 'Dmg' }] });
+            const a2_sysF = cleanSystem(a2_rawF, { F, gmView: true }), a2_rowsF = clT(seedT()).concat([{ id: 'w_og', defId: 'i_blaster', qty: 1, ov: { stats: { Grip: 'Two hands' } } }, { id: 'w_cg', qty: 1, def: { name: 'Club', stats: { Grip: 'Two hands' } } }]);
+            const a2_selOf = rid => { const w = formAt(W5, a2_sysF, a2_rowsF, true, rid), s = walk5(w, partIs('rf-' + rid + '-s-Grip'), []).find(x => x.tag === 'select'), chosen = s ? (kids5(s).find(o => o.selected) || {}).value : undefined; commits5.length = 0; if (s) { s.value = ''; s.on.change(); } const c = commits5.slice(); commits5.length = 0; W5.setForm(null); return { chosen, c }; };
+            const a2_fO = a2_selOf('w_og'), a2_fC = a2_selOf('w_cg');
+            check('F5a2 owed review #9: a copy\'s own choice (Two hands) shows as chosen in its form and choosing the blank ("Library: …") sends null (back to the library); a custom row\'s choice shows as chosen and its blank ("—") sends null — never an empty label the host refuses',
+                a2_fO.chosen === 'Two hands' && j(a2_fO.c) === j([['f_wp', { op: 'ov', rowId: 'w_og', ov: { stats: { Grip: null } } }]]) && a2_fC.chosen === 'Two hands' && j(a2_fC.c) === j([['f_wp', { op: 'custom', rowId: 'w_cg', def: { stats: { Grip: null } } }]]), j([a2_fO, a2_fC]));
+            // the fold's other lines: a wire label's cap, the first list's kind, an unpicked choice with no default, an option over a GM-only pool, a label ignoring case, an option name's cap
+            const a2_ci = n => S.cleanCharItem({ type: 'char-item', rid: 'r', charId: 'c_a', fieldId: 'f_wp', op: 'ov', rowId: 'w_rp', ov: { stats: { Acc: 'x'.repeat(n) } } });
+            const a2_s4 = cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 12 }, { id: 'f_gr', key: 'Gear', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Attr' }] } }, { id: 'f_sk', key: 'Skills', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Attr', kind: 'pick', opts: [{ label: 'Strength', name: 'ST' }] }] } }],
+                items: [{ id: 'i_a', name: 'A', stats: { Attr: 5 } }, { id: 'i_b', name: 'B', stats: { Attr: 'Strength' } }] }, { F, gmView: true });
+            const a2_long = S.cleanListSpec({ stats: [{ key: 'Attr', kind: 'pick', opts: [{ label: 'Long', name: 'A' + 'b'.repeat(64) }, { label: 'Ok', name: 'A' + 'b'.repeat(63) }] }] }, true, F);
+            check('F5a2 owed review #10, the wire and the clean: a choice\'s label on the wire is kept within four times its cap (240 kept, 241 refuses the message); a key the first list makes a number keeps its items\' numbers when a later list makes it a choice (and a label there is dropped); a label is matched ignoring case, the key too (other reads Other, SECRET under ability reads Secret); an option\'s name is 64 characters at most',
+                a2_ci(241) === null && !!a2_ci(240) && a2_ci(240).ov.stats.Acc.length === 240 && j(a2_s4.items.map(i => i.stats || null)) === j([{ Attr: 5 }, null])
+                && S.rowStat(a2_sys.fields.find(f => f.id === 'f_wp').list, { stats: { Ability: 'other' } }, 'Ability') === 'Other' && S.rowStat(a2_sys.fields.find(f => f.id === 'f_wp').list, { stats: { ability: 'SECRET' } }, 'Ability') === 'Secret'
+                && j(a2_long.stats[0].opts.map(o => o.label)) === j(['Ok']), j([a2_s4.items.map(i => i.stats), a2_long.stats[0].opts]));
+            const a2_raw10 = { v: 1, name: 'Z', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 12 }, { id: 'f_gm', key: 'GMFig', kind: 'number', vis: 'gm', def: 3 }, { id: 'f_hid', key: 'Hid', kind: 'resource', vis: 'all', maxFormula: 'GMFig + 1', min: 0, def: 'max' },
+                { id: 'f_sk', key: 'Skills', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Attr', kind: 'pick', opts: [{ label: 'Strength', name: 'ST' }, { label: 'Pool', name: 'Hid.max' }] }], cols: [{ key: 'Eff', label: 'Eff', formula: 'Row.Attr + 1' }] } }], items: [{ id: 'i_k', name: 'K', key: 'K' }] };
+            const a2_s10 = cleanSystem(a2_raw10, { F, gmView: true }), a2_p10 = cleanSystem(a2_s10, { F, gmView: false }), a2_l10 = {}; a2_s10.items.forEach(i => { a2_l10[i.id] = i; });
+            const a2_ch10 = { id: 'c_z', ownerId: 'u_z', values: { f_sk: [{ id: 'w_k', defId: 'i_k', qty: 1 }] } }, a2_g10 = resolveAll(a2_s10, a2_ch10, F).f_sk, a2_o10 = resolveAll(a2_p10, S.charFor(a2_ch10, a2_p10, 'u_z', { lib: {}, items: a2_l10 }), F).f_sk, a2_v10 = validateSystem(a2_s10, F);
+            check('F5a2 owed review #10, the reads and the validator: a choice with no default on a row that picks none reads 0 in a column (Eff = Row.Attr + 1 reads 1), on the GM\'s sheet and its owner\'s, never an error; an option reading a pool whose max is GM-only (Hid.max, gmPools) warns that players do not get it',
+                !!a2_g10 && !!a2_g10.cells.w_k && a2_g10.cells.w_k[0].value === 1 && !!a2_o10 && !!a2_o10.cells.w_k && a2_o10.cells.w_k[0].value === 1
+                && a2_v10.warnings.some(w => w.id === 'f_sk' && w.message === 'Stat “Attr”: the option “Pool” reads a GM-only value, so players do not get that option.'), j([a2_g10, a2_o10, a2_v10.warnings]));
         }
         // ---- Stage 6 F5b: row rolls (a list's rolls on each row, rolled with the row's names; GM-only rows and values stay private) ----
         {
@@ -1909,6 +2256,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && /var rvQ = varsQ\.row\(q\.row\.f, q\.row\.r\); if \(!rvQ\) \{ denyQ\('char'\); return; \}\n\s*varsQ = rvQ; if \(SQ\.rowRollNames\(campQ\.system, srcQ, q\.row\.f, q\.row\.r, \[\], Fq\)\.gm\) q\.priv = 'gm';/.test(netSrcR) && /if \(o\.row && o\.charId\) \{ req\.row = \{ f: String\(o\.row\.f\), r: String\(o\.row\.r\) \};/.test(netSrcR)
                 && /else if \(hosting && rowP && rowP\.gm\) \{ rec\.priv = 'gm';/.test(netSrcR) && /if \(!r\.error && !opts\.row\) remember\(clean\);/.test(diceSrcR) && /row: opts\.row \|\| undefined, act: opts\.act \|\| undefined, mod: opts\.mod \|\| undefined, adv: opts\.adv \|\| undefined \}\);   \/\/ row \(F5b\)/.test(diceSrcR)
                 && /<b>Rolls<\/b> put a button on each row/.test(tut5c) && /A list&rsquo;s <b>Rolls<\/b> \(four at most/.test(html5c), j([find5(cardR, 'sys-list-rolllabel').map(x => x.value)]));
+        }
+        // owed review F5b: rowRollNames follows every column however deep (a list has six), a visible item's row on a GM-only list is the GM's, a curse
+        // the GM keeps on is marked kept (never gm: its owner's own roll stays theirs); the validator says a list roll naming a GM-only value is not the players'
+        {
+            const b5_raw = { v: 1, name: 'B5', rolls: [], fields: [
+                { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 7 }, { id: 'f_fx', key: 'Effects', kind: 'effects', vis: 'all' },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Acc' }, { key: 'Grip', kind: 'pick', opts: [{ label: 'Strong', name: 'ST' }, { label: 'Secret', name: 'GMFig' }] }],
+                    cols: [{ key: 'Hit', label: 'Hit', formula: 'Row.Acc + ST' }, { key: 'Deep', label: 'Deep', formula: 'Row.Hit + 1' }], rolls: [{ label: 'Attack', formula: 'd20 + Row.Deep' }] } },
+                { id: 'f_se', key: 'Secret', label: 'Secret', kind: 'item-list', vis: 'gm', edit: 'owner', list: { rolls: [{ label: 'X', formula: 'd6' }] } }],
+                items: [{ id: 'i_bl', name: 'Blaster', stats: { Acc: 3, Grip: 'Secret' } }], effects: [{ id: 'e_curse', name: 'Curse', vis: 'gm', mods: [{ f: 'f_st', op: 'add', v: -3 }] }] };
+            const b5_chain = (end, keys) => { const r = JSON.parse(j(b5_raw)), ks = keys || ['A', 'B', 'C', 'D', 'E', 'G2']; r.fields[3].list.cols = ks.map((k, i) => ({ key: k, label: k, formula: i < ks.length - 1 ? 'Row.' + ks[i + 1] : end })); return cleanSystem(r, { F, gmView: true }); };
+            const b5_sys = cleanSystem(b5_raw, { F, gmView: true }), b5_c6 = b5_chain('Row.Grip'), b5_e6 = b5_chain('ST'), b5_lp = b5_chain('Row.A', ['A', 'B']);
+            const b5_ch = { id: 'c_b', ownerId: 'u_b', values: { f_wp: [{ id: 'w_b', defId: 'i_bl', qty: 1 }], f_se: [{ id: 'w_s', defId: 'i_bl', qty: 1 }], f_fx: [{ id: 'x_1', ref: 'e_curse', on: true }] } };
+            const b5_nm = (sys, names, f, r) => S.rowRollNames(sys, b5_ch, f || 'f_wp', r || 'w_b', names, F), b5_ns = x => x.names.map(n => n.name);
+            const b5_se = b5_nm(b5_sys, [], 'f_se', 'w_s'), b5_wp = b5_nm(b5_sys, []), b5_dp = b5_nm(b5_sys, [{ name: 'Row.Deep' }]), b5_c6n = b5_nm(b5_c6, [{ name: 'Row.A' }]), b5_e6n = b5_nm(b5_e6, [{ name: 'Row.A' }]), b5_lpn = b5_nm(b5_lp, [{ name: 'Row.A' }]);
+            const b5_vars = S.makeResolver(b5_e6, b5_ch, F), b5_six = ['Weapons.A', 'Weapons.B', 'Weapons.C', 'Weapons.D', 'Weapons.E', 'Weapons.G2'];
+            check('owed F5b rowRollNames: a visible item\'s own row on a GM-only list is the GM\'s (the list alone makes it so; the same item on a visible list is not); a column two down names what the last one reads (Row.Deep: Weapons.Deep, Weapons.Hit, ST); six columns down (a list\'s most) it still names the choice\'s GMFig and the ST a GM-only effect moves; a loop of columns is read once each and never fails closed',
+                b5_se.gm === true && b5_se.kept === false && b5_wp.gm === false && b5_wp.kept === false && j(b5_ns(b5_dp)) === j(['Weapons.Deep', 'Weapons.Hit', 'ST'])
+                && b5_c6.fields[3].list.cols.length === 6 && j(b5_ns(b5_c6n)) === j(b5_six.concat('GMFig')) && !b5_c6n.gm && S.gmOnlyNames(b5_c6, b5_c6n.names).indexOf('GMFig') >= 0
+                && j(b5_ns(b5_e6n)) === j(b5_six.concat('ST')) && !b5_e6n.gm && S.gmEffectNames(b5_vars, b5_e6n.names).indexOf('ST') >= 0 && !b5_lpn.gm && j(b5_ns(b5_lpn)) === j(['Weapons.A', 'Weapons.B']),
+                j([b5_se, b5_wp, b5_ns(b5_dp), b5_ns(b5_c6n), b5_ns(b5_e6n), S.gmEffectNames(b5_vars, b5_e6n.names), b5_lpn]));
+            // a curse the GM keeps on: the player switches the Ring off (applyRowOp, run for real) and it stays on, out of their sight
+            const b5_rawK = { v: 1, name: 'K', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10 },
+                { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Worn' }, stats: [{ key: 'Acc' }], cols: [{ key: 'Hit', label: 'Hit', formula: 'Row.Acc + Row.on * 2' }] } }],
+                items: [{ id: 'i_ring', name: 'Ring', eq: 'curse', eqMsg: 'It clings', stats: { Acc: 1 } }, { id: 'i_cap', name: 'Cap', stats: { Acc: 2 } }] };
+            const b5_sysK = cleanSystem(b5_rawK, { F, gmView: true }), b5_pvK = cleanSystem(b5_sysK, { F, gmView: false });
+            const b5_chOn = { id: 'c_k', ownerId: 'u_b', values: { f_gr: [{ id: 'w_r', defId: 'i_ring', qty: 1, on: true }, { id: 'w_c', defId: 'i_cap', qty: 1, on: true }] } };
+            const b5_off = S.applyRowOp(b5_sysK, JSON.parse(j(b5_chOn)), 'f_gr', { op: 'set', rowId: 'w_r', facts: { on: false } }, F, { player: true, view: b5_pvK });
+            const b5_chK = JSON.parse(j(b5_chOn)); b5_chK.values.f_gr = b5_off && b5_off.ok ? b5_off.value : [];
+            const b5_k1 = S.rowRollNames(b5_sysK, b5_chK, 'f_gr', 'w_r', [{ name: 'Row.Hit' }], F), b5_k2 = S.rowRollNames(b5_sysK, b5_chOn, 'f_gr', 'w_r', [{ name: 'Row.Hit' }], F), b5_k3 = S.rowRollNames(b5_sysK, b5_chK, 'f_gr', 'w_c', [], F);
+            check('owed F5b rowRollNames marks a curse the GM keeps on (its owner switched it off: stored on, keptOn 1) as kept and never as gm, so the GM\'s roll of it stays private and its owner\'s own stays theirs; the same row switched on as usual, and another row beside it, are neither',
+                j(b5_chK.values.f_gr.map(r => [r.id, r.on, r.keptOn])) === j([['w_r', true, 1], ['w_c', true, undefined]]) && b5_k1.kept === true && b5_k1.gm === false && j(b5_ns(b5_k1)) === j(['Gear.Hit'])
+                && b5_k2.kept === false && b5_k2.gm === false && b5_k3.kept === false && b5_k3.gm === false, j([b5_chK.values.f_gr, b5_k1, b5_k2, b5_k3]));
+            // the validator: a list roll naming a GM-only value, or a GM-only item's key, is dropped from the players' view, so they never get it (no error to see)
+            const b5_rawV = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 5 },
+                { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Acc' }], rolls: [{ label: 'Sneak', formula: 'd20 + GMFig' }, { label: 'Rune', formula: 'd20 + Weapons.Rune.Acc' }, { label: 'Ok', formula: 'd20 + Row.Acc' }] } }],
+                items: [{ id: 'i_ru', name: 'Rune', key: 'Rune', vis: 'gm', stats: { Acc: 1 } }] };
+            const b5_sysV = cleanSystem(b5_rawV, { F, gmView: true }), b5_vV = S.validateSystem(b5_sysV, F), b5_wV = b5_vV.warnings.filter(w => w.id === 'f_wp' && w.prop === 'list').map(w => w.message);
+            check('owed F5b the validator: a list roll that names a GM-only value or a GM-only item\'s key warns "players will not get this roll." (the players\' view drops it, so they see no error), under the list\'s card; the players\' view keeps only the roll naming neither',
+                j(b5_wV) === j(['Roll “Sneak”: "GMFig" is GM only: players will not get this roll.', 'Roll “Rune”: "Weapons.Rune.Acc" names a GM-only item: players will not get this roll.']) && b5_vV.errors.length === 0
+                && j(cleanSystem(b5_sysV, { F, gmView: false }).fields.find(x => x.id === 'f_wp').list.rolls.map(r => r.label)) === j(['Ok']), j([b5_wV, b5_vV.errors]));
         }
         const tut5 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), html5 = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
         const d20 = cleanSystem(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'rows-d20.json'), 'utf8')), { F, gmView: true });
@@ -3623,10 +4011,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rw1 = runRowL('w_1'), rw2 = runRowL('w_2'), rw3 = runRowL('w_3'), rwC = runRowL('w_1', { client: true });
         check('H7b applyAction on a row (run for real): the GM\'s press reads that row (FP 5 - 3, EP 6 - 2) and stores one change; the card goes to the owner (FP is not on hover); a row of a GM-only item keeps it the GM\'s with one toast; a kept curse\'s row does nothing but say so; a player asks the host with the row and stores nothing',
             j(rw1.ch.values.f_fp) === j({ cur: 2 }) && j(rw1.ch.values.f_ep) === j({ cur: 4 }) && rw1.after.length === 1 && rw1.cards[0][1] === 'Force Push · Costs' && rw1.cards[0][3] === 'owner' && rw1.toasts.length === 0
-            && rw2.cards[0][3] === 'gm' && j(rw2.toasts) === j(['Kept private: that is on a GM-only item.']) && j(rw2.ch.values.f_fp) === j({ cur: 4 })
+            && rw2.cards[0][3] === 'gm' && j(rw2.toasts) === j(['Kept private: that is on a GM-only item or list.']) && j(rw2.ch.values.f_fp) === j({ cur: 4 })
             && rw3.after.length === 0 && rw3.cards.length === 0 && j(rw3.toasts) === j(['That row cannot be used now.'])
             && j(rwC.asks) === j([['c_l', null, 'Force Push · Costs', { f: 'f_pw', r: 'w_1', i: 1 }]]) && rwC.after.length === 0,
             j([rw1.cards, rw1.toasts, rw2.cards, rw2.toasts, rw3.toasts, rwC.asks]));
+        // owed review F5b: the GM's apply action on a curse he keeps on (its owner switched it off) keeps its card the GM's and says why; a row switched on as usual goes to its owner
+        {
+            const b5_gmK = cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_fp', key: 'FP', label: 'Fatigue', kind: 'resource', maxFormula: '10', min: 0, def: 'max', edit: 'owner' },
+                { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { on: { label: 'Worn' }, stats: [{ key: 'Cost' }], rolls: [{ label: 'Drain', apply: [{ f: 'f_fp', formula: 'Row.Cost' }] }] } }],
+                items: [{ id: 'i_ring', name: 'Ring', eq: 'curse', eqMsg: 'It clings', stats: { Cost: 2 } }] }, { F, gmView: true });
+            const b5_runK = row => {
+                const ch = { id: 'c_k', name: 'Bo', ownerId: 'u_b', values: { f_fp: { cur: 5 }, f_gr: [row] } }, camp = { id: 'k', system: b5_gmK, chars: { c_k: ch } }, out = { toasts: [], cards: [] };
+                const n = { active: true, role: 'host', postApplyCard: (...a) => out.cards.push(JSON.parse(JSON.stringify(a))) };
+                const api = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'net', 'toast', 'F', 'resolveAll', 'tokenCtxFor', 'applyAct', 'applyScope', 'gmOnlyNames', 'gmDerivedNames', 'gmEffectNames', 'labelSecret', 'clone', 'afterCharChange', 'charById', 'rollLabel', 'el', 'iconNode', 'ROLL_TONE_CLS', 'fieldById', 'myId', 'window', 'rowRollNames',
+                    'var lastChange = null, _fxLive = true;' + NL + apSrcL + NL + 'return { applyAction: applyAction };')(
+                    () => camp, c => c.system, () => false, () => true, () => n, t => out.toasts.push(t), () => F, S.resolveAll, () => null, S.applyAct, S.applyScope, S.gmOnlyNames, S.gmDerivedNames, S.gmEffectNames, () => '', x => JSON.parse(JSON.stringify(x)), () => {}, (cid, cp) => cp.chars[cid] || null, r => r.label, () => null, () => null, {}, S.fieldById, () => 'u_gm', { wpVtt: { on: () => true } }, S.rowRollNames);
+                api.applyAction(b5_gmK.fields[1].list.rolls[0], ch, 'Ring · Drain', { f: 'f_gr', r: 'w_r', i: 0 }); out.ch = ch; return out;
+            };
+            const b5_kept = b5_runK({ id: 'w_r', defId: 'i_ring', qty: 1, on: true, keptOn: 1 }), b5_on = b5_runK({ id: 'w_r', defId: 'i_ring', qty: 1, on: true });
+            check('owed F5b applyAction on a row (run for real): the GM\'s press on a curse he keeps on (stored on, keptOn 1) moves FP (5 - 2) but its card is the GM\'s with "its owner sees that item switched off"; the same row switched on as usual sends its card to the owner with no toast',
+                j(b5_kept.ch.values.f_fp) === j({ cur: 3 }) && b5_kept.cards.length === 1 && b5_kept.cards[0][3] === 'gm' && j(b5_kept.toasts) === j(['Kept private: its owner sees that item switched off.'])
+                && j(b5_on.ch.values.f_fp) === j({ cur: 3 }) && b5_on.cards.length === 1 && b5_on.cards[0][3] === 'owner' && b5_on.toasts.length === 0, j([b5_kept.cards, b5_kept.toasts, b5_on.cards, b5_on.toasts]));
+        }
         const hA = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tA = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('H7b the Lists card (source) and the tour and Help: a list roll has Kind: Roll | Apply and, as an apply action, its own change editor (listApplyEditor, built with el only); Help and the Lists step say a list\'s action works its amount out from the row',
             /var rApply = Array\.isArray\(rr\.apply\), rk = el\('select', 'sys-list-rollkind'\);/.test(shL) && /if \(rApply\) \{ cb2\.appendChild\(rw\); listApplyEditor\(cb2, rr, ri, 'apply', sp, targets\); return; \}/.test(shL) && /function listApplyEditor\(box, rr, ri, key, sp, targets\) \{/.test(shL)
@@ -4414,7 +4820,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('L1c the runtime (library.js): only on the GM\'s own machine; each pinned revision read through librarycore; a newer read wins over a stale one; a pack written as its next revision before the manifest pins it; a new pack undone if its first write fails; the last pack deleted leaves no library (and no folder); its lookup registered with systemcore; the manifest watched each second; an old core said once',
             /function gmHere\(\) \{\n\s*var n = window\.wpNet; if \(n && n\.active && n\.role === 'client'\) return false; if \(n && \(n\.foreign \|\| n\.stream\)\) return false;/.test(lbSrc) && /fetch\('\/api\/library\?dir=' \+ m\.dir \+ '&pack=' \+ p\.id \+ '&rev=' \+ p\.rev\)/.test(lbSrc)
             && /var rd = readPackFile\(await res\.text\(\), ctx, seen\); if \(cur !== mine\) return cur;/.test(lbSrc) && /if \(!res \|\| !res\.ok\) \{ if \(res && res\.status === 404\) oldCore\(\); return \{ error:/.test(lbSrc)
-            && lbSrc.indexOf("method: 'POST', body: body") < lbSrc.indexOf('p.rev = rev; p.count = meta.count;') && /if \(r\.error\) \{ if \(had\) camp\.library = had; else delete camp\.library; return r; \}/.test(lbSrc) && /var last = !m\.packs\.length; if \(last\) delete camp\.library; else camp\.library = m;/.test(lbSrc) && /\nsetLibraryFind\(entry\);\n/.test(lbSrc) && /if \(sig !== cur\.sig \|\| \(camp \? camp\.id : null\) !== cur\.campId\) load\(camp\); \}, 1000\);/.test(lbSrc)
+            && lbSrc.indexOf("method: 'POST', body: body") < lbSrc.indexOf('p.rev = rev; p.count = meta.count;') && /if \(r\.error\) \{ if \(had\) camp\.library = had; else delete camp\.library; return r; \}/.test(lbSrc) && /var last = !m\.packs\.length; if \(last\) delete camp\.library; else camp\.library = m;/.test(lbSrc) && /\nsetLibraryFind\(entryFor\);\n/.test(lbSrc) && /if \(sig !== cur\.sig \|\| \(camp \? camp\.id : null\) !== cur\.campId\) load\(camp\); \}, 1000\);/.test(lbSrc)
             && /if \(c\.library !== undefined && window\.wpLibraryCore && window\.wpLibraryCore\.cleanManifest\) \{ var lman = window\.wpLibraryCore\.cleanManifest\(c\.library\); if \(lman\) c\.library = lman; else delete c\.library; \}/.test(ioK)
             && hmK.indexOf('scripts/librarycore.js') > hmK.indexOf('scripts/systemcore.js') && hmK.indexOf('scripts/librarycore.js') < hmK.indexOf('scripts/main.js') && hmK.indexOf('scripts/library.js') > 0 && /var SHELL_WANTED = '1\.5\.0';   \/\/ 1\.5\.0 adds \/api\/library/.test(stK));
     }
@@ -4487,7 +4893,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const lbC = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
         check('L2c the GM machine keeps the copies current after every library change (never mid-load or at another\'s table; saved only when one changed)',
             /function after\(\) \{   \/\/ [^\n]*\n\s*try \{ refreshCore\(\); \} catch \(e\) \{ console\.error\(e\); \}\n\s*try \{ syncSnaps\(\); \}/.test(lbC)
-            && /if \(!camp \|\| !camp\.system \|\| !camp\.chars \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return 0;\n\s*var r = libSnaps\(camp\.system, camp\.chars, entry\); if \(r\.rows\) save\(true\);/.test(lbC));
+            && /if \(!camp \|\| !camp\.system \|\| !camp\.chars \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return 0;\n\s*var r = libSnaps\(camp\.system, camp\.chars, entryFor\); if \(r\.rows\) save\(true\);/.test(lbC));
     }
 
     /* ---- Stage 6 F6: item mods — cleaned, applied from rows, per level, while switched on, a kept curse's changes nameless ---- */

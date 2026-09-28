@@ -1382,6 +1382,111 @@ pendingChecks.push((async () => {
         gA.ret.ok && j(gA.pushed) === j([['global', '', 3]]) && j(gA.vals) === j({ f_j: 1 }) && gG.ret.ok && gG.pushed[0][1] === 'gm' && gG.pushed[0][2] === 3 && gG.toasts.some(t => /GMFig/.test(t)), j([gA.pushed, gA.vals, gG.pushed, gG.toasts]));
 })());
 
+// owed review F5a2 #1: a GM-only value read through a choice's option (Secret = GMFig, the Longsword picking it) — the GM's public roll of the choice,
+// of a visible formula over it, of a column reading Row.Ability and of a pool whose max reads it stays private with its toast; a roll of a plain
+// value still goes to the table (net.diceRoll sliced, run for real)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const a2_line = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const a2_helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(a2_line).join('\n') + '\n';
+    const a2_drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const a2_sys = Sx.cleanSystem({ v: 1, name: 'A2', rolls: [], fields: [
+        { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 12 }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 17 },
+        { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Ability', kind: 'pick', def: 'Plain', opts: [{ label: 'Plain', name: 'ST' }, { label: 'Secret', name: 'GMFig' }] }], cols: [{ key: 'Eff', label: 'Eff', formula: 'Row.Ability + 1' }] } },
+        { id: 'f_ab', key: 'AtkBonus', label: 'Atk', kind: 'formula', vis: 'all', formula: 'Weapons.Longsword.Ability + 2' },
+        { id: 'f_gr', key: 'Grit', label: 'Grit', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'Weapons.Longsword.Ability * 2', min: 0, def: 'max' }],
+        items: [{ id: 'i_ls', name: 'Longsword', key: 'Longsword', stats: { Ability: 'Secret' } }] }, { F: Fx, gmView: true });
+    const a2_runGM = expr => { const out = { pushed: [], toasts: [], table: [] };
+        const camp = { id: 'k', system: a2_sys, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: [{ id: 'w_ls', defId: 'i_ls', qty: 1 }] } } } };
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + a2_helpers + a2_drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, e => { throw e; },
+            rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope) => out.pushed.push([scope, rec.priv || '']), () => {}, () => {});
+        out.ret = dr(expr, { charId: 'c_a' }); return out; };
+    const a2_hid = ['Weapons.Longsword.Ability', 'AtkBonus', 'Weapons.Eff', 'Grit.max'].map(n => [n, a2_runGM('d20 + ' + n)]), a2_pub = a2_runGM('d20 + ST');
+    check('F5a2 owed review #1 on the wire: the GM\'s public roll of a choice whose option reads a GM-only value (Weapons.Longsword.Ability), of a visible formula over it (AtkBonus), of a column reading Row.Ability (Weapons.Eff) and of a pool whose max reads it (Grit.max) is kept private with its toast, nothing to the table; d20 + ST still goes to the table',
+        a2_hid.every(([n, r]) => r.ret.ok && r.ret.priv === true && j(r.pushed) === j([['whisper', 'gm']]) && r.table.length === 0 && r.toasts.length === 1 && r.toasts[0].indexOf('Kept private: that roll uses a GM-only value (') === 0 && r.toasts[0].indexOf(n) > 0)
+        && a2_pub.ret.ok && a2_pub.ret.priv === false && j(a2_pub.pushed) === j([['global', '']]) && a2_pub.table.length === 1 && a2_pub.toasts.length === 0, j([a2_hid.map(([n, r]) => [n, r.pushed, r.toasts]), a2_pub.pushed]));
+})());
+// owed review F5b: the GM's own roll on a row while hosting (net.diceRoll sliced and run for real) — a column reading a GM-only value, a choice's
+// option naming one, a column a GM-only effect moves (one and two columns deep), six columns deep to a choice or to that effect, a visible item's row
+// on a GM-only list, and a curse the GM keeps on while its owner sees it off each stay the GM's, with a toast, and nothing reaches the table; a plain
+// row roll and a row switched on as usual go to the table; the owner's own roll on the kept-on row stays public and reads what they hold (roll-req)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const b5_src = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const b5_line = k => { const i = b5_src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return b5_src.slice(i, b5_src.indexOf('\n', i)); };
+    const b5_helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(b5_line).join('\n') + '\n';
+    const b5_dr = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), b5_rq = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq');
+    const b5_runGM = (sys, ch, expr, o) => { const out = { table: [], pushed: [], toasts: [] };
+        const camp = { id: 'k', system: sys, chars: { [ch.id]: JSON.parse(JSON.stringify(ch)) } };
+        const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + b5_helpers + b5_dr + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, e => { throw e; },
+            rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope) => out.pushed.push([scope, rec.priv || '', (rec.names || []).map(n => n.name + '=' + n.value)]), () => {}, () => {});
+        out.ret = dr(expr, Object.assign({ charId: ch.id }, o)); return out; };
+    const b5_runReq = (sys, ch, msg) => { const out = { table: [], sent: [], pushed: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { [ch.id]: JSON.parse(JSON.stringify(ch)) }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: ch.ownerId, name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + b5_helpers + b5_rq)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: ch.id }, msg), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; },
+            rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope) => out.pushed.push([scope, rec.priv || '']), () => {}, () => {});
+        return out; };
+    const b5_priv = (r, t) => !!r.ret && r.ret.ok === true && r.ret.priv === true && r.table.length === 0 && r.pushed.length === 1 && r.pushed[0][0] === 'whisper' && r.pushed[0][1] === 'gm' && r.toasts.length === 1 && (t instanceof RegExp ? t.test(r.toasts[0]) : r.toasts[0] === t);
+    const b5_pub = r => !!r.ret && r.ret.ok === true && r.ret.priv === false && r.table.length === 1 && !('priv' in r.table[0]) && r.pushed.length === 1 && r.pushed[0][0] === 'global' && r.pushed[0][1] === '' && r.toasts.length === 0;
+    // S1, S2, S5: a list whose Sly column reads GMFig and whose Grip choice has an option naming GMFig (the list's names derive from a GM-only value);
+    // S3, S4, S2e and the control: the same list without either (Grip: Strong = ST only), so only a GM-only effect on ST can make a roll the GM's
+    const b5_raw = { v: 1, name: 'P', rolls: [], fields: [
+        { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 5 }, { id: 'f_fx', key: 'Effects', kind: 'effects', vis: 'all' },
+        { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Level', min: 0, max: 9, def: 1 },
+            stats: [{ key: 'Acc' }, { key: 'Grip', kind: 'pick', opts: [{ label: 'Strong', name: 'ST' }, { label: 'Secret', name: 'GMFig' }] }],
+            cols: [{ key: 'Sly', label: 'Sly', formula: 'Row.lvl + GMFig' }, { key: 'Hit', label: 'Hit', formula: 'Row.Acc + ST' }, { key: 'Deep', label: 'Deep', formula: 'Row.Hit + 1' }] } },
+        { id: 'f_se', key: 'Secret', label: 'Secret', kind: 'item-list', vis: 'gm', edit: 'owner', list: { rolls: [{ label: 'Hush', formula: 'd6' }] } }],
+        items: [{ id: 'i_bl', name: 'Blaster', stats: { Acc: 3, Grip: 'Secret' } }],
+        effects: [{ id: 'e_curse', name: 'Curse', vis: 'gm', mods: [{ f: 'f_st', op: 'add', v: -3 }] }] };
+    const b5_rawN = JSON.parse(JSON.stringify(b5_raw)); b5_rawN.fields[3].list.cols = b5_rawN.fields[3].list.cols.filter(c => c.key !== 'Sly'); b5_rawN.fields[3].list.stats[1].opts = [{ label: 'Strong', name: 'ST' }]; b5_rawN.items[0].stats.Grip = 'Strong';
+    const b5_sys = Sx.cleanSystem(b5_raw, { F: Fx, gmView: true }), b5_sysN = Sx.cleanSystem(b5_rawN, { F: Fx, gmView: true });
+    const b5_ch = fx => ({ id: 'c_b', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_wp: [{ id: 'w_b', defId: 'i_bl', qty: 1, lvl: 2 }], f_se: [{ id: 'w_s', defId: 'i_bl', qty: 1 }], f_fx: fx ? [{ id: 'x_1', ref: 'e_curse', on: true }] : [] } });
+    const b5_row = (lb, f, r) => ({ label: 'Blaster · ' + lb, row: { f: f || 'f_wp', r: r || 'w_b' } });
+    const b5_S1 = b5_runGM(b5_sys, b5_ch(false), 'd20 + Row.Sly', b5_row('Sneak')), b5_S2 = b5_runGM(b5_sys, b5_ch(false), 'd6 + Row.Grip', b5_row('Grip')), b5_S2e = b5_runGM(b5_sysN, b5_ch(true), 'd6 + Row.Grip', b5_row('Grip'));
+    const b5_S3 = b5_runGM(b5_sysN, b5_ch(true), 'd20 + Row.Hit', b5_row('Attack')), b5_S4 = b5_runGM(b5_sysN, b5_ch(true), 'd20 + Row.Deep', b5_row('Deep'));
+    const b5_S5 = b5_runGM(b5_sys, b5_ch(false), 'd6', b5_row('Hush', 'f_se', 'w_s')), b5_P = b5_runGM(b5_sysN, b5_ch(false), 'd20 + Row.Hit', b5_row('Attack'));
+    check('owed F5b the GM\'s own row roll, hosting (net.diceRoll run for real): a column reading GMFig (S1), a choice whose option names GMFig (S2), a column a GM-only effect moves (S3) or two columns down to it (S4), a choice whose option names ST under that effect (S2e) and a visible item\'s row on a GM-only list (S5) each go to the GM alone (whisper, priv gm) with one toast that says why, and nothing reaches the table; the same row\'s plain Row.Hit with no effect on goes to the table (Row.Hit = 13)',
+        b5_priv(b5_S1, /^Kept private: that roll uses a GM-only value \(.*GMFig/) && b5_priv(b5_S2, /^Kept private: that roll uses a GM-only value \(.*GMFig/)
+        && b5_priv(b5_S2e, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_S3, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_S4, /^Kept private: a GM-only effect changes .*\bST\b/)
+        && b5_priv(b5_S5, 'Kept private: that roll is on a GM-only item or list (Blaster · Hush).') && b5_pub(b5_P) && j(b5_P.pushed[0][2]) === j(['Row.Hit=13']),
+        j([b5_S1.pushed, b5_S1.toasts, b5_S2.pushed, b5_S2.toasts, b5_S2e.pushed, b5_S2e.toasts, b5_S3.pushed, b5_S3.toasts, b5_S4.pushed, b5_S4.toasts, b5_S5.pushed, b5_S5.toasts, b5_P.pushed, b5_P.toasts]));
+    // six columns deep (a list's most): A reads Row.B, … the last reads a choice whose option names GMFig, ST under the GM-only effect, or a choice naming ST under it
+    const b5_chain = (base, end) => { const ks = ['A', 'B', 'C', 'D', 'E', 'G2'], r = JSON.parse(JSON.stringify(base));
+        r.fields[3].list.cols = ks.map((k, i) => ({ key: k, label: k, formula: i < ks.length - 1 ? 'Row.' + ks[i + 1] : end })); return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
+    const b5_c6 = b5_chain(b5_raw, 'Row.Grip'), b5_e6 = b5_chain(b5_rawN, 'ST'), b5_g6 = b5_chain(b5_rawN, 'Row.Grip');
+    const b5_C6 = b5_runGM(b5_c6, b5_ch(false), 'd20 + Row.A', b5_row('Attack')), b5_E6 = b5_runGM(b5_e6, b5_ch(true), 'd20 + Row.A', b5_row('Attack')), b5_G6 = b5_runGM(b5_g6, b5_ch(true), 'd20 + Row.A', b5_row('Attack')), b5_E6off = b5_runGM(b5_e6, b5_ch(false), 'd20 + Row.A', b5_row('Attack'));
+    check('owed F5b a GM-only value six columns down stays the GM\'s: a chain of six columns ending in a choice whose option names GMFig, in ST under a GM-only effect, or in a choice whose option names ST under it keeps the GM\'s roll private (every column is followed, not four); the same chain with no effect on goes to the table (Row.A = 10)',
+        b5_c6.fields[3].list.cols.length === 6 && b5_priv(b5_C6, /^Kept private: that roll uses a GM-only value \(.*GMFig/) && b5_priv(b5_E6, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_G6, /^Kept private: a GM-only effect changes .*\bST\b/)
+        && b5_pub(b5_E6off) && j(b5_E6off.pushed[0][2]) === j(['Row.A=10']), j([b5_C6.pushed, b5_C6.toasts, b5_E6.pushed, b5_E6.toasts, b5_G6.pushed, b5_G6.toasts, b5_E6off.pushed, b5_E6off.toasts]));
+    // a curse the GM keeps on: the player switched it off (applyRowOp, run for real) — their copy reads it off (Row.Hit 1), the GM's on (3)
+    const b5_rawK = { v: 1, name: 'K', rolls: [], fields: [
+        { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 10 },
+        { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'Worn' }, stats: [{ key: 'Acc' }], cols: [{ key: 'Hit', label: 'Hit', formula: 'Row.Acc + Row.on * 2' }] } }],
+        items: [{ id: 'i_ring', name: 'Ring', eq: 'curse', eqMsg: 'It clings', stats: { Acc: 1 } }] };
+    const b5_sysK = Sx.cleanSystem(b5_rawK, { F: Fx, gmView: true }), b5_pvK = Sx.cleanSystem(b5_sysK, { F: Fx, gmView: false });
+    const b5_chOn = { id: 'c_k', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_gr: [{ id: 'w_r', defId: 'i_ring', qty: 1, on: true }] } };
+    const b5_op = Sx.applyRowOp(b5_sysK, JSON.parse(JSON.stringify(b5_chOn)), 'f_gr', { op: 'set', rowId: 'w_r', facts: { on: false } }, Fx, { player: true, view: b5_pvK });
+    const b5_chK = JSON.parse(JSON.stringify(b5_chOn)); b5_chK.values.f_gr = b5_op && b5_op.ok ? b5_op.value : [];
+    const b5_ring = lb => ({ label: 'Ring · ' + lb, row: { f: 'f_gr', r: 'w_r' } });
+    const b5_K1 = b5_runGM(b5_sysK, b5_chK, 'd20 + Row.Hit', b5_ring('Attack')), b5_K2 = b5_runGM(b5_sysK, b5_chK, 'd6 + Row.on', b5_ring('Worn')), b5_KOn = b5_runGM(b5_sysK, b5_chOn, 'd20 + Row.Hit', b5_ring('Attack'));
+    const b5_KQ = b5_runReq(b5_sysK, b5_chK, { expr: 'd20 + Row.Hit', label: 'Ring · Attack', row: { f: 'f_gr', r: 'w_r' } });
+    check('owed F5b a curse the GM keeps on (its owner switched it off: stored on, keptOn 1): the GM\'s roll of that row (Row.Hit, Row.on) stays the GM\'s with "its owner sees that item switched off", nothing to the table; the same row switched on as usual goes to the table (Row.Hit = 3); the owner\'s own roll on it through the host stays public and reads their copy (Row.Hit = 1)',
+        j(b5_chK.values.f_gr.map(r => [r.on, r.keptOn])) === j([[true, 1]])
+        && b5_priv(b5_K1, 'Kept private: its owner sees that item switched off (Ring · Attack).') && b5_priv(b5_K2, 'Kept private: its owner sees that item switched off (Ring · Worn).')
+        && b5_pub(b5_KOn) && j(b5_KOn.pushed[0][2]) === j(['Row.Hit=3'])
+        && b5_KQ.table.length === 1 && !('priv' in b5_KQ.table[0]) && j(b5_KQ.table[0].names) === j([{ name: 'Row.Hit', value: 1 }]) && j(b5_KQ.pushed) === j([['global', '']]) && !b5_KQ.sent.some(m => m.type === 'roll-deny' || m.type === 'roll'),
+        j([b5_chK.values.f_gr, b5_K1.pushed, b5_K1.toasts, b5_K2.pushed, b5_K2.toasts, b5_KOn.pushed, b5_KQ.table, b5_KQ.sent, b5_KQ.pushed]));
+})());
 // Stage 6 HUD G10: the round hook fires when a combat's round changes — its start, a step past either end (net.js combatSet / combatStep, run
 // for real) — never within a round, on a roster edit that keeps the round, or at its end; a hook that throws never stops the turn
 {
@@ -1889,6 +1994,36 @@ pendingChecks.push((async () => {
         j([t1, t2, t3, d1, t4, t5]));
 })());
 
+// owed review F5a2 #3 (owner 2026-09-27): a player's pick over a hidden choice the GM set and holds on their copy — the real char-item handler
+// (with the real delta and the GM's notice, sliced from net.js) on one host: acked and stored as theirs, the GM alone told; a GM-held visible
+// choice or number still refused
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const a2_ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), a2_dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const a2_ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const a2_sys = Sx.cleanSystem({ v: 1, name: 'P', rolls: [], listRules: { ownerStats: true }, fields: [
+        { id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', def: 12 }, { id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: 'all', def: 10 }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 17 },
+        { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Acc' }, { key: 'Ability', kind: 'pick', def: 'Plain', opts: [{ label: 'Plain', name: 'ST' }, { label: 'Other', name: 'DX' }, { label: 'Secret', name: 'GMFig' }] }] } }],
+        items: [{ id: 'i_rp', name: 'Rapier', key: 'Rapier', stats: { Acc: 2 } }] }, { F: Fx, gmView: true });
+    const camp = { id: 'k', system: a2_sys, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: [{ id: 'w_rp', defId: 'i_rp', qty: 1, ov: { stats: { Ability: 'Secret' }, held: ['Ability'] } }, { id: 'w_r2', defId: 'i_rp', qty: 1, ov: { stats: { Acc: 5, Ability: 'Other' }, held: ['Acc', 'Ability'] } }] } } } };
+    const out = { answer: [], owner: [], notes: [], logs: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+    const connA = { peer: 'pA', send: box(out.answer) };
+    const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+    const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+    const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + a2_dlSrc + '\n' + a2_ntSrc + '\nreturn { handle: function(msg, conn) {\n' + a2_ciSrc + '\n} };')(
+        net, () => Sx, win, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => out.notes.push(t), (k, t) => out.logs.push(k + ':' + t));
+    const SEND = (rid, q) => { out.answer.length = 0; out.owner.length = 0; out.notes.length = 0; out.logs.length = 0; H.handle(Object.assign({ type: 'char-item', rid, charId: 'c_1', fieldId: 'f_wp' }, q), connA); return { answer: out.answer.slice(), owner: out.owner.slice(), notes: out.notes.slice(), logs: out.logs.slice() }; };
+    const row = id => camp.chars.c_1.values.f_wp.find(r => r.id === id), ownRow = (d, id) => (((d[0] || {}).values || {}).f_wp || []).find(r => r.id === id), r2Before = j(row('w_r2'));
+    const p1 = SEND('q1', { op: 'ov', rowId: 'w_rp', ov: { stats: { Ability: 'Other' } } }), p2 = SEND('q2', { op: 'ov', rowId: 'w_r2', ov: { stats: { Ability: 'Plain' } } }), p3 = SEND('q3', { op: 'ov', rowId: 'w_r2', ov: { stats: { Acc: 1 } } });
+    const a2_note = 'Ana changed Rapier’s Ability — their pick replaced the hidden choice you set (set it again with ✎ if you want it back).';
+    check('F5a2 owed review #3 on the wire (owner 2026-09-27): a player\'s pick over a hidden choice the GM set on their copy is acked plainly and stored as theirs (their delta carries Other, nothing of Secret or GMFig), and the GM alone is told whose pick replaced which item\'s choice (a toast and the Items log); a GM-held visible choice or number is refused (field) with nothing stored, sent or told',
+        j(p1.answer) === j([{ type: 'char-ack', rid: 'q1' }]) && j(row('w_rp').ov) === j({ stats: { Ability: 'Other' } }) && j(ownRow(p1.owner, 'w_rp')) === j({ id: 'w_rp', defId: 'i_rp', qty: 1, ov: { stats: { Ability: 'Other' } } }) && !/Secret|GMFig|hidden/.test(j(p1.owner))
+        && j(p1.notes) === j([a2_note]) && j(p1.logs) === j(['items:' + a2_note])
+        && j(p2.answer) === j([{ type: 'char-deny', rid: 'q2', reason: 'field' }]) && j(p3.answer) === j([{ type: 'char-deny', rid: 'q3', reason: 'field' }]) && p2.owner.length + p3.owner.length + p2.notes.length + p3.notes.length === 0 && j(row('w_r2')) === r2Before,
+        j([p1, p2, p3, row('w_rp')]));
+})());
 // Stage 6 F4c1: stats and what was paid on the wire — the real char-item handler (with the real delta and the GM's notice, sliced from net.js) on
 // one host; the players' view of both rows test systems and of a system keyed to trip the packer; 150 rows at their largest within budget
 pendingChecks.push((async () => {
@@ -1972,6 +2107,69 @@ pendingChecks.push((async () => {
         packedM === true && projM.length === 150 && J(projM).length < 200000 && /if \(q\.def !== undefined\) mI\.def = q\.def;/.test(src), J([packedM, J(projM).length]));
 })());
 
+// owed review F4c3#2 (c3_): an entry only a GM-only library pack holds reads GM-only wherever the GM's machine hands it out — library.js entryFor
+// (sliced, run on a stubbed library) behind rowDef, the rows' copies and the wire's itemLib: given to a player it reaches them with no key or
+// blast, the host refuses its throw, and its key is free to that player's custom op, on the host and on their client (the real net.charItem, #8)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Lx = await import(url('librarycore.js')), J = JSON.stringify;
+    const c3_lb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
+    const c3_la = c3_lb.indexOf('function entry(id)'), c3_lz = c3_lb.indexOf('function entriesOf(', c3_la); if (c3_la < 0 || c3_lz < 0) throw new Error('netcheck: library.js entryFor not found');
+    const c3_mp = o => Object.assign(Object.create(null), o);
+    const c3_byId = c3_mp({ i_sec: { id: 'i_sec', name: 'Assassin blade', category: 'Blade', key: 'AssassinBlade', vis: 'all', damage: '2d6', area: { ft: 10, shape: 'circle', name: 'Arc' } },
+        i_pub: { id: 'i_pub', name: 'Longsword', category: 'Blade', key: 'Longsword', vis: 'all', damage: '1d8', area: { ft: 5, shape: 'circle', name: 'Sweep' } }, i_own: { id: 'i_own', name: 'Own secret', category: 'Blade', key: 'OwnSecret', vis: 'gm' } });
+    const c3_cur = { campId: 'k', sig: '', byId: c3_byId, packs: c3_mp({ p_gm: ['i_sec'], p_pub: ['i_pub', 'i_own'] }), n: 3, state: 'ready', error: '' };
+    const c3_sys = Sx.cleanSystem({ v: 1, name: 'G', rolls: [], fields: [{ id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', edit: 'owner', vis: 'all', list: { custom: true, cats: ['Blade'] } }], items: [] }, { F: Fx, gmView: true });
+    const c3_camp = { id: 'k', library: { dir: 'lib1', packs: [{ id: 'p_gm', name: 'Secrets', rev: 1, count: 1, vis: 'gm' }, { id: 'p_pub', name: 'Gear', rev: 1, count: 2 }] }, system: c3_sys,
+        chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: [] } }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } };
+    const c3_L = new Function('getActiveCampaign', 'cur', 'manifestSig', 'map', c3_lb.slice(c3_la, c3_lz) + '\nreturn { entry: entry, entryFor: entryFor };')(() => c3_camp, c3_cur, Lx.manifestSig, () => Object.create(null));
+    const c3_e1 = c3_L.entryFor('i_sec'), c3_e1b = c3_L.entryFor('i_sec'), c3_e2 = c3_L.entryFor('i_pub'), c3_e3 = c3_L.entryFor('i_own'), c3_e4 = c3_L.entryFor('i_zz');
+    delete c3_camp.library.packs[0].vis; const c3_e5 = c3_L.entryFor('i_sec'); c3_camp.library.packs[0].vis = 'gm'; const c3_e6 = c3_L.entryFor('i_sec');
+    check('owed review F4c3#2 entryFor (library.js, sliced and run): an entry of a GM-only pack reads as a copy marked GM-only (its key and blast as stored; the same copy each call) while the pack\'s own copy keeps its vis; a visible pack\'s entry is the stored one; an entry marked GM-only itself as stored; an unknown id nothing; the pack\'s mark is read at each call (made visible: the stored entry); it is the lookup systemcore reads and the one the rows\' copies are kept current from and taken from when the items move in',
+        c3_e1.vis === 'gm' && c3_e1.key === 'AssassinBlade' && c3_e1.area.ft === 10 && c3_e1 !== c3_byId.i_sec && c3_byId.i_sec.vis === 'all' && c3_e1b === c3_e1 && c3_e2 === c3_byId.i_pub && c3_e3 === c3_byId.i_own && c3_e4 === null
+        && c3_e5 === c3_byId.i_sec && c3_e6.vis === 'gm' && /\nsetLibraryFind\(entryFor\);\n/.test(c3_lb) && /var r = libSnaps\(camp\.system, camp\.chars, entryFor\);/.test(c3_lb) && /\n\s*libSnaps\(sysAfter, camp\.chars \|\| \{\}, entryFor\);/.test(c3_lb),
+        J([c3_e1, c3_e2 === c3_byId.i_pub, c3_e3 === c3_byId.i_own, c3_e4, c3_e5 && c3_e5.vis, c3_e6 && c3_e6.vis]));
+
+    // the host: the GM gives both entries (the rows keep their copies), then the player's custom op goes through the real char-item handler
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const c3_out = { answer: [], owner: [], mate: [] }, c3_box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); }, c3_placed = [];
+    const c3_net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: c3_box(c3_out.owner) }, { peer: 'pB', open: true, send: c3_box(c3_out.mate) }], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
+    const c3_win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null,
+        wpLibrary: { size: () => 3, entry: c3_L.entry, entryFor: c3_L.entryFor, playerEntry: () => null }, wpPlaceThrownBlast: b => c3_placed.push(b) };
+    const c3_H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n}, view: function(id, pid) { return charViewFor(id, pid); } };')(
+        c3_net, () => Sx, c3_win, () => false, () => c3_camp, () => {}, e => { throw e; }, c => (c3_net.roster[c.peer] ? c3_net.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+    const c3_thI = src.indexOf("} else if (msg.type === 'throw-req' && net.role === 'host') {"), c3_thS = src.slice(c3_thI, src.indexOf('\n    } else if', c3_thI + 10)), c3_thBody = c3_thS.slice(c3_thS.indexOf('\n') + 1);
+    const c3_map = { id: 'm1', whiteboard: [{ id: 't1', isChar: true, ownerId: 'u_a', charId: 'c_1' }] };
+    const c3_throw = rowId => { const n0 = c3_placed.length; new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'charLimit', 'getActiveCampaign', 'getActiveMap', c3_thBody)({ type: 'throw-req', charId: 'c_1', fieldId: 'f_wp', rowId, mapId: 'm1', x: 100, y: 120 }, { peer: 'pA' }, c3_net, () => Sx, c3_win, () => false, { allow: () => true }, () => c3_camp, () => c3_map); return c3_placed.slice(n0); };
+    const c3_SEND = (rid, q) => { c3_out.answer.length = 0; c3_out.owner.length = 0; c3_out.mate.length = 0; c3_H.handle(Object.assign({ type: 'char-item', rid, charId: 'c_1', fieldId: 'f_wp', op: 'custom' }, q), { peer: 'pA', send: c3_box(c3_out.answer) }); return { answer: c3_out.answer.slice(), owner: c3_out.owner.slice(), mate: c3_out.mate.slice() }; };
+    let c3_add, c3_proj, c3_tSec, c3_tPub, c3_s1, c3_s2; Sx.setLibraryFind(c3_L.entryFor);
+    try {
+        c3_add = Sx.applyRowOp(c3_sys, c3_camp.chars.c_1, 'f_wp', { op: 'add', defId: 'i_sec', rowId: 'w_sec' }, Fx, {}); c3_camp.chars.c_1.values.f_wp = c3_add.value;
+        const c3_add2 = Sx.applyRowOp(c3_sys, c3_camp.chars.c_1, 'f_wp', { op: 'add', defId: 'i_pub', rowId: 'w_pub' }, Fx, {}); c3_camp.chars.c_1.values.f_wp = c3_add2.value;
+        c3_proj = c3_H.view('c_1', 'u_a'); c3_tSec = c3_throw('w_sec'); c3_tPub = c3_throw('w_pub');
+        c3_s1 = c3_SEND('q1', { rowId: 'w_n1', def: { name: 'Mine', key: 'AssassinBlade' } }); c3_s2 = c3_SEND('q2', { rowId: 'w_n2', def: { key: 'Longsword' } });
+    } finally { Sx.setLibraryFind(null); }
+    const c3_rowOf = (rows, id) => (rows || []).find(r => r.id === id) || null, c3_secP = c3_rowOf(c3_proj && c3_proj.values.f_wp, 'w_sec'), c3_pubP = c3_rowOf(c3_proj && c3_proj.values.f_wp, 'w_pub');
+    const c3_ownD = ((c3_s1.owner[0] || {}).values || {}).f_wp || [], c3_secD = c3_rowOf(c3_ownD, 'w_sec'), c3_stored = c3_rowOf(c3_camp.chars.c_1.values.f_wp, 'w_sec');
+    check('owed review F4c3#2 a GM-only pack\'s entry on a player\'s row (the host, the real delta and char-item handler): the row keeps a GM-only copy; its owner gets it inline with no key, blast or damage (a visible pack\'s entry keeps its key); the host refuses to throw it (the visible one is thrown); its key reads as free to that player\'s custom op (acked) while the visible entry\'s is taken',
+        c3_add.ok && !!c3_stored && c3_stored.snap && c3_stored.snap.vis === 'gm' && !!c3_secP && c3_secP.lnk === 1 && c3_secP.def.name === 'Assassin blade' && !('key' in c3_secP.def) && !('area' in c3_secP.def) && !/AssassinBlade|2d6|"Arc"/.test(J(c3_proj))
+        && !!c3_pubP && /Longsword/.test(J(c3_pubP)) && c3_tSec.length === 0 && c3_tPub.length === 1 && c3_tPub[0].ft === 5
+        && J(c3_s1.answer) === J([{ type: 'char-ack', rid: 'q1' }]) && !!c3_secD && !('key' in c3_secD.def) && !('area' in c3_secD.def) && c3_rowOf(c3_ownD, 'w_n1').def.key === 'AssassinBlade' && !/f_wp/.test(J(c3_s1.mate))
+        && J(c3_s2.answer) === J([{ type: 'char-deny', rid: 'q2', reason: 'value' }]),
+        J([c3_add.ok, c3_stored, c3_secP, c3_tSec, c3_tPub, c3_s1.answer, c3_secD, c3_s2.answer]));
+
+    // their client: the real net.charItem over the copy the host sent (its system is their view) — the same answers, in words (#8)
+    const c3_cA = src.indexOf('net.charItem = function('), c3_cZ = src.indexOf('\n};\n', c3_cA) + 3, c3_sentC = [];
+    const c3_view = Sx.cleanSystem(c3_sys, { F: Fx, gmView: false }), c3_campC = { id: 'k', system: c3_view, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: JSON.parse(J(c3_proj.values.f_wp)) } } } };
+    const c3_netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: null, conns: [{ peer: 'h', open: true, send: m => c3_sentC.push(JSON.parse(J(m))) }] };
+    new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(c3_cA, c3_cZ))(c3_netC, () => Sx, () => c3_campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+    const c3_cSec = c3_netC.charItem('c_1', 'f_wp', { op: 'custom', rowId: 'w_n1', def: { name: 'Mine', key: 'AssassinBlade' } }), c3_cPub = c3_netC.charItem('c_1', 'f_wp', { op: 'custom', rowId: 'w_n2', def: { key: 'Longsword' } }), c3_cBad = c3_netC.charItem('c_1', 'f_wp', { op: 'custom', rowId: 'w_n3', def: { key: '1x' } });
+    check('owed review F4c3#2/#8 their client agrees (the real net.charItem): the GM-only pack\'s key is free (sent to the host), the visible entry\'s is taken ("That key is already used in this list."), a key that is not one says so ("Not a usable key: …"); only the accepted op is sent',
+        c3_cSec.ok === true && c3_cPub.error === 'That key is already used in this list.' && c3_cBad.error === 'Not a usable key: a letter, then letters, digits and _ (up to 40).' && c3_sentC.length === 1 && c3_sentC[0].def.key === 'AssassinBlade',
+        J([c3_cSec, c3_cPub, c3_cBad, c3_sentC]));
+})());
 // Stage 6 F4c2: a copy's own values on the wire — the real char-item handler (with the real delta and the GM's notice, sliced from net.js) on one
 // host, Setting A switched off and on between messages; a copy's formulas and locks never reach its owner; 150 rows with their own values in budget
 pendingChecks.push((async () => {

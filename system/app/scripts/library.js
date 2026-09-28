@@ -37,7 +37,7 @@ function refreshCore(camp) {
 // only when one changed (a row whose entry is gone, or whose pack could not be read, keeps its copy)
 function syncSnaps(camp) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !camp.chars || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return 0;
-    var r = libSnaps(camp.system, camp.chars, entry); if (r.rows) save(true);
+    var r = libSnaps(camp.system, camp.chars, entryFor); if (r.rows) save(true);
     return r.rows;
 }
 function after() {   // the sheets redraw; a host's players get their rows' copies from the library now in memory, and the lists' categories it holds
@@ -138,7 +138,7 @@ async function migrateItems(camp) {
         }
         var gone = map(); plan.drop.forEach(function(id) { gone[id] = 1; });
         var sysAfter = Object.assign({}, camp.system, { items: (camp.system.items || []).filter(function(it) { return !(it && gone[it.id]); }) });
-        libSnaps(sysAfter, camp.chars || {}, entry);   // every row that carried one keeps a copy of it, before the item leaves
+        libSnaps(sysAfter, camp.chars || {}, entryFor);   // every row that carried one keeps a copy of it, before the item leaves
         camp.system = (F() ? cleanSystem(sysAfter, { F: F(), gmView: true }) : null) || sysAfter;
         refreshCore(camp); save(true); after();
         if (plan.move.length) toast('The campaign\u2019s ' + plan.move.length + (plan.move.length === 1 ? ' item' : ' items') + ' moved into the library\u2019s \u201cItems\u201d pack (a safety copy was taken first).' + (plan.left.length ? ' ' + plan.left.length + ' stayed: an entry of the library already has the same id.' : ''));
@@ -183,6 +183,19 @@ function catsFor(camp) {
     return _cats.v;
 }
 function entry(id) { var camp = getActiveCampaign(); return camp && cur.campId === camp.id && typeof id === 'string' && Object.prototype.hasOwnProperty.call(cur.byId, id) ? cur.byId[id] : null; }
+// The lookup the sheets, the rows' copies and the wire use (owed review F4c3#2): an entry of a GM-only pack reads as GM-only — a copy marked
+// vis 'gm', as keyIndex, the core and the players' index already count it — so a row given from it projects to its owner without its key or
+// blast, cannot be thrown, and its key is never confirmed; the pack file and the Library window keep the entry's own vis (entry above)
+var _gmCopy = { sig: null, pack: null, copies: null };
+function entryFor(id) {
+    var e = entry(id); if (!e || e.vis === 'gm') return e;
+    var camp = getActiveCampaign(), packs = camp && camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
+    var sig = manifestSig(camp) + '|' + cur.n + '|' + packs.map(function(p) { return p.vis === 'gm' ? 'g' : 'a'; }).join('');
+    if (_gmCopy.sig !== sig) { var pk = map(); Object.keys(cur.packs).forEach(function(pid) { cur.packs[pid].forEach(function(eid) { pk[eid] = pid; }); }); _gmCopy = { sig: sig, pack: pk, copies: map() }; }
+    var pid = _gmCopy.pack[id], p = null; packs.forEach(function(x) { if (x && x.id === pid) p = x; });
+    if (!p || p.vis !== 'gm') return e;
+    return _gmCopy.copies[id] || (_gmCopy.copies[id] = Object.assign({}, e, { vis: 'gm' }));
+}
 function entriesOf(packId) { return (cur.packs[packId] || []).map(function(id) { return cur.byId[id]; }).filter(Boolean); }
 // L2a: a pack read for the campaign on screen (made, written or loaded): one still loading or unreadable is not, so nothing writes over it
 function ready(packId) { var camp = getActiveCampaign(); return !!camp && cur.campId === camp.id && typeof packId === 'string' && Object.prototype.hasOwnProperty.call(cur.packs, packId); }
@@ -210,8 +223,8 @@ function playerEntry(id) {
     for (var i = 0; i < camp.library.packs.length; i++) { var ix = playerIndexOf(camp.library.packs[i].id, pl); if (ix && Object.prototype.hasOwnProperty.call(ix.byId, id)) return ix.byId[id]; }
     return null;
 }
-setLibraryFind(entry);
+setLibraryFind(entryFor);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry };
+window.wpLibrary = { load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry };

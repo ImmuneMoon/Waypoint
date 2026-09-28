@@ -997,13 +997,14 @@ function cleanSheetStyle(v) {
 function fieldById(sys, id) { for (var i = 0; i < sys.fields.length; i++) if (sys.fields[i].id === id) return sys.fields[i]; return null; }
 function keyIndex(sys) { var ix = map(); sys.fields.forEach(function(f) { ix[lower(f.key)] = f; }); return ix; }
 // Stage 6 F5a1: the keys of the GM-only library entries, per visible item list whose scope has them (lower-case list key -> lower-case entry
-// key -> 1) — a visible formula naming L.<such a key> reads a secret (critic 5: per list and key, never all keys everywhere). Local
+// key -> 1) — a visible formula naming L.<such a key> reads a secret (critic 5: per list and key, never all keys everywhere). The system's items
+// and its core (the library's addressed entries, a GM-only pack's marked GM-only: findRow reads both; owed review F5a1#1). Local
 function gmEntryKeys(sys, fields) {
     var out = map();
     (Array.isArray(fields) ? fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list' || f.vis === 'gm') return;
         var cats = isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats : null;
-        (Array.isArray(sys && sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it) && it.vis === 'gm' && typeof it.key === 'string' && it.key && (!cats || catIn(cats, it.category))) { var lk = lower(f.key); (out[lk] = out[lk] || map())[lower(it.key)] = 1; } });
+        (Array.isArray(sys && sys.items) ? sys.items : []).concat(Array.isArray(sys && sys.core) ? sys.core : []).forEach(function(it) { if (isObj(it) && it.vis === 'gm' && typeof it.key === 'string' && it.key && (!cats || catIn(cats, it.category))) { var lk = lower(f.key); (out[lk] = out[lk] || map())[lower(it.key)] = 1; } });
     });
     return out;
 }
@@ -1629,7 +1630,8 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             if (opts.player && pq !== null && Object.keys(pq).some(function(k) { return k !== 'stats' && !(fl && k === 'name'); })) return { ok: false, reason: 'field' };   // F4: a file's fill, its own name too
             var prP = spec && typeof spec.price === 'string' && spec.price ? lower(spec.price) : '';   // F4c2 review: paid is the GM's — a player's stat change that can move the price first records what the row read (a recorded Paid never moves)
             if (opts.player && prP && typeof rwO.paid !== 'number' && (pq === null || (isObj(pq) && (pq.stats === null || (isObj(pq.stats) && Object.keys(pq.stats).some(function(k) { return lower(k) === prP; })))))) rwO.paid = clampNum(rowPaid(spec, rwO, rdO.def), 0, LIMITS.statAbs);
-            var ovr = applyOv(rwO, rdO.base, pq, spec, F, !!opts.player, actorSpec(sys, fieldId, spec, opts)); if (ovr) return ovr;
+            var noteO = {}, ovr = applyOv(rwO, rdO.base, pq, spec, F, !!opts.player, actorSpec(sys, fieldId, spec, opts), noteO); if (ovr) return ovr;
+            if (noteO.secret) { extra.secretPick = noteO.secret; extra.name = (rdO.def && rdO.def.name) || 'Item'; }   // the host tells the GM (never the player)
             extra.qty = rwO.qty | 0;
         } else {
             var cur = list[idx].qty | 0, nq = 0, gr = isObj(opts.grace) ? Math.max(0, opts.grace.added | 0) : -1;   // gr: what the open pickup window may still take back (-1: none open)
@@ -1663,11 +1665,11 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
 // one of the list's; the GM's is held (Q1 A: its owner's Setting A leaves it alone), taken back only by the GM. null: everything back (the
 // owner's: their own stats); stats null: every stat back (the owner's: their own)
 // Stage 6 F5a2: the list options an actor judges a choice against — a player's own view (a GM-only option never confirmed), the GM's the full
-function actorSpec(sys, fieldId, spec, opts) { if (!opts || !opts.player || !isObj(opts.view)) return spec; var vf = fieldById(opts.view, fieldId); return vf && isObj(vf.list) ? vf.list : null; }
+function actorSpec(sys, fieldId, spec, opts) { if (!opts || !opts.player) return spec; if (!isObj(opts.view)) return null; var vf = fieldById(opts.view, fieldId); return vf && isObj(vf.list) ? vf.list : null; }   // no view: nothing of the GM's confirmed (owed review F5a2#7)
 function statDefOf(spec, key) { var st = null; (isObj(spec) && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (!st && isObj(x) && typeof x.key === 'string' && lower(x.key) === lower(key)) st = x; }); return st; }
 // F5a2: a choice's value as the list spells its label, or '' (not a string, or no option of the actor's has it)
 function pickLabel(aspec, key, v) { var st = statDefOf(aspec, key), out = ''; if (!st || st.kind !== 'pick' || typeof v !== 'string') return ''; (st.opts || []).forEach(function(o) { if (!out && lower(o.label) === lower(v.trim())) out = o.label; }); return out; }
-function applyOv(rw, base, pq, spec, F, player, aspec) {   // aspec (F5a2): the actor's own list options (a choice's label is judged against them)
+function applyOv(rw, base, pq, spec, F, player, aspec, note) {   // aspec (F5a2): the actor's own list options (a choice's label is judged against them); note: filled with { secret: stat } when a player's pick replaced a hidden one
     base = isObj(base) ? base : {};
     var cur = isObj(rw.ov) ? JSON.parse(JSON.stringify(rw.ov)) : {}, held = Array.isArray(cur.held) ? cur.held.filter(function(h) { return typeof h === 'string'; }) : [];
     var isHeld = function(k) { return held.some(function(h) { return lower(h) === lower(k); }); };
@@ -1709,13 +1711,17 @@ function applyOv(rw, base, pq, spec, F, player, aspec) {   // aspec (F5a2): the 
                     var sk = sks[j], sx = v[sk], canon = '';
                     (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (!canon && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(sk)) canon = s.key; });
                     if (!canon) return bad;
-                    if (player && isHeld(canon)) return { ok: false, reason: 'field' };   // Q1 (A): a stat the GM set holds
+                    if (player && isHeld(canon)) {   // Q1 (A): a stat the GM set holds — unless it is a choice the player cannot see (owner 2026-09-27: their pick replaces it, the GM is told; a refusal would tell them it is there)
+                        var hv = ''; if (isObj(cur.stats)) Object.keys(cur.stats).forEach(function(k2) { if (lower(k2) === lower(canon) && typeof cur.stats[k2] === 'string') hv = cur.stats[k2]; });
+                        if (!((statDefOf(spec, canon) || {}).kind === 'pick' && hv && !pickLabel(aspec === undefined ? spec : aspec, canon, hv))) return { ok: false, reason: 'field' };
+                        if (note) note.secret = canon;
+                    }
                     if (sx === null) { dropStat(canon); unHold(canon); continue; }
                     var sPick = (statDefOf(spec, canon) || {}).kind === 'pick';   // F5a2: a choice's value is one of the actor's option labels
                     if (sPick) { sx = pickLabel(aspec === undefined ? spec : aspec, canon, sx); if (!sx) return bad; }
                     else if (statNum(sx) === undefined) return bad;
                     dropStat(canon); unHold(canon);
-                    if (sPick ? lower(sx) !== lower(rowStat(spec, base, canon)) : sx !== rowStat(spec, base, canon)) { cur.stats = isObj(cur.stats) ? cur.stats : {}; cur.stats[canon] = sx; if (!player) held.push(canon); }
+                    if (sPick ? lower(sx) !== lower(rowStat(aspec === undefined ? spec : aspec, base, canon)) : sx !== rowStat(spec, base, canon)) { cur.stats = isObj(cur.stats) ? cur.stats : {}; cur.stats[canon] = sx; if (!player) held.push(canon); }   // F5a2#2: a choice's no-op as the actor reads the base (a label they lack reads their default, as on their client)
                 }
             } else return bad;
         }
@@ -1731,7 +1737,8 @@ function applyOv(rw, base, pq, spec, F, player, aspec) {   // aspec (F5a2): the 
 function rowIdFree(list, rid, known) { return typeof rid === 'string' && ROW_ID.test(rid) && !list.some(function(r) { return rowIdOf(r) === rid; }) && !known.some(function(it) { return isObj(it) && typeof it.id === 'string' && 'w_' + it.id.slice(2) === rid; }); }
 function knownItems(sys, opts) { return opts.player ? (opts.view && Array.isArray(opts.view.items) ? opts.view.items : []) : (Array.isArray(sys.items) ? sys.items : []); }
 // F4c3 (D2): whether a key is taken in a list — by another row's definition (rowDef: a library copy, a deleted item's copy, a custom row) or by
-// an item the list offers (its categories; a players' view's empty list offers none; none named: every item). Judged on what the actor can see:
+// an item or core entry the list offers (its categories; a players' view's empty list offers none; none named: every one — findRow's scope,
+// owed review F4c3#1). Judged on what the actor can see:
 // a player never counts a row kept out of their sight or a GM-only one and reads the items of their own view, so a GM-only key is never
 // confirmed and the host and their client agree. The row itself (rid) never counts
 function keyClash(sys, list, rid, key, spec, opts) {
@@ -1741,7 +1748,8 @@ function keyClash(sys, list, rid, key, spec, opts) {
         var rd = rowDef(sys, r), d = rd ? rd.def : null; if (!isObj(d) || (pl && d.vis === 'gm')) return false;
         return typeof d.key === 'string' && lower(d.key) === lk;
     });
-    return inRows || knownItems(sys, opts).some(function(it) { return isObj(it) && !(pl && it.vis === 'gm') && typeof it.key === 'string' && lower(it.key) === lk && (!cats || catIn(cats, it.category)); });
+    var src = pl ? (isObj(opts.view) ? opts.view : {}) : sys, its = (Array.isArray(src.items) ? src.items : []).concat(Array.isArray(src.core) ? src.core : []);   // a player's own view (its core has no GM-only entry), the GM's whole
+    return inRows || its.some(function(it) { return isObj(it) && !(pl && it.vis === 'gm') && typeof it.key === 'string' && lower(it.key) === lk && (!cats || catIn(cats, it.category)); });
 }
 // Stage 6 F4c3: a custom row (the character's own item), made or changed — the GM's on any list shaped in the Lists tab; its owner's where the
 // list takes custom rows (Custom rows): a new row (stored as theirs, own, and visible) or one they made (never one the GM made or made GM
@@ -2345,10 +2353,10 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     function rowVal(L, x, w) {   // a row's own name: lvl, qty, on, has, paid, a stat, a column (x.virt: an addressed row not carried — has false, qty 0)
         if (w === 'lvl') return rowLvl(L.spec, x.r, x.d);
         if (w === 'qty') return x.virt ? 0 : (L.spec && L.spec.noQty ? 1 : (x.r.qty | 0));
-        if (w === 'on') return x.virt ? false : rowOn(L.spec, x.r);
+        if (w === 'on') return x.virt ? false : (x.r.keptOn === 1 ? false : rowOn(L.spec, x.r));   // a curse kept on reads as its owner holds it: off (owed review F5a1#2)
         if (w === 'has') return !x.virt;
         if (w === 'paid') return rowPaid(L.spec, x.r, x.d);
-        if (L.st[w]) { if (L.st[w].kind !== 'pick') return rowStat(L.spec, x.d, L.st[w].key); var lb = rowStat(L.spec, x.d, L.st[w].key), op = null; (L.st[w].opts || []).forEach(function(o) { if (!op && lower(o.label) === lower(lb)) op = o; }); if (!op) return 0; var ov = fn(op.name); return ov === undefined ? { error: { message: 'Unknown name "' + op.name + '"', pos: 0, len: 0 } } : ov; }   // F5a2: a choice reads its option's value (ST); none chosen: 0
+        if (L.st[w]) { if (L.st[w].kind !== 'pick') return rowStat(L.spec, x.d, L.st[w].key); var lb = rowStat(L.spec, x.d, L.st[w].key), op = null; (L.st[w].opts || []).forEach(function(o) { if (!op && lower(o.label) === lower(lb)) op = o; }); if (!op) return 0; var pk = lower(L.f.key) + '#' + x.id + '.' + w; if (chain.indexOf(pk) >= 0) return loopError(pk); pretty[pk] = pretty[pk] || (L.f.key + '[' + ((x.d && typeof x.d.name === 'string' && x.d.name) || x.id) + '].' + L.st[w].key); chain.push(pk); var ov = fn(op.name); chain.pop(); if (!detail[pk]) { var pv0 = viaOf([{ name: op.name }]); if (pv0) detail[pk] = { base: 0, mods: [], via: pv0 }; } return ov === undefined ? { error: { message: 'Unknown name "' + op.name + '"', pos: 0, len: 0 } } : ov; }   // F5a2: a choice reads its option's value (ST); none chosen: 0
         if (L.cl[w]) return colVal(L, x, L.cl[w]);
         if (L.ct && L.ct[w]) return x.virt ? 0 : rowCt(x.r, L.ct[w]);   // Stage 6 HUD R2: a counter (a row not carried: 0)
         return undefined;
@@ -2370,6 +2378,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var res = F.evaluateAst(p.ast, { vars: rowVars(L, x), random: noDice, depth: chain.length, stack: chain.map(function(n) { return pretty[n] || n; }) });   // the engine's own loop message reads Skills[Karate].Cost, never a row id
         chain.pop();
         if (!res.ok) return { error: res.error };
+        var vv = viaOf(res.breakdown && res.breakdown.names); if (vv) detail[canon] = { base: res.value, mods: [], via: vv };   // owed review F5a1#4: gmEffectNames sees a GM-only effect through a column
         cache[canon] = res.value; return res.value;
     }
     function totalOf(L, l, w, onlyOn) {   // L.count | L.qty | L.paid | L.<stat> | L.<col> (L.on.* over the rows switched on): a stat and paid per unit × qty, a column summed (true counts 1); the first row error wins
@@ -2378,27 +2387,28 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (L.st[w] && L.st[w].kind === 'pick') return undefined;   // F5a2: a choice has no total
         if (chain.indexOf(l) >= 0) return loopError(l);
         chain.push(l);
-        var sum = 0, err = null;
+        var sum = 0, err = null, vias = [];
         for (var i = 0; i < L.rows.length && !err; i++) {
-            var x = L.rows[i]; if (onlyOn && !rowOn(L.spec, x.r)) continue;
+            var x = L.rows[i]; if (onlyOn && (x.r.keptOn === 1 || !rowOn(L.spec, x.r))) continue;   // a curse kept on: off, as its owner holds it
             var qn = L.spec && L.spec.noQty ? 1 : (x.r.qty | 0);
             if (w === 'count') { sum += 1; continue; }
             if (w === 'qty') { sum += qn; continue; }
             var v = rowVal(L, x, w);
             if (v && typeof v === 'object' && v.error) { err = v; break; }
+            if (L.cl[w] || (L.st[w] && L.st[w].kind === 'pick')) { var dv = detail[lower(L.f.key) + '#' + x.id + '.' + w]; if (dv) dv.via.forEach(function(m) { if (vias.length < 12) vias.push(m); }); }
             var nv = v === true ? 1 : (typeof v === 'number' && isFinite(v) ? v : 0);
             sum += (w === 'paid' || L.st[w]) ? nv * qn : nv;
         }
         chain.pop();
         if (err) return err;
         if (sum > 1e15) sum = 1e15; else if (sum < -1e15) sum = -1e15;
+        if (vias.length) detail[l] = { base: sum, mods: [], via: vias };
         cache[l] = sum; return sum;
     }
     function findRow(L, key) {   // L.<Key>.*: the first carried row with that key, the rows its owner can see first (critic 7); else the library entry with it in L's scope; else a row of defaults
-        var hit = null, gmHit = null;
-        L.rows.forEach(function(x) { if (hit || !x.d || typeof x.d.key !== 'string' || lower(x.d.key) !== key) return; if (x.d.vis === 'gm') { if (!gmHit) gmHit = x; } else hit = x; });
+        var hit = null, gmHit = null, cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, ent = null;
+        L.rows.forEach(function(x) { if (hit || !x.d || typeof x.d.key !== 'string' || lower(x.d.key) !== key) return; if (x.d.vis === 'gm') { if (!gmHit && (!cats || catIn(cats, x.d.category))) gmHit = x; } else hit = x; });   // owed review F5a1#5: a GM-only row out of the list's categories is not the key's (the players' view keeps that name)
         if (hit || gmHit) return hit || gmHit;
-        var cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, ent = null;
         var pick = function(it) { if (!ent && isObj(it) && typeof it.key === 'string' && lower(it.key) === key && (!cats || catIn(cats, it.category))) ent = it; };
         (Array.isArray(sys.items) ? sys.items : []).forEach(pick); if (!ent) (Array.isArray(sys.core) ? sys.core : []).forEach(pick);   // L1d: then the core (the library's addressed entries)
         return ent ? { r: { defId: ent.id, qty: 0 }, d: ent, id: 'k:' + key, virt: true } : { r: { qty: 0 }, d: null, id: 'k:' + key, virt: true };
@@ -2410,8 +2420,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (segs[1] === 'on') return totalOf(L, l, segs[2], true);
         var w = segs[2]; if (w !== 'lvl' && w !== 'qty' && w !== 'on' && w !== 'has' && w !== 'paid' && !L.st[w] && !L.cl[w] && !(L.ct && L.ct[w])) return undefined;   // R2: or a counter
         if (l in cache) return cache[l];
-        var v = rowVal(L, findRow(L, segs[1]), w);
+        var xr = findRow(L, segs[1]), v = rowVal(L, xr, w);
         if (v && typeof v === 'object' && v.error) return v;
+        if (L.cl[w] || (L.st[w] && L.st[w].kind === 'pick')) { var dA = detail[lower(L.f.key) + '#' + xr.id + '.' + w]; if (dA) detail[l] = dA; }   // F5a1#4: an addressed column or choice carries its effects' sources
         cache[l] = v; return v;
     }
     function builtin(l) {   // 5h Fold 3: Facing, Arc, Arc.front|side|rear, Threats, Threats.front|side|rear — a field named Facing, Arc or Threats keeps its whole family
@@ -2634,7 +2645,7 @@ function validateSystem(sys, F) {
         var w = listWords(lf), node = 'l#' + lower(lf.key);
         if (w[word] === 'col') return { id: '', key: node + '.' + word, kind: 'number', vis: lf.vis, list: lf };
         if (w[word] === 'ctr') return total ? { ctrTotal: true, list: lf } : { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // Stage 6 HUD R2: a counter is one row's; it has no total
-        if (w[word] === 'pick') return total ? { pickTotal: true, list: lf } : { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };   // F5a2: a choice reads its option's value; it has no total
+        if (w[word] === 'pick') return total ? { pickTotal: true, list: lf } : { id: '', key: node + '.' + word, kind: 'number', vis: lf.vis, list: lf };   // F5a2: a choice reads its option's value; it has no total; a node of the loop graph (owed review F5a2#5)
         if (w[word] === 'stat' || word === 'qty' || word === 'paid' || (total ? word === 'count' : word === 'lvl')) return { id: '', key: node, kind: 'number', vis: lf.vis, list: lf, noEdge: true };
         if (!total && (word === 'on' || word === 'has')) return { id: '', key: node, kind: 'toggle', vis: lf.vis, list: lf, noEdge: true };
         return null;
@@ -2669,14 +2680,15 @@ function validateSystem(sys, F) {
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
                 if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row has it.' }); }
-                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+                if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             }
-            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
+            if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             if (!isRollProp(prop) && !isApplyProp(prop) && !target.noEdge) { var from = lower(owner.key); (edges[from] = edges[from] || []).push(lower(target.key)); }
         });
     }
     sys.fields.forEach(function(f) {
         var p = DEF_PROP[f.kind];
+        if (f.kind === 'item-list' && typeof f.key === 'string' && f.key.indexOf('.') >= 0) errors.push({ id: f.id, prop: 'key', message: 'An item list\u2019s key cannot contain a dot: formulas read it as ' + f.key.split('.')[0] + '.<name>, so its totals and rows have no names.' });   // owed review F5a1#6
         if (gmP[f.id] === 1) warnings.push({ id: f.id, prop: 'maxFormula', message: 'The max reads a GM-only value, so this pool is GM only: players will not see it.' });
         if (p && !(p === 'base' && f.base === '')) checkFormula(f, p, f[p], false, f.vis);   // a skill with no base is ranks alone
         if (f.roll) checkFormula(f, 'roll', f.roll, true, f.vis);
@@ -2884,12 +2896,13 @@ function validateSystem(sys, F) {
             (st.opts || []).forEach(function(o) {
                 var t = known[lower(o.name)] || listT(o.name), ok = false; try { var p = F.parse(o.name); ok = !!p.ok && p.names.length === 1 && lower(p.names[0]) === lower(o.name); } catch (e) { ok = false; }   // Stage 6 F3: or a list's name — an addressed row (Skills.Guns.Target), a total
                 if (!ok || !t || !NUMERIC[t.kind]) { errors.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads \u201c' + o.name + '\u201d, which is not a number formulas know.' }); return; }
+                if (!t.noEdge) { var fromP = 'l#' + lower(f.key) + '.' + lower(st.key); (edges[fromP] = edges[fromP] || []).push(lower(t.key)); }   // a loop through a choice is named
                 if (f.vis === 'all' && (t.vis === 'gm' || gmP[t.id] === 1 || t.gmKey)) warnings.push({ id: f.id, prop: 'list', message: 'Stat \u201c' + st.key + '\u201d: the option \u201c' + o.label + '\u201d reads a GM-only value, so players do not get that option.' });
             });
         });
     });
-    function listNode(k) { if (k.slice(0, 2) !== 'l#') return null; var rest = k.slice(2), d = rest.indexOf('.'), lf = lsts[d > 0 ? rest.slice(0, d) : rest]; if (!lf) return null; var ck = d > 0 ? rest.slice(d + 1) : '', col = null; ((lf.list && lf.list.cols) || []).forEach(function(c) { if (!col && lower(c.key) === ck) col = c; }); return { f: lf, col: col }; }
-    function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)' : x; }
+    function listNode(k) { if (k.slice(0, 2) !== 'l#') return null; var rest = k.slice(2), d = rest.indexOf('.'), lf = lsts[d > 0 ? rest.slice(0, d) : rest]; if (!lf) return null; var ck = d > 0 ? rest.slice(d + 1) : '', col = null, pick = null; ((lf.list && lf.list.cols) || []).forEach(function(c) { if (!col && lower(c.key) === ck) col = c; }); if (!col && ck) ((lf.list && lf.list.stats) || []).forEach(function(x) { if (!pick && isObj(x) && x.kind === 'pick' && lower(x.key) === ck) pick = x; }); return { f: lf, col: col, pick: pick }; }
+    function nodeName(x) { if (ix[x]) return ix[x].key; var ln = listNode(x); return ln ? (ln.pick ? ln.f.key + '.' + ln.pick.key + ' (choice)' : ln.f.key + '.' + (ln.col ? ln.col.key : '') + ' (column)') : x; }
     lowerKeys.forEach(function(k) { if (!state[k]) visit(k); });
     Object.keys(edges).forEach(function(k) { if (!state[k]) visit(k); });   // F5a1: the list columns' own nodes
     [errors, warnings].forEach(function(a) { a.forEach(function(e) { if (typeof e.prop === 'string' && e.prop.indexOf('list.col.') === 0) { e.message = 'Column \u201c' + e.prop.slice(9) + '\u201d: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && (e.prop.indexOf('list.then.') === 0 || e.prop.indexOf('list.needs.') === 0 || e.prop.indexOf('list.malf.') === 0 || e.prop.indexOf('list.cost.') === 0)) { var thq = e.prop.split('.'), isN = thq[1] === 'needs' || thq[1] === 'malf' || thq[1] === 'cost'; e.message = 'Roll \u201c' + thq.slice(isN ? 3 : 4).join('.') + '\u201d, ' + (isN ? (thq[1] === 'malf' ? 'Malf' : thq[1] === 'cost' ? 'costs' : 'needs') : 'then ' + (+thq[3] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.ctr.') === 0) { e.message = 'Counter \u201c' + e.prop.slice(9) + '\u201d, its most: ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.apply.') === 0) { var apq = e.prop.slice(11).split('.'); e.message = 'Apply \u201c' + apq.slice(2).join('.') + '\u201d' + (apq[1] === 'x' ? '' : ', change ' + (+apq[1] + 1)) + ': ' + e.message; e.prop = 'list'; } else if (typeof e.prop === 'string' && e.prop.indexOf('list.roll.') === 0) { var rp = e.prop.slice(10), rd2 = rp.indexOf('.'); e.message = 'Roll \u201c' + (rd2 >= 0 ? rp.slice(rd2 + 1) : rp) + '\u201d: ' + e.message; e.prop = 'list'; } }); });   // F5b: a list roll's too   // F5a1: a column's messages under its list's card
@@ -3629,29 +3642,31 @@ function sbFill(json, view, F, find) {
     out.lists = ro.lists.slice(); out.ops = ro.ops.slice(); out.skipped = ro.skipped.slice().concat(unread);
     return out;
 }
-// Stage 6 F5b: a row roll for the GM's privacy checks — gm: the list or the row's item is GM-only (the roll stays the GM's); names: what its Row.*
+// Stage 6 F5b: a row roll for the GM's privacy checks — gm: the list or the row's item is GM-only (the roll stays the GM's); kept: a curse the GM keeps
+// on while its owner sees it off (the GM's roll of it stays private); names: what its Row.*
 // names read — a column as the list's name for it (gmDerivedNames sees its formula through the list) and the names its formula reads (gmEffectNames),
 // a choice as its option's name — beside the roll's other names. Never throws; an unknown field or row reads gm (fail closed)
 function rowRollNames(sys, char, fieldId, rowId, names, F) {
-    var out = [], gm = false, seen = map(), push = function(n) { if (typeof n === 'string' && n && !seen[lower(n)]) { seen[lower(n)] = 1; out.push({ name: n }); } };
+    var out = [], gm = false, kept = false, seen = map(), done = map(), push = function(n) { if (typeof n === 'string' && n && !seen[lower(n)]) { seen[lower(n)] = 1; out.push({ name: n }); } };
     try {
         var f = sys ? fieldById(sys, fieldId) : null; if (!f || f.kind !== 'item-list') return { gm: true, names: out };
         if (f.vis === 'gm') gm = true;
         var rows = storedOf(f, char), row = null; (Array.isArray(rows) ? rows : []).forEach(function(r) { if (!row && rowIdOf(r) === rowId) row = r; });
         var rd = row ? rowDef(sys, row) : null; if (!rd || !rd.def || rd.def.vis === 'gm' || row.hid === 1) gm = true;
+        kept = !!(row && row.keptOn === 1 && row.on === true);   // owed review F5b#2: its owner sees it off (never folded into gm: the owner's own roll must not turn private)
         var spec = isObj(f.list) ? f.list : {};
-        var expand = function(ns, depth) { (Array.isArray(ns) ? ns : []).forEach(function(n) {
+        var expand = function(ns) { (Array.isArray(ns) ? ns : []).forEach(function(n) {
             var nm = typeof n === 'string' ? n : (n && n.name); if (typeof nm !== 'string') return;
             var l = lower(nm); if (l.slice(0, 4) !== 'row.') { push(nm); return; }
             var w = l.slice(4), c = null, st = null;
             (Array.isArray(spec.cols) ? spec.cols : []).forEach(function(x) { if (!c && isObj(x) && lower(x.key) === w) c = x; });
             (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (!st && isObj(x) && lower(x.key) === w) st = x; });
-            if (c) { push(f.key + '.' + c.key); if (depth < 4 && typeof c.formula === 'string' && c.formula && F && F.names) expand(F.names(c.formula), depth + 1); }
+            if (c) { push(f.key + '.' + c.key); if (!done[lower(c.key)] && typeof c.formula === 'string' && c.formula && F && F.names) { done[lower(c.key)] = 1; expand(F.names(c.formula)); } }   // each column once, however deep (owed review F5b#1: a list has up to six)
             else if (st && st.kind === 'pick' && rd) { var lb = rowStat(spec, rd.def, st.key); (st.opts || []).forEach(function(o) { if (lower(o.label) === lower(lb)) push(o.name); }); }
         }); };
-        expand(names, 0);
-    } catch (e) { return { gm: true, names: out }; }
-    return { gm: gm, names: out };
+        expand(names);
+    } catch (e) { return { gm: true, kept: false, names: out }; }
+    return { gm: gm, kept: kept, names: out };
 }
 // The names a roll used (the engine's breakdown.names) that belong to a GM-only field, by key or by a reserved suffix: a GM's public roll must not carry them
 function gmOnlyNames(sys, names) {
@@ -3706,10 +3721,11 @@ function gmDerivedNames(sys, F, names) {
                 else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(f.id);
             });
         });
-        sys.fields.forEach(function(f) {   // F5a1: a visible list's columns — reading a GM-only value makes the list's names derived from one
-            if (f.kind !== 'item-list' || f.vis === 'gm' || !isObj(f.list) || !Array.isArray(f.list.cols)) return;
-            var node = 'l#' + lower(f.key);
-            f.list.cols.forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; (F.names(c.formula) || []).forEach(function(n) { var r = reads(nameOf(n)); if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); }); });
+        sys.fields.forEach(function(f) {   // F5a1: a visible list's columns — reading a GM-only value makes the list's names derived from one; a choice's options too (owed review F5a2#1)
+            if (f.kind !== 'item-list' || f.vis === 'gm' || !isObj(f.list)) return;
+            var node = 'l#' + lower(f.key), edge = function(nm) { var r = reads(nm); if (!r) return; if (r.f.vis === 'gm') { if (!hot[node]) { hot[node] = 1; queue.push(node); } } else if (r.def) (readBy[r.f.id] = readBy[r.f.id] || []).push(node); };
+            (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(st) { if (isObj(st) && st.kind === 'pick') (Array.isArray(st.opts) ? st.opts : []).forEach(function(o) { if (isObj(o) && typeof o.name === 'string' && o.name) edge(o.name); }); });
+            (Array.isArray(f.list.cols) ? f.list.cols : []).forEach(function(c) { if (!isObj(c) || typeof c.formula !== 'string' || !c.formula) return; (F.names(c.formula) || []).forEach(function(n) { edge(nameOf(n)); }); });
         });
         while (queue.length) (readBy[queue.shift()] || []).forEach(function(id) { if (!hot[id]) { hot[id] = 1; queue.push(id); } });
         names.forEach(function(n) { var nm = nameOf(n), r = nm ? reads(nm) : null; if (r && (r.f.vis === 'gm' || (r.def && hot[r.f.id]))) keep(nm); });

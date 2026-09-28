@@ -103,7 +103,7 @@ function filter(keep) {   // keep: the entry to stay on (the list grew under it)
     if (!kept) for (var i = 0; i < rows.length; i++) if (!rows[i].hdr && !isOnce(rows[i])) { st.hi = i; break; }
     st.els.spacer.style.height = (rows.length * ROW_H) + 'px'; if (!kept) st.els.list.scrollTop = 0;
     var old = st.els.list.querySelector('.lib-empty'); if (old) old.parentNode.removeChild(old);
-    if (!rows.length) st.els.list.appendChild(el('div', 'lib-empty', st.all.length ? 'Nothing matches.' : typeof st.opts.source.load === 'function' && typeof st.opts.source.status === 'function' && st.opts.source.status() ? 'Loading…' : 'The library has nothing for this list' + (st.opts.cats ? ' (its categories: ' + st.opts.cats.join(', ') + ')' : '') + '.'));
+    if (!rows.length) st.els.list.appendChild(el('div', 'lib-empty', st.all.length ? 'Nothing matches.' : typeof st.opts.source.load === 'function' && typeof st.opts.source.status === 'function' && st.opts.source.status() ? 'Loading…' : (st.opts.cats && !st.opts.cats.length ? 'Nothing in the library fits this list.' : 'The library has nothing for this list' + (st.opts.cats ? ' (its categories: ' + st.opts.cats.join(', ') + ')' : '') + '.')));
     draw(); preview(); addLabel();
 }
 function isOnce(x) { return !!(st.opts.once && st.opts.once[x.e.id] === 1); }

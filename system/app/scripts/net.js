@@ -1547,7 +1547,7 @@ var _unseenSent = Object.create(null);   // Stage 6 F6: the nameless changes eac
 function fxLib(sys) { var lib = {}; (sys && Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^e_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); return lib; }
 // Stage 6 F4a: the full item library by id (host-local, never sent): a GM-only item on a PC reaches its owner inline through it (players' fields only)
 // Stage 6 library L1c: with a library on this machine, a lookup (the system's items first, then the library) rather than a map of thousands
-function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = typeof window !== 'undefined' ? window.wpLibrary : null; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : L.entry(id); } : lib; }
+function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.items : []).forEach(function(d) { if (d && typeof d.id === 'string' && /^i_[A-Za-z0-9_]{1,24}$/.test(d.id)) lib[d.id] = d; }); var L = typeof window !== 'undefined' ? window.wpLibrary : null; return L && typeof L.size === 'function' && L.size() > 0 ? function(id) { return Object.prototype.hasOwnProperty.call(lib, id) ? lib[id] : (L.entryFor || L.entry)(id); } : lib; }   // a GM-only pack's entry reads GM-only (entryFor)
 // 5h: a teammate's copy (partial: hover fields only) cannot work out a hover line whose formula reads a field it does not hold (HP max from
 // ST read the default: "HP 9 / 10" where the owner saw "9 / 14"), so the host sends the lines it works out from the owner's own view.
 function withHoverLines(v, src, view, lib, items, full) {   // full (F6): the GM's system, so the owner's view counts what rows they cannot see change
@@ -1580,6 +1580,7 @@ function itemNotice(ch, name, what) {
         : what === 'eq-curse-on' ? who + ' switched on ' + nm + ' — curse on contact: if they switch it off, you keep it on.'
         : what === 'eq-bound-try' ? who + ' tried to switch off ' + nm + ' — it stays on (bound).'
         : what === 'eq-curse-off' ? who + ' switched off ' + nm + ' — it stays on, out of their sight, until you switch it off.'
+        : what === 'pick-over' ? who + ' changed ' + nm + ' — their pick replaced the hidden choice you set (set it again with \u270e if you want it back).'
         : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
     if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('items', t);
@@ -3656,6 +3657,7 @@ function handleMessage(msg, conn) {
         else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');
         if (resI.eqNote && typeof resI.onRow === 'string') itemNotice(chI, resI.name, resI.eqNote === 'bound' ? 'eq-bound-on' : 'eq-curse-on');   // F4b
         if (resI.keptOn) itemNotice(chI, resI.name, 'eq-curse-off');
+        if (typeof resI.secretPick === 'string') itemNotice(chI, resI.name + '\u2019s ' + resI.secretPick, 'pick-over');   // owner 2026-09-27: their pick replaced a hidden choice you set
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
         // [netcheck:charitem-end]
     } else if ((msg.type === 'lib-idx' || msg.type === 'lib-get') && net.role === 'host') {
@@ -4887,7 +4889,8 @@ net.diceRoll = function(expr, o) {
     if (rowP && hosting && !o.priv) { var extraR = SR.gmOnlyNames(campR.system, rowP.names).concat(SR.gmDerivedNames(campR.system, F, rowP.names)); extraR.forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // F5b: through a column or a choice
     if (mfR !== null && hosting && !o.priv && SR && campR && campR.system) { var mfN = F.names(entR.malf); SR.gmOnlyNames(campR.system, mfN.map(function(n) { return { name: n }; })).concat(SR.gmDerivedNames(campR.system, F, mfN)).forEach(function(n) { if (gmR.indexOf(n) < 0) gmR.push(n); }); }   // R3: the card shows the Malf, so a GM-only one keeps it private
     if (o.priv) rec.priv = 'gm';
-    else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast('Kept private: that roll is on a GM-only item' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
+    else if (hosting && rowP && rowP.gm) { rec.priv = 'gm'; toast('Kept private: that roll is on a GM-only item or list' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // F5b: a GM-only row's roll stays the GM's
+    else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
     else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
     else if (hosting && rowP && SR && varsR && SR.gmEffectNames(varsR, rowP.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rowP.names).join(', ') + '.'); }   // F5b: through a column

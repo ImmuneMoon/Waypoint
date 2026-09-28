@@ -2377,6 +2377,22 @@ pendingChecks.push((async () => {
     check('Lighting: a change to the table\'s vision rules (the fog, lighting or facing switch, the master, the fog defaults) re-sends every fogged map of the hosted campaign to the players, filtered for each (not only the map on screen); nothing from a client or off a session',
         j(r1) === j(['k_r/mA', 'k_r/mF']) && sentR.length === 2
         && /net\.broadcastStance\(\);\n\s*if \(net\.resendFogged\) net\.resendFogged\(\);/.test(src) && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); \} \} \}\);\n\s*if \(net\.resendFogged\) net\.resendFogged\(\);   \/\/ a default sight changed/.test(src), j(sentR));
+    // lighting L3: one player's copy of a fogged map (the real fogDrop / fogFilterClean / fogCopyFor): the creatures they cannot see dropped, the lit
+    // cells only they get (never on the shared clone), the host's light cap; the host's own map never carries either
+    const flF = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit');
+    // the stub answers only for the host's own map and campaign, and the lit cells only for the drop worked out for that player (never the clone)
+    const hostM = { type: 'map', id: 'm1', whiteboard: [{ id: 'foe', light: { bright: 2, dim: 4 } }, { id: 'me' }] }, campFL = { id: 'k_f' };
+    const fwin = { wpFog: { fogDropIds: (rid, camp, map) => camp === campFL && map === hostM && rid === 'u_a' ? { foe: 1 } : null,
+        fogLitFor: (rid, camp, map, drop) => camp !== campFL || map !== hostM ? null : rid === 'u_a' && drop && drop.foe === 1 ? { lit: [{ c: 3, r: 2, t: 2 }, { c: 4, r: 2, t: 1 }], capped: false } : rid === 'u_c' && drop === null ? { lit: [], capped: true } : null } };
+    const FL = new Function('window', flF + '\nreturn fogCopyFor;')(fwin);
+    const cleanM = { type: 'map', id: 'm1', whiteboard: [{ id: 'foe' }, { id: 'me' }] }, cA = FL(cleanM, campFL, hostM, 'u_a'), cB = FL(cleanM, campFL, hostM, 'u_b'), cC = FL(cleanM, campFL, hostM, 'u_c');
+    const srcL = src.replace(/\r\n/g, '\n');
+    check('Lighting: a player\'s copy of a fogged map carries only their own lit cells (a torch round a corner) and the host\'s light cap, always on a copy made for them — the shared clone and another player\'s copy never gain them; nothing extra, nothing copied',
+        j(cA.whiteboard.map(w => w.id)) === j(['me']) && j(cA.fogLit) === j([{ c: 3, r: 2, t: 2 }, { c: 4, r: 2, t: 1 }]) && !('lightsCapped' in cA) && !('fogLit' in hostM) && !('lightsCapped' in hostM) && cB === cleanM && !('fogLit' in cleanM) && !('lightsCapped' in cleanM)
+        && cC !== cleanM && cC.lightsCapped === true && !('fogLit' in cC) && cC.whiteboard === cleanM.whiteboard
+        && /delete m\.fogLit; delete m\.lightsCapped;/.test(srcL) && (srcL.match(/var out = fogCopyFor\(clean, camp, it, pr\.id\);/g) || []).length === 2
+        && /it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);/.test(srcL) && !/fogFilterClean\(clean, fogDrop\(/.test(srcL)
+        && /var flC = window\.wpFogCore && window\.wpFogCore\.cleanFogLit \? window\.wpFogCore\.cleanFogLit\(m\.fogLit\) : null; if \(flC\) m\.fogLit = flC; else delete m\.fogLit;/.test(srcL) && /if \(m\.lightsCapped !== true\) delete m\.lightsCapped;/.test(srcL), j([cA, cC]));
     const runF = (netC, msg, peer) => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', fog: { defaults: { sight: 2 } } } } } }, calls = [];
         new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvF)(netC, { peer }, msg, st, id => (Object.prototype.hasOwnProperty.call(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpFogCore: FCx, wpFog: { invalidateVision: () => calls.push('inv'), redraw: () => calls.push('draw') } });
         return [st.appState.campaigns.k_1.fog, calls]; };

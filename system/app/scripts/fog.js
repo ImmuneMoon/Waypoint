@@ -295,11 +295,12 @@ function mapLevel(map) {
 // Lighting (L2): a map's light sources — every item with a light (a light source the GM placed, a token's own light), not hidden and not switched
 // off; its origin the item's centre cell (in a wall or a closed door: the open cell beside it, so it never lights both sides); radii from yards
 // to this map's cells. Over LIMITS.lights sources, none: the map reads dark (the GM is told once)
-var _litCache = Object.create(null), _lightsWarned = Object.create(null), _visitsWarned = Object.create(null);
-function lightSources(map, grid, blk) {
+var _litCache = Object.create(null), _lightsWarned = Object.create(null), _visitsWarned = Object.create(null), _lightsOver = Object.create(null), _fogLitIds = typeof WeakMap === 'function' ? new WeakMap() : null, _fogLitN = 0, _fogLitLast = Object.create(null), _srcLit = Object.create(null);
+function lightSources(map, grid, blk, skip) {   // skip: ids left out (L3: the items dropped from one player's copy)
     var C = core(), out = [], wb = map.whiteboard || [], per = cellYardsForMap(map);
     for (var i = 0; i < wb.length; i++) {
         var w = wb[i]; if (!w || w.hidden || w.gmNoteFor || !w.light) continue;   // a GM-note card never reaches a player: its light would too
+        if ((skip && skip[w.id]) || w.waiting) continue;   // a waiting token carries no light (its copy on the wire has none)
         var L = C.cleanLight(w.light); if (!L || L.off) continue;
         var cx = w.x + (w.w || 0) / 2, cy = w.y + (w.h || 0) / 2, cell = C.cellOf(cx, cy, grid);
         if (blk && blk[C.cellKey(cell, grid)]) {   // in a wall or a closed door: the open cell on the side the item sits (centred on the cell: the side it faces, up when unturned)
@@ -309,21 +310,66 @@ function lightSources(map, grid, blk) {
         }
         out.push({ cell: cell, bright: L.bright > 0 ? C.rangeToCells(L.bright, per) : -1, dim: C.rangeToCells(L.dim, per) });   // bright -1: a dim-only light
     }
+    if (!skip) _lightsOver[map.id] = out.length > C.LIMITS.lights;
     if (out.length > C.LIMITS.lights) { if (!_lightsWarned[map.id] && isGmView()) { _lightsWarned[map.id] = 1; toast('Too many light sources on this map — it reads dark until there are fewer.'); } return []; }
     _lightsWarned[map.id] = 0;
     return out;
 }
-// The cells a map's lights light (fogcore litLevels), memoised on the sources, the grid and the blockers' content: { sig, lit, ver } or null with
-// no light source. Too much to walk: lit nothing (dark)
+// The cells a map's lights light (fogcore litLevels), memoised on the sources, the grid and the blockers' content: { sig, lit, ver, capped } or
+// null with no light source. Too much to walk: lit nothing (dark), capped. A player's copy (L3) adds the lit cells the host sent it (fogLit: a
+// light on a creature they cannot see) and reads dark while the host's lights are past a cap (lightsCapped)
 function litFor(map, grid, blk) {
-    var C = core(), src = lightSources(map, grid, blk); if (!src.length) return null;
-    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + src.map(function(s) { return C.cellKey(s.cell, grid) + ':' + s.bright + ':' + s.dim; }).join(';');
+    var C = core(), client = isClientView(), fl = client && Array.isArray(map.fogLit) ? map.fogLit : null;
+    if (client && map.lightsCapped === true) return null;
+    var src = lightSources(map, grid, blk); if (!src.length && !fl) return null;
+    var flId = 0;   // the lit cells the host sent, keyed on their content: a map re-sent with the same cells keeps the memo
+    if (fl && _fogLitIds) { flId = _fogLitIds.get(fl); if (!flId) { var fsig = fl.map(function(e) { return C.cellKey(e, grid) + ':' + e.t; }).join(';'), last = _fogLitLast[map.id]; if (last && last.sig === fsig) flId = last.id; else { flId = ++_fogLitN; _fogLitLast[map.id] = { sig: fsig, id: flId }; } _fogLitIds.set(fl, flId); } }
+    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + src.map(function(s) { return C.cellKey(s.cell, grid) + ':' + s.bright + ':' + s.dim; }).join(';') + '|fl' + flId;
     var mc = _litCache[map.id]; if (mc && mc.sig === sig) return mc;
-    var lit = C.litLevels(src, grid, blk);
+    var lit = src.length ? C.litLevels(src, grid, blk) : Object.create(null);
+    if (lit && fl) fl.forEach(function(e) { var k = C.cellKey(e, grid); if (!(lit[k] >= e.t)) lit[k] = e.t; });
     if (!lit) { if (!_visitsWarned[map.id] && isGmView()) { _visitsWarned[map.id] = 1; toast('These lights reach too far to work out together — the map reads dark until there are fewer or smaller ones.'); } }
     else _visitsWarned[map.id] = 0;
-    mc = _litCache[map.id] = { sig: sig, lit: lit || Object.create(null), ver: ((mc && mc.ver) || 0) + 1 };
+    mc = _litCache[map.id] = { sig: sig, lit: lit || Object.create(null), ver: ((mc && mc.ver) || 0) + 1, capped: !lit };
     return mc;
+}
+// Lighting (L3, owner answer 2): what one player's copy of a lit map needs beyond its own lights. The host works out the cells that player sees
+// (with every light) and sends the ones a light on a creature dropped from their copy lights more than their copy's own lights do — a torch round
+// a corner: cells and levels only, never the carrier. capped: the host's lights past a cap, so their copy reads dark as the host's does. null
+// when there is nothing to add (the common case: nobody unseen carries a light)
+function fogLitFor(recipientId, camp, map, drop) {
+    if (!fogFeatureOn() || !map || map.type !== 'map') return null;
+    var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;   // reveal shows the whole map; cover reads no light
+    var C = core(), grid = gridForMap(map); if (!C || !grid) return null;
+    var lvl = mapLevel(map); if (lvl === null) return null;
+    var blk = blockersFor(map, grid); if (_blockerOver[map.id]) return null;   // walls over their cap: no light is judged anywhere (both sides)
+    var lc = litFor(map, grid, blk);
+    if (_lightsOver[map.id] || (lc && lc.capped)) return { lit: [], capped: true };
+    if (!lc || !drop) return null;
+    // the light the player's copy lacks is the light of the items dropped from it (usually one or two): only theirs are flooded first
+    var keep = Object.create(null); (map.whiteboard || []).forEach(function(w) { if (w && !drop[w.id]) keep[w.id] = 1; });
+    var dsrc = lightSources(map, grid, blk, keep); if (!dsrc.length) return null;
+    var vs = viewersFor(map, camp, recipientId); if (!vs.length) return null;
+    var dLit = litOf(map, grid, blk, dsrc);
+    // the cells this player's tokens see: their line of sight as their copy works it out — never a manual reveal (no light is read there), a
+    // manual cut left in (a cut beside a lit wall still lights its face on their side)
+    var cand = [], ck = Object.create(null);
+    vs.forEach(function(v) { var s = viewSeen(map, grid, blk, lvl, v, lc); for (var i = 0; i < s.length; i++) { var k = s[i].key; if (!ck[k] && (dLit[k] || 0) > lvl) { ck[k] = 1; cand.push(s[i]); } } });
+    if (!cand.length) return null;
+    var ownLit = litOf(map, grid, blk, lightSources(map, grid, blk, drop)), out = [];
+    cand.forEach(function(o) { var h = dLit[o.key]; if (h > (ownLit[o.key] || 0)) out.push(o.cell.q !== undefined ? { q: o.cell.q, r: o.cell.r, t: h } : { c: o.cell.c, r: o.cell.r, t: h }); });
+    return out.length ? { lit: out, capped: false } : null;
+}
+// The lit cells of a set of light sources, memoised per map on the sources, the grid and the walls: players who miss the same lights share
+// them, and a re-send while nothing moved floods nothing
+function litOf(map, grid, blk, src) {
+    var C = core(); if (!src.length) return Object.create(null);
+    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + src.map(function(s) { return C.cellKey(s.cell, grid) + ':' + s.bright + ':' + s.dim; }).join(';');
+    var mc = _srcLit[map.id] || (_srcLit[map.id] = []);
+    for (var i = 0; i < mc.length; i++) if (mc[i].sig === sig) return mc[i].lit;
+    var lit = C.litLevels(src, grid, blk) || Object.create(null);
+    mc.unshift({ sig: sig, lit: lit }); if (mc.length > 8) mc.length = 8;
+    return lit;
 }
 // How many light sources a map holds (the cap is refused when a light is added)
 function lightCount(map) { var C = core(), n = 0; ((map && map.whiteboard) || []).forEach(function(w) { if (w && !w.hidden && !w.gmNoteFor && w.light && C && C.cleanLight(w.light)) n++; }); return n; }
@@ -681,7 +727,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

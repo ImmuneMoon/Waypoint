@@ -254,6 +254,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             L1['5,5'] === 2 && L1['7,5'] === 2 && L1['8,5'] === 1 && L1['9,5'] === 1 && L1['10,5'] === undefined && L2['6,5'] === 2 && L2['7,5'] === undefined && L2['8,5'] === undefined
             && litLevels([{ cell: { c: 5, r: 5 }, bright: 0, dim: 4 }, { cell: { c: 9, r: 5 }, bright: 1, dim: 1 }], sq, null)['9,5'] === 2 && litLevels([{ cell: { c: 9, r: 5 }, bright: 1, dim: 1 }, { cell: { c: 5, r: 5 }, bright: 0, dim: 4 }], sq, null)['9,5'] === 2 && litLevels(bigSrc, sq, null) === null && lj(litLevels([], sq, null)) === '{}',
             lj([L1['8,5'], L2['8,5'], L2['7,5']]));
+        const { cleanFogLit } = X;
+        check('Lighting: cleanFogLit (the lit cells a host sends one player) keeps square and hex cells with a level of 1 or 2 only, whole numbers, at most LIMITS.cells; anything else is dropped, and nothing kept is null',
+            lj(cleanFogLit([{ c: 1, r: 2, t: 2 }, { q: 3, r: -1, t: 1 }, { c: 1.7, r: 2, t: 1 }, { c: 1, r: 2, t: 3 }, { c: 'x', r: 1, t: 1 }, null, { c: 1, r: 1, t: '2' }])) === lj([{ c: 1, r: 2, t: 2 }, { q: 3, r: -1, t: 1 }, { c: 1, r: 2, t: 1 }])
+            && cleanFogLit([]) === null && cleanFogLit('x') === null && cleanFogLit([{ c: 1, r: 1, t: 0 }]) === null && cleanFogLit(Array.from({ length: 13000 }, (x, i) => ({ c: i, r: 0, t: 1 }))).length === LIMITS.cells);
         check('Lighting: a cell\'s neighbours — 8 on a square grid, 6 distinct on a hex one', neighbourCells({ c: 3, r: 3 }, sq).length === 8 && neighbourCells({ q: 3, r: 3 }, hx).length === 6 && neighbourCells({ q: 3, r: 3 }, hx).every(n => hexDist(n, { q: 3, r: 3 }) === 1) && new Set(neighbourCells({ q: 3, r: 3 }, hx).map(n => cellKey(n, hx))).size === 6);
         // review L2: the dim-only light, a wall past sight on a dark map with a lamp elsewhere, the map's own light on a wall face, hex faces
         const tAtR = (arr, k) => { const o = arr.find(e => e.key === k); return o ? o.tier : 0; };
@@ -436,13 +440,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // lighting (backlog 14): the map's light level, the blockers' content version, the per-viewer memo, the tiered reveal and host enforcement on
         // a lit map (fog.js, sliced and run strict)
         let litOn = true;
-        const ltToasts = []; let ltGm = true;
-        const LT = new Function('core', 'vtt', 'mapFog', 'gridForMap', 'viewersFor', 'fogFeatureOn', 'fogMask', 'inMask', 'toast', 'isGmView', "'use strict';" + NL
+        const ltToasts = []; let ltGm = true, ltClient = false, ltGrid = grid, ltCore = FC;
+        const LT = new Function('core', 'vtt', 'mapFog', 'gridForMap', 'viewersFor', 'fogFeatureOn', 'fogMask', 'inMask', 'toast', 'isGmView', 'isClientView', "'use strict';" + NL
             + lineOf('function lightingOn()') + lineOf('function placedLights(') + cut('function mapLevel(') + lineOf('var _blockerCache = Object.create(null)') + lineOf('var _blockerSig = Object.create(null)')
             + lineOf('var UNIT_YD = ') + cut('function cellYardsForMap(') + lineOf('var _litCache = Object.create(null)') + cut('function lightSources(') + cut('function litFor(') + lineOf('function lightCount(')
-            + cut('function eligibleBlocker(') + cut('function footprintCells(') + cut('function blockersFor(') + lineOf('var _viewCache = Object.create(null), _viewCells = 0') + cut('function viewSeen(') + cut('function revealedTiers(') + cut('function revealedCellList(') + cut('function fogDropIds(')
-            + NL + 'return { lightSources: lightSources, litFor: litFor, lightCount: lightCount, mapLevel: mapLevel, blockersFor: blockersFor, viewSeen: viewSeen, revealedTiers: revealedTiers, revealedCellList: revealedCellList, fogDropIds: fogDropIds, reset: function() { _viewCache = Object.create(null); _viewCells = 0; }, cells: function() { return _viewCells; }, setBudget: function(n) { VIEW_BUDGET = n; } };')(
-            () => FC, () => ({ on: f => f === 'lighting' ? litOn : true }), m => m.fog, () => grid, (m, camp, owner) => m.viewers.filter(v => owner === '*' || v.owner === owner), () => true, () => ({ mode: 'all' }), () => true, t => ltToasts.push(t), () => ltGm);
+            + cut('function eligibleBlocker(') + cut('function footprintCells(') + cut('function blockersFor(') + lineOf('var _viewCache = Object.create(null), _viewCells = 0') + cut('function viewSeen(') + cut('function revealedTiers(') + cut('function revealedCellList(') + cut('function fogDropIds(') + cut('function fogLitFor(') + cut('function litOf(')
+            + NL + 'return { fogLitFor: fogLitFor, lightSources: lightSources, litFor: litFor, lightCount: lightCount, mapLevel: mapLevel, blockersFor: blockersFor, viewSeen: viewSeen, revealedTiers: revealedTiers, revealedCellList: revealedCellList, fogDropIds: fogDropIds, reset: function() { _viewCache = Object.create(null); _viewCells = 0; }, cells: function() { return _viewCells; }, setBudget: function(n) { VIEW_BUDGET = n; } };')(
+            () => ltCore, () => ({ on: f => f === 'lighting' ? litOn : true }), m => m.fog, () => ltGrid, (m, camp, owner) => m.viewers.filter(v => owner === '*' || v.owner === owner), () => true, () => ({ mode: 'all' }), () => true, t => ltToasts.push(t), () => ltGm, () => ltClient);
         let lmN = 0; const lmap = (fog, wb, viewers) => ({ id: 'lm' + (++lmN), type: 'map', meta: { updated: 1 }, fog: Object.assign({ on: true, mode: 'auto', manual: { adds: [], cuts: [] } }, fog), whiteboard: wb || [], viewers: viewers || [] });
         const lamp = { id: 'lamp', type: 'light', x: 0, y: 0, w: 20, h: 20 };
         const lvls = [LT.mapLevel(lmap({})), LT.mapLevel(lmap({}, [lamp])), LT.mapLevel(lmap({}, [Object.assign({ hidden: true }, lamp)])), LT.mapLevel(lmap({ light: 'dim' })), LT.mapLevel(lmap({ light: 'dark' })), LT.mapLevel(lmap({ light: 'bright' }, [lamp]))];
@@ -547,6 +551,81 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         LT.reset(); const dimMap = lmap({ light: 'dim' }, [lampAt('dm', 1005, 105, { bright: 3, dim: 3 })], [pvQ]), tDm = LT.revealedTiers(dimMap, {}, 'p1');
         check('Lighting: end to end, a wall between a lamp and a player keeps its light and the creature beyond from them; a lamp on a dim map lights its cells bright while the rest stays dim',
             tW.keys['13,2'] === undefined && tW.keys['12,2'] === undefined && !!dropWW && dropWW.foeW === 1 && tDm.keys['20,2'] === 2 && tDm.keys['12,2'] === 1, lj([tW.keys['13,2'], dropWW, tDm.keys['20,2'], tDm.keys['12,2']]));
+        // L3 (owner answer 2): a torch round a corner — the host sends a player only the lit cells they see, never its carrier
+        const cornerWall = { id: 'cw', type: 'rect', x: 500, y: 0, w: 50, h: 250, blocksSight: true }, pvC = { x: 125, y: 275, range: 0, arc: 360, owner: 'p1' };
+        const carrier = { id: 'carrier', isChar: true, ownerId: 'gm', x: 600, y: 100, w: 50, h: 50, light: { bright: 5, dim: 10 } }, meC = { id: 'meC', isChar: true, ownerId: 'p1', x: 100, y: 250, w: 50, h: 50 };
+        LT.reset(); const cMap = lmap({ light: 'dark' }, [cornerWall, carrier, meC], [pvC]), cDrop = LT.fogDropIds('p1', {}, cMap), cFl = LT.fogLitFor('p1', {}, cMap, cDrop), hostT = LT.revealedTiers(cMap, {}, 'p1');
+        const copyFor = (fl) => { const cp = lmap({ light: 'dark' }, cMap.whiteboard.filter(w => !(cDrop && cDrop[w.id])), [pvC]); if (fl) cp.fogLit = FC.cleanFogLit(fl.lit); return cp; };
+        ltClient = true; LT.reset(); const cliT = LT.revealedTiers(copyFor(cFl), {}, 'p1'); LT.reset(); const cliNo = LT.revealedTiers(copyFor(null), {}, 'p1'); ltClient = false;
+        const keyTier = t => Object.keys(t.keys).sort().map(k => k + ':' + t.keys[k]).join(' ');
+        check('Lighting: a torch carried round a corner (its bearer dropped from the player\'s copy) — the host sends that player the lit cells they see and their level, never the bearer, its light or where it stands; with them the player\'s own copy sees exactly what the host rules they see (without, less)',
+            !!cDrop && cDrop.carrier === 1 && !!cFl && !cFl.capped && cFl.lit.length > 0 && cFl.lit.every(e => Object.keys(e).sort().join() === 'c,r,t' && (e.t === 1 || e.t === 2) && hostT.keys[e.c + ',' + e.r] >= 1)
+            && !cFl.lit.some(e => e.c === 12 && e.r === 2) && !JSON.stringify(cFl).includes('carrier') && keyTier(cliT) === keyTier(hostT) && keyTier(cliNo) !== keyTier(hostT), lj([cDrop, cFl && cFl.lit.length, keyTier(cliT) === keyTier(hostT)]));
+        LT.reset(); const seenCarrier = LT.fogLitFor('p1', {}, lmap({ light: 'bright' }, [carrier, meC], [pvC]), null), noLight = LT.fogLitFor('p1', {}, lmap({ light: 'dark' }, [cornerWall, meC], [pvC]), { x: 1 });
+        litOn = false; const flOff = LT.fogLitFor('p1', {}, cMap, cDrop); litOn = true;
+        const capMap = lmap({}, many.concat([meC]), [pvC]), flCap = LT.fogLitFor('p1', {}, capMap, { m0: 1 });
+        ltClient = true; LT.reset(); const capCopy = lmap({}, many.slice(0, 3).concat([meC]), [pvC]); capCopy.lightsCapped = true; const tCapCli = LT.revealedTiers(capCopy, {}, 'p1'); const capCopy2 = lmap({}, many.slice(0, 3).concat([meC]), [pvC]); const tCapCli2 = LT.revealedTiers(capCopy2, {}, 'p1'); ltClient = false;
+        check('Lighting: nothing extra goes to a player whose copy already holds every light (nobody unseen carries one), on a map with no light, or with Lighting off; past the host\'s light cap their copy is told so, and reads dark as the host\'s does (their own lights ignored)',
+            seenCarrier === null && noLight === null && flOff === null && !!flCap && flCap.capped === true && flCap.lit.length === 0 && Object.keys(tCapCli.keys).length === 1 && Object.keys(tCapCli2.keys).length > 1, lj([seenCarrier, noLight, flOff, flCap, Object.keys(tCapCli.keys).length]));
+        // L3 edges: the host never reads a fogLit; a player's own light and the host's cells take the brighter; a new fogLit is read afresh; a
+        // player's own visible lamp lighting the same cells sends nothing; Lighting off sends nothing even where their sight reaches
+        LT.reset(); const hostFl = lmap({ light: 'dark' }, [meC], [pvC]); hostFl.fogLit = [{ c: 12, r: 5, t: 2 }]; const tHostFl = LT.revealedTiers(hostFl, {}, 'p1');
+        ltClient = true; LT.reset(); const mixC = lmap({ light: 'dark' }, [meC, lampAt('own', 555, 255, { bright: 2, dim: 2 })], [pvC]); mixC.fogLit = [{ c: 11, r: 5, t: 1 }]; const lfMix = LT.litFor(mixC, grid, LT.blockersFor(mixC, grid));
+        const swapC = lmap({ light: 'dark' }, [meC], [pvC]); swapC.fogLit = [{ c: 8, r: 5, t: 2 }]; const tSwapA = LT.revealedTiers(swapC, {}, 'p1'); swapC.fogLit = [{ c: 9, r: 5, t: 2 }]; const tSwapB = LT.revealedTiers(swapC, {}, 'p1');
+        const swB = LT.blockersFor(swapC, grid), lcSw1 = LT.litFor(swapC, grid, swB); swapC.fogLit = [{ c: 9, r: 5, t: 2 }]; const lcSw2 = LT.litFor(swapC, grid, swB); swapC.fogLit = [{ c: 9, r: 5, t: 1 }]; const lcSw3 = LT.litFor(swapC, grid, swB); ltClient = false;
+        LT.reset(); const ownLampMap = lmap({ light: 'dark' }, [cornerWall, carrier, meC, lampAt('vis', 555, 255, { bright: 10, dim: 10 })], [pvC]), olDrop = LT.fogDropIds('p1', {}, ownLampMap), olFl = LT.fogLitFor('p1', {}, ownLampMap, olDrop);
+        const pvWide = Object.assign({}, pvC, { range: 20 }); litOn = false; LT.reset(); const wideMap = lmap({ light: 'dark' }, [cornerWall, carrier, meC], [pvWide]), flOffWide = LT.fogLitFor('p1', {}, wideMap, { carrier: 1 }); litOn = true;
+        check('Lighting: the host never reads a lit-cells list off a map (only a player\'s copy does); a player\'s copy lights a cell at the brighter of its own light and the host\'s; a new list is read afresh (the same cells re-sent keep what was worked out); a player whose own lamp already lights those cells as brightly gets nothing extra; Lighting off sends nothing even where their sight reaches',
+            tHostFl.keys['12,5'] === undefined && lfMix.lit['11,5'] === 2 && tSwapA.keys['8,5'] === 2 && tSwapA.keys['9,5'] === undefined && tSwapB.keys['9,5'] === 2 && tSwapB.keys['8,5'] === undefined && lcSw2 === lcSw1 && lcSw3 !== lcSw2 && lcSw3.lit['9,5'] === 1
+            && (olFl === null || !olFl.lit.some(e => e.r === 5 && e.c >= 9 && e.c <= 13)) && flOffWide === null, lj([tHostFl.keys['12,5'], lfMix.lit['11,5'], tSwapB.keys['9,5'], olFl, flOffWide]));
+        // L3 review: the lit cells come only from the recipient's tokens' line of sight on an Auto map — a manual reveal, cover mode and a player
+        // with no token on the map get none; every cell sent is one a token of theirs sees
+        const unionSeen = (m, owner) => { const b = LT.blockersFor(m, ltGrid), lv = LT.mapLevel(m), lc = LT.litFor(m, ltGrid, b), u = {}; m.viewers.filter(v => v.owner === owner).forEach(v => LT.viewSeen(m, ltGrid, b, lv, v, lc).forEach(o => { u[o.key] = 1; })); return u; };
+        LT.reset(); const pvFar = { x: 125, y: 475, range: 0, arc: 360, owner: 'p1' }, manMap = lmap({ light: 'dark', manual: { adds: [{ c: 12, r: 1 }, { c: 13, r: 1 }, { c: 13, r: 2 }], cuts: [] } }, [cornerWall, carrier, meC], [pvFar]);
+        const flMan = LT.fogLitFor('p1', {}, manMap, LT.fogDropIds('p1', {}, manMap) || { carrier: 1 }), tMan = LT.revealedTiers(manMap, {}, 'p1'), manSeen = unionSeen(manMap, 'p1');
+        LT.reset(); const boxed = [{ id: 'bx1', type: 'rect', x: 0, y: 400, w: 300, h: 50, blocksSight: true }, { id: 'bx2', type: 'rect', x: 0, y: 550, w: 300, h: 50, blocksSight: true }, { id: 'bx3', type: 'rect', x: 250, y: 450, w: 50, h: 100, blocksSight: true }];
+        const boxMap = lmap({ light: 'dark', manual: { adds: [{ c: 12, r: 2 }], cuts: [] } }, [cornerWall, carrier, meC].concat(boxed), [pvFar]), flBox = LT.fogLitFor('p1', {}, boxMap, { carrier: 1 }), tBox = LT.revealedTiers(boxMap, {}, 'p1');
+        const flCover = LT.fogLitFor('p1', {}, lmap({ light: 'dark', mode: 'cover' }, [cornerWall, carrier, meC], [pvC]), { carrier: 1 }), flNobody = LT.fogLitFor('p1', {}, lmap({ light: 'dark' }, [cornerWall, carrier], []), { carrier: 1 });
+        const flReveal = LT.fogLitFor('p1', {}, lmap({ light: 'dark', mode: 'reveal' }, [cornerWall, carrier, meC], [pvC]), { carrier: 1 }), cSeen = unionSeen(cMap, 'p1');
+        check('Lighting: the lit cells a player is sent come only from their tokens\' line of sight on an Auto map — a GM\'s manual reveal of lit cells sends none (the reveal shows them, their light never travels), nor cover or reveal mode, nor a player with no token there; every cell sent is one their tokens see',
+            tMan.keys['13,1'] === 2 && !!flMan && flMan.lit.every(e => manSeen[e.c + ',' + e.r] === 1) && !flMan.lit.some(e => ['12,1', '13,1', '13,2'].includes(e.c + ',' + e.r)) && tBox.keys['12,2'] === 2 && flBox === null && flCover === null && flNobody === null && flReveal === null && !!cFl && cFl.lit.every(e => cSeen[e.c + ',' + e.r] === 1), lj([tMan.keys['13,1'], tBox.keys['12,2'], flMan && flMan.lit.filter(e => ['12,1', '13,1', '13,2'].includes(e.c + ',' + e.r)), flBox, flCover, flNobody, flReveal]));
+        // the floods: a re-send while nothing moved floods nothing; only the dropped lights flood before the player's sight is known
+        let floods = 0; ltCore = Object.assign({}, FC, { litLevels: function() { floods++; return FC.litLevels.apply(null, arguments); } });
+        LT.reset(); const rsMap = lmap({ light: 'dark' }, [cornerWall, carrier, meC, lampAt('own2', 105, 405, { bright: 2, dim: 2 })], [pvC]), rsDrop = { carrier: 1 };
+        const rsA = LT.fogLitFor('p1', {}, rsMap, rsDrop), fl1 = floods, rsB = LT.fogLitFor('p1', {}, rsMap, rsDrop), fl2 = floods;
+        carrier.light = { bright: 2, dim: 10 }; const rsC = LT.fogLitFor('p1', {}, rsMap, rsDrop), fl3 = floods;
+        const rsFresh = LT.fogLitFor('p1', {}, lmap({ light: 'dark' }, rsMap.whiteboard.map(w => Object.assign({}, w)), [pvC]), rsDrop); carrier.light = { bright: 5, dim: 10 };
+        LT.reset(); const plainFoe = { id: 'plainFoe', isChar: true, ownerId: 'gm', x: 600, y: 100, w: 50, h: 50 }, flPlain = LT.fogLitFor('p1', {}, lmap({ light: 'dark' }, [cornerWall, plainFoe, meC, lampAt('own3', 105, 405, { bright: 2, dim: 2 })], [pvC]), { plainFoe: 1 }), cellsPlain = LT.cells();
+        floods = 0; LT.reset(); const rsNo = LT.fogLitFor('p1', {}, lmap({ light: 'dark' }, [cornerWall, carrier, meC], []), rsDrop), fl4 = floods; ltCore = FC;
+        check('Lighting: a player\'s lit cells are worked out without flooding again when nothing moved (the lights they miss and their own light are each kept per map on their sources); a changed radius floods afresh and answers as a fresh map does; a player with no token there floods only the map\'s own light; an unseen creature with no light costs no one\'s sight',
+            !!rsA && lj(rsA) === lj(rsB) && fl2 === fl1 && fl3 > fl2 && !!rsC && lj(rsC) !== lj(rsA) && lj(rsC) === lj(rsFresh) && rsNo === null && fl4 <= 1 && flPlain === null && cellsPlain === 0, lj([fl1, fl2, fl3, fl4, rsC && rsC.lit.length, rsA && rsA.lit.length, cellsPlain]));
+        // a waiting token never carries a light (its copy on the wire has none, so host and player would part)
+        LT.reset(); const waitLit = lmap({ light: 'dark' }, [{ id: 'wt', waiting: 1, ownerId: 'p2', x: 600, y: 100, w: 50, h: 50, light: { bright: 5, dim: 10 } }, meC], [pvQ]);
+        check('Lighting: a waiting token carries no light (the host reads none, so nothing goes to a player about it)', LT.lightSources(waitLit, grid, LT.blockersFor(waitLit, grid)).length === 0 && LT.fogLitFor('p1', {}, waitLit, { wt: 1 }) === null && LT.mapLevel(waitLit) === 0);
+        // a manual cut beside a lit wall: the cut cell's light still reaches the player's copy, so the wall's face reads the same on both sides
+        LT.reset(); const cutMap = lmap({ light: 'dark', manual: { adds: [], cuts: [{ c: 9, r: 5 }] } }, [cornerWall, carrier, meC], [Object.assign({}, pvC, { range: 20 })]), cutDrop = LT.fogDropIds('p1', {}, cutMap) || { carrier: 1 };
+        const cutFl = LT.fogLitFor('p1', {}, cutMap, cutDrop), cutHost = LT.revealedTiers(cutMap, {}, 'p1');
+        const cutCopy = lmap({ light: 'dark', manual: { adds: [], cuts: [{ c: 9, r: 5 }] } }, cutMap.whiteboard.filter(w => !cutDrop[w.id]), [Object.assign({}, pvC, { range: 20 })]); if (cutFl) cutCopy.fogLit = FC.cleanFogLit(cutFl.lit);
+        ltClient = true; LT.reset(); const cutCli = LT.revealedTiers(cutCopy, {}, 'p1'); ltClient = false;
+        check('Lighting: a GM\'s manual hide beside a lit wall leaves the player\'s copy reading that wall as the host does (the hidden cell\'s light still reaches them, the cell itself stays hidden)',
+            !!cutFl && keyTier(cutCli) === keyTier(cutHost) && cutHost.keys['9,5'] === undefined, lj([cutFl && cutFl.lit.length, keyTier(cutCli) === keyTier(cutHost)]));
+        // the host's visits cap: a player is told the host fails dark, and their copy reads as the host's does
+        const visitsMany = []; for (let i = 0; i < 60; i++) visitsMany.push(lampAt('vm' + i, 105 + (i % 10) * 250, 105 + Math.floor(i / 10) * 250, { bright: 100, dim: 100 }));
+        LT.reset(); const vMap = lmap({}, visitsMany.concat([carrier, meC]), [pvC]), vLc = LT.litFor(vMap, grid, LT.blockersFor(vMap, grid)), vFl = LT.fogLitFor('p1', {}, vMap, { carrier: 1 }), vHost = LT.revealedTiers(vMap, {}, 'p1');
+        const vCopy = lmap({}, visitsMany.concat([meC]), [pvC]); if (vFl && vFl.capped) vCopy.lightsCapped = true;
+        ltClient = true; LT.reset(); const vCli = LT.revealedTiers(vCopy, {}, 'p1'); ltClient = false;
+        check('Lighting: past the host\'s light budget (too many cells lit) a player is told so and their copy reads dark as the host\'s does',
+            (vLc === null || vLc.capped === true) && !!vFl && vFl.capped === true && vFl.lit.length === 0 && keyTier(vCli) === keyTier(vHost), lj([vLc && vLc.capped, vFl, keyTier(vCli) === keyTier(vHost)]));
+        // a hex map: a torch round a corner sends hex cells, and the player's copy matches the host's
+        ltGrid = FC.hexGrid ? FC.hexGrid(30, 52) : null;
+        if (ltGrid) {
+            LT.reset(); const hMap = lmap({ light: 'dark' }, [{ id: 'hw', type: 'rect', x: 500, y: 0, w: 60, h: 300, blocksSight: true }, carrier, meC], [pvC]), hDrop = { carrier: 1 };
+            const hFl = LT.fogLitFor('p1', {}, hMap, hDrop), hHost = LT.revealedTiers(hMap, {}, 'p1');
+            const hCopy = lmap({ light: 'dark' }, hMap.whiteboard.filter(w => !hDrop[w.id]), [pvC]); if (hFl) hCopy.fogLit = FC.cleanFogLit(hFl.lit);
+            ltClient = true; LT.reset(); const hCli = LT.revealedTiers(hCopy, {}, 'p1'); ltClient = false; ltGrid = grid; LT.reset();
+            check('Lighting: on a hex map a torch round a corner sends hex cells (q, r and a level only) and the player\'s copy then sees what the host rules',
+                !!hFl && hFl.lit.length > 0 && hFl.lit.every(e => Object.keys(e).sort().join() === 'q,r,t') && keyTier(hCli) === keyTier(hHost), lj([hFl && hFl.lit.slice(0, 3), keyTier(hCli) === keyTier(hHost)]));
+        } else { ltGrid = grid; check('Lighting: fogcore publishes a hex grid for the hex case', false); }
         // the GM's Light block handler (inspector.js setLight, run strict on stub inputs)
         const inSL = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, NL), slA = inSL.indexOf("            var _el_wbLB = document.getElementById('wbLightBright')"), slB = inSL.indexOf(NL, inSL.indexOf('[_el_wbLB, _el_wbLD, _el_wbLO].forEach(', slA));
         const runSL = (w, vals, count) => { const els = { wbLightBright: { value: vals.b, addEventListener(e, f) { this.f = f; } }, wbLightDim: { value: vals.d, addEventListener(e, f) { this.f = f; } }, wbLightOn: { checked: vals.on, addEventListener(e, f) { this.f = f; } } }, log = [];
@@ -577,7 +656,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /if \(window\.wpVtt && window\.wpVtt\.on\('lighting'\) && window\.wpVtt\.on\('fog'\)\) html \+= '<div class="snd-row"><span class="snd-label">Light<\/span><button class="journal-from fx-light-btn"/.test(fxL) && /if \(btn\.classList\.contains\('fx-light-btn'\)\) \{ if \(window\.wpArmLight\) window\.wpArmLight\(\); return; \}/.test(fxL)
             && /if \(window\.wpFog && window\.wpFog\.lightCount && window\.wpFog\.lightCount\(map\) >= C\.LIMITS\.lights\) \{ toast\(/.test(wbL) && /armPlacement\('light', \{ w: 40, h: 40, color: 'transparent', name: 'Light source', light: \{ bright: 5, dim: 10 \} \}, 'light source'\);/.test(wbL)
             && /\} else if \(item\.type === 'light'\) \{/.test(wbL) && /el\.classList\.add\('wb-light'\); el\.classList\.toggle\('off', !lgL \|\| !!lgL\.off\);/.test(wbL) && /lgG\.textContent = '/.test(wbL)
-            && /body\.net-client \.wb-item\.wb-light \{ display: none !important; \}/.test(cssL) && /\(\(w\.type === 'light' \|\| w\.isChar \|\| w\.waiting\) && !w\.hidden && window\.wpCanPersistLocal && window\.wpCanPersistLocal\(\) \? \(function\(\) \{/.test(inL)
+            && /body\.net-client \.wb-item\.wb-light \{ display: none !important; \}/.test(cssL) && /\(\(w\.type === 'light' \|\| w\.isChar\) && !w\.waiting && !w\.hidden && window\.wpCanPersistLocal && window\.wpCanPersistLocal\(\) \? \(function\(\) \{/.test(inL)
             && /\[_el_wbLB, _el_wbLD, _el_wbLO\]\.forEach\(function\(el\) \{ if \(el\) el\.addEventListener\('change', setLight\); \}\);/.test(inL) && /if \(L\) w\.light = L; else if \(w\.type === 'light'\) w\.light = \{ bright: 0, dim: 0 \}; else delete w\.light;/.test(inL)
             && /\(w\.type !== 'image' && w\.type !== 'trigger' && w\.type !== 'light' \?/.test(inL));
         check('Lighting: Help and the tour say how to place a light source and give a token a light, and that a map is lit until one is placed',

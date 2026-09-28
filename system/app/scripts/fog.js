@@ -178,13 +178,67 @@ function inMask(mask, key) { return mask.mode === 'all' ? true : (mask.mode === 
 // mutates nothing, sends nothing on the wire; host and client both run the identical fogcore + coverTier.
 function coverBetween(x1, y1, x2, y2) {
     var map = activeMap(), camp = activeCamp(), C = core(); if (!map || !C) return null;
+    if (!coverOn(camp && camp.system)) return null;                     // cover off (the default): nothing to work out
     var grid = gridForMap(map); if (!grid) return null;                 // gridless with no assigned cell → can't measure cover
     var a = C.cellOf(x1, y1, grid), b = C.cellOf(x2, y2, grid);
     if (C.cellKey(a, grid) === C.cellKey(b, grid)) return null;         // same cell → no cover
-    var sys = camp && camp.system; if (!sys || !window.wpSystemCore) return null;
-    var cov = C.coverBetween(a, b, grid, blockersFor(map, grid));
+    var sys = camp && camp.system; if (!window.wpSystemCore) return null;
+    var cs = coverSetsFor(map, grid), cov = C.coverBetween(a, b, grid, cs && cs.hard, cs && cs.soft, cs && cs.all);   // cover follow-ups: the cover pieces (a see-over one too, never a token)
     return window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect);
 }
+// Cover follow-ups (owner 2026-09-28): the cells that give cover on a map — hard (a sight-blocker) and soft (see-over: a crate, a low wall), by
+// fogcore coverRole (never a token, a hidden piece or an open door; a piece set to no cover gives none). Memoised like blockersFor (map.id +
+// its saved stamp); none, or the walls over the cells cap: null (no cover: fail open, as blockersFor)
+var _coverCache = Object.create(null), _coverStamp = Object.create(null);
+function coverSetsFor(map, grid) {
+    if (!map || !grid) return null;
+    var stamp = (map.meta && map.meta.updated) || 0;
+    if (_coverCache[map.id] !== undefined && _coverStamp[map.id] === stamp) return _coverCache[map.id];
+    var C = core(), wb = map.whiteboard || [], cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false;
+    for (var i = 0; i < wb.length && !over; i++) {
+        var role = C.coverRole(wb[i]); if (!role) continue;
+        var cells = footprintCells(wb[i], grid, C);
+        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } }
+    }
+    // the walls and the see-over cells together over the cap (a cell counted once): the walls keep their cover, the see-over pieces give none.
+    // all: the union the fogcore calls read, built once here
+    var all = hard;
+    if (!over && ns) { all = Object.create(null); for (var hk in hard) all[hk] = 1; for (var sk in soft) all[sk] = 1; if (Object.keys(all).length > cap) { all = hard; soft = Object.create(null); ns = 0; } }
+    var result = over || !(nh + ns) ? null : { hard: nh ? hard : null, soft: ns ? soft : null, all: all };
+    _coverStamp[map.id] = stamp; _coverCache[map.id] = result;
+    return result;
+}
+// The cover a board point (a blast's centre) has to a token on a map: its system's tier, or null (no grid, cover off, none). Local and advisory on
+// every viewer; the host alone turns it into damage (whiteboard.js applyBlastDamage)
+function coverAt(x, y, tok, map) {
+    var C = core(), camp = activeCamp(); if (!C || !C.coverFromPoint || !map || !tok) return null;
+    var sys = camp && camp.system; if (!coverOn(sys) || !window.wpSystemCore) return null;
+    var grid = gridForMap(map); if (!grid) return null;
+    var cs = coverSetsFor(map, grid); if (!cs) return null;
+    // a token over several cells is as exposed as its most exposed cell (the cells whose centres it covers, leaving out any inside a wall
+    // unless all are; its centre's cell when it covers none, or more than 64, a box far bigger ruled out first): a line of effect to any cell
+    // beats none, then the least coverage
+    var w = tok.w || 60, h = tok.h || 52, cw = grid.type === 'square' ? grid.size : grid.s * 1.5, ch = grid.type === 'square' ? grid.size : grid.s * Math.sqrt(3);
+    var cells = (w / cw + 2) * (h / ch + 2) > 1024 ? [] : C.cellsUnderRect(tok.x, tok.y, w, h, grid), best = null;
+    if (!cells.length || cells.length > 64) cells = [C.cellOf(tok.x + w / 2, tok.y + h / 2, grid)];
+    if (cs.hard && cells.length > 1) { var open = cells.filter(function(c) { return !cs.hard[C.cellKey(c, grid)]; }); if (open.length) cells = open; }
+    for (var i = 0; i < cells.length; i++) {
+        var cov = C.coverFromPoint(x, y, cells[i], grid, cs.hard, cs.soft, cs.all);
+        if (!best || (cov.lineOfEffect && !best.lineOfEffect) || (cov.lineOfEffect === best.lineOfEffect && cov.coverage < best.coverage)) best = cov;
+    }
+    return window.wpSystemCore.coverTier(sys, best.coverage, best.lineOfEffect);
+}
+// Cover follow-ups (owner 2026-09-28, answer 5): where a thrown blast goes off — never inside a wall or a closed door (a cell with hard cover):
+// fogcore openSeat moves it to the open cell in front, toward (tx, ty) (the thrower's token, else where the click landed). null: leave it where
+// it was seated (cover off, no grid, no walls, an open cell). The host alone seats a throw (whiteboard.js placeThrownBlast)
+function blastSeat(map, x, y, tx, ty) {
+    var C = core(), camp = activeCamp(); if (!C || !C.openSeat || !map) return null;
+    if (!coverOn(camp && camp.system)) return null;
+    var grid = gridForMap(map); if (!grid) return null;
+    var cs = coverSetsFor(map, grid); if (!cs || !cs.hard) return null;
+    return C.openSeat(x, y, tx, ty, grid, cs.hard);
+}
+function coverOn(sys) { return !!(sys && sys.combat && sys.combat.cover && sys.combat.cover.on === true); }
 // Turn-based combat T3a (D11): whether a token's straight move from (fx, fy) to (tx, ty) — its stored top-left — lands in or crosses a cell a
 // sight-blocker occupies on this map (the same blocker cells fog uses: a closed door blocks, an open one or a hidden item never). The host's
 // pos gate asks it for a player's move; no grid (and no fog cell): never
@@ -258,7 +312,7 @@ function fogDropIds(recipientId, camp, map) {
 // A cached revealed-key set per (recipient, map): stable during a drag (the recipient's own tokens don't move), so the
 // live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit.
 var _keyCache = Object.create(null);
-function invalidateVision() { _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); }
+function invalidateVision() { _coverCache = Object.create(null); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); }
 function canSeePoint(recipientId, camp, map, x, y) {
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;
@@ -525,7 +579,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, canSeePoint: canSeePoint, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

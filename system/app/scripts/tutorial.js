@@ -11,7 +11,7 @@
 
 import { state } from './state.js';
 import { createNewCampaign, createNewMap, createNewPlanner, createNewDoc, getActiveCampaign } from './models.js';
-import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy } from './io.js';
+import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy, withoutHistory } from './io.js';
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
@@ -72,7 +72,7 @@ function tutorialSystem() {
         rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: 'd20 + floor((DEX - 10) / 2)', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (sword)', formula: 'd20 + Skill.Sword', vis: 'all' }],
         items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }],
         effects: tutorialEffects(),
-        combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp' },
+        combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp', light: { names: { dim: 'Dim light', dark: 'Darkness' }, presets: [{ name: 'Torch', bright: 3, dim: 7, pick: true }, { name: 'Brazier', bright: 2, dim: 4 }] } },   // lighting (L6): what the rules call a dim and a dark place, and two lights in yards — the torch one a player may pick
         sheet: { sections: [], identity: [{ id: 'f_tut_class' }], ledger: [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }, { roll: 'r_tut_init' }], hud: tutorialHud() } };   // the automatic layout, with a header block (Stage 5d), a pinned band (Stage 5c) and a HUD (Stage 6) so the tour shows them
 }
 // the HUD (Stage 6): Bren's compact second window — checks and his attack on one tab, his condition on the other
@@ -100,7 +100,7 @@ function ensureTutorialSheet(camp) {
     if (camp.system && typeof camp.system === 'object') {
         if (!Array.isArray(camp.system.items)) camp.system.items = [];
         if (!camp.system.items.some(function(i) { return i && i.id === 'i_tut_firepot'; })) { camp.system.items.push({ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }); changed = true; }
-        if (!camp.system.combat || typeof camp.system.combat !== 'object') { camp.system.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp' }; changed = true; }
+        if (!camp.system.combat || typeof camp.system.combat !== 'object') { camp.system.combat = tutorialSystem().combat; changed = true; }   // the whole block a new Tutorial has, its light rules included (as ensureTutorialLights gives one)
         if (Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f && f.id === 'f_tut_kit'; })) { camp.system.fields.push({ id: 'f_tut_kit', key: 'Kit', label: 'Kit', kind: 'item-list', edit: 'owner', vis: 'all', hover: false }); changed = true; }
         // status effects (5h): the field, the two library effects, added to an older Tutorial too (idempotent)
         if (Array.isArray(camp.system.fields) && !camp.system.fields.some(function(f) { return f && f.id === 'f_tut_fx'; })) { camp.system.fields.push({ id: 'f_tut_fx', key: 'Effects', label: 'Effects', kind: 'effects', edit: 'owner', vis: 'all', hover: true }); changed = true; }
@@ -457,10 +457,26 @@ function buildTutorialCampaign() {
     return camp;
 }
 
-// The pre-fogged demo map (fog of war, 1.5.0): a square-grid cellar where Bren's Sight field lights a disc and a
+// The pre-fogged demo map (fog of war, 1.5.0): a square-grid cellar, dark, where Bren sees as far as his Sight field and a
 // monster in the dark is dropped from players' copies. Standalone (like tutorialHandbookPage) so an older Tutorial
 // gains it on its next ensure. Sight resolves through camp.fog.fields.sight -> the character's Sight field.
+// Lighting (L6): Bren carries the system's Torch, and a Brazier burns in the far corner, past his sight and his torch's light:
+// he sees its pool of light from across the room because it is lit, and the Lurker, nearer but in the dark, stays unseen.
+function tutorialBrazier() { return { id: 'tut_wb_brazier', type: 'light', x: 15455, y: 14755, w: 40, h: 40, color: 'transparent', layer: 'middle', name: 'Brazier', light: { bright: 2, dim: 4, name: 'Brazier' } }; }   // the north-east corner's cell: 10 yd from Bren, 5 from the Lurker
+function tutorialTorch() { return { bright: 3, dim: 7, name: 'Torch' }; }   // the system's Torch, by value (as a light's Properties copy a preset): its outer edge ends a yard short of the Lurker
+// The cellar's texts that speak of light, each beside the text it replaces on an older Tutorial (only where that one still reads as it was seeded)
+function tutorialCellarTexts() {
+    return {
+        room: { name: 'Torchlight', notes: 'As far as Bren’s torch and his own sight reach. In a session each player sees only what their own tokens see: this disc, and whatever a light shows them further off (the brazier in the corner).',
+            wasName: 'Lantern light', wasNotes: 'As far as Bren’s lantern reaches. In a session each player sees only this disc around their own tokens.' },
+        bren: { now: 'Your character. He carries a torch (Carries a light, in his Properties) and sees 6 yd in the dark (his Sight field) — drag him and both follow.',
+            was: 'Your character. His Sight field (6 yd) lights the fog — drag him and the lit disc follows.' },
+        lurker: { now: 'A monster in the dark, 8 yd off — outside Bren’s sight and past his torch’s light, so players never receive it. Move a token or a light close, or use the reveal brush, to bring it into view.',
+            was: 'A monster in the dark, 8 yd off — outside Bren’s sight, so players never receive it. Move a token close, or use the reveal brush, to bring it into view.' }
+    };
+}
 function buildTutorialFogMap() {
+    var CT = tutorialCellarTexts();
     var A = TUTORIAL_ART_URL;
     function sqTok(x, y, props) { return Object.assign({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50, w: 50, h: 50, layer: 'middle' }, props); }
     function pic(file, extra) { return Object.assign({ type: 'image', src: A + file, color: 'transparent', isChar: true }, extra); }
@@ -472,7 +488,7 @@ function buildTutorialFogMap() {
     fm.fog = { on: true, mode: 'auto', light: 'dark', manual: { adds: [], cuts: [] } };   // lighting (1.5.0): a dark cellar, so Bren's sight in the dark is what shows; fog ON; vision + manual; all-around vision (the square-grid default, resolved at read time)
     fm.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
     fm.rooms = [
-        { id: 'tut_fog_lit', name: 'Lantern light', cat: 'room', x: 15000, y: 15000, notes: 'As far as Bren’s lantern reaches. In a session each player sees only this disc around their own tokens.', characters: [] },
+        { id: 'tut_fog_lit', name: CT.room.name, cat: 'room', x: 15000, y: 15000, notes: CT.room.notes, characters: [] },
         { id: 'tut_fog_dark', name: 'The dark', cat: 'danger', x: 15400, y: 15000, notes: 'Beyond the light. A creature here is dropped from every player’s copy until a token’s vision (or your reveal brush) reaches it.', characters: [] }
     ];
     fm.links = [['tut_fog_lit', 'tut_fog_dark', 'oneway', { label: 'Into the dark' }]];
@@ -480,8 +496,9 @@ function buildTutorialFogMap() {
         { id: 'tut_wb_fogfloor', type: 'rect', x: 14700, y: 14750, w: 800, h: 500, color: '#201d28', layer: 'back', nodeId: 'tut_fog_lit', name: 'Cellar floor' },
         { id: 'tut_wb_fogpillar1', type: 'circle', x: 14900, y: 14850, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Pillar', blocksSight: true, sightType: 'wall' },
         { id: 'tut_wb_fogpillar2', type: 'circle', x: 15300, y: 15150, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Pillar', blocksSight: true, sightType: 'wall' },
-        sqTok(15000, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren7', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Your character. His Sight field (6 yd) lights the fog — drag him and the lit disc follows.', charId: 'c_tut_bren' })),
-        sqTok(15400, 15000, pic('slime_sq.jpg', { id: 'tut_wb_lurker', charName: 'Cellar Lurker', name: 'Cellar Lurker', charStats: 'A monster in the dark, 8 yd off — outside Bren’s sight, so players never receive it. Move a token close, or use the reveal brush, to bring it into view.' }))
+        sqTok(15000, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren7', charName: 'Bren of Hollowvale', name: 'Bren', charStats: CT.bren.now, charId: 'c_tut_bren', light: tutorialTorch() })),
+        sqTok(15400, 15000, pic('slime_sq.jpg', { id: 'tut_wb_lurker', charName: 'Cellar Lurker', name: 'Cellar Lurker', charStats: CT.lurker.now })),
+        tutorialBrazier()
     ];
     return fm;
 }
@@ -510,6 +527,30 @@ function tutorialVtt() { return window.wpVtt ? window.wpVtt.allOn() : { v: 1, ma
 function guardSwitch(switching, fn) { if (switching && window.wpConfirmCampaignSwitch) window.wpConfirmCampaignSwitch(fn); else fn(); }
 function hosting() { var n = window.wpNet; return !!(n && n.active && n.role === 'host'); }
 
+// Lighting (L6), once per Tutorial (camp.tutorialLight 2): the cellar's brazier, Bren's torch, the system's light rules and the texts that
+// speak of them, each only where an older Tutorial holds nothing of its own — a light someone placed, a rule they wrote, a text they changed stays.
+// The brazier only where the cellar is still Dark: on a map set back to Auto a light source placed on it would turn the map dark (fog.js
+// mapLevel), and the map's light is the GM's choice
+function ensureTutorialLights(camp) {
+    if (!camp || typeof camp !== 'object') return;
+    var sys = camp.system, fm = camp.items && camp.items.map_tut_fog, T = tutorialCellarTexts();
+    if (sys && typeof sys === 'object') {
+        if (!sys.combat || typeof sys.combat !== 'object') sys.combat = tutorialSystem().combat;
+        else if (sys.combat.light == null) sys.combat.light = tutorialSystem().combat.light;   // none, or one a file left empty (null)
+    }
+    if (!fm || typeof fm !== 'object') return;
+    if (Array.isArray(fm.whiteboard)) {
+        fm.whiteboard.forEach(function(w) {
+            if (!w || typeof w !== 'object') return;
+            if (w.id === 'tut_wb_bren7' && w.isChar && w.light == null) w.light = tutorialTorch();
+            if (w.id === 'tut_wb_bren7' && w.charStats === T.bren.was) w.charStats = T.bren.now;
+            if (w.id === 'tut_wb_lurker' && w.charStats === T.lurker.was) w.charStats = T.lurker.now;
+        });
+        var dark = !!fm.fog && typeof fm.fog === 'object' && fm.fog.light === 'dark';
+        if (dark && !fm.whiteboard.some(function(w) { return w && (w.id === 'tut_wb_brazier' || w.type === 'light'); })) fm.whiteboard.push(tutorialBrazier());
+    }
+    if (Array.isArray(fm.rooms)) fm.rooms.forEach(function(r) { if (r && r.id === 'tut_fog_lit' && r.name === T.room.wasName && r.notes === T.room.wasNotes) { r.name = T.room.name; r.notes = T.room.notes; } });
+}
 // Creates the Tutorial campaign (or rebuilds it when asked) and makes it active
 function ensureTutorialCampaign(rebuild) {
     var camp = tutorialCampaign();
@@ -525,11 +566,18 @@ function ensureTutorialCampaign(rebuild) {
     if (!camp.fog || !camp.fog.fields || camp.fog.fields.sight !== 'f_tut_sight') camp.fog = { fields: { sight: 'f_tut_sight' }, defaults: { sight: 3 } };
     if (!camp.items.map_tut_fog) camp.items.map_tut_fog = buildTutorialFogMap();
     else if (camp.items.map_tut_fog.whiteboard) camp.items.map_tut_fog.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string' && w.id.indexOf('tut_wb_fogpillar') === 0 && !w.blocksSight) { w.blocksSight = true; w.sightType = 'wall'; } });   // 1.5.0 sight-blocking: the demo pillars block
-    if (!camp.tutorialLight) { var tfog = camp.items.map_tut_fog.fog; if (tfog && typeof tfog === 'object' && tfog.light === undefined) tfog.light = 'dark'; camp.tutorialLight = 1; }   // lighting (1.5.0), once: the demo cellar is dark, so Bren's sight in the dark is what shows (a GM's own later choice stays) sight (patch an existing Tutorial)
+    // lighting, its once-only stages: never a step of the GM's undo (one Undo on the cellar would take the lights away while the mark stays)
+    var litNow = !(camp.tutorialLight >= 2);
+    if (litNow) withoutHistory(camp.items.map_tut_fog, function() {
+        if (!camp.tutorialLight) { var tfog = camp.items.map_tut_fog.fog; if (tfog && typeof tfog === 'object' && tfog.light === undefined) tfog.light = 'dark'; camp.tutorialLight = 1; }   // lighting (1.5.0), once: the demo cellar is dark, so Bren's sight in the dark is what shows (a GM's own later choice stays)
+        ensureTutorialLights(camp); camp.tutorialLight = 2;   // lighting (L6), once: the cellar's brazier, Bren's torch and the system's light rules, where an older Tutorial has none of its own
+    });
     if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+    // a hosted Tutorial: that save sends the open item alone, so the cellar just changed goes to the table here, to each player through their own fog
+    if (litNow && hosting() && camp.activeItemId !== 'map_tut_fog' && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, 'map_tut_fog');
     installTutorialArt(function(copied) { camp.tutorialArt = 'installed'; save(true); if (copied) render(); });
     return camp;
 }
@@ -617,7 +665,7 @@ var STEPS = [
       html: 'Under the &#127916; <b>Scene</b> button too. Flashes, screen shake, color washes, bursts on the map, weather and banners &mdash; the &#10024; panel fires them and the players on that map (and the stream window) see them. Pick a burst look then click the map; a token can <b>Pulse</b> from its right-click menu; <b>Sound with it</b> fires a cue alongside. Off for the campaign, or <b>Reduce motion</b> for yourself, in &#9881; Settings &#9656; VTT features. A VTT feature, per campaign.',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); var m = document.getElementById('sceneFxMenu'); if (m) m.classList.add('show'); } },   // Visual effects lives in the Scene flyout now
     { target: '#fogModeBtn', title: 'Fog of war',
-      html: 'Per-player <b>token vision</b>. The &#127787; button turns fog on for <i>this</i> map, then you paint reveal/hide by hand or preview a player&rsquo;s view. In a session each player sees an <b>opaque</b> fog of only what their own tokens light, and the host <b>drops</b> from their copy any creature they cannot see &mdash; true absence, nothing to uncover. Sight comes from a <b>character-sheet field</b> you map in the fog menu (here Bren&rsquo;s <b>Sight</b>, 6&nbsp;yd), or a campaign <b>default</b> for tokens without one. Modes: <b>auto</b> (vision + your reveals), <b>Reveal all</b> (a lit scene) or <b>Cover all</b> (only what you paint); on a gridless map you pick a cell size so vision can be measured. <b>Vision</b> is <b>all around</b> or a <b>facing cone</b> whose width you choose and which turns with each token &mdash; set per map and <b>independent of the grid</b> (a square map can use a cone; a hex map can see all around), with a &ldquo;use for new maps&rdquo; default. Fog a whole campaign at once with <b>Fog on &middot; all maps</b> (and tick <b>New maps start with fog on</b> for later ones). Want fog on <i>only</i> the battlemap and not the scenes around it? Mark an image or shape as a <b>play area</b> (its Properties, or the <b>&#9635;</b> button on the selection toolbar) and fog covers <b>only</b> marked items &mdash; scenes and art stay lit; <b>When no play area is marked</b> chooses whole-map fog or none. This map is <b>already fogged</b> — Bren lights a disc (shown now as the party would see it) and the <b>Cellar Lurker</b> in the dark is hidden from players until a token or your reveal brush reaches it. Flag a <b>fill</b> or a <b>shape</b> (rect, hexagon, circle/pillar or diamond) as <b>Blocks sight</b> in its Properties to make a <b>wall or pillar</b> that vision stops at, or set its type to <b>Door</b> to open/close it (click a door in fog mode; a player can open one their token stands next to). Walls and closed doors also stop players&rsquo; tokens. Those same blockers give <b>cover</b>: turn on <b>Cover from blockers</b> in your system (the System editor\u2019s Items tab) and dragging the <b>ruler</b> between two character tokens shows the cover between them (half / three-quarters / total) &mdash; advisory, you apply it. A piece\u2019s <b>Cover</b> setting can turn its cover off or make a crate you can see over give cover; blasts and target marks show cover too (a blast thrown into a wall or closed door goes off in front of it), and your system can make a Full auto blast do half or no damage behind it. With <b>Lighting</b> on (a VTT feature, on by default) a fogged map is <b>lit</b> until you place a light source (the &#10024; effects panel, <b>Light source</b>; a token can carry one too, in its Properties, where you type its radii in yards, feet, metres or grid cells or pick one of your system&rsquo;s light presets), so every token sees what is in its line of sight and its sight is how far it sees in the dark; set a map&rsquo;s <b>Light</b> (Auto, Bright, Dim, Dark) in the fog menu (this cellar is Dark). Sight counts in yards, feet, metres or grid cells (the fog menu), and when your system names its light levels (its Combat card&rsquo;s <b>Light</b> box) the ruler and target marks show the light a target stands in. Fog is a VTT feature, per campaign (&#9881; Settings &#9656; VTT features), on by default and GM-only &mdash; there is no player switch.',
+      html: 'Per-player <b>token vision</b>. The &#127787; button turns fog on for <i>this</i> map, then you paint reveal/hide by hand or preview a player&rsquo;s view. In a session each player sees an <b>opaque</b> fog of only what their own tokens light, and the host <b>drops</b> from their copy any creature they cannot see &mdash; true absence, nothing to uncover. Sight comes from a <b>character-sheet field</b> you map in the fog menu (here Bren&rsquo;s <b>Sight</b>, 6&nbsp;yd), or a campaign <b>default</b> for tokens without one. Modes: <b>auto</b> (vision + your reveals), <b>Reveal all</b> (a lit scene) or <b>Cover all</b> (only what you paint); on a gridless map you pick a cell size so vision can be measured. <b>Vision</b> is <b>all around</b> or a <b>facing cone</b> whose width you choose and which turns with each token &mdash; set per map and <b>independent of the grid</b> (a square map can use a cone; a hex map can see all around), with a &ldquo;use for new maps&rdquo; default. Fog a whole campaign at once with <b>Fog on &middot; all maps</b> (and tick <b>New maps start with fog on</b> for later ones). Want fog on <i>only</i> the battlemap and not the scenes around it? Mark an image or shape as a <b>play area</b> (its Properties, or the <b>&#9635;</b> button on the selection toolbar) and fog covers <b>only</b> marked items &mdash; scenes and art stay lit; <b>When no play area is marked</b> chooses whole-map fog or none. This map is <b>already fogged</b> — Bren sees a disc around him (shown now in the <b>Party</b> preview, which is what all the tokens on the map see, the Lurker&rsquo;s own small disc included; a player gets only what their own tokens see) and the <b>Cellar Lurker</b> in the dark is hidden from players until a token&rsquo;s sight, a light or your reveal brush reaches it. Flag a <b>fill</b> or a <b>shape</b> (rect, hexagon, circle/pillar or diamond) as <b>Blocks sight</b> in its Properties to make a <b>wall or pillar</b> that vision stops at, or set its type to <b>Door</b> to open/close it (click a door in fog mode; a player can open one their token stands next to). Walls and closed doors also stop players&rsquo; tokens. Those same blockers give <b>cover</b>: turn on <b>Cover from blockers</b> in your system (the System editor\u2019s Items tab) and dragging the <b>ruler</b> between two character tokens shows the cover between them (half / three-quarters / total) &mdash; advisory, you apply it. A piece\u2019s <b>Cover</b> setting can turn its cover off or make a crate you can see over give cover; blasts and target marks show cover too (a blast thrown into a wall or closed door goes off in front of it), and your system can make a Full auto blast do half or no damage behind it. With <b>Lighting</b> on (a VTT feature, on by default) a fogged map is <b>lit</b> until you place a light source (the &#10024; effects panel, <b>Light source</b>; a token can carry one too, in its Properties, where you type its radii in yards, feet, metres or grid cells or pick one of your system&rsquo;s light presets), so every token sees what is in its line of sight and its sight is how far it sees in the dark; set a map&rsquo;s <b>Light</b> (Auto, Bright, Dim, Dark) in the fog menu (this cellar is Dark: Bren carries a <b>Torch</b>, one of this system&rsquo;s light presets, a <b>Brazier</b> burns in the far corner and is seen from across the room because it is lit, and the Lurker stands in the dark between them, out of Bren&rsquo;s sight). Sight counts in yards, feet, metres or grid cells (the fog menu), and when your system names its light levels (its Combat card&rsquo;s <b>Light</b> box) the ruler and target marks show the light a target stands in. Fog is a VTT feature, per campaign (&#9881; Settings &#9656; VTT features), on by default and GM-only &mdash; there is no player switch.',
       before: function() { openItem('map_tut_fog'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); if (window.wpFog) window.wpFog.setPreview('party'); } },
     { target: '#whiteboardWrap', title: 'Tokens',
       html: 'Any shape or image with <b>Is Character</b> set is a token. On a <b>hex grid</b> the picture tokens are clipped to a hexagon, one cell wide (60&times;52), and they seat themselves in a cell when dropped. Hover a token for its name and stats; <b>right-click</b> one for conditions, posture and elevation \u2014 the chips at its foot show height (<b>+4</b>) and posture (<b>KNL</b>, <b>PRN</b>\u2026), and the switches for both are VTT features, set per campaign in Settings \u25b8 VTT features. In a session a player can right-click <i>their own</i> token for the same rows, and your campaign\'s settings are the most they see. There a player also switches their token&rsquo;s <b>light</b> off or on, or picks one of the lights you offer (tick <b>Light locked</b> in a token&rsquo;s Properties to keep it yours). Your own right-click on a token or a light source that carries a light switches it too (<b>Light on</b> / <b>Light off</b>). <b>Horn</b> behind the guard-room door is hidden from players \u2014 you see him dimmed \u2014 until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to go up to the archers (at +4) or down to the basement. The hex trigger on the office door fires its message when a token is dropped on it. Right-click a token and <b>Save to Campaign Cast</b> keeps a copy you can drop again from the play map\'s right-click menu, one at a time, or several at once with the \u00d7 box in the flyout.',

@@ -576,7 +576,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
-            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [] }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
+            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [], libCats: window.wpLibrary && window.wpLibrary.catsFor ? window.wpLibrary.catsFor() : null }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
             var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt, full: fullSys }), camp.chars[id], camp.system, libFx, libIt, fullSys); if (v) outCh[id] = v; }); camp.chars = outCh;
@@ -670,6 +670,7 @@ function refreshNewPlayersBox() {
     var notMine = net.active && net.role !== 'host';   // at someone else's table the box shows the table's rules, read-only
     sel.value = r.token; sg.checked = r.sight; sel.disabled = notMine; sg.disabled = notMine || r.token === 'off';
     var mkSel = ui('netMakeSelect'); if (mkSel) { var nC = camp && S && S.cleanNewPlayers ? S.cleanNewPlayers(camp.newPlayers) || {} : {}; mkSel.value = nC.create || 'live'; mkSel.disabled = notMine; }   // Onboarding F3b: whether players make their own
+    var mkFile = ui('netMakeFile'); if (mkFile) { var nF = camp && S && S.cleanNewPlayers ? S.cleanNewPlayers(camp.newPlayers) || {} : {}; mkFile.checked = nF.fromFile !== false; mkFile.disabled = notMine || nF.create === 'off'; }   // Onboarding F4: and whether from a file
 }
 function setNewPlayers(patch) {
     if (net.active && net.role !== 'host') { refreshNewPlayersBox(); return; }   // a player never sets the table's rules (their copy follows the host's)
@@ -682,6 +683,8 @@ var _waitSel = ui('netWaitingSelect');
 if (_waitSel) _waitSel.addEventListener('change', function() { setNewPlayers({ token: this.value === 'off' ? 'off' : 'on' }); toast(this.value === 'off' ? 'Players without a character get no token until you give them one.' : 'Players without a character get a waiting token.'); });
 var _waitSight = ui('netWaitingSight');
 if (_waitSight) _waitSight.addEventListener('change', function() { setNewPlayers({ sight: this.checked }); });
+var _makeFile = ui('netMakeFile');
+if (_makeFile) _makeFile.addEventListener('change', function() { setNewPlayers({ fromFile: this.checked }); toast(this.checked ? 'Players may start a character from a file (their own sheet download, or a ShadowBase sheet).' : 'Players make a character by hand only.'); });
 var _makeSel = ui('netMakeSelect');
 if (_makeSel) _makeSel.addEventListener('change', function() { var v = this.value === 'invite' || this.value === 'off' ? this.value : 'live'; setNewPlayers({ create: v }); toast(v === 'off' ? 'Players never make a character of their own here.' : v === 'invite' ? 'Players make a character only when you ask them (their chip \u25B8 Let them make a character).' : 'Players may make a character of their own.'); });
 
@@ -959,7 +962,7 @@ function applySnapshot(msg) {
     if (window.wpSystemCore) Object.values(state.appState.campaigns || {}).forEach(function(cs) {   // characters (1.5.0): what arrived is re-cleaned against the system that came with it
         if (!cs || typeof cs !== 'object') return;
         if (cs.system !== undefined) {   // the system itself is re-cleaned as the players' view here, as the 'system' message is: a host's word is never rendered raw
-            var snapSys = (cs.system && window.wpFormula) ? window.wpSystemCore.cleanSystem(cs.system, { F: window.wpFormula, gmView: false }) : null;
+            var snapSys = (cs.system && window.wpFormula) ? window.wpSystemCore.cleanSystem(cs.system, { F: window.wpFormula, gmView: false, libCats: {} }) : null;   // libCats: the host's view, nothing GM-only in hand to hide
             if (snapSys) cs.system = snapSys; else delete cs.system;
         }
         if (!cs.chars || typeof cs.chars !== 'object') return;
@@ -3377,8 +3380,11 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-upload-ans' && net.role === 'client') {   // Stage 6 U2: the host's answer to our upload
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_uploadPending, msg.rid)) return;
         var pU = _uploadPending[msg.rid]; delete _uploadPending[msg.rid]; clearTimeout(pU.timer);
-        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'One upload every 10 seconds.', missing: 'That character is gone.', owner: 'That character is not yours.', file: 'That is a character file, not a ShadowBase one.', making: 'Finish the character first (press Done on its sheet).' };
-        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: Object.prototype.hasOwnProperty.call(UP_WHY, msg.reason) ? UP_WHY[msg.reason] : 'The GM could not read it.' } : { n: typeof msg.n === 'number' && isFinite(msg.n) ? Math.max(0, msg.n | 0) : 0, auto: typeof msg.auto === 'number' && isFinite(msg.auto) ? Math.max(0, msg.auto | 0) : 0 });
+        // [netcheck:uploadans-start]
+        var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'Wait a moment before sending another file.', missing: 'That character is gone.', owner: 'That character is not yours.', file: 'A character file only fills a character you are still making.', nofile: 'Starting a character from a file is not open at this table.', wait: 'The GM\u2019s library is still loading; try again in a moment.', unread: 'The GM could not read it.' };
+        var cnt = function(v) { return typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100000, v | 0)) : 0; };
+        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: Object.prototype.hasOwnProperty.call(UP_WHY, msg.reason) ? UP_WHY[msg.reason] : 'The GM could not read it.' } : { n: cnt(msg.n), auto: cnt(msg.auto), left: cnt(msg.left) });
+        // [netcheck:uploadans-end]
     } else if (msg.type === 'char-pic-ans' && net.role === 'client') {   // Onboarding F1c: the host's answer to our picture
         // [netcheck:charpicans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_picPending, msg.rid)) return;
@@ -3556,14 +3562,40 @@ function handleMessage(msg, conn) {
         var Su = SC(), Fu = window.wpFormula; if (!Su || !Fu) return;
         var qu = Su.cleanCharUpload(msg); if (!qu) return;
         var ansU = function(o) { o.type = 'char-upload-ans'; o.rid = qu.rid; try { conn.send(o); } catch (e) { sendFailed(e); } };
-        if (qu.sheet && typeof qu.sheet === 'object' && qu.sheet.format === 'waypoint-character') { ansU({ reason: 'file' }); return; }   // Onboarding F2a: a character file is never read as a dossier
+        var isFileU = !!(qu.sheet && typeof qu.sheet === 'object' && qu.sheet.format === 'waypoint-character');   // Onboarding F2a: a character file (never read as a dossier)
         if (net.paused || peerPaused(conn.peer)) { ansU({ reason: 'paused' }); return; }
         if (window.wpVtt && !window.wpVtt.on('sheets')) { ansU({ reason: 'off' }); return; }
         var nowU = Date.now(); if (_uploadAt[conn.peer] && nowU - _uploadAt[conn.peer] < UPLOAD_GAP_MS) { ansU({ reason: 'slow' }); return; }
         var campU = getActiveCampaign(), chU = campU && campU.chars && campU.chars[qu.charId];
         if (!campU || !campU.system || !chU) { ansU({ reason: 'missing' }); return; }
         var profU = net.roster[conn.peer]; if (chU.npc || !chU.ownerId || !profU || chU.ownerId !== profU.id) { ansU({ reason: 'owner' }); return; }
-        if (chU.making === 1) { ansU({ reason: 'making' }); return; }   // Onboarding F3: a character in the making is filled in on its sheet (a file starts one: F4)
+        // [netcheck:charfill-start]
+        // Onboarding F4 (owner, 2026-09-27): a character in the making takes the file AT ONCE, with its owner's rights — past the list rules while
+        // making (a library copy's own name and stats, rows of their own), never the GM's fields — read on the players' view with the entries they
+        // may see (nothing GM-only is there to match, so the answer is the same with or without it). Where the table lets them (fromFile), not
+        // while the library loads, a file every ten seconds a player (a dozen a minute for the table). The answer: counts only; the GM is told and reviews at Done
+        if (chU.making === 1) {
+            var SHf = window.wpSheets;
+            if (!Su.newCharRules(campU, sheetsOnFor(campU)).fromFile) { ansU({ reason: 'nofile' }); return; }
+            if (window.wpLibrary && window.wpLibrary.state && window.wpLibrary.state() === 'loading') { ansU({ reason: 'wait' }); return; }
+            if (!allow('charfill', { perMs: 10000, burst: 2, windowMs: 60000, table: 12 }, conn.peer)) { ansU({ reason: 'slow' }); return; }
+            _uploadAt[conn.peer] = nowU;
+            var viewF = SHf && SHf.playerSystem ? SHf.playerSystem(campU) : null, pfF = viewF && SHf.playerFinder ? SHf.playerFinder(campU, viewF) : null;
+            var fillF = !pfF ? null : isFileU ? (SHf.charFromJson ? SHf.charFromJson(viewF, qu.sheet, pfF.find, pfF.findKey) : null) : Su.sbFill(qu.sheet, viewF, Fu, pfF.find);
+            var rF = fillF ? Su.fillMaking(campU.system, chU, fillF, Fu, { view: viewF, lib: pfF.lib, now: nowU }) : null;
+            if (!rF || !rF.ok) { ansU({ reason: 'unread' }); return; }
+            var leftF = rF.left + (typeof fillF.lost === 'number' && isFinite(fillF.lost) ? Math.max(0, fillF.lost | 0) : 0);   // rows the file named and nothing here could place (read on the players' view: no oracle)
+            chU.values = rF.values; chU.updated = nowU;
+            if (net.sendCharTo) net.sendCharTo(profU.id, qu.charId);   // theirs alone while it is made
+            if (SHf && SHf.charChanged) SHf.charChanged(qu.charId);
+            saveRemoteSoon();
+            var tF = (profU.name || 'A player') + ' filled ' + (chU.name || 'their character') + ' from a file (' + rF.done + (rF.done === 1 ? ' part' : ' parts') + (leftF ? ', ' + leftF + ' left out' : '') + ')';
+            toast(tF + ' \u2014 you review it when they press Done.'); logEvent('char', tF);
+            ansU({ n: 0, auto: rF.done, left: leftF });
+            return;
+        }
+        // [netcheck:charfill-end]
+        if (isFileU) { ansU({ reason: 'file' }); return; }   // a character file fills only a character in the making (owner, 2026-09-27: in play, Import stays as it was)
         _uploadAt[conn.peer] = nowU;
         var findU = window.wpSheets && window.wpSheets.sbFinder ? window.wpSheets.sbFinder(campU, campU.system) : null;
         var prU = Su.sbProposal(campU.system, chU, qu.sheet, Fu, findU), autoU = 0;
@@ -3728,7 +3760,7 @@ function handleMessage(msg, conn) {
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campS = campOf(msg.campId); if (!campS) return;
         if (msg.system === null) delete campS.system;
-        else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false }); if (csys) campS.system = csys; }
+        else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false, libCats: {} }); if (csys) campS.system = csys; }
         if (window.wpSheetsSync) window.wpSheetsSync();
     } else if (msg.type === 'docStyle' && net.role === 'client') {
         // the hosted campaign's document look changed mid-session (doc theming): from the synced host only, re-validated here; an open Handbook page and the sheet follow

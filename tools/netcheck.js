@@ -256,7 +256,9 @@ check('asset arrival (client): a refused picture clears its pending flag and ret
 check('client: every campaign/item lookup from a host message is an own-key lookup (campOf/validKey) in applyStage, applyItem, applyItemDelta, handlePos, itemGone, chars, system', (src.match(/campOf\(/g) || []).length >= 8 && /function applyItem\(msg\) \{\n\s*var camp = campOf\(msg\.campId\);\n\s*if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src) && /function applyItemDelta\(msg\) \{\n\s*var camp = campOf\(msg\.campId\); if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src));
 check('client: a host map is cleaned on the snapshot, on a whole item and after a delta (text items rebuilt, colors checked, bounded)', (src.match(/cleanHostMap\(/g) || []).length >= 4 && /if \(incoming\.type === 'map'\) incoming = cleanHostMap\(incoming\)/.test(src) && /if \(it\.type === 'map'\) cleanHostMap\(it\)/.test(src));
 check('client: a snapshot without a usable appState is refused before anything is set; prototype keys are purged', /if \(!msg \|\| !msg\.appState \|\| typeof msg\.appState !== 'object' \|\| !msg\.appState\.campaigns/.test(src) && /\['__proto__', 'constructor', 'prototype'\]\.forEach/.test(src));
-check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(src) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false \}\) : null;/.test(src));
+check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(src) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\} \}\) : null;/.test(src)
+    && /else \{ var csys = window\.wpSystemCore\.cleanSystem\(msg\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\} \}\); if \(csys\) campS\.system = csys; \}/.test(src)
+    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
 check('wireConn: a message that throws never leaves applyingRemote on', /try \{ handleMessage\(d, conn\); \} catch \(e\)[^\n]*finally \{ net\.applyingRemote = false; \}/.test(src));
 check('assets (client): prototype-free caches, own-key arrival check, size cap, old blob revoked, no outside URLs', /var assetCache = Object\.create\(null\)/.test(src) && /var assetPending = Object\.create\(null\)/.test(src) && /!own\(assetPending, msg\.path\)\) return;/.test(src) && /msg\.data\.byteLength > AUDIO_CAP/.test(src) && /URL\.revokeObjectURL\(assetCache\[msg\.path\]\)/.test(src) && /return ASSET_PLACEHOLDER;\s*\/\/ an absolute URL from a host/.test(src));
 check('chat (client): only the synced host, shape-checked, text capped', /if \(conn\.peer !== net\.syncedPeer \|\| typeof msg\.text !== 'string' \|\| !msg\.from/.test(src) && /text: msg\.text\.slice\(0, 2000\)/.test(src));
@@ -2303,8 +2305,8 @@ pendingChecks.push((async () => {
         const win = { wpFormula: Fx, wpVtt: { on: k => !(o.off && k === 'sheets') }, wpSheets: { sbFinder: (cp, s) => find(s), charChanged() {}, uploadsChanged: id => out.told.push(id), playerSystem: cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false }) } };
         const msg = Object.assign({ type: 'char-upload', rid: 'e1', charId: 'c_1', sheet: dossier(13, 14) }, o.msg || {});
         const at = o.at || {};
-        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', upSrc)(
-            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), at, 10000);
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', 'sheetsOnFor', 'allow', upSrc)(
+            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), at, 10000, () => true, () => true);
         out.at = at; out.ch = ch; return out;
     };
     const kinds = r => (r.camp.uploads || []).map(u => [u.charId, u.from, u.name, u.changes.map(c => c.kind + ':' + c.label).join('|')]);
@@ -2321,7 +2323,7 @@ pendingChecks.push((async () => {
         j([mate.answer, npc.answer, slow.answer, paused.answer, off.answer, gone.answer]));
     const wpcU = host({ msg: { sheet: { format: 'waypoint-character', v: 1, name: 'Ana', values: {} } } });
     check('F2a on the wire (host): a character file sent as a sheet update is refused and answered so — never read as a ShadowBase dossier; nothing kept, saved or said. The player shows only a reason of ours',
-        denied(wpcU, 'file') && /\{ error: Object\.prototype\.hasOwnProperty\.call\(UP_WHY, msg\.reason\) \? UP_WHY\[msg\.reason\] : 'The GM could not read it\.' \}/.test(src.replace(/\r\n/g, '\n')) && /file: 'That is a character file, not a ShadowBase one\.'/.test(src), j(wpcU.answer));
+        denied(wpcU, 'file') && /\{ error: Object\.prototype\.hasOwnProperty\.call\(UP_WHY, msg\.reason\) \? UP_WHY\[msg\.reason\] : 'The GM could not read it\.' \}/.test(src.replace(/\r\n/g, '\n')) && /file: 'A character file only fills a character you are still making\.'/.test(src), j(wpcU.answer));
     check('U2 on the wire (host): an oversize file or a malformed request is dropped unanswered; a file matching the sheet answers 0 and keeps nothing',
         big.answer.length === 0 && !big.camp.uploads && badRid.answer.length === 0 && j(same.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && !same.camp.uploads && same.toasts.length === 0 && same.saves === 1);
     const b = host({ rules: { uploadFacts: true } }), bOnly = host({ rules: { uploadFacts: true }, msg: { sheet: dossier(12, 15) } }), bGm = host({ rules: { uploadFacts: true }, gmList: true }), bHid = host({ rules: { uploadFacts: true }, hid: true });
@@ -2727,6 +2729,15 @@ pendingChecks.push((async () => {
         /The character they are still making goes too\./.test(fgY.asked[0]) && j(fgY.gone) === j([['c_m', 'u_a']]) && j(fgY.chars) === j(['c_k', 'c_o']) && j(fgN.chars) === j(['c_m', 'c_k', 'c_o']) && fgN.gone.length === 0, j([fgY, fgN]));
     // the rules for making (camp.newPlayers create / fromFile): kept by the GM's waiting-token box, carried on the wire only where they differ, taken by a player
     const snpSrc = (() => { const i = src.indexOf('function setNewPlayers('); return src.slice(i, src.indexOf('\n}\n', i) + 2); })();
+    const rnpSrc = (() => { const i = src.indexOf('function refreshNewPlayersBox('); return src.slice(i, src.indexOf('\n}\n', i) + 2); })().replace(/\r\n/g, '\n');
+    const tickOf = (np, o) => { o = o || {}; const els = { netWaitingSelect: { value: '' }, netWaitingSight: { checked: false }, netMakeSelect: { value: '' }, netMakeFile: { checked: null, disabled: null } }; const camp = { id: 'k' }; if (np) camp.newPlayers = np;
+        new Function('net', 'ui', 'SC', 'getActiveCampaign', rnpSrc + '\nreturn refreshNewPlayersBox;')({ active: !!o.client, role: o.client ? 'client' : 'host' }, id => els[id] || null, () => Sx, () => camp)(); return els.netMakeFile; };
+    check('Onboarding F4 the "may start it from a file" tick shows the table\'s rule (on unless it is off), is disabled where making is off, and is read-only at someone else\'s table',
+        tickOf(null).checked === true && tickOf(null).disabled === false && tickOf({ fromFile: false }).checked === false && tickOf({ create: 'off' }).disabled === true && tickOf({ create: 'invite' }).disabled === false && tickOf(null, { client: true }).disabled === true);
+    const hMF = src.slice(src.indexOf("var _makeFile = ui('netMakeFile');"), src.indexOf('\nvar _makeSel')), gotMF = []; let lMF = null;
+    new Function('ui', 'setNewPlayers', 'toast', hMF)(id => id === 'netMakeFile' ? { addEventListener: (ev, f) => { if (ev === 'change') lMF = f; } } : null, p => gotMF.push(p), () => {});
+    if (lMF) { lMF.call({ checked: false }); lMF.call({ checked: true }); }
+    check('Onboarding F4 the tick saves what it shows: unticked, players may not start from a file; ticked, they may', j(gotMF) === j([{ fromFile: false }, { fromFile: true }]), j(gotMF));
     const setNP = (start, patch) => { const camp = { id: 'k' }; if (start) camp.newPlayers = start; new Function('net', 'getActiveCampaign', 'SC', 'save', 'refreshNewPlayersBox', snpSrc + '\nreturn setNewPlayers;')({ active: true, role: 'host' }, () => camp, () => Sx, () => {}, () => {})(patch); return camp.newPlayers; };
     const nsS = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync'), npS = between('// [netcheck:newplayers-start]', '// [netcheck:newplayers-end]', 'newplayers');
     const syncNP = np => { const camp = { id: 'k', newPlayers: np }, sent = []; const netS = { active: true, role: 'host', roster: { pA: { id: 'u_a' } }, conns: [{ peer: 'pA', open: true, send: m => sent.push(m) }], tidyWaiting: () => {} }; new Function('net', 'SC', 'getActiveCampaign', 'own', 'sendFailed', nsS)(netS, () => Sx, () => camp, H.own, e => { throw e; }); netS.syncNewPlayers(); return sent; };
@@ -2735,15 +2746,11 @@ pendingChecks.push((async () => {
         j(setNP({ create: 'off', fromFile: false }, { sight: true })) === j({ sight: true, create: 'off', fromFile: false }) && j(setNP({ create: 'invite', sight: true }, { sight: false })) === j({ create: 'invite' }) && setNP(null, { sight: false }) === undefined
         && j(syncNP({ create: 'invite', fromFile: false })) === j([{ type: 'newPlayers', campId: 'k', token: 'on', sight: false, create: 'invite', fromFile: false }]) && j(syncNP(undefined)) === j([{ type: 'newPlayers', campId: 'k', token: 'on', sight: false }])
         && j(takeNP({ token: 'on', sight: false, create: 'off', fromFile: false })) === j({ create: 'off', fromFile: false }) && takeNP({ token: 'on', sight: false, create: 'live!', fromFile: 0 }) === undefined, j([setNP({ create: 'off', fromFile: false }, { sight: true }), syncNP({ create: 'invite', fromFile: false })]));
-    // the refusals of a character not yet in play
-    const upSrc = between('// [netcheck:charupload-start]', '// [netcheck:charupload-end]', 'charupload'), upAns = [], campU = { id: 'k', system: sysK, chars: { c_m: { id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, values: {} } } };
-    new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', upSrc)(
-        { type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: { name: 'Vex' } }, { peer: 'pA', send: m => upAns.push(JSON.parse(JSON.stringify(m))) }, { active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat' } } }, () => Sx,
-        { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { sbFinder: () => () => [], charChanged() {}, uploadsChanged() {}, playerSystem: cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false }) } }, () => false, () => campU, () => {}, e => { throw e; }, () => {}, () => {}, {}, 10000);
+    // the refusals of a character not yet in play (a sheet upload of one fills it: Onboarding F4, its own check)
     const apS = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), rqS = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), thI = src.indexOf("} else if (msg.type === 'throw-req' && net.role === 'host') {"), thS = src.slice(thI, src.indexOf('\n    } else if', thI + 10));
-    check('F3a a character in the making is not at the table yet: a sheet upload of it is refused (making, run for real; the player reads why), an apply (making), a roll from it (char) and a throw from it are refused on the host; the deny word survives the client\'s cleaner',
-        j(upAns) === j([{ reason: 'making', type: 'char-upload-ans', rid: 'e1' }]) && !campU.uploads && /making: 'Finish the character first \(press Done on its sheet\)\.'/.test(src) && /if \(chA\.making === 1\) \{ denyA\('making'\); return; \}/.test(apS)
-        && /srcQ\.ownerId !== pidQ \|\| srcQ\.making === 1 \|\| !SQ \|\| !campQ\.system\) \{ denyQ\('char'\); return; \}/.test(rqS) && thI > 0 && /chT\.ownerId !== profT\.id \|\| chT\.making === 1\) return;/.test(thS) && Sx.cleanDenyReason('making') === 'making', j(upAns));
+    check('F3a a character in the making is not at the table yet: an apply (making), a roll from it (char) and a throw from it are refused on the host; the deny word survives the client\'s cleaner',
+        /if \(chA\.making === 1\) \{ denyA\('making'\); return; \}/.test(apS)
+        && /srcQ\.ownerId !== pidQ \|\| srcQ\.making === 1 \|\| !SQ \|\| !campQ\.system\) \{ denyQ\('char'\); return; \}/.test(rqS) && thI > 0 && /chT\.ownerId !== profT\.id \|\| chT\.making === 1\) return;/.test(thS) && Sx.cleanDenyReason('making') === 'making');
     check('F3a the player keeps their own copy\'s marks (the snapshot, the chars list and a char message re-clean with the owner\'s state), and a delta\'s probe carries the making mark (charFor refuses it to anyone but the owner)',
         (src.match(/cleanChar\([^)]*, \{ state: 'owner' \}\)/g) || []).length === 3 && /probe = \{ id: id, name: src\.name, ownerId: src\.ownerId, npc: src\.npc, making: src\.making, values: \{\} \};/.test(src)
         && Sx.charFor({ id: 'c_m', name: 'V', ownerId: 'u_a', npc: false, making: 1, values: { f_st: 0 } }, Sx.cleanSystem(sysK, { F: Fx, gmView: false }), 'u_b', { probe: true }) === null);
@@ -2803,6 +2810,82 @@ pendingChecks.push((async () => {
         siA > 0 && outF.whiteboard.length === 4 && outF.whiteboard.every(w => !('frame' in w) && !('gmInfo' in w) && !('sheet' in w)) && outF.whiteboard[0].src === frK.of && outF.whiteboard[0].isChar === true && outF.whiteboard[3].x === 0
         && j(Object.keys(outF.whiteboard[2]).sort()) === j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y']) && j(mapF.whiteboard[0].frame) === j(frK) && !!mapF.whiteboard[1].frame, j(outF.whiteboard));
 }
+// Onboarding F4: a file fills a character in the making (the [netcheck:charfill] branch of char-upload, run for real with the real systemcore and
+// sheetexport): at once, with its owner's rights, past the list rules while making (owner, 2026-09-27), read on the players' view only; the table's
+// rule (fromFile), the library loading, the rate; counts only in the answer; the player's side reads the answer's words and counts
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), SXp = await import(url('sheetexport.js'));
+    const upSrc = between('// [netcheck:charupload-start]', '// [netcheck:charupload-end]', 'charupload');
+    const lstF = { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', edit: 'gm', list: { cats: ['Skill'], noQty: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr', labels: ['ST', 'DX', 'IQ'] }, { key: 'diff' }] } };
+    const sysF = (gmDx, iq) => Sx.cleanSystem({ v: 1, name: 'F', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', edit: 'gm', def: 10 }].concat(iq ? [{ id: 'f_iq', key: 'IQ', label: 'IQ', kind: 'number', vis: 'all', edit: 'gm', def: 10 }] : []).concat(gmDx ? [{ id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: 'gm', def: 10 }] : []).concat([lstF]),
+        items: [{ id: 'i_climb', name: 'Climbing', key: 'Climbing', category: 'Skill', stats: { attr: 1, diff: 1 } }].concat(gmDx ? [{ id: 'i_pot', name: 'Pottery', key: 'Pottery', category: 'Skill', vis: 'gm', stats: { attr: 2, diff: 0 } }] : []) }, { F: Fx, gmView: true });
+    const viewOf = cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false });
+    const shPF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), pfSrc = shPF.slice(shPF.indexOf('function playerFinder('), shPF.indexOf('function fromShadowBase('));
+    const realFinder = win => new Function('window', pfSrc + '\nreturn playerFinder;')(win);
+    const entL = { i_jump: { id: 'i_jump', name: 'Jumping', key: 'Jumping', category: 'Skill', notes: 'Leap.', stats: { attr: 1, diff: 0 } }, i_axe: { id: 'i_axe', name: 'Axe Throwing', key: 'AxeThrowing', category: 'Skill', stats: { attr: 1, diff: 1 } }, i_secret: { id: 'i_secret', name: 'Secret Art', key: 'SecretArt', category: 'Skill', notes: 'GM ONLY LORE', stats: { attr: 2, diff: 2 } } };
+    const plCopy = e => { const c = JSON.parse(JSON.stringify(e)); delete c.notes; return c; };
+    const libFake = { state: () => 'ready', entry: id => entL[id] || null, entriesOf: id => id === 'p_pub' ? [entL.i_jump, entL.i_axe] : id === 'p_gm' ? [entL.i_secret] : [],
+        playerIndexOf: id => id === 'p_pub' ? { byId: { i_jump: plCopy(entL.i_jump), i_axe: plCopy(entL.i_axe) } } : null, playerEntry: id => id === 'i_jump' || id === 'i_axe' ? plCopy(entL[id]) : null };
+    const dossier = { name: 'Vex', attributes: { strength: { value: 13 }, dexterity: { value: 14 } }, skills: [{ name: 'Climbing', level: '12', relativeLevel: 'DX/Average' }, { name: 'Pottery', level: '11', relativeLevel: 'IQ/Easy' }] };
+    const run = (o) => {
+        o = o || {}; const sys = sysF(o.gmDx, o.iq), ch = Object.assign({ id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, values: { f_st: 10, f_sk: [{ id: 'w_old', defId: 'i_climb', qty: 1, lvl: 3 }] } }, o.ch || {});
+        const camp = { id: 'k', system: sys, chars: { c_m: ch } }; if (o.newPlayers) camp.newPlayers = o.newPlayers; if (o.lib) camp.library = { dir: 'l_x', packs: [{ id: 'p_pub', rev: 1 }].concat(o.noGm ? [] : [{ id: 'p_gm', rev: 1, vis: 'gm' }]) };
+        const out = { answer: [], sent: [], toasts: [], logs: [], saves: 0, allowed: [], lims: [], changed: [], at: o.at || {}, camp, ch };
+        const conn = { peer: 'pA', send: m => { packCheck(m); out.answer.push(JSON.parse(JSON.stringify(m))); } };
+        const netF = { active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat' } }, sendCharTo: (pid, id) => out.sent.push([pid, id]), syncCharDelta() { out.delta = true; } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpLibrary: o.lib ? libFake : { state: () => (o.loading ? 'loading' : 'ready') }, wpSheets: { sbFinder: () => () => [], charChanged: id => out.changed.push(id), uploadsChanged() {}, playerSystem: viewOf, charFromJson: SXp.charFromJson } };
+        win.wpSheets.playerFinder = realFinder(win);
+        if (o.lib) Sx.setLibraryFind(libFake.entry);
+        try {
+            new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', 'sheetsOnFor', 'allow', upSrc)(
+                Object.assign({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: dossier }, o.msg || {}), conn, netF, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), out.at, 10000, () => o.sheetsOff !== true, (k, lim, peer) => { out.allowed.push(k); out.lims.push([k, lim, peer]); return o.slow !== k; });
+        } finally { if (o.lib) Sx.setLibraryFind(null); }
+        return out;
+    };
+    const R1 = run(), sk1 = R1.ch.values.f_sk || [];
+    check('Onboarding F4 (host, run for real): a ShadowBase sheet sent for a character in the making fills it at once with its owner\'s rights — past the list rules while making (a row of their own on a list without Custom rows) — the old rows replaced; nothing waits for review; the answer counts only; its copy to its owner alone; the GM told (toast, log), their open sheet redrawn and the save made; the rate for fills (charfill: a file every 10 s a player, a dozen a minute for the table), the time of it kept',
+        j(R1.answer) === j([{ n: 0, auto: 3, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && R1.ch.values.f_st === 13 && sk1.length === 2 && sk1[0].defId === 'i_climb' && sk1[0].lvl === 12 && sk1[1].def && sk1[1].def.name === 'Pottery' && sk1[1].lvl === 11 && !sk1.some(r => r.id === 'w_old')
+        && !R1.camp.uploads && j(R1.sent) === j([['u_a', 'c_m']]) && !R1.delta && R1.toasts.length === 1 && /^Pat filled Vex from a file \(3 parts\)/.test(R1.toasts[0]) && R1.logs.length === 1 && R1.logs[0][0] === 'char' && R1.saves === 1 && j(R1.allowed) === j(['charfill'])
+        && j(R1.lims) === j([['charfill', { perMs: 10000, burst: 2, windowMs: 60000, table: 12 }, 'pA']]) && typeof R1.at.pA === 'number' && R1.at.pA > 0 && j(R1.changed) === j(['c_m']), j([R1.answer, sk1, R1.toasts, R1.lims]));
+    const R2 = run({ gmDx: true }), sk2 = R2.ch.values.f_sk || [];
+    check('Onboarding F4 (host): nothing GM-only is read — a GM-only field of the file\'s key (DX) and a GM-only item of a row\'s name (Pottery) never fill, and the answer is the same with or without them (nothing to probe)',
+        j(R2.answer) === j(R1.answer) && !('f_dx' in R2.ch.values) && !sk2.some(r => r.defId === 'i_pot') && sk2[1] && sk2[1].def && sk2[1].def.name === 'Pottery', j([R2.answer, sk2]));
+    const pv = Sx.charForView({ id: 'c_s', name: 'Vex', ownerId: 'u_a', npc: false, values: { f_st: 15, f_sk: [{ id: 'w_a', defId: 'i_climb', qty: 1, lvl: 7 }] } }, viewOf({ system: sysF(false) }));
+    const cfile = SXp.charToJson(viewOf({ system: sysF(false) }), pv, null, { exported: 'x', picture: 'data:image/png;base64,' + 'A'.repeat(50) });
+    const R3 = run({ msg: { sheet: cfile } });
+    check('Onboarding F4 (host): a character file (the player\'s own download) fills a character in the making the same way (its picture is never on the wire); on a character in play it is refused (file) and a ShadowBase sheet still goes to the GM\'s Review (owner, 2026-09-27: unlocked keeps today\'s Import)',
+        j(R3.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && R3.ch.values.f_st === 15 && (R3.ch.values.f_sk || []).length === 1 && R3.ch.values.f_sk[0].lvl === 7
+        && j(run({ ch: { making: undefined, unlocked: 1 }, msg: { sheet: cfile } }).answer) === j([{ reason: 'file', type: 'char-upload-ans', rid: 'e1' }]) && (() => { const u = run({ ch: { making: undefined, unlocked: 1 } }); return u.answer[0].n > 0 && !!u.camp.uploads && u.ch.values.f_st === 10; })(), j(R3.answer));
+    const sigF = { format: 'waypoint-character', v: 1, name: 'Vex', system: { sig: SXp.systemSig(viewOf({ system: sysF(false, true) })), fields: { f_st: { key: 'IQ', kind: 'number' }, f_x: { key: 'DX', kind: 'number' }, f_y: { key: 'Skills', kind: 'item-list' } } },
+        values: { f_st: 12, f_x: 15, f_y: [{ id: 'w_1', defId: 'i_climb', qty: 1, lvl: 5 }, { id: 'w_2', defId: 'i_pot', qty: 1, lvl: 4 }] } };
+    const T0 = run({ iq: true, msg: { sheet: sigF } }), T1 = run({ iq: true, gmDx: true, msg: { sheet: sigF } }), idN = v => j(v).replace(/"w_f[a-z0-9]+"/g, '"ID"');
+    check('Onboarding F4 (host): a character file is read on the players\' view: the same file fills alike with or without a GM-only field (DX) and item (i_pot), the same answer and values (by field id on the file\'s own signature), never the GM-only field or item (nothing to probe)',
+        j(T0.answer) === j(T1.answer) && idN(T0.ch.values) === idN(T1.ch.values) && T1.ch.values.f_st === 12 && T1.ch.values.f_iq === undefined && !('f_dx' in T1.ch.values) && !(T1.ch.values.f_sk || []).some(r => r.defId === 'i_pot'), j([T0.answer, T1.answer, T0.ch.values, T1.ch.values]));
+    const lostF = JSON.parse(JSON.stringify(cfile)); lostF.values[Object.keys(lostF.values).find(k => Array.isArray(lostF.values[k]))].push({ id: 'w_z', defId: 'i_nowhere', qty: 1 });
+    const RL = run({ msg: { sheet: lostF } });
+    check('Onboarding F4 (host): a row the file points at that this campaign does not have, with nothing to know it by, is counted in the answer (never silently dropped)',
+        j(RL.answer) === j([{ n: 0, auto: 2, left: 1, type: 'char-upload-ans', rid: 'e1' }]) && (RL.ch.values.f_sk || []).length === 1, j(RL.answer));
+    // the real playerFinder (sheets.js): the view's items and the entries of the packs players may see, never a GM-only pack's; lib, the host's copy of a visible one
+    const pfW = realFinder({ wpLibrary: libFake })({ id: 'k', library: { packs: [{ id: 'p_pub' }, { id: 'p_gm', vis: 'gm' }] } }, sysF(true));
+    check('Onboarding F4 (host): the players\' finder (sheets.js playerFinder, run for real) finds the entries of a pack players may see by name and by key, its lib the host\'s own copy; never an entry of a GM-only pack nor a GM-only item, even handed the full system',
+        j(pfW.find('Secret Art')) === '[]' && pfW.lib('i_secret') === null && pfW.find(' jumping ').map(e => e.id).join() === 'i_jump' && pfW.findKey('axethrowing').map(e => e.id).join() === 'i_axe' && pfW.lib('i_jump') === entL.i_jump
+        && j(pfW.find('Pottery')) === '[]' && pfW.find('Climbing').map(e => e.id).join() === 'i_climb' && pfW.lib('i_climb') === null && pfW.lib('__proto__') === null);
+    const dosL = { name: 'Vex', attributes: { strength: { value: 13 } }, skills: [{ name: 'Axe Throwing (long)', level: '12', relativeLevel: 'IQ/Average' }, { name: 'Secret Art', level: '11', relativeLevel: 'IQ/Easy' }, { name: 'Jumping', level: '10', relativeLevel: 'DX/Easy' }] };
+    const L1 = run({ lib: true, msg: { sheet: dosL } }), L0 = run({ lib: true, noGm: true, msg: { sheet: dosL } }), skL = L1.ch.values.f_sk || [], axe = skL.find(r => r.defId === 'i_axe') || {}, sec = skL.find(r => (r.def && r.def.name === 'Secret Art')) || {};
+    check('Onboarding F4 (host, with a library): a skill of a pack players may see comes in linked, with its copy, its level and its own name and numbers; one only a GM-only pack holds comes in as their own row — the same answer with or without that pack, nothing of it on the character (nothing to probe)',
+        j(L1.answer) === j(L0.answer) && L1.answer[0].left === 0 && L1.answer[0].auto === 4 && !!axe.snap && axe.lvl === 12 && j(axe.ov) === j({ name: 'Axe Throwing (long)', stats: { attr: 2 } })
+        && skL.some(r => r.defId === 'i_jump' && !!r.snap) && sec.own === 1 && !sec.defId && !sec.snap && !skL.some(r => r.defId === 'i_secret') && !/GM ONLY LORE|i_secret/.test(j(L1.ch.values)), j([L1.answer, L0.answer, skL]));
+    const why = (o, reason) => { const r = run(o); return j(r.answer) === j([{ reason, type: 'char-upload-ans', rid: 'e1' }]) && r.ch.values.f_st === 10 && r.saves === 0 && r.toasts.length === 0 && r.sent.length === 0; };
+    check('Onboarding F4 (host): refused, nothing changed — where the table does not let players start from a file (the tick off; making off; sheets off for the campaign), while the library still loads (wait), past the rate (slow), a file the GM cannot read (another version: unread); allowed when making is only on invitation',
+        why({ newPlayers: { fromFile: false } }, 'nofile') && why({ newPlayers: { create: 'off' } }, 'nofile') && why({ sheetsOff: true }, 'nofile') && why({ loading: true }, 'wait') && why({ slow: 'charfill' }, 'slow') && run({ newPlayers: { create: 'invite' } }).answer[0].auto === 3
+        && why({ msg: { sheet: Object.assign({}, cfile, { v: 99 }) } }, 'unread'));
+    const uaS = between('// [netcheck:uploadans-start]', '// [netcheck:uploadans-end]', 'uploadans');
+    const ua = msg => { const got = []; new Function('msg', 'pU', uaS)(msg, { done: a => got.push(a) }); return got[0]; };
+    check('Onboarding F4 (player, run for real): the answer read in words (nofile, wait, file, slow) or as counts (never below 0, never past 100,000, a count that is not a number is 0); a reason not ours, a prototype name included, a plain refusal',
+        ua({ reason: 'nofile' }).error === 'Starting a character from a file is not open at this table.' && /library is still loading/.test(ua({ reason: 'wait' }).error) && ua({ reason: 'file' }).error === 'A character file only fills a character you are still making.'
+        && ua({ reason: '__proto__' }).error === 'The GM could not read it.' && ua({ reason: 'constructor' }).error === 'The GM could not read it.' && j(ua({ n: 0, auto: 3, left: 2 })) === j({ n: 0, auto: 3, left: 2 }) && j(ua({ n: 'x', auto: -5, left: 1e9 })) === j({ n: 0, auto: 0, left: 100000 }));
+})());
 // The token creator (owner, 2026-09-27): a player's framed picture for their own plain token — the host's tok-pic (the [netcheck:tokpic]
 // slice, run for real) and the player's sender
 pendingChecks.push((async () => {

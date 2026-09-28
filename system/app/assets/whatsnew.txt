@@ -141,6 +141,13 @@ Players and their characters
   and they play at once (with character sheets, an empty character they can
   fill in later, which comes to your review like one they made; without, a
   plain token of theirs).
+- A player making a character can start it from a file: Start from a file…
+  on their card, or Import on its sheet, takes their own sheet download
+  (.wpchar.json) or a ShadowBase sheet and fills it at once with their own
+  rights, its skills and gear linked to the library packs they can see or
+  else rows of their own, and tells them what did not come across. You
+  review the whole character when they press Done; untick …may start it
+  from a file in the 🌐 Multiplayer window to turn it off.
 - Players without a character, in the 🌐 Multiplayer window, turns waiting
   tokens off for a campaign, can let them see around themselves under fog,
   and sets when players may make a character of their own: at once, only

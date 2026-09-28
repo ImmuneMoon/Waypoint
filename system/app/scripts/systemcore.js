@@ -952,9 +952,15 @@ function cleanSystem(sys, opts) {
         seenIt[c.id] = 1; coreBytes += nb; core.push(c);
     });
     if (core.length) out.core = core;
-    if (!gmView) {   // Stage 6 F4b: a list's categories in the players' view — only those an item they can see has (a GM-only item's category never travels)
-        var visCat = map(); out.items.concat(core).forEach(function(it) { if (it.category) visCat[lower(it.category)] = 1; });
-        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.cats)) f.list.cats = f.list.cats.filter(function(c) { return visCat[lower(c)] === 1; }); });
+    if (!gmView) {   // Stage 6 F4b: a list's categories in the players' view — a GM-only item's category never travels. opts.libCats (the GM's machine: the library's
+        // { show, hide }, library.js catsFor; a client's re-clean of the host's view: {}) keeps one a visible item or entry has, or none has; absent (fail closed): only a visible item's
+        var visCat = map(), gmCat = null, lcs = opts.libCats; out.items.concat(core).forEach(function(it) { if (it.category) visCat[lower(it.category)] = 1; });
+        if (isObj(lcs)) {
+            gmCat = map(); var catL = function(a, m) { (Array.isArray(a) ? a : []).slice(0, 4000).forEach(function(c) { var t = cutText(c, LIMITS.category); if (t) m[lower(t)] = 1; }); };
+            catL(lcs.show, visCat); catL(lcs.hide, gmCat);
+            (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).forEach(function(it) { if (isObj(it) && it.vis === 'gm') catL([it.category], gmCat); });
+        }
+        out.fields.forEach(function(f) { if (f.list && Array.isArray(f.list.cats)) f.list.cats = f.list.cats.filter(function(c) { return visCat[lower(c)] === 1 || (gmCat !== null && gmCat[lower(c)] !== 1); }); });
     }
     var seenFx = map(), effs = [];   // 5h: the status-effect library, after the fields (its changes are checked against them); absent when empty
     (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (effs.length >= LIMITS.effects) return; var c = cleanEffectDef(d, fieldIds, gmView); if (!c || seenFx[c.id]) return; seenFx[c.id] = 1; effs.push(c); });
@@ -1532,6 +1538,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     opts = opts || {};
     var f = fieldById(sys, fieldId); if (!f || f.kind !== 'item-list') return { ok: false, reason: 'field' };
     var mkR = !!(opts.player && openChar(char) === 'making');   // Onboarding F3: a character in the making: no lock holds an item on it, and nothing of it is noticed (it is not in play)
+    var fl = mkR && opts.fill === true;   // Onboarding F4 (owner, 2026-09-27): a file filling a character in the making takes its rows as the file has them — a copy's own name and stats, rows of their own — the players' fields only (fillMaking; the host sets it)
     if (opts.player && ((f.edit !== 'owner' && !openChar(char)) || f.vis !== 'all')) return { ok: false, reason: 'field' };
     if (!isObj(q) || !ROW_OPS[q.op]) return { ok: false, reason: 'value' };
     var src = char && char.values && Array.isArray(char.values[fieldId]) ? char.values[fieldId] : [];
@@ -1566,10 +1573,10 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (RM_MODES[dN.rm] === 1 && !mkR) { extra.note = dN.rm; extra.name = dN.name || 'Item'; }
         if (extra.eqNote) extra.name = ent.name || 'Item';
     } else if (q.op === 'custom') {   // F4c3: a character's own row, made or changed
-        var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts)); if (cu) return cu;
+        var cu = applyCustom(sys, list, q, spec, F, opts, extra, actorSpec(sys, fieldId, spec, opts), fl); if (cu) return cu;
     } else {
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId)) return { ok: false, reason: 'value' };
-        if (q.op === 'ov' && (!spec || (opts.player && !(isObj(sys.listRules) && sys.listRules.ownerStats === true)))) return { ok: false, reason: 'field' };   // F4c2: a copy's own values need a list shaped in the Lists tab; its owner changes them only under Setting A (the rules of the system judged on: the host's, the client's view)
+        if (q.op === 'ov' && (!spec || (opts.player && !fl && !(isObj(sys.listRules) && sys.listRules.ownerStats === true)))) return { ok: false, reason: 'field' };   // F4c2: a copy's own values need a list shaped in the Lists tab; its owner changes them only under Setting A (the rules of the system judged on: the host's, the client's view)
         var idx = at(q.rowId); if (idx < 0 || (opts.player && list[idx].hid === 1)) return { ok: false, reason: 'missing' };   // a kept curse reads as gone to a player
         extra.row = q.rowId;
         if (q.op === 'keep') {   // "Make custom" — a deleted entry's copy becomes the character's own item
@@ -1617,9 +1624,9 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         } else if (q.op === 'ov') {   // F4c2: a copy's own values — the GM's on a linked copy (the library's, or a deleted one's copy); its owner's on a library copy they can see, stats only (Setting A, above)
             var rwO = list[idx], rdO = rowDef(sys, rwO), pq = q.ov;
             if (!rdO || rdO.src === 'custom' || (!opts.player && rdO.src !== 'lib' && rdO.src !== 'lost')) return { ok: false, reason: 'field' };   // a custom row changes with its own op
-            if (opts.player && (rdO.src !== 'lib' || valueOpts(opts.view || null).items[rwO.defId] !== 1)) return { ok: false, reason: 'missing' };   // an inline copy on the client is a GM-only entry or a deleted one's copy on the host: gone to both alike
+            if (opts.player && (rdO.src !== 'lib' || (valueOpts(opts.view || null).items[rwO.defId] !== 1 && !(fl && typeof opts.lib === 'function' && isObj(opts.lib(rwO.defId)))))) return { ok: false, reason: 'missing' };   // F4: a file's fill, a copy of an entry of a pack they may see too   // an inline copy on the client is a GM-only entry or a deleted one's copy on the host: gone to both alike
             if (pq !== null && !isObj(pq)) return { ok: false, reason: 'value' };
-            if (opts.player && pq !== null && Object.keys(pq).some(function(k) { return k !== 'stats'; })) return { ok: false, reason: 'field' };
+            if (opts.player && pq !== null && Object.keys(pq).some(function(k) { return k !== 'stats' && !(fl && k === 'name'); })) return { ok: false, reason: 'field' };   // F4: a file's fill, its own name too
             var prP = spec && typeof spec.price === 'string' && spec.price ? lower(spec.price) : '';   // F4c2 review: paid is the GM's — a player's stat change that can move the price first records what the row read (a recorded Paid never moves)
             if (opts.player && prP && typeof rwO.paid !== 'number' && (pq === null || (isObj(pq) && (pq.stats === null || (isObj(pq.stats) && Object.keys(pq.stats).some(function(k) { return lower(k) === prP; })))))) rwO.paid = clampNum(rowPaid(spec, rwO, rdO.def), 0, LIMITS.statAbs);
             var ovr = applyOv(rwO, rdO.base, pq, spec, F, !!opts.player, actorSpec(sys, fieldId, spec, opts)); if (ovr) return ovr;
@@ -1746,10 +1753,10 @@ function keyClash(sys, list, rid, key, spec, opts) {
 // curse (null: none; the switch's only on a list with a switch; a message only with its lock), vis all or gm. Changes list in place and fills
 // extra (the answer's row, qty; added and base for a new one); null once applied, else the refusal
 var CUSTOM_OWN = Object.freeze({ name: 1, icon: 1, category: 1, notes: 1, key: 1, stats: 1, mods: 1, modsOn: 1 });   // F6b: a player's own row may change their character, as their ad hoc effects may
-function applyCustom(sys, list, q, spec, F, opts, extra, aspec) {   // aspec (F5a2): the actor's own list options
+function applyCustom(sys, list, q, spec, F, opts, extra, aspec, fill) {   // aspec (F5a2): the actor's own list options; fill (Onboarding F4): a file filling a character in the making
     var pl = !!opts.player, pd = q.def, rid = q.rowId, bad = { ok: false, reason: 'value' };
     var blank = function(x) { return x === null || (typeof x === 'string' && !x.trim()); }, said = function(x) { return typeof x === 'string' && !!x.trim(); };
-    if (!spec || (pl && spec.custom !== true)) return { ok: false, reason: 'field' };   // a list shaped in the Lists tab (the GM); its Custom rows ticked (a player)
+    if (!spec || (pl && spec.custom !== true && fill !== true)) return { ok: false, reason: 'field' };   // a list shaped in the Lists tab (the GM); its Custom rows ticked (a player; a file filling one in the making, whatever the list)
     if (!isObj(pd)) return bad;
     var ks = Object.keys(pd); if (pl && ks.some(function(k) { return CUSTOM_OWN[k] !== 1; })) return { ok: false, reason: 'field' };   // the GM's fields: a blast, formulas, locks, vis
     var idx = -1; for (var i = 0; i < list.length; i++) if (isObj(list[i]) && rowIdOf(list[i]) === rid) { idx = i; break; }
@@ -3187,7 +3194,7 @@ function sbPut(f, v) {   // a dossier value in a field's own terms (cleanValue a
     if (k === 'select') { var t = typeof v === 'string' ? lower(v.trim()) : ''; for (var i = 0; t && i < f.options.length; i++) if (lower(f.options[i]) === t) return f.options[i]; }
     return undefined;
 }
-function aliasFromShadowBase(json, sys, F) {
+function aliasFromShadowBase(json, sys, F, strict) {   // strict (Onboarding F4, the players' view): an array; a skill whose base cannot be read is left out, its name pushed there
     var values = {}, matched = 0;
     if (!isObj(json) || !sys) return { values: values, matched: 0 };
     var ix = keyIndex(sys);
@@ -3220,7 +3227,7 @@ function aliasFromShadowBase(json, sys, F) {
         for (var i = 0; i < sys.fields.length; i++) { var c = sys.fields[i]; if (c.kind !== 'skill') continue; var last = lower(c.key).split('.').pop().replace(/[^a-z0-9]/g, ''), lab = lower(c.label).replace(/[^a-z0-9]/g, ''); if (last === want || lab === want) { f = c; break; } }
         if (!f) return;
         var base = 0;
-        if (f.base) { var r = makeResolver(sys, temp, F)(f.key + '.base'); if (typeof r === 'number' && isFinite(r)) base = r; }
+        if (f.base || f.base === null) { var r = makeResolver(sys, temp, F)(f.key + '.base'); if (typeof r === 'number' && isFinite(r)) base = r; else if (Array.isArray(strict)) { strict.push(f.label || f.key); return; } }
         values[f.id] = cleanValue(f, lvl - base, null);
         if (values[f.id] === undefined) delete values[f.id]; else matched++;
     });
@@ -3278,7 +3285,7 @@ function sbRowOps(json, sys, find) {
     var rid = function() { n++; return 'w_sb' + pfx + n.toString(36); };
     var entry = function(f, name) {   // the first entry of that name in the list's categories (a visible one before a GM-only one)
         if (typeof find !== 'function' || typeof name !== 'string' || !name.trim()) return null;
-        var cats = isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats : null, hit = null;
+        var cats = isObj(f.list) && Array.isArray(f.list.cats) ? f.list.cats : null, hit = null;   // an empty list (the players' view: every category of it GM-only) takes none
         (find(name) || []).forEach(function(e) { if (!isObj(e) || typeof e.id !== 'string' || !ITEM_ID.test(e.id) || (cats && !catIn(cats, e.category))) return; if (!hit || (hit.vis === 'gm' && e.vis !== 'gm')) hit = e; });
         return hit;
     };
@@ -3448,7 +3455,7 @@ function sbRowOps(json, sys, find) {
 // portrait is dropped (the token's art is the portrait); null for anything else. The sheet is only ever read by the bridge (its own cleaners)
 function cleanCharUpload(msg) {
     if (!isObj(msg) || typeof msg.rid !== 'string' || !RID_RE.test(msg.rid) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || !isObj(msg.sheet)) return null;
-    var s = null; try { var sh = Object.assign({}, msg.sheet); delete sh.portrait; s = JSON.stringify(sh); } catch (e) { return null; }
+    var s = null; try { var sh = Object.assign({}, msg.sheet); delete sh.portrait; delete sh.picture; s = JSON.stringify(sh); } catch (e) { return null; }
     if (typeof s !== 'string' || s.length > LIMITS.uploadBytes) return null;
     return { rid: msg.rid, charId: msg.charId, sheet: JSON.parse(s) };
 }
@@ -3557,6 +3564,71 @@ function sbApplyProposal(sys, char, proposal, accepted, F, opts) {   // opts (U2
     });
     return { values: work.values, done: done, failed: failed };
 }
+// Onboarding F4 (owner, 2026-09-27): a file fills a character in the making at once, with its owner's rights — past the list rules while making
+// (a library copy's own name and stats, rows of their own on any list), never the GM's fields (a blast, formulas, locks, vis: CUSTOM_OWN; a
+// copy's name and stats only; the list's own stats). fill = { values: { fieldId: value }, lists: [fieldId] (the lists the file carries: replaced,
+// a kept curse stays), ops: [{ f, q }] (applyRowOp, a row's ops together: all or nothing, but a copy's own values, a fact or a count drop alone,
+// and a key taken leaves the row without it), fxLists: [fieldId] (emptied), fx: [{ f, q }] (applyEffectOp) }; pools last (their max read with the
+// rows and changes in place). opts: applyRowOp's (view, lib) and now. { ok, values, done, left } — counts only; not in the making: { ok: false }
+function fillMaking(sys, char, fill, F, opts) {
+    if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || openChar(char) !== 'making' || !isObj(fill)) return { ok: false, reason: 'notmaking' };
+    opts = Object.assign({}, isObj(opts) ? opts : {}, { player: true, fill: true });
+    var work = { id: char.id, name: char.name, ownerId: char.ownerId, npc: false, making: 1, values: JSON.parse(JSON.stringify(isObj(char.values) ? char.values : {})) }, done = 0, left = 0;
+    var mine = function(fid, kind) { var f = typeof fid === 'string' ? fieldById(sys, fid) : null; return f && f.kind === kind && f.vis === 'all' ? f : null; };   // making: every visible field is theirs (D3)
+    var vals = isObj(fill.values) ? fill.values : {}, pools = [];
+    Object.keys(vals).slice(0, LIMITS.fields).forEach(function(fid) {
+        var f = fieldById(sys, fid); if (!f || f.kind === 'item-list' || f.kind === 'effects') { left++; return; }   // rows and effects go by their own ops
+        if (f.kind === 'resource') { pools.push(fid); return; }
+        var r = applyEdit(sys, work, fid, vals[fid], F, opts); if (r.ok) { work.values[fid] = r.value; done++; } else left++;
+    });
+    (Array.isArray(fill.lists) ? fill.lists : []).forEach(function(fid) { if (mine(fid, 'item-list')) work.values[fid] = (Array.isArray(work.values[fid]) ? work.values[fid] : []).filter(function(r) { return isObj(r) && r.hid === 1; }); });
+    var groups = [], at = map(), per = map();
+    (Array.isArray(fill.ops) ? fill.ops : []).forEach(function(o) { if (!isObj(o) || typeof o.f !== 'string' || !isObj(o.q) || typeof o.q.rowId !== 'string') return; var k = o.f + '|' + o.q.rowId; if (!at[k]) { at[k] = { f: o.f, ops: [] }; groups.push(at[k]); } at[k].ops.push(o.q); });
+    groups.forEach(function(g) {
+        var f = mine(g.f, 'item-list'); if (!f) { left++; return; }
+        per[g.f] = (per[g.f] | 0) + 1; if (per[g.f] > LIMITS.carried) { left++; return; }   // no list holds more rows: the rest never reach applyRowOp (a file cannot keep the host busy)
+        var aspec = actorSpec(sys, g.f, isObj(f.list) ? f.list : null, opts), keys = map(); (aspec && Array.isArray(aspec.stats) ? aspec.stats : []).forEach(function(s) { if (isObj(s) && typeof s.key === 'string') keys[lower(s.key)] = s.key; });
+        var listStats = function(st) { var o = {}; if (isObj(st)) Object.keys(st).forEach(function(k) { if (Object.prototype.hasOwnProperty.call(st, k) && keys[lower(k)]) o[keys[lower(k)]] = st[k]; }); return Object.keys(o).length ? o : null; };
+        var before = work.values[g.f], ok = true;
+        g.ops.forEach(function(q0) {
+            if (!ok) return;
+            var q = JSON.parse(JSON.stringify(q0));
+            if (q.op === 'custom' && isObj(q.def)) { var d = {}; Object.keys(q.def).forEach(function(k) { if (CUSTOM_OWN[k] === 1) d[k] = q.def[k]; }); var s2 = listStats(d.stats); if (s2) d.stats = s2; else delete d.stats; q.def = d; }   // the players' fields; the list's own stats
+            if (q.op === 'ov') { var p = {}; if (isObj(q.ov) && typeof q.ov.name === 'string') p.name = q.ov.name; var s3 = listStats(isObj(q.ov) ? q.ov.stats : null); if (s3) p.stats = s3; if (!Object.keys(p).length) return; q.ov = p; }
+            if (q.op === 'set' && isObj(q.facts) && q.facts.ct !== undefined) { var ctc = cleanCt(q.facts.ct, aspec); if (ctc) q.facts.ct = ctc; else delete q.facts.ct; if (!Object.keys(q.facts).length) return; }   // the list's own counters
+            var r = applyRowOp(sys, work, g.f, q, F, opts);
+            if (!r.ok && q.op === 'custom' && (r.why === 'badkey' || r.why === 'key') && isObj(q.def) && q.def.key !== undefined) { delete q.def.key; r = applyRowOp(sys, work, g.f, q, F, opts); }   // a key taken: the row without it
+            if (!r.ok && q.op === 'set' && isObj(q.facts) && Object.keys(q.facts).length > 1) {   // one bad fact never takes the others: each alone
+                var bad1 = false; Object.keys(q.facts).forEach(function(k) { var one = {}; one[k] = q.facts[k]; var r1 = applyRowOp(sys, work, g.f, { op: 'set', rowId: q.rowId, facts: one }, F, opts); if (r1.ok) work.values[g.f] = r1.value; else bad1 = true; });
+                if (bad1) left++; return;
+            }
+            if (r.ok) { work.values[g.f] = r.value; return; }
+            if (q.op === 'ov' || q.op === 'set' || q.op === 'setQty') { left++; return; }   // a copy's own values, a fact, a count: the row stays without them (counted)
+            ok = false;
+        });
+        if (ok) done++; else { work.values[g.f] = before; left++; }
+    });
+    (Array.isArray(fill.fxLists) ? fill.fxLists : []).forEach(function(fid) { if (mine(fid, 'effects')) work.values[fid] = []; });
+    (Array.isArray(fill.fx) ? fill.fx : []).slice(0, LIMITS.effectRows * 2).forEach(function(o) {
+        if (!isObj(o) || typeof o.f !== 'string' || !isObj(o.q)) { left++; return; }
+        var r = applyEffectOp(sys, work, o.f, o.q, F, opts); if (r.ok) { work.values[o.f] = r.value; if (o.q.op !== 'on') done++; } else left++;
+    });
+    pools.forEach(function(fid) { var r = applyEdit(sys, work, fid, vals[fid], F, opts); if (r.ok) { work.values[fid] = r.value; done++; } else left++; });
+    return { ok: true, values: work.values, done: done, left: left };
+}
+// Onboarding F4: a ShadowBase dossier as a fill for a character in the making, read on the PLAYERS' view (a GM-only field, a GM-only pool, a skill's
+// base read through one: none of it is there to match) with their finder (the view's items and the entries of the packs they may see)
+function sbFill(json, view, F, find) {
+    var out = { values: {}, lists: [], ops: [], fxLists: [], fx: [], skipped: [] }; if (!isObj(json) || !isObj(view) || !Array.isArray(view.fields)) return out;
+    var unread = [], al = aliasFromShadowBase(json, view, F, unread), ro = sbRowOps(json, view, find);
+    Object.keys(al.values).forEach(function(fid) {
+        var f = fieldById(view, fid); if (!f) return;
+        if (f.kind === 'effects') { out.fxLists.push(fid); (Array.isArray(al.values[fid]) ? al.values[fid] : []).forEach(function(row) { out.fx.push({ f: fid, q: { op: 'adhoc', row: row } }); }); return; }
+        out.values[fid] = al.values[fid];
+    });
+    out.lists = ro.lists.slice(); out.ops = ro.ops.slice(); out.skipped = ro.skipped.slice().concat(unread);
+    return out;
+}
 // Stage 6 F5b: a row roll for the GM's privacy checks — gm: the list or the row's item is GM-only (the roll stays the GM's); names: what its Row.*
 // names read — a column as the list's name for it (gmDerivedNames sees its formula through the list) and the names its formula reads (gmEffectNames),
 // a choice as its option's name — beside the roll's other names. Never throws; an unknown field or row reads gm (fail closed)
@@ -3657,6 +3729,6 @@ function gmPools(sys, F) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, sbRowOps: sbRowOps, sbMods: sbMods, sbFpText: sbFpText, sbTextBag: sbTextBag, sbFacing: sbFacing, sbProposal: sbProposal, sbApplyProposal: sbApplyProposal, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, coverTier: coverTier, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, sbRowOps: sbRowOps, sbMods: sbMods, sbFpText: sbFpText, sbTextBag: sbTextBag, sbFacing: sbFacing, sbProposal: sbProposal, sbApplyProposal: sbApplyProposal, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, sbFill: sbFill, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, sbRowOps, sbMods, sbFpText, sbTextBag, sbFacing, sbProposal, sbApplyProposal, cleanCharUpload, cleanUploads, fmtNum, suggest };
+export { VERSION, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, coverTier, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, sbRowOps, sbMods, sbFpText, sbTextBag, sbFacing, sbProposal, sbApplyProposal, cleanCharUpload, cleanUploads, fillMaking, sbFill, fmtNum, suggest };

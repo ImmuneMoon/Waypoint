@@ -40,11 +40,11 @@ function syncSnaps(camp) {
     var r = libSnaps(camp.system, camp.chars, entry); if (r.rows) save(true);
     return r.rows;
 }
-function after() {   // the sheets redraw; a host's players get their rows' copies from the library now in memory
+function after() {   // the sheets redraw; a host's players get their rows' copies from the library now in memory, and the lists' categories it holds
     try { refreshCore(); } catch (e) { console.error(e); }
     try { syncSnaps(); } catch (e) { console.error(e); }
     try { if (window.wpSheetsSync) window.wpSheetsSync(); } catch (e) { console.error(e); }
-    var n = window.wpNet; try { if (n && n.active && n.role === 'host' && n.syncChars) n.syncChars(); } catch (e) { console.error(e); }
+    var n = window.wpNet; try { if (n && n.active && n.role === 'host') { if (n.syncSystem) n.syncSystem(); if (n.syncChars) n.syncChars(); } } catch (e) { console.error(e); }
 }
 async function load(camp) {
     camp = camp || getActiveCampaign();
@@ -167,6 +167,21 @@ async function importFiles(jobs, files) {
     load(getActiveCampaign());
     return { ok: ok, bad: bad };
 }
+// A list's categories in the players' view (systemcore cleanSystem opts.libCats): the categories of the entries players may see (show) and of
+// those only the GM may (hide: a GM-only pack's, a GM-only entry's) — the GM's machine only, the campaign on screen; null while a pack is
+// unread (the players' view then keeps only its visible items' categories)
+var _cats = { sig: null, v: null };
+function catsFor(camp) {
+    camp = camp || getActiveCampaign(); if (!camp || !gmHere()) return null;
+    var packs = camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
+    if (!packs.length) return { show: [], hide: [] };
+    if (cur.campId !== camp.id || cur.state === 'loading' || packs.some(function(p) { return !p || !ready(p.id); })) return null;
+    var sig = manifestSig(camp) + '|' + cur.n; if (_cats.sig === sig) return _cats.v;
+    var show = map(), hide = map();
+    packs.forEach(function(p) { entriesOf(p.id).forEach(function(e) { if (e && typeof e.category === 'string' && e.category) ((p.vis === 'gm' || e.vis === 'gm') ? hide : show)[e.category] = 1; }); });
+    _cats = { sig: sig, v: { show: Object.keys(show), hide: Object.keys(hide) } };
+    return _cats.v;
+}
 function entry(id) { var camp = getActiveCampaign(); return camp && cur.campId === camp.id && typeof id === 'string' && Object.prototype.hasOwnProperty.call(cur.byId, id) ? cur.byId[id] : null; }
 function entriesOf(packId) { return (cur.packs[packId] || []).map(function(id) { return cur.byId[id]; }).filter(Boolean); }
 // L2a: a pack read for the campaign on screen (made, written or loaded): one still loading or unreadable is not, so nothing writes over it
@@ -199,4 +214,4 @@ setLibraryFind(entry);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, playerEntry: playerEntry };
+window.wpLibrary = { load: load, entry: entry, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry };

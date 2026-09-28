@@ -9,7 +9,7 @@ import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView } from './systemcore.js';
-import { fileBase, charToJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
+import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -35,8 +35,9 @@ function systemOf(camp) { camp = camp || getActiveCampaign(); return camp && cam
 var _pvMemo = { key: null, text: null };
 function playerSystem(camp) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !F()) return null;
-    var pages = readablePages(camp), key = JSON.stringify(camp.system) + '\n' + pages.join(',');
-    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
+    var LBc = window.wpLibrary, lcs = isClient() ? {} : LBc && LBc.catsFor ? LBc.catsFor(camp) : null;   // a list's categories: the library's on the GM's machine; a client's copy is the host's view (nothing GM-only to hide)
+    var pages = readablePages(camp), key = JSON.stringify(camp.system) + '\n' + pages.join(',') + '\n' + JSON.stringify(lcs);
+    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages, libCats: lcs }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
     return _pvMemo.text === null ? null : JSON.parse(_pvMemo.text);
 }
 // Stage 5f: the handbook pages players may read in a campaign (the "Players can read" switch: meta.players !== false) — the host's
@@ -641,7 +642,7 @@ function renderSheet() {
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
-    var upB = ui('sheetUpload'); if (upB) upB.style.display = isClient() && own && !c.partial && c.making !== 1 ? '' : 'none';   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes)
+    var upB = ui('sheetUpload'); if (upB) { upB.style.display = isClient() && own && !c.partial && (c.making !== 1 || fillOk()) ? '' : 'none'; upB.title = c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json) or a ShadowBase sheet' : 'Import JSON: send your ShadowBase sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes); Onboarding F4: while making, a file fills it
     var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
@@ -2887,7 +2888,7 @@ function openLibPickerPlayer(anchor, c, f, spec) {
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string') labels[s.key] = s.label || s.key; });
     var asEntry = function(r) { return { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; };
-    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false,
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false,
         source: {
             packs: function() { return packs; },
             entries: function(pid) { return N.libRows(pid).map(asEntry); },
@@ -3567,17 +3568,90 @@ function openDownloadMenu(anchor) {
 }
 /* ---------- Stage 6 U3: a player's sheet upload — their Import JSON, the GM's review ---------- */
 function uploadsOf(camp, charId) { return cleanUploads(camp && camp.uploads).filter(function(u) { return !charId || u.charId === charId; }); }
-function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes)
-    var c = sheetOpen ? charById(sheetOpen) : null; if (!c || !isClient() || c.partial || c.ownerId !== myId()) return;
+// Onboarding F4: whether this table lets a player start a character from a file (the rules the host sent)
+function fillOk() { var camp = getActiveCampaign(), S = window.wpSystemCore; if (!camp || !S || !S.newCharRules) return false; return !!S.newCharRules(camp, !window.wpVtt || !window.wpVtt.rulesOn || window.wpVtt.rulesOn('sheets') !== false).fromFile; }
+// [sinkcheck:fillnote-start]
+// Onboarding F4: what came of a fill, in words — the host's counts, and what this campaign has no place for (worked out here, on this player's
+// own view: the file's own labels, as text)
+function fillNote(a, j) {
+    var camp = getActiveCampaign(), view = camp && camp.system ? camp.system : null, miss = [];
+    try { if (view && isCharFile(j)) miss = (charFromJson(view, j, null) || { unmatched: [] }).unmatched; else if (view && window.wpSystemCore && window.wpSystemCore.sbFill) miss = window.wpSystemCore.sbFill(j, view, F(), null).skipped; } catch (e) { miss = []; }
+    var cut = miss.filter(function(s) { return /^amputated: /.test(s); }).map(function(s) { return s.slice(11); }); miss = miss.filter(function(s) { return !/^amputated: /.test(s); });
+    var nN = function(n2, w) { return n2 + ' ' + w + (n2 === 1 ? '' : 's'); }, few = function(l) { return l.slice(0, 6).join(', ') + (l.length > 6 ? ' and ' + (l.length - 6) + ' more' : ''); };
+    return (a.auto ? nN(a.auto, 'part') + ' filled in' : 'Nothing could be filled in') + (a.left ? '; ' + nN(a.left, 'part') + ' could not be taken' : '') + (miss.length ? '; not in this campaign: ' + few(miss) : '') + (cut.length ? '; left out as amputated: ' + few(cut) : '') + '.';
+}
+// [sinkcheck:fillnote-end]
+// [sinkcheck:filepic-start]
+// Onboarding F4b: a file's own picture (a character file's picture, a ShadowBase sheet's portrait — a PNG, JPEG or WebP data URL, never a web address
+// or an SVG) offered through the token creator and sent as the character's picture (char-pic: the host checks it whole again); else a character
+// file's own face (never "photo": a photo is saved as a picture). Nothing without one
+var FILE_PIC = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/;
+function filePicture(id, j) {
+    var n = net(); if (!n || !n.charPic || !j || typeof j !== 'object') return false;
+    var said = function(a) { toast(a.error || 'Your character\u2019s picture is set.'); };
+    var pic = typeof j.picture === 'string' ? j.picture : typeof j.portrait === 'string' ? j.portrait : '';
+    if (pic && pic.length <= 12 * 1024 * 1024 && FILE_PIC.test(pic) && window.wpFrame && window.wpFrame.open) {
+        var mt = /^data:(image\/[a-z]+);/.exec(pic)[1], raw = null;
+        try { var bin = atob(pic.slice(pic.indexOf(',') + 1)), u8 = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); raw = new Blob([u8], { type: mt }); } catch (e) { raw = null; }
+        if (raw) return window.wpFrame.open(raw, { px: 256, as: 'data', max: 200000, title: 'Frame your character\u2019s picture' }, function(res) { var r = n.charPic(id, '', res.data, said); if (r && r.error) toast(r.error); }) !== false;
+    }
+    var fc = typeof j.face === 'string' && n.cleanFace ? n.cleanFace(j.face) : '';
+    if (fc && fc !== 'photo') { var r2 = n.charPic(id, fc, '', said); if (r2 && r2.error) toast(r2.error); return true; }
+    return false;
+}
+// [sinkcheck:filepic-end]
+// Onboarding F4b: start a character from a file (the join card): the file read here first (a character file or a ShadowBase sheet — a bad one never
+// makes a character), a name (the file's to start with), the character made (char-make) and filled (char-upload); a refused fill leaves an empty
+// one in the making that Import can fill later; its picture offered through the token creator
+function startFromFile() {
+    var n = net(); if (!isClient() || !n || !n.charMake || !n.charUpload) return;
+    if (!fillOk()) { toast('Starting a character from a file is not open at this table.'); return; }
     var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
     inp.addEventListener('change', function() {
         var file = inp.files && inp.files[0]; if (!file) return;
         if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
         file.text().then(function(txt) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
-            if (isCharFile(j)) { toast('That is a character file from a sheet\u2019s Download: Import takes a ShadowBase character.'); return; }   // Onboarding F2a: never sent as a dossier
-            if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) { toast('That does not look like a ShadowBase character JSON.'); return; }
+            var isFile = isCharFile(j), isSb = !isFile && !!j && typeof j === 'object' && !Array.isArray(j) && (!j.type || j.type === 'character') && !!(j.name || j.attributes || j.points);
+            if (!isFile && !isSb) { toast('That is neither a character file nor a ShadowBase character.'); return; }
+            var prof = n.getProfile ? n.getProfile() : {}, nm0 = typeof j.name === 'string' && j.name.trim() ? j.name.trim().slice(0, 60) : ((prof && typeof prof.name === 'string' && prof.name) || '');
+            showPrompt('A name for your character', nm0, function(nm) {
+                if (nm === null || nm === undefined || !String(nm).trim()) return;
+                var r = n.charMake(String(nm), function(a) {
+                    if (a.error) { toast(a.error); return; }
+                    if (!a.charId) return;
+                    var id = a.charId; openSheet(id);
+                    var rU = n.charUpload(id, j, function(b) { if (b.error) { toast(b.error + ' Your character is made: Import on its sheet can fill it later.'); return; } toast(fillNote(b, j)); filePicture(id, j); });
+                    if (rU && rU.error) toast(rU.error + ' Your character is made: Import on its sheet can fill it later.');
+                });
+                if (r && r.error) toast(r.error);
+            });
+        });
+    });
+    inp.click();
+}
+function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes); Onboarding F4: while they are making it, the file fills it at once
+    var c = sheetOpen ? charById(sheetOpen) : null; if (!c || !isClient() || c.partial || c.ownerId !== myId()) return;
+    var making = c.making === 1, id = c.id, nm = c.name;
+    if (making && !fillOk()) { toast('Starting a character from a file is not open at this table.'); return; }
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.addEventListener('change', function() {
+        var file = inp.files && inp.files[0]; if (!file) return;
+        if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
+        file.text().then(function(txt) {
+            var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+            var isFile = isCharFile(j);
+            if (isFile && !making) { toast('A character file only fills a character you are still making.'); return; }   // Onboarding F2a: never sent as a dossier (owner, 2026-09-27: in play, Import stays as it was)
+            if (!isFile && (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points))) { toast(making ? 'That is neither a character file nor a ShadowBase character.' : 'That does not look like a ShadowBase character JSON.'); return; }
             var n = net(); if (!n || !n.charUpload) return;
+            if (making) {
+                showConfirm('Fill ' + nm + ' from this file? What it carries replaces what the sheet has.', function(y) {
+                    if (!y) return;
+                    var rM = n.charUpload(id, j, function(a) { toast(a.error || fillNote(a, j)); if (!a.error) filePicture(id, j); });   // F4b: its picture too, framed
+                    if (rM && rM.error) toast(rM.error); else toast('Sending the file to your GM\u2026');
+                });
+                return;
+            }
             var r = n.charUpload(c.id, j, function(a) {
                 if (a.error) { toast(a.error); return; }
                 toast(a.n ? 'Sent to the GM: ' + a.n + (a.n === 1 ? ' change' : ' changes') + ' to review' + (a.auto ? ' (' + a.auto + ' applied at once)' : '') + '.' : a.auto ? a.auto + (a.auto === 1 ? ' change' : ' changes') + ' applied.' : 'Nothing to change: your sheet already matches.');
@@ -3640,6 +3714,18 @@ function sbFinder(camp, sys) {
     var L = window.wpLibrary, packs = camp && camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
     if (L && L.entriesOf) packs.forEach(function(p) { (L.entriesOf(p.id) || []).forEach(add); });
     return function(name) { return by[String(name).trim().toLowerCase()] || []; };
+}
+// Onboarding F4: what a player may pick by name — the view's items (never a GM-only one) and the entries of the packs players may see, as players
+// see them (the library's players' index, the GM's machine); lib: such an entry by id, the host's own copy (as char-item takes it)
+// (worked out once: a fill looks up many names and ids). findKey: by an entry's key (a renamed library copy read back from a download)
+function playerFinder(camp, view) {
+    var by = Object.create(null), bk = Object.create(null), ids = Object.create(null);
+    var add = function(e) { if (!e || typeof e.name !== 'string' || typeof e.id !== 'string' || e.vis === 'gm') return; var k = e.name.trim().toLowerCase(); (by[k] = by[k] || []).push(e); if (typeof e.key === 'string' && e.key) { var kk = e.key.trim().toLowerCase(); (bk[kk] = bk[kk] || []).push(e); } };
+    (view && Array.isArray(view.items) ? view.items : []).forEach(add);
+    var L = window.wpLibrary, packs = camp && camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
+    if (L && L.playerIndexOf) packs.forEach(function(p) { var ix = p ? L.playerIndexOf(p.id, view) : null; if (ix && ix.byId) Object.keys(ix.byId).forEach(function(id) { ids[id] = 1; add(ix.byId[id]); }); });
+    return { find: function(name) { return by[String(name).trim().toLowerCase()] || []; }, findKey: function(key) { return bk[String(key).trim().toLowerCase()] || []; },
+        lib: L && L.entry ? function(id) { return typeof id === 'string' && ids[id] === 1 ? L.entry(id) : null; } : null };   // an entry of a pack players may see: the host's own copy
 }
 function fromShadowBase(w) {
     var camp = getActiveCampaign(), sys = systemOf(camp);
@@ -4886,6 +4972,7 @@ window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: 
     sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
+    playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.

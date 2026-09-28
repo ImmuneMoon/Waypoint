@@ -274,6 +274,8 @@ function cleanHostMap(m) {
     if (!m || typeof m !== 'object') return m;
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
     if (Array.isArray(m.rooms)) m.rooms = m.rooms.slice(0, 600); else m.rooms = [];
+    var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
+    if (m.lightsCapped !== true) delete m.lightsCapped;
     if (m.cats && typeof m.cats === 'object') Object.keys(m.cats).forEach(function(k) { var c = m.cats[k]; if (k in Object.prototype) { delete m.cats[k]; return; } if (c && typeof c === 'object' && !safeColor(c.color)) c.color = '#888'; });
     return m;
 }
@@ -511,6 +513,7 @@ function sanitizeItem(item) {
     if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
+    delete m.fogLit; delete m.lightsCapped;   // lighting L3: only ever set per player, on their own copy (fogCopyFor) — never from the host's map
     // fog of war (1.5.0 FV2): map.fog travels so a player's client can paint its own-vision overlay; the host
     // separately DROPS the creatures a recipient cannot see (fogFilterClean, per recipient) before each send.
     (m.rooms || []).forEach(function(r) {
@@ -538,6 +541,7 @@ function sanitizeItem(item) {
    (no fog / drop nothing). sanitizeItem clones the heavy map ONCE; fogFilterClean makes a cheap shallow copy with a
    filtered whiteboard per peer (never re-cloning images — §11R-5). AND with the existing hidden stub: an unseen token
    is dropped whether it was full or a hidden stub, matched by id. */
+// [netcheck:foglit-start]
 function fogDrop(camp, map, recipientId) { return (window.wpFog && recipientId && camp && map) ? window.wpFog.fogDropIds(recipientId, camp, map) : null; }
 function fogFilterClean(clean, dropSet) {
     if (!dropSet || !clean || clean.type !== 'map' || !Array.isArray(clean.whiteboard)) return clean;
@@ -545,6 +549,19 @@ function fogFilterClean(clean, dropSet) {
     if (kept.length === clean.whiteboard.length) return clean;
     var copy = {}; for (var k in clean) copy[k] = clean[k]; copy.whiteboard = kept; return copy;
 }
+// Lighting L3: one player's copy of a fogged map — the creatures they cannot see dropped, plus what their copy's own lights cannot show them
+// (fogLit: the lit cells a light on a dropped creature gives the cells they see; lightsCapped: the host's lights past a cap). Always set on a copy
+// made for that player: the shared clone never carries one player's cells
+function fogCopyFor(clean, camp, map, recipientId) {
+    var drop = fogDrop(camp, map, recipientId), out = fogFilterClean(clean, drop);
+    var fl = window.wpFog && window.wpFog.fogLitFor && recipientId ? window.wpFog.fogLitFor(recipientId, camp, map, drop) : null;
+    if (!fl || !(fl.capped || (fl.lit && fl.lit.length))) return out;
+    if (out === clean) { var cp = {}; for (var kk in clean) cp[kk] = clean[kk]; out = cp; }
+    if (fl.lit && fl.lit.length) out.fogLit = fl.lit;
+    if (fl.capped) out.lightsCapped = true;
+    return out;
+}
+// [netcheck:foglit-end]
 // Is any map in the hosted campaign fogged? While false, every per-recipient loop below stays on the old single-broadcast path.
 function anyFog(camp) {
     if (!window.wpFog || !window.wpVtt || !window.wpVtt.on('fog') || !camp || !camp.items) return false;
@@ -590,7 +607,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
             if (orig && orig.type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
             var it = sanitizeItem(orig);
             if (it === null) { delete camp.items[id]; return; }
-            if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogFilterClean(it, fogDrop(camp, orig, recipientId));   // drop the creatures this player cannot see
+            if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogCopyFor(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig, recipientId);   // drop the creatures this player cannot see (judged on the host's own campaign, as every later send is), with their lit cells
             camp.items[id] = it;
         });
         // a client's active item is always a map: the host's own open page or planner is not its business, and a
@@ -1096,7 +1113,7 @@ net.sendItem = function(campId, itemId, onlyConn) {
         delete _lastSent[itemId];                                                     // leaving the shared-delta path: the next non-fog send is whole
         var sendOne = function(conn) {
             var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
-            var out = fogFilterClean(clean, fogDrop(camp, it, pr.id));
+            var out = fogCopyFor(clean, camp, it, pr.id);
             try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); }
         };
         if (onlyConn) sendOne(onlyConn); else net.conns.forEach(sendOne);
@@ -1119,7 +1136,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
     if (!mapFogged(it)) { broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); return; }
     net.conns.forEach(function(conn) {
         var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
-        var out = fogFilterClean(clean, fogDrop(camp, it, pr.id));
+        var out = fogCopyFor(clean, camp, it, pr.id);
         try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); }
     });
 };

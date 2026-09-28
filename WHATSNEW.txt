@@ -830,7 +830,9 @@ Fog of war
   effects panel (Light source, then click the map) and give it a bright and
   a dim radius in its Properties; a token can carry a light too. Light
   spreads bright to the first radius and dim to the second, walls and closed
-  doors stop it, and players see a light, never its marker. With Lighting
+  doors stop it, and players see a light, never its marker. A torch carried
+  round a corner lights what a player sees without telling them who holds
+  it. With Lighting
   off, a token sees only as far as its sight, as before.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
   block sight also give cover, and a piece's Cover setting in its

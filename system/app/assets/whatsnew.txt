@@ -864,6 +864,12 @@ Fog of war
   the next time the tour starts or you open it from Help: the torch and the
   light presets where it has none of its own, the brazier where its cellar
   is still Dark and holds no light source of yours.
+- The Tutorial's cellar shows senses too: its system's Hearing lets Bren's
+  player hear the Cellar Lurker in the dark as a nameless mark, and a patch
+  of smoke near the brazier hides part of its glow from Bren. A Tutorial you
+  already have gains them the next time the tour starts or you open it from
+  Help: the Hearing where its system has no senses of its own, the smoke
+  where its cellar holds none.
 - Cover from the map: the walls, pillars, closed doors and filled cells that
   block sight also give cover, and a piece's Cover setting in its
   Properties can make it cover you can see over (a crate or a low wall:

@@ -2434,7 +2434,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const crypto = require('crypto'), H = o => crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex');
         const tutSrc = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         const fnSrc = name => { const i = tutSrc.indexOf('function ' + name + '('); let d = 0; const k = tutSrc.indexOf('{', i); for (let p = k; p < tutSrc.length; p++) { if (tutSrc[p] === '{') d++; else if (tutSrc[p] === '}') { d--; if (d === 0) return tutSrc.slice(i, p + 1); } } return ''; };
-        const tutorialSystem = new Function(fnSrc('tutorialEffects') + '\n' + fnSrc('tutorialHud') + '\n' + fnSrc('tutorialSystem') + '\nreturn tutorialSystem;')();
+        const tutorialSystem = new Function(fnSrc('tutorialEffects') + '\n' + fnSrc('tutorialHud') + '\n' + fnSrc('tutorialSenses') + '\n' + fnSrc('tutorialSystem') + '\nreturn tutorialSystem;')();
         const preset = n => JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', n + '.json'), 'utf8'));
         // the pre-fold hashes (taken at 516b22b, before any look-fold key existed): a system without the new keys cleans exactly as before;
         // the two starters' GM and players' views re-taken at lighting L4 — a deliberate change (the owner's answer 8): each gained light presets
@@ -2449,8 +2449,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             // re-taken again at HUD frame HF2a: a deliberate change, the tour's HUD seed (the automatic layout's hash is unchanged);
             // and at HF4a: a deliberate change, the tour's HUD Checks section draws as inline rows (the automatic layout's hash is unchanged);
             // and at HF4b: a deliberate change, the tour's HUD Condition section carries Reset all (the automatic layout's hash is unchanged);
-            // and at lighting L6: a deliberate change, the tour's system names dim and dark and carries a Torch and a Brazier (the automatic layout's hash is unchanged)
-            tutorial: ['5f8745dbc3b7092129aa9096e87c7fd7d5a4186ab6dfa90e2862efb5bdffe217', 'a33a6e3e3b7b50107cfcaacaa580aac02afaa846a5b199663dfd24b68c30b5e8', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
+            // and at lighting L6: a deliberate change, the tour's system names dim and dark and carries a Torch and a Brazier (the automatic layout's hash is unchanged);
+            // and at senses S8: a deliberate change (the owner's answer "Hearing + smoke demo"), the tour's system carries a Hearing mark sense (the automatic layout's hash is unchanged)
+            tutorial: ['f0b223d1bbc170e6a4b9b08b999b211f850d507f9e95145bd350c68431dba435', '9c7732c96af32a2513a4b5191eeeeb7c87584964361e581db0329d0b6750caae', 'ca140918d060af6f2949d30e7ba68e3b559fa4142b5101ee8ab04f34b7306e41']
         };
         const absent = [['d20', preset('d20')], ['3d6', preset('3d6')], ['tutorial', tutorialSystem()]].map(([n, raw]) => { const gm = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false }); return [n, [H(gm), H(pv), H(S.autoLayout(gm))], gm]; });
         check('look L1: the bundled presets and the tutorial\'s system clean byte-for-byte as before the look fold (GM view, players\' view, automatic layout), with no look key', absent.every(([n, h, gm]) => j(h) === j(PRE[n]) && !(gm.sheet && gm.sheet.look && gm.sheet.look.palette)), j(absent.map(([n, h]) => [n, h.map((x, i) => x === PRE[n][i])])));
@@ -2800,7 +2801,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /\.hud-ico-user \{ -webkit-mask-image: url\("data:image\/svg\+xml,%3Csvg xmlns='http:\/\/www\.w3\.org\/2000\/svg' viewBox='8 16 84 84'%3E%3Ccircle cx='50' cy='40' r='24'\/%3E%3Cpath d='M24 70 L76 70 L92 100 L8 100 Z'\/%3E%3C\/svg%3E"\); mask-image: url\("data:image\/svg\+xml,/.test(blk));   // the sheet button: the default avatar's figure (owner, 2026-09-26)
         // the tour: its seed, run for real on an older campaign, and the step that opens its own target
         const fnT = name => { const i = tut2.indexOf('function ' + name + '('); let d = 0; const k = tut2.indexOf('{', i); for (let p = k; p < tut2.length; p++) { if (tut2[p] === '{') d++; else if (tut2[p] === '}') { d--; if (d === 0) return tut2.slice(i, p + 1); } } return ''; };
-        const T = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
+        const T = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSenses', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
         const older = { system: T.sys(), chars: { c_tut_bren: T.ch('/x/') }, items: {} }; delete older.system.sheet.hud;
         const pre = JSON.parse(JSON.stringify(older)), ch1 = T.ensure(older), post = JSON.parse(JSON.stringify(older)); delete post.system.sheet.hud; delete post.tutorialSeed;   // HF4a: the one-shot seed marker, checked below
         const built = { system: T.sys(), chars: {}, items: {} }; delete built.system.sheet.hud; built.system.sheet.sections = [{ id: 's_mine', title: 'Mine', fields: [] }]; T.ensure(built);
@@ -3092,7 +3093,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // the tour's seed and its guarded migration, run for real
         const tut6 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, '\n');
         const fnT6 = name => { const i = tut6.indexOf('function ' + name + '('); let d = 0; const k = tut6.indexOf('{', i); for (let p = k; p < tut6.length; p++) { if (tut6[p] === '{') d++; else if (tut6[p] === '}') { d--; if (d === 0) return tut6.slice(i, p + 1); } } return ''; };
-        const T6 = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT6).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
+        const T6 = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSenses', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT6).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
         const hf2a = () => { const s = T6.sys(); const h = s.sheet.hud.sections.find(x => x.id === 's_tut_hchk'); delete h.inline; return { system: s, chars: { c_tut_bren: T6.ch('/x/') }, items: {} }; };
         const mig = hf2a(), migC = hf2a(), cleanedH = cleanSystem(migC.system, GV); migC.system.sheet.hud = JSON.parse(JSON.stringify(cleanedH.sheet.hud)); delete migC.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline;
         const edited = [s => { s.title = 'My checks'; }, s => { s.cols = 2; }, s => { s.fields.push({ id: 'f_tut_dex', w: 1 }); }, s => { s.collapsible = true; }, s => { s.inline = false; }, s => { s.tab = 't_tut_hstat'; }].map(fn => { const c = hf2a(); fn(c.system.sheet.hud.sections.find(x => x.id === 's_tut_hchk')); const before = JSON.stringify(c.system.sheet.hud); T6.ensure(c); return before === JSON.stringify(c.system.sheet.hud); });
@@ -3240,7 +3241,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // the tour's seed and its one-shot migration (seed 2), run for real
         const tut7 = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8').replace(/\r\n/g, '\n');
         const fnT7 = name => { const i = tut7.indexOf('function ' + name + '('); let d = 0; const k = tut7.indexOf('{', i); for (let p = k; p < tut7.length; p++) { if (tut7[p] === '{') d++; else if (tut7[p] === '}') { d--; if (d === 0) return tut7.slice(i, p + 1); } } return ''; };
-        const T7 = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT7).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
+        const T7 = new Function(['tutorialEffects', 'tutorialHud', 'tutorialSenses', 'tutorialSystem', 'tutorialCharacter', 'ensureTutorialSheet'].map(fnT7).join('\n') + '\nvar TUTORIAL_ART_URL = "/x/";\nreturn { sys: tutorialSystem, hud: tutorialHud, ch: tutorialCharacter, ensure: ensureTutorialSheet };')();
         const hfx = sys => sys.sheet.hud.sections.find(x => x.id === 's_tut_hfx');
         const old7 = () => { const s = T7.sys(); delete s.sheet.hud.sections.find(x => x.id === 's_tut_hchk').inline; delete hfx(s).resetAll; return { system: s, chars: { c_tut_bren: T7.ch('/x/') }, items: {} }; };
         const m1 = old7(), r71 = T7.ensure(m1), m2 = old7(); hfx(m2.system).title = 'My condition'; T7.ensure(m2); const m3 = old7(); m3.tutorialSeed = 1; T7.ensure(m3); const m4 = old7(); m4.tutorialSeed = 2; T7.ensure(m4);

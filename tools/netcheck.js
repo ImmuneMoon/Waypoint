@@ -5311,6 +5311,194 @@ pendingChecks.push((async () => {
         (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
         && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && !/type: 'fogDiff'/.test(src));
 })());
+// fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
+// ONE module over the real fog.js, so they share the host's open drags; timers are fakes, the clock is the world's, every send packs for the wire
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fogSrc = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+    const buildFog4 = () => new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells };');
+    const whole4 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
+    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
+    const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('),
+        whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
+        src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogmove'),
+        'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS };'].join('\n');
+    const NAMES4 = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'playerStroke', 'bellOut', 'renderNotepad', 'fogNow'];
+    const build4 = new Function(...NAMES4, modSrc);
+    const J = v => JSON.stringify(v);
+    const T = (id, owner, charId, c, r, more) => Object.assign({ id, type: 'image', isChar: true, charName: id, x: c * 50, y: r * 50, w: 50, h: 50, rot: 0, front: 0 }, owner ? { ownerId: owner } : {}, charId ? { charId } : {}, more || {});
+    const M = (id, wb, fog) => ({ id, type: 'map', meta: { title: id, gridType: 'square', cellValue: 5, cellUnit: 'ft' }, rooms: [], links: [], fog: Object.assign({ on: true, mode: 'auto', light: 'dark', manual: { adds: [], cuts: [] } }, fog || {}), whiteboard: wb });
+    const sysM = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }] }, { F: Fx, gmView: true });
+    // mA: a dark 5 ft map; Ana's tA at (2,2) sees 12 cells, the orc at (15,2) is 13 away (seen from (5,2)); Bo's tB at (2,4) sees tA, never the orc.
+    // mB: tA2 and orc2 the same way. mC: a facing cone of 90 degrees with tC and a bat 4 cells off. mO: Bo's other map
+    const mk4 = o => {
+        o = o || {};
+        const ev = [], timers = [], feats = { fog: true, lighting: true, sheets: true, turning: true };
+        const camp = { id: 'k', system: sysM, fog: { fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 30 } }, turnRules: o.rules || {},
+            items: { mA: M('mA', [T('tA', 'u_a', 'c_a', 2, 2, o.tA || {}), T('tB', 'u_b', 'c_b', 2, 4), T('orc', '', 'c_n', 15, 2)]), mB: M('mB', [T('tA2', 'u_a', 'c_a', 2, 2), T('orc2', '', 'c_n', 15, 2)]),
+                mO: M('mO', [T('tB2', 'u_b', 'c_b', 2, 2)]), mC: M('mC', [T('tC', 'u_a', 'c_a', 6, 6, o.tC || {}), T('bat', '', 'c_n', 10, 6)], { vision: { mode: 'arc', arc: 90 } }) },
+            chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sight: 60 } }, c_b: { id: 'c_b', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sight: 60 } }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: { f_sight: 60 } } } };
+        const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { packCheck(m); this.sent.push(JSON.parse(J(m))); } });
+        const W = { ev, camp, timers, now: 0, saves: 0, toasts: [], asked: [] };
+        W.a1 = mkConn('pA1'); W.a2 = mkConn('pA2'); W.b1 = mkConn('pB'); W.w1 = mkConn('pW');
+        W.net = { active: true, role: 'host', paused: false, applyingRemote: false, myId: 'u_gm', conns: [W.a1, W.a2, W.b1, W.w1], roster: { pA1: { id: 'u_a', name: 'Pat' }, pA2: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } }, combats: {}, targets: {}, tokenDropped: w => ev.push('dropped:' + w.id) };
+        const state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
+        const win = { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpDiceCore: null, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'host' }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } };
+        W.fog = buildFog4()(win, { getElementById: () => null }, () => null, () => camp, state);
+        win.wpFog = Object.assign({}, W.fog, { moveBlocked: (map, w, fx, fy, tx, ty) => { W.asked.push([fx, fy, tx, ty]); return !!(o.wall && o.wall(fx, fy, tx, ty)); } });
+        const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
+        const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && Object.prototype.hasOwnProperty.call(W.net.roster, c.peer)) c.send(m); }); };
+        W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, () => false, bc, {}, setT, clearT,
+            () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, () => true, () => {}, () => {}, () => {}, m => ev.push('dom:' + m.wbId), () => null, () => {}, () => {}, () => W.now);
+        W.move = (conn, wbId, x, y, fin, itemId, more) => W.api.pos(Object.assign({ type: 'pos', campId: 'k', itemId: itemId || 'mA', wbId, x, y, rot: 0, front: 0, final: fin }, more || {}), conn);
+        W.tok = (id, mapId) => camp.items[mapId || 'mA'].whiteboard.find(w => w.id === id);
+        W.clearSent = () => W.net.conns.forEach(c => { c.sent.length = 0; });
+        W.last = (c, mapId) => { const m = c.sent.filter(x => x.type === 'item' && x.itemId === (mapId || 'mA')).pop(); return m ? m.item : null; };
+        W.ids = (c, mapId) => { const it = W.last(c, mapId); return it ? it.whiteboard.map(w => w.id) : null; };
+        W.at = (c, id, mapId) => { const it = W.last(c, mapId), t = it && it.whiteboard.find(w => w.id === id); return t ? [t.x, t.y, t.rot || 0, t.front || 0] : null; };
+        W.msg = (c, type) => c.sent.filter(x => x.type === type).pop();
+        W.poses = c => c.sent.filter(x => x.type === 'pos');
+        W.entry = (mapId, id) => W.api.drags()[mapId + '|' + id];
+        W.place = id => { const t = W.tok(id); return [t.x, t.y, t.rot || 0, t.front || 0]; };
+        return W;
+    };
+
+    // (1) judged at the start: a whole copy asked for, a GM save, a copy sent to the table, the turn order and the pointers; Ana's own token alone
+    // at the drag's live place, on her own copies; the host's map exactly as the drag left it; the drop, and the next copy holds the orc
+    const W1 = mk4(), seen0 = !(W1.fog.fogDropIds('u_a', W1.camp, W1.camp.items.mA) || {}).orc;
+    W1.move(W1.a1, 'tA', 250, 100, false);
+    const seenMid = !(W1.fog.fogDropIds('u_a', W1.camp, W1.camp.items.mA) || {}).orc, e1 = W1.entry('mA', 'tA');
+    W1.clearSent(); W1.net.sendItem('k', 'mA', W1.a1); const need1 = { ids: W1.ids(W1.a1), tA: W1.at(W1.a1, 'tA'), others: W1.a2.sent.length + W1.b1.sent.length };
+    W1.clearSent(); W1.net.sendItem('k', 'mA'); const gm1 = { a1: W1.ids(W1.a1), a2: W1.ids(W1.a2), b: W1.ids(W1.b1), aT: W1.at(W1.a1, 'tA'), a2T: W1.at(W1.a2, 'tA'), bT: W1.at(W1.b1, 'tA'), w: W1.w1.sent.length };
+    W1.clearSent(); W1.net.broadcastItemFiltered('k', 'mA'); const bif1 = { a1: W1.ids(W1.a1), b: W1.ids(W1.b1), aT: W1.at(W1.a1, 'tA'), bT: W1.at(W1.b1, 'tA') };
+    W1.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Ana', tokId: 'tA' }, { id: 'r_o', name: 'Orc', tokId: 'orc' }] } }; W1.net.targets = { u_gm: { id: 'orc', mapId: 'mA', name: 'GM' } };
+    W1.clearSent(); W1.api.combats(); W1.api.targets(); const ro1 = { rows: W1.msg(W1.a1, 'combats').combats.mA.rows.map(r => r.name + ':' + r.tokId), targ: Object.keys(W1.msg(W1.a1, 'targets').targets) };
+    const host1 = W1.place('tA'), heldLeft1 = W1.api.opens().some(e => 'held' in e);
+    W1.net.combats = {}; W1.net.targets = {};
+    W1.move(W1.a1, 'tA', 250, 100, true); W1.clearSent(); W1.net.sendItem('k', 'mA'); const drop1 = { a1: W1.ids(W1.a1), entry: W1.entry('mA', 'tA') === undefined };
+    check('fold M4: while a player\'s drag is open every copy of that fogged map is judged where the drag began (the real pos gate, sends and fog.js as one module): a whole copy she asks for, a GM save to the table and a copy sent to the table leave out the orc she would see only from mid-drag; the drag\'s token travels to her own copies at its live place and to everyone else\'s at its start; nothing goes to a peer not admitted',
+        seen0 === false && seenMid === true && !!e1 && e1.x === 100 && e1.lx === 250 && J(need1.ids) === J(['tA', 'tB']) && J(need1.tA) === J([250, 100, 0, 0]) && need1.others === 0
+        && J(gm1.a1) === J(['tA', 'tB']) && J(gm1.a2) === J(['tA', 'tB']) && J(gm1.b) === J(['tA', 'tB']) && J(gm1.aT) === J([250, 100, 0, 0]) && J(gm1.a2T) === J([250, 100, 0, 0]) && J(gm1.bT) === J([100, 100, 0, 0]) && gm1.w === 0
+        && J(bif1.a1) === J(['tA', 'tB']) && J(bif1.b) === J(['tA', 'tB']) && J(bif1.aT) === J([250, 100, 0, 0]) && J(bif1.bT) === J([100, 100, 0, 0]),
+        J([seen0, seenMid, e1, need1, gm1, bif1]));
+    check('fold M4: the turn order and the pointers sent while the drag is open are judged at its start too (the orc\'s row reads Hidden, a pointer at it is dropped); the host\'s own map is left exactly as the drag has it, nothing held; after the drop lands there the next copy holds the orc and the drag is over',
+        J(ro1.rows) === J(['Ana:tA', 'Hidden:null']) && J(ro1.targ) === J([]) && J(host1) === J([250, 100, 0, 0]) && heldLeft1 === false && J(drop1.a1) === J(['tA', 'tB', 'orc']) && drop1.entry,
+        J([ro1, host1, drop1]));
+
+    // (2) a turn on the spot on a facing cone: the facings that hide the bat and show it, found by the real fog; nothing shows until the final
+    const probe = mk4(), facingOf = r => { probe.tok('tC', 'mC').rot = r; return !(probe.fog.fogDropIds('u_a', probe.camp, probe.camp.items.mC) || {}).bat; };
+    const rots = [0, 90, 180, 270], hideR = rots.find(r => !facingOf(r)), showR = rots.find(r => facingOf(r));
+    const W2 = mk4({ tC: { rot: hideR } }); W2.move(W2.a1, 'tC', 300, 300, false, 'mC', { rot: showR });
+    W2.clearSent(); W2.net.sendItem('k', 'mC'); const cone = { a1: W2.ids(W2.a1, 'mC'), tC: W2.at(W2.a1, 'tC', 'mC') };
+    W2.api.landed('mC', () => W2.api.landed(null, () => W2.api.landed('mC', () => {}))); const e2 = W2.entry('mC', 'tC'), nest = [e2.rot, e2.lr, W2.tok('tC', 'mC').rot];
+    W2.move(W2.a1, 'tC', 300, 300, true, 'mC', { rot: showR }); W2.clearSent(); W2.net.sendItem('k', 'mC'); const cone2 = W2.ids(W2.a1, 'mC');
+    check('fold M4: a turn on the spot in progress on a facing cone reveals nothing until its final (the copy judged at the facing the drag began with, the player\'s own token at its live facing); fogLanded nested in itself (a map inside every map inside that map) leaves the drag\'s start and live facing and the token as they were',
+        hideR !== undefined && showR !== undefined && J(cone.a1) === J(['tC']) && J(cone.tC) === J([300, 300, showR, 0]) && J(nest) === J([hideR, showR, showR]) && J(cone2) === J(['tC', 'bat']),
+        J([hideR, showR, cone, nest, cone2]));
+
+    // (3) fogLanded itself: restored when fn throws (an absent key absent again), fn's value returned, and what it judges equals a fresh fog module
+    // with the token really at its start; afterwards the host's own fog judges the live place exactly as a fresh module does (nothing kept)
+    const W3 = mk4(); W3.move(W3.a1, 'tA', 250, 100, false); delete W3.tok('tA').front;
+    let threw3 = ''; try { W3.api.landed('mA', () => { throw new Error('boom'); }); } catch (e) { threw3 = e.message; }
+    const after3 = { keys: Object.keys(W3.tok('tA')).includes('front'), place: [W3.tok('tA').x, W3.tok('tA').y], held: W3.api.opens().some(e => 'held' in e), open: !!W3.api.open('mA', W3.tok('tA')) };
+    const fresh = (x, y) => { const cp = JSON.parse(J(W3.camp)); const t = cp.items.mA.whiteboard.find(w => w.id === 'tA'); t.x = x; t.y = y; const F = buildFog4()({ wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpVtt: { on: () => true, campaignOn: () => true, mode: () => 'host' }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } }, { getElementById: () => null }, () => null, () => cp, { appState: { campaigns: { k: cp } } }); return J(F.fogDropIds('u_a', cp, cp.items.mA)); };
+    const inside3 = W3.api.landed('mA', () => J(W3.fog.fogDropIds('u_a', W3.camp, W3.camp.items.mA))), outside3 = J(W3.fog.fogDropIds('u_a', W3.camp, W3.camp.items.mA));
+    check('fold M4: fogLanded puts every held token back exactly as it found it when fn throws (a key that was absent is absent again), returns fn\'s value, judges as a fresh fog module does with the token really at its start, and leaves the host\'s own fog judging the live place as a fresh module does',
+        threw3 === 'boom' && after3.keys === false && J(after3.place) === J([250, 100]) && after3.held === false && after3.open === true && inside3 === fresh(100, 100) && outside3 === fresh(250, 100) && inside3 !== outside3,
+        J([threw3, after3, inside3, outside3]));
+
+    // (4) a drag that ends without landing goes back where it began, place and facing, for everyone who sees it there: its connection closes, its
+    // player is removed, sent to another map, the GM locks or hides the token; one the GM moved is forgotten, the GM's place standing
+    const closeLine = (src.match(/\n\s*(if \(net\.role === 'host' && typeof fogDragSweep === 'function'\) fogDragSweep\(\);)[^\n]*/) || [])[1] || 'throw new Error("no close line")';
+    const endCase = (setup, o) => {
+        const W = mk4(Object.assign({ tA: { front: 30 } }, o || {})); W.move(W.a1, 'tA', 250, 100, false, 'mA', { front: 60 }); W.clearSent(); W.timers.length = 0;
+        const midPlace = W.place('tA'); setup(W); W.api.sweep();
+        return { W, mid: midPlace, place: W.place('tA'), entry: W.entry('mA', 'tA') === undefined, bPos: W.poses(W.b1).map(p => [p.x, p.y, p.front, p.final]), a2Pos: W.poses(W.a2).length, timers: W.timers.map(t => t.ms) };
+    };
+    const closed = endCase(W => { W.net.conns = W.net.conns.filter(c => c !== W.a1); delete W.net.roster.pA1; new Function('net', 'fogDragSweep', closeLine)(W.net, W.api.sweep); });
+    const kicked = endCase(W => { W.net.kickPlayer('pA1'); });
+    const summoned = endCase(W => { W.net.roster.pA1.location = 'mO'; W.net.roster.pA2.location = 'mO'; W.net.sendItem('k', 'mA', W.b1); W.sumB = W.at(W.b1, 'tA'); });
+    const locked = endCase(W => { W.tok('tA').locked = true; W.move(W.a1, 'tA', 300, 100, false); W.lockedAt = [W.tok('tA').x, W.tok('tA').y]; W.net.sendItem('k', 'mA'); W.lockB = W.at(W.b1, 'tA'); W.clearSent(); });
+    const hidden = endCase(W => { W.tok('tA').hidden = true; });
+    const back = (r, a2, timers) => J(r.place) === J([100, 100, 0, 30]) && r.entry && J(r.bPos) === J([[100, 100, 30, true]]) && r.a2Pos === (a2 === undefined ? 1 : a2) && J(r.timers) === J(timers || [250]);
+    check('fold M4: a drag that ends without landing goes back where it began, place and facing, with one final pos to each who sees it there and the save to come: its connection closed (the close handler\'s own line, run), its player removed (net.kickPlayer, run), its player sent to another map (a copy asked for meanwhile judged and shipping the token at its start), the GM locking the token (its moves refused meanwhile, a GM save shipping it at its start)',
+        J(closed.mid) === J([250, 100, 0, 60]) && [closed, summoned, locked].every(r => back(r)) && back(kicked, 0, [250, 400, 400]) && J(summoned.W.sumB) === J([100, 100, 0, 30]) && J(locked.W.lockedAt) === J([250, 100]) && J(locked.W.lockB) === J([100, 100, 0, 30]),
+        J([closed, kicked, summoned, locked].map(r => [r.place, r.entry, r.bPos, r.a2Pos, r.timers])));
+    check('fold M4: a token the GM hides mid-drag goes back where it began too, and no one is sent its facing with it (a hidden token\'s pos carries none)',
+        J(hidden.place) === J([100, 100, 0, 30]) && hidden.entry && hidden.W.net.conns.every(c => c.sent.filter(x => x.type === 'pos').every(p => p.front === 0)) && hidden.a2Pos === 1,
+        J([hidden.place, hidden.bPos, hidden.W.net.conns.map(c => c.sent.filter(x => x.type === 'pos'))]));
+    const W5 = mk4(); W5.move(W5.a1, 'tA', 250, 100, false); W5.tok('tA').x = 400; W5.clearSent(); W5.net.sendItem('k', 'mA', W5.b1); const gmMoved = { b: W5.at(W5.b1, 'tA') };
+    W5.clearSent(); W5.api.sweep(); gmMoved.gone = W5.entry('mA', 'tA') === undefined; gmMoved.stay = W5.place('tA'); gmMoved.sent = W5.net.conns.map(c => c.sent.length);
+    W5.asked.length = 0; W5.move(W5.a1, 'tA', 450, 100, false); gmMoved.fresh = W5.entry('mA', 'tA').x; gmMoved.from = W5.asked[0];
+    const W6 = mk4({ rules: { walls: 'warn' } }); W6.move(W6.a1, 'tA', 250, 100, false); W6.tok('tA').rot = 90; W6.clearSent(); W6.net.sendItem('k', 'mA', W6.b1);
+    const gmTurn = { b: W6.at(W6.b1, 'tA'), open: !!W6.entry('mA', 'tA') }; W6.asked.length = 0; W6.move(W6.a1, 'tA', 300, 100, true, 'mA', { rot: 90 }); gmTurn.from = W6.asked[0]; gmTurn.place = W6.place('tA');
+    check('fold M4: a token the GM moves mid-drag ends that drag with the GM\'s place standing (judged there, the entry forgotten with nothing written or sent, the next move starting afresh from it); a turn the GM gives it mid-drag stands and the drag goes on (judged at its start place with the GM\'s facing; the final\'s wall check still asked from the start)',
+        J(gmMoved.b) === J([400, 100, 0, 0]) && gmMoved.gone && J(gmMoved.stay) === J([400, 100, 0, 0]) && J(gmMoved.sent) === J([0, 0, 0, 0]) && gmMoved.fresh === 400 && J(gmMoved.from) === J([400, 100, 450, 100])
+        && J(gmTurn.b) === J([100, 100, 90, 0]) && gmTurn.open && J(gmTurn.from) === J([100, 100, 300, 100]) && J(gmTurn.place) === J([300, 100, 90, 0]),
+        J([gmMoved, gmTurn]));
+
+    // (5) time: 30 s with no move puts it back, 29.999 s keeps it, a move restarts the count; a paused table (or player) keeps it, its count from the
+    // resume, judged at its start meanwhile, and a final after the resume lands from the start; another player's drag outlives this one's close; the
+    // session's end puts every drag back
+    const W7 = mk4(); W7.move(W7.a1, 'tA', 250, 100, false); W7.now = W7.api.stale - 1; W7.api.sweep(); const kept7 = !!W7.entry('mA', 'tA');
+    W7.now = W7.api.stale + 1; W7.api.sweep(); const back7 = [W7.entry('mA', 'tA') === undefined, W7.place('tA')];
+    const W8 = mk4(); W8.move(W8.a1, 'tA', 250, 100, false); W8.now = 20000; W8.move(W8.a1, 'tA', 250, 150, false); W8.now = 45000; W8.api.sweep(); const kept8 = [!!W8.entry('mA', 'tA'), W8.place('tA')];
+    let pausedPeer = false; const W9 = mk4({ paused: p => pausedPeer && p === 'pA1' }); W9.move(W9.a1, 'tA', 250, 100, false); W9.net.paused = true; W9.now = 60000; W9.api.sweep();
+    const p9 = { kept: !!W9.entry('mA', 'tA') }; W9.clearSent(); W9.net.sendItem('k', 'mA', W9.b1); p9.b = W9.at(W9.b1, 'tA'); W9.net.paused = false; W9.now = 60000 + W9.api.stale - 1; W9.api.sweep(); p9.still = !!W9.entry('mA', 'tA');
+    pausedPeer = true; W9.now = 200000; W9.api.sweep(); p9.peer = !!W9.entry('mA', 'tA'); pausedPeer = false;
+    W9.asked.length = 0; W9.move(W9.a1, 'tA', 300, 100, true); p9.from = W9.asked[0]; p9.place = W9.place('tA');
+    const W10 = mk4(); W10.move(W10.a1, 'tA', 250, 100, false); W10.move(W10.b1, 'tB', 150, 200, false); W10.net.conns = W10.net.conns.filter(c => c !== W10.a1); delete W10.net.roster.pA1; W10.api.sweep();
+    const other10 = [W10.entry('mA', 'tA') === undefined, !!W10.entry('mA', 'tB'), W10.place('tB')];
+    const W11 = mk4(); W11.move(W11.a1, 'tA', 250, 100, false); W11.move(W11.a1, 'tA2', 250, 100, false, 'mB'); W11.api.sweep(true); const all11 = [W11.api.opens().length, W11.place('tA'), [W11.tok('tA2', 'mB').x, W11.tok('tA2', 'mB').y]];
+    W11.net.role = 'client'; W11.move(W11.a1, 'tA', 250, 100, false); const client11 = W11.api.opens().length;
+    check('fold M4: 30 s with no move puts a drag back (29.999 s keeps it) and each accepted move restarts the count; a paused table or a paused player keeps it however long, counting from the resume, judged at its start meanwhile, and a final after the resume lands with its checks asked from the start; another player\'s open drag outlives this one\'s close; the end of the session puts every open drag back; a player\'s own machine keeps none',
+        kept7 && back7[0] && J(back7[1]) === J([100, 100, 0, 0]) && kept8[0] && J(kept8[1]) === J([250, 150, 0, 0])
+        && p9.kept && J(p9.b) === J([100, 100, 0, 0]) && p9.still && p9.peer && J(p9.from) === J([100, 100, 300, 100]) && J(p9.place) === J([300, 100, 0, 0])
+        && other10[0] && other10[1] && J(other10[2]) === J([150, 200, 0, 0]) && all11[0] === 0 && J(all11[1]) === J([100, 100, 0, 0]) && J(all11[2]) === J([100, 100]) && client11 === 0,
+        J([kept7, back7, kept8, p9, other10, all11, client11]));
+
+    // (5b) what the mutants found: the owner's live place never reaches the shared clone (a map where nobody's copy drops anything); two sends
+    // inside one outer judgement both give the owner the live place; fogLanded(map) holds that map's drags only; a held drag read through openDrag
+    // is the drag and leaves its facings alone; a connection gone quiet (not open, its roster entry still there) ends its drag; a player's machine,
+    // or a table off, sweeps nothing
+    const W12 = mk4(); W12.camp.items.mA.whiteboard = W12.camp.items.mA.whiteboard.filter(w => w.id !== 'orc'); W12.move(W12.a1, 'tA', 250, 100, false); W12.clearSent(); W12.net.sendItem('k', 'mA');
+    const shared12 = { a: W12.at(W12.a1, 'tA'), b: W12.at(W12.b1, 'tA') };
+    const W13 = mk4(); W13.move(W13.a1, 'tA', 250, 100, false); W13.clearSent(); W13.api.landed(null, () => { W13.net.sendItem('k', 'mA'); W13.net.sendItem('k', 'mA'); });
+    const twice13 = W13.a1.sent.filter(m => m.type === 'item').map(m => { const t = m.item.whiteboard.find(w => w.id === 'tA'); return [t.x, t.y]; }).concat(W13.b1.sent.filter(m => m.type === 'item').map(m => { const t = m.item.whiteboard.find(w => w.id === 'tA'); return [t.x, t.y]; }));
+    W13.move(W13.a1, 'tA2', 250, 100, false, 'mB'); const onlyMap13 = W13.api.landed('mA', () => [W13.tok('tA').x, W13.tok('tA2', 'mB').x]);
+    const W14 = mk4({ tC: { rot: 0 } }); W14.move(W14.a1, 'tC', 300, 300, false, 'mC', { rot: 90 });
+    const held14 = W14.api.landed('mC', () => { const e = W14.api.open('mC', W14.tok('tC', 'mC')); return [!!e && e === W14.entry('mC', 'tC'), W14.tok('tC', 'mC').rot]; }), e14 = W14.entry('mC', 'tC');
+    const W15 = mk4(); W15.move(W15.a1, 'tA', 250, 100, false); W15.a1.open = false; W15.api.sweep(); const quiet15 = [W15.entry('mA', 'tA') === undefined, W15.place('tA')];
+    const W16 = mk4(); W16.move(W16.a1, 'tA', 250, 100, false); W16.net.role = 'client'; W16.now = 99999; W16.api.sweep(true); const cl16 = [!!W16.entry('mA', 'tA'), W16.place('tA')];
+    W16.net.role = 'host'; W16.net.active = false; W16.api.sweep(true); cl16.push(!!W16.entry('mA', 'tA'), W16.place('tA'));
+    check('fold M4: the player\'s own token at its live place goes on their own copy only, never on the clone the others\' copies share (a map where nobody\'s copy drops anything); two sends inside one outer judgement both give them the live place and everyone else the start; fogLanded on one map holds that map\'s drags only; a held drag read through openDrag is the drag and its facings are left alone',
+        J(shared12.a) === J([250, 100, 0, 0]) && J(shared12.b) === J([100, 100, 0, 0]) && J(twice13) === J([[250, 100], [250, 100], [100, 100], [100, 100]]) && J(onlyMap13) === J([100, 250])
+        && J(held14) === J([true, 0]) && e14.rot === 0 && e14.lr === 90 && W14.tok('tC', 'mC').rot === 90,
+        J([shared12, twice13, onlyMap13, held14, e14]));
+    const W17 = mk4({ wall: () => true }); W17.move(W17.a1, 'tA', 250, 100, false); W17.move(W17.a1, 'tA', 300, 100, false); const opened17 = !!W17.entry('mA', 'tA');
+    W17.clearSent(); W17.timers.length = 0; W17.now = W17.api.stale + 1; W17.api.sweep(); const idle17 = [W17.entry('mA', 'tA') === undefined, W17.place('tA'), W17.net.conns.map(c => c.sent.length), W17.timers.length];
+    const W18 = mk4(); W18.move(W18.a1, 'tA', 100, 100, false, 'mA', { rot: 90 }); W18.clearSent(); W18.timers.length = 0; W18.a1.open = false; W18.api.sweep();
+    const turn18 = [W18.entry('mA', 'tA') === undefined, W18.place('tA'), W18.poses(W18.b1).map(p => [p.x, p.y, p.rot, p.final]), W18.timers.map(t => t.ms)];
+    check('fold M4: a drag whose connection has gone quiet (no longer open, its roster entry still there) goes back where it began; a player\'s machine, and a table no longer running, sweep nothing; a drag whose every move was refused (a wall on Refuse) is forgotten at its end with nothing sent and nothing saved, its token never having left its start',
+        quiet15[0] && J(quiet15[1]) === J([100, 100, 0, 0]) && J(cl16) === J([true, [250, 100, 0, 0], true, [250, 100, 0, 0]]) && opened17 && J(idle17) === J([true, [100, 100, 0, 0], [0, 0, 0, 0], 0])
+        && J(turn18) === J([true, [100, 100, 0, 0], [[100, 100, 0, true]], [250]]),
+        J([quiet15, cl16, opened17, idle17, turn18]));
+
+    // (6) where it is wired, in the source
+    const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
+    const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));
+    const kpS = whole4('net.kickPlayer = function('), lvS = fnSrc('function leaveSession(silent) {', '\n}\n', 'leaveSession'), shS = fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting');
+    const fmS = bw('fogmove'), admS = fnSrc('function admitPlayer(', '\n}\n', 'admitPlayer');
+    check('fold M4 (source): the heartbeat\'s host branch ends with the sweep; the close handler sweeps after it forgets the player\'s senses and before its save; kickPlayer sweeps once the roster entries are gone; the session\'s end sweeps every drag back before the table is torn down; a new table starts with no drag; the clock lives outside every slice; both whole-map sends, the snapshot, the turn order, the pointers and the senses resend are judged inside fogLanded; the pos gate and the patch path read the drag through openDrag',
+        /fogDragSweep\(\);[^\n]*\n\s*\} else \{/.test(src.slice(hbA, hbA + hbS.length + 20)) && /sensesForget\(p\.id\);[^\n]*\n\s*if \(net\.role === 'host' && typeof fogDragSweep === 'function'\) fogDragSweep\(\);/.test(clS) && clS.indexOf('fogDragSweep()') < clS.indexOf('save(true)')
+        && /renderRoster\(\); \}\n\s*if \(p && typeof fogDragSweep === 'function'\) fogDragSweep\(\);/.test(kpS) && lvS.indexOf('fogDragSweep(true)') > 0 && lvS.indexOf('fogDragSweep(true)') < lvS.indexOf('net.conns = []') && /sensesReset\(\);[^\n]*\n\s*_dragFrom = Object\.create\(null\); _refusedAt = Object\.create\(null\);/.test(shS)
+        && /\nfunction fogNow\(\) \{ return Date\.now\(\); \}[^\n]*\n\/\/ \[netcheck:fogmove-start\]/.test(src) && fmS.indexOf('function fogNow') < 0 && (src.match(/function fogNow\(/g) || []).length === 1
+        && (whole4('net.sendItem = function(').match(/fogLanded\(itemId, fogSend\)/g) || []).length === 1 && /var fogSend = function\(\) \{[^]*?var clean = sanitizeItem\(it\);/.test(whole4('net.sendItem = function(')) && /var fogSend = function\(\) \{[^\n]*\n\s*var clean = sanitizeItem\(it\);/.test(whole4('net.broadcastItemFiltered = function('))
+        && /fogLanded\(null, mkSnap\); else mkSnap\(\);[^\n]*\n\s*conn\.send\(snap\);\n\s*\} catch \(e\) \{ sendFailed\(e, 'snapshot'\);/.test(admS) && (bw('combats').match(/fogLanded\(null, sendAll\)/g) || []).length === 2 && (bw('sensesmoved').match(/fogLanded\(null, sendAll\)/g) || []).length === 1
+        && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /openDrag\(msg\.itemId, lw\)/.test(bw('patch')));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

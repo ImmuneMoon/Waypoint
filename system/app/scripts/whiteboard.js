@@ -201,10 +201,10 @@ var SENSE_LINE_UNIT = { ft: 'ft', m: 'm', cells: 'cells' };
 function tokenSensesLine(tok) {
     var F = window.wpFog, S = window.wpSystemCore, camp = getActiveCampaign(), map = getActiveMap(); if (!tok || !tok.isChar || tok.waiting || !F || !camp || !map) return '';
     var ts = F.tokenSenses(tok, map, camp, !tok.ownerId), byId = Object.create(null), words = [];
-    F.campSenses(camp).forEach(function(s) { byId[s.id] = s; });
+    F.campSenses(camp).concat(F.campMarkSenses(camp)).forEach(function(s) { byId[s.id] = s; });   // senses S4: the mark senses too
     var said = function(e) { var s = byId[e.id]; return s ? String(s.name) + ' ' + e.n + ' ' + (SENSE_LINE_UNIT[s.unit] || 'yd') : ''; };
     if (ts.blind) words.push('Blind');
-    ts.full.forEach(function(e) { var t = said(e); if (t) words.push(t); });
+    ts.full.concat(ts.marks || []).forEach(function(e) { var t = said(e); if (t) words.push(t); });
     (ts.offs || []).forEach(function(e) {
         var t = said(e), s = byId[e.id]; if (!t) return;
         var f = e.why === 'off' && s.off && S && S.fieldById ? S.fieldById(camp.system, s.off.field) : null;

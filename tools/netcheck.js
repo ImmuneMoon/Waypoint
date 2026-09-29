@@ -177,6 +177,157 @@ check('table keys (client): remembered per GM id, absent → empty string, a pro
     check('kicked: … and after the unanswered challenge it is the GM\'s call, flagged', h.admitted.length === 0 && h.env.pendingJoins.length === 1 && h.env.pendingJoins[0].why === 'nokey');
 }
 
+/* ================= Kick and Ban take every connection of a profile (fold M1) ================= */
+// net.kickPlayer and the Players panel's Ban branch are run for real over a gate harness: the real admission gate and broadcast() judge what follows
+{
+    const js = JSON.stringify;
+    const kickSrc = (() => { const k = 'net.kickPlayer = function(', i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: net.kickPlayer not found once'); return src.slice(i, e + 4); })();
+    const banA = 'if (btn.dataset.ban) {', banB = '} else if (btn.dataset.unban) {', banI = src.indexOf(banA), banJ = src.indexOf(banB);
+    if (banI < 0 || banJ < banI || src.indexOf(banA, banI + 1) >= 0 || src.indexOf(banB, banJ + 1) >= 0) throw new Error('netcheck: the Ban branch not found once');
+    const banBody = src.slice(banI + banA.length, banJ);
+    const buildKick = new Function('net', 'own', 'bannedIds', 'renderRoster', 'sensesForget', 'dropWaitingFor', 'sendFailed', 'setTimeout', 'toast', 'render', 'broadcastTargets', 'broadcastRoster', kickSrc + '\nreturn net.kickPlayer;');
+    const runBan = new Function('btn', 'camp', 'net', 'dropWaitingFor', 'save', 'toast', banBody);
+    // pA1 and pA2 admitted as u_a, pB as u_b, pX and pY as profiles whose ids only end or begin like u_a's, pW waiting for the GM
+    const mkK = pre => {
+        const h = harness(), env = h.env, ev = [];
+        ['pA1', 'pA2', 'pB', 'pW', 'pX', 'pY'].forEach(p => h.conn(p));
+        Object.assign(env.net.roster, { pA1: { id: 'u_a', name: 'Pat' }, pA2: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' }, pX: { id: 'u_a2', name: 'Ex' }, pY: { id: 'xu_a', name: 'Wy' } });
+        if (pre) pre(h);
+        h.told = [];   // each 'kicked' as it goes out, with how many roster entries of its profile are left at that moment
+        h.seq = [];    // round 2: every send, the redraw, the pointers and the roster going out, in order (the last two with the roster keys left then)
+        env.net.conns.forEach(c => { const s = c.send; c.send = m => { if (m) h.seq.push('send:' + c.peer + ':' + m.type); if (m && m.type === 'kicked') { const p = h.snap && h.snap[c.peer]; h.told.push(c.peer + ':' + Object.keys(env.net.roster).filter(k => p && env.net.roster[k].id === p).length); } return s(m); }; });
+        h.snap = {}; Object.keys(env.net.roster).forEach(k => { h.snap[k] = env.net.roster[k].id; });
+        h.ev = ev;
+        // the redraw records the pointers it would draw; the pointers and the roster go out through the real broadcast() (the roster's payload
+        // built by the real rosterPayload; the pointers as broadcastTargets sends them on a table with no fog), so a removed connection's share shows
+        const left = () => Object.keys(env.net.roster).join('+'), realB = (m, ex) => runBroadcast(env, m, ex);
+        env.net.kickPlayer = buildKick(env.net, H.own, env.bannedIds, () => ev.push('roster'), id => ev.push('forget:' + id), id => ev.push('drop:' + id), e => ev.push('failed:' + (e && e.message)), env.setTimeout, t => ev.push('toast:' + t),
+            () => h.seq.push('render[' + Object.keys(env.net.targets || {}).join('+') + ']'),
+            () => { h.seq.push('targets(' + left() + ')'); realB({ type: 'targets', targets: JSON.parse(JSON.stringify(env.net.targets)) }, null); },
+            () => { h.seq.push('roster-out(' + left() + ')'); runRoster(Object.assign({}, env, { broadcast: realB })).broadcastRoster(); });
+        h.kick = k => { let threw = ''; try { env.net.kickPlayer(k); } catch (e) { threw = e.message; } return threw; };
+        h.kicked = () => h.sent.filter(s => s.m.type === 'kicked').map(s => s.peer);
+        h.rosterKeys = () => Object.keys(env.net.roster).sort();
+        return h;
+    };
+    const A = mkK(), aThrew = A.kick('pA1');
+    const aNow = { roster: A.rosterKeys(), kicked: A.kicked(), told: A.told.slice(), timers: A.timers.map(t => t.ms), closed: A.closed.slice(), ev: A.ev.slice(), banned: Object.keys(A.env.bannedIds), threw: aThrew };
+    A.sent.length = 0; runBroadcast(A.env, { type: 'chat', text: 'after' }); const aBcast = A.sent.map(s => s.peer);
+    A.sent.length = 0; A.hello(A.env.net.conns.find(c => c.peer === 'pA2'), { id: 'u_a', name: 'Pat' }); const aHello2 = A.lastSent('pA2', 'denied');
+    const c0 = A.closed.length, aFired = A.fireTimers(), aClosed = A.closed.slice(c0);   // the refused hello closed pA2 once already (denyJoin): the kick's own closes come after
+    const cA3 = A.conn('pA3'); A.hello(cA3, { id: 'u_a', name: 'Pat' }, { key: 'k'.repeat(32) }); const aRejoin = A.lastSent('pA3', 'denied');
+    check('M1: removing a player (net.kickPlayer, run for real) removes every admitted connection of their profile — both of Pat\'s leave the roster before either is told, each is told \'kicked\' once and closed 400 ms later; their profile is forgotten once, their waiting token dropped once, one toast; the session ban holds their profile; profiles whose ids only begin or end the same keep their places',
+        aNow.threw === '' && js(aNow.roster) === js(['pB', 'pX', 'pY']) && js(aNow.kicked) === js(['pA1', 'pA2']) && js(aNow.told) === js(['pA1:0', 'pA2:0']) && js(aNow.timers) === js([400, 400]) && aNow.closed.length === 0
+        && js(aNow.ev) === js(['roster', 'forget:u_a', 'drop:u_a', 'toast:Pat removed from the session.']) && js(aNow.banned) === js(['u_a']) && aFired === 2 && js(aClosed) === js(['pA1', 'pA2']), js([aNow, aFired, aClosed]));
+    check('M1: after the kick nothing of the table reaches the second connection (broadcast(), run for real, sends only to pB, pX and pY), its hello in the 400 ms before the close is refused as removed, and a rejoin on a new connection is refused by the session ban even with the table key; nothing is admitted',
+        js(aBcast) === js(['pB', 'pX', 'pY']) && !!aHello2 && /removed/.test(aHello2.m.reason) && !!aRejoin && /removed/.test(aRejoin.m.reason) && A.admitted.length === 0, js([aBcast, aHello2, aRejoin, A.admitted]));
+    const B = mkK(); B.kick('pB'); const bOut = { roster: B.rosterKeys(), kicked: B.kicked(), timers: B.timers.length, ev: B.ev.slice(), banned: Object.keys(B.env.bannedIds) };
+    const W = mkK(); W.kick('pW'); const wOut = { roster: W.rosterKeys(), kicked: W.kicked(), timers: W.timers.length, ev: W.ev.slice(), banned: Object.keys(W.env.bannedIds) };
+    const unknown = ['pGhost', 'constructor', '__proto__', 'hasOwnProperty', '', undefined, null].map(k => { const U = mkK(); const threw = U.kick(k); return [threw, U.rosterKeys().length, U.sent.length, U.timers.length, U.ev.filter(e => !/^toast:/.test(e)), Object.keys(U.env.bannedIds)]; });
+    const Cl = mkK(h => { h.env.net.role = 'client'; }); Cl.kick('pA1'); const clOut = [Cl.rosterKeys().length, Cl.sent.length, Cl.timers.length, Cl.ev, Object.keys(Cl.env.bannedIds)];
+    check('M1: removing another player (pB) leaves both of Pat\'s connections at the table; removing a waiting peer tells and closes that peer alone and forgets, bans and drops nobody; an unknown key, a prototype name or no key sends nothing, queues no close and forgets nobody; a player\'s machine does nothing at all',
+        js(bOut) === js({ roster: ['pA1', 'pA2', 'pX', 'pY'], kicked: ['pB'], timers: 1, ev: ['roster', 'forget:u_b', 'drop:u_b', 'toast:Bea removed from the session.'], banned: ['u_b'] })
+        && js(wOut) === js({ roster: ['pA1', 'pA2', 'pB', 'pX', 'pY'], kicked: ['pW'], timers: 1, ev: ['toast:Player removed from the session.'], banned: [] })
+        && unknown.every(u => js(u) === js(['', 5, 0, 0, [], []])) && js(clOut) === js([5, 0, 0, [], []]), js([bOut, wOut, unknown, clOut]));
+    // three connections of one profile (the one clicked in the middle), one roster entry with no connection left, and a send that throws
+    const T = mkK(h => { h.conn('pA3'); h.env.net.roster.pA3 = { id: 'u_a', name: 'Pat' }; h.env.net.roster.pA4 = { id: 'u_a', name: 'Pat' }; });
+    T.kick('pA2'); const tOut = { roster: T.rosterKeys(), kicked: T.kicked(), timers: T.timers.length, ev: T.ev.slice() }; T.fireTimers(); tOut.closed = T.closed.slice();
+    const F = mkK(h => { h.env.net.conns.find(c => c.peer === 'pA1').send = () => { throw new Error('boom'); }; }); const fThrew = F.kick('pA1');
+    const fOut = { threw: fThrew, roster: F.rosterKeys(), kicked: F.kicked(), timers: F.timers.length, ev: F.ev.slice() }; F.fireTimers(); fOut.closed = F.closed.slice();
+    check('M1: every connection of the profile goes, however many — three open ones and a roster entry whose connection is gone, the middle one clicked: all four entries leave, the three are told and closed, forgotten and dropped once; a send that throws on one is reported and the other is still told, and both are closed',
+        js(tOut) === js({ roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2', 'pA3'], timers: 3, ev: ['roster', 'forget:u_a', 'drop:u_a', 'toast:Pat removed from the session.'], closed: ['pA1', 'pA2', 'pA3'] })
+        && js(fOut) === js({ threw: '', roster: ['pB', 'pX', 'pY'], kicked: ['pA2'], timers: 2, ev: ['roster', 'forget:u_a', 'drop:u_a', 'failed:boom', 'toast:Pat removed from the session.'], closed: ['pA1', 'pA2'] }), js([tOut, fOut]));
+    // the Players panel's Ban branch, run for real with the real kickPlayer: one call covers the whole profile
+    const banRun = (pid, pre) => { const K = mkK(pre), calls = [], real = K.env.net.kickPlayer, camp = { players: { u_a: { name: 'Pat' } } }, saves = []; K.env.net.active = true; K.env.net.kickPlayer = k => { calls.push(k); return real(k); };
+        let threw = ''; try { runBan({ dataset: { ban: pid } }, camp, K.env.net, id => K.ev.push('drop:' + id), () => saves.push(1), t => K.ev.push('toast:' + t)); } catch (e) { threw = e.message; } return { threw, calls, roster: K.rosterKeys(), kicked: K.kicked(), timers: K.timers.length, forgot: K.ev.filter(e => /^forget:/.test(e)), banned: Object.keys(camp.bannedPlayers), session: Object.keys(K.env.bannedIds), saves: saves.length }; };
+    const ban1 = banRun('u_a'), banAway = banRun('u_gone'), banClient = banRun('u_a', h => { h.env.net.role = 'client'; });
+    const scripts = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f)), noCom = s => s.replace(/\/\/[^\n]*/g, '');
+    const kickedSends = scripts.map(f => [f, (fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').match(/type: 'kicked'/g) || []).length]).filter(x => x[1]);
+    const kickCalls = scripts.map(f => [f, (noCom(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8')).match(/kickPlayer\(/g) || []).length]).filter(x => x[1]);
+    check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host still has 24 message branches',
+        js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
+        && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+
+    /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
+    const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };
+    const outOf = (K, type) => K.sent.filter(s => s.m.type === type).map(s => s.peer + '=' + (type === 'roster' ? s.m.roster.map(e => e.id) : Object.keys(s.m.targets)).join('+'));
+    const P1 = mkK(withT(tg)), p1Threw = P1.kick('pA1');
+    const p1 = { threw: p1Threw, targets: Object.keys(P1.env.net.targets), seq: P1.seq.slice(), tgt: outOf(P1, 'targets'), ros: outOf(P1, 'roster'), ev: P1.ev.slice(), kicked: P1.kicked() };
+    check('M1 round 2: removing a player who holds a target pointer (net.kickPlayer, run for real) deletes their pointer and keeps the others\'; once both of their roster entries are gone the map is redrawn without it, then the pointers go out once and the roster once, both before either connection is told \'kicked\'; the real broadcast() gives them to pB, pX and pY only, the pointers without theirs and the roster without them, and the removed connections get nothing but \'kicked\'',
+        p1.threw === '' && js(p1.targets) === js(['u_b']) && js(p1.seq) === js(['render[u_b]', 'targets(pB+pX+pY)', 'send:pB:targets', 'send:pX:targets', 'send:pY:targets', 'roster-out(pB+pX+pY)', 'send:pB:roster', 'send:pX:roster', 'send:pY:roster', 'send:pA1:kicked', 'send:pA2:kicked'])
+        && js(p1.tgt) === js(['pB=u_b', 'pX=u_b', 'pY=u_b']) && js(p1.ros) === js(['pB=u_b+u_a2+xu_a', 'pX=u_b+u_a2+xu_a', 'pY=u_b+u_a2+xu_a']) && js(p1.ev) === js(['roster', 'forget:u_a', 'drop:u_a', 'toast:Pat removed from the session.']) && js(p1.kicked) === js(['pA1', 'pA2']), js(p1));
+    const noPtr = [mkK(withT({ u_b: tg.u_b })), mkK(withT({})), mkK()].map(K => { const threw = K.kick('pA2'); return { threw, targets: K.env.net.targets ? Object.keys(K.env.net.targets) : null, seq: K.seq.slice() }; });
+    const quiet = ['pW', 'pGhost', 'constructor', '__proto__', undefined].map(k => { const K = mkK(withT(tg)); const threw = K.kick(k); return { threw, targets: Object.keys(K.env.net.targets), seq: K.seq.slice() }; });
+    const Cl2 = mkK(h => { withT(tg)(h); h.env.net.role = 'client'; }); Cl2.kick('pA1'); const cl2 = { targets: Object.keys(Cl2.env.net.targets), seq: Cl2.seq.slice() };
+    const rosterThenKicked = ['roster-out(pB+pX+pY)', 'send:pB:roster', 'send:pX:roster', 'send:pY:roster', 'send:pA1:kicked', 'send:pA2:kicked'];
+    check('M1 round 2: removing a player who holds no pointer (another\'s pointer only, an empty set, no set at all) redraws nothing and sends no pointers, the others\' pointer stays, and the roster still goes out once, to pB, pX and pY, before \'kicked\'; removing a waiting peer, an unknown key, a prototype name or no key redraws nothing and sends neither the pointers nor the roster, and every pointer stays (the waiting peer is told \'kicked\' alone); a player\'s machine does nothing',
+        js(noPtr) === js([{ threw: '', targets: ['u_b'], seq: rosterThenKicked }, { threw: '', targets: [], seq: rosterThenKicked }, { threw: '', targets: null, seq: rosterThenKicked }])
+        && js(quiet) === js([{ threw: '', targets: ['u_a', 'u_b'], seq: ['send:pW:kicked'] }].concat([1, 2, 3, 4].map(() => ({ threw: '', targets: ['u_a', 'u_b'], seq: [] })))) && js(cl2) === js({ targets: ['u_a', 'u_b'], seq: [] }), js([noPtr, quiet, cl2]));
+    // two open DataConnections under one peer key (a modified client): the one found first and the other
+    const dupRun = (peer, dups) => { const K = mkK(h => { dups.forEach(p => h.conn(p)); }), cs = K.env.net.conns;
+        cs.forEach(c => { c.nK = 0; const s = c.send; c.send = m => { if (m && m.type === 'kicked') c.nK++; return s(m); }; });
+        const threw = K.kick(peer), r = { threw, peers: cs.map(c => c.peer), told: cs.map(c => c.nK), openAt: cs.map(c => c.open), timers: K.timers.map(t => t.ms), roster: K.rosterKeys() };
+        r.fired = K.fireTimers(); r.open = cs.map(c => c.open); r.closed = K.closed.slice(); r.seq = K.seq.filter(e => /^roster-out|^targets|^render/.test(e)); return r; };
+    const dA = dupRun('pA1', ['pA1', 'pB']), dA2 = dupRun('pA2', ['pA1']), dW = dupRun('pW', ['pW']);
+    const T8 = [true, true, true, true, true, true, true, true], T7 = T8.slice(1);
+    check('M1 round 2: a second open DataConnection under a removed key is told \'kicked\' once and closed at 400 ms like the first — clicking either key of the profile reaches both of pA1\'s — while another player\'s second connection (pB) stays open and untold; both under a waiting peer\'s key are told and closed too; each connection gets one close, none before 400 ms',
+        js(dA) === js({ threw: '', peers: ['pA1', 'pA2', 'pB', 'pW', 'pX', 'pY', 'pA1', 'pB'], told: [1, 1, 0, 0, 0, 0, 1, 0], openAt: T8, timers: [400, 400, 400], roster: ['pB', 'pX', 'pY'], fired: 3, open: [false, false, true, true, true, true, false, true], closed: ['pA1', 'pA1', 'pA2'], seq: ['roster-out(pB+pX+pY)'] })
+        && js(dA2) === js({ threw: '', peers: ['pA1', 'pA2', 'pB', 'pW', 'pX', 'pY', 'pA1'], told: [1, 1, 0, 0, 0, 0, 1], openAt: T7, timers: [400, 400, 400], roster: ['pB', 'pX', 'pY'], fired: 3, open: [false, false, true, true, true, true, false], closed: ['pA1', 'pA1', 'pA2'], seq: ['roster-out(pB+pX+pY)'] })
+        && js(dW) === js({ threw: '', peers: ['pA1', 'pA2', 'pB', 'pW', 'pX', 'pY', 'pW'], told: [0, 0, 0, 1, 0, 0, 1], openAt: T7, timers: [400, 400], roster: ['pA1', 'pA2', 'pB', 'pX', 'pY'], fired: 2, open: [true, true, true, false, true, true, false], closed: ['pW', 'pW'], seq: [] }), js([dA, dA2, dW]));
+
+    // processNextApproval, run for real over the real queueJoin: a request whose profile is banned never reaches the GM
+    const pnaSrc = (() => { const k = 'function processNextApproval() {', i = src.indexOf(k), e = src.indexOf('\n}\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: processNextApproval not found once'); return src.slice(i, e + 3); })();
+    const buildPNA = new Function('env', pre(['processNextApproval']) + 'var approvalOpen = false;\n' + pnaSrc + '\nreturn { run: processNextApproval, isOpen: function() { return approvalOpen; } };');
+    const withQ = h => { h.env.net.active = true; h.asks = []; h.env.showConfirm = (m, cb) => h.asks.push({ m, cb }); h.P = buildPNA(h.env); h.env.processNextApproval = h.P.run;
+        h.answer = yes => h.asks[h.asks.length - 1].cb(yes); h.says = () => h.asks.map(a => a.m); h.types = peer => h.sent.filter(s => s.peer === peer).map(s => s.m.type + (s.m.reason ? '(' + s.m.reason + ')' : '')); return h; };
+    const RM = 'You were removed from this session.', BN = 'You are banned from this campaign.', askOf = (n, hint) => '"' + n + '" wants to join your table' + (hint ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '') + '. Let them in?';
+    const calBan = () => ({ u_cal: { name: 'Cal', bannedAt: 1 } });
+    // Ann on screen; Sam (banned for the session), Cal (banned from the campaign) and Bo wait behind her
+    const Q1 = withQ(harness({ bannedPlayers: calBan() })); Q1.env.bannedIds.u_sam = true;
+    const q1c = ['qA', 'qS', 'qC', 'qB'].map(p => Q1.conn(p));
+    [['u_ann', 'Ann'], ['u_sam', 'Sam'], ['u_cal', 'Cal'], ['u_bo', 'Bo']].forEach((x, i) => Q1.env.queueJoin(q1c[i], { id: x[0], name: x[1] }, ''));
+    const q1a = { says: Q1.says(), waiting: Q1.env.pendingJoins.map(q => q.prof.id), open: Q1.P.isOpen(), closed: Q1.closed.slice() };
+    Q1.answer(true);
+    const q1b = { says: Q1.says(), waiting: Q1.env.pendingJoins.length, open: Q1.P.isOpen(), admitted: Q1.admitted.map(a => a.peer), closed: Q1.closed.slice(), S: Q1.types('qS'), C: Q1.types('qC'), B: Q1.types('qB') };
+    Q1.answer(true); const q1d = { admitted: Q1.admitted.map(a => a.peer), open: Q1.P.isOpen(), asks: Q1.asks.length, roster: Object.keys(Q1.env.net.roster) };
+    check('M1 round 2: a queued join request (processNextApproval, run for real over the real queueJoin) whose profile is banned for the session or from the campaign is refused with the words the hello gate gives each (removed from this session; banned from this campaign) and never put to the GM; when the GM answers the request before them, both are refused and the next one in line (Bo) is shown at once; Bo is let in on a yes and the queue is left empty and closed',
+        js(q1a) === js({ says: [askOf('Ann')], waiting: ['u_sam', 'u_cal', 'u_bo'], open: true, closed: [] })
+        && js(q1b) === js({ says: [askOf('Ann'), askOf('Bo')], waiting: 0, open: true, admitted: ['qA'], closed: ['qS', 'qC'], S: ['wait', 'denied(' + RM + ')'], C: ['wait', 'denied(' + BN + ')'], B: ['wait'] })
+        && js(q1d) === js({ admitted: ['qA', 'qB'], open: false, asks: 2, roster: ['qA', 'qB'] }), js([q1a, q1b, q1d]));
+    // nothing on screen: a banned request is refused at once and leaves no prompt open, so the next request is shown; a prototype name is never taken for a ban
+    const Q2 = withQ(harness({ bannedPlayers: calBan() })); Q2.env.bannedIds.u_sam = true;
+    Q2.env.queueJoin(Q2.conn('qS'), { id: 'u_sam', name: 'Sam' }, 'nokey'); Q2.env.queueJoin(Q2.conn('qC'), { id: 'u_cal', name: 'Cal' }, '');
+    const q2a = { says: Q2.says(), open: Q2.P.isOpen(), waiting: Q2.env.pendingJoins.length, closed: Q2.closed.slice(), S: Q2.types('qS'), C: Q2.types('qC') };
+    Q2.env.queueJoin(Q2.conn('qK'), { id: 'u_kay', name: 'Kay' }, 'nokey'); const q2b = { says: Q2.says(), open: Q2.P.isOpen() };
+    Q2.env.queueJoin(Q2.conn('qP'), { id: 'constructor', name: 'Proto' }, ''); Q2.answer(false);
+    const q2c = { says: Q2.says(), open: Q2.P.isOpen(), closed: Q2.closed.slice(), K: Q2.types('qK'), P: Q2.types('qP') };
+    check('M1 round 2: with nothing on screen a request of a profile banned for the session, or from the campaign, is refused at once, with no prompt and none left open; an ordinary request after them is shown as before, a known name without its key with the hint; a profile named like a prototype key is never taken for banned and is put to the GM in turn',
+        js(q2a) === js({ says: [], open: false, waiting: 0, closed: ['qS', 'qC'], S: ['wait', 'denied(' + RM + ')'], C: ['wait', 'denied(' + BN + ')'] }) && js(q2b) === js({ says: [askOf('Kay', true)], open: true })
+        && js(q2c) === js({ says: [askOf('Kay', true), askOf('Proto')], open: true, closed: ['qS', 'qC', 'qK'], K: ['wait', 'denied(The GM declined your request to join.)'], P: ['wait'] }), js([q2a, q2b, q2c]));
+    // banned while the request waited: Dee removed for the session, Eve banned from the campaign by the Players panel's Ban branch (run for real)
+    const Q3 = withQ(harness()), q3c = ['qA', 'qD', 'qE', 'qF'].map(p => Q3.conn(p));
+    [['u_ann', 'Ann'], ['u_dee', 'Dee'], ['u_eve', 'Eve'], ['u_fay', 'Fay']].forEach((x, i) => Q3.env.queueJoin(q3c[i], { id: x[0], name: x[1] }, ''));
+    Q3.env.bannedIds.u_dee = true; let q3Threw = ''; try { runBan({ dataset: { ban: 'u_eve' } }, Q3.camp, Q3.env.net, () => {}, () => {}, () => {}); } catch (e) { q3Threw = e.message; }
+    const q3a = { says: Q3.says(), waiting: Q3.env.pendingJoins.length }; Q3.answer(false);
+    const q3b = { threw: q3Threw, says: Q3.says(), open: Q3.P.isOpen(), waiting: Q3.env.pendingJoins.length, closed: Q3.closed.slice(), D: Q3.types('qD'), E: Q3.types('qE'), F: Q3.types('qF'), admitted: Q3.admitted.length, session: Object.keys(Q3.env.bannedIds).sort() };
+    check('M1 round 2: a request whose profile is removed for the session, or banned from the campaign in the Players panel, while it waits behind another is refused when its turn comes and never shown; the GM\'s No to the one before still turns that one away, and the next ordinary request is shown',
+        js(q3a) === js({ says: [askOf('Ann')], waiting: 3 }) && js(q3b) === js({ threw: '', says: [askOf('Ann'), askOf('Fay')], open: true, waiting: 0, closed: ['qA', 'qD', 'qE'], D: ['wait', 'denied(' + RM + ')'], E: ['wait', 'denied(' + BN + ')'], F: ['wait'], admitted: 0, session: ['u_ann', 'u_dee'] }), js([q3a, q3b]));
+    // the review's case end to end: a known id without its key is challenged, the GM removes or bans that profile, the challenge runs out
+    const e2e = act => { const K = withQ(mkK(h => { h.camp.players.u_a = { name: 'Pat', key: 'k'.repeat(32) }; h.camp.players.u_k = { name: 'Kay', key: 'q'.repeat(32) }; }));
+        const pid = act === 'kick' ? 'u_a' : 'u_k', c = K.conn('pN'); K.hello(c, { id: pid, name: K.camp.players[pid].name });
+        const asked = K.types('pN'); let threw = '';
+        try { if (act === 'kick') K.env.net.kickPlayer('pA1'); else if (act === 'ban') runBan({ dataset: { ban: 'u_k' } }, K.camp, K.env.net, () => {}, () => {}, () => {}); } catch (e) { threw = e.message; }
+        K.fireTimers(); const r = { asked, threw, types: K.types('pN'), says: K.says(), admitted: K.admitted.map(a => a.peer), waiting: K.env.pendingJoins.length, open: K.P.isOpen(), atTable: Object.keys(K.env.net.roster).filter(k => K.env.net.roster[k].id === pid) };
+        if (act === 'none') { K.answer(true); r.after = { admitted: K.admitted.map(a => a.peer), atTable: Object.keys(K.env.net.roster).filter(k => K.env.net.roster[k].id === pid) }; }
+        return r; };
+    const eKick = e2e('kick'), eBan = e2e('ban'), eNone = e2e('none');
+    check('M1 round 2 (the review\'s case, end to end): a known player\'s new connection without the table key is challenged; if the GM removes that player from the session (net.kickPlayer) or bans them from the campaign (the Ban branch) before the challenge runs out, the request it then queues is refused (with the removal words, or the ban words), never shown, and nobody is let back in; with neither, the GM is asked with the hint as before and a yes lets them in',
+        js(eKick) === js({ asked: ['auth'], threw: '', types: ['auth', 'wait', 'denied(' + RM + ')'], says: [], admitted: [], waiting: 0, open: false, atTable: [] })
+        && js(eBan) === js({ asked: ['auth'], threw: '', types: ['auth', 'wait', 'denied(' + BN + ')'], says: [], admitted: [], waiting: 0, open: false, atTable: [] })
+        && js(eNone) === js({ asked: ['auth'], threw: '', types: ['auth', 'wait'], says: [askOf('Kay', true)], admitted: [], waiting: 0, open: true, atTable: [], after: { admitted: ['pN'], atTable: ['pN'] } }), js([eKick, eBan, eNone]));
+}
+
 /* ================= identity validation, whitelist, storms, versions, passwords ================= */
 {
     const h = harness();
@@ -3646,7 +3797,7 @@ pendingChecks.push((async () => {
         'hidden: sensesHidden, drop: sensesDrop, forgetMap: sensesForgetMap, keys: sensesKeys, banned: function() { return bannedIds; }, reads: sensesReads,',
         'targets: typeof broadcastTargets === \'function\' ? broadcastTargets : null, targetsFor: typeof targetsFor === \'function\' ? targetsFor : null,',
         'copy: fogCopyFor, pos: broadcastPos, saveSoon: saveRemoteSoon, turn: turnFxStart, ms: SENSES_RESEND_MS, last: function() { return _lastSent; } };'].join('\n');
-    const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'own', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render'];
+    const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'own', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster'];
     // a player's live move and the map copy their app saves after it: the real pos gate and the real patch path, over the same net, fog, relay and save
     const buildPos = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign', 'bellOut',
         clS2 + ownKeySrc + posS2 + '\n' + patS2 + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m, p) { return applyClientItemFiltered(m, p); } };');
@@ -3677,8 +3828,8 @@ pendingChecks.push((async () => {
         const camp = { id: 'k', system: o.system || sysS, fog: { fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 30 } }, items, chars: {
             c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sight: 60, f_fx: [] } }, c_b: { id: 'c_b', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sight: 60 } },
             c_c: { id: 'c_c', name: 'Cy', ownerId: 'u_c', npc: false, values: { f_sight: 60 } }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: { f_sight: 60 } } } };
-        const W = { ev, camp, feats, live: true, saves: [], shared: [], chat: [], bc: [] };
-        const mkConn = (peer, open) => ({ peer, open, sent: [], send(m) { packCheck(m); ev.push('send:' + peer + ':' + m.type + (m.itemId ? ':' + m.itemId : '')); this.sent.push(JSON.parse(j(m))); } });
+        const W = { ev, camp, feats, live: true, saves: [], shared: [], chat: [], bc: [], seq: [] };   // seq (M1 round 2): every send, the redraw and the roster going out, in order
+        const mkConn = (peer, open) => ({ peer, open, sent: [], send(m) { packCheck(m); W.seq.push('send:' + peer + ':' + m.type); ev.push('send:' + peer + ':' + m.type + (m.itemId ? ':' + m.itemId : '')); this.sent.push(JSON.parse(j(m))); } });
         W.a1 = mkConn('pA1', true); W.a2 = mkConn('pA2', true); W.b1 = mkConn('pB', true); W.w1 = mkConn('pW', true); W.c1 = mkConn('pC', false);
         W.net = { active: true, role: 'host', paused: false, applyingRemote: false, myId: 'u_gm', conns: [W.a1, W.a2, W.b1, W.w1, W.c1], roster: { pA1: { id: 'u_a', name: 'Pat' }, pA2: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' }, pC: { id: 'u_c', name: 'Cy' } }, combats: {}, targets: {} };
         const win = { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpDiceCore: null, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => (W.net.role === 'host' ? 'host' : 'client') }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } };
@@ -3695,11 +3846,11 @@ pendingChecks.push((async () => {
         W.made = ms => W.timers.filter(t => t.ms === ms).length;
         W.state = { appState: { campaigns: { k: camp } } }; W.SC = () => Sx; W.toasts = [];
         W.api = buildNet(W.net, () => W.SC(), win, () => false, getCamp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), m => W.chat.push(m),
-            W.state, () => (W.delta === undefined ? false : W.delta), (m, x) => { W.bc.push(JSON.parse(j(m))); W.shared.push(m.type + ':' + (m.itemId || '')); }, {}, setT, clearT, a => W.saves.push([a, W.net.applyingRemote]), t => W.toasts.push(t), () => {}, () => ev.push('roster'), pid => ev.push('dropWaiting:' + pid), () => true, () => {});
+            W.state, () => (W.delta === undefined ? false : W.delta), (m, x) => { W.bc.push(JSON.parse(j(m))); W.shared.push(m.type + ':' + (m.itemId || '')); }, {}, setT, clearT, a => W.saves.push([a, W.net.applyingRemote]), t => W.toasts.push(t), () => {}, () => ev.push('roster'), pid => ev.push('dropWaiting:' + pid), () => true, () => W.seq.push('render'), () => W.seq.push('roster-out'));
         W.ats = () => { const o2 = {}, s = W.api.at(); Object.keys(s).sort().forEach(k => { o2[k] = s[k]; }); return o2; };
         W.invs = () => ev.filter(e => /^inv(:|$)/.test(e));
         W.itemsOut = () => W.net.conns.map(c => c.sent.filter(m => m.type === 'item').length);
-        W.clear = () => { ev.length = 0; W.net.conns.forEach(c => { c.sent.length = 0; }); };
+        W.clear = () => { ev.length = 0; W.seq.length = 0; W.net.conns.forEach(c => { c.sent.length = 0; }); };
         W.sendAll = () => { Object.keys(camp.items).forEach(id => W.net.broadcastItemFiltered('k', id)); W.clear(); W.shared.length = 0; };   // every map as the table holds it: the copies made here seed what each player's was made by
         W.gm = (charId, v) => { camp.chars[charId].values.f_sight = v; W.net.syncCharDelta(charId, { f_sight: v }); };
         W.pendKeys = () => Object.keys(W.api.pend()).sort();
@@ -4390,16 +4541,29 @@ pendingChecks.push((async () => {
         G.clear(); G.net.role = 'client'; G.net.itemGone('k', 'mO'); G.net.itemGone('k', 'mU'); const gQuiet = [G.api.keys(), G.net.conns.map(c => c.sent.length), Object.keys(G.api.last())];
         check('senses S0: when a map leaves the table (net.itemGone, run for real) every player\'s rows of it go with its sends, which never fire, and the other maps\' stay and still send; the players are told as ever, admitted and open connections only; off a session the rows and the baseline go and nobody is told',
             j(gBase) === j(['mU']) && j(gOut) === j([['u_a|mO', 'u_b|mO'], ['u_b|mO'], 2, ['itemGone:mA', 'itemGone:mA', 'itemGone:mA', '', ''], 1, ['mO:tB2+orc3']]) && j(gQuiet) === j([[], [0, 0, 0, 0, 0], []]), j([gBase, gOut, gQuiet]));
-        const kick = (pre, peer) => { const K = mkW({ maps: ['mA', 'mO'] }); K.gm('c_a', 70); K.gm('c_b', 70); if (pre) pre(K); K.clear(); let threw = ''; try { K.net.kickPlayer(peer || 'pA1'); } catch (e) { threw = e.message; }
-            return { K, keys: K.api.keys().slice().sort(), pend: K.pendKeys(), cleared: K.ev.filter(e => e === 'clear:500').length, roster: Object.keys(K.net.roster), banned: Object.keys(K.api.banned()), told: K.net.conns.map(c => c.sent.map(m => m.type).join()).join('/'), waiting: K.ev.filter(e => /^dropWaiting/.test(e)), close: K.made(400), threw }; };
-        const bRows = ['u_b|mA', 'u_b|mO'], k1 = kick(), k1Fired = k1.K.fire(500), k1Items = [k1.K.items(k1.K.a1), k1.K.items(k1.K.a2)];
-        k1.K.clear(); k1.K.net.kickPlayer('pA2'); const k2 = [k1.K.api.keys().slice().sort(), k1.K.pendKeys(), k1.K.ev.filter(e => e === 'clear:500').length];
+        // fold M1: every admitted connection of the removed profile goes with the one clicked (each told 'kicked', out of the roster, closed after 400 ms)
+        const kick = (pre, peer) => { const K = mkW({ maps: ['mA', 'mO'] }); K.gm('c_a', 70); K.gm('c_b', 70); K.net.conns.forEach(c => { c.close = () => { K.ev.push('close:' + c.peer); }; }); if (pre) pre(K); K.clear(); const t0 = K.toasts.length; let threw = ''; try { K.net.kickPlayer(peer || 'pA1'); } catch (e) { threw = e.message; }
+            const r = { K, keys: K.api.keys().slice().sort(), pend: K.pendKeys(), cleared: K.ev.filter(e => e === 'clear:500').length, roster: Object.keys(K.net.roster), banned: Object.keys(K.api.banned()), told: K.net.conns.map(c => c.sent.map(m => m.type).join()).join('/'), waiting: K.ev.filter(e => /^dropWaiting/.test(e)), close: K.made(400), toasts: K.toasts.length - t0, threw };
+            r.shutAt = K.ev.filter(e => /^close:/.test(e)).length; K.fire(400); r.shut = K.ev.filter(e => /^close:/.test(e)); return r; };
+        const bRows = ['u_b|mA', 'u_b|mO'], k1 = kick(), k1Fired = k1.K.fire(500), k1Items = [k1.K.items(k1.K.a1), k1.K.items(k1.K.a2), k1.K.items(k1.K.b1)];
+        // after the kick: a GM save of each map, a whole map to the table, a change of Ana's Sight and every senses timer fired — nothing more reaches either connection of hers
+        k1.K.clear(); k1.K.net.sendItem('k', 'mA'); k1.K.net.sendItem('k', 'mO'); k1.K.net.broadcastItemFiltered('k', 'mA'); k1.K.gm('c_a', 75); k1.K.gm('c_b', 75); const k1Later = { made: k1.K.waiting(500), pend: k1.K.pendKeys(), fired: k1.K.fire(500), a1: k1.K.a1.sent.length, a2: k1.K.a2.sent.length, b1: k1.K.items(k1.K.b1), rows: k1.K.api.keys().slice().sort() };
+        k1.K.clear(); k1.K.net.kickPlayer('pA2'); const k2 = [k1.K.api.keys().slice().sort(), k1.K.pendKeys(), k1.K.ev.filter(e => e === 'clear:500').length, k1.K.net.conns.map(c => c.sent.map(m => m.type).join()).join('/'), Object.keys(k1.K.api.banned())];
         const kShut = kick(K => { K.a2.open = false; }), kOut = kick(K => { delete K.net.roster.pA2; }), kLast = kick(null, 'pB'), kNone = kick(null, 'pGhost'), kWait = kick(null, 'pW'), kClient = kick(K => { K.net.role = 'client'; });
-        check('senses S0: a player removed from the session (net.kickPlayer, run for real) is forgotten there and then — their rows and their sends go, since the close that follows finds nobody to forget — unless another admitted connection of theirs is still open, which keeps them and still gets its map; when that one is removed, closed or no longer admitted, all of it goes; another player\'s rows never do; removing a peer not at the table forgets nobody',
-            j(k1.keys) === j(['u_a|mA', 'u_a|mO'].concat(bRows)) && j(k1.pend) === j(['u_a|mA', 'u_b|mA', 'u_b|mO']) && k1.cleared === 0 && j(k1.roster) === j(['pA2', 'pB', 'pC']) && j(k1.banned) === j(['u_a']) && k1.told === 'kicked////' && j(k1.waiting) === j(['dropWaiting:u_a']) && k1.close === 1 && k1.threw === ''
-            && k1Fired === 3 && j(k1Items) === j([[], ['mA:tA+orc']]) && j(k2) === j([bRows, [], 0])
-            && [kShut, kOut].every(r => j(r.keys) === j(bRows) && j(r.pend) === j(bRows) && r.cleared === 1 && r.threw === '') && j(kLast.keys) === j(['u_a|mA', 'u_a|mO']) && j(kLast.pend) === j(['u_a|mA']) && kLast.cleared === 2
-            && [kNone, kWait, kClient].every(r => r.keys.length === 4 && r.pend.length === 3 && r.cleared === 0 && r.banned.length === 0 && r.threw === '') && kClient.told === '////' && kClient.close === 0, j([k1.keys, k1.pend, k1.told, k1Items, k2, kShut.keys, kOut.keys, kLast.keys, kNone.keys, kClient.told]));
+        check('senses S0 and M1: a player removed from the session (net.kickPlayer, run for real) is forgotten there and then — their rows and their sends go, since the close that follows finds nobody to forget — and, CHANGED in fold M1, so is every other admitted connection of theirs: it is told \'kicked\', leaves the roster and is closed after 400 ms, and no GM save, whole map, change of Sight or senses timer sends it anything afterwards (before, it stayed and still got its map); a second connection already closed or no longer admitted changes none of it; another player\'s rows never go; removing a peer not at the table forgets nobody',
+            j(k1.keys) === j(bRows) && j(k1.pend) === j(bRows) && k1.cleared === 1 && j(k1.roster) === j(['pB', 'pC']) && j(k1.banned) === j(['u_a']) && k1.told === 'kicked/kicked///' && j(k1.waiting) === j(['dropWaiting:u_a']) && k1.close === 2 && k1.shutAt === 0 && j(k1.shut) === j(['close:pA1', 'close:pA2']) && k1.toasts === 1 && k1.threw === ''
+            && k1Fired === 2 && j(k1Items) === j([[], [], ['mA:tB', 'mO:tB2+orc3']]) && j(k1Later) === j({ made: 2, pend: bRows, fired: 2, a1: 0, a2: 0, b1: ['mA:tB', 'mO:tB2+orc3', 'mA:tB', 'mA:tB', 'mO:tB2+orc3'], rows: bRows }) && j(k2) === j([bRows, [], 0, '/kicked///', ['u_a']])
+            && [kShut, kOut].every(r => j(r.keys) === j(bRows) && j(r.pend) === j(bRows) && r.cleared === 1 && j(r.roster) === j(['pB', 'pC']) && r.threw === '') && kShut.told === 'kicked/kicked///' && kShut.close === 2 && kOut.told === 'kicked////' && kOut.close === 1 && j(kOut.shut) === j(['close:pA1'])
+            && j(kLast.keys) === j(['u_a|mA', 'u_a|mO']) && j(kLast.pend) === j(['u_a|mA']) && kLast.cleared === 2 && j(kLast.roster) === j(['pA1', 'pA2', 'pC']) && j(kLast.banned) === j(['u_b']) && kLast.told === '//kicked//' && j(kLast.shut) === j(['close:pB'])
+            && [kNone, kWait, kClient].every(r => r.keys.length === 4 && r.pend.length === 3 && r.cleared === 0 && r.banned.length === 0 && r.roster.length === 4 && r.waiting.length === 0 && r.threw === '') && kWait.told === '///kicked/' && j(kWait.shut) === j(['close:pW']) && kNone.told === '////' && kNone.close === 0
+            && kClient.told === '////' && kClient.close === 0 && kClient.toasts === 0, j([k1.keys, k1.pend, k1.cleared, k1.roster, k1.told, k1.close, k1.shut, k1.toasts, k1Fired, k1Items, k1Later, k2, kShut.told, kOut.told, kLast.keys, kLast.told, kNone.told, kWait.told, kClient.told]));
+        // M1 round 2: the removed player's target pointer goes with them, through the real broadcastTargets on this fogged table (each admitted player their own view)
+        const ptrs = () => ({ u_a: { mapId: 'mA', id: 'orc' }, u_b: { mapId: 'mA', id: 'tB' } });
+        const kT = kick(K => { K.net.targets = ptrs(); }), kTo = { targets: Object.keys(kT.K.net.targets), seq: kT.K.seq.slice(), pB: kT.K.b1.sent.filter(m => m.type === 'targets').map(m => Object.keys(m.targets)), told: kT.told, shut: kT.shut };
+        const kTn = kick(K => { K.net.targets = { u_b: ptrs().u_b }; }), kTw = kick(K => { K.net.targets = ptrs(); }, 'pW');
+        check('senses S0 and M1 round 2: on a fogged table a removed player\'s target pointer is deleted, the map redrawn, and the real broadcastTargets sends the rest to the one admitted open connection left (pB, the pointer it may see), then the roster goes out, all before either of the removed connections is told \'kicked\'; they, the waiting peer and the closed connection get no pointers; a player with no pointer sends none and the roster still goes out; removing a waiting peer sends neither and keeps every pointer',
+            j(kTo) === j({ targets: ['u_b'], seq: ['render', 'send:pB:targets', 'roster-out', 'send:pA1:kicked', 'send:pA2:kicked'], pB: [['u_b']], told: 'kicked/kicked/targets//', shut: ['close:pA1', 'close:pA2'] })
+            && j([Object.keys(kTn.K.net.targets), kTn.K.seq]) === j([['u_b'], ['roster-out', 'send:pA1:kicked', 'send:pA2:kicked']]) && j([Object.keys(kTw.K.net.targets), kTw.K.seq, kTw.told]) === j([['u_a', 'u_b'], ['send:pW:kicked'], '///kicked/']), j([kTo, kTn.K.seq, kTw.K.seq]));
     }
 
     // 24. the rule 'a waiting token sees' (net.syncNewPlayers, run for real), and a merge while hosting (main.js)

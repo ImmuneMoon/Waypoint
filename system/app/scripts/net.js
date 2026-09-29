@@ -3273,6 +3273,9 @@ function processNextApproval() {
     var next = pendingJoins.shift();
     if (!next) return;
     if (!next.conn.open) { processNextApproval(); return; }   // gave up waiting
+    var campQ = getActiveCampaign();   // fold M1: removed or banned while the request waited: never put to the GM
+    if (next.prof && own(bannedIds, next.prof.id)) { denyJoin(next.conn, 'You were removed from this session.'); processNextApproval(); return; }   // the words the hello gate gives, in its order
+    if (next.prof && campQ && campQ.bannedPlayers && own(campQ.bannedPlayers, next.prof.id)) { denyJoin(next.conn, 'You are banned from this campaign.'); processNextApproval(); return; }
     approvalOpen = true;
     var hint = next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
     showConfirm('"' + (next.prof.name || 'A player') + '" wants to join your table' + hint + '. Let them in?', function(yes) {
@@ -3292,15 +3295,21 @@ function processNextApproval() {
 
 net.kickPlayer = function(peerKey) {
     if (net.role !== 'host') return;
-    var conn = net.conns.find(function(c) { return c.peer === peerKey; });
     var p = own(net.roster, peerKey) ? net.roster[peerKey] : null;
-    if (p) { bannedIds[p.id] = true; delete net.roster[peerKey]; renderRoster(); }
-    if (p && p.id && typeof sensesForget === 'function' && !net.conns.some(function(c) { return c.open && c.peer !== peerKey && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: the close that follows finds no roster entry to forget them by
+    // fold M1: removing a player removes every admitted connection of theirs (a reconnect inside the heartbeat's grace, or a modified client,
+    // can hold two); a peer not admitted is only the one clicked
+    var keys = p && p.id ? Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === p.id; }) : [peerKey];
+    if (p) { bannedIds[p.id] = true; keys.forEach(function(k) { delete net.roster[k]; }); renderRoster(); }
+    if (p && p.id && typeof sensesForget === 'function') sensesForget(p.id);   // Senses S0: no connection of theirs is left, and the closes that follow find no roster entry to forget them by
     if (p) dropWaitingFor(p.id);   // Onboarding F1a: their waiting token goes with them   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
-    if (conn) {
-        try { conn.send({ type: 'kicked' }); } catch (e) { sendFailed(e); }
-        setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
-    }
+    if (p && p.id && net.targets && own(net.targets, p.id)) { delete net.targets[p.id]; if (typeof render === 'function') render(); if (typeof broadcastTargets === 'function') broadcastTargets(); }   // fold M1: their pointer goes with them (the removed get none of these: every send is roster-gated)
+    if (p && typeof broadcastRoster === 'function') broadcastRoster();   // and the others' party strip no longer shows them
+    keys.forEach(function(k) {   // every connection under each of their keys (a second data connection from one peer id too)
+        net.conns.filter(function(c) { return c.peer === k; }).forEach(function(conn) {
+            try { conn.send({ type: 'kicked' }); } catch (e) { sendFailed(e); }
+            setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
+        });
+    });
     toast((p && p.name ? p.name : 'Player') + ' removed from the session.');
 };
 

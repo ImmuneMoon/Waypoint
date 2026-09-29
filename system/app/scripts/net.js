@@ -2535,7 +2535,10 @@ function handlePos(msg, conn) {
         if (w.hidden || !(w.isChar || w.waiting) || (typeof pr.location === 'string' && msg.itemId !== pr.location)) return;   // the same Hide rule as patches (a final pos used to fire travel and room handouts), a character token only, on the map they are on
         msg.final = msg.final === true;   // one reading of final everywhere below (handouts and seating used to take any truthy value)
         if (w.locked) return;   // and the same lock rule: a token the GM locked is frozen for its player
-        if (!allow('pos', { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;   // ~60 moves a second is a drag; more is a flood
+        // ~60 moves a second is a drag; more is a flood. Fold M9: a final has its own limiter with no spacing, so a drop is never lost to the 8 ms
+        // spacing of the drag's last move, nor one token's drop to another's in the same gesture; 240 in 4 s is the Facing dial held at the
+        // system's key repeat (about 120) with room for a drop of several of their tokens
+        if (!allow(msg.final ? 'posFinal' : 'pos', msg.final ? { perMs: 0, burst: 240, windowMs: 4000, table: 20000 } : { perMs: 8, burst: 240, windowMs: 4000, table: 20000 }, conn.peer)) return;
         var px = Number(msg.x), py = Number(msg.y), prot = Number(msg.rot || 0), pfr = Number(msg.front || 0);
         if (!isFinite(px) || !isFinite(py) || !isFinite(prot) || !isFinite(pfr)) return;
         msg.x = Math.max(-30000, Math.min(60000, px)); msg.y = Math.max(-30000, Math.min(60000, py)); msg.rot = Math.max(-1e6, Math.min(1e6, prot)); msg.front = Math.max(-1e6, Math.min(1e6, pfr));   // bounded (see the item gate)

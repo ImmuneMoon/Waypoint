@@ -628,7 +628,12 @@ function dropWaiting(c) {
 // its items cleaned as Merge cleans them, and every id an own key — a campaign or an item under a prototype key never comes in, a parent
 // that did not come in is let go, an active id that is not an own key is repaired. The table can be hosted the moment this returns.
 // Returns the cleaned state, or null when no campaign is left (or no normaliser was given: nothing comes in raw).
+// A file the normaliser or a cleaner cannot read, whatever the reason, brings nothing in (owner, 2026-09-29): the caller then says so ("Nothing
+// in that file could be brought in.") instead of failing with no word; the live table is never touched either way
 function cleanImport(data, deps) {
+    try { return cleanImportOf(data, deps); } catch (e) { return null; }
+}
+function cleanImportOf(data, deps) {
     if (!isObj(data) || !isObj(data.campaigns)) return null;
     var own = function(o, k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && !(k in Object.prototype); };
     Object.keys(data.campaigns).forEach(function(id) {

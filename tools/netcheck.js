@@ -4475,7 +4475,7 @@ pendingChecks.push((async () => {
     const stA = src.indexOf('function sendCharTo(pid, id) {'), stB = src.indexOf('net.sendCharTo = sendCharTo;'), stSrc = stA > 0 && stB > stA ? src.slice(stA, stB + 'net.sendCharTo = sendCharTo;'.length) : '';
     const shT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
     const cut = (t, a, b) => { const i = t.indexOf(a), k = i < 0 ? -1 : t.indexOf(b, i); return i < 0 || k < 0 ? '' : t.slice(i, k + b.length); };
-    const pfSrc = shT.slice(shT.indexOf('function playerFinder('), shT.indexOf('function fromShadowBase(')), acSrc = cut(shT, 'function afterCharChange(c, whole, values) {', '\n}\n'), apSrc = cut(shT, '    apply.onclick = function() {', '\n    };\n');
+    const pfSrc = shT.slice(shT.indexOf('function playerFinder('), shT.indexOf('function fromShadowBase(')), sfSrc = cut(shT, 'function sbFinder(camp, sys) {', '\n}\n'), acSrc = cut(shT, 'function afterCharChange(c, whole, values) {', '\n}\n'), apSrc = cut(shT, '    apply.onclick = function() {', '\n    };\n');
     const lvl = { label: 'Level', min: 0, max: 20, def: 0 }, num = ks => ks.map(k => ({ key: k }));
     const L = (id, key, cat, list) => ({ id, key, label: key, kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ cats: [cat], lvl }, list) });
     const sysT = gm => Sx.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', edit: 'gm', def: 10 }, { id: 'f_dg', key: 'Dodge', label: 'Dodge', kind: 'number', vis: 'all', edit: 'gm', def: 8 }]
@@ -4484,7 +4484,7 @@ pendingChecks.push((async () => {
             L('f_dis', 'Disadvantages', 'Flaw', { noQty: true, multi: true, stats: num(['bp', 'per', 'granted']) }), L('f_pw', 'Powers', 'Power', { noQty: true, stats: num(['cpA', 'cpC', 'cpK', 'fpP', 'epP', 'al', 'granted']) }),
             L('f_tq', 'Techniques', 'Technique', { stats: num(['cpA', 'cpC', 'cpK', 'skB', 'granted']) }), L('f_fm', 'Forms', 'Form', { noQty: true, on: { label: 'Active' }, stats: num(['cpA', 'granted']) })]),
         items: [{ id: 'i_par', name: 'Guarded Parry', category: 'Trait', stats: { bp: 5 } }, { id: 'i_keen', name: 'Keen Eye', category: 'Trait', stats: { bp: 2 } }, { id: 'i_cow', name: 'Cowardice', category: 'Flaw', stats: { bp: -10 } },
-            { id: 'i_push', name: 'Push', category: 'Power', stats: { cpA: 4, cpC: 2 } }, { id: 'i_feint', name: 'Feint', category: 'Technique', stats: { cpA: 3 } }, { id: 'i_form', name: 'First Form', category: 'Form', stats: { cpA: 5 } }]
+            { id: 'i_push', name: 'Push', category: 'Power', stats: { cpA: 4, cpC: 2, fpP: 2030405, al: 2, granted: 3 } }, { id: 'i_feint', name: 'Feint', category: 'Technique', stats: { cpA: 3 } }, { id: 'i_form', name: 'First Form', category: 'Form', stats: { cpA: 5 } }]
             .concat(gm ? [{ id: 'i_hid', name: 'Hidden Gift', category: 'Trait', vis: 'gm', stats: { bp: 7 } }] : []) }, { F: Fx, gmView: true });
     const viewOf = cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false });
     const finder = s => nm => s.items.filter(e => e.name.toLowerCase() === String(nm).trim().toLowerCase());
@@ -4493,31 +4493,33 @@ pendingChecks.push((async () => {
     const twice = { name: 'Vex', attributes: { strength: { value: 13 } }, traits: {
             advantages: [{ name: 'Guarded Parry', points: 5 }, { name: 'Guarded Parry', points: 5, modifiers: { dodge: 1 } }, { name: 'Keen Eye', points: 2 }, { name: 'Hidden Gift', points: 7 }, { name: 'Hidden Gift', points: 7 }],
             quirks: [{ name: 'Keen Eye', points: 2 }], disadvantages: [{ name: 'Cowardice', points: -10 }, { name: 'Cowardice', points: -10 }] },
-        abilities: { forcePowers: [{ name: 'Push', level: 3 }, { name: 'Push', level: 3 }], lightsaberForms: [{ name: 'First Form', level: 2, cpCost: 5, active: true }, { name: 'First Form', level: 1, cpCost: 7 }] } };
+        abilities: { forcePowers: [{ name: 'Push', level: 3 }, { name: 'Push', level: 3, fpCost: 3, epCost: 1, alignment: 'DS' }], lightsaberForms: [{ name: 'First Form', level: 2, cpCost: 5, active: true }, { name: 'First Form', level: 1, cpCost: 7 }] } };
     const counted = { name: 'Vex', abilities: { combatTechniques: [{ name: 'Feint', level: 1, cpCost: 3 }, { name: 'Feint', level: 1, cpCost: 3 }] } };
     const stated = { name: 'Vex', abilities: { forcePowers: [{ name: 'Push', level: 3, cpCost: 8 }, { name: 'Push', level: 3, cpCost: 5 }] } };   // the second row states a cost of its own
     const run = (o) => {
-        o = o || {}; const sys = sysT(o.gm), ch = Object.assign({ id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, values: { f_st: 10 } }, o.play ? {} : { making: 1 }, o.ch || {});
-        const camp = { id: 'k', system: sys, chars: { c_m: ch, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } };
+        o = o || {}; const sys = o.sys || sysT(o.gm), ch = Object.assign({ id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, values: { f_st: 10 } }, o.play ? {} : { making: 1 }, o.ch || {});
+        const camp = { id: 'k', system: sys, chars: { c_m: ch, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } }; if (o.packs) camp.library = { packs: o.packs };
         const out = { answer: [], owner: [], mate: [], toasts: [], logs: [], told: [], saves: 0, allowed: [], at: o.at || {}, camp, ch, sys }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
         const conn = { peer: 'pA', send: box(out.answer) };
         const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }], roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } } };
-        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpLibrary: { state: () => 'ready' }, wpSheets: { sbFinder: (cp, s) => finder(s), charChanged() {}, uploadsChanged: id => out.told.push(id), playerSystem: viewOf } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpLibrary: Object.assign({ state: () => 'ready' }, o.lib || {}), wpSheets: { sbFinder: (cp, s) => finder(s), charChanged() {}, uploadsChanged: id => out.told.push(id), playerSystem: o.libCats ? cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false, libCats: o.libCats }) : viewOf } };   // libCats: the library's categories, as playerSystem reads them on the GM's machine
         win.wpSheets.playerFinder = new Function('window', pfSrc + '\nreturn playerFinder;')(win);
+        if (o.realFinder) win.wpSheets.sbFinder = new Function('window', sfSrc + '\nreturn sbFinder;')(win);   // F11b: the GM's own finder (sheets.js, sliced) over the stub library
         const handle = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', 'sheetsOnFor', 'allow',
             'var _charPending = {}, _charSlowSaid = {}, _charHost = {}, _rowGrace = {}, charLimit = null;\n' + dlSrc.replace('var _uploadAt = {}, UPLOAD_GAP_MS = 10000;', '') + '\n' + stSrc + '\nreturn function(msg, conn) {\n' + upSrc + '\n};')(
             net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), out.at, 10000, () => true,
             (k, lim, peer) => { out.allowed.push(k); return o.slow !== k; });
         handle(Object.assign({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: twice }, o.msg || {}), conn);
+        out.again = sheet => { delete out.at.pA; handle({ type: 'char-upload', rid: 'e2', charId: 'c_m', sheet }, conn); };   // a later upload of the same player (past the rate)
         out.net = net; out.win = win; return out;
     };
     // a row as the checks read it: the entry it copies or the name it carries, its level, its switch, its count, its own numbers and changes
     const rowsOf = (vals, fid) => (vals[fid] || []).map(r => r.defId ? [r.defId, r.lvl, r.on === true, r.qty] : ['own', r.def && r.def.name, r.lvl, r.on === true, r.def && r.def.stats, (r.def && r.def.mods) || null]);
     const shape = vals => ({ adv: rowsOf(vals, 'f_adv'), qk: rowsOf(vals, 'f_qk'), dis: rowsOf(vals, 'f_dis'), pw: rowsOf(vals, 'f_pw'), tq: rowsOf(vals, 'f_tq'), fm: rowsOf(vals, 'f_fm') });
-    const par2 = ['own', 'Guarded Parry', 0, false, { bp: 5 }, [{ f: 'f_dg', op: 'add', v: 1 }]], push2 = ['own', 'Push', 3, false, { cpA: 4, cpC: 2, fpP: 0, epP: 0, al: 1 }, null], form2 = ['own', 'First Form', 1, false, { cpA: 7 }, null], gift = ['own', 'Hidden Gift', 0, false, { bp: 7 }, null];
+    const par2 = ['own', 'Guarded Parry', 0, false, { bp: 5 }, [{ f: 'f_dg', op: 'add', v: 1 }]], push2 = ['own', 'Push', 3, false, { cpA: 4, cpC: 2, fpP: 2030405, al: 2 }, null], form2 = ['own', 'First Form', 1, false, { cpA: 7 }, null], gift = ['own', 'Hidden Gift', 0, false, { bp: 7 }, null];
     const want = { adv: [['i_par', 0, false, 1], par2, ['i_keen', 0, false, 1], gift, gift], qk: [['i_keen', 0, false, 1]], dis: [['i_cow', 0, false, 1], ['i_cow', 0, false, 1]], pw: [['i_push', 3, false, 1], push2], tq: [], fm: [['i_form', 2, true, 1], form2] };
     const M = run(), MG = run({ gm: true }), mOwn = M.owner.length === 1 ? M.owner[0] : {}, mChar = mOwn.char || { values: {} };
-    check('a file with one entry twice (making, host, run for real): on a list that takes an entry once the first row is the library\'s and the second a row of its own with the file\'s name, points and changes — a trait, a power (no cost in the file: priced as the entry is, by its level), a form (its own cost, level and switch); every row is counted in the answer and none left out',
+    check('a file with one entry twice (making, host, run for real): on a list that takes an entry once the first row is the library\'s and the second a row of its own with the file\'s name, points and changes — a trait, a power (no cost in the file: priced as the entry is, by its level, with the entry\'s FP and alignment and none of the FP, EP or alignment the file states, and no granted points the file does not state), a form (its own cost, level and switch); every row is counted in the answer and none left out',
         j(M.answer) === j([{ n: 0, auto: 13, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(shape(M.ch.values)) === j(want) && M.ch.values.f_st === 13 && j(M.allowed) === j(['charfill']) && M.saves === 1
         && M.toasts.length === 1 && /^Pat filled Vex from a file \(13 parts\) /.test(M.toasts[0]) && !/left out/.test(M.toasts[0]) && !M.camp.uploads, j([M.answer, shape(M.ch.values), M.toasts]));
     check('a file with one entry twice (making): the second entry of a once-only list and the same entry on another once-only list stay the library\'s (what a file added is kept per list and per entry); a list that takes several rows of an entry holds two library rows as before',
@@ -4542,10 +4544,10 @@ pendingChecks.push((async () => {
     // (b) the same file for a character in play: the GM's queue, then the GM's own Apply (sheets.js, sliced) and the real send
     const P = run({ play: true }), PG = run({ play: true, gm: true }), upP = (P.camp.uploads || [])[0] || { changes: [] };
     const adds = (up, label) => up.changes.filter(c => c.label === label).map(c => [c.kind, c.accept, (c.ops || []).map(q => q.op === 'add' ? 'add:' + q.defId : q.op === 'custom' ? 'custom:' + q.def.name + ':' + j(q.def.stats) + ':' + j(q.def.mods || null) : q.op + ':' + j(q.facts))]);
-    check('a file with one entry twice (an upload for review, host, run for real): the GM\'s queue holds an add for each of the two rows — the library\'s entry, then a row of its own with the file\'s name, points and changes — for a trait, a power and a form; the answer counts them all; the character is unchanged and nobody is sent anything until the GM applies it',
+    check('a file with one entry twice (an upload for review, host, run for real): the GM\'s queue holds an add for each of the two rows — the library\'s entry, then a row of its own with the file\'s name, points and changes (a power\'s priced and costed as the entry is, never by the FP, EP or alignment the file states) — for a trait, a power and a form; the answer counts them all; the character is unchanged and nobody is sent anything until the GM applies it',
         j(P.answer) === j([{ n: 13, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && (P.camp.uploads || []).length === 1 && upP.charId === 'c_m' && upP.from === 'u_a' && upP.changes.length === 13 && upP.changes.filter(c => c.kind === 'add').length === 12
         && j(adds(upP, 'Advantages: Guarded Parry')) === j([['add', true, ['add:i_par', 'set:{"lvl":0}']], ['add', true, ['custom:Guarded Parry:{"bp":5}:[{"f":"f_dg","op":"add","v":1}]', 'set:{"lvl":0}']]])
-        && j(adds(upP, 'Powers: Push')) === j([['add', true, ['add:i_push', 'set:{"lvl":3}']], ['add', true, ['custom:Push:{"cpA":4,"cpC":2,"fpP":0,"epP":0,"al":1}:null', 'set:{"lvl":3}']]])
+        && j(adds(upP, 'Powers: Push')) === j([['add', true, ['add:i_push', 'set:{"lvl":3}']], ['add', true, ['custom:Push:{"cpA":4,"cpC":2,"fpP":2030405,"al":2}:null', 'set:{"lvl":3}']]])
         && j(adds(upP, 'Forms: First Form')) === j([['add', true, ['add:i_form', 'set:{"lvl":2,"on":true}']], ['add', true, ['custom:First Form:{"cpA":7}:null', 'set:{"lvl":1,"on":false}']]])
         && j(adds(upP, 'Advantages: Keen Eye')) === j([['add', true, ['add:i_keen', 'set:{"lvl":0}']]]) && j(adds(upP, 'Quirks: Keen Eye')) === j([['add', true, ['add:i_keen', 'set:{"lvl":0}']]])
         && j(adds(upP, 'Disadvantages: Cowardice').map(a => a[2][0])) === j(['add:i_cow', 'add:i_cow'])
@@ -4554,8 +4556,8 @@ pendingChecks.push((async () => {
     check('a file with one entry twice (an upload for review): the answer to the player is counts only, the same with or without a GM-only field and entry; on the GM\'s own system the GM-only entry is the first row\'s and the second is a row of its own',
         j(PG.answer) === j(P.answer) && j(Object.keys(P.answer[0]).sort()) === j(['auto', 'n', 'rid', 'type']) && j(adds((PG.camp.uploads || [])[0] || { changes: [] }, 'Advantages: Hidden Gift').map(a => a[2][0])) === j(['add:i_hid', 'custom:Hidden Gift:{"bp":7}:null'])
         && PG.owner.length === 0 && PG.mate.length === 0, j([PG.answer, P.answer]));
-    const applyGm = (r) => {   // the GM's Apply as the Review window makes it: every ticked change, the character synced whole, the owner told the count
-        const up = Sx.cleanUploads(r.camp.uploads)[0], ticks = {}, said = [], done = [], apply = {}; up.changes.forEach(c => { ticks[c.id] = c.accept; });
+    const applyGm = (r, pick) => {   // the GM's Apply as the Review window makes it: every ticked change (pick: the GM's own ticks), the character synced whole, the owner told the count
+        const up = Sx.cleanUploads(r.camp.uploads)[0], ticks = {}, said = [], done = [], apply = {}; up.changes.forEach(c => { ticks[c.id] = pick ? pick(c) : c.accept; });
         r.net.uploadDone = (id, d, of) => done.push([id, d, of]);
         const after = new Function('getActiveCampaign', 'syncOwners', 'save', 'net', 'window', 'renderViews', acSrc + '\nreturn afterCharChange;')(() => r.camp, () => {}, () => { r.saves++; }, () => r.net, {}, () => {});
         new Function('apply', 'up', 'ticks', 'getActiveCampaign', 'systemOf', 'charById', 'F', 'sbApplyProposal', 'afterCharChange', 'net', 'toast', 'closeReview', 'var lastChange = null;\n' + apSrc)(
@@ -4577,6 +4579,188 @@ pendingChecks.push((async () => {
         j(mSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(mSlow) && j(mSlow.allowed) === j(['charfill']) && j(pSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(pSlow)
         && mBig.answer.length === 0 && still(mBig) && mBig.allowed.length === 0 && pBig.answer.length === 0 && still(pBig) && Sx.cleanCharUpload({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: twice }) !== null
         && hostBr.length === 24 && hostBr.filter(b => /'char-upload'/.test(b)).length === 1, j([mSlow.answer, pSlow.answer, mBig.answer, pBig.answer, hostBr.length]));
+    // (d) F11b: a twin's changes are its entry's as the host holds it, a GM-only field's included (the players' copy a fill reads lacks them); a later
+    // upload sends a row of its own whole (every stat, a dropped one as null, the changes where they differ, a twin's entry by id); a GM-only pack's
+    // entry reaches the GM's finder as its GM-only copy, so it lends a row of its own nothing
+    const dg1 = { f: 'f_dg', op: 'add', v: 1 };
+    const sysG = (dx, bare) => Sx.cleanSystem({ v: 1, name: 'G', rolls: [], fields: [{ id: 'f_dg', key: 'Dodge', label: 'Dodge', kind: 'number', vis: 'all', edit: 'gm', def: 8 }, { id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: dx, edit: 'gm', def: 10 },
+        L('f_adv', 'Advantages', 'Trait', { noQty: true, stats: num(['bp', 'per', 'granted']) })],
+        items: bare ? [] : [{ id: 'i_grit', name: 'Grit', category: 'Trait', notes: 'Stands firm.', stats: { bp: 0, per: 3 }, mods: [dg1, { f: 'f_dx', op: 'add', v: 2 }], modsOn: true }] }, { F: Fx, gmView: true });   // modsOn: its changes work while switched on, on a list with no switch
+    const gritM = [dg1, { f: 'f_dx', op: 'add', v: 2 }], grits = (p2, l2) => ({ name: 'Vex', traits: { advantages: [{ name: 'Grit', level: 2, points: 6 }, { name: 'Grit', level: l2 || 2, points: p2 === undefined ? 6 : p2 }] } });
+    const GM = run({ sys: sysG('gm'), msg: { sheet: grits() } }), GV = run({ sys: sysG('all'), msg: { sheet: grits() } });
+    const twinOwn = (msgs, fid) => { const c = msgs.length ? msgs[msgs.length - 1].char || {} : {}; return ((c.values || {})[fid] || []).filter(r => !r.defId && r.lnk !== 1).map(r => [r.def && r.def.name, r.def && r.def.stats, (r.def && r.def.mods) || null]); };
+    const pvGrit = (viewOf(GM.camp).items || []).filter(e => e.id === 'i_grit').map(e => e.mods);
+    check('a file with one entry twice (making, F11b): where the entry changes a field players may not see, the host\'s character holds the second row with the entry\'s changes as the host holds them, that field\'s included, though the players\' copy the file is read against lacks it; the library row stands first; the entry\'s "while switched on" is left off a list that has no switch, so the row is kept',
+        j(pvGrit) === j([[dg1]]) && j(shape(GM.ch.values).adv) === j([['i_grit', 2, false, 1], ['own', 'Grit', 2, false, { bp: 0, per: 3 }, gritM]]) && j(shape(GV.ch.values).adv) === j(shape(GM.ch.values).adv)
+        && (GM.ch.values.f_adv || []).filter(r => !r.defId).every(r => r.def.notes === 'Stands firm.' && !('modsOn' in r.def)) && (GM.camp.system.items[0] || {}).modsOn === true,
+        j([pvGrit, shape(GM.ch.values).adv, shape(GV.ch.values).adv, GM.answer, GM.ch.values.f_adv]));
+    check('a file with one entry twice (making, F11b): the answer is counts only and the same whether that field is GM-only or not; its owner alone is sent the character, and their copy carries no change to a GM-only field on any row, while a field they may see keeps its change',
+        j(GM.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(GV.answer) === j(GM.answer) && GM.owner.length === 1 && GM.mate.length === 0 && !/f_dx/.test(j(GM.owner))
+        && j(twinOwn(GM.owner, 'f_adv')) === j([['Grit', { bp: 0, per: 3 }, [dg1]]]) && j(twinOwn(GV.owner, 'f_adv')) === j([['Grit', { bp: 0, per: 3 }, gritM]]),
+        j([GM.answer, GV.answer, GM.owner, twinOwn(GV.owner, 'f_adv')]));
+    // an entry of a pack players may see: the players' index holds their copy (no change to the GM-only field), the host's own copy (the library's entry) holds it
+    const pkM = [dg1, { f: 'f_dx', op: 'add', v: 3 }], hostPk = { id: 'i_pk', name: 'Poise', category: 'Trait', vis: 'all', notes: 'Balanced.', stats: { bp: 0, per: 2 }, mods: pkM }, plPk = Object.assign({}, hostPk, { mods: [dg1] });
+    const rawIw = { id: 'i_iw', name: 'Iron Will', category: 'Trait', vis: 'all', notes: 'Unbending.', stats: { bp: 0, per: 2 }, mods: [dg1] }, packs = [{ id: 'p_gm', vis: 'gm' }, { id: 'p_all', vis: 'all' }];
+    const stubL = { playerIndexOf: pid => (pid === 'p_all' ? { byId: { i_pk: plPk } } : null), entry: id => (id === 'i_pk' ? hostPk : null), entriesOf: pid => (pid === 'p_all' ? [hostPk] : pid === 'p_gm' ? [rawIw] : []),
+        entryFor: id => (id === 'i_iw' ? Object.assign({}, rawIw, { vis: 'gm' }) : id === 'i_pk' ? hostPk : null) };   // entryFor as library.js hands an entry out: a GM-only pack's as its GM-only copy
+    const poises = { name: 'Vex', traits: { advantages: [{ name: 'Poise', level: 2, points: 4 }, { name: 'Poise', level: 2, points: 4 }] } };
+    const PK = run({ sys: sysG('gm', true), packs, lib: stubL, libCats: { show: ['Trait'], hide: [] }, msg: { sheet: poises } });
+    check('a file with one entry twice (making, F11b): for an entry of a pack players may see, the second row takes its changes from the host\'s own copy of the entry, never the players\' copy; the answer is counts only and its owner\'s copy carries no change to a GM-only field, on the library row or the second',
+        j(shape(PK.ch.values).adv) === j([['i_pk', 2, false, 1], ['own', 'Poise', 2, false, { bp: 0, per: 2 }, pkM]]) && j(PK.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && PK.owner.length === 1
+        && !/f_dx/.test(j(PK.owner)) && j(twinOwn(PK.owner, 'f_adv')) === j([['Poise', { bp: 0, per: 2 }, [dg1]]]), j([shape(PK.ch.values).adv, PK.answer, PK.owner]));
+    // C0: a later upload for review sends a row of its own whole — flat to twin (the entry's price and its changes, the twin's entry by id), then twin to flat (a dropped stat as null, no changes)
+    const R0 = run({ play: true, sys: sysG('gm'), msg: { sheet: grits(5) } }), A0 = applyGm(R0), gRow = () => (R0.ch.values.f_adv || []).filter(r => !r.defId).map(r => [r.lvl, r.def.stats, r.def.mods || null, 'modsOn' in r.def]);
+    const q0 = c => [c.kind, c.label, c.from, c.to, c.def || c.facts, c.twin || null], n1 = R0.owner.length, row1 = gRow();
+    R0.again(grits()); const up1 = Sx.cleanUploads(R0.camp.uploads), ans1 = R0.answer.slice(1);
+    const gi = R0.camp.system.items.filter(e => e.id === 'i_grit')[0], gritM2 = [{ f: 'f_dg', op: 'add', v: 2 }, { f: 'f_dx', op: 'add', v: 2 }]; gi.mods = gritM2;   // the GM changes the entry before Apply: the twin takes it as it is then
+    const A1 = applyGm(R0), row2 = gRow(), own2 = R0.owner.slice(n1), n2 = R0.owner.length;
+    R0.again(grits(8, 3)); const up2 = Sx.cleanUploads(R0.camp.uploads), A2 = applyGm(R0), row3 = gRow(), own3 = R0.owner.slice(n2);
+    check('a later upload for review (F11b): a row of its own the file now prices as its entry is comes to the GM as one change holding the whole of its stats, the entry\'s changes and the entry by id; once applied the row reads as the entry does, with the entry\'s changes as the host holds them then, and its owner is sent it without a change to a GM-only field',
+        j(A0.done) === j([['c_m', 2, 2]]) && j(row1) === j([[2, { bp: 5 }, null, false]]) && j(ans1) === j([{ n: 1, auto: 0, type: 'char-upload-ans', rid: 'e2' }]) && up1.length === 1
+        && j(up1[0].changes.map(q0)) === j([['def', 'Advantages: Grit', '{"bp":5}', '{"bp":0,"per":3} and its changes', { stats: { bp: 0, per: 3 }, mods: gritM }, 'i_grit']])
+        && j(A1) === j({ said: ['1 of 1 changes applied to Vex.'], done: [['c_m', 1, 1]] }) && j(row2) === j([[2, { bp: 0, per: 3 }, gritM2, false]]) && own2.length === 1 && !/f_dx/.test(j(own2)) && j(twinOwn(own2, 'f_adv')) === j([['Grit', { bp: 0, per: 3 }, [gritM2[0]]]]),
+        j([A0, row1, ans1, up1.length && up1[0].changes.map(q0), A1, row2, own2]));
+    check('a later upload for review (F11b): a row of its own the file prices otherwise comes to the GM with every stat the file no longer states sent to be dropped and its changes cleared; once applied the row holds the file\'s price alone, at the file\'s level, with no changes, and its owner is sent it',
+        up2.length === 1 && j(up2[0].changes.map(q0)) === j([['fact', 'Advantages: Grit', 'level 2', 'level 3', { lvl: 3 }, null], ['def', 'Advantages: Grit', '{"bp":0,"per":3}', '{"bp":8}, no changes', { stats: { per: null, bp: 8 }, mods: null }, null]])
+        && j(A2) === j({ said: ['2 of 2 changes applied to Vex.'], done: [['c_m', 2, 2]] }) && j(row3) === j([[3, { bp: 8 }, null, false]]) && own3.length === 1 && j(twinOwn(own3, 'f_adv')) === j([['Grit', { bp: 8 }, null]]) && j(R0.camp.uploads) === '[]',
+        j([up2.length && up2[0].changes.map(q0), A2, row3, own3]));
+    // the entry looked up afresh at Apply only for a second row: its library row on the list (a kept curse is not one) and an entry players may still see; else what the GM was shown
+    const newer = r => { const e = r.camp.system.items.filter(x => x.id === 'i_grit')[0]; e.mods = gritM2; return e; };
+    const RK = run({ play: true, sys: sysG('gm'), ch: { values: { f_adv: [{ id: 'w_k1', defId: 'i_grit', qty: 1, lvl: 2, hid: 1 }] } }, msg: { sheet: grits() } });
+    const kAdds = ((RK.camp.uploads || [])[0] || { changes: [] }).changes.map(c => (c.ops || []).map(q => q.op).join('+')); newer(RK);
+    const AK = applyGm(RK, c => c.kind === 'add' && c.ops.some(q => q.op === 'custom')), kRows = (RK.ch.values.f_adv || []).map(r => r.defId ? [r.defId, r.hid === 1] : [r.def.name, r.def.mods || null]);
+    const RG = run({ play: true, sys: sysG('gm'), ch: { values: { f_adv: [{ id: 'w_l1', defId: 'i_grit', qty: 1, lvl: 2 }, { id: 'w_o1', qty: 1, lvl: 2, def: { name: 'Grit', category: 'Trait', stats: { bp: 5 } } }] } }, msg: { sheet: grits() } });
+    const gTwin = (Sx.cleanUploads(RG.camp.uploads)[0] || { changes: [] }).changes.map(c => [c.kind, c.twin || null]); newer(RG).vis = 'gm';
+    const AG = applyGm(RG), gRows = (RG.ch.values.f_adv || []).filter(r => !r.defId).map(r => [r.def.stats, r.def.mods || null]);
+    check('a later upload for review (F11b): at Apply the host takes a second row\'s changes afresh only beside its library row (a kept curse of the entry is not one: with only the second row ticked it keeps the changes the GM was shown) and only from an entry players may still see (one made GM-only since lends nothing new: the row keeps what the GM was shown)',
+        j(kAdds) === j(['add+set', 'custom+set']) && j(AK.done) === j([['c_m', 1, 2]]) && j(kRows) === j([['i_grit', true], ['Grit', gritM]])
+        && j(gTwin) === j([['def', 'i_grit']]) && j(AG.done) === j([['c_m', 1, 1]]) && j(gRows) === j([[{ bp: 0, per: 3 }, gritM]]), j([kAdds, AK, kRows, gTwin, AG, gRows]));
+    // C1: the GM's own finder (sheets.js sbFinder, run for real): a GM-only pack's entry as its GM-only copy, a visible pack's as it is
+    const sf = new Function('window', sfSrc + '\nreturn sbFinder;')({ wpLibrary: stubL }), fnd = sf({ library: { packs } }, sysG('gm')), iw = fnd('Iron Will'), pk = fnd(' poise ');
+    const fndSys = sf({ library: { packs } }, { items: [{ id: 'i_iw2', name: 'Iron Will', category: 'Trait' }] })('iron will').map(e => e.id);
+    check('the GM\'s finder of entries by name (sheets.js, run for real): an entry of a GM-only pack is handed out as the library\'s GM-only copy, an entry of a pack players may see as it is, the system\'s own items first',
+        sfSrc.length > 0 && iw.length === 1 && iw[0].vis === 'gm' && iw[0] !== rawIw && rawIw.vis === 'all' && iw[0].notes === 'Unbending.' && pk.length === 1 && pk[0] === hostPk && j(fndSys) === j(['i_iw2', 'i_iw']) && j(fnd('Grit').map(e => e.id)) === j(['i_grit']),
+        j([iw, pk.map(e => e.id), fndSys]));
+    const irons = { name: 'Vex', traits: { advantages: [{ name: 'Iron Will', level: 2, points: 4 }, { name: 'Iron Will', level: 2, points: 4 }] } };
+    let I1 = null, upI = { changes: [] }, AI = null; Sx.setLibraryFind(stubL.entryFor);
+    try { I1 = run({ play: true, sys: sysG('gm', true), packs, lib: stubL, realFinder: true, msg: { sheet: irons } }); upI = Sx.cleanUploads(I1.camp.uploads)[0] || upI; AI = applyGm(I1); } finally { Sx.setLibraryFind(null); }
+    const ownI = (I1.ch.values.f_adv || []).filter(r => !r.defId).map(r => r.def), opI = [].concat.apply([], upI.changes.map(c => c.ops || [])).filter(q => q.op === 'custom');
+    check('a file with one entry twice (an upload for review, F11b): where the entry is in a GM-only pack, the second row is a row of its own with the file\'s name and points only — no notes, no changes, none of the entry\'s price, no entry named — in the queue and once the GM applies it',
+        j(I1.answer) === j([{ n: 2, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(adds(upI, 'Advantages: Iron Will')) === j([['add', true, ['add:i_iw', 'set:{"lvl":2}']], ['add', true, ['custom:Iron Will:{"bp":4}:null', 'set:{"lvl":2}']]])
+        && j(opI.map(q => [q.def, 'twin' in q])) === j([[{ name: 'Iron Will', category: 'Trait', stats: { bp: 4 } }, false]]) && j(AI.done) === j([['c_m', 2, 2]])
+        && j(shape(I1.ch.values).adv) === j([['i_iw', 2, false, 1], ['own', 'Iron Will', 2, false, { bp: 4 }, null]]) && ownI.length === 1 && !ownI[0].notes && !('mods' in ownI[0]) && ownI[0].vis === 'all',
+        j([I1.answer, upI.changes.map(c => [c.kind, c.label, c.ops]), AI, shape(I1.ch.values).adv, ownI]));
+    // (e) F11b round 2: a twin keeps its entry's switch (R1), every twin is marked whatever the players' copy carries (R2), a player's edit of a
+    // row's changes keeps the ones they cannot see (R3), a choice only as the list spells it (R4), the GM's finder fails closed (R5), a mark lends
+    // only to a row priced as its entry (R6), an add change keeps no mark of its own (R7)
+    const dgA = v => ({ f: 'f_dg', op: 'add', v }), dxA = v => ({ f: 'f_dx', op: 'add', v });
+    const sysF = dx => { const s = Sx.cleanSystem({ v: 1, name: 'F', rolls: [], fields: [{ id: 'f_dg', key: 'Dodge', label: 'Dodge', kind: 'number', vis: 'all', edit: 'gm', def: 8 }, { id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: dx, edit: 'gm', def: 10 },
+        L('f_adv', 'Advantages', 'Trait', { noQty: true, stats: num(['bp', 'per', 'granted']) }), L('f_fm', 'Forms', 'Form', { noQty: true, on: { label: 'Active' }, stats: num(['cpA', 'granted']) }),
+        L('f_pw', 'Powers', 'Power', { noQty: true, stats: num(['cpA', 'granted']).concat([{ key: 'psk', kind: 'pick', opts: [{ label: 'Agility', name: 'Dodge' }, { label: 'Might', name: 'Dodge' }] }]) })],
+        items: [{ id: 'i_calm', name: 'Calm', category: 'Trait', notes: 'Unshaken.', stats: { bp: 0, per: 2 }, mods: [dxA(2)] },   // every change on a field that may be GM-only
+            { id: 'i_stance', name: 'Stance', category: 'Form', stats: { cpA: 5 }, mods: [dgA(1)], modsOn: true }, { id: 'i_guard', name: 'Guard', category: 'Form', stats: { cpA: 3 }, mods: [dgA(1)] },
+            { id: 'i_veil', name: 'Veil', category: 'Form', stats: { cpA: 4 }, mods: [dxA(1)], modsOn: true },
+            { id: 'i_sense', name: 'Sense', category: 'Power', stats: { cpA: 4, psk: 'Agility' }, mods: [dxA(1)] }, { id: 'i_reach', name: 'Reach', category: 'Power', stats: { cpA: 6, psk: 'Might' }, mods: [dxA(1)] }] }, { F: Fx, gmView: true });
+        s.fields.filter(f => f.id === 'f_pw')[0].list.stats.filter(x => x.key === 'psk')[0].opts[0].label = 'Agility (DX)';   // the GM renames a choice after the entries were read: Sense still holds the old label
+        return s; };
+    const forms = { name: 'Vex', traits: { advantages: [{ name: 'Calm', level: 2, points: 4 }, { name: 'Calm', level: 2, points: 4, baselinePoints: 3 }, { name: 'Calm', level: 2, points: 4, modifiers: { dodge: 1 } }] },
+        abilities: { lightsaberForms: [{ name: 'Stance', level: 1, active: false }, { name: 'Stance', level: 1, active: false }, { name: 'Guard', level: 1 }, { name: 'Guard', level: 1 }, { name: 'Veil', level: 1 }, { name: 'Veil', level: 1 }],
+            forcePowers: [{ name: 'Sense', level: 1 }, { name: 'Sense', level: 1 }, { name: 'Reach', level: 1 }, { name: 'Reach', level: 1 }] } };
+    const twinsOf = (vals, fid) => ((vals || {})[fid] || []).filter(r => !r.defId && r.lnk !== 1).map(r => [r.def && r.def.name, r.on === true, (r.def && r.def.mods) || null, !!(r.def && r.def.modsOn === true)]);
+    const lastChar = msgs => (msgs.length ? msgs[msgs.length - 1].char || {} : {});
+    const at = (r, fid) => { const v = Sx.resolveAll(r.camp.system, r.ch, Fx)[fid]; return v ? v.value : undefined; };
+    const fmW = [['i_stance', 1, false, 1], ['own', 'Stance', 1, false, { cpA: 5 }, [dgA(1)]], ['i_guard', 1, false, 1], ['own', 'Guard', 1, false, { cpA: 3 }, [dgA(1)]], ['i_veil', 1, false, 1], ['own', 'Veil', 1, false, { cpA: 4 }, [dxA(1)]]];
+    const advW = [['i_calm', 2, false, 1], ['own', 'Calm', 2, false, { bp: 0, per: 2, granted: 3 }, [dxA(2)]], ['own', 'Calm', 2, false, { bp: 0, per: 2 }, [dgA(1)]]];
+    const pwW = [['i_sense', 1, false, 1], ['own', 'Sense', 1, false, { cpA: 4 }, [dxA(1)]], ['i_reach', 1, false, 1], ['own', 'Reach', 1, false, { cpA: 6, psk: 'Might' }, [dxA(1)]]];
+    const swW = [['Stance', false, [dgA(1)], true], ['Guard', false, [dgA(1)], false], ['Veil', false, [dxA(1)], true]];
+    const FM = run({ sys: sysF('gm'), msg: { sheet: forms } }), FV = run({ sys: sysF('all'), msg: { sheet: forms } }), FP = run({ play: true, sys: sysF('gm'), msg: { sheet: forms } }), FPV = run({ play: true, sys: sysF('all'), msg: { sheet: forms } });
+    const AFP = acSrc && apSrc ? applyGm(FP) : { said: [], done: [] };
+    const onSheet = { name: 'Vex', abilities: { lightsaberForms: [{ name: 'Stance', level: 1, active: false }, { name: 'Stance', level: 1, active: true }] } }, FO = run({ sys: sysF('gm'), msg: { sheet: onSheet } });
+    check('a file with one entry twice (F11b, making and for review, host, run for real): a second row of a form whose changes work while it is switched on keeps that switch as the entry has it, on a list with a switch, and one whose entry works always stays without it; switched off the row adds nothing, switched on it adds its changes',
+        j(shape(FM.ch.values).fm) === j(fmW) && j(twinsOf(FM.ch.values, 'f_fm')) === j(swW) && at(FM, 'f_dg') === 11 && j(AFP.done) === j([['c_m', 13, 13]]) && j(shape(FP.ch.values).fm) === j(fmW) && j(twinsOf(FP.ch.values, 'f_fm')) === j(swW) && at(FP, 'f_dg') === 11
+        && j(twinsOf(FO.ch.values, 'f_fm')) === j([['Stance', true, [dgA(1)], true]]) && at(FO, 'f_dg') === 9,
+        j([shape(FM.ch.values).fm, twinsOf(FM.ch.values, 'f_fm'), at(FM, 'f_dg'), AFP, twinsOf(FP.ch.values, 'f_fm'), at(FP, 'f_dg'), twinsOf(FO.ch.values, 'f_fm'), at(FO, 'f_dg')]));
+    const ownSw = [['Stance', false, [dgA(1)], true], ['Guard', false, [dgA(1)], false], ['Veil', false, null, false]];
+    check('a file with one entry twice (F11b): its owner is sent the second row of a form with the same switch as the host holds, making and once the GM applies the review; a row whose every change is on a field they may not see reaches them with neither',
+        FM.owner.length === 1 && j(twinsOf(lastChar(FM.owner).values, 'f_fm')) === j(ownSw) && FP.owner.length === 1 && j(twinsOf(lastChar(FP.owner).values, 'f_fm')) === j(ownSw)
+        && j(twinsOf(lastChar(FV.owner).values, 'f_fm')) === j(swW) && FM.mate.length === 0,
+        j([twinsOf(lastChar(FM.owner).values, 'f_fm'), twinsOf(lastChar(FP.owner).values, 'f_fm'), twinsOf(lastChar(FV.owner).values, 'f_fm')]));
+    check('a file with one entry twice (F11b, making and for review): where every change of the entry is on a field players may not see, the host\'s second row holds them all (a trait, with granted points of the file\'s own, a power and a form) and the host reads them, while a second row with changes of the file\'s own keeps those; its owner\'s copy carries none of them and nothing of that field; the answer\'s counts are the same whether that field is GM-only or not',
+        j(shape(FM.ch.values).adv) === j(advW) && j(shape(FP.ch.values).adv) === j(advW) && j(shape(FM.ch.values).pw) === j(pwW) && j(shape(FP.ch.values).pw) === j(pwW) && at(FM, 'f_dx') === 18 && at(FP, 'f_dx') === 18
+        && [FM, FP].every(r => j(twinsOf(lastChar(r.owner).values, 'f_adv')) === j([['Calm', false, null, false], ['Calm', false, [dgA(1)], false]]) && j(twinsOf(lastChar(r.owner).values, 'f_pw')) === j([['Sense', false, null, false], ['Reach', false, null, false]]))
+        && !/f_dx/.test(j([FM.owner, FP.owner, FM.answer, FP.answer])) && j(twinsOf(lastChar(FV.owner).values, 'f_adv')) === j([['Calm', false, [dxA(2)], false], ['Calm', false, [dgA(1)], false]])
+        && j(FM.answer) === j([{ n: 0, auto: 13, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(FV.answer) === j(FM.answer) && j(FP.answer) === j([{ n: 13, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(FPV.answer) === j(FP.answer),
+        j([shape(FM.ch.values).adv, shape(FP.ch.values).adv, shape(FM.ch.values).pw, at(FM, 'f_dx'), at(FP, 'f_dx'), FM.answer, FV.answer, FP.answer, FPV.answer, twinsOf(lastChar(FM.owner).values, 'f_adv')]));
+    const pskW = r => (r.ch.values.f_pw || []).map(x => x.defId ? [x.defId, x.stats || null] : [x.def.name, x.def.stats]);
+    check('a file with one entry twice (F11b, making and for review): an entry holding a choice the list no longer offers still gives its second row, which leaves the choice out (the list\'s default, as its library row reads) and takes the rest of its price; a choice the list offers is kept',
+        [FM, FP].every(r => j(pskW(r)) === j([['i_sense', null], ['Sense', { cpA: 4 }], ['i_reach', null], ['Reach', { cpA: 6, psk: 'Might' }]])) && (FP.camp.system.items.filter(e => e.id === 'i_sense')[0] || { stats: {} }).stats.psk === 'Agility',
+        j([pskW(FM), pskW(FP)]));
+    // R1 at Apply: the switch is the entry's as the host holds it then — a second row whose switch the GM was offered, of an entry made to work always since
+    const RS = run({ play: true, sys: sysF('gm'), ch: { values: { f_fm: [{ id: 'w_l1', defId: 'i_stance', qty: 1, lvl: 1, on: false }, { id: 'w_o1', qty: 1, lvl: 1, on: false, def: { name: 'Stance', category: 'Form', stats: { cpA: 5 }, mods: [dgA(1)] } }] } },
+        msg: { sheet: { name: 'Vex', abilities: { lightsaberForms: [{ name: 'Stance', level: 1, active: false }, { name: 'Stance', level: 1, active: false }] } } } });
+    const sQ = (Sx.cleanUploads(RS.camp.uploads)[0] || { changes: [] }).changes.map(c => [c.kind, c.def || null, c.twin || null]); delete RS.camp.system.items.filter(e => e.id === 'i_stance')[0].modsOn;
+    const AS = applyGm(RS), sRow = twinsOf(RS.ch.values, 'f_fm');
+    check('a later upload for review (F11b): a second row offered the switch of an entry whose changes work while switched on takes, at Apply, the switch as the host holds the entry then — made to work always since, the row\'s changes work always, and it adds them while switched off',
+        j(sQ) === j([['def', { stats: { cpA: 5 }, mods: [dgA(1)], modsOn: true }, 'i_stance']]) && j(AS.done) === j([['c_m', 1, 1]]) && j(sRow) === j([['Stance', false, [dgA(1)], false]]) && at(RS, 'f_dg') === 10,
+        j([sQ, AS, sRow, at(RS, 'f_dg')]));
+    // R6: the entry's price read whatever the case its keys are spelt in (a visible pack's entry as the host holds it)
+    const hostPk2 = Object.assign({}, hostPk, { stats: { BP: 0, PER: 2 } }), stubL2 = Object.assign({}, stubL, { entry: id => (id === 'i_pk' ? hostPk2 : null), entryFor: id => (id === 'i_pk' ? hostPk2 : null) });
+    const PK2 = run({ sys: sysG('gm', true), packs, lib: stubL2, libCats: { show: ['Trait'], hide: [] }, msg: { sheet: poises } });
+    check('a file with one entry twice (making, F11b): where the entry\'s price is spelt in another case than the list\'s, the second row is still read as priced as the entry is and takes its changes as the host holds them',
+        j(shape(PK2.ch.values).adv) === j([['i_pk', 2, false, 1], ['own', 'Poise', 2, false, { bp: 0, per: 2 }, pkM]]) && j(PK2.answer) === j(PK.answer), j([shape(PK2.ch.values).adv, PK2.answer]));
+    // R6 / R7: a queue from a save marks rows by hand (the GM's queue is never a player's word): a mark lends only to a row priced as its entry is,
+    // and an add change itself names no entry (its op does)
+    const RQ = run({ play: true, sys: sysF('gm'), ch: { values: { f_adv: [{ id: 'w_l1', defId: 'i_calm', qty: 1, lvl: 2 }] } }, msg: { sheet: { name: 'Vex' } } });
+    const addQ = (id, rw, def, lv, twin, top) => Object.assign({ id, kind: 'add', f: 'f_adv', label: 'Advantages: ' + def.name, from: '', to: def.name, accept: true, ops: [Object.assign({ op: 'custom', rowId: rw, def }, twin ? { twin } : {}), { op: 'set', rowId: rw, facts: { lvl: lv } }] }, top ? { twin: top } : {});
+    RQ.camp.uploads = [{ id: 'up_q1', charId: 'c_m', from: 'u_a', name: 'Pat', at: 1, changes: [addQ('u_q1', 'w_x1', { name: 'Plain', category: 'Trait', stats: { bp: 5 } }, 0, 'i_calm'),
+        addQ('u_q2', 'w_x2', { name: 'Calm', category: 'Trait', stats: { bp: 0, per: 2, granted: 3 } }, 2, 'i_calm'), addQ('u_q3', 'w_x3', { name: 'Calm', category: 'Trait', stats: { bp: 0, per: 2 } }, 2, null, 'i_calm')] }];
+    const cq = (Sx.cleanUploads(RQ.camp.uploads)[0] || { changes: [] }).changes.map(c => ['twin' in c, (c.ops || []).map(q => q.twin || null)]), AQ = applyGm(RQ);
+    const qRows = (RQ.ch.values.f_adv || []).filter(r => !r.defId).map(r => [r.id, r.def.name, r.def.mods || null]);
+    check('the GM\'s queue (F11b): a row marked with an entry it is not priced as takes nothing of that entry\'s changes, a row priced as it is (with granted points of its own) takes them as the host holds them, and an add change keeps no mark of its own — only its op names the entry, so an unmarked op beside one lends nothing',
+        j(cq) === j([[false, ['i_calm', null]], [false, ['i_calm', null]], [false, [null, null]]]) && j(AQ.done) === j([['c_m', 3, 3]]) && j(qRows) === j([['w_x1', 'Plain', null], ['w_x2', 'Calm', [dxA(2)]], ['w_x3', 'Calm', null]]),
+        j([cq, AQ, qRows]));
+    // R3: a player's own edit of a row's changes (the real char-item handler, sliced, with the real delta): the changes the host set on fields they cannot see stay
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); return i < 0 || k < 0 ? '' : src.slice(i, k); })();
+    const editRun = dx => {
+        const sys = Sx.cleanSystem({ v: 1, name: 'E', rolls: [], fields: [{ id: 'f_dg', key: 'Dodge', label: 'Dodge', kind: 'number', vis: 'all', edit: 'gm', def: 8 }, { id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: dx, edit: 'gm', def: 10 },
+            L('f_ft', 'Feats', 'Trait', { noQty: true, custom: true, on: { label: 'Active' } })], items: [] }, { F: Fx, gmView: true });
+        const own = (id, name, mods) => ({ id, qty: 1, lvl: 0, on: false, own: 1, def: { name, category: 'Trait', icon: '', notes: '', vis: 'all', mods, modsOn: true } });
+        const camp = { id: 'k', system: sys, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_ft: [own('w_t', 'Calm', [dgA(1), dxA(2)]), own('w_u', 'Plain', [dgA(1)])] } }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } };
+        const out = { answer: [], owner: [], mate: [], all: [] }, box = b => m => { packCheck(m); const c = JSON.parse(j(m)); b.push(c); out.all.push(c); };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            net, () => Sx, win, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+        const row = id => { const r = camp.chars.c_1.values.f_ft.find(x => x.id === id) || { def: {} }; return [r.def.mods || null, r.def.modsOn === true]; };
+        const send = (rid, rowId, mods) => { out.answer.length = 0; out.owner.length = 0; H({ type: 'char-item', rid, charId: 'c_1', fieldId: 'f_ft', op: 'custom', rowId, def: { mods } }, { peer: 'pA', send: box(out.answer) });
+            const ow = (((out.owner[out.owner.length - 1] || {}).values || {}).f_ft || []).find(x => x.id === rowId) || { def: {} }; return { answer: out.answer.slice(), host: row(rowId), mine: [ow.def.mods || null, ow.def.modsOn === true] }; };
+        const e1 = send('r1', 'w_t', [dgA(2)]), e2 = send('r2', 'w_t', null), e3 = send('r3', 'w_t', [dgA(3)]), e4 = send('r4', 'w_t', []);
+        const e5 = send('r5', 'w_t', Array.from({ length: Sx.LIMITS.effectMods }, (_, i) => dgA(i + 1))), e6 = send('r6', 'w_u', null);
+        return { e1, e2, e3, e4, e5, e6, all: out.all, ok: ciSrc.length > 0 && ntSrc.length > 0 };
+    };
+    const EG = editRun('gm'), EV = editRun('all'), ack = rid => j([{ type: 'char-ack', rid }]);
+    check('a player\'s own edit of a row\'s changes (F11b, the host\'s char-item handler, run for real): the changes the host set on a field they cannot see stay, after their own, after an edit and after clearing with nothing or an empty list, with the row\'s switch; a player who fills the row with their own keeps all of theirs (their copy never shows fewer than they sent); a row with nothing hidden is cleared of its changes and its switch as before; a field they may see is theirs to change',
+        EG.ok && j(EG.e1.host) === j([[dgA(2), dxA(2)], true]) && j(EG.e2.host) === j([[dxA(2)], true]) && j(EG.e3.host) === j([[dgA(3), dxA(2)], true]) && j(EG.e4.host) === j([[dxA(2)], true])
+        && j(EG.e5.host[0]) === j(Array.from({ length: Sx.LIMITS.effectMods }, (_, i) => dgA(i + 1))) && EG.e5.host[1] === true && j(EG.e5.mine[0]) === j(EG.e5.host[0]) && j(EG.e6.host) === j([null, false])
+        && j(EV.e1.host) === j([[dgA(2)], true]) && j(EV.e2.host) === j([null, false]),
+        j([EG.e1.host, EG.e2.host, EG.e3.host, EG.e4.host, EG.e5.host, EG.e6.host, EV.e1.host, EV.e2.host]));
+    check('a player\'s own edit of a row\'s changes (F11b): the answer is the plain acknowledgement, the same whether a hidden change was kept or not, and their copy shows their own changes alone — with the switch while they have one, without either once they cleared theirs; nothing sent to anyone names the hidden field',
+        ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'].every((k, i) => j(EG[k].answer) === ack('r' + (i + 1)) && j(EV[k].answer) === j(EG[k].answer))
+        && j(EG.e1.mine) === j([[dgA(2)], true]) && j(EG.e2.mine) === j([null, false]) && j(EG.e3.mine) === j([[dgA(3)], true]) && j(EG.e4.mine) === j([null, false]) && j(EG.e6.mine) === j([null, false])
+        && EG.all.length > 0 && !/f_dx/.test(j(EG.all)),
+        j([EG.e1, EG.e2, EG.e3, EG.e4, EG.e6.mine]));
+    // R5: the GM's finder fails closed: a library that cannot hand out a GM-only pack's entry as its GM-only copy (no entryFor, or none for that id)
+    const stubNo = { state: () => 'ready', entriesOf: pid => (pid === 'p_all' ? [hostPk] : pid === 'p_gm' ? [rawIw] : []) }, stubNull = Object.assign({}, stubNo, { entryFor: () => null });
+    const fOf = lb => { const f = new Function('window', sfSrc + '\nreturn sbFinder;')({ wpLibrary: lb })({ library: { packs } }, sysG('gm')); return { iw: f('Iron Will'), pk: f('Poise') }; };
+    const fNo = fOf(stubNo), fNull = fOf(stubNull);
+    const flatIw = lb => { const r = run({ play: true, sys: sysG('gm', true), packs, lib: lb, realFinder: true, msg: { sheet: irons } }), up = Sx.cleanUploads(r.camp.uploads)[0] || { changes: [] }; return [].concat.apply([], up.changes.map(c => c.ops || [])).filter(q => q.op === 'custom').map(q => [q.def, 'twin' in q]); };
+    const flatW = [[{ name: 'Iron Will', category: 'Trait', stats: { bp: 4 } }, false]];
+    check('the GM\'s finder of entries by name (sheets.js, run for real, F11b): where the library has no GM-only copy to hand out (no lookup, or none for that entry) a GM-only pack\'s entry is still handed out GM-only, as a copy (the pack\'s entry keeps its own mark), and a visible pack\'s as it is; a file holding it twice then gives a second row of the file\'s name and points only',
+        [fNo, fNull].every(f => f.iw.length === 1 && f.iw[0].vis === 'gm' && f.iw[0] !== rawIw && f.iw[0].id === 'i_iw' && f.iw[0].notes === 'Unbending.' && f.pk.length === 1 && f.pk[0] === hostPk) && rawIw.vis === 'all'
+        && j(flatIw(stubNo)) === j(flatW) && j(flatIw(stubNull)) === j(flatW),
+        j([fNo, fNull, flatIw(stubNo), flatIw(stubNull)]));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

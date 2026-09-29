@@ -1870,11 +1870,12 @@ function applyCustom(sys, list, q, spec, F, opts, extra, aspec, fill) {   // asp
             if (v !== 'gm' && v !== 'all') return bad;
             d.vis = v;
         } else if (k === 'mods') {   // Stage 6 F6b: its changes to the character — a player's name fields of their own view only (as an ad hoc effect's)
-            if (v === null || (Array.isArray(v) && !v.length)) { delete d.mods; delete d.modsOn; continue; }
             var fkC = pl ? fieldKinds(opts.view || null) : fieldKinds(sys);
+            var fkS = pl ? fieldKinds(sys) : null, keepC = pl ? (Array.isArray(d.mods) ? d.mods : []).filter(function(mm) { return isObj(mm) && typeof mm.f === 'string' && !fkC[mm.f] && !!fkS[mm.f]; }) : [];   // F11b: a player's edit keeps the changes to fields they do not see (the host set them; their own list never names them), while those fields are the system's
+            if (v === null || (Array.isArray(v) && !v.length)) { if (keepC.length) d.mods = keepC; else { delete d.mods; delete d.modsOn; } continue; }
             if (!Array.isArray(v) || v.length > LIMITS.effectMods || v.some(function(mm) { return !isObj(mm) || typeof mm.f !== 'string' || !fkC[mm.f]; })) return bad;
             var cmC = cleanItemMods(v, fkC); if (!cmC || cmC.length !== v.length) return bad;   // every one a change that field takes
-            d.mods = cmC;
+            d.mods = cmC.concat(keepC).slice(0, LIMITS.effectMods);   // theirs first and whole: what they see never depends on what they do not (a hidden change gives way only when their own fill the row)
         } else if (k === 'modsOn') {
             if (v === null) { delete d.modsOn; continue; }
             if (v !== true || !isObj(spec.on)) return bad;   // only on a list with a switch
@@ -3365,14 +3366,20 @@ function sbRowOps(json, sys, find) {
     // entry, the row of its own reads as the entry does (a twin): its price by level, its notes and its changes, so a level raised later
     // and what the trait adds count as they do on the library's row. A GM-only entry lends a row of its own nothing
     var usedLib = map(), taken = function(f, e) { return isObj(f.list) && f.list.noQty === true && f.list.multi !== true && usedLib[f.id + '|' + e.id] === 1; };
-    var twinOf = function(e, keys) {   // what a twin takes from its entry (copies): the price stats named (the first always, the others when they hold something), its category, its notes, its changes
+    var twinOf = function(f, e) {   // what a twin takes from its entry (copies): every stat of the list's own the entry holds (its price by level, a cost, a choice, a bonus; never granted points: the file's), its category, its notes, its changes (their switch only where the list has one: a list without refuses it)
         var o = { stats: {}, mods: null, modsOn: false, notes: typeof e.notes === 'string' ? cutText(e.notes, LIMITS.text) : '', category: typeof e.category === 'string' ? cutText(e.category, LIMITS.category) : '' };
-        keys.forEach(function(k, i) { var v = st(e, k); if (v || i === 0) o.stats[k] = v; });
-        if (Array.isArray(e.mods) && e.mods.length) { o.mods = JSON.parse(JSON.stringify(e.mods.slice(0, LIMITS.effectMods))); o.modsOn = e.modsOn === true; }
+        var es = isObj(e.stats) ? e.stats : {}, byL = map(); Object.keys(es).forEach(function(k) { if (Object.prototype.hasOwnProperty.call(es, k)) byL[lower(k)] = es[k]; });
+        (isObj(f.list) && Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(s) {
+            if (!isObj(s) || typeof s.key !== 'string' || lower(s.key) === 'granted') return;
+            var v = byL[lower(s.key)];
+            if (s.kind === 'pick') { var pv = typeof v === 'string' ? pickLabel(f.list, s.key, v) : ''; if (pv) o.stats[s.key] = pv; }   // a choice only as one of the list's labels (applyCustom refuses the whole row for any other)
+            else if (typeof v === 'number' && fin(v)) o.stats[s.key] = v;
+        });
+        if (Array.isArray(e.mods) && e.mods.length) { o.mods = JSON.parse(JSON.stringify(e.mods.slice(0, LIMITS.effectMods))); o.modsOn = e.modsOn === true && isObj(f.list) && isObj(f.list.on); }
         return o;
     };
     var addLib = function(f, e, fx, ov) { var id = rid(); usedLib[f.id + '|' + e.id] = 1; push(f, { op: 'add', defId: e.id, rowId: id }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); if (ov) push(f, { op: 'ov', rowId: id, ov: ov }); out.rows++; };
-    var addCustom = function(f, def, fx) { var id = rid(); var d = { name: cutText(def.name, LIMITS.name) || 'Item' }; ['category', 'notes', 'key'].forEach(function(k) { if (typeof def[k] === 'string' && def[k].trim()) d[k] = def[k]; }); if (isObj(def.stats) && Object.keys(def.stats).length) d.stats = def.stats; if (Array.isArray(def.mods) && def.mods.length) { d.mods = def.mods; if (def.modsOn === true) d.modsOn = true; } push(f, { op: 'custom', rowId: id, def: d }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); out.rows++; };
+    var addCustom = function(f, def, fx, twin) { var id = rid(); var d = { name: cutText(def.name, LIMITS.name) || 'Item' }; ['category', 'notes', 'key'].forEach(function(k) { if (typeof def[k] === 'string' && def[k].trim()) d[k] = def[k]; }); if (isObj(def.stats) && Object.keys(def.stats).length) d.stats = def.stats; if (Array.isArray(def.mods) && def.mods.length) { d.mods = def.mods; if (def.modsOn === true) d.modsOn = true; } push(f, twin ? { op: 'custom', rowId: id, def: d, twin: twin } : { op: 'custom', rowId: id, def: d }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); out.rows++; };
     var cat0 = function(f) { return isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats[0] : ''; };
     var rowsAt = function(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(function(r) { return isObj(r) && typeof r.name === 'string' && r.name.trim(); }) : []; };
     var skip = function(what) { if (out.skipped.indexOf(what) < 0) out.skipped.push(what); };
@@ -3396,9 +3403,9 @@ function sbRowOps(json, sys, find) {
             var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), el = e ? (lvl !== undefined && e.name === nm ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
             var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts;
             if (same && !taken(f, e)) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); return; }
-            var tw = same && e.vis !== 'gm' ? twinOf(e, ['bp', 'per']) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods;   // the file's own bag, where it states one, before the entry's changes
-            var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1;
-            addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl));
+            var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods;   // the file's own bag, where it states one, before the entry's changes
+            var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (!tw && e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1;
+            addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl), tw && !bagM.length ? e.id : null);   // a twin whose changes are its entry's is marked, whatever the copy read here carries (a players' copy lacks changes to fields they do not see): the host sets them from its own copy (twinMods)
         });
     });
     // powers and techniques: a library entry only when its CP at the row's level is the row's CP; forms by name
@@ -3416,13 +3423,15 @@ function sbRowOps(json, sys, find) {
             var L = sbInt(r.level) || 1, cp = sbInt(r.cpCost), g = sbInt(r.baselinePoints) || 0, e = entry(f, cutText(r.name, LIMITS.name));
             var same = !!e && (cp === undefined || cpAt(e, L) === cp);
             if (same && !taken(f, e)) { addLib(f, e, facts(f, L), g ? { stats: { granted: g } } : null); return; }
-            var tw = same && e.vis !== 'gm' ? twinOf(e, ['cpA', 'cpC', 'cpK']) : null;
+            var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null;
             var d2 = function(v) { var x = sbInt(v) || 0; return Math.max(0, Math.min(99, Math.round(x))) * 1010101; };
             var stats = tw ? tw.stats : { cpA: cp || 0 }; if (g) stats.granted = g;
-            if (p[0] === 'powers') { stats.fpP = d2(r.fpCost); stats.epP = d2(r.epCost); stats.al = Object.prototype.hasOwnProperty.call(AL, r.alignment) ? AL[r.alignment] : 1; }
-            else { var skB = (sbInt(r.skillBonus) || 0) - (sbInt(r.skillPenalty) || 0); if (skB) stats.skB = skB; }
-            var pk = pickOf(f, p[2], r.baseSkill); if (pk) stats[p[2]] = pk;
-            addCustom(f, { name: r.name, category: (tw && tw.category) || cat0(f), notes: cutText(r.effect, LIMITS.text) || (tw ? tw.notes : ''), stats: stats, mods: tw ? tw.mods : null, modsOn: !!tw && tw.modsOn }, facts(f, L));   // its own CP (a flat cost reads the same at any level), its level kept
+            if (!tw) {   // a twin reads the entry's FP, EP, alignment, skill bonus and skill, as the library's row does; any other row the file's
+                if (p[0] === 'powers') { stats.fpP = d2(r.fpCost); stats.epP = d2(r.epCost); stats.al = Object.prototype.hasOwnProperty.call(AL, r.alignment) ? AL[r.alignment] : 1; }
+                else { var skB = (sbInt(r.skillBonus) || 0) - (sbInt(r.skillPenalty) || 0); if (skB) stats.skB = skB; }
+                var pk = pickOf(f, p[2], r.baseSkill); if (pk) stats[p[2]] = pk;
+            }
+            addCustom(f, { name: r.name, category: (tw && tw.category) || cat0(f), notes: (tw && tw.notes) || cutText(r.effect, LIMITS.text), stats: stats, mods: tw ? tw.mods : null, modsOn: !!tw && tw.modsOn }, facts(f, L), tw ? e.id : null);   // its own CP (a flat cost reads the same at any level), its level kept
         });
     });
     var fF = list('forms'), fr = rowsAt(isObj(json.abilities) ? json.abilities.lightsaberForms : null);
@@ -3430,8 +3439,8 @@ function sbRowOps(json, sys, find) {
     if (fF) fr.forEach(function(r) {
         var L = sbInt(r.level) || 1, g = sbInt(r.baselinePoints) || 0, cpF = sbInt(r.cpCost), e = entry(fF, cutText(r.name, LIMITS.name));
         if (e && !taken(fF, e)) { addLib(fF, e, facts(fF, L, r.active === true), g ? { stats: { granted: g } } : null); return; }
-        var tw = e && e.vis !== 'gm' && (cpF === undefined || cpAt(e, L) === cpF) ? twinOf(e, ['cpA', 'cpC', 'cpK']) : null, stats = tw ? tw.stats : { cpA: cpF || 0 }; if (g) stats.granted = g;
-        addCustom(fF, { name: r.name, category: (tw && tw.category) || cat0(fF), notes: tw ? tw.notes : '', stats: stats, mods: tw ? tw.mods : null, modsOn: !!tw && tw.modsOn }, facts(fF, L, r.active === true));
+        var tw = e && e.vis !== 'gm' && (cpF === undefined || cpAt(e, L) === cpF) ? twinOf(fF, e) : null, stats = tw ? tw.stats : { cpA: cpF || 0 }; if (g) stats.granted = g;
+        addCustom(fF, { name: r.name, category: (tw && tw.category) || cat0(fF), notes: tw ? tw.notes : '', stats: stats, mods: tw ? tw.mods : null, modsOn: !!tw && tw.modsOn }, facts(fF, L, r.active === true), tw ? e.id : null);
     });
     // languages: custom rows — the tongue, its tier (native, broken, accented, fluent), comprehension only, granted free
     var fL = list('languages'), lg = Array.isArray(json.languageEntries) ? json.languageEntries.slice(0, LIMITS.carried).filter(function(x) { return isObj(x) && typeof x.tongue === 'string' && x.tongue.trim(); }) : [];
@@ -3565,6 +3574,7 @@ function cleanUploads(v) {
             if (c.kind === 'fact') { if (isObj(c.facts)) o.facts = c.facts; if (typeof c.qty === 'number' && fin(c.qty)) o.qty = c.qty; }
             if (c.kind === 'stat' && isObj(c.ov)) o.ov = c.ov;
             if (c.kind === 'def' && isObj(c.def)) o.def = c.def;
+            if (c.kind === 'def' && typeof c.twin === 'string' && ITEM_ID.test(c.twin)) o.twin = c.twin;   // F11b: the entry a twin's changes are set from, on the host (an add's rides on its op)
             ch.push(o);
         });
         out.push({ id: u.id, charId: u.charId, from: typeof u.from === 'string' ? u.from.slice(0, 80) : '', name: cutText(u.name, 60) || 'A player', at: fin(u.at) ? u.at : 0, changes: ch });
@@ -3627,9 +3637,19 @@ function sbProposal(sys, char, dossier, F, find) {
                 });
                 if (Object.keys(pst).length) patch.stats = pst;
                 if (Object.keys(patch).length) { push({ kind: 'stat', f: fid, row: rid, label: fl + ': ' + nm, from: fr.join(', '), to: to.join(', '), ov: patch, accept: !gmHeld, held: gmHeld }); out.rows++; }
-            } else if (isObj(t.def) && isObj(c.def)) {   // a custom row: its numbers the file differs on
-                var ds = isObj(t.def.stats) ? t.def.stats : {}, cs = isObj(c.def.stats) ? c.def.stats : {};
-                if (JSON.stringify(ds) !== JSON.stringify(cs)) { push({ kind: 'def', f: fid, row: rid, label: fl + ': ' + nm, from: sbShow(null, cs), to: sbShow(null, ds), def: { stats: ds }, accept: true }); out.rows++; }
+            } else if (isObj(t.def) && isObj(c.def)) {   // a custom row: its numbers and its changes, where the file differs (F11b: the whole of them, so a stat the file no longer states goes and a twin's changes come or go with its price)
+                var ds = isObj(t.def.stats) ? t.def.stats : {}, cs = isObj(c.def.stats) ? c.def.stats : {}, sp = {}, sd = false;
+                Object.keys(cs).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(ds, k)) { sp[k] = null; sd = true; } });
+                Object.keys(ds).forEach(function(k) { sp[k] = ds[k]; if (!Object.prototype.hasOwnProperty.call(cs, k) || JSON.stringify(cs[k]) !== JSON.stringify(ds[k])) sd = true; });
+                var tm = Array.isArray(t.def.mods) && t.def.mods.length ? t.def.mods : null, cm = Array.isArray(c.def.mods) && c.def.mods.length ? c.def.mods : null;
+                var dm = JSON.stringify(tm) !== JSON.stringify(cm) || (t.def.modsOn === true) !== (c.def.modsOn === true);
+                var tq = null; (g.ops || []).forEach(function(q) { if (!tq && isObj(q) && q.op === 'custom') tq = q; });
+                if (sd || dm) {
+                    var dd = { stats: sp }; if (dm) { dd.mods = tm; if (t.def.modsOn === true) dd.modsOn = true; else if (c.def.modsOn === true && tm) dd.modsOn = null; }
+                    var dc = { kind: 'def', f: fid, row: rid, label: fl + ': ' + nm, from: sbShow(null, cs), to: sbShow(null, ds) + (dm ? (tm ? ' and its changes' : ', no changes') : ''), def: dd, accept: true };
+                    if (dm && tm && tq && typeof tq.twin === 'string') dc.twin = tq.twin;
+                    push(dc); out.rows++;
+                }
             }
         });
         mine.forEach(function(c, i) { if (used[i] === 1 || c.hid === 1) return; push({ kind: 'remove', f: fid, row: rowIdOf(c), label: fl + ': ' + nameOf(c), from: nameOf(c), to: 'removed', accept: false }); out.rows++; });   // offered, never ticked: the GM decides
@@ -3645,12 +3665,38 @@ function sbApplyProposal(sys, char, proposal, accepted, F, opts) {   // opts (U2
         var f = fieldById(sys, ch.f); if (!f) { failed++; return; }
         if (ch.kind === 'value') { var v = cleanValue(f, ch.value, vo); if (v === undefined) { failed++; return; } work.values[ch.f] = v; done++; return; }
         var qs = ch.kind === 'add' ? (Array.isArray(ch.ops) ? ch.ops : []) : ch.kind === 'fact' ? (isObj(ch.facts) ? [{ op: 'set', rowId: ch.row, facts: ch.facts }] : []).concat(ch.qty ? [{ op: 'setQty', rowId: ch.row, qty: ch.qty }] : [])
-            : ch.kind === 'stat' ? [{ op: 'ov', rowId: ch.row, ov: ch.ov }] : ch.kind === 'def' ? [{ op: 'custom', rowId: ch.row, def: ch.def }] : ch.kind === 'remove' ? [{ op: 'remove', rowId: ch.row }] : [];
+            : ch.kind === 'stat' ? [{ op: 'ov', rowId: ch.row, ov: ch.ov }] : ch.kind === 'def' ? [typeof ch.twin === 'string' ? { op: 'custom', rowId: ch.row, def: ch.def, twin: ch.twin } : { op: 'custom', rowId: ch.row, def: ch.def }] : ch.kind === 'remove' ? [{ op: 'remove', rowId: ch.row }] : [];
         var ok = qs.length > 0, before = work.values[ch.f];
-        qs.forEach(function(q) { if (!ok) return; var r = applyRowOp(sys, work, ch.f, q, F, isObj(opts) ? opts : {}); if (r.ok) work.values[ch.f] = r.value; else ok = false; });
+        qs.forEach(function(q) { if (!ok) return; var r = applyTwin(sys, work, ch.f, q, F, isObj(opts) ? opts : {}); if (r.ok) work.values[ch.f] = r.value; else ok = false; });
         if (ok) done++; else { work.values[ch.f] = before; failed++; }   // a change is all or nothing
     });
     return { values: work.values, done: done, failed: failed };
+}
+// Stage 6 F11b: a twin (a file's second row of one entry, reading as the entry does) takes its changes from its entry as the HOST holds it: the
+// players' copy of an entry (what a fill reads) lacks its changes to fields they do not see, and a player's rights refuse such a change, while
+// the library's own row of that entry carries them. Only for an op the bridge marked (twin: the entry's id), only where that entry's library
+// row is already on the list (a twin is a second row), only an entry players may see: the host looks it up afresh; nothing of the file's word
+function twinMods(sys, rows, q, opts, fieldId) {
+    if (!isObj(q) || q.op !== 'custom' || typeof q.twin !== 'string' || !ITEM_ID.test(q.twin)) return null;
+    if (!(Array.isArray(rows) ? rows : []).some(function(r) { return isObj(r) && r.defId === q.twin && r.hid !== 1; })) return null;
+    var lk = isObj(opts) && typeof opts.lib === 'function' ? opts.lib : _libFind, e = itemDef(sys, q.twin) || (typeof lk === 'function' ? lk(q.twin) : null);
+    if (!isObj(e) || e.vis === 'gm' || !Array.isArray(e.mods) || !e.mods.length) return null;
+    var ds = isObj(q.def) && isObj(q.def.stats) ? q.def.stats : {};   // the row is priced as the entry is (a mark on another row's op lends it nothing): every number it states is the entry's,
+    if (Object.keys(ds).some(function(k) { var v = ds[k]; return lower(k) !== 'granted' && typeof v === 'number' && v !== st2(e, k); })) return null;
+    var fl = typeof fieldId === 'string' ? fieldById(sys, fieldId) : null, es = isObj(e.stats) ? e.stats : {};   // and every number of the list's own the entry holds is stated (a def change's null clears it: not stated)
+    if (fl && isObj(fl.list) && Array.isArray(fl.list.stats) && fl.list.stats.some(function(s) { if (!isObj(s) || typeof s.key !== 'string' || lower(s.key) === 'granted' || s.kind === 'pick') return false; var held = Object.keys(es).some(function(x) { return lower(x) === lower(s.key) && typeof es[x] === 'number' && fin(es[x]); }); if (!held) return false; return !Object.keys(ds).some(function(x) { return lower(x) === lower(s.key) && typeof ds[x] === 'number'; }); })) return null;
+    var cm = cleanItemMods(e.mods.slice(0, LIMITS.effectMods), fieldKinds(sys)); return cm && cm.length ? { mods: cm, on: e.modsOn === true } : null;
+}
+function st2(e, k) { var s = isObj(e) && isObj(e.stats) ? e.stats : {}, v; Object.keys(s).forEach(function(x) { if (v === undefined && lower(x) === lower(k)) v = s[x]; }); return typeof v === 'number' ? v : 0; }
+// applyRowOp for an op the bridge made: a twin's row is made without its changes, then given its entry's (twinMods); any other op as it is
+function applyTwin(sys, char, fieldId, q, F, opts) {
+    var hm = twinMods(sys, char && char.values && Array.isArray(char.values[fieldId]) ? char.values[fieldId] : [], q, opts, fieldId);
+    if (!hm) { if (isObj(q) && q.twin !== undefined) { q = JSON.parse(JSON.stringify(q)); delete q.twin; } return applyRowOp(sys, char, fieldId, q, F, opts); }
+    var q2 = JSON.parse(JSON.stringify(q)); delete q2.twin; if (isObj(q2.def)) delete q2.def.mods;
+    var r = applyRowOp(sys, char, fieldId, q2, F, opts); if (!r.ok) return r;
+    var fl = fieldById(sys, fieldId), sw = !!(fl && isObj(fl.list) && isObj(fl.list.on));
+    (Array.isArray(r.value) ? r.value : []).forEach(function(row) { if (isObj(row) && rowIdOf(row) === q.rowId && isObj(row.def)) { row.def.mods = JSON.parse(JSON.stringify(hm.mods)); if (hm.on && sw) row.def.modsOn = true; else delete row.def.modsOn; } });   // its switch as the entry's, where the list has one (the row was made without changes, so the cleaner dropped it)
+    return r;
 }
 // Onboarding F4 (owner, 2026-09-27): a file fills a character in the making at once, with its owner's rights — past the list rules while making
 // (a library copy's own name and stats, rows of their own on any list), never the GM's fields (a blast, formulas, locks, vis: CUSTOM_OWN; a
@@ -3684,8 +3730,8 @@ function fillMaking(sys, char, fill, F, opts) {
             if (q.op === 'custom' && isObj(q.def)) { var d = {}; Object.keys(q.def).forEach(function(k) { if (CUSTOM_OWN[k] === 1) d[k] = q.def[k]; }); var s2 = listStats(d.stats); if (s2) d.stats = s2; else delete d.stats; q.def = d; }   // the players' fields; the list's own stats
             if (q.op === 'ov') { var p = {}; if (isObj(q.ov) && typeof q.ov.name === 'string') p.name = q.ov.name; var s3 = listStats(isObj(q.ov) ? q.ov.stats : null); if (s3) p.stats = s3; if (!Object.keys(p).length) return; q.ov = p; }
             if (q.op === 'set' && isObj(q.facts) && q.facts.ct !== undefined) { var ctc = cleanCt(q.facts.ct, aspec); if (ctc) q.facts.ct = ctc; else delete q.facts.ct; if (!Object.keys(q.facts).length) return; }   // the list's own counters
-            var r = applyRowOp(sys, work, g.f, q, F, opts);
-            if (!r.ok && q.op === 'custom' && (r.why === 'badkey' || r.why === 'key') && isObj(q.def) && q.def.key !== undefined) { delete q.def.key; r = applyRowOp(sys, work, g.f, q, F, opts); }   // a key taken: the row without it
+            var r = applyTwin(sys, work, g.f, q, F, opts);
+            if (!r.ok && q.op === 'custom' && (r.why === 'badkey' || r.why === 'key') && isObj(q.def) && q.def.key !== undefined) { delete q.def.key; r = applyTwin(sys, work, g.f, q, F, opts); }   // a key taken: the row without it
             if (!r.ok && q.op === 'set' && isObj(q.facts) && Object.keys(q.facts).length > 1) {   // one bad fact never takes the others: each alone
                 var bad1 = false; Object.keys(q.facts).forEach(function(k) { var one = {}; one[k] = q.facts[k]; var r1 = applyRowOp(sys, work, g.f, { op: 'set', rowId: q.rowId, facts: one }, F, opts); if (r1.ok) work.values[g.f] = r1.value; else bad1 = true; });
                 if (bad1) left++; return;

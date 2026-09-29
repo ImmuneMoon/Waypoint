@@ -1198,6 +1198,7 @@ function applySnapshot(msg) {
     setPausedLocal(!!msg.paused);   // late joiners inherit a paused table
     setSelfPausedLocal(!!msg.pausedSelf);   // ...and a personal pause the GM set before they (re)joined
     setTravelLockLocal(!!msg.travelLocked);
+    net.tableSnapOn = msg.snap === true;   // the snap rule: the GM's Snap decides where this player's drops land
     net.stance = cleanStance(msg.stance);
     net.sounds = null; net.soundNow = null; if (window.wpSound) window.wpSound.onSnapshot();   // the snapshot is the authority: the 'sounds' message that follows re-arms the table's sound
     net.music = null; if (window.wpMusic && window.wpMusic.onSnapshot) window.wpMusic.onSnapshot();   // likewise the music library re-arms from the 'music' message that follows
@@ -2300,6 +2301,19 @@ function logEvent(kind, text) {
     camp.sessionLog.push({ at: Date.now(), kind: kind, text: String(text || '').slice(0, 400) });
     if (camp.sessionLog.length > 3000) camp.sessionLog.splice(0, camp.sessionLog.length - 3000);
 }
+// [netcheck:snapsync-start]
+// The snap rule (the owner, 2026-09-29): the GM's Snap decides where a player's drop lands (datamap.js wpSeatDrop, on their app and on the
+// host). The join snapshot carries it; a change goes to admitted players the moment Snap or its mode changes, only when what the table plays
+// changed (on: Snap on, to the grid or to both). A host has no branch for 'snap'
+net.tableSnapOn = false; net._lastSnapSent = null;
+net.syncSnap = function() {
+    if (!net.active || net.role !== 'host') return;
+    var on = typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true;
+    if (on === net._lastSnapSent) return;
+    net._lastSnapSent = on;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send({ type: 'snap', on: on }); } catch (e) { sendFailed(e); } } });
+};
+// [netcheck:snapsync-end]
 net.travelLocked = false;
 function setTravelLockLocal(on) {
     net.travelLocked = !!on;
@@ -2649,7 +2663,7 @@ function handlePos(msg, conn) {
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
         // Host is the authority on cells: seat the token here too, in case the
         // player's copy didn't (grid state not yet applied on their side)
-        if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }
+        if (msg.final && window.wpSeatDrop && window.wpSeatDrop(w, map, w.gridFit === true)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }   // the snap rule: the GM's Snap is the table's
         // Senses S0: the live position relay goes by who sees what. A token now in another cell or facing another way: what ITS PLAYER sees
         // is judged afresh, and where it carries a light on a dark map, what everybody on that map sees (they see by its light). Still in
         // its cell and facing as it did, nothing changed for anybody: the sets stay
@@ -3650,7 +3664,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; };
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; };
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); }
@@ -3912,6 +3926,11 @@ function handleMessage(msg, conn) {
         setSelfPausedLocal(!!msg.on);
         render();   // refresh my own token affordances (turn handles etc.) now that I'm frozen/thawed
         toast(msg.on ? 'The GM paused you.' : 'You are live again.');
+    } else if (msg.type === 'snap' && net.role === 'client') {
+        // [netcheck:snapmsg-start]
+        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply
+        net.tableSnapOn = msg.on === true;
+        // [netcheck:snapmsg-end]
     } else if (msg.type === 'stance' && net.role === 'client') {
         if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply
         var prevStance = net.stance;
@@ -5076,6 +5095,7 @@ function startHosting(forceFresh) {
     _dragFrom = Object.create(null); _refusedAt = Object.create(null);   // fold M4: and from no drag of the last table
     fogForgetAll();   // fold M5: and from no record of what anyone's copy held
     if (window.wpFog && typeof window.wpFog.marksForget === 'function') window.wpFog.marksForget(null);   // senses S4b: and no marks held for anyone
+    net._lastSnapSent = typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true;   // the snap rule: the join snapshot carries Snap as it stands
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     if (forceFresh) net._hostGen = 0;

@@ -465,7 +465,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const S = await import(surl('systemcore.js')), F = await import(surl('formula.js')), LBC = await import(surl('librarycore.js'));
         // the REAL load normaliser (io.js migrateAppState) and the REAL rich-text sanitiser (net.js; under node it keeps text only), sliced, never copied
         const mi = ioSrc.indexOf('  function hexCenterFlat('), mk = ioSrc.indexOf('  // What the cleanup (scripts/cleanup.js) may do');
-        const migrate = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')(
+        const migrate = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')(   // strict, as the module runs
             { wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
         const libLoad = migrate({ activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: {}, library: { dir: 'l_abcd1234', packs: [{ id: 'p_a', name: 'Gear\u0000', rev: 2, count: 3, secret: 'x' }, { id: '../x' }] } }, cM: { id: 'cM', name: 'M', items: {}, library: { dir: '../../saves', packs: [] } } } });
         const keepNoCore = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')({ wpSystemCore: S, wpFormula: F }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }))({ activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: {}, library: { dir: 'l_abcd1234', packs: [] } } } });
@@ -546,6 +546,50 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /old notes/.test(rawOf(icM.items.op) || '') && !/[<>]/.test(rawOf(icM.items.op) || '<') && /old notes/.test(rawOf(outR && outR.campaigns.cO.items.op) || '') && !/[<>]/.test(rawOf(outR && outR.campaigns.cO.items.op) || '<')
             && rawOf(icN.items.op) === '' && !('content' in icM.items.op) && !('content' in outR.campaigns.cO.items.op), JSON.stringify([icM.items.op, outR && outR.campaigns.cO.items.op, icN.items.op]));
         check('import: a file with nothing but prototype-key campaigns brings nothing in', cleanImport(JSON.parse('{"campaigns":{"__proto__":{"id":"x","items":{}},"constructor":{"items":{}}}}'), deps) === null && cleanImport(null, deps) === null && cleanImport({ campaigns: 5 }, deps) === null);
+        // a list's entry that is not an object (a null, a number, a string or a list, from a hand-edited or generated file) is dropped by the load's own
+        // normaliser before anything reads its fields: it threw there, so a Replace failed with no word and a save holding one did not load. The load runs
+        // as the app runs it: strict (an ES module), with the real fogcore and the real picture migration (whiteboard.js, sliced), which walks every item's lists
+        {
+            const jl = JSON.stringify, wbSrc = readSrc('whiteboard.js'), FCj = await import(surl('fogcore.js'));
+            const cut = (from, to) => { const i = wbSrc.indexOf(from), k = wbSrc.indexOf(to, i); return i > 0 && k > i ? wbSrc.slice(i, k) : null; };
+            const picParts = [cut('  var EMPTY_CATS = ', '  var _imgLibCat = '), cut('  function fixCats(', '  function catStore(store, create)'), cut('  function tagsIn(', '  function imgCatsOf('),
+                cut('  function pathKeys(', '  function buildImgIndex()'), cut('  function folderOf(', '  function imgCamps(im)'), cut('  window.wpMigratePictures = function', '  // A campaign is going')];
+            const picWin = {};
+            if (picParts.every(Boolean)) new Function('window', '"use strict";\n' + picParts.join(''))(picWin);
+            const loadWin = { wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpFogCore: FCj, wpMigratePictures: picWin.wpMigratePictures };
+            const loadNorm = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn migrateAppState;')(
+                loadWin, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+            const junk = () => [null, 5, 'x', [], true];
+            const junkFile = () => JSON.parse(jl({ imageCats: { list: ['Default', 'Maps'], by: { '/saves/images/a.png': ['Maps'] }, shelf: {} }, activeCampaignId: 'c', campaigns: { c: { id: 'c', name: 'C', activeItemId: 'm', items: {
+                m: { id: 'm', type: 'map', meta: { title: 'M', gridType: 'hex' }, cats: { default: { label: 'Default', color: '#ccc' } }, blocks: true,
+                    rooms: [null, { id: 'r1', x: 1, y: 1, characters: [null, { id: 'k1', name: 'Kay' }, 5, []] }].concat(junk(), [{ id: 'r2', x: 2, y: 2, characters: 'x' }]),
+                    links: [null, ['r1', 'r2'], 5, 'x', { 0: 'r1', 1: 'r2' }, ['r2', 'r1', 'route']],
+                    whiteboard: [null, { id: 'a', type: 'image', src: '/saves/images/a.png', x: 0, y: 0, w: 60, h: 52 }].concat(junk(), [{ id: 'b', type: 'rect', x: 1, y: 1, w: 5, h: 5 }]) },
+                p: { id: 'p', type: 'planner', meta: { title: 'P' }, blocks: [null, { id: 'pb', type: 'text', content: 'hi' }, 7, []], whiteboard: 'x', rooms: 5 },
+                d: { id: 'd', type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'db', type: 'h3', title: 'T' }, null, 'x', []] } } } } }));
+            const kept = st => { const c = st && st.campaigns && st.campaigns.c, m = c && c.items.m; return m ? { rooms: m.rooms.map(r => r.id), chars: m.rooms.map(r => (r.characters || []).map(k => k.id)), links: m.links, wb: m.whiteboard.map(w => w.id), p: c.items.p.blocks.map(b => b.id), d: c.items.d ? c.items.d.blocks.map(b => b.id) : null } : null; };
+            const want = jl({ rooms: ['r1', 'r2'], chars: [['k1'], []], links: [['r1', 'r2'], ['r2', 'r1', 'route']], wb: ['a', 'b'], p: ['pb'], d: ['db'] });
+            const run = fn => { try { return { v: fn(), err: '' }; } catch (e) { return { v: null, err: e.message }; } };
+            const repro = run(() => cleanImport({ campaigns: { c: { id: 'c', name: 'C', items: { m: { id: 'm', type: 'map', meta: { title: 'M' }, rooms: [], links: [], whiteboard: [null, { id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }] } } } } }, deps));
+            check('import: a Replace whose play map holds a null comes in (the normaliser threw on it: nothing replaced and no word), the null dropped and the good item kept whole',
+                !repro.err && !!repro.v && jl(repro.v.campaigns.c.items.m.whiteboard) === jl([{ id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }]), repro.err || jl(repro.v));
+            const ld = run(() => loadNorm(junkFile())), ldK = ld.v && kept(ld.v.data);
+            check('load: a save whose lists hold entries that are not objects loads: a null, a number, a string or a list dropped from a map\'s rooms, its play map, a room\'s characters and a planner\'s and a page\'s blocks, a link that is not a list dropped, a room\'s characters that are not a list emptied; every good entry kept, in order',
+                picParts.every(Boolean) && typeof loadWin.wpMigratePictures === 'function' && !ld.err && jl(ldK) === want, ld.err || jl(ldK));
+            check('load: the repair is a change, so the load saves it once (the original kept in saves/backups) and says so', !!ld.v && ld.v.changed === true);
+            const pics = ld.v && ld.v.data, cCats = pics && pics.campaigns.c.imageCats;
+            check('load: the picture migration skips a key that holds no list (a planner\'s stray play map and rooms, a map\'s blocks, a room\'s characters) and still reads the good pictures: the category moves into the campaign that uses it',
+                !!pics && pics._picsV === 1 && !!cCats && cCats.list.indexOf('Maps') >= 0 && pics.imageCats.list.indexOf('Maps') < 0, jl([pics && pics.imageCats, cCats]));
+            const rp = run(() => cleanImport(junkFile(), { migrate: d => loadNorm(d).data, DR: DOC, sanitize, FC: FCj })), rpK = rp.v && kept(rp.v);
+            check('import: the same file comes in by Replace through the load\'s normaliser with the app\'s own helpers, the same entries kept', !rp.err && jl(rpK) === want, rp.err || jl(rpK));
+            const wellFormed = () => ({ _schema: 2, _picsV: 1, activeCampaignId: 'c', campaigns: { c: { id: 'c', name: 'C', activeItemId: 'm', items: {
+                m: { id: 'm', type: 'map', meta: { title: 'M' }, cats: { default: { label: 'Default', color: '#ccc' } }, rooms: [{ id: 'r1', x: 1, y: 1, characters: [{ id: 'k1', name: 'Kay' }] }, { id: 'r2', x: 2, y: 2 }, { id: 'r3', x: 3, y: 3, characters: [] }],
+                    links: [['r1', 'r2'], ['r2', 'r3', 'route', { label: 'L' }]], whiteboard: [{ id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }] },
+                p: { id: 'p', type: 'planner', meta: { title: 'P' }, blocks: [{ id: 'pb', type: 'text', content: 'hi' }] },
+                d: { id: 'd', type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'db', type: 'h3', title: 'T' }] } } } } });
+            const wf = run(() => loadNorm(wellFormed()));
+            check('load: a save that was already well formed comes through byte for byte, not marked changed (no "Save upgraded" note)', !wf.err && !!wf.v && wf.v.changed === false && jl(wf.v.data) === jl(wellFormed()), wf.err || jl(wf.v));
+        }
         // lighting L4: a light from a file is cleaned as the app reads one (the real fogcore.js), on Replace and on Merge
         {
             const FCr = await import(surl('fogcore.js')), depsL = { migrate, DR: DOC, sanitize, FC: FCr }, jl = JSON.stringify;

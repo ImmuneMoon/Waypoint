@@ -614,7 +614,9 @@ function cleanImportItems(ic, deps) {
             var TS = FC && typeof FC.cleanTokSenses === 'function' ? FC.cleanTokSenses(w.senses) : null;
             if (TS) w.senses = TS; else delete w.senses;
             if (w.blind !== undefined && w.blind !== true) delete w.blind;   // senses S3: the GM's Blind tick, true only
+            if (w.unsensed !== undefined) { var U = FC && typeof FC.cleanUnsensed === 'function' ? FC.cleanUnsensed(w.unsensed) : null; if (U) w.unsensed = U; else delete w.unsensed; }   // senses S4: the senses that never mark this token
         });
+        if (it.type === 'map') { delete it.fogLit; delete it.lightsCapped; delete it.fogMarks; delete it.fogOff; }   // senses S4: a player's own notes on their copy of a map, never a map's own
     });
 }
 // Onboarding F1a: a waiting token lives only while its session runs — a save, an export or an import never keeps one. Returns how many went.

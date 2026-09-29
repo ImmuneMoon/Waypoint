@@ -16,6 +16,8 @@ var LIMITS = Object.freeze({
     lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
     lightName: 60,      // lighting (L4): the name a light keeps of the preset it came from
     senses: 8,          // senses S2b: the ranges a token gives its own senses (the system holds at most eight)
+    marks: 60,          // senses S4: the marks one player's copy of a map holds (past this, the nearest)
+    markTests: 4000,    // senses S4: the lines of sight one player's marks may test on one map (past this, the far creatures go untested)
     arcDeg: 180,        // GURPS front arc
     len: [10, 4000]     // a gridless cell length in board px
 });
@@ -370,6 +372,62 @@ function cleanTokSenses(v) {
     for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (!isObj(e) || typeof e.id !== 'string' || !SENSE_ID_RE.test(e.id) || seen[e.id] || !fin(e.n)) continue; seen[e.id] = 1; out.push({ id: e.id, n: clamp(e.n, 0, 100000) }); }
     return out.length ? out : null;
 }
+// Senses S4: which senses never mark a token (item.unsensed, the GM's) — true (none marks it), or at most eight sense ids; null for none
+function cleanUnsensed(v) {
+    if (v === true) return true;
+    if (!Array.isArray(v)) return null;
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (typeof e !== 'string' || !SENSE_ID_RE.test(e) || seen[e]) continue; seen[e] = 1; out.push(e); }
+    return out.length ? out : null;
+}
+// Senses S4: the host's marks — for each creature, nearest first to any viewer, the first of the player's mark senses that finds it: within
+// its range (free to test), in its arc, along a clear line unless it passes walls (only lines count, at most LIMITS.markTests: past that the far
+// creatures go untested). One mark per cell, the lowest glyph number winning; past LIMITS.marks cells the nearest kept; sorted by cell key, so
+// neither their order nor how many share a cell says anything. viewers: [{ x, y, front, range (cells), arc, pass, k (1-4), sid }]; creatures:
+// [{ x, y, skip }] (skip: true, or { senseId: 1 } for the senses that never mark it). { marks: [{ c, r, k } | { q, r, k }], capped }
+function markCells(viewers, creatures, grid, blockers) {
+    var out = { marks: [], capped: false }; if (!grid || !Array.isArray(viewers) || !Array.isArray(creatures)) return out;
+    var vs = [];
+    viewers.forEach(function(v) { if (isObj(v) && fin(v.x) && fin(v.y) && fin(v.range) && v.range > 0 && (v.k === 1 || v.k === 2 || v.k === 3 || v.k === 4)) vs.push({ v: v, cell: cellOf(v.x, v.y, grid), range: Math.min(v.range, LIMITS.rangeCells) }); });
+    if (!vs.length) return out;
+    var cs = [];
+    creatures.forEach(function(cr) {
+        if (!isObj(cr) || !fin(cr.x) || !fin(cr.y) || cr.skip === true) return;
+        var cell = cellOf(cr.x, cr.y, grid), d = Infinity;
+        vs.forEach(function(o) { var dd = cellDist(o.cell, cell, grid); if (dd < d) d = dd; });
+        cs.push({ cell: cell, key: cellKey(cell, grid), d: d, skip: isObj(cr.skip) ? cr.skip : null });
+    });
+    var byKey = function(a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; };
+    cs.sort(function(a, b) { return a.d - b.d || byKey(a, b); });
+    var got = Object.create(null), tests = 0;
+    cs.forEach(function(cr) {
+        vs.forEach(function(o) {
+            var v = o.v, g = got[cr.key];
+            if (g && g.k <= v.k) return;
+            if (cr.skip && typeof v.sid === 'string' && cr.skip[v.sid] === 1) return;
+            if (!(cellDist(o.cell, cr.cell, grid) <= o.range + 1e-9) || !cellInArc(v, cr.cell, grid)) return;
+            if (!v.pass && blockers) { if (tests >= LIMITS.markTests) { out.capped = true; return; } tests++; if (!lineClear(o.cell, cr.cell, grid, blockers)) return; }
+            got[cr.key] = { cell: cr.cell, key: cr.key, d: cr.d, k: v.k };
+        });
+    });
+    var list = Object.keys(got).map(function(key) { return got[key]; });
+    if (list.length > LIMITS.marks) { out.capped = true; list.sort(function(a, b) { return a.d - b.d || byKey(a, b); }); list = list.slice(0, LIMITS.marks); }
+    list.sort(byKey);
+    out.marks = list.map(function(o) { return o.cell.q !== undefined ? { q: o.cell.q, r: o.cell.r, k: o.k } : { c: o.cell.c, r: o.cell.r, k: o.k }; });
+    return out;
+}
+// Senses S4: a player's marks as their app takes them from the host — a whole cell and a glyph number 1-4, nothing else; the first mark of a cell;
+// none on a cell of one of this player's own tokens (ownKeys: their cells' keys); at most LIMITS.marks; null for none
+function cleanFogMarks(v, ownKeys) {
+    if (!Array.isArray(v)) return null;
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < v.length && out.length < LIMITS.marks; i++) {
+        var e = v[i], c = cleanCell(e); if (!c || !(e.k === 1 || e.k === 2 || e.k === 3 || e.k === 4)) continue;
+        var key = c.q !== undefined ? c.q + ':' + c.r : c.c + ',' + c.r; if (seen[key] === 1 || (ownKeys && ownKeys[key] === 1)) continue;
+        seen[key] = 1; c.k = e.k; out.push(c);
+    }
+    return out.length ? out : null;
+}
 // Senses S2a: what a full sense sees — every cell in its range and arc, along a clear line unless it passes walls (pass: no blocker at all),
 // light or none: clear (tier 2); one that sees the dark as dim (dim) shows a cell at its own light raised to dim at least (a wall's own cell
 // at the map's level). With lighting off every cell it reaches is clear. No lit cell beyond its range
@@ -491,6 +549,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

@@ -37,6 +37,12 @@
     { "id": "f_poisoned", "key": "Poisoned", "label": "Poisoned", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": true },
     { "id": "f_frightened", "key": "Frightened", "label": "Frightened", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": true },
     { "id": "f_concentrating", "key": "Concentrating", "label": "Concentrating", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": false },
+    { "id": "f_blinded", "key": "Blinded", "label": "Blinded", "kind": "toggle", "def": false, "edit": "gm", "vis": "all", "hover": true },
+    { "id": "f_deafened", "key": "Deafened", "label": "Deafened", "kind": "toggle", "def": false, "edit": "gm", "vis": "all", "hover": true },
+    { "id": "f_dark", "key": "Darkvision", "label": "Darkvision (ft)", "kind": "number", "def": 0, "min": 0, "max": 1000, "step": 5, "edit": "gm", "vis": "all", "hover": false },
+    { "id": "f_blindsight", "key": "Blindsight", "label": "Blindsight (ft)", "kind": "number", "def": 0, "min": 0, "max": 1000, "step": 5, "edit": "gm", "vis": "all", "hover": false },
+    { "id": "f_trem", "key": "Tremorsense", "label": "Tremorsense (ft)", "kind": "number", "def": 0, "min": 0, "max": 1000, "step": 5, "edit": "gm", "vis": "all", "hover": false },
+    { "id": "f_true", "key": "Truesight", "label": "Truesight (ft)", "kind": "number", "def": 0, "min": 0, "max": 1000, "step": 5, "edit": "gm", "vis": "all", "hover": false },
     { "id": "f_class", "key": "Class", "label": "Class", "kind": "text", "def": "", "max": 60, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_race", "key": "Race", "label": "Ancestry", "kind": "text", "def": "", "max": 60, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_align", "key": "Alignment", "label": "Alignment", "kind": "select", "options": ["Lawful good", "Neutral good", "Chaotic good", "Lawful neutral", "Neutral", "Chaotic neutral", "Lawful evil", "Neutral evil", "Chaotic evil"], "def": "Neutral", "edit": "owner", "vis": "all", "hover": false },
@@ -61,6 +67,15 @@
         { "name": "Torch", "bright": 20, "dim": 40, "unit": "ft", "pick": true },
         { "name": "Hooded lantern", "bright": 30, "dim": 60, "unit": "ft", "pick": true }
       ]
+    },
+    "senses": {
+      "blind": { "field": "f_blinded" },
+      "list": [
+        { "id": "sn_darkvisn", "name": "Darkvision", "range": { "by": "field", "field": "f_dark" }, "unit": "ft", "grade": "full", "eyes": true, "shows": "dim" },
+        { "id": "sn_truesigh", "name": "Truesight", "range": { "by": "field", "field": "f_true" }, "unit": "ft", "grade": "full", "eyes": true },
+        { "id": "sn_blindsgt", "name": "Blindsight", "range": { "by": "field", "field": "f_blindsight" }, "unit": "ft", "grade": "full", "arc": "all" },
+        { "id": "sn_tremorsn", "name": "Tremorsense", "range": { "by": "field", "field": "f_trem" }, "unit": "ft", "grade": "mark", "walls": "pass", "arc": "all", "glyph": "tremor" }
+      ]
     }
   },
   "sheet": {
@@ -68,10 +83,15 @@
       { "id": "s_attr", "title": "Attributes", "cols": 2, "fields": [ { "id": "f_str", "w": 1 }, { "id": "f_strmod", "w": 1 }, { "id": "f_dex", "w": 1 }, { "id": "f_dexmod", "w": 1 }, { "id": "f_con", "w": 1 }, { "id": "f_conmod", "w": 1 }, { "id": "f_int", "w": 1 }, { "id": "f_intmod", "w": 1 }, { "id": "f_wis", "w": 1 }, { "id": "f_wismod", "w": 1 }, { "id": "f_cha", "w": 1 }, { "id": "f_chamod", "w": 1 } ] },
       { "id": "s_combat", "title": "Combat", "cols": 3, "fields": [ { "id": "f_hp", "w": "row" }, { "id": "f_level", "w": 1 }, { "id": "f_prof", "w": 1 }, { "id": "f_ac", "w": 1 }, { "id": "f_speed", "w": 1 }, { "roll": "r_init", "w": 1 }, { "roll": "r_death", "w": 1 } ] },
       { "id": "s_skills", "title": "Skills", "cols": 2, "fields": [ { "id": "f_sk_acro", "w": 1 }, { "id": "f_sk_arca", "w": 1 }, { "id": "f_sk_athl", "w": 1 }, { "id": "f_sk_dece", "w": 1 }, { "id": "f_sk_insi", "w": 1 }, { "id": "f_sk_inti", "w": 1 }, { "id": "f_sk_inve", "w": 1 }, { "id": "f_sk_medi", "w": 1 }, { "id": "f_sk_perc", "w": 1 }, { "id": "f_sk_pers", "w": 1 }, { "id": "f_sk_stea", "w": 1 }, { "id": "f_sk_surv", "w": 1 } ] },
-      { "id": "s_cond", "title": "Conditions", "cols": 4, "fields": [ { "id": "f_prone", "w": 1 }, { "id": "f_poisoned", "w": 1 }, { "id": "f_frightened", "w": 1 }, { "id": "f_concentrating", "w": 1 } ] },
+      { "id": "s_cond", "title": "Conditions", "cols": 4, "fields": [ { "id": "f_prone", "w": 1 }, { "id": "f_poisoned", "w": 1 }, { "id": "f_frightened", "w": 1 }, { "id": "f_concentrating", "w": 1 }, { "id": "f_blinded", "w": 1 }, { "id": "f_deafened", "w": 1 } ] },
+      { "id": "s_senses", "title": "Senses", "cols": 4, "fields": [ { "id": "f_dark", "w": 1 }, { "id": "f_blindsight", "w": 1 }, { "id": "f_trem", "w": 1 }, { "id": "f_true", "w": 1 } ] },
       { "id": "s_rolls", "title": "Rolls", "cols": 3, "fields": [ { "roll": "r_atk_str", "w": 1 }, { "roll": "r_atk_dex", "w": 1 }, { "roll": "r_save_str", "w": 1 }, { "roll": "r_save_dex", "w": 1 }, { "roll": "r_save_con", "w": 1 }, { "roll": "r_save_wis", "w": 1 } ] },
       { "id": "s_details", "title": "Details", "cols": 3, "fields": [ { "id": "f_class", "w": 1 }, { "id": "f_race", "w": 1 }, { "id": "f_align", "w": 1 } ] },
       { "id": "s_notes", "title": "Notes", "cols": 1, "fields": [ { "id": "f_notes", "w": "row" }, { "id": "f_gmnotes", "w": "row" } ] }
     ]
-  }
+  },
+  "effects": [
+    { "id": "e_blinded", "name": "Blinded", "icon": "", "tone": "", "dur": "", "notes": "", "vis": "all", "mods": [ { "f": "f_blinded", "op": "on" } ] },
+    { "id": "e_deafened", "name": "Deafened", "icon": "", "tone": "", "dur": "", "notes": "", "vis": "all", "mods": [ { "f": "f_deafened", "op": "on" } ] }
+  ]
 }

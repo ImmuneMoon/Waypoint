@@ -922,7 +922,18 @@ Fog of war
   the creature reaches the player, only the cell. The marks swell slowly
   and hold still under reduced motion. A token's Properties can keep it
   from any mark sense ("Never shown as a mark by"), and the GM's preview
-  of a player shows that player's marks.
+  of a player shows that player's marks. In the System editor's Senses box
+  a row can show everything in range or a nameless mark, and a mark row
+  picks its mark; Hears (off while your Deafened toggle is ticked), Feels
+  through the ground, Senses what is near and A creature's sense (a range
+  of 0 until a token is given one) start one.
+- The two starter systems now carry their game's senses: the d20
+  Darkvision, Truesight, Blindsight and a Tremorsense mark, the 3d6
+  Infravision and a Vibration Sense mark, with Blinded and Deafened
+  toggles and an effect for each. Every range starts at 0 and only the GM
+  sets them, in a character's Senses section, so a new campaign plays as
+  before until a range is entered. A campaign begun from a starter earlier
+  keeps the system it has.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

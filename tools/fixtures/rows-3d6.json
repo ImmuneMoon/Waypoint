@@ -261,6 +261,19 @@
       "def": 0
     },
     {
+      "id": "f_vibe",
+      "key": "VibrationSense",
+      "label": "Vibration Sense (yd)",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "min": 0,
+      "max": 1000,
+      "step": 1,
+      "def": 0
+    },
+    {
       "id": "f_blinded",
       "key": "Blinded",
       "label": "Blinded",
@@ -484,6 +497,33 @@
           },
           "grade": "full",
           "arc": "all"
+        },
+        {
+          "id": "sn_vibrsens",
+          "name": "Vibration Sense",
+          "range": {
+            "by": "field",
+            "field": "f_vibe"
+          },
+          "grade": "mark",
+          "walls": "pass",
+          "arc": "all",
+          "glyph": "tremor"
+        },
+        {
+          "id": "sn_hearing0",
+          "name": "Hearing",
+          "range": {
+            "by": "n",
+            "n": 0
+          },
+          "grade": "mark",
+          "walls": "pass",
+          "arc": "all",
+          "off": {
+            "field": "f_deafened"
+          },
+          "glyph": "sound"
         }
       ]
     }

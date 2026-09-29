@@ -727,6 +727,50 @@ function drawOwner() {
     if (isClientView()) return myId();                             // a player sees only their own tokens' vision
     return (previewMode === 'off' || previewMode === 'party') ? '*' : previewMode;   // GM: all tokens, or one player
 }
+// Senses S6 (the owner's answer 3a): explored terrain. With "Players remember what they have seen" on (camp.fog.defaults.remember), a player's
+// own screen keeps the cells it has seen this session, per map, and draws them at a third, heavier dim; the host still withholds every creature
+// there, so remembered ground shows only the pieces that are not characters, as they are now. Never what only a sense that passes walls
+// showed; a cell the GM cuts by hand leaves it; a new fog epoch (the GM's Cover all or Reveal all), a change of grid or cell size, and a table
+// of another campaign empty it. At most 60,000 cells a map and 200,000 in all (the oldest map goes first); a full map stops adding, said once
+// [fogcheck:memory-start]
+var MEM_MAP = 60000, MEM_ALL = 200000, _mem = Object.create(null), _memOrder = [], _memTotal = 0, _memVer = 0, _memFullSaid = Object.create(null), _memCamp = null, _memCanvas = null, _memSig = '';
+function rememberOn(camp) { var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults : null; return !!d && d.remember === true; }
+function memDrop(id) { var m = _mem[id]; if (m) _memTotal -= m.n; delete _mem[id]; _memOrder = _memOrder.filter(function(x) { return x !== id; }); delete _memFullSaid[id]; _memVer++; }
+function memForget() { _mem = Object.create(null); _memOrder = []; _memTotal = 0; _memFullSaid = Object.create(null); _memVer++; }
+function memFor(map, grid) {   // this map's store, emptied when its grid, its cell size or its fog epoch changed
+    var k = grid.type + ':' + (grid.size || grid.s) + '|' + (mapFog(map).epoch || 0), m = _mem[map.id];
+    if (m && m.key === k) return m;
+    if (m) memDrop(map.id);
+    m = _mem[map.id] = { key: k, cells: Object.create(null), n: 0 }; _memOrder.push(map.id); _memVer++;
+    return m;
+}
+function memRemember(map, grid, tiers) {   // what is seen now, kept: never a cell only a wall-passing sense gave, never one the GM cut
+    var C = core(), m = memFor(map, grid), cut = Object.create(null), th = tiers.through || null, changed = false;
+    (mapFog(map).manual.cuts || []).forEach(function(c) { var k = C.cellKey(c, grid); cut[k] = 1; if (m.cells[k]) { delete m.cells[k]; m.n--; _memTotal--; changed = true; } });
+    for (var i = 0; i < tiers.list.length; i++) {
+        var o = tiers.list[i]; if (m.cells[o.key] || cut[o.key] === 1 || (th && th[o.key] === 1)) continue;
+        if (m.n >= MEM_MAP) { if (!_memFullSaid[map.id]) { _memFullSaid[map.id] = 1; toast('Your memory of this map is full: ground you see from now on is not kept.'); } break; }
+        while (_memTotal >= MEM_ALL && _memOrder.length && _memOrder[0] !== map.id) memDrop(_memOrder[0]);   // the oldest map goes first
+        if (_memTotal >= MEM_ALL) break;
+        m.cells[o.key] = o.cell; m.n++; _memTotal++; changed = true;
+    }
+    if (changed) _memVer++;
+    return m;
+}
+// the remembered cells as one opaque layer in screen space, traced again only when the store or the view changed (a draw with the same view
+// and the same memory traces none of them)
+function memLayer(map, m, z, sx, sy, W, H, traceOn) {
+    var sig = map.id + '|' + _memVer + '|' + z + '|' + sx + '|' + sy + '|' + W + '|' + H;
+    if (_memCanvas && _memSig === sig) return _memCanvas;
+    if (!_memCanvas) { if (typeof document === 'undefined' || !document.createElement) return null; _memCanvas = document.createElement('canvas'); }
+    _memCanvas.width = W; _memCanvas.height = H;
+    var mc = _memCanvas.getContext('2d'); if (!mc) return null;
+    mc.clearRect(0, 0, W, H); mc.fillStyle = '#000'; mc.beginPath();
+    for (var k in m.cells) traceOn(mc, m.cells[k]);
+    mc.fill(); _memSig = sig;
+    return _memCanvas;
+}
+// [fogcheck:memory-end]
 function hexPath(ctx, cx, cy, s) { for (var i = 0; i < 6; i++) { var a = Math.PI / 180 * (60 * i), px = cx + s * Math.cos(a), py = cy + s * Math.sin(a); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); }
 function draw() {
     var s = screenEl(), wrap = ui('whiteboardWrap'), C = core(); if (!s || !wrap || !C) return;
@@ -743,12 +787,14 @@ function draw() {
     if (tiers === null) return;                                    // reveal-all: no fog
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
     var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
-    var traceCell = function(cell) {                               // add one cell's outline to the current path (screen space); off-view cells are skipped
+    var traceOn = function(cx2, cell) {                            // add one cell's outline to a path (screen space); off-view cells are skipped
         var ctr = C.cellCenter(cell, grid), lx = ctr.x * z - sx, ly = ctr.y * z - sy;
         if (lx < -pad || ly < -pad || lx > W + pad || ly > H + pad) return;
-        if (grid.type === 'square') { var half = grid.size * z / 2; ctx.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
-        else hexPath(ctx, lx, ly, grid.s * z * 1.02);
+        if (grid.type === 'square') { var half = grid.size * z / 2; cx2.rect(lx - half - 1, ly - half - 1, half * 2 + 2, half * 2 + 2); }
+        else hexPath(cx2, lx, ly, grid.s * z * 1.02);
     };
+    var traceCell = function(cell) { traceOn(ctx, cell); };
+    var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memLay = mem && mem.n ? memLayer(map, mem, z, sx, sy, W, H, traceOn) : null;   // senses S6: the ground this player remembers
     ctx.save();
     if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
         ctx.beginPath();
@@ -759,11 +805,16 @@ function draw() {
     ctx.fillStyle = isClientView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players: opaque; the GM: see-through
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
+    if (memLay) { ctx.globalAlpha = 0.3; ctx.drawImage(memLay, 0, 0); ctx.globalAlpha = 1; }   // senses S6: remembered ground, a third of the way through the fog
     // lighting: a dim cell is punched part-way (its terrain shows, darkened), a clear or bright one fully — each tier one path filled once, so
     // padded cells never double-punch a seam. Lighting off: every cell is tier 2, exactly as before
     var tl = tiers.list, tk = tiers.keys, anyDim = false;
     for (var di = 0; di < tl.length && !anyDim; di++) if (tk[tl[di].key] === 1) anyDim = true;
-    if (anyDim) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell); ctx.fill(); }
+    if (anyDim) {
+        ctx.beginPath(); for (var dj = 0; dj < tl.length; dj++) if (tk[tl[dj].key] === 1) traceCell(tl[dj].cell);
+        if (memLay) { ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(5,6,12,0.97)'; ctx.fill(); ctx.globalCompositeOperation = 'destination-out'; }   // a dim cell it remembers is as dim as any other
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fill();
+    }
     ctx.fillStyle = 'rgba(0,0,0,1)';
     ctx.beginPath();
     for (var i = 0; i < tl.length; i++) if (tk[tl[i].key] !== 1) traceCell(tl[i].cell);
@@ -962,6 +1013,7 @@ function syncMenu() {
     var arcIn = ui('fogVisionArc'); if (arcIn && document.activeElement !== arcIn) arcIn.value = vis.arc;
     var vdef = ui('fogVisionDefault'); if (vdef) { var dv = cf.defaults.vision; vdef.checked = !!(dv && dv.mode === vis.mode && (dv.mode === 'all' || dv.arc === vis.arc)); }
     var fDef = ui('fogOnDefault'); if (fDef) fDef.checked = !!cf.defaults.on;   // "new maps start with fog on" (campaign default)
+    var frem = ui('fogRemember'); if (frem) frem.checked = cf.defaults.remember === true;   // senses S6: players remember what they have seen
     var lrow = ui('fogLightRow'); if (lrow) lrow.style.display = lightingOn() ? '' : 'none';   // lighting: the map's light
     var lsel = ui('fogLight'); if (lsel && document.activeElement !== lsel) lsel.value = mf.light === 'bright' || mf.light === 'dim' || mf.light === 'dark' ? mf.light : 'auto';
     var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
@@ -1061,6 +1113,13 @@ var LIGHT_SAID = {
         save(); syncMenu();
         toast(fDef.checked ? 'New maps in this campaign will start with fog on.' : 'New maps will start with fog off.');
     });
+    var frem = ui('fogRemember');   // senses S6: "Players remember what they have seen" (each on their own screen)
+    if (frem) frem.addEventListener('change', function() {
+        var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
+        if (frem.checked) cf.defaults.remember = true; else delete cf.defaults.remember;
+        save(); syncMenu();
+        toast(frem.checked ? 'Players now keep the ground they have seen, dimmed, each on their own screen.' : 'Players no longer keep the ground they have seen.');
+    });
     var fEmpty = ui('fogEmptyScope');
     if (fEmpty) fEmpty.addEventListener('change', function() {
         var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
@@ -1070,9 +1129,9 @@ var LIGHT_SAID = {
     });
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brush = b.dataset.fbrush === 'hide' ? 'hide' : 'reveal'; syncMenu(); }); });
     var rev = ui('fogRevealAll');
-    if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; mapFog(map).mode = 'reveal'; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });
+    if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });   // senses S6: a new epoch empties every player's memory of it
     var cov = ui('fogCoverAll');
-    if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; mapFog(map).mode = 'cover'; save(); syncMenu(); redraw(); toast('Whole map covered — only cells you reveal by hand show.'); });
+    if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map covered — only cells you reveal by hand show.'); });   // senses S6: a new epoch empties every player's memory of it
     var prev = ui('fogPreview');
     if (prev) prev.addEventListener('change', function() { previewMode = prev.value || 'off'; redraw(); });
     var wrap = ui('whiteboardWrap');
@@ -1094,7 +1153,7 @@ function sync() {   // the VTT switch moved, or a session started / ended
     redraw();
 }
 function tableLeft() { previewMode = 'off'; invalidateVision(); clearCanvas(); }
-function onSnapshot() { previewMode = 'off'; invalidateVision(); redraw(); }
+function onSnapshot() { previewMode = 'off'; invalidateVision(); var mc = activeCamp(); if (!mc || mc.id !== _memCamp) memForget(); _memCamp = mc ? mc.id : null; redraw(); }   // senses S6: a table of another campaign starts from no memory
 function foreign(isForeign) { previewMode = 'off'; invalidateVision(); if (isForeign) clearCanvas(); else redraw(); }
 
 window.wpFogSync = sync;

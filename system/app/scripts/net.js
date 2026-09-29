@@ -720,11 +720,20 @@ function fogDragSweep(all) {   // all: the session is ending, every open drag go
 // apart (a connection's id and a map's id may hold any character). Forgotten when the connection closes or its player is removed, when the
 // map goes or is sent to the table unfogged, and at a new table
 var _fogHeld = Object.create(null);
+// Fold R: and whether that copy changes the player's turn order or pointers on that map — a fight's row whose token it now holds and did not,
+// or the other way, or a pointer's target likewise; with no record before, always (the order they hold was judged on some other copy;
+// fogRoster sends nothing where the map has no fight and no pointer). The whole-copy senders then send that connection the order and the pointers again: a
+// creature the GM walks out of a player's sight loses its name there at once, not at the next turn step
 function fogSeed(conn, mapId, out) {
-    if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string' || !out || !Array.isArray(out.whiteboard)) return;
+    if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string' || !out || !Array.isArray(out.whiteboard)) return false;
     var ids = Object.create(null); out.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') ids[w.id] = 1; });
-    var per = _fogHeld[conn.peer] || (_fogHeld[conn.peer] = Object.create(null));
+    var per = _fogHeld[conn.peer] || (_fogHeld[conn.peer] = Object.create(null)), was = per[mapId];
     per[mapId] = { ids: ids, lit: quickHash(JSON.stringify(out.fogLit || [])), cap: out.lightsCapped === true };
+    if (!was) return true;
+    var toks = [], cmb = net.combats && own(net.combats, mapId) ? net.combats[mapId] : null;
+    if (cmb && Array.isArray(cmb.rows)) cmb.rows.forEach(function(r) { if (r && r.tokId) toks.push(r.tokId); });
+    Object.keys(net.targets || {}).forEach(function(p) { var t = net.targets[p]; if (t && t.mapId === mapId && t.id) toks.push(t.id); });
+    return toks.some(function(id) { return !was.ids[id] !== !ids[id]; });
 }
 function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campaign, as the join snapshot carried it
     var camp = getActiveCampaign(), cs = snap && snap.appState && snap.appState.campaigns, sc = camp && cs && own(cs, camp.id) ? cs[camp.id] : null;
@@ -794,8 +803,8 @@ function fogCatchUp(c, camp, m, pid, memo) {
     if (capNow !== rec.cap) msg.capped = capNow;
     var moved = add.length > 0 || drop.length > 0;
     if (!moved && msg.lit === undefined && msg.capped === undefined) return false;   // nothing differs
-    if (add.length > FOG_DIFF_ADD_MAX || long || JSON.stringify(msg).length > FOG_DIFF_BYTES) { net.sendItem(camp.id, m.id, c); if (moved) fogRoster(c, pid, m.id); return moved; }
-    try { c.send(msg); } catch (e) { sendFailed(e); net.sendItem(camp.id, m.id, c); if (moved) fogRoster(c, pid, m.id); return moved; }   // the whole copy instead, recorded only if it goes out
+    if (add.length > FOG_DIFF_ADD_MAX || long || JSON.stringify(msg).length > FOG_DIFF_BYTES) { net.sendItem(camp.id, m.id, c); return moved; }   // fold R: the whole copy sends the order and the pointers itself, where they changed
+    try { c.send(msg); } catch (e) { sendFailed(e); net.sendItem(camp.id, m.id, c); return moved; }   // the whole copy instead, recorded only if it goes out
     add.forEach(function(a) { rec.ids[a.item.id] = 1; }); drop.forEach(function(id) { delete rec.ids[id]; });
     if (msg.lit !== undefined) rec.lit = litHash;
     if (msg.capped !== undefined) rec.cap = capNow;
@@ -1364,7 +1373,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
                 try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
-                if (typeof fogSeed === 'function') fogSeed(conn, itemId, out);   // fold M5: what that copy now holds
+                if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
             };
             var clean = sanitizeItem(it); if (!clean) return;
             if (onlyConn) sendOne(onlyConn); else net.conns.forEach(sendOne);
@@ -1397,7 +1406,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
             var out = fogCopyFor(clean, camp, it, pr.id);
             if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
             try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
-            if (typeof fogSeed === 'function') fogSeed(conn, itemId, out);   // fold M5: what that copy now holds
+            if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
         });
     };
     if (typeof fogLanded === 'function') fogLanded(itemId, fogSend); else fogSend();

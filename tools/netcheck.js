@@ -5594,7 +5594,7 @@ pendingChecks.push((async () => {
     const scripts5 = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f) && f !== 'net.js').filter(f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').indexOf('_fogHeld') >= 0);
     check('fold M5 (source): the record is named only inside its slice and in no other script; each whole send seeds after its try (a send that throws returns first); the snapshot seeds only once it went out, after its try; the close handler, kickPlayer, itemGone, both unfogged sends and a new table forget',
         fmSrc5.indexOf('var _fogHeld') >= 0 && otherSrc5.indexOf('_fogHeld') < 0 && scripts5.length === 0
-        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}\n\s*if \(typeof fogSeed === 'function'\) fogSeed\(conn, itemId, out\);/g) || []).length === 2
+        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}\n\s*if \(typeof fogSeed === 'function' && fogSeed\(conn, itemId, out\)\) fogRoster\(conn, pr\.id, itemId\);/g) || []).length === 2
         && /conn\.send\(snap\); snapOk = true;/.test(src) && /\n\s*if \(snapOk && typeof fogSeedSnapshot === 'function'\) fogSeedSnapshot\(conn, snap\);/.test(src)
         && /fogDragSweep\(\);[^\n]*\n\s*if \(typeof fogForgetConn === 'function'\) fogForgetConn\(conn\.peer\);/.test(src) && /if \(typeof fogForgetConn === 'function'\) keys\.forEach\(fogForgetConn\);/.test(whole4('net.kickPlayer = function('))
         && /fogForgetMap\(itemId\)/.test(whole4('net.itemGone = function(')) && /fogForgetAll\(\);/.test(fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting')), J(scripts5));
@@ -5878,6 +5878,31 @@ pendingChecks.push((async () => {
     const wBq = S7({ system: sysBl }); wBq.api.item(patchMsg({ blind: true }, [{ id: 'tB', x: 100, y: 200, rot: 0, front: 0, blind: true }]), wBq.a1);
     check('senses S3 (host): no map copy of a player\'s sets or clears the Blind tick — their own blinded token stays blind (a copy saying false, one with none), an unblinded one gains none, another\'s gains none',
         wBp.tok('tA').blind === true && !('blind' in wBq.tok('tA')) && !('blind' in wBq.tok('tB')), J([wBp.tok('tA'), wBq.tok('tA'), wBq.tok('tB')]));
+
+    // fold R: a whole copy of a fogged map that changes which of a fight's tokens (or a pointer's) a connection holds sends that connection the
+    // turn order and the pointers again at once — a creature the GM walks out of a player's sight loses its name there before the next turn step
+    const rFight = W => { W.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Ana', tokId: 'tA' }, { id: 'r_o', name: 'Orc', tokId: 'orc' }, { id: 'r_x', name: 'Extra' }] } }; };
+    const rowsTo = (W, c) => { const m = W.msg(c, 'combats'); return m ? m.combats.mA.rows.map(r => r.name) : null; }, rKinds = c => c.sent.map(m => m.type);
+    const R1w = S7(); R1w.tok('orc').x = 250; rFight(R1w); R1w.clearSent(); R1w.net.sendItem('k', 'mA'); R1w.api.combats(); const rStart = [rowsTo(R1w, R1w.a1), rowsTo(R1w, R1w.b1)];
+    R1w.tok('orc').x = 750; R1w.fog.invalidateVision(); R1w.clearSent(); R1w.net.sendItem('k', 'mA');
+    const rAway = { a1: rKinds(R1w.a1), a2: rKinds(R1w.a2), b: rKinds(R1w.b1), rowsA: rowsTo(R1w, R1w.a1), rowsB: rowsTo(R1w, R1w.b1), orcA: R1w.ids(R1w.a1).indexOf('orc') >= 0 };
+    R1w.tok('orc').x = 751; R1w.clearSent(); R1w.net.sendItem('k', 'mA'); const rStill = [rKinds(R1w.a1), rKinds(R1w.b1)];
+    R1w.tok('orc').x = 250; R1w.fog.invalidateVision(); R1w.clearSent(); R1w.net.broadcastItemFiltered('k', 'mA'); const rBack = { a1: rKinds(R1w.a1), rowsA: rowsTo(R1w, R1w.a1) };
+    check('fold R: a creature the GM walks out of a player\'s sight (a GM save, a whole copy of a fogged map) leaves their turn order at once — each of their connections is sent the order again, the orc\'s row Hidden, after the copy; a save that changes nothing a fight\'s token is held by sends the copy alone; walking it back, a copy sent to the table names it again',
+        J(rStart) === J([['Ana', 'Orc', 'Extra'], ['Ana', 'Orc', 'Extra']]) && J(rAway) === J({ a1: ['item', 'combats'], a2: ['item', 'combats'], b: ['item', 'combats'], rowsA: ['Ana', 'Hidden', 'Extra'], rowsB: ['Ana', 'Hidden', 'Extra'], orcA: false })
+        && J(rStill) === J([['item'], ['item']]) && J(rBack) === J({ a1: ['item', 'combats'], rowsA: ['Ana', 'Orc', 'Extra'] }), J([rStart, rAway, rStill, rBack]));
+    const R2w = S7(); R2w.tok('orc').x = 250; R2w.net.targets = { u_b: { id: 'orc', mapId: 'mA', name: 'Bea' } }; R2w.clearSent(); R2w.net.sendItem('k', 'mA');
+    R2w.tok('orc').x = 750; R2w.fog.invalidateVision(); R2w.clearSent(); R2w.net.sendItem('k', 'mA');
+    const rPtr = { a1: rKinds(R2w.a1), ptrA: Object.keys((R2w.msg(R2w.a1, 'targets') || {}).targets || {}) };
+    const R3w = S7(); R3w.tok('orc').x = 250; R3w.clearSent(); R3w.net.sendItem('k', 'mA'); R3w.tok('orc').x = 750; R3w.fog.invalidateVision(); R3w.clearSent(); R3w.net.sendItem('k', 'mA'); const rNone = [rKinds(R3w.a1), rKinds(R3w.b1)];
+    const R4w = S7(); rFight(R4w); R4w.api.forgetAll(); R4w.clearSent(); R4w.net.sendItem('k', 'mA', R4w.a1); const rFirst = [rKinds(R4w.a1), rKinds(R4w.a2)];
+    const R5w = S7(); R5w.net.combats = { mB: { mapId: 'mB', round: 1, turn: 0, rows: [{ id: 'r_o', name: 'Orc', tokId: 'orc2' }] } }; R5w.tok('orc').x = 250; R5w.clearSent(); R5w.net.sendItem('k', 'mA'); R5w.tok('orc').x = 750; R5w.fog.invalidateVision(); R5w.clearSent(); R5w.net.sendItem('k', 'mA'); const rOther = rKinds(R5w.a1);
+    const rFail = [], R7w = S7({ failed: rFail }); rFight(R7w); const a1Send = R7w.a1.send; R7w.a1.send = function(m) { if (m.type === 'fogDiff') throw new Error('packer'); return a1Send.call(this, m); };
+    R7w.move(R7w.a1, 'tA', 250, 100, false); R7w.move(R7w.a1, 'tA', 250, 100, true); R7w.clearSent(); R7w.fire(150); const rFall = { a1: rKinds(R7w.a1).filter(t => t !== 'pos'), rows: rowsTo(R7w, R7w.a1), failed: rFail.slice() };
+    const R6w = S7(); R6w.net.targets = { u_b: { id: 'orc', mapId: 'mB', name: 'Bea' } }; R6w.tok('orc').x = 250; R6w.clearSent(); R6w.net.sendItem('k', 'mA'); R6w.tok('orc').x = 750; R6w.fog.invalidateVision(); R6w.clearSent(); R6w.net.sendItem('k', 'mA'); const rOtherPtr = rKinds(R6w.a1);
+    check('fold R: a pointer at a creature that leaves a player\'s sight is taken from their pointers at once; a map with no fight and no pointer sends the copy alone; a copy with no record before (a first copy, after the record was forgotten) sends the order where the map has a fight; a fight or a pointer on another map is not this copy\'s business; a catch-up whose message cannot go sends the whole copy and the order once',
+        J(rPtr.a1) === J(['item', 'targets']) && J(rPtr.ptrA) === J([]) && J(rNone) === J([['item'], ['item']]) && J(rFirst) === J([['item', 'combats'], []]) && J(rOther) === J(['item']) && J(rOtherPtr) === J(['item'])
+        && J(rFall) === J({ a1: ['item', 'combats'], rows: ['Ana', 'Orc', 'Extra'], failed: ['packer'] }), J([rPtr, rNone, rFirst, rOther, rOtherPtr, rFall]));
 
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));

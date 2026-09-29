@@ -5190,6 +5190,127 @@ pendingChecks.push((async () => {
         && (src.match(/function wireWbItem\(/g) || []).length === 1 && (src.match(/type: 'rect', hidden: true/g) || []).length === 1,
         JSON.stringify(gap));
 }
+// fold M3: a player's page as the 'fogDiff' branch and applyFogDiff see it, both sliced by their markers and run for real with the real
+// cleaners (cleanHostWbItem, cleanHostLight and cleanWaitingItem from net.js, sanitizeRichText as it runs under Node, fogcore's cleanFogLit
+// and cleanLight) and the real client broadcast. Each page keeps its own state, net and recorders
+function mkFogClient(FCx, o) {
+    o = o || {};
+    const lnM = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
+    const branch = between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff'), apply = between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply');
+    const rich = lnM('function escAttr(s) {') + '\n' + fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n';
+    const rec = { asked: [], renders: 0, redraws: 0, invalidated: 0, saves: 0, other: [] };
+    const hostConn = { peer: 'h', open: true, send(m) { packCheck(m); rec.asked.push(JSON.parse(JSON.stringify(m))); } };
+    const net = { role: 'client', active: true, foreign: true, syncedPeer: 'h', stream: false, applyingRemote: false, myId: o.myId || 'u_me', conns: [hostConn], roster: {} };
+    const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: o.active === undefined ? 'mA' : o.active, items: o.items || {} } } } };
+    if (o.other) state.appState.campaigns.k2 = { id: 'k2', activeItemId: null, items: o.other };
+    const win = { wpFogCore: o.core || FCx, wpFog: { invalidateVision() { rec.invalidated++; }, redraw() { rec.redraws++; } }, save() { rec.saves++; } };
+    const recv = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'cleanWaitingItem', 'onLocalSave', 'save',
+        '"use strict";\n' + lnM('function own(o, k) {') + '\n' + lnM('function validKey(k) {') + '\n' + lnM('function campOf(id) {') + '\n' + broadcastSrc + '\n' + rich
+        + lnM('function cleanHostWbItem(w) {') + '\n' + lnM('function cleanHostLight(w) {') + '\n' + apply + '\nreturn function(msg, conn) {\n' + branch + '\n};')(
+        net, state, win, () => state.appState.campaigns[state.appState.activeCampaignId], () => { rec.renders++; }, H.cleanWaitingItem, () => { rec.saves++; }, () => { rec.saves++; });
+    return { net, state, rec, camp: () => state.appState.campaigns.k, map: id => state.appState.campaigns.k.items[id], recv: (msg, peer) => recv(JSON.parse(JSON.stringify(msg)), { peer: peer === undefined ? 'h' : peer }) };
+}
+pendingChecks.push((async () => {
+    const FCx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+    const me = { id: 'me1', type: 'image', isChar: true, ownerId: 'u_me', x: 10, y: 10, w: 50, h: 50 };
+    const mkMap = () => ({ id: 'mA', type: 'map', fog: { on: true }, meta: { title: 'Cellar' }, rooms: [{ id: 'r1' }], links: [], fogLit: [{ c: 1, r: 1, t: 1 }], lightsCapped: true,
+        whiteboard: [{ id: 'wall', type: 'line', x: 0, y: 0 }, Object.assign({}, me), { id: 'orc', type: 'image', isChar: true, x: 100, y: 100 }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', x: 200, y: 50 }] });
+    const pg = (o) => { o = o || {}; const items = { mA: mkMap(), mB: Object.assign(mkMap(), { id: 'mB' }), dD: { id: 'dD', type: 'doc', blocks: [] } }; return mkFogClient(FCx, Object.assign({ items }, o)); };
+    const ids = m => m.whiteboard.map(w => w.id);
+    const J = v => JSON.stringify(v);
+    const nothing = p => J(p.camp().items.mA) === J(mkMap()) && p.rec.asked.length === 0 && p.rec.renders === 0 && p.rec.redraws === 0;
+    const dropOrc = { type: 'fogDiff', campId: 'k', itemId: 'mA', drop: ['orc'] };
+
+    // (1) the gate: the synced host only, never the stream window, a foreign table only, the hosted campaign, a key that is no prototype's
+    const gates = [
+        (() => { const p = pg(); p.recv(dropOrc, 'x'); return nothing(p); })(),
+        (() => { const p = pg(); p.net.stream = true; p.recv(dropOrc); return nothing(p); })(),
+        (() => { const p = pg(); p.net.foreign = false; p.recv(dropOrc); return nothing(p); })(),
+        (() => { const p = pg({ other: { mA: mkMap() } }); p.recv(Object.assign({}, dropOrc, { campId: 'k2' })); return nothing(p) && J(p.state.appState.campaigns.k2.items.mA) === J(mkMap()); })(),
+        (() => { const p = pg(); p.recv(Object.assign({}, dropOrc, { itemId: 'constructor' })); p.recv(Object.assign({}, dropOrc, { campId: 'constructor' })); p.recv(Object.assign({}, dropOrc, { itemId: 'x'.repeat(161) })); p.recv(Object.assign({}, dropOrc, { campId: 5 })); return nothing(p); })(),
+        (() => { const p = pg(); p.recv(dropOrc); return J(ids(p.map('mA'))) === J(['wall', 'me1', 'bo']) && p.rec.asked.length === 0 && p.rec.renders === 1 && p.rec.redraws === 1 && p.rec.invalidated === 1; })()
+    ];
+    check('fold M3: a player takes a map caught up in place (\'fogDiff\', the branch and applyFogDiff run for real) only from the synced host, never in the stream window or off a table, only for the hosted campaign and a map key that is no prototype\'s; from the host it applies',
+        gates.every(Boolean), J(gates));
+
+    // (2) a map not held: one ask for the whole map, nothing made; a page is no map; a bad shape asks and applies nothing
+    const pZ = pg(); pZ.recv({ type: 'fogDiff', campId: 'k', itemId: 'mZ', add: [{ item: { id: 'orc2', type: 'image', isChar: true }, after: null }] });
+    const pDoc = pg(); pDoc.recv({ type: 'fogDiff', campId: 'k', itemId: 'dD', drop: ['x'] });
+    const orcAdd = n => ({ item: { id: 'o' + n, type: 'image', isChar: true, x: n, y: 0 }, after: null });
+    const shapes = [
+        { add: Array.from({ length: 201 }, (_, i) => orcAdd(i)) }, { drop: Array.from({ length: 6001 }, (_, i) => 'd' + i) }, { drop: ['x'.repeat(257)] }, { drop: [''] }, { drop: [5] }, { drop: 'orc' },
+        { add: [{ item: { id: 'x'.repeat(257), type: 'image' }, after: null }] }, { add: [{ item: { id: 'a', type: 'image' }, after: 'x'.repeat(257) }] }, { add: [{ item: { id: 'a', type: 'image' } }] }, { add: [{ item: { id: 7 }, after: null }] },
+        { add: [{ item: [1], after: null }] }, { add: [null] }, { add: {} }, { lit: 'all' }, { lit: { c: 1 } }, { capped: 'yes' }, { capped: 1 },
+        { drop: ['orc'], lit: 'x' }, { add: [orcAdd(1), { item: null, after: null }] }
+    ].map(s => { const p = pg(); p.recv(Object.assign({ type: 'fogDiff', campId: 'k', itemId: 'mA' }, s)); return J(p.rec.asked) === J([{ type: 'needItem', campId: 'k', itemId: 'mA' }]) && J(p.camp().items.mA) === J(mkMap()) && p.rec.renders === 0 && p.net.applyingRemote === false; });
+    const edge = (() => { const p = pg(); p.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: Array.from({ length: 200 }, (_, i) => orcAdd(i)), drop: Array.from({ length: 6000 }, (_, i) => (i ? 'd' + i : 'orc')) }); return p.rec.asked.length === 0 && p.map('mA').whiteboard.length === 203 && !ids(p.map('mA')).includes('orc'); })();
+    check('fold M3: a map the player does not hold gets one ask for the whole map and nothing is made; a page is left alone; a bad shape (201 adds, 6001 drops, an id of 257 characters or none, an add with no after or no item, lit or capped of the wrong kind) asks once and applies nothing; 200 adds and 6000 drops apply',
+        J(pZ.rec.asked) === J([{ type: 'needItem', campId: 'k', itemId: 'mZ' }]) && !Object.prototype.hasOwnProperty.call(pZ.camp().items, 'mZ') && pZ.rec.renders === 0
+        && pDoc.rec.asked.length === 0 && J(pDoc.map('dD')) === J({ id: 'dD', type: 'doc', blocks: [] }) && shapes.every(Boolean) && edge,
+        J([pZ.rec.asked, shapes, edge]));
+
+    // (3) in place: the map object, its whiteboard array, meta, rooms and the player's own token object are the ones they were
+    const pI = pg(), mI = pI.map('mA'), wbI = mI.whiteboard, metaI = mI.meta, roomsI = mI.rooms, meI = wbI[1];
+    pI.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', drop: ['orc'], add: [{ item: { id: 'orc2', type: 'image', isChar: true, x: 5, y: 5 }, after: 'me1' }], lit: [{ c: 2, r: 2, t: 2 }], capped: false });
+    check('fold M3: a catch-up applies in place: the map object, its whiteboard array, meta, rooms and the player\'s own token object are the very ones they were; the drop and the add land where the host put them; nothing is saved and no patch goes back',
+        pI.map('mA') === mI && mI.whiteboard === wbI && mI.meta === metaI && mI.rooms === roomsI && wbI[1] === meI && J(ids(mI)) === J(['wall', 'me1', 'orc2', 'bo'])
+        && pI.rec.saves === 0 && pI.rec.asked.length === 0 && !/save\(|onLocalSave|wpHist|sendItem|type: 'item'/.test(between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply') + between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff')),
+        J(ids(mI)));
+
+    // (4) the player's own token: never dropped, never replaced, never added; one ask follows
+    const pO = pg(), meO = pO.map('mA').whiteboard[1];
+    pO.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', drop: ['me1', 'orc'], add: [{ item: { id: 'me1', type: 'image', isChar: true, ownerId: 'u_bo', x: 999 }, after: null }, { item: { id: 'mine2', type: 'image', isChar: true, ownerId: 'u_me' }, after: null }, { item: { id: 'orc3', type: 'image', isChar: true }, after: 'bo' }] });
+    check('fold M3: a drop or an add naming the player\'s own token (by its id or by its owner) is ignored, the rest applied, and one ask for the whole map follows',
+        pO.map('mA').whiteboard[1] === meO && meO.x === 10 && meO.ownerId === 'u_me' && J(ids(pO.map('mA'))) === J(['wall', 'me1', 'bo', 'orc3']) && J(pO.rec.asked) === J([{ type: 'needItem', campId: 'k', itemId: 'mA' }]),
+        J([ids(pO.map('mA')), pO.rec.asked]));
+
+    // (5) the cleaner on every add: a waiting token rebuilt from its own fields, one whose id it refuses (the rest applied, one ask), a text
+    // item's markup made text, a light cleaned; a held id (not theirs) replaced where it stands; the order the host gave
+    const pC = pg();
+    pC.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: [
+        { item: { id: 'wt', type: 'circle', waiting: 1, ownerId: 'u_bo', name: 'Bo', x: 7, y: 8, w: 60, h: 52, src: '/saves/images/x.png', sheet: { a: 1 }, charId: 'c1' }, after: null },
+        { item: { id: 'bad id!', type: 'circle', waiting: 1, ownerId: 'u_bo', x: 1, y: 1 }, after: null },
+        { item: { id: 'tx', type: 'text', text: '<img src=x onerror=alert(1)>Hi', x: 1, y: 1 }, after: 'wt' },
+        { item: { id: 'lamp', type: 'image', isChar: true, x: 3, y: 3, light: { bright: 3, dim: 1, unit: 'furlong', name: 'Lamp', html: '<b>' } }, after: 'tx' },
+        { item: { id: 'orc', type: 'image', isChar: true, x: 111, y: 222 }, after: 'nowhere' },
+        { item: { id: 'tail', type: 'image', isChar: true }, after: 'nowhere' }
+    ] });
+    const wC = pC.map('mA').whiteboard, byC = id => wC.find(w => w.id === id);
+    check('fold M3: every added item is cleaned as a whole map\'s are (a waiting token rebuilt from its own fields, one whose id the cleaner refuses left out with one ask, a text item\'s markup made text, a light cleaned); a held id not theirs is replaced where it stands; after null goes first, after an unknown id last, two side by side keep their order',
+        J(ids(pC.map('mA'))) === J(['wt', 'tx', 'lamp', 'wall', 'me1', 'orc', 'bo', 'tail']) && J(Object.keys(byC('wt')).sort()) === J(['color', 'h', 'id', 'layer', 'name', 'ownerId', 'type', 'w', 'waiting', 'x', 'y'])
+        && byC('tx').text.indexOf('<') < 0 && /&lt;img/.test(byC('tx').text) && J(byC('lamp').light) === J(FCx.cleanLight({ bright: 3, dim: 1, unit: 'furlong', name: 'Lamp' })) && byC('lamp').light.dim >= byC('lamp').light.bright
+        && byC('orc').x === 111 && byC('orc').y === 222 && J(pC.rec.asked) === J([{ type: 'needItem', campId: 'k', itemId: 'mA' }]),
+        J([ids(pC.map('mA')), byC('wt'), byC('tx'), byC('lamp'), pC.rec.asked]));
+
+    // (6) the lit cells and the light cap
+    const litIn = [{ c: 2, r: 3, t: 2 }, { c: 'x', r: 1, t: 1 }, { c: 4, r: 4, t: 9 }];
+    const pL = pg(), flOld = pL.map('mA').fogLit; pL.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', lit: litIn });
+    const pL2 = pg(); pL2.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', lit: [], capped: false });
+    const pL3 = pg(); pL3.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', drop: ['orc'] });
+    const pL4 = pg(); pL4.map('mA').lightsCapped = undefined; delete pL4.map('mA').lightsCapped; pL4.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', capped: true });
+    check('fold M3: lit replaces the lit cells with a new array cleaned by fogcore (a bad cell left out), an empty lit takes the key away, no lit leaves it; capped false takes the cap away, true sets it, no capped leaves it',
+        J(pL.map('mA').fogLit) === J(FCx.cleanFogLit(litIn)) && J(pL.map('mA').fogLit) === J([{ c: 2, r: 3, t: 2 }]) && pL.map('mA').lightsCapped === true && pL.map('mA').fogLit !== flOld
+        && !('fogLit' in pL2.map('mA')) && !('lightsCapped' in pL2.map('mA')) && J(pL3.map('mA').fogLit) === J([{ c: 1, r: 1, t: 1 }]) && pL3.map('mA').lightsCapped === true && pL4.map('mA').lightsCapped === true,
+        J([pL.map('mA').fogLit, pL2.map('mA'), pL3.map('mA').fogLit]));
+
+    // (7) the 6000 a map holds; the screen redrawn only for the map on it; a throw leaves the page taking remote changes no longer; two pages apart
+    const pF = pg(); for (let i = 0; pF.map('mA').whiteboard.length < 5999; i++) pF.map('mA').whiteboard.push({ id: 'f' + i, type: 'rect' });
+    pF.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: [orcAdd(1), orcAdd(2), orcAdd(3)] });
+    const pB = pg(); pB.recv(Object.assign({}, dropOrc, { itemId: 'mB' }));
+    const throwCore = Object.assign({}, FCx, { cleanFogLit: () => { throw new Error('boom'); } });
+    const pT = pg({ core: throwCore }); let threw = false; try { pT.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', lit: [] }); } catch (e) { threw = true; }
+    const p1 = pg(), p2 = pg(); p1.recv(dropOrc);
+    check('fold M3: the 6000 items a map holds stay the cap (the rest asked for); only the map on screen is drawn again, the fog redrawn either way; a throw inside leaves the page no longer applying a remote change; two pages keep their own copies',
+        pF.map('mA').whiteboard.length === 6000 && J(pF.rec.asked) === J([{ type: 'needItem', campId: 'k', itemId: 'mA' }])
+        && pB.rec.renders === 0 && pB.rec.redraws === 1 && J(ids(pB.map('mB'))) === J(['wall', 'me1', 'bo']) && threw && pT.net.applyingRemote === false
+        && J(ids(p1.map('mA'))) === J(['wall', 'me1', 'bo']) && J(ids(p2.map('mA'))) === J(['wall', 'me1', 'orc', 'bo']) && p2.rec.asked.length === 0,
+        J([pF.map('mA').whiteboard.length, pF.rec.asked, pB.rec, threw, pT.net.applyingRemote]));
+
+    // (8) where it sits: a client branch (the host's branches still 24), and nothing sends the message yet
+    check('fold M3: the catch-up is a client branch only (the host\'s branches stay 24, none new) and nothing in the app sends it yet',
+        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
+        && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && !/type: 'fogDiff'/.test(src));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

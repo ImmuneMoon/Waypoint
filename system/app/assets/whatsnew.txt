@@ -906,7 +906,13 @@ Fog of war
   player receives it. Properties also hold a Blind tick: a blind token's
   eyes see only its own cell, whatever the light, while a sense that does
   not use the eyes still works. A token is blind too when its character's
-  sheet says so (the system's blind switch, a Blinded effect).
+  sheet says so (the system's blind switch, a Blinded effect). In the System
+  editor each sense can be ticked "Uses the eyes" (off while blind) or
+  switched off by a field of its own (Deafened), "Blind when" names the
+  field that makes a character blind, and "Sees without eyes" starts a
+  sense that works blind. A blind player's screen says "Blind" above their
+  token with the senses that still work, and a token's right-click menu
+  names its senses in one line.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

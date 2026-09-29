@@ -259,6 +259,44 @@
       "max": 1000,
       "step": 1,
       "def": 0
+    },
+    {
+      "id": "f_blinded",
+      "key": "Blinded",
+      "label": "Blinded",
+      "kind": "toggle",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "def": false
+    },
+    {
+      "id": "f_deafened",
+      "key": "Deafened",
+      "label": "Deafened",
+      "kind": "toggle",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "def": false
+    },
+    {
+      "id": "f_blind",
+      "key": "Blind",
+      "label": "Blind",
+      "kind": "formula",
+      "vis": "all",
+      "hover": false,
+      "formula": "Blinded"
+    },
+    {
+      "id": "f_conds",
+      "key": "Conditions",
+      "label": "Conditions",
+      "kind": "effects",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm"
     }
   ],
   "rolls": [
@@ -433,6 +471,9 @@
       "style": "graded"
     },
     "senses": {
+      "blind": {
+        "field": "f_blind"
+      },
       "list": [
         {
           "id": "sn_forcesgt",
@@ -497,5 +538,37 @@
         ]
       }
     ]
-  }
+  },
+  "effects": [
+    {
+      "id": "e_blinded",
+      "name": "Blinded",
+      "icon": "",
+      "tone": "",
+      "dur": "",
+      "notes": "",
+      "vis": "all",
+      "mods": [
+        {
+          "f": "f_blinded",
+          "op": "on"
+        }
+      ]
+    },
+    {
+      "id": "e_deafened",
+      "name": "Deafened",
+      "icon": "",
+      "tone": "",
+      "dur": "",
+      "notes": "",
+      "vis": "all",
+      "mods": [
+        {
+          "f": "f_deafened",
+          "op": "on"
+        }
+      ]
+    }
+  ]
 }

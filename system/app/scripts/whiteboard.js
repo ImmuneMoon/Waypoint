@@ -144,6 +144,7 @@ function showStanceMenu(e, tok) {
     var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;</div>' : '';   // HUD frame (HF2b)
     var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own">&#128444;&#65039; New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
     rows += ownLightHtml(tok);   // lighting L5: their own light
+    rows += tokenSensesLine(tok);   // senses S3: its senses, read-only
     if (!rows && !sheetRow && !hudRow && !picRow) return;
     cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
@@ -190,6 +191,29 @@ function gmLightToggle(items) {
     return { lit: lit, anyOn: anyOn, apply: function() { lit.forEach(function(it) { var L = C.cleanLight(it.light); if (anyOn) L.off = true; else delete L.off; it.light = L; }); return anyOn ? 'off' : 'on'; } };
 }
 // [sinkcheck:ownlight-end]
+
+// [sinkcheck:senseline-start]
+// Senses S3: a character token's senses as one read-only line on its menu (a player's own, and the GM's) — "Blind" when it is, each sense it
+// holds with its range, one held but off with why ("off while blind", or off and the switch that turned it off). Worked out by this app from its
+// own system, character copy and token: the host sends no word of it. A name or a label is a system file's text: through esc. Absent unless the
+// token is blind or holds a sense
+var SENSE_LINE_UNIT = { ft: 'ft', m: 'm', cells: 'cells' };
+function tokenSensesLine(tok) {
+    var F = window.wpFog, S = window.wpSystemCore, camp = getActiveCampaign(), map = getActiveMap(); if (!tok || !tok.isChar || tok.waiting || !F || !camp || !map) return '';
+    var ts = F.tokenSenses(tok, map, camp, !tok.ownerId), byId = Object.create(null), words = [];
+    F.campSenses(camp).forEach(function(s) { byId[s.id] = s; });
+    var said = function(e) { var s = byId[e.id]; return s ? String(s.name) + ' ' + e.n + ' ' + (SENSE_LINE_UNIT[s.unit] || 'yd') : ''; };
+    if (ts.blind) words.push('Blind');
+    ts.full.forEach(function(e) { var t = said(e); if (t) words.push(t); });
+    (ts.offs || []).forEach(function(e) {
+        var t = said(e), s = byId[e.id]; if (!t) return;
+        var f = e.why === 'off' && s.off && S && S.fieldById ? S.fieldById(camp.system, s.off.field) : null;
+        words.push(t + ': off' + (e.why === 'blind' ? ' while blind' : f && typeof f.label === 'string' && f.label ? ', ' + f.label : ''));
+    });
+    if (!words.length) return '';
+    return '<div class="menu-item cm-senses" style="color:var(--dim); cursor:default; white-space:normal; max-width:280px; font-size:11px;">Senses: ' + esc(words.join(' · ')) + '</div>';
+}
+// [sinkcheck:senseline-end]
 
 // [sinkcheck:gmframe-start]
 // The token creator, the GM's side (owner, 2026-09-27): Frame picture… on a picture token — its kept original (Keep the original: the whole
@@ -5997,7 +6021,7 @@ document.addEventListener('contextmenu', function(e) {
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
-                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO) || tokenSensesLine(tokO))) { e.preventDefault(); showStanceMenu(e, tokO); }
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;
@@ -6129,6 +6153,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-status-down">&#10006; Incapacitated</div>';
                 html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
                 html += stanceMenuHtml(firstItem);
+                html += tokenSensesLine(firstItem);   // senses S3: its senses, read-only
             }
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
             if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)

@@ -687,6 +687,7 @@ function draw() {
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
     drawCaptions(ctx, s);
+    drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
 }
 // Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own
 // layers lie under it, and on a player's screen the cells beneath a token are often dark. whiteboard.js marks the token with the words it
@@ -702,6 +703,40 @@ function drawCaptions(ctx, s) {
         var t = String(els[i].dataset.lightCap || '').slice(0, 200); if (!t) continue;
         var r = els[i].getBoundingClientRect(), cx = r.left + r.width / 2 - sr.left, cy = r.bottom - sr.top + 12, w = Math.min(ctx.measureText(t).width + 14, 360), h = 17;
         if (cx + w / 2 < 0 || cy + h < 0 || cx - w / 2 > sr.width || cy - h > sr.height) continue;   // off the board's view
+        ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1;
+        ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e8e6f5'; ctx.fillText(t, cx, cy + 0.5, 346);
+    }
+    ctx.restore();
+}
+
+// Senses S3: why a blind token's screen is dark and what still works — "Blind", then each sense of its that still sees with its range — above
+// each character token of the viewer's that is blind (a player's own; on the GM's screen the player previewed, or every token), worked out from
+// this app's own system, characters and tokens (the host sends no word of it). A sense's name is a system file's text: drawn as text, never markup
+var SENSE_CAP_UNIT = { ft: 'ft', m: 'm', cells: 'cells' };
+function blindCaptionsFor(map, camp, ownerId) {
+    var out = [], byId = Object.create(null); campSenses(camp).forEach(function(s) { byId[s.id] = s; });
+    ((map && map.whiteboard) || []).forEach(function(w) {
+        if (!w || w.hidden || !w.isChar || typeof w.id !== 'string') return;   // a waiting token is never blind (tokenSenses)
+        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
+        var ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'); if (!ts.blind) return;
+        var words = ['Blind']; ts.full.forEach(function(e) { var s = byId[e.id]; if (s) words.push(String(s.name) + ' ' + e.n + ' ' + (SENSE_CAP_UNIT[s.unit] || 'yd')); });
+        out.push({ id: w.id, text: words.join(' · ') });
+    });
+    return out;
+}
+// drawn as drawCaptions draws a light's name, but above the token (a light's name sits under it), found by its board id
+function drawSenseCaptions(ctx, s, caps) {
+    if (!caps.length || !ctx.fillText) return;
+    var want = Object.create(null); caps.forEach(function(c) { want[c.id] = c.text; });
+    var els = document.querySelectorAll('#whiteboardWrap .wb-item[data-id]'), sr = s.getBoundingClientRect(), n = 0;
+    ctx.save();
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (var i = 0; i < els.length && n < CAPTIONS_MOST; i++) {
+        var t0 = want[els[i].dataset.id]; if (t0 === undefined) continue;   // a map with no prototype: a prototype's name names nothing
+        var t = String(t0).slice(0, 200), r = els[i].getBoundingClientRect(), cx = r.left + r.width / 2 - sr.left, cy = r.top - sr.top - 12, w = Math.min(ctx.measureText(t).width + 14, 360), h = 17;
+        if (cx + w / 2 < 0 || cy + h < 0 || cx - w / 2 > sr.width || cy - h > sr.height) continue;   // off the board's view
+        n++;
         ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1;
         ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#e8e6f5'; ctx.fillText(t, cx, cy + 0.5, 346);

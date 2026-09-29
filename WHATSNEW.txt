@@ -891,6 +891,15 @@ Fog of war
 - The coordinate rulers along the play map's top and left edges now draw
   over the fog, so you and your players can read them on a fogged map; they
   show board coordinates only, nothing under the fog.
+- Senses: the System editor's Combat card holds your game's senses besides
+  the eyes (darkvision, blindsight, a sense of the Force). Each sees every
+  cell within its range, and the creatures there reach its player as the
+  eyes would show them. A range comes from a field of the character (one
+  its player can read) or is a number every character has; you pick what
+  it counts in, whether walls stop it, whether it sees all round and
+  whether it sees the dark as dim, and each sense says in a sentence what
+  it does. Sight stays the eyes' own range in the dark; a token sees by the
+  longer of the two. The fog menu names the system's senses.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

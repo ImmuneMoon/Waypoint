@@ -246,6 +246,19 @@
           }
         ]
       }
+    },
+    {
+      "id": "f_fsight",
+      "key": "ForceSight",
+      "label": "Force Sight (yd)",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "min": 0,
+      "max": 1000,
+      "step": 1,
+      "def": 0
     }
   ],
   "rolls": [
@@ -418,6 +431,20 @@
     "cover": {
       "on": false,
       "style": "graded"
+    },
+    "senses": {
+      "list": [
+        {
+          "id": "sn_forcesgt",
+          "name": "Force Sight",
+          "range": {
+            "by": "field",
+            "field": "f_fsight"
+          },
+          "grade": "full",
+          "arc": "all"
+        }
+      ]
     }
   },
   "sheet": {

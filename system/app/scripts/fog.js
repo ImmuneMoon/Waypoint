@@ -762,6 +762,9 @@ function syncMenu() {
     var sight = ui('fogSight'); if (sight && document.activeElement !== sight) sight.value = cf.defaults.sight || 0;
     var sunit = ui('fogSightUnit'); if (sunit && document.activeElement !== sunit) sunit.value = cf.fields.sightUnit || 'yd';   // lighting (L4): what sight counts in
     fillSightField();
+    // senses S2a: the system's senses, named (as text), with the way to the editor where they are set; hidden with no system
+    var srow = ui('fogSensesRow'); if (srow) srow.style.display = camp && camp.system && typeof camp.system === 'object' ? '' : 'none';
+    var stxt = ui('fogSensesText'); if (stxt) { var snl = camp && camp.system && camp.system.combat && camp.system.combat.senses && Array.isArray(camp.system.combat.senses.list) ? camp.system.combat.senses.list : [], snn = snl.filter(function(s) { return !!s && typeof s.name === 'string' && !!s.name; }).map(function(s) { return s.name; }); stxt.textContent = snn.length ? snn.join(', ') : 'This system defines no extra senses'; }
     // vision mode (all-around vs a facing cone), decoupled from grid type
     var vis = visionOf(map), vsel = ui('fogVision');
     if (vsel) vsel.value = vis.mode;
@@ -807,6 +810,8 @@ var LIGHT_SAID = {
     if (sight) sight.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp), v = Math.round(Number(sight.value) || 0); cf.defaults.sight = Math.max(0, Math.min(100000, v)); save(); syncMenu(); redraw(); });
     var sfield = ui('fogSightField');
     if (sfield) sfield.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp); cf.fields.sight = sfield.value || undefined; if (!sfield.value) delete cf.fields.sight; save(); syncMenu(); redraw(); });
+    var sedit = ui('fogSensesEdit');
+    if (sedit) sedit.addEventListener('click', function() { closeMenu(); if (window.wpSheets && window.wpSheets.open) window.wpSheets.open('items'); });   // senses S2a: they are set on the System editor's Combat card
     var sunit = ui('fogSightUnit');
     if (sunit) sunit.addEventListener('change', function() {
         var camp = activeCamp(), C = core(); if (!camp || !C) return; var cf = campFog(camp), u = C.lightUnit(sunit.value);

@@ -71,6 +71,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
     var changed = false;
     _bindNotes = [];
     function fix(reason) { changed = true; }
+    function isPlain(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }   // an entry the app reads fields from: a null, a number, a string or a list there (a hand-edited or generated file) is dropped
 
     // v0 (earliest builds): { maps: {...}, activeMapId } with no campaign layer
     if (data && data.maps && !data.campaigns) {
@@ -101,16 +102,22 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
             if ('gridFront' in m.meta) { delete m.meta.gridFront; fix('obsolete gridFront removed'); }
             if (m.type === 'planner') {
                 if (!Array.isArray(m.blocks)) { m.blocks = []; fix('planner blocks created'); }
+                if (!m.blocks.every(isPlain)) { m.blocks = m.blocks.filter(isPlain); fix('corrupt planner block dropped'); }
                 return;
             }
             if (m.type === 'doc') {   // a handbook page: blocks only, never the map arrays (the cleanup classifier tests !m.rooms)
                 if (!Array.isArray(m.blocks)) { m.blocks = []; fix('page blocks created'); }
+                if (!m.blocks.every(isPlain)) { m.blocks = m.blocks.filter(isPlain); fix('corrupt page block dropped'); }
                 m.blocks.forEach(function(b) { if (b && typeof b === 'object' && !b.id) { b.id = 'b_' + Math.random().toString(36).slice(2, 8); fix('block id added'); } });
                 return;
             }
             if (!Array.isArray(m.rooms)) { m.rooms = []; fix('rooms created'); }
             if (!Array.isArray(m.links)) { m.links = []; fix('links created'); }
             if (!Array.isArray(m.whiteboard)) { m.whiteboard = []; fix('play map created'); }
+            // before anything below (or the picture migration, the owners' stamp, the first draw) reads an entry's fields
+            if (!m.rooms.every(isPlain)) { m.rooms = m.rooms.filter(isPlain); fix('corrupt room dropped'); }
+            if (!m.links.every(Array.isArray)) { m.links = m.links.filter(Array.isArray); fix('corrupt link dropped'); }   // a link is [roomA, roomB, type?, { label }?]
+            if (!m.whiteboard.every(isPlain)) { m.whiteboard = m.whiteboard.filter(isPlain); fix('corrupt play-map item dropped'); }
             // The hex grid went flat-top (1.1.1): cells are 60 wide × 52 tall. Tokens
             // and hex shapes saved at the old pointy-top cell size (52 × 60) are
             // resized and re-seated on the new lattice, once.
@@ -127,6 +134,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
                 if (!r.id) { r.id = 'r' + Math.random().toString(36).slice(2, 8); fix('room id generated'); }
                 if (typeof r.x !== 'number') { r.x = 15000; fix('room x defaulted'); }
                 if (typeof r.y !== 'number') { r.y = 15000; fix('room y defaulted'); }
+                if (r.characters != null && !Array.isArray(r.characters)) { r.characters = []; fix('room characters created'); }
+                if (Array.isArray(r.characters) && !r.characters.every(isPlain)) { r.characters = r.characters.filter(isPlain); fix('corrupt room character dropped'); }
             });
             m.whiteboard.forEach(function(w) {
                 if (!w.id) { w.id = 'wb' + Math.random().toString(36).slice(2, 10); fix('wb id generated'); }

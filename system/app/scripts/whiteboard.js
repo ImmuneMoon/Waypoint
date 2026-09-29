@@ -3834,15 +3834,16 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   // Every campaign's item titles (first owner of an id wins) and every path each campaign uses
   function buildImgIndexFor(data) {
       var refs = {}, titles = {};
+      var list = function(a) { return Array.isArray(a) ? a : []; };   // a key that holds no list (a planner's stray whiteboard, a file's) is skipped: the load runs this before anything reads the items
       var add = function(key, campId) { if (!key || typeof key !== 'string') return; pathKeys(key).forEach(function(k) { var a = refs[k] = refs[k] || []; if (a.indexOf(campId) < 0) a.push(campId); }); };
       Object.keys((data && data.campaigns) || {}).forEach(function(cid) {
           var camp = data.campaigns[cid]; if (!camp || typeof camp !== 'object') return;
           Object.keys(camp.items || {}).forEach(function(id) {
               var it = camp.items[id]; if (!it || typeof it !== 'object') return;
               if (!titles[id]) titles[id] = { title: (it.meta && it.meta.title) || id, campId: cid, camp: camp.name || cid };
-              (it.whiteboard || []).forEach(function(w) { if (w) { add(w.src, cid); if (w.frame && typeof w.frame === 'object') add(w.frame.src, cid); } });   // a token's kept original (the token creator) is the campaign's too
-              (it.rooms || []).forEach(function(r) { if (!r) return; add(r.image, cid); (r.characters || []).forEach(function(ch) { if (ch) add(ch.portrait, cid); }); });
-              (it.blocks || []).forEach(function(b) { if (b) add(b.src, cid); });
+              list(it.whiteboard).forEach(function(w) { if (w) { add(w.src, cid); if (w.frame && typeof w.frame === 'object') add(w.frame.src, cid); } });   // a token's kept original (the token creator) is the campaign's too
+              list(it.rooms).forEach(function(r) { if (!r) return; add(r.image, cid); list(r.characters).forEach(function(ch) { if (ch) add(ch.portrait, cid); }); });
+              list(it.blocks).forEach(function(b) { if (b) add(b.src, cid); });
           });
           Object.values(camp.handouts || {}).forEach(function(h) { if (h) add(h.src, cid); });
           Object.values(camp.cast || {}).forEach(function(c) { if (c) add(c.src, cid); });

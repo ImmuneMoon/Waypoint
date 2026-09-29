@@ -53,9 +53,10 @@ function cellYardsForMap(map) {
     return per * (UNIT_YD[meta.cellUnit] || (hex ? 1 : UNIT_YD.ft));
 }
 // Senses S2a: the system's full senses (the same in the GM's view and the players', S1), [] with none
+function campSensesOf(camp) { var sys = camp && camp.system, sn = sys && typeof sys === 'object' && sys.combat && typeof sys.combat === 'object' ? sys.combat.senses : null; return sn && typeof sn === 'object' ? sn : null; }
 function campSenses(camp) {
-    var sys = camp && camp.system, sn = sys && typeof sys === 'object' && sys.combat && typeof sys.combat === 'object' ? sys.combat.senses : null;
-    return sn && typeof sn === 'object' && Array.isArray(sn.list) ? sn.list.filter(function(s) { return !!s && s.grade === 'full' && !!s.range && typeof s.range === 'object'; }) : [];
+    var sn = campSensesOf(camp);
+    return sn && Array.isArray(sn.list) ? sn.list.filter(function(s) { return !!s && s.grade === 'full' && !!s.range && typeof s.range === 'object'; }) : [];
 }
 // One token's sight and full senses, in cells, from ONE resolver (its token's context: effects, posture, elevation). Sight: the mapped sheet
 // field via the formula engine, else the campaign default; clamped. Counted in yards unless the campaign says feet, metres or cells
@@ -63,6 +64,8 @@ function campSenses(camp) {
 // read from the character's sheet only where the token's own player holds that character whole (not an NPC, the character's owner the
 // token's, not a teammate's partial copy), so host and player read it alike; waived: the GM's union of every token reads every sheet. A range
 // of 0 or less is not having the sense; the cells in the sense's own unit through this map's scale. { sight, full: [{ id, cells, pass, all, dim }] }
+// Senses S3: blind (the GM's tick on the token, or the system's blind field ticked or above 0 on a sheet read by the same rule) sets blind:
+// true; a sense of the eyes is then off, as is a sense whose off field is ticked or above 0: held but off, in offs [{ id, n, cells, from, why }]
 function tokenSenses(token, map, camp, waived) {
     var C = core(), out = { sight: 0, full: [] }; if (!C || !token) return out;
     var cf = campFog(camp), yards = cf.defaults.sight || 0, per = cellYardsForMap(map), S0 = window.wpSystemCore, F = window.wpFormula;
@@ -76,18 +79,26 @@ function tokenSenses(token, map, camp, waived) {
         return r || null;
     };
     var read = function(fid) { var f = S0 && fid ? S0.fieldById(camp.system, fid) : null, rv = f && f.key ? resolver() : null, v = rv ? rv(f.key) : null; return typeof v === 'number' && isFinite(v) ? v : null; };
+    var set = function(sw) { var f = S0 && sw ? S0.fieldById(camp.system, sw.field) : null, rv = f && f.key ? resolver() : null, v = rv ? rv(f.key) : null; return v === true || (typeof v === 'number' && v > 0); };   // senses S3: a switch, ticked or above 0
     if (cf.fields.sight && ch) { var sv = read(cf.fields.sight); if (sv !== null && sv >= 0) yards = sv; }
     out.sight = C.unitCells(yards, cf.fields.sightUnit, per);
-    var list = campSenses(camp); if (!list.length) return out;
+    var tick = token.blind === true && !token.waiting, sn = campSensesOf(camp);   // senses S3: the GM's tick works with no system at all
+    if (!sn) { if (tick) out.blind = true; return out; }
     var own = !!ch && (waived === true || (ch.npc !== true && ch.partial !== true && !!ch.ownerId && ch.ownerId === token.ownerId));
     out.sheet = own;
+    if (tick || (own && sn.blind && set(sn.blind))) out.blind = true;
+    var list = campSenses(camp), offs = [];
     var ov = !token.waiting ? C.cleanTokSenses(token.senses) : null, byTok = Object.create(null);   // senses S2b: the token's own ranges come first (never a waiting token's)
     if (ov) ov.forEach(function(e) { byTok[e.id] = e.n; });
     list.forEach(function(s) {
         var mine = Object.prototype.hasOwnProperty.call(byTok, s.id), n = mine ? byTok[s.id] : s.range.by === 'n' ? s.range.n : s.range.by === 'field' && own ? read(s.range.field) : null;
         if (!(typeof n === 'number' && n > 0)) return;
-        out.full.push({ id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim', n: n, from: mine ? 'token' : s.range.by === 'n' ? 'n' : 'field' });
+        var e = { id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim', n: n, from: mine ? 'token' : s.range.by === 'n' ? 'n' : 'field' };
+        var why = s.off && own && set(s.off) ? 'off' : s.eyes === true && out.blind ? 'blind' : '';   // senses S3: a sense switched off, or one of the eyes while blind: held, but it sees nothing
+        if (why) { offs.push({ id: e.id, n: n, cells: e.cells, from: e.from, why: why }); return; }
+        out.full.push(e);
     });
+    if (offs.length) out.offs = offs;
     return out;
 }
 // One token's sight, in cells (tokenSenses's eyes)
@@ -101,7 +112,7 @@ function senseViewers(ts, eyesArc) {
     (ts.full || []).forEach(function(s) {
         var arc = s.all ? 360 : eyesArc;
         if (!(s.cells > 0)) return;
-        if (!s.pass && !s.dim && arc === eyesArc && s.cells <= ts.sight) return;
+        if (!ts.blind && !s.pass && !s.dim && arc === eyesArc && s.cells <= ts.sight) return;   // senses S3: blind eyes see none of those cells
         var k = (s.pass ? 'p' : 's') + '|' + arc + '|' + (s.dim ? 'd' : 'c');
         if (!best[k]) order.push(k);
         if (!best[k] || s.cells > best[k].range) best[k] = { range: s.cells, arc: arc, pass: s.pass, dim: s.dim };
@@ -130,7 +141,7 @@ function viewersFor(map, camp, ownerId) {
         if (!w || w.hidden || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
         var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*');
-        out.push({ x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation
+        out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
         if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
     });
     return out;
@@ -390,7 +401,7 @@ function fogLitFor(recipientId, camp, map, drop) {
     // the light the player's copy lacks is the light of the items dropped from it (usually one or two): only theirs are flooded first
     var keep = Object.create(null); (map.whiteboard || []).forEach(function(w) { if (w && !drop[w.id]) keep[w.id] = 1; });
     var dsrc = lightSources(map, grid, blk, keep); if (!dsrc.length) return null;
-    var vs = viewersFor(map, camp, recipientId).filter(function(v) { return !v.sense; }); if (!vs.length) return null;   // senses S2a: light by the eyes only (a sense sees without it)
+    var vs = viewersFor(map, camp, recipientId).filter(function(v) { return !v.sense && !v.blind; }); if (!vs.length) return null;   // senses S2a: light by the eyes only (a sense sees without it); S3: never blind eyes
     var dLit = litOf(map, grid, blk, dsrc);
     // the cells this player's tokens see: their line of sight as their copy works it out — never a manual reveal (no light is read there), a
     // manual cut left in (a cut beside a lit wall still lights its face on their side)
@@ -430,7 +441,7 @@ function viewEvict(need, mapId) {
 function viewSeen(map, grid, blk, lvl, v, lc) {
     var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (lc ? lc.ver : 0), mc = _viewCache[map.id];
     if (!mc || mc.stamp !== stamp) { if (mc) _viewCells -= mc.cells; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
-    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was)
+    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : v.blind ? '|b' : ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was)
     if (hit) { hit.used = ++_viewTick; hit.pass = _viewPass; return hit.hit; }
     var cells = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
     if (_viewCells + cells.length > VIEW_BUDGET) viewEvict(cells.length, map.id);
@@ -498,6 +509,7 @@ function lightSeen(from, to, map, camp) {
         if (sense === null || t > sense) sense = t;
     });
     var up = function(t) { return sense !== null && sense > t ? sense : t; };
+    if (ts.blind) return d <= 1e-9 ? 2 : sense;   // senses S3: blind eyes read no light but their own cell's; a full sense still reads what it reaches
     if (!(d <= C.LIMITS.rangeCells + 1e-9) || !C.cellInArc(v, b, grid) || !C.lineClear(a, b, grid, blk)) return sense;   // out of the eyes' reach: a sense's answer or none
     if (d <= ts.sight + 1e-9) return 2;
     if (over) return up(0);   // walls over their cap: the map reads by sight alone, never by a light judged through them
@@ -542,10 +554,10 @@ function sightSigFor(recipientId, camp, map) {
     // senses S2a: a full sense by its cells, whether it passes walls and whether it sees all round (never whether it shows the dark as dim:
     // that changes how clear a cell shows, never whether it is seen); on a lit or a dim map one the walls stop in the map's arc sees nothing
     // the eyes do not, and is left out
-    var out = [];
+    var out = [], blindNow = false;   // senses S3: blind eyes read 'B' anywhere (they see their own cell alone), and then every sense counts
     viewersFor(map, camp, recipientId).forEach(function(v) {
-        if (!v.sense) out.push(lit ? 'L' : v.range);
-        else if (!lit || v.pass || v.arc >= 360) out.push('s' + v.range + (v.pass ? 'p' : '') + (v.arc >= 360 ? 'a' : ''));
+        if (!v.sense) { blindNow = !!v.blind; out.push(blindNow ? 'B' : lit ? 'L' : v.range); }
+        else if (!lit || blindNow || v.pass || v.arc >= 360) out.push('s' + v.range + (v.pass ? 'p' : '') + (v.arc >= 360 ? 'a' : ''));
     });
     return out.join(',');
 }

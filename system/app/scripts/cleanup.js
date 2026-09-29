@@ -613,6 +613,7 @@ function cleanImportItems(ic, deps) {
             if (!isObj(w)) return;
             var TS = FC && typeof FC.cleanTokSenses === 'function' ? FC.cleanTokSenses(w.senses) : null;
             if (TS) w.senses = TS; else delete w.senses;
+            if (w.blind !== undefined && w.blind !== true) delete w.blind;   // senses S3: the GM's Blind tick, true only
         });
     });
 }

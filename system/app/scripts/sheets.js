@@ -355,6 +355,7 @@ function deleteCharacter(id) {
     if (prev) { unbindStale(camp, prev, c); if (c.made === 1) unbindMade(camp, prev, c.name); syncOwners(camp); var nD = net(); if (nD && nD.logEvent) nD.logEvent('char', c.name + ' deleted (played by ' + (playerNames(camp)[prev] || 'a player') + '; they keep its tokens)'); }   // their leftover tokens stay theirs (by name); another character of theirs may now be in play
     save(true);
     var n = net(); if (n && n.active && n.role === 'host') n.syncCharGone(id, c.making === 1 ? prev : '');   // Onboarding F3: one in the making was its player's alone
+    if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: its tokens now see by the campaign's default
     if (prev && n && n.reconcilePresence) n.reconcilePresence(prev, { mode: 'give' });
     if (sheetOpen === id) closeSheet();
     closeHud(id);
@@ -3842,6 +3843,7 @@ function saveDraft() {
     draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
     save(true);
     var n = net(); if (n && n.syncSystem) n.syncSystem();
+    if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
     var v = validateSystem(clean, F());
     toast((reach.text ? reach.text + ' ' : '') + (orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));

@@ -643,6 +643,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       finishImport('Merged: ' + r.added + ' new, ' + r.updated + ' updated' + (r.newCamps ? ', ' + r.newCamps + ' new campaign(s)' : '') + '.');
 
+      var nM = window.wpNet; if (nM && nM.active && nM.role === 'host') { if (nM.syncChars) nM.syncChars(); if (nM.resendFogged) nM.resendFogged(); }   // Senses S0: a merge while hosting changes characters, the system and maps the save does not send: the table gets the characters and every fogged map again
+
   });
 
   var _el_importReplaceBtn = document.getElementById('importReplaceBtn');

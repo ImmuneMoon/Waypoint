@@ -652,6 +652,12 @@ pendingChecks.push((async () => {
 const lineOf = k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
 const ownKeySrc = [lineOf('function own('), lineOf('function validKey('), lineOf('function campOf(')].join('\n') + '\n';   // the real own-key one-liners
 const fnSrc = (start, end, label) => { const i = src.indexOf(start), k = src.indexOf(end, i + 1); if (i < 0 || k < 0) throw new Error('netcheck: ' + label + ' not found in net.js'); return src.slice(i, k); };
+// fold M2: sanitizeItem as it runs, with the two it calls: wireNum (above it) and wireWbItem (right after it)
+const siSrc = () => {
+    const a = src.indexOf('function sanitizeItem('), b = src.indexOf('\n}\n', src.indexOf('function wireWbItem(', a));
+    if (a < 0 || b < a) throw new Error('netcheck: sanitizeItem and wireWbItem not found in net.js');
+    return (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);
+};
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
 // the table's follow and the summons: a connection still waiting for the GM's Allow hears nothing, not even where the table is
 {
@@ -3327,8 +3333,8 @@ pendingChecks.push((async () => {
         && f4.x % 50 === 0 && f4.y % 50 === 0 && Math.max(Math.abs(f4.x - 100), Math.abs(f4.y - 200)) === 150 && j(f5) === j({ x: 250, y: 250 }), j([f1, f2, f3, f4, f5]));
 })());
 {   // the token creator (fold 2): a token's kept original never leaves the host (sanitizeItem, run for real)
-    const sN = src.replace(/\r\n/g, '\n'), siA = sN.indexOf('function sanitizeItem('), siB = sN.indexOf('\n}\n', siA) + 2, wn = (sN.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0];
-    const siF = new Function('window', wn + '\n' + sN.slice(siA, siB) + '\nreturn sanitizeItem;')({});
+    const siA = src.indexOf('function sanitizeItem(');
+    const siF = new Function('window', siSrc() + '\nreturn sanitizeItem;')({});
     const frK = { src: '/saves/images/lib/a.png', x: 1, y: 2, s: 3, of: '/saves/images/portraits/token-w1-k1.png' };
     const mapF = { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'w1', type: 'image', isChar: true, src: frK.of, frame: frK, gmInfo: 'secret', sheet: { a: 1 } }, { id: 'w2', type: 'image', src: '/saves/images/x.png', frame: { src: 'a' } }, { id: 'w3', hidden: true, type: 'image', frame: { src: 'b' }, x: 1, y: 2, w: 3, h: 4 }, { id: 'w4', type: 'rect', x: 0 }] };
     const outF = siF(mapF);
@@ -3532,8 +3538,8 @@ pendingChecks.push((async () => {
         && Sx.lightName(viewC, 1) === 'Dim light <b>x</b>' && Sx.lightName(viewC, 0) === longClean && Sx.lightName(viewC, 2) === '' && j(Sx.lightPresets(viewC)) === j(wantL.presets), j([viewH && viewH.combat, packedL, junkV]));
 
     // (d) a player's copy of a lit map
-    const siA = src.indexOf('function sanitizeItem('), siB = src.indexOf('\n}\n', siA) + 2, wn = (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0];
-    const siL = new Function('window', wn + '\n' + src.slice(siA, siB) + '\nreturn sanitizeItem;')({});
+    const siA = src.indexOf('function sanitizeItem(');
+    const siL = new Function('window', siSrc() + '\nreturn sanitizeItem;')({});
     const torch = { bright: 20, dim: 40, unit: 'ft', name: 'Torch' }, lamp = { bright: 2, dim: 4, off: true, unit: 'cells', name: 'Street lamp' };
     const mapS = { id: 'm1', type: 'map', rooms: [], links: [], fog: { on: true, mode: 'auto' }, whiteboard: [
         { id: 'w1', type: 'image', isChar: true, x: 1, y: 2, w: 3, h: 4, light: torch }, { id: 'w2', type: 'light', x: 5, y: 6, w: 7, h: 8, light: lamp }, { id: 'w3', type: 'image', sheet: { a: 1 }, gmInfo: 'secret', frame: { src: 'a' }, light: torch },
@@ -3748,8 +3754,8 @@ pendingChecks.push((async () => {
     check('a player\'s own light: a player\'s copy of the map brings no light in — the patch gate (run for real) moves their own token and takes no light, no change of one, no removal of one and no light lock from it, on a token in play and on a waiting one; a copy that changes nothing but a light changes nothing',
         chgP === true && j(wbP[0]) === j({ id: 't1', isChar: true, ownerId: 'u_p', x: 40, y: 50, rot: 90, front: 45, light: torch, lightLock: true }) && j(wbP[1]) === j({ id: 't2', isChar: true, ownerId: 'u_p', x: 40, y: 50, rot: 0, front: 0 })
         && j(wbP[2]) === j({ id: 't3', isChar: true, ownerId: 'u_p', x: 40, y: 50, rot: 0, front: 0, light: torchOff }) && j(wbP[3]) === j({ id: 't4', waiting: 1, ownerId: 'u_p', x: 40, y: 50 }) && chgQ === false && j(csQ) === j(liveP()), j([chgP, wbP, chgQ]));
-    const siA = src.indexOf('function sanitizeItem('), siB = src.indexOf('\n}\n', siA) + 2, wn = (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0];
-    const siL = new Function('window', '"use strict";\n' + wn + '\n' + src.slice(siA, siB) + '\nreturn sanitizeItem;')({});
+    const siA = src.indexOf('function sanitizeItem(');
+    const siL = new Function('window', '"use strict";\n' + siSrc() + '\nreturn sanitizeItem;')({});
     const mapS = { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [
         { id: 'w1', type: 'image', isChar: true, ownerId: 'u_a', x: 1, y: 2, w: 3, h: 4, light: torch, lightLock: true }, { id: 'w2', type: 'image', isChar: true, ownerId: 'u_a', x: 1, y: 2, w: 3, h: 4, light: candleOff },
         { id: 'w3', type: 'image', isChar: true, ownerId: 'u_a', gmInfo: 'secret', sheet: { a: 1 }, x: 1, y: 2, w: 3, h: 4, lightLock: true },
@@ -3788,7 +3794,7 @@ pendingChecks.push((async () => {
     const flS = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit'), smS = between('// [netcheck:sensesmoved-start]', '// [netcheck:sensesmoved-end]', 'sensesmoved');
     const dlS = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), edS = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), fxS = between('// [netcheck:charfx-start]', '// [netcheck:charfx-end]', 'charfx');
     const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime'), cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), bpS = between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos');
-    const siA = src.indexOf('function sanitizeItem('), siS = (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(siA, src.indexOf('\n}\n', siA) + 2);
+    const siS = siSrc();
     const afS = fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', mfS = lineOf('function mapFogged('), svS = lineOf('var _saveSoon = null;') + '\n' + lineOf('function saveRemoteSoon()');
     const nsS2 = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync'), thS2 = between('// [netcheck:threats-start]', '// [netcheck:threats-end]', 'threats');
     const posS2 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patS2 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), clS2 = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
@@ -5094,6 +5100,96 @@ pendingChecks.push((async () => {
         && j(flatIw(stubNo)) === j(flatW) && j(flatIw(stubNull)) === j(flatW),
         j([fNo, fNull, flatIw(stubNo), flatIw(stubNull)]));
 })());
+// fold M2: one item's rule on its way to a player (wireWbItem), lifted out of sanitizeItem so one item can later be sent alone; a whole
+// map's copy comes out byte for byte as it did before
+{
+    const [siNew, wwi] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({});
+    const wireNumF = new Function((src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\nreturn wireNum;')();
+    // sanitizeItem as it stood before fold M2 (a35b807), kept here to compare against
+    const siOld = (function(window, wireNum) {
+        return function sanitizeItem(item) {
+            if (!item) return item;
+            if (item.type === 'planner') return null;
+            if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;
+            if (item.type !== 'map') return item;
+            var m = JSON.parse(JSON.stringify(item), wireNum);
+            delete m.fogLit; delete m.lightsCapped;
+            (m.rooms || []).forEach(function(r) {
+                delete r.notes;
+                delete r.handoutId;
+                (r.characters || []).forEach(function(c) { delete c.info; delete c.ref; });
+            });
+            m.links = (m.links || []).map(function(lk) {
+                if (!(lk[3] && typeof lk[3] === 'object')) return lk;
+                var keep = lk.slice(0, 3); if (lk[3].label) keep.push({ label: lk[3].label }); return keep;
+            });
+            m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor; }).map(function(w) {
+                if (!w.hidden) {
+                    if (w.sheet || w.gmInfo || w.frame) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; delete w.frame; }
+                    return w;
+                }
+                return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
+            });
+            return m;
+        };
+    })({}, wireNumF);
+    const torchM = { bright: 20, dim: 40, unit: 'ft', name: 'Torch' };
+    const fixtures = [
+        () => ({ id: 'm1', type: 'map', fog: { on: true, mode: 'auto' }, fogLit: ['1,1'], lightsCapped: true,
+            rooms: [{ id: 'r1', notes: 'GM', handoutId: 'h1', characters: [{ id: 'c1', info: 'x', ref: 'y', name: 'Bo' }] }, { id: 'r2' }],
+            links: [['r1', 'r2', 1, { label: 'Door', notes: 'trap' }], ['r2', 'r3', 0], ['r3', 'r1', 2, { notes: 'only a note' }]],
+            whiteboard: [
+                { id: 'w1', type: 'image', isChar: true, ownerId: 'u_a', x: 1e20, y: -1e20, w: 50, h: 50, rot: 30, front: 90, sheet: { hp: 5 }, gmInfo: 'secret', frame: { src: 'a', x: 1, y: 2, s: 3 }, light: torchM },
+                { id: 'w2', type: 'image', isChar: true, hidden: true, x: 5, y: 6, w: 50, h: 50, front: 45, layer: 'tokens', sheet: { hp: 1 }, gmInfo: 'hidden secret', light: torchM },
+                { id: 'w3', type: 'rect', gmNoteFor: 'r1', x: 0, y: 0, w: 10, h: 10, text: 'GM note' },
+                { id: 'w4', type: 'text', x: 3, y: 4, text: 'Hello', fontSize: 1e20 },
+                { id: 'w5', type: 'image', isChar: true, waiting: true, ownerId: 'u_b', x: 7, y: 8, w: 50, h: 50 },
+                { id: 'w6', type: 'light', x: 9, y: 10, w: 20, h: 20, light: { bright: 2, dim: 4, off: true, unit: 'cells', name: 'Lamp' } },
+                { id: 'w7', type: 'image', sheet: null, gmInfo: '', frame: 0, x: 1, y: 1 },
+                { id: 'w8', type: 'rect', hidden: true, gmNoteFor: 'r2', x: 1, y: 1 },
+                { id: 'w9', type: 'rect', hidden: true, x: 1e20, y: 2, w: 3, h: 4, rot: Infinity, layer: 'bg', text: 'the key' },
+                { id: 'w10', type: 'image', hidden: 1, x: 1, y: 2, rot: NaN, sheet: { a: 1 } },
+                { id: 'g1', type: 'image', isChar: true, gmInfo: 'a secret alone' }, { id: 's1', type: 'image', sheet: { hp: 1 } }, { id: 'f1', type: 'image', frame: { src: 'k' } },
+                { id: 'v0', type: 'image', hidden: false, x: 1, y: 1, front: 30 }, { id: 'v1', type: 'image', hidden: 0, x: 2, y: 2, front: 60 },
+                'a stray string', '', 0
+            ] }),
+        () => ({ id: 'm2', type: 'map' }),
+        () => ({ id: 'm3', type: 'map', whiteboard: [], rooms: [{ id: 'r', characters: [] }], links: [] }),
+        () => ({ id: 'p1', type: 'planner', content: 'GM' }),
+        () => ({ id: 'd1', type: 'doc', blocks: [] }),
+        () => ({ id: 'i1', type: 'image', src: '/saves/images/x.png' }),
+        () => null
+    ];
+    const same = fixtures.map(fx => { const a = fx(), b = fx(), before = JSON.stringify(a); const n = siNew(a), o = siOld(b); return [JSON.stringify(n) === JSON.stringify(o), JSON.stringify(a) === before, JSON.stringify(n).slice(0, 60)]; });
+    const img = fixtures[5](), m1out = siNew(fixtures[0]());
+    check('fold M2: sanitizeItem (run for real) with its per-item rule lifted into wireWbItem gives, byte for byte, the copy it gave before (a hidden token, a GM-note card, a hidden one, sheet, GM note and kept original, 1e20, a text box, a waiting token, a light, falsy GM prep, a stray entry; a map with nothing, a planner, a page, a picture) and never touches the host\'s own map',
+        same.every(s => s[0] && s[1]) && siNew(img) === img && m1out.whiteboard.length === 16 && m1out.whiteboard.find(w => w && w.id === 'v0').front === 30 && m1out.whiteboard.find(w => w && w.id === 'v1').front === 60 && !/secret|GM note|"sheet":\{|"frame":\{/.test(JSON.stringify(m1out)),
+        JSON.stringify(same));
+    const stubKeys = Object.keys(new Function((fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'cleanup.js'), 'utf8').match(/var STUB_KEYS = \{[^}]*\};/) || ['var STUB_KEYS = {};'])[0] + '\nreturn STUB_KEYS;')());
+    const note = { id: 'n', type: 'rect', gmNoteFor: 'r1', x: 1 }, hid = { id: 'h', type: 'image', hidden: true, x: 1e20, y: 2, w: 3, h: 4, rot: Infinity, front: 45, layer: 'bg', sheet: { a: 1 }, light: torchM };
+    const hidBefore = JSON.stringify(hid), stubF = wwi(hid, false), stubT = wwi(JSON.parse(JSON.stringify(hid), wireNumF), true);
+    const wantStub = { id: 'h', type: 'rect', hidden: true, x: 1e15, y: 2, w: 3, h: 4, rot: 0, layer: 'bg', locked: true };
+    const tok = { id: 't', type: 'image', isChar: true, x: 1e20, y: 1, sheet: { hp: 3 }, gmInfo: 'g', frame: { src: 'k' }, light: torchM }, tokBefore = JSON.stringify(tok), tokF = wwi(tok, false);
+    const plain = { id: 'p', type: 'rect', x: 1, y: 2 }, prep = { id: 'q', type: 'image', x: 1, sheet: { a: 1 }, gmInfo: 'g', frame: { src: 'k' } }, prepT = wwi(prep, true);
+    const vis = { id: 'v', type: 'image', isChar: true, x: 1e20, light: torchM }, visBefore = JSON.stringify(vis), visF = wwi(vis, false);
+    const oneEach = [{ id: 'g', gmInfo: 'g' }, { id: 's', sheet: { a: 1 } }, { id: 'f', frame: { src: 'k' } }], oneF = oneEach.map(w => wwi(w, false)), oneT = oneEach.map(w => wwi(JSON.parse(JSON.stringify(w)), true));
+    check('fold M2: wireWbItem (run for real) gives null for a GM-note card, and a hidden item exactly the position-only stub (its keys the ones cleanup.js knows a stub by), bounded, with no facing, sheet or light, whether it was cloned already or not',
+        wwi(note, false) === null && wwi(note, true) === null && JSON.stringify(stubF) === JSON.stringify(wantStub) && JSON.stringify(stubT) === JSON.stringify(wantStub)
+        && JSON.stringify(Object.keys(stubF).sort()) === JSON.stringify(stubKeys.slice().sort()) && JSON.stringify(hid) === hidBefore,
+        JSON.stringify([stubF, stubT, stubKeys]));
+    check('fold M2: wireWbItem on an item sent alone (cloned = false) copies and bounds it first and never touches the host\'s own item; on sanitizeItem\'s own clone (cloned = true) it works in place: a plain item is the same object, GM prep is deleted from it with no second clone',
+        tokF !== tok && JSON.stringify(tok) === tokBefore && tokF.x === 1e15 && !('sheet' in tokF) && !('gmInfo' in tokF) && !('frame' in tokF) && JSON.stringify(tokF.light) === JSON.stringify(torchM) && tokF.isChar === true
+        && wwi(plain, true) === plain && JSON.stringify(plain) === JSON.stringify({ id: 'p', type: 'rect', x: 1, y: 2 }) && prepT === prep && JSON.stringify(prep) === JSON.stringify({ id: 'q', type: 'image', x: 1 })
+        && visF !== vis && visF.x === 1e15 && JSON.stringify(vis) === visBefore && visF.light !== vis.light && JSON.stringify(visF.light) === JSON.stringify(torchM)
+        && oneF.concat(oneT).every(w => !('gmInfo' in w) && !('sheet' in w) && !('frame' in w)) && oneEach.every(w => Object.keys(w).length === 2),
+        JSON.stringify([tokF, prepT, visF, oneF, oneT]));
+    const siAt = src.indexOf('function sanitizeItem('), siEnd = src.indexOf('\n}\n', siAt) + 3, wwAt = src.indexOf('function wireWbItem(');
+    const gap = src.slice(siEnd, wwAt).split('\n').filter(Boolean), siBody = src.slice(siAt, siEnd);
+    check('fold M2: wireWbItem sits directly after sanitizeItem (comments only between), which calls it once on its own clone, and the hidden stub is written once in net.js',
+        wwAt > siEnd && gap.every(l => /^\/\/ /.test(l)) && (siBody.match(/wireWbItem\(w, true\)/g) || []).length === 1 && !/gmNoteFor|hidden: true/.test(siBody)
+        && (src.match(/function wireWbItem\(/g) || []).length === 1 && (src.match(/type: 'rect', hidden: true/g) || []).length === 1,
+        JSON.stringify(gap));
+}
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

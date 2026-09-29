@@ -529,15 +529,19 @@ function sanitizeItem(item) {
         if (!(lk[3] && typeof lk[3] === 'object')) return lk;
         var keep = lk.slice(0, 3); if (lk[3].label) keep.push({ label: lk[3].label }); return keep;
     });
-    m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor; }).map(function(w) {
-        if (!w.hidden) {
-            // attached character sheets are GM bookkeeping (and heavy) — never on the wire
-            if (w.sheet || w.gmInfo || w.frame) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; delete w.frame; }   // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep — never on the wire
-            return w;
-        }
-        return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
-    });
+    m.whiteboard = (m.whiteboard || []).map(function(w) { return wireWbItem(w, true); }).filter(function(w) { return w !== null; });
     return m;
+}
+// Fold M: one item's rule on its way to a player, for a whole map's copy (sanitizeItem, whose clone it already is: cloned = true) and for
+// one item sent alone (cloned = false: copied and bounded here first, so the host's own item is never touched). null for a GM-note card;
+// a hidden item is a position-only stub
+function wireWbItem(w, cloned) {
+    if (w.gmNoteFor) return null;
+    if (!cloned) w = JSON.parse(JSON.stringify(w), wireNum);
+    if (w.hidden) return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
+    // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
+    if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
+    return w;
 }
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
    window.wpFog.fogDropIds(recipientId, camp, map) → the ids of character tokens the recipient cannot see, or null

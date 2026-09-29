@@ -1857,7 +1857,7 @@ pendingChecks.push((async () => {
         const broadcast = (msg, except) => { packCheck(msg); out.bcast.push(JSON.parse(JSON.stringify(msg))); conns.forEach(c => { if (c !== except && c.open && net.roster[c.peer]) c.send(msg); }); };   // admitted peers only, as the real one on a host
         const N = new Function('net', 'getActiveCampaign', 'window', 'broadcast', 'sendFailed', 'logEvent', 'toast', 'render', 'renderNotepad', fogSrc + '\n' + cbSrc + '\n' + setSrc + '\nreturn { cleanCombats, combatsFor, broadcastCombats };')(
             net, () => camp, win, broadcast, e => { throw e; }, () => {}, t => out.toasts.push(t), () => {}, () => {});
-        out.N = N;
+        out.N = N; out.camp = camp;
         const els = {}; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn'].forEach(id => { els[id] = fe(); });
         const draft = { mapId: 'm1', running: false, rows: [
             { id: 'r_t_orc', name: 'Orc', tokId: 't_orc', init: 12, src: 'orc.png', on: true, charId: null },
@@ -1923,6 +1923,98 @@ pendingChecks.push((async () => {
     check('combat roster (source): a roll\'s answer is net.diceRoll\'s own ({ ok, value, priv }) through the sheet\'s rollInit; combats go to players only through combatsFor (the broadcast, the join snapshot and the one player whose sight moved), never net.combats as it is',
         /return \{ ok: true, value: res\.value, priv: !!rec\.priv \};/.test(src) && (src.match(/type: 'combats'/g) || []).length === 3 && /if \(inFight\) c\.send\(\{ type: 'combats', combats: combatsFor\(pid\) \}\);/.test(src) && /combats: combatsFor\(prof\.id\)/.test(src) && !/combats: net\.combats/.test(src)
         && /broadcast\(\{ type: 'combats', combats: combatsFor\(null\) \}, null\)/.test(src) && /c\.send\(\{ type: 'combats', combats: combatsFor\(pr\.id\) \}\)/.test(src));
+
+    // Fold M0 (a security fix): a token the GM hides after the fight began reaches players as a nameless stub, so its row goes out Hidden too, on
+    // a table without fog as on a fogged one (combatHidden, run for real in combatsFor and broadcastCombats); the host keeps the row whole. m2
+    // holds a hidden token with the Orc's id and a combat of its own: a hidden token counts on its own map only. An item whose id reads 'null'
+    // (a file may hold any id) is hidden on m1: a row with no token is never touched
+    const tokOf = (s, mapId, id) => s.camp.items[mapId].whiteboard.find(w => w.id === id);
+    const hidRow = i => ({ id: 'h' + i, name: 'Hidden', tokId: null, src: null });
+    const hideWorld = o => {
+        const s = scen(o); s.rollRow('Goblin'); s.start(); s.net.combats.m1.round = 3; s.net.combats.m1.turn = 1;
+        s.camp.items.m1.whiteboard.push({ id: 'null', hidden: true, x: 0, y: 0 });
+        s.camp.items.m2.whiteboard.push({ id: 't_orc', isChar: true, hidden: true, x: 0, y: 0 });
+        s.net.combats.m2 = { mapId: 'm2', round: 2, turn: 2, rows: [{ id: 'r_g2', name: 'Goblin2', tokId: 't_gob', init: 6, src: 'g2.png' }, { id: 'r_o2', name: 'Orc2', tokId: 't_orc', init: 4, src: 'o2.png' }, { id: 'c_gate', name: 'Gate', tokId: null, init: 2, src: null }] };
+        tokOf(s, 'm1', 't_gob').hidden = true; return s;
+    };
+    const m2Out = hid1 => ({ mapId: 'm2', round: 2, turn: 2, rows: [full('r_g2', 'Goblin2', 't_gob', 'g2.png'), hid1 ? hidRow(1) : full('r_o2', 'Orc2', 't_orc', 'o2.png'), full('c_gate', 'Gate', null, null)] });
+    const U = hideWorld(), ub0 = U.bcast.length; U.N.broadcastCombats();
+    const uA = U.last(U.conns[0]), uB = U.last(U.conns[1]), uSnap = [U.N.combatsFor('u_a'), U.N.combatsFor(null)], uHost = U.net.combats.m1.rows[0];
+    check('fold M0: on a table without fog a token the GM hid after the fight began goes out as a Hidden row (broadcastCombats, run for real) — no name, token, picture or token-bearing id, in its place, with the order, the count, the round and the turn intact and every other row whole (the Trap, with no token, too); a hidden token on another map than the combat\'s hides nothing, and one hidden on the combat\'s own map does',
+        j(uA) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [hidRow(0)].concat(order.slice(1)) }, m2: m2Out(true) } })
+        && j(rowsOf(uA)).indexOf('gob') < 0 && j(rowsOf(uA)).indexOf('Goblin') < 0 && j(uA.combats.m2).indexOf('Orc2') < 0 && j(uA.combats.m2).indexOf('o2.png') < 0, j(uA));
+    check('fold M0: without fog that is still one broadcast, the same for each admitted player, nothing to a waiting or closed connection; the join snapshot (combatsFor) says the same; the host keeps the hidden token\'s row whole with its number',
+        U.bcast.length === ub0 + 1 && j(uB) === j(uA) && j(U.bcast[U.bcast.length - 1]) === j(uA) && U.conns[2].sent.length === 0 && U.conns[3].sent.length === 0
+        && j(uSnap) === j([uA.combats, uA.combats]) && j(uHost) === j({ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 23, src: 'gob.png' }), j([U.bcast.length - ub0, uSnap, uHost]));
+    tokOf(U, 'm1', 't_gob').hidden = false; tokOf(U, 'm2', 't_orc').hidden = false; U.N.broadcastCombats(); const uShown = U.last(U.conns[0]);
+    check('fold M0: a token shown again goes out whole — its row as it was, on both maps',
+        j(uShown) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: order }, m2: m2Out(false) } }), j(uShown));
+    // fogged: Bo cannot see the Orc on m1; the Goblin is hidden
+    const Fh = hideWorld({ fog: true, drops: { u_b: { t_orc: 1 } } }), fb0 = Fh.bcast.length; Fh.N.broadcastCombats();
+    const fhA = Fh.last(Fh.conns[0]), fhB = Fh.last(Fh.conns[1]);
+    check('fold M0: on a fogged table the hidden token\'s row is Hidden in every player\'s own copy (per-player sends, no broadcast), alongside a row hidden by their sight — Ana, who sees the Orc, gets it whole; Bo gets both Hidden, each by its place; the Trap and Ana whole; m2 (no fog there) as on a table without fog; the join snapshot matches',
+        Fh.bcast.length === fb0 && fb0 === 0 && j(fhA) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [hidRow(0)].concat(order.slice(1)) }, m2: m2Out(true) } })
+        && j(fhB) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [hidRow(0), hidRow(1), order[2], order[3]] }, m2: m2Out(true) } })
+        && Fh.conns[2].sent.length === 0 && Fh.conns[3].sent.length === 0 && j(Fh.N.combatsFor('u_a')) === j(fhA.combats) && j(Fh.N.combatsFor('u_b')) === j(fhB.combats), j([fhA, fhB, Fh.bcast.length]));
+
+    // net.syncCombatHidden (run for real): the host sends the combats again only when a running row's hidden flag changes
+    const Sy = scen(); Sy.rollRow('Goblin'); Sy.start();
+    const syn = () => { const n = Sy.bcast.length; Sy.net.syncCombatHidden(); return Sy.bcast.length - n; };
+    const syFirst = syn() + syn(), syQuiet = syn();
+    tokOf(Sy, 'm1', 't_gob').hidden = true; const syHide = syn(), syHideMsg = Sy.bcast[Sy.bcast.length - 1], syHideAgain = syn();
+    tokOf(Sy, 'm1', 't_x').hidden = true; Sy.camp.items.m1.whiteboard.push({ id: 'null', hidden: true }); const syOff = syn();   // the Bystander, left out of the fight, and an item no row names
+    tokOf(Sy, 'm1', 't_gob').hidden = false; const syShow = syn(), syShowMsg = Sy.bcast[Sy.bcast.length - 1];
+    Sy.net.combats.m2 = { mapId: 'm2', round: 1, turn: 0, rows: [{ id: 'c_tur', name: 'Turret', tokId: null, init: 9, src: null }] }; const syAdd = syn(), syAddMsg = Sy.bcast[Sy.bcast.length - 1];
+    delete Sy.net.combats.m2; const syDel = syn();
+    const cliBefore = Sy.conns.map(c => c.sent.length).join(); Sy.net.role = 'client'; tokOf(Sy, 'm1', 't_orc').hidden = true; const syCli = syn(), cliSent = Sy.conns.map(c => c.sent.length).join();
+    Sy.net.role = 'host'; Sy.net.active = false; const syOffline = syn(); Sy.net.active = true; const syBack = syn(), syBackMsg = Sy.bcast[Sy.bcast.length - 1];
+    check('fold M0: net.syncCombatHidden (run for real on a table without fog) sends the combats at most once while the flags stay the same, then nothing; one broadcast when a running row\'s token is hidden (its row Hidden) and nothing more after; nothing when a token no running row names is hidden; one more when it is shown (its row whole again)',
+        syFirst <= 1 && syQuiet === 0 && syHide === 1 && j(rowsOf(syHideMsg)) === j([hidRow(0)].concat(order.slice(1))) && syHideAgain === 0 && syOff === 0 && syShow === 1 && j(rowsOf(syShowMsg)) === j(order),
+        j([syFirst, syQuiet, syHide, syHideAgain, syOff, syShow, syHideMsg, syShowMsg]));
+    check('fold M0: a combat added or removed changes what net.syncCombatHidden compares (one send each); on a player\'s machine or with no session it sends nothing, and once hosting again it catches up with a change made meanwhile',
+        syAdd === 1 && !!syAddMsg.combats.m2 && syDel === 1 && syCli === 0 && cliSent === cliBefore &&syOffline === 0 && syBack === 1 && rowsOf(syBackMsg)[1].name === 'Hidden' && rowsOf(syBackMsg)[1].id === 'h1',
+        j([syAdd, syDel, syCli, syOffline, syBack]));
+    const Sf = scen({ fog: true }); Sf.rollRow('Goblin'); Sf.start(); Sf.net.syncCombatHidden(); Sf.conns.forEach(c => { c.sent.length = 0; });
+    tokOf(Sf, 'm1', 't_gob').hidden = true; Sf.net.syncCombatHidden();
+    const sfOut = Sf.conns.map(c => c.sent.filter(m => m.type === 'combats').length).join(''), sfRows = [rowsOf(Sf.last(Sf.conns[0])), rowsOf(Sf.last(Sf.conns[1]))];
+    check('fold M0: on a fogged table net.syncCombatHidden sends each admitted player their own copy, the hidden token\'s row Hidden; no broadcast, nothing to a waiting or closed connection',
+        sfOut === '1100' && Sf.bcast.length === 0 && j(sfRows) === j([[hidRow(0)].concat(order.slice(1)), [hidRow(0)].concat(order.slice(1))]), j([sfOut, sfRows]));
+
+    // what the table holds is recorded by every send of the rows to the table: a re-hide after another send (a turn step, a Start) still goes out
+    const Sr = scen(); Sr.rollRow('Goblin'); Sr.start(); Sr.net.syncCombatHidden();
+    const srn = () => { const n = Sr.bcast.length; Sr.net.syncCombatHidden(); return Sr.bcast.length - n; };
+    tokOf(Sr, 'm1', 't_gob').hidden = true; const srHide = srn(); tokOf(Sr, 'm1', 't_gob').hidden = false; Sr.N.broadcastCombats(); const srWhole = rowsOf(Sr.bcast[Sr.bcast.length - 1]);
+    tokOf(Sr, 'm1', 't_gob').hidden = true; const srReHide = srn(), srReMsg = Sr.bcast[Sr.bcast.length - 1], srQuiet = srn();
+    check('fold M0: a token hidden again after the rows went out whole for another reason (a turn step) is sent again: every send of the rows to the table records what it holds, so net.syncCombatHidden compares with what the players last got',
+        srHide === 1 && j(srWhole) === j(order) && srReHide === 1 && j(rowsOf(srReMsg)) === j([hidRow(0)].concat(order.slice(1))) && srQuiet === 0, j([srHide, srWhole, srReHide, srReMsg, srQuiet]));
+    const ioSrcM0 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), undoLine = (ioSrcM0.match(/\n[^\n]*if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\);[^\n]*/) || [''])[0];
+    check('fold M0 (source): the GM\'s undo while hosting (io.js), saved as a remote change so the host\'s save hook returns early, calls net.syncCombatHidden itself, after the map and the other maps it undid went out',
+        undoLine.length > 0 && /window\.wpNet\.sendItem\(camp\.id, item\.id\);[^\n]*wUndo\.forEach\([^\n]*broadcastItemFiltered[^\n]*\}\); if \(window\.wpNet\.syncCombatHidden\) window\.wpNet\.syncCombatHidden\(\); \}/.test(undoLine), undoLine.slice(0, 400));
+    // the host's save calls it right after the map it saved went out (its stub first), run for real: net.onLocalSave sliced whole, over stubs
+    const olsSrc = fnSrc('net.onLocalSave = function() {', '\n};\n', 'onLocalSave') + '\n};';
+    const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog'];
+    const runSave = (s, patch) => {
+        const log = [], real = s.net.syncCombatHidden;
+        SYNCS.forEach(k => { s.net[k] = () => log.push(k); });
+        s.net.sendItem = (c, i) => { log.push('sendItem:' + i); s.conns.forEach(cn => { if (cn.open && s.net.roster[cn.peer]) cn.send({ type: 'item', campId: c, itemId: i }); }); };
+        s.net.syncCombatHidden = () => { log.push('combatHidden'); real(); };
+        new Function('net', 'window', 'activeItemPatch', 'quickHash', '_lastPatchHash', 'broadcast', 'scheduleStageFollow', 'getActiveMap', 'checkRoomHandouts', olsSrc)(
+            s.net, {}, () => (patch ? { campId: 'k', itemId: 'm1', item: { id: 'm1' } } : null), () => 'h', {}, m => log.push('broadcast:' + m.type), () => log.push('follow'), () => null, () => {});
+        s.net.onLocalSave(); s.net.syncCombatHidden = real; return log;
+    };
+    const Ls = scen(); Ls.rollRow('Goblin'); Ls.start(); Ls.net.syncCombatHidden(); tokOf(Ls, 'm1', 't_gob').hidden = true; Ls.conns.forEach(c => { c.sent.length = 0; });
+    const lsHost = runSave(Ls, true), lsWire = Ls.conns[0].sent.map(m => m.type), lsRows = rowsOf(Ls.last(Ls.conns[0]));
+    const lsNoPatch = runSave(Ls, false);
+    Ls.net.role = 'client'; const lsCli = runSave(Ls, true); Ls.net.role = 'host'; Ls.net.applyingRemote = true; const lsRemote = runSave(Ls, true); Ls.net.applyingRemote = false;
+    check('fold M0: the host\'s save (net.onLocalSave, run for real) calls net.syncCombatHidden once, right after the map went out (sendItem) — a player gets the map (its stub) first, then the combats with the row Hidden; a save with no map to send still calls it once; a player\'s save and a remote change\'s save never do',
+        j(lsHost) === j(SYNCS.concat(['sendItem:m1', 'combatHidden', 'follow'])) && j(lsWire) === j(['item', 'combats']) && j(lsRows) === j([hidRow(0)].concat(order.slice(1)))
+        && j(lsNoPatch) === j(SYNCS.concat(['combatHidden', 'follow'])) && lsCli.indexOf('combatHidden') < 0 && !lsCli.some(e => SYNCS.indexOf(e) >= 0) && lsCli.length > 0 &&j(lsRemote) === j([]), j([lsHost, lsWire, lsNoPatch, lsCli, lsRemote]));
+    const wbAll = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
+    check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before',
+        (src.match(/function combatHidden\(/g) || []).length === 1 && (src.match(/combatHidden\(/g) || []).length === 3 && (cbSrc.match(/combatHidden\(/g) || []).length === 3
+        && (src.match(/syncCombatHidden/g) || []).length === 3 && (cbSrc.match(/syncCombatHidden/g) || []).length === 1 && (olsSrc.match(/syncCombatHidden/g) || []).length === 2 && (cbSrc.match(/_combatHidSig = combatHidSigNow\(\);/g) || []).length === 1
+        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24,
+        j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
 }
 
 // Stage 6 F4b: a row's facts on the wire — the real char-item handler (with the real delta and the GM's notice, sliced from net.js) on ONE
@@ -3552,6 +3644,7 @@ pendingChecks.push((async () => {
     const netSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siS, flS, afS, mfS, whole('net.sendItem = function('), whole('net.broadcastItemFiltered = function('), whole('net.itemGone = function('), whole('net.kickPlayer = function('), smS, nsS2, cbS, svS, dlS, ftS, bpS,
         'return { edit: function(msg, conn) {', edS, '}, fx: function(msg, conn) {', fxS, '}, threats: function(msg, conn) {', thS2, '}, sig: function() { return _sensesSig; }, pend: function() { return _sensesPend; }, at: function() { return _sensesAt; }, seed: sensesSeed, fire: sensesFire, forget: sensesForget, reset: sensesReset, pids: sensesPids,',
         'hidden: sensesHidden, drop: sensesDrop, forgetMap: sensesForgetMap, keys: sensesKeys, banned: function() { return bannedIds; }, reads: sensesReads,',
+        'targets: typeof broadcastTargets === \'function\' ? broadcastTargets : null, targetsFor: typeof targetsFor === \'function\' ? targetsFor : null,',
         'copy: fogCopyFor, pos: broadcastPos, saveSoon: saveRemoteSoon, turn: turnFxStart, ms: SENSES_RESEND_MS, last: function() { return _lastSent; } };'].join('\n');
     const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'own', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render'];
     // a player's live move and the map copy their app saves after it: the real pos gate and the real patch path, over the same net, fog, relay and save
@@ -3584,7 +3677,7 @@ pendingChecks.push((async () => {
         const camp = { id: 'k', system: o.system || sysS, fog: { fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 30 } }, items, chars: {
             c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sight: 60, f_fx: [] } }, c_b: { id: 'c_b', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sight: 60 } },
             c_c: { id: 'c_c', name: 'Cy', ownerId: 'u_c', npc: false, values: { f_sight: 60 } }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: { f_sight: 60 } } } };
-        const W = { ev, camp, feats, live: true, saves: [], shared: [], chat: [] };
+        const W = { ev, camp, feats, live: true, saves: [], shared: [], chat: [], bc: [] };
         const mkConn = (peer, open) => ({ peer, open, sent: [], send(m) { packCheck(m); ev.push('send:' + peer + ':' + m.type + (m.itemId ? ':' + m.itemId : '')); this.sent.push(JSON.parse(j(m))); } });
         W.a1 = mkConn('pA1', true); W.a2 = mkConn('pA2', true); W.b1 = mkConn('pB', true); W.w1 = mkConn('pW', true); W.c1 = mkConn('pC', false);
         W.net = { active: true, role: 'host', paused: false, applyingRemote: false, myId: 'u_gm', conns: [W.a1, W.a2, W.b1, W.w1, W.c1], roster: { pA1: { id: 'u_a', name: 'Pat' }, pA2: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' }, pC: { id: 'u_c', name: 'Cy' } }, combats: {}, targets: {} };
@@ -3602,7 +3695,7 @@ pendingChecks.push((async () => {
         W.made = ms => W.timers.filter(t => t.ms === ms).length;
         W.state = { appState: { campaigns: { k: camp } } }; W.SC = () => Sx; W.toasts = [];
         W.api = buildNet(W.net, () => W.SC(), win, () => false, getCamp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), m => W.chat.push(m),
-            W.state, () => (W.delta === undefined ? false : W.delta), (m, x) => W.shared.push(m.type + ':' + (m.itemId || '')), {}, setT, clearT, a => W.saves.push([a, W.net.applyingRemote]), t => W.toasts.push(t), () => {}, () => ev.push('roster'), pid => ev.push('dropWaiting:' + pid), () => true, () => {});
+            W.state, () => (W.delta === undefined ? false : W.delta), (m, x) => { W.bc.push(JSON.parse(j(m))); W.shared.push(m.type + ':' + (m.itemId || '')); }, {}, setT, clearT, a => W.saves.push([a, W.net.applyingRemote]), t => W.toasts.push(t), () => {}, () => ev.push('roster'), pid => ev.push('dropWaiting:' + pid), () => true, () => {});
         W.ats = () => { const o2 = {}, s = W.api.at(); Object.keys(s).sort().forEach(k => { o2[k] = s[k]; }); return o2; };
         W.invs = () => ev.filter(e => /^inv(:|$)/.test(e));
         W.itemsOut = () => W.net.conns.map(c => c.sent.filter(m => m.type === 'item').length);
@@ -4463,6 +4556,81 @@ pendingChecks.push((async () => {
         check('senses S0 (source): this fold holds no send after a player\'s own move — net.js names no send for a move that landed, no store and no timer of one, the pos gate and the patch path send no map and call no hook themselves, and the play map\'s own drag code holds no statement of this fold',
             !/sensesLanded|_landPend|landDrop|SENSES_LANDED_MS/.test(src) && !/senses[A-Z]|_senses|SENSES_/.test(posCode + patCode) && !/sendItem\(|broadcastItemFiltered\(|resendFogged\(/.test(posCode + patCode) && posCode.length > 0 && patCode.length > 0
             && dmT.length > 0 && !/senses/i.test(dmT) && !/\bamL\b/.test(dmT) && !/invalidateSeen|sightSigFor/.test(dmT), j([/sensesLanded|_landPend|landDrop|SENSES_LANDED_MS/.test(src), /senses/i.test(dmT), dmT.length]));
+    }
+
+    // 21. fold M0 (a security fix): a GM-note card's place never goes out while the GM drags it (sanitizeItem drops the card from every copy a player
+    // gets), and the target pointers sent when a connection closes are each player's own on a fogged table (targetsFor), never all of them.
+    // Run for real: the close handler's statement (sliced by a pattern, as the S0 close case slices its own), broadcastTargets and targetsFor (the
+    // combats slice), broadcastPos (the bpos slice) and net.streamPos sliced whole, over the real fog.js
+    {
+        const tgLine = (src.match(/\n {12}(if \(p && net\.targets\[p\.id\]\) \{[^\n]*\})[^\n]*\n/) || [])[1] || '';
+        const deliver = W2 => (m, ex) => { packCheck(m); W2.bc.push(JSON.parse(j(m))); W2.net.conns.forEach(c => { if (c !== ex && c.open && W2.net.roster[c.peer]) c.send(m); }); };   // as the real broadcast does on a host: admitted, open peers only
+        const closeTg = (W2, conn) => { let renders = 0; W2.net.conns = W2.net.conns.filter(c => c !== conn); const p = W2.net.roster[conn.peer]; delete W2.net.roster[conn.peer];
+            new Function('net', 'p', 'render', 'broadcastTargets', 'broadcast', tgLine)(W2.net, p, () => { renders++; }, W2.api.targets || (() => { W2.bc.push('no broadcastTargets in the combats slice'); }), deliver(W2)); return renders; };
+        const ptr = { u_a: { mapId: 'mA', id: 'wolf', x: 1, y: 2 }, u_b: { mapId: 'mA', id: 'tB', x: 3, y: 4 }, u_c: { mapId: 'mA', id: 'tA', x: 5, y: 6 } };
+        // u_a points at a wolf 10 cells from her token (in her sight of 12), which Bo's token, 48 rows off, cannot see; Bo points at his own token,
+        // which hers cannot see; Cy points at Ana's token, which Ana sees, and his connection closes
+        const tgWorld = fog => { const W = mkW({ maps: ['mA'] }), mA = W.camp.items.mA; mA.whiteboard.push(T('wolf', '', 'c_n', 12, 2)); if (!fog) mA.fog.on = false;
+            W.net.targets = JSON.parse(j(ptr)); W.c1.open = true; W.clear(); W.bc.length = 0; W.shared.length = 0; return W; };
+        const tgOf = c => c.sent.filter(m => m.type === 'targets').map(m => m.targets);
+        const F = tgWorld(true), fR = closeTg(F, F.c1), fOut = { a1: tgOf(F.a1), a2: tgOf(F.a2), b1: tgOf(F.b1), w1: F.w1.sent.length, c1: F.c1.sent.length, bc: F.bc.length, left: Object.keys(F.net.targets).sort(), renders: fR };
+        const G = tgWorld(true); delete G.net.targets.u_c; const gR = closeTg(G, G.c1), gOut = [G.net.conns.map(c => c.sent.length).join(''), G.bc.length, gR, Object.keys(G.net.targets).sort()];
+        const U = tgWorld(false), uR = closeTg(U, U.c1), uOut = { bc: U.bc, direct: U.net.conns.map(c => c.sent.filter(m => m.type === 'targets').length).join(''), renders: uR };
+        check('fold M0: when a connection holding a target pointer closes on a fogged table (the close handler\'s statement, run for real with the real broadcastTargets and targetsFor), its pointer is gone and each admitted player gets the pointers they may see — Bo\'s holds neither Ana\'s pointer at the wolf he cannot see nor its id, Ana\'s holds her own and not Bo\'s at a token she cannot see, and nothing is broadcast to all; a waiting peer gets nothing; a closing peer who held no pointer sends nothing',
+            tgLine.length > 0 && typeof F.api.targets === 'function' && typeof F.api.targetsFor === 'function'
+            && j(fOut) === j({ a1: [{ u_a: ptr.u_a }], a2: [{ u_a: ptr.u_a }], b1: [{ u_b: ptr.u_b }], w1: 0, c1: 0, bc: 0, left: ['u_a', 'u_b'], renders: 1 })
+            && !/wolf/.test(j(F.b1.sent)) && !/"tB"/.test(j(F.a1.sent)) && !/"u_c"/.test(j(F.net.conns.map(c => c.sent)))
+            && j(gOut) === j(['0000', 0, 0, ['u_a', 'u_b']]), j([tgLine.length, fOut, gOut]));
+        check('fold M0: on a table without fog the same close sends the pointers as before — one broadcast of all of them that remain, the closed player\'s gone, and no per-player copy',
+            j(uOut) === j({ bc: [{ type: 'targets', targets: { u_a: ptr.u_a, u_b: ptr.u_b } }], direct: '0000', renders: 1 }), j(uOut));
+
+        // (b) the source: every pointer message outside broadcastTargets is a player's own copy (targetsFor); the combats slice defines it
+        const btA = src.indexOf('function broadcastTargets() {'), btB = btA < 0 ? -1 : src.indexOf('\n}\n', btA), btSrc = btB < 0 ? '' : src.slice(btA, btB + 3);
+        const cnt = (s, re) => (s.match(re) || []).length, hostB = cnt(src, /msg\.type === '[a-z-]+' && net\.role === 'host'/g);
+        check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
+            btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 1 && cnt(btSrc, /targets: net\.targets/g) === 1
+            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) + 1 && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 24,
+            j([btSrc.length, cnt(src, /broadcast\(\{ type: 'targets'/g), cnt(src, /type: 'targets'/g), cbS.indexOf(btSrc), hostB]));
+
+        // (c) the live position relay and the drag that feeds it
+        const P = mkW({ maps: ['mA', 'mO', 'mU'] }), pA = P.camp.items.mA, pU = P.camp.items.mU, orc5 = pU.whiteboard.find(w => w.id === 'orc5');
+        const note = { id: 'note', type: 'text', gmNoteFor: 'r1', text: 'Secret', x: 150, y: 100, w: 50, h: 50 }, noteU = Object.assign({}, note, { id: 'noteU' }), noteB = Object.assign({}, note, { id: 'noteB', ownerId: 'u_b' }), wolf = T('wolf', '', 'c_n', 12, 2);
+        pA.whiteboard.push(note, noteB, wolf); pU.whiteboard.push(noteU);
+        const POSOF = (map, w) => ({ type: 'pos', campId: 'k', itemId: map.id, wbId: w.id, x: w.x, y: w.y, rot: 0, front: 0, final: true });
+        const relayP = (map, w) => { P.clear(); P.shared.length = 0; P.bc.length = 0; P.api.pos(POSOF(map, w), null, P.camp, map, w); return [P.net.conns.map(c => c.sent.length).join(''), P.shared.slice()]; };
+        const rel = { noteF: relayP(pA, note), noteOwn: relayP(pA, noteB), noteU: relayP(pU, noteU), wolfF: relayP(pA, wolf), tokU: relayP(pU, orc5) };
+        P.clear(); P.net.broadcastItemFiltered('k', 'mA'); const copyA = P.items(P.a1);
+        check('fold M0: the live position relay (broadcastPos, run for real over the real canSeePoint) sends nothing of a GM-note card — on a fogged map where a player would see its cell, one marked as a player\'s own, and on a map without fog where it would have gone to all — while a creature in sight on a fogged map still reaches its player\'s two connections and a token on a map without fog is still one broadcast; the card is in no copy of the map a player gets',
+            j(rel) === j({ noteF: ['00000', []], noteOwn: ['00000', []], noteU: ['00000', []], wolfF: ['11000', []], tokU: ['00000', ['pos:mU']] }) && copyA.length === 1 && !/note/.test(copyA[0]) && /wolf/.test(copyA[0]), j([rel, copyA]));
+        const spSrc = whole('net.streamPos = function(');
+        const stream = Wn => new Function('net', 'getActiveCampaign', 'broadcastPos', 'sendFailed', 'var _posLast = 0;\n' + spSrc + '\nreturn net.streamPos;')(Wn.net, () => Wn.camp, Wn.api.pos, e => { throw e; });
+        const sp = stream(P), drag = (itemId, w) => { P.camp.activeItemId = itemId; P.clear(); P.shared.length = 0; P.bc.length = 0; sp(w, true); return [P.net.conns.map(c => c.sent.length).join(''), P.shared.slice()]; };
+        const hostSp = { noteF: drag('mA', note), noteU: drag('mU', noteU), wolfF: drag('mA', wolf) }, wolfMsg = P.a1.sent[0], tokU = drag('mU', orc5), tokUMsg = P.bc[0];
+        const hostC = { peer: 'pHost', open: true, sent: [], send(m) { packCheck(m); this.sent.push(JSON.parse(j(m))); } };
+        P.net.role = 'client'; P.net.conns = [hostC]; P.camp.activeItemId = 'mA'; P.shared.length = 0; P.bc.length = 0; sp(note, true); sp(wolf, true);
+        const cli = [hostC.sent.map(m => m.type + ':' + m.itemId + ':' + m.wbId + ':' + m.final), P.shared.length, P.bc.length];
+        check('fold M0: a drag on the GM\'s own screen (net.streamPos sliced whole, run on the host with the real broadcastPos) streams nothing of a GM-note card, on a fogged map or one without fog; a creature\'s drag reaches whom it did, the message as before; on a player\'s machine a drag still goes to the host alone, as before',
+            spSrc.length > 0 && j(hostSp) === j({ noteF: ['00000', []], noteU: ['00000', []], wolfF: ['11000', []] }) && j(tokU) === j(['00000', ['pos:mU']])
+            && j(wolfMsg) === j({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'wolf', x: 600, y: 100, rot: 0, front: 0, final: true }) && !!tokUMsg && tokUMsg.wbId === 'orc5' && tokUMsg.itemId === 'mU'
+            && j(cli) === j([['pos:mA:note:true', 'pos:mA:wolf:true'], 0, 0]), j([hostSp, tokU, wolfMsg, tokUMsg, cli]));
+
+        // (d) fold M0 round 2: a hidden token reaches players as a stub with no facing, so its live moves carry none — broadcastPos (the bpos
+        // slice) run for real over the real canSeePoint on a fresh host: a hidden creature 8 cells from Ana's token on the fogged mA, one on mU
+        // (no fog), a visible one on mA, and a GM-note card that is hidden too; each turned and facing somewhere
+        const Q = mkW({ maps: ['mA', 'mU'] }), qA = Q.camp.items.mA, qU = Q.camp.items.mU;
+        const ghost = T('ghost', '', 'c_n', 10, 2, { hidden: true, front: 90, rot: 15 }), ghostU = T('ghostU', '', 'c_n', 12, 2, { hidden: true, front: 45, rot: 30 }), seen = T('seen', '', 'c_n', 11, 2, { front: 30, rot: 5 });
+        const ghostN = { id: 'ghostN', type: 'text', gmNoteFor: 'r1', text: 'Secret', hidden: true, x: 450, y: 100, w: 50, h: 50, rot: 10, front: 60 };
+        qA.whiteboard.push(ghost, seen, ghostN); qU.whiteboard.push(ghostU);
+        const POSF = (map, w) => ({ type: 'pos', campId: 'k', itemId: map.id, wbId: w.id, x: w.x, y: w.y, rot: w.rot, front: w.front, final: false });
+        const relayF = (map, w) => { Q.clear(); Q.bc.length = 0; Q.shared.length = 0; const m = POSF(map, w), before = j(m); Q.api.pos(m, null, Q.camp, map, w);
+            return { conns: Q.net.conns.map(c => c.sent.map(x => j(x))), bc: Q.bc.map(x => j(x)), kept: j(m) === before && m.front === w.front }; };
+        const want = (map, w, front) => j(Object.assign(POSF(map, w), { front }));
+        const rF = { ghost: relayF(qA, ghost), ghostU: relayF(qU, ghostU), seen: relayF(qA, seen), ghostN: relayF(qA, ghostN) };
+        check('fold M0: the live position relay (broadcastPos, run for real) sends a hidden token\'s move with its facing 0 to every player it reaches — on a fogged map each of Ana\'s two connections, on a map without fog the one broadcast — its place and its turn as they were; a visible creature keeps its facing; a GM-note card, hidden or not, still sends nothing; the caller\'s own message is never changed',
+            j(rF.ghost) === j({ conns: [[want(qA, ghost, 0)], [want(qA, ghost, 0)], [], [], []], bc: [], kept: true })
+            && j(rF.ghostU) === j({ conns: [[], [], [], [], []], bc: [want(qU, ghostU, 0)], kept: true })
+            && j(rF.seen) === j({ conns: [[want(qA, seen, 30)], [want(qA, seen, 30)], [], [], []], bc: [], kept: true })
+            && j(rF.ghostN) === j({ conns: [[], [], [], [], []], bc: [], kept: true }) && JSON.parse(rF.ghost.conns[0][0]).rot === 15 && JSON.parse(rF.ghostU.bc[0]).x === 600, j(rF));
     }
 })());
 // F11 (owner, 2026-09-28): a file that holds one entry twice on a list that takes an entry once — the second row comes in as a row of its own, on

@@ -899,7 +899,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       try {
 
-          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpFog) window.wpFog.invalidateVision(); if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); wUndo.forEach(function(id) { if (id !== item.id && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, id); }); }
+          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpFog) window.wpFog.invalidateVision(); if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); wUndo.forEach(function(id) { if (id !== item.id && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, id); }); if (window.wpNet.syncCombatHidden) window.wpNet.syncCombatHidden(); }
 
           else save(true);
 

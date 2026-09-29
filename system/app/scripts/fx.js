@@ -2,7 +2,8 @@
    wash / banner / weather, #fxLayer inside the board for bursts and token pulses), the GM's ✨ panel (#fxBtn /
    #fxPanel), the burst placement (a Measure sub-mode driven from whiteboard.js), the stream-window bridge over
    BroadcastChannel, and wpFxSync for the VTT feature switch. The wire lives in net.js (net.sendFx + the client
-   branch); the validators and presets in fxcore.js. Design of record: docs/VISUAL_FX_PLAN.md. */
+   branch); the validators and presets in fxcore.js. Design of record: docs/VISUAL_FX_PLAN.md. The GM's ping (fold P,
+   docs/SENSES_PLAN.md 4.6) is a burst of its own look: Alt+click on the play map, or the panel's Ping row. */
 import { state } from './state.js';
 import { getActiveMap, getActiveCampaign } from './models.js';
 import { toast } from './io.js';
@@ -26,6 +27,9 @@ function mapNow() { var m = getActiveMap(); return m && m.type === 'map' ? m.id 
 var running = {};        // mapId -> { weather?, wash? } : the GM's authority for arrivals, the stream, the map poll
 var lastBright = {};     // the photosensitivity gate's last accepted time, per bright kind { flash, boom }
 var raf = null, particles = [], weatherFx = null, canvasMap = null;
+var pings = [];          // the pings drawn on this map, oldest first: { at, el } (a map change or a stop removes the elements)
+var pingTo = '';         // the Ping row's choice: '' for everyone on the map, or one player's profile id (Alt+click follows it)
+var PING_MS = 1600;
 var _clock = 0;         // a monotonic frame counter (no Date.now in the render loop is fine; used only for gating via performance.now)
 function now() { try { return performance.now(); } catch (e) { return _clock += 16; } }
 
@@ -67,7 +71,7 @@ function apply(fx) {
     if (f.kind === 'flash') return renderFlash(f);
     if (f.kind === 'shake') return renderShake(f);
     if (f.kind === 'wash') return renderWash(f);
-    if (f.kind === 'burst') return renderBurst(f);
+    if (f.kind === 'burst') return f.look === 'ping' ? renderPing(f) : renderBurst(f);
     if (f.kind === 'weather') return renderWeather(f);
     if (f.kind === 'banner') return renderBanner(f);
     if (f.kind === 'pulse') return renderPulse(f);
@@ -137,6 +141,31 @@ function renderBurst(f) {
     s.appendChild(d);
     setTimeout(function() { d.remove(); }, f.ms + 200);
 }
+// [fxcheck:ping-start]
+// The GM's ping: a ring at the middle of the cell clicked, one cell's length in radius (the map's own grid, or its fog
+// cell on a gridless map). A receiver draws at most pingLive at once, the oldest taken away, and ignores one that comes
+// sooner than pingGapMs after the last it drew. Under reduced motion it is a still ring that fades, never a pulse.
+function pingAt(map, x, y) {
+    var F = window.wpFogCore, g = F && map ? F.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell) : null;
+    if (!g) return { x: x, y: y, r: 50 };
+    var c = F.cellCenter(F.cellOf(x, y, g), g);
+    return { x: c.x, y: c.y, r: g.type === 'square' ? g.size : g.h };
+}
+function livePings() { pings = pings.filter(function(p) { return p.el.isConnected; }); return pings.map(function(p) { return p.at; }); }
+function renderPing(f) {
+    var C = core(), s = screenEl(), wrap = ui('whiteboardWrap'); if (!C || !s || !wrap) return;
+    var t = now(), cut = C.pingAdmit(livePings(), t); if (cut < 0) return;
+    pings.splice(0, cut).forEach(function(p) { p.el.remove(); });
+    var z = state.zoomLevel || 1, lx = f.x * z - wrap.scrollLeft, ly = f.y * z - wrap.scrollTop, r = Math.max(18, f.r * z);
+    var d = el('div', 'fx-burst fx-ping' + (f.still ? ' fx-ping-still' : '')); d.style.left = (lx - r) + 'px'; d.style.top = (ly - r) + 'px'; d.style.width = (2 * r) + 'px'; d.style.height = (2 * r) + 'px';
+    d.style.setProperty('--fx-dur', f.ms + 'ms'); if (f.color) d.style.setProperty('--fx-color', f.color);
+    d.appendChild(el('div', 'fx-ping-ring'));
+    if (!f.still) d.appendChild(el('div', 'fx-ping-ring fx-ping-echo'));
+    d.appendChild(el('div', 'fx-ping-dot'));
+    s.appendChild(d); pings.push({ at: t, el: d });
+    setTimeout(function() { d.remove(); }, f.ms + 200);
+}
+// [fxcheck:ping-end]
 
 /* ---------- weather (one canvas, one rAF loop) ---------- */
 function renderWeather(f) {
@@ -184,14 +213,14 @@ function loop() {
 }
 
 /* ---------- the GM's play path ---------- */
-function play(fx) {   // GM (or solo): clean, remember running, show locally, send, mirror to the stream
+function play(fx, to) {   // GM (or solo): clean, remember running, show locally, send, mirror to the stream
     var C = core(); if (!C) return { error: 'Effects are not available.' };
     if (window.wpStream) return { error: 'Not from the stream window.' };
     if (!featureOn()) return { error: 'Visual effects are off for this campaign.' };
     var clean = C.cleanFx(fx); if (!clean) return { error: 'That effect could not be built.' };
     apply(clean);   // apply records running only when the effect actually renders (past the guard, feature and map checks)
-    var n = net(); if (n && n.sendFx) n.sendFx(clean);
-    streamPost(clean);
+    var n = net(); if (n && n.sendFx) n.sendFx(clean, to || null);   // to: one player's profile id (a ping), else everyone on the map
+    if (!to) streamPost(clean);   // an effect for one player is theirs alone: the stream window does not show it either
     return { ok: true };
 }
 function receive(fx) { apply(fx); }   // the wire entry (net.js has already cleaned it)
@@ -204,10 +233,54 @@ function armBurst(look, rPx) {
 }
 function placeBurst(x, y, look, rPx) {   // whiteboard.js calls this on a click in the 'fx' measure mode
     var id = mapNow(); if (!id) return;
-    play({ kind: 'burst', mapId: id, x: x, y: y, look: look, r: rPx });
+    if (look === 'ping') ping(x, y); else play({ kind: 'burst', mapId: id, x: x, y: y, look: look, r: rPx });
     var chips = ui('fxPanel'); if (chips) chips.querySelectorAll('.fx-burst-btn').forEach(function(b) { b.classList.remove('armed'); });
 }
 function blastBoom(x, y, rPx) { var id = mapNow(); if (!id) return; play({ kind: 'burst', mapId: id, x: x, y: y, look: 'boom', r: Math.min(rPx, LIMITS.r[1]) }); }
+
+/* ---------- the GM's ping (fold P): Alt+click on the play map, or the Ping row's button then the map ---------- */
+// [fxcheck:gmping-start]
+function canPing() { return canWrite() && featureOn() && state.viewMode === 'visual' && !!mapNow(); }
+function pingPlayers() {   // the players on the map on screen, one row per profile, for the Ping row's list: [{ id, name }]
+    var n = net(), id = mapNow(); if (!isHost() || !id) return [];
+    var seen = {}, out = [];
+    Object.keys(n.roster || {}).forEach(function(peer) {
+        var p = n.roster[peer];
+        if (!p || p.location !== id || typeof p.id !== 'string' || !p.id || seen[p.id]) return;
+        seen[p.id] = 1; out.push({ id: p.id, name: typeof p.name === 'string' && p.name ? p.name : 'Player' });
+    });
+    return out;
+}
+function checkPingTo() {   // the list goes back to Everyone once the player it names is no longer on this map (or the table)
+    if (!pingTo || pingPlayers().some(function(p) { return p.id === pingTo; })) return;
+    pingTo = ''; syncPingTo();
+    toast('Pings go to everyone on this map again: the player they went to is not on it.');
+}
+function ping(x, y) {
+    var m = getActiveMap(); if (!m || !canPing() || !(isFinite(x) && isFinite(y))) return;
+    var C = core(); if (!C || C.pingAdmit(livePings(), now()) < 0) return;   // the GM's own clicks keep the spacing a player's screen keeps
+    checkPingTo();
+    var p = pingAt(m, x, y);
+    play({ kind: 'burst', look: 'ping', mapId: m.id, x: p.x, y: p.y, r: p.r, ms: PING_MS }, pingTo || null);
+}
+function syncPingTo() {   // the Ping row's list, as text nodes: Everyone, then each player on this map by name
+    var sel = ui('fxPingTo'); if (!sel) return;
+    var list = pingPlayers();
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    var add = function(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+    add('', 'Everyone on this map');
+    list.forEach(function(p) { add(p.id, p.name); });
+    sel.value = list.some(function(p) { return p.id === pingTo; }) ? pingTo : '';
+    sel.style.display = list.length ? '' : 'none';   // solo, or no player on this map: everyone is all there is
+    _pingSig = JSON.stringify([list, pingTo]);
+}
+var _pingSig = '';
+function pingPoll() {   // the map poll's tick: the choice follows its player, and an open list follows who is on the map
+    if (pingTo) checkPingTo();
+    var sel = panelOpen ? ui('fxPingTo') : null;
+    if (sel && document.activeElement !== sel && JSON.stringify([pingPlayers(), pingTo]) !== _pingSig) syncPingTo();
+}
+// [fxcheck:gmping-end]
 
 /* ---------- the stream-window bridge ---------- */
 var streamChan = null; try { streamChan = new BroadcastChannel('waypoint'); } catch (e) {}
@@ -229,6 +302,7 @@ if (window.wpStream && streamChan) {
 var _pollMap = null;
 setInterval(function() {
     var id = mapNow();
+    pingPoll();
     if (id === _pollMap) return;
     _pollMap = id;
     stopWeather();
@@ -254,6 +328,7 @@ function renderPanel() {
     html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear</button></div>';
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>';
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Burst radius">Radius <input type="range" id="fxRadius" min="20" max="1200" value="160"><span id="fxRadiusVal" class="fx-dim"></span></label></div>';
+    html += '<div class="snd-row"><span class="snd-label">Ping</span><button class="journal-from fx-burst-btn fx-ping-btn" data-look="ping" title="Click, then click the map: a ring marks that cell for a moment. Alt+click on the map pings at once.">Ping</button><select id="fxPingTo" class="field"></select></div>';   // the list is filled with text nodes (syncPingTo)
     if (window.wpVtt && window.wpVtt.on('lighting') && window.wpVtt.on('fog')) html += '<div class="snd-row"><span class="snd-label">Light</span><button class="journal-from fx-light-btn" title="Click, then click the map: a light source that lights the fog (its radii in its Properties). On a map whose Light is Auto, placing one makes it dark outside its lights.">Light source</button></div>';   // lighting (L2)
     html += '<div class="snd-row"><span class="snd-label">Weather</span>' + byRow('weather').map(function(p) { return chip('fx-weather-btn', p.fx.look, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop</button></div>';
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Weather thickness">Density <input type="range" id="fxDensity" min="20" max="100" value="60"></label></div>';
@@ -261,6 +336,7 @@ function renderPanel() {
     var cues = soundEntries().filter(function(e) { return e.kind === 'cue'; });
     if (cues.length && (!window.wpVtt || window.wpVtt.on('sound'))) html += '<div class="snd-row"><span class="snd-label">Sound with it</span><select id="fxCue" class="field"><option value="">none</option>' + cues.map(function(e) { return '<option value="' + esc(e.id) + '">' + esc(e.name) + '</option>'; }).join('') + '</select></div>';
     body.innerHTML = html;
+    syncPingTo();
     var rv = ui('fxRadius'), rvl = ui('fxRadiusVal'); if (rv && rvl) { var upd = function() { var y = window.wpMeasure ? window.wpMeasure.pxToYards(+rv.value) : null; rvl.textContent = y != null ? '~' + y + ' yd' : (rv.value + ' px'); }; rv.addEventListener('input', upd); upd(); }
 }
 function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && window.wpSound && window.wpSound.play) { var e = soundEntries().find(function(x) { return x.id === sel.value; }); if (e) { try { window.wpSound.play(e.id); } catch (er) {} } } }
@@ -279,6 +355,10 @@ function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && wind
         if (btn.classList.contains('fx-weather-btn')) { var pw = PRESETS.find(function(x) { return x.id === btn.dataset.id; }); if (pw) { var dn = ui('fxDensity'); play(Object.assign({ mapId: mapNow(), density: dn ? +dn.value / 100 : 0.6 }, pw.fx, { density: dn ? +dn.value / 100 : pw.fx.density })); } return; }
         if (btn.classList.contains('fx-light-btn')) { if (window.wpArmLight) window.wpArmLight(); return; }
         if (btn.classList.contains('fx-burst-btn')) { var rv = ui('fxRadius'); armBurst(btn.dataset.look, rv ? +rv.value : 160); }
+    });
+    p.addEventListener('change', function(e) {
+        if (!e.target || e.target.id !== 'fxPingTo') return;
+        var v = e.target.value; pingTo = pingPlayers().some(function(q) { return q.id === v; }) ? v : ''; syncPingTo();
     });
     var banner = ui('fxBanner');
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closePanel(); } });
@@ -306,7 +386,7 @@ function sync() {   // the VTT switch moved, or a session started / ended
     else if (panelOpen) renderPanel();
 }
 function stopAll() { stopWeather(); running = {}; lastBright = {}; var s = screenEl(); if (s) s.querySelectorAll('.fx-wash, .fx-banner, .fx-flash, .fx-burst').forEach(function(n) { n.remove(); }); var wb = ui('whiteboard'); if (wb) wb.classList.remove('fx-shake'); }
-function tableLeft() { stopAll(); }
+function tableLeft() { stopAll(); pingTo = ''; }
 function onSnapshot() { stopAll(); }
 function foreign(isForeign) { if (!isForeign) stopAll(); }
 
@@ -315,7 +395,7 @@ setTimeout(sync, 0);
 window.wpFx = {
     play: play, receive: receive, stopAll: stopAll, running: function() { return running; },
     runningSet: function(id) { return core() ? core().runningSet(running, id) : []; },
-    armBurst: armBurst, placeBurst: placeBurst, blastBoom: blastBoom,
+    armBurst: armBurst, placeBurst: placeBurst, blastBoom: blastBoom, ping: ping, canPing: canPing,
     openPanel: openPanel, closePanel: closePanel, sync: sync,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     stats: function() { return { raf: !!raf, particles: particles.length, running: Object.keys(running).length, weather: weatherFx ? weatherFx.look : null }; }

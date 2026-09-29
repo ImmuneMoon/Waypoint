@@ -1686,16 +1686,23 @@ net.sendMusicControl = function(ctrl) {
 };
 // Visual effects (1.5.0, S3): a short-lived effect to the players ON THAT MAP (a stop reaches everyone); the host
 // makes every effect, a player never triggers one on anyone. The renderer and the presets live in fx.js / fxcore.js.
-net.sendFx = function(fx) {
+// `to` (the GM's ping, fold P): one player's profile id, every connection of theirs, still only on that map; absent,
+// everyone there. Admitted peers only (own roster keys).
+// [netcheck:sendfx-start]
+net.sendFx = function(fx, to) {
     if (!net.active || net.role !== 'host' || !fx || !window.wpFxCore) return;
+    if (to !== undefined && to !== null && (typeof to !== 'string' || !to)) return;
     var clean = window.wpFxCore.cleanFx(fx); if (!clean) return;
     var msg = {}; for (var k in clean) if (Object.prototype.hasOwnProperty.call(clean, k)) msg[k] = clean[k]; msg.type = 'fx';
     net.conns.forEach(function(c) {
-        if (!c.open || !net.roster[c.peer]) return;
-        if (clean.kind !== 'stop' && net.roster[c.peer].location !== clean.mapId) return;   // same-map reach; a stop clears everyone
+        if (!c.open || !own(net.roster, c.peer)) return;
+        var p = net.roster[c.peer];
+        if (clean.kind !== 'stop' && p.location !== clean.mapId) return;   // same-map reach; a stop clears everyone
+        if (to && p.id !== to) return;
         try { c.send(msg); } catch (e) { sendFailed(e); }
     });
 };
+// [netcheck:sendfx-end]
 net.sendFxArrival = function(conn, mapId) {   // a peer landing on a map gets its running weather / held wash — an admitted peer only
     if (!net.active || net.role !== 'host' || !conn || !conn.open || !mapId || !window.wpFx || !own(net.roster, conn.peer)) return;
     window.wpFx.runningSet(mapId).forEach(function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } });

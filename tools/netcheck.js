@@ -4465,6 +4465,119 @@ pendingChecks.push((async () => {
             && dmT.length > 0 && !/senses/i.test(dmT) && !/\bamL\b/.test(dmT) && !/invalidateSeen|sightSigFor/.test(dmT), j([/sensesLanded|_landPend|landDrop|SENSES_LANDED_MS/.test(src), /senses/i.test(dmT), dmT.length]));
     }
 })());
+// F11 (owner, 2026-09-28): a file that holds one entry twice on a list that takes an entry once — the second row comes in as a row of its own, on
+// every path: a character in the making (the [netcheck:charfill] branch) and a player's upload the GM reviews (the [netcheck:charupload] slice),
+// both run for real with the real systemcore, the real sends (the [netcheck:chardelta] slice, sendCharTo) and the GM's own Apply (sheets.js, sliced)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const upSrc = between('// [netcheck:charupload-start]', '// [netcheck:charupload-end]', 'charupload'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const stA = src.indexOf('function sendCharTo(pid, id) {'), stB = src.indexOf('net.sendCharTo = sendCharTo;'), stSrc = stA > 0 && stB > stA ? src.slice(stA, stB + 'net.sendCharTo = sendCharTo;'.length) : '';
+    const shT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cut = (t, a, b) => { const i = t.indexOf(a), k = i < 0 ? -1 : t.indexOf(b, i); return i < 0 || k < 0 ? '' : t.slice(i, k + b.length); };
+    const pfSrc = shT.slice(shT.indexOf('function playerFinder('), shT.indexOf('function fromShadowBase(')), acSrc = cut(shT, 'function afterCharChange(c, whole, values) {', '\n}\n'), apSrc = cut(shT, '    apply.onclick = function() {', '\n    };\n');
+    const lvl = { label: 'Level', min: 0, max: 20, def: 0 }, num = ks => ks.map(k => ({ key: k }));
+    const L = (id, key, cat, list) => ({ id, key, label: key, kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ cats: [cat], lvl }, list) });
+    const sysT = gm => Sx.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', edit: 'gm', def: 10 }, { id: 'f_dg', key: 'Dodge', label: 'Dodge', kind: 'number', vis: 'all', edit: 'gm', def: 8 }]
+        .concat(gm ? [{ id: 'f_dx', key: 'DX', label: 'DX', kind: 'number', vis: 'gm', def: 10 }] : []).concat([
+            L('f_adv', 'Advantages', 'Trait', { noQty: true, stats: num(['bp', 'per', 'granted', 'szd']) }), L('f_qk', 'Quirks', 'Trait', { noQty: true, stats: num(['bp', 'per', 'granted']) }),
+            L('f_dis', 'Disadvantages', 'Flaw', { noQty: true, multi: true, stats: num(['bp', 'per', 'granted']) }), L('f_pw', 'Powers', 'Power', { noQty: true, stats: num(['cpA', 'cpC', 'cpK', 'fpP', 'epP', 'al', 'granted']) }),
+            L('f_tq', 'Techniques', 'Technique', { stats: num(['cpA', 'cpC', 'cpK', 'skB', 'granted']) }), L('f_fm', 'Forms', 'Form', { noQty: true, on: { label: 'Active' }, stats: num(['cpA', 'granted']) })]),
+        items: [{ id: 'i_par', name: 'Guarded Parry', category: 'Trait', stats: { bp: 5 } }, { id: 'i_keen', name: 'Keen Eye', category: 'Trait', stats: { bp: 2 } }, { id: 'i_cow', name: 'Cowardice', category: 'Flaw', stats: { bp: -10 } },
+            { id: 'i_push', name: 'Push', category: 'Power', stats: { cpA: 4, cpC: 2 } }, { id: 'i_feint', name: 'Feint', category: 'Technique', stats: { cpA: 3 } }, { id: 'i_form', name: 'First Form', category: 'Form', stats: { cpA: 5 } }]
+            .concat(gm ? [{ id: 'i_hid', name: 'Hidden Gift', category: 'Trait', vis: 'gm', stats: { bp: 7 } }] : []) }, { F: Fx, gmView: true });
+    const viewOf = cp => Sx.cleanSystem(cp.system, { F: Fx, gmView: false });
+    const finder = s => nm => s.items.filter(e => e.name.toLowerCase() === String(nm).trim().toLowerCase());
+    // the file: one entry twice on each list that takes an entry once (a trait with a change of its own, a power with no cost of its own, a form), a second
+    // entry of the same list, the same entry on another once-only list, twice on a list that takes several rows, and a GM-only entry's name twice; counted: twice on a list that counts
+    const twice = { name: 'Vex', attributes: { strength: { value: 13 } }, traits: {
+            advantages: [{ name: 'Guarded Parry', points: 5 }, { name: 'Guarded Parry', points: 5, modifiers: { dodge: 1 } }, { name: 'Keen Eye', points: 2 }, { name: 'Hidden Gift', points: 7 }, { name: 'Hidden Gift', points: 7 }],
+            quirks: [{ name: 'Keen Eye', points: 2 }], disadvantages: [{ name: 'Cowardice', points: -10 }, { name: 'Cowardice', points: -10 }] },
+        abilities: { forcePowers: [{ name: 'Push', level: 3 }, { name: 'Push', level: 3 }], lightsaberForms: [{ name: 'First Form', level: 2, cpCost: 5, active: true }, { name: 'First Form', level: 1, cpCost: 7 }] } };
+    const counted = { name: 'Vex', abilities: { combatTechniques: [{ name: 'Feint', level: 1, cpCost: 3 }, { name: 'Feint', level: 1, cpCost: 3 }] } };
+    const stated = { name: 'Vex', abilities: { forcePowers: [{ name: 'Push', level: 3, cpCost: 8 }, { name: 'Push', level: 3, cpCost: 5 }] } };   // the second row states a cost of its own
+    const run = (o) => {
+        o = o || {}; const sys = sysT(o.gm), ch = Object.assign({ id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, values: { f_st: 10 } }, o.play ? {} : { making: 1 }, o.ch || {});
+        const camp = { id: 'k', system: sys, chars: { c_m: ch, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} } } };
+        const out = { answer: [], owner: [], mate: [], toasts: [], logs: [], told: [], saves: 0, allowed: [], at: o.at || {}, camp, ch, sys }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }, { peer: 'pB', open: true, send: box(out.mate) }], roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpLibrary: { state: () => 'ready' }, wpSheets: { sbFinder: (cp, s) => finder(s), charChanged() {}, uploadsChanged: id => out.told.push(id), playerSystem: viewOf } };
+        win.wpSheets.playerFinder = new Function('window', pfSrc + '\nreturn playerFinder;')(win);
+        const handle = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', 'sheetsOnFor', 'allow',
+            'var _charPending = {}, _charSlowSaid = {}, _charHost = {}, _rowGrace = {}, charLimit = null;\n' + dlSrc.replace('var _uploadAt = {}, UPLOAD_GAP_MS = 10000;', '') + '\n' + stSrc + '\nreturn function(msg, conn) {\n' + upSrc + '\n};')(
+            net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), t => out.toasts.push(t), (k, t) => out.logs.push([k, t]), out.at, 10000, () => true,
+            (k, lim, peer) => { out.allowed.push(k); return o.slow !== k; });
+        handle(Object.assign({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: twice }, o.msg || {}), conn);
+        out.net = net; out.win = win; return out;
+    };
+    // a row as the checks read it: the entry it copies or the name it carries, its level, its switch, its count, its own numbers and changes
+    const rowsOf = (vals, fid) => (vals[fid] || []).map(r => r.defId ? [r.defId, r.lvl, r.on === true, r.qty] : ['own', r.def && r.def.name, r.lvl, r.on === true, r.def && r.def.stats, (r.def && r.def.mods) || null]);
+    const shape = vals => ({ adv: rowsOf(vals, 'f_adv'), qk: rowsOf(vals, 'f_qk'), dis: rowsOf(vals, 'f_dis'), pw: rowsOf(vals, 'f_pw'), tq: rowsOf(vals, 'f_tq'), fm: rowsOf(vals, 'f_fm') });
+    const par2 = ['own', 'Guarded Parry', 0, false, { bp: 5 }, [{ f: 'f_dg', op: 'add', v: 1 }]], push2 = ['own', 'Push', 3, false, { cpA: 4, cpC: 2, fpP: 0, epP: 0, al: 1 }, null], form2 = ['own', 'First Form', 1, false, { cpA: 7 }, null], gift = ['own', 'Hidden Gift', 0, false, { bp: 7 }, null];
+    const want = { adv: [['i_par', 0, false, 1], par2, ['i_keen', 0, false, 1], gift, gift], qk: [['i_keen', 0, false, 1]], dis: [['i_cow', 0, false, 1], ['i_cow', 0, false, 1]], pw: [['i_push', 3, false, 1], push2], tq: [], fm: [['i_form', 2, true, 1], form2] };
+    const M = run(), MG = run({ gm: true }), mOwn = M.owner.length === 1 ? M.owner[0] : {}, mChar = mOwn.char || { values: {} };
+    check('a file with one entry twice (making, host, run for real): on a list that takes an entry once the first row is the library\'s and the second a row of its own with the file\'s name, points and changes — a trait, a power (no cost in the file: priced as the entry is, by its level), a form (its own cost, level and switch); every row is counted in the answer and none left out',
+        j(M.answer) === j([{ n: 0, auto: 13, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(shape(M.ch.values)) === j(want) && M.ch.values.f_st === 13 && j(M.allowed) === j(['charfill']) && M.saves === 1
+        && M.toasts.length === 1 && /^Pat filled Vex from a file \(13 parts\) /.test(M.toasts[0]) && !/left out/.test(M.toasts[0]) && !M.camp.uploads, j([M.answer, shape(M.ch.values), M.toasts]));
+    check('a file with one entry twice (making): the second entry of a once-only list and the same entry on another once-only list stay the library\'s (what a file added is kept per list and per entry); a list that takes several rows of an entry holds two library rows as before',
+        j(rowsOf(M.ch.values, 'f_adv')[2]) === j(['i_keen', 0, false, 1]) && j(rowsOf(M.ch.values, 'f_qk')) === j([['i_keen', 0, false, 1]]) && j(rowsOf(M.ch.values, 'f_dis')) === j([['i_cow', 0, false, 1], ['i_cow', 0, false, 1]])
+        && !(M.ch.values.f_dis || []).some(r => r.def || r.own), j(shape(M.ch.values)));
+    const MC = run({ msg: { sheet: counted } }), PC = run({ play: true, msg: { sheet: counted } }), opsOf = r => [].concat.apply([], ((r.camp.uploads || [])[0] || { changes: [] }).changes.map(c => (c.ops || []).map(q => q.op)));
+    check('a file with one entry twice on a list that counts: the entry is one library row counted twice while making, and neither while making nor in the GM\'s queue does a row of its own stand in for it',
+        j(rowsOf(MC.ch.values, 'f_tq')) === j([['i_feint', 1, false, 2]]) && MC.answer.length === 1 && MC.answer[0].n === 0 && MC.answer[0].auto >= 1 && PC.answer.length === 1 && PC.answer[0].n >= 1 && opsOf(PC).indexOf('add') >= 0 && opsOf(PC).indexOf('custom') < 0,
+        j([MC.answer, rowsOf(MC.ch.values, 'f_tq'), PC.answer, opsOf(PC)]));
+    const MS = run({ msg: { sheet: stated } }), PS = run({ play: true, msg: { sheet: stated } }), push5 = 'custom:Push:{"cpA":5,"fpP":0,"epP":0,"al":1}';
+    check('a file with one entry twice: a second row that states a cost of its own keeps the file\'s cost, never the entry\'s — on the character in the making and in the GM\'s queue; both rows are counted',
+        j(rowsOf(MS.ch.values, 'f_pw')) === j([['i_push', 3, false, 1], ['own', 'Push', 3, false, { cpA: 5, fpP: 0, epP: 0, al: 1 }, null]]) && j(MS.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }])
+        && j(PS.answer) === j([{ n: 2, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(((PS.camp.uploads || [])[0] || { changes: [] }).changes.map(c => c.kind + ':' + (c.ops[0].op === 'add' ? 'add:' + c.ops[0].defId : 'custom:' + c.ops[0].def.name + ':' + j(c.ops[0].def.stats)))) === j(['add:add:i_push', 'add:' + push5]),
+        j([MS.answer, rowsOf(MS.ch.values, 'f_pw'), PS.answer, PS.camp.uploads]));
+    const ownRows = (c, fid) => rowsOf(c.values || {}, fid);
+    check('a file with one entry twice (making): its owner alone is sent the character, still in the making, with the library row and the row of its own; the other players are sent nothing until Done',
+        stSrc.length > 0 && M.owner.length === 1 && mOwn.type === 'char' && mOwn.campId === 'k' && mChar.id === 'c_m' && mChar.making === 1 && mChar.partial === false && j(ownRows(mChar, 'f_adv').slice(0, 2)) === j([['i_par', 0, false, 1], par2])
+        && j(ownRows(mChar, 'f_pw')) === j([['i_push', 3, false, 1], push2]) && j(ownRows(mChar, 'f_fm')) === j([['i_form', 2, true, 1], form2]) && M.mate.length === 0 && MG.mate.length === 0, j([M.owner, M.mate]));
+    const noIds = v => j(v).replace(/"w_sb[a-z0-9]+"/g, '"ID"').replace(/"updated":\d+/g, '"updated":0');
+    check('a file with one entry twice (making): the answer is counts only and the same whatever is GM-only — with a GM-only field and a GM-only entry of a name the file holds twice, the same answer, the same rows and the same copy to its owner, nothing of the entry on the character',
+        j(MG.answer) === j(M.answer) && j(Object.keys(M.answer[0]).sort()) === j(['auto', 'left', 'n', 'rid', 'type']) && j(shape(MG.ch.values)) === j(shape(M.ch.values)) && noIds(MG.owner) === noIds(M.owner) && !/i_hid|f_dx/.test(j([MG.ch.values, MG.owner, MG.answer])), j([MG.answer, shape(MG.ch.values)]));
+    // (b) the same file for a character in play: the GM's queue, then the GM's own Apply (sheets.js, sliced) and the real send
+    const P = run({ play: true }), PG = run({ play: true, gm: true }), upP = (P.camp.uploads || [])[0] || { changes: [] };
+    const adds = (up, label) => up.changes.filter(c => c.label === label).map(c => [c.kind, c.accept, (c.ops || []).map(q => q.op === 'add' ? 'add:' + q.defId : q.op === 'custom' ? 'custom:' + q.def.name + ':' + j(q.def.stats) + ':' + j(q.def.mods || null) : q.op + ':' + j(q.facts))]);
+    check('a file with one entry twice (an upload for review, host, run for real): the GM\'s queue holds an add for each of the two rows — the library\'s entry, then a row of its own with the file\'s name, points and changes — for a trait, a power and a form; the answer counts them all; the character is unchanged and nobody is sent anything until the GM applies it',
+        j(P.answer) === j([{ n: 13, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && (P.camp.uploads || []).length === 1 && upP.charId === 'c_m' && upP.from === 'u_a' && upP.changes.length === 13 && upP.changes.filter(c => c.kind === 'add').length === 12
+        && j(adds(upP, 'Advantages: Guarded Parry')) === j([['add', true, ['add:i_par', 'set:{"lvl":0}']], ['add', true, ['custom:Guarded Parry:{"bp":5}:[{"f":"f_dg","op":"add","v":1}]', 'set:{"lvl":0}']]])
+        && j(adds(upP, 'Powers: Push')) === j([['add', true, ['add:i_push', 'set:{"lvl":3}']], ['add', true, ['custom:Push:{"cpA":4,"cpC":2,"fpP":0,"epP":0,"al":1}:null', 'set:{"lvl":3}']]])
+        && j(adds(upP, 'Forms: First Form')) === j([['add', true, ['add:i_form', 'set:{"lvl":2,"on":true}']], ['add', true, ['custom:First Form:{"cpA":7}:null', 'set:{"lvl":1,"on":false}']]])
+        && j(adds(upP, 'Advantages: Keen Eye')) === j([['add', true, ['add:i_keen', 'set:{"lvl":0}']]]) && j(adds(upP, 'Quirks: Keen Eye')) === j([['add', true, ['add:i_keen', 'set:{"lvl":0}']]])
+        && j(adds(upP, 'Disadvantages: Cowardice').map(a => a[2][0])) === j(['add:i_cow', 'add:i_cow'])
+        && j(shape(P.ch.values)) === j({ adv: [], qk: [], dis: [], pw: [], tq: [], fm: [] }) && P.ch.values.f_st === 10 && P.owner.length === 0 && P.mate.length === 0 && P.toasts.length === 1 && /13 changes to review/.test(P.toasts[0]) && j(P.told) === j(['c_m']),
+        j([P.answer, upP.changes.map(c => [c.kind, c.label, c.ops]), P.owner, P.mate]));
+    check('a file with one entry twice (an upload for review): the answer to the player is counts only, the same with or without a GM-only field and entry; on the GM\'s own system the GM-only entry is the first row\'s and the second is a row of its own',
+        j(PG.answer) === j(P.answer) && j(Object.keys(P.answer[0]).sort()) === j(['auto', 'n', 'rid', 'type']) && j(adds((PG.camp.uploads || [])[0] || { changes: [] }, 'Advantages: Hidden Gift').map(a => a[2][0])) === j(['add:i_hid', 'custom:Hidden Gift:{"bp":7}:null'])
+        && PG.owner.length === 0 && PG.mate.length === 0, j([PG.answer, P.answer]));
+    const applyGm = (r) => {   // the GM's Apply as the Review window makes it: every ticked change, the character synced whole, the owner told the count
+        const up = Sx.cleanUploads(r.camp.uploads)[0], ticks = {}, said = [], done = [], apply = {}; up.changes.forEach(c => { ticks[c.id] = c.accept; });
+        r.net.uploadDone = (id, d, of) => done.push([id, d, of]);
+        const after = new Function('getActiveCampaign', 'syncOwners', 'save', 'net', 'window', 'renderViews', acSrc + '\nreturn afterCharChange;')(() => r.camp, () => {}, () => { r.saves++; }, () => r.net, {}, () => {});
+        new Function('apply', 'up', 'ticks', 'getActiveCampaign', 'systemOf', 'charById', 'F', 'sbApplyProposal', 'afterCharChange', 'net', 'toast', 'closeReview', 'var lastChange = null;\n' + apSrc)(
+            apply, up, ticks, () => r.camp, c => c.system, (id, c) => c.chars[id], () => Fx, Sx.sbApplyProposal, after, () => r.net, t => said.push(t), () => {});
+        apply.onclick();
+        return { said, done };
+    };
+    const A = acSrc && apSrc ? applyGm(P) : { said: [], done: [] }, aOwn = P.owner.length === 1 ? P.owner[0] : {}, aChar = aOwn.char || { values: {} }, aMate = P.mate.length === 1 ? P.mate[0] : {};
+    check('a file with one entry twice (an upload for review): once the GM applies it (the Review window\'s own Apply and the real send, run for real) every change lands, the character holds the library row and the row of its own, its owner is sent the character whole with both rows and told the count, a teammate gets a hover copy without the rows, and the queue is empty',
+        /sbApplyProposal\(sys, ch2, up, acc, F\(\)\)/.test(apSrc) && /n\.syncChar\(c\.id\)/.test(acSrc) && j(A) === j({ said: ['13 of 13 changes applied to Vex.'], done: [['c_m', 13, 13]] }) && j(shape(P.ch.values)) === j(want) && P.ch.values.f_st === 13
+        && aOwn.type === 'char' && aChar.id === 'c_m' && aChar.partial === false && !('making' in aChar) && j(shape(aChar.values)) === j(want) && aMate.type === 'char' && aMate.char.partial === true && j(aMate.char.values) === '{}' && !/Guarded Parry|Push|First Form|i_par/.test(j(aMate))
+        && j(P.camp.uploads) === '[]', j([A, shape(P.ch.values), P.owner, P.mate]));
+    // (c) the gates as before: the rate and the size still refuse, whatever the file holds twice
+    const fat = Object.assign({}, twice, { notes: 'a'.repeat(1048577) });
+    const mSlow = run({ slow: 'charfill' }), mBig = run({ msg: { sheet: fat } }), pSlow = run({ play: true, at: { pA: Date.now() - 2000 } }), pBig = run({ play: true, msg: { sheet: fat } });
+    const still = r => j(shape(r.ch.values)) === j({ adv: [], qk: [], dis: [], pw: [], tq: [], fm: [] }) && r.ch.values.f_st === 10 && !r.camp.uploads && r.saves === 0 && r.toasts.length === 0 && r.owner.length === 0 && r.mate.length === 0;
+    const hostBr = src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || [];
+    check('a file with one entry twice: the gates are as before — past the rate a fill and an upload are refused and answered slow, a file over the size is dropped unanswered, and nothing is changed, kept, saved, said or sent; the host still reads a file through its one branch (no branch added)',
+        j(mSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(mSlow) && j(mSlow.allowed) === j(['charfill']) && j(pSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(pSlow)
+        && mBig.answer.length === 0 && still(mBig) && mBig.allowed.length === 0 && pBig.answer.length === 0 && still(pBig) && Sx.cleanCharUpload({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: twice }) !== null
+        && hostBr.length === 24 && hostBr.filter(b => /'char-upload'/.test(b)).length === 1, j([mSlow.answer, pSlow.answer, mBig.answer, pBig.answer, hostBr.length]));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

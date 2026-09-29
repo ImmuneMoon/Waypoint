@@ -2077,8 +2077,9 @@ pendingChecks.push((async () => {
     check('combat roster: a refused initiative roll toasts its reason and leaves the order; one with no number yet leaves it too',
         j(e1.toasts) === j(['Dice are off for this campaign (Settings > VTT features).']) && j(e1.draftRows()) === j(['Orc:12', 'Ana:0', 'Goblin:8', 'Trap:5', 'Bystander:3']) && j(e2.draftRows()) === j(e1.draftRows()) && e2.toasts.length === 0,
         j([e1.toasts, e1.draftRows(), e2.draftRows()]));
-    check('combat roster (source): a roll\'s answer is net.diceRoll\'s own ({ ok, value, priv }) through the sheet\'s rollInit; combats go to players only through combatsFor (the broadcast, the join snapshot and the one player whose sight moved), never net.combats as it is',
-        /return \{ ok: true, value: res\.value, priv: !!rec\.priv \};/.test(src) && (src.match(/type: 'combats'/g) || []).length === 3 && /if \(inFight\) c\.send\(\{ type: 'combats', combats: combatsFor\(pid\) \}\);/.test(src) && /combats: combatsFor\(prof\.id\)/.test(src) && !/combats: net\.combats/.test(src)
+    check('combat roster (source): a roll\'s answer is net.diceRoll\'s own ({ ok, value, priv }) through the sheet\'s rollInit; combats go to players only through combatsFor (the broadcast, the join snapshot, the one player whose sight moved and, fold M7, a copy caught up in place), never net.combats as it is',
+        /return \{ ok: true, value: res\.value, priv: !!rec\.priv \};/.test(src) && (src.match(/type: 'combats'/g) || []).length === 4 && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove').match(/type: 'combats'/g) || []).length === 1
+        && (src.match(/if \(inFight\) c\.send\(\{ type: 'combats', combats: combatsFor\(pid\) \}\);/g) || []).length === 2 && /combats: combatsFor\(prof\.id\)/.test(src) && !/combats: net\.combats/.test(src)
         && /broadcast\(\{ type: 'combats', combats: combatsFor\(null\) \}, null\)/.test(src) && /c\.send\(\{ type: 'combats', combats: combatsFor\(pr\.id\) \}\)/.test(src));
 
     // Fold M0 (a security fix): a token the GM hides after the fight began reaches players as a nameless stub, so its row goes out Hidden too, on
@@ -4446,18 +4447,19 @@ pendingChecks.push((async () => {
         const srcC = src.replace(/\/\/[^\n]*/g, ''), posC = posS2.replace(/\/\/[^\n]*/g, ''), count1 = (s, re) => (s.replace(/\/\/[^\n]*/g, '').match(re) || []).length === 1;
         // a call and what it is given, brackets inside brackets two deep
         const calls = /invalidateSeen\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)/g, ownMove = 'invalidateSeen(msg.itemId, w.light && (!window.wpFog.lightMoves || window.wpFog.lightMoves(map)) ? undefined : pr.id)';
-        check('senses S0 (source): a player\'s map copy that changed something empties that map\'s sets after the save is asked for and before the map goes out, and a copy that changed nothing does neither; nowhere in net.js is the whole of it emptied by that call, and the seven places that empty a set name the map — a copy made under a new text, a whole map sent to the table, the hook, a move put back, a map copy and threat marks every player\'s set of it, and a player\'s own move that player\'s alone, or every player\'s where the token carries a light and the fog says a light that moves changes what is seen on that map, or does not say; there the gate reads where the token sees and lights from before it writes the new place and facing, and empties after the write and the seat and before the move is rebuilt and relayed, only where that text is missing or is no longer the same; nothing else in net.js reads the text or asks about a light that moves',
+        check('senses S0 (source): a player\'s map copy that changed something empties that map\'s sets after the save is asked for and before the map goes out, and a copy that changed nothing does neither; nowhere in net.js is the whole of it emptied by that call, and the seven places that empty a set name the map — a copy made under a new text, a whole map sent to the table, the hook, a move put back, a map copy and threat marks every player\'s set of it, and a player\'s own move that player\'s alone, or every player\'s where the token carries a light and the fog says a light that moves changes what is seen on that map, or does not say; there the gate reads where the token sees and lights from before it writes the new place and facing, and empties after the write and the seat and before the move is rebuilt and relayed, only where that text is missing or is no longer the same (read once after the seat, fold M7); nothing else in net.js reads the text but fogKey (fold M7), or asks about a light that moves',
             /var changed = applyClientItemFiltered\(msg, profile\);\n            if \(changed\) \{\n(?:                [^\n]*\n){3,6}                saveRemoteSoon\(\);\n                if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n                net\.sendItem\(msg\.campId, msg\.itemId\);[^\n]*\n            \}\n        \} else \{\n            applyItem\(msg\);/.test(src)
             && (srcC.match(/invalidateSeen\(/g) || []).length === 7 && j((srcC.match(calls) || []).sort()) === j(['invalidateSeen(id)', 'invalidateSeen(itemId)', 'invalidateSeen(map.id)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', ownMove]) && !/invalidateSeen\(\s*\)/.test(srcC)
             && count1(flS, /invalidateSeen\(map\.id\)/g) && count1(whole('net.broadcastItemFiltered = function('), /invalidateSeen\(itemId\)/g) && count1(smS, /invalidateSeen\(/g) && count1(smS, /invalidateSeen\(id\)/g) && count1(posS2, /invalidateSeen\(msg\.itemId\)/g) && posC.split(ownMove).length === 2 && count1(posS2, /invalidateSeen\(msg\.itemId,/g) && count1(thS2, /invalidateSeen\(msg\.itemId\)/g)
-            && (srcC.match(/seenKeyOf/g) || []).length === 3 && (posC.match(/seenKeyOf/g) || []).length === 3 && (srcC.match(/lightMoves/g) || []).length === 2 && (posC.match(/lightMoves/g) || []).length === 2
+            && (srcC.match(/seenKeyOf/g) || []).length === 5 && (posC.match(/seenKeyOf/g) || []).length === 3 && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove').replace(/\/\/[^\n]*/g, '').match(/seenKeyOf/g) || []).length === 2 && (srcC.match(/lightMoves/g) || []).length === 2 && (posC.match(/lightMoves/g) || []).length === 2
             && posC.split('\n').map(l => l.trim()).filter(l => l).join('\n').indexOf([
                 'if (window.wpHistFlush) window.wpHistFlush();',
                 'var skW = window.wpFog && window.wpFog.seenKeyOf ? window.wpFog.seenKeyOf(map, w) : null;',
                 'w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;',
                 'if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);',
                 'if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }',
-                'if (window.wpFog && window.wpFog.invalidateSeen && (skW === null || window.wpFog.seenKeyOf(map, w) !== skW)) window.wpFog.' + ownMove + ';',
+                'var skN = skW === null ? null : window.wpFog.seenKeyOf(map, w), mvW = skW === null || skN !== skW;',
+                'if (window.wpFog && window.wpFog.invalidateSeen && mvW) window.wpFog.' + ownMove + ';',
                 'msg = { type: \'pos\', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front, final: msg.final === true };',
                 'applyPosToDom(msg);',
                 'broadcastPos(msg, conn, camp, map, w);'].join('\n')) > 0
@@ -5307,9 +5309,9 @@ pendingChecks.push((async () => {
         J([pF.map('mA').whiteboard.length, pF.rec.asked, pB.rec, threw, pT.net.applyingRemote]));
 
     // (8) where it sits: a client branch (the host's branches still 24), and nothing sends the message yet
-    check('fold M3: the catch-up is a client branch only (the host\'s branches stay 24, none new) and nothing in the app sends it yet',
+    check('fold M3: the catch-up is a client branch only (the host\'s branches stay 24, none new); the host builds it in one place only, its catch-up of a copy (fold M7)',
         (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
-        && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && !/type: 'fogDiff'/.test(src));
+        && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && (src.match(/type: 'fogDiff'/g) || []).length === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove')));
 })());
 // fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
 // ONE module over the real fog.js, so they share the host's open drags; timers are fakes, the clock is the world's, every send packs for the wire
@@ -5323,9 +5325,10 @@ pendingChecks.push((async () => {
     const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('),
         fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.itemGone = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
-        src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogmove'),
+        src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogdiffapply'), bw('fogmove'),
         'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS,',
-        'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor };'].join('\n');
+        'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor,',
+        'arm: fogArm, fire: fogMoveFire, catchUp: fogCatchUp, key: fogKey, windowMs: fogWindowMs, pend: function() { return _fogPend; }, cost: function() { return _fogCost; }, sensesSig: function() { return _sensesSig; }, sensesForget: sensesForget };'].join('\n');
     const NAMES4 = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'playerStroke', 'bellOut', 'renderNotepad', 'fogNow'];
     const build4 = new Function(...NAMES4, modSrc);
     const J = v => JSON.stringify(v);
@@ -5337,19 +5340,26 @@ pendingChecks.push((async () => {
     const mk4 = o => {
         o = o || {};
         const ev = [], timers = [], feats = { fog: true, lighting: true, sheets: true, turning: true };
-        const camp = { id: 'k', system: sysM, fog: { fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 30 } }, turnRules: o.rules || {},
+        const camp = { id: 'k', system: o.system || sysM, fog: { fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 30 } }, turnRules: o.rules || {},
             items: { mA: M('mA', [T('tA', 'u_a', 'c_a', 2, 2, o.tA || {}), T('tB', 'u_b', 'c_b', 2, 4), T('orc', '', 'c_n', 15, 2)]), mB: M('mB', [T('tA2', 'u_a', 'c_a', 2, 2), T('orc2', '', 'c_n', 15, 2)]),
                 mO: M('mO', [T('tB2', 'u_b', 'c_b', 2, 2)]), mC: M('mC', [T('tC', 'u_a', 'c_a', 6, 6, o.tC || {}), T('bat', '', 'c_n', 10, 6)], { vision: { mode: 'arc', arc: 90 } }) },
             chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sight: 60 } }, c_b: { id: 'c_b', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sight: 60 } }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: { f_sight: 60 } } } };
-        const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { packCheck(m); this.sent.push(JSON.parse(J(m))); } });
+        // fold M7: each connection also keeps a real player page (mkFogClient) that every copy lands on, whole or caught up in place
+        const fold = (c, m) => { if (!c.page) c.page = mkFogClient(FCx, { myId: (W.net && W.net.roster[c.peer] && W.net.roster[c.peer].id) || 'u_none', items: {}, active: null });
+            if (m.type === 'item') c.page.camp().items[m.itemId] = JSON.parse(J(m.item)); else if (m.type === 'fogDiff') c.page.recv(m, 'h'); else if (m.type === 'itemGone') delete c.page.camp().items[m.itemId]; };
+        const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { packCheck(m); this.sent.push(JSON.parse(J(m))); fold(this, JSON.parse(J(m))); } });
         const W = { ev, camp, timers, now: 0, saves: 0, toasts: [], asked: [] };
+        W.fire = ms => { const due = W.timers.filter(t => t.fn && t.ms === ms); due.forEach(t => { const f = t.fn; t.fn = null; f(); }); return due.length; };
+        W.view = (c, mapId) => { const it = c.page && c.page.camp().items[mapId || 'mA']; return it ? { ids: it.whiteboard.map(w => w && w.id), fogLit: FCx.cleanFogLit(it.fogLit) || null, cap: it.lightsCapped === true } : null; };
+        W.asks = c => (c.page ? c.page.rec.asked.slice() : []);
         W.a1 = mkConn('pA1'); W.a2 = mkConn('pA2'); W.b1 = mkConn('pB'); W.w1 = mkConn('pW');
         W.net = { active: true, role: 'host', paused: false, applyingRemote: false, myId: 'u_gm', conns: [W.a1, W.a2, W.b1, W.w1], roster: { pA1: { id: 'u_a', name: 'Pat' }, pA2: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } }, combats: {}, targets: {}, tokenDropped: w => ev.push('dropped:' + w.id) };
         const state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
         const win = { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpDiceCore: null, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'host' }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } };
         W.fog = buildFog4()(win, { getElementById: () => null }, () => null, () => camp, state);
         win.wpFog = Object.assign({}, W.fog, { moveBlocked: (map, w, fx, fy, tx, ty) => { W.asked.push([fx, fy, tx, ty]); return !!(o.wall && o.wall(fx, fy, tx, ty)); } });
-        if (o.fogLitFor) win.wpFog.fogLitFor = o.fogLitFor;   // a stand-in where a case needs lit cells on a copy without building the corner that gives them
+        if (o.fogLitFor) win.wpFog.fogLitFor = o.fogLitFor;
+        W.winRef = win;   // fold M7: a case sets the GM's gesture on this page's own window   // a stand-in where a case needs lit cells on a copy without building the corner that gives them
         const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
         const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && Object.prototype.hasOwnProperty.call(W.net.roster, c.peer)) c.send(m); }); };
         W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, () => false, bc, {}, setT, clearT,
@@ -5525,6 +5535,129 @@ pendingChecks.push((async () => {
         && /fogDragSweep\(\);[^\n]*\n\s*if \(typeof fogForgetConn === 'function'\) fogForgetConn\(conn\.peer\);/.test(src) && /if \(typeof fogForgetConn === 'function'\) keys\.forEach\(fogForgetConn\);/.test(whole4('net.kickPlayer = function('))
         && /fogForgetMap\(itemId\)/.test(whole4('net.itemGone = function(')) && /fogForgetAll\(\);/.test(fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting')), J(scripts5));
 
+    // fold M7: the landing. A copy caught up in place after a move lands; every connection's copy then equals a fresh copy judged for it
+    const fresh7 = (W, pid, mapId) => W.api.landed(null, () => { const m = W.camp.items[mapId || 'mA'], out = W.api.copy(W.api.clean(m), W.camp, m, pid); return { ids: out.whiteboard.map(w => w.id), fogLit: FCx.cleanFogLit(out.fogLit) || null, cap: out.lightsCapped === true }; });
+    const agree = (W, conns, mapId) => (conns || [W.a1, W.a2, W.b1]).every(c => J(W.view(c, mapId)) === J(fresh7(W, W.net.roster[c.peer].id, mapId)) && W.asks(c).length === 0);
+    const kinds = c => c.sent.map(m => m.type).filter(t => t !== 'pos');   // the live relay's moves aside
+    const S7 = o => { const W = mk4(o); W.net.conns.forEach(c => { ['mA', 'mB', 'mO', 'mC'].forEach(id => W.net.sendItem('k', id, c)); c.sent.length = 0; }); return W; };
+    const G = S7(); const pin7 = agree(G) && agree(G, null, 'mB');
+    G.move(G.a1, 'tA', 250, 100, false); G.move(G.a1, 'tA', 250, 100, true); const armed7 = G.timers.filter(t => t.fn && t.ms === 150).length, before7 = [kinds(G.a1), kinds(G.a2), kinds(G.b1)];
+    G.fire(150); const land7 = { a1: kinds(G.a1), a2: kinds(G.a2), b: kinds(G.b1), add: (G.a1.sent[0] && G.a1.sent[0].add || []).map(a => a.item.id), orc: G.a1.sent[0] && G.a1.sent[0].add && G.a1.sent[0].add[0].item, agree: agree(G) };
+    const orcFresh = G.api.landed(null, () => G.api.copy(G.api.clean(G.camp.items.mA), G.camp, G.camp.items.mA, 'u_a').whiteboard.find(w => w.id === 'orc'));
+    G.net.conns.forEach(c => { c.sent.length = 0; }); G.move(G.a1, 'tA', 100, 100, false); G.move(G.a1, 'tA', 100, 100, true); G.fire(150);
+    const out7 = { a1: G.a1.sent.map(m => m.type + ':' + J(m.drop || m.add || '')), b: kinds(G.b1), agree: agree(G) };
+    check('fold M7: a drop that lands where the mover now sees the orc catches their copies up in place at the fire and not before: each of their connections gets one fogDiff adding the orc exactly as a fresh copy carries it, nobody gets a whole map, a player whose sight did not change gets nothing; walking back takes it out again; every copy then equals a fresh copy judged for it (the real player pages applying what arrived)',
+        pin7 && armed7 === 1 && J(before7) === J([[], [], []]) && J(land7.a1) === J(['fogDiff']) && J(land7.a2) === J(['fogDiff']) && J(land7.b) === J([]) && J(land7.add) === J(['orc']) && J(land7.orc) === J(orcFresh) && land7.agree
+        && J(out7.a1) === J(['fogDiff:["orc"]']) && J(out7.b) === J([]) && out7.agree,
+        J([pin7, armed7, before7, land7, out7]));
+
+    // the player walked away from, and up to again; content: a GM-hidden creature arrives as its stub, nothing of the GM's rides along, no own token
+    const H = S7(); H.camp.items.mA.whiteboard.push(T('ghost', '', 'c_n', 12, 20, { hidden: true, gmInfo: 'secret', sheet: { a: 1 }, frame: { src: 'k' } }));
+    H.net.conns.forEach(c => { H.net.sendItem('k', 'mA', c); c.sent.length = 0; });
+    H.move(H.a1, 'tA', 100, 1000, true); H.fire(150); const away = { b: H.b1.sent.filter(m => m.type !== 'pos').map(m => m.type + ':' + J(m.drop || '')), a: H.a1.sent.map(m => (m.add || []).map(a => a.item.id).join(',') + '/' + J(m.drop || [])), ghost: ((H.a1.sent[0] || {}).add || []).map(a => a.item).find(i => i.id === 'ghost'), agree: agree(H) };
+    H.net.conns.forEach(c => { c.sent.length = 0; }); H.move(H.a1, 'tA', 100, 100, true); H.fire(150); const backM7 = { b: H.b1.sent.filter(m => m.type === 'fogDiff').map(m => (m.add || []).map(a => a.item.id + '@' + a.item.x + ',' + a.item.y + '<' + a.after).join(',')), agree: agree(H) };
+    const all7 = H.net.conns.concat([]).reduce((acc, c) => acc.concat(c.sent.filter(m => m.type === 'fogDiff')), []).concat(G.a1.sent);
+    const noOwn = [G, H].every(W => W.net.conns.every(c => c.sent.filter(m => m.type === 'fogDiff').every(m => (m.add || []).every(a => a.item.ownerId !== (W.net.roster[c.peer] || {}).id) && (m.drop || []).every(id => { const t = W.tok(id); return !t || t.ownerId !== (W.net.roster[c.peer] || {}).id; }))));
+    check('fold M7: the player walked away from loses the mover\'s token and the one walked up to gets it back at the host\'s own place, after what their copy holds; a creature the GM hid arrives as its position-only stub; no catch-up carries a GM note, a sheet, a kept original or anyone\'s own token',
+        J(away.b) === J(['fogDiff:["tA"]']) && J(away.a) === J(['ghost/["tB"]']) && J(Object.keys(away.ghost).sort()) === J(['h', 'hidden', 'id', 'locked', 'rot', 'type', 'w', 'x', 'y']) && away.agree
+        && J(backM7.b) === J(['tA@100,100<null']) && backM7.agree && noOwn && !/secret|"sheet"|"gmInfo"|"frame"|gmNoteFor/.test(J(all7)),
+        J([away, backM7]));
+
+    // arming: what arms the fire and what does not
+    const armN = W => W.timers.filter(t => t.fn && t.ms === 150).length;
+    const A1 = mk4(); A1.move(A1.a1, 'tA', 101, 100, true); const onePx = armN(A1);
+    const A2 = mk4(); A2.move(A2.a1, 'tA', 250, 100, false); A2.move(A2.a1, 'tA', 100, 100, true); const outBack = armN(A2);
+    const A3 = mk4(); A3.move(A3.a1, 'tA', 250, 100, false); A3.move(A3.a1, 'tA', 251, 100, true); const stays = armN(A3);
+    const A4 = mk4({ wall: () => true }); for (let i = 0; i < 20; i++) A4.move(A4.a1, 'tA', 250 + i, 100, true); const refusedN = armN(A4);
+    const pat = (W, props) => W.api.patch({ type: 'item', campId: 'k', itemId: 'mA', item: { type: 'map', whiteboard: [Object.assign({ id: 'tA', x: 100, y: 100, rot: 0, front: 0 }, props)] } }, { id: 'u_a' });
+    const P1 = mk4(); pat(P1, { x: 101 }); const pOnePx = armN(P1); const P2 = mk4(); pat(P2, { x: 250 }); const pCell = armN(P2);
+    const P3 = mk4(); pat(P3, { posture: 'crouching' }); const pPost = armN(P3); const P4 = mk4(); pat(P4, { elevation: 3 }); const pElev = armN(P4);
+    const P5 = mk4({ wall: (fx, fy, tx) => tx >= 400 }); P5.move(P5.a1, 'tA', 300, 100, false); pat(P5, { x: 450 }); const pBack = [armN(P5), P5.place('tA')];
+    const B1 = S7(); B1.move(B1.a1, 'tA', 250, 100, false); B1.move(B1.b1, 'tB', 100, 300, true); B1.fire(150); const midA = kinds(B1.a1); B1.move(B1.a1, 'tA', 250, 100, true); const armedAgain = armN(B1); B1.fire(150); const afterA = kinds(B1.a1);
+    check('fold M7: a landing arms the fire only where it sees from differently than where the drag began (a 1 px drop in the cell, and a drag that went out and came back to its cell and facing, arm nothing; one that lands elsewhere arms even where the drop keeps the last move\'s cell); refused drops arm nothing; a map copy arms where it moved a token to another cell or changed its posture or elevation, never for 1 px nor for a move put back; while one player\'s drag is open another\'s landing sends them nothing, and their own drop then arms and lands',
+        onePx === 0 && outBack === 0 && stays === 1 && refusedN === 0 && pOnePx === 0 && pCell === 1 && pPost === 1 && pElev === 1 && J(pBack) === J([0, [100, 100, 0, 0]]) && J(midA) === J([]) && armedAgain === 1 && J(afterA) === J(['fogDiff']),
+        J([onePx, outBack, stays, refusedN, pOnePx, pCell, pPost, pElev, pBack, midA, armedAgain, afterA]));
+
+    // the GM's gesture, the timer's window, crossings with whole sends, a send that throws, two connections of one player
+    const T1 = S7(); T1.move(T1.a1, 'tA', 250, 100, true); T1.net.sendItem('k', 'mA'); T1.net.conns.forEach(c => { c.sent.length = 0; }); T1.fire(150); const crossed = T1.net.conns.map(c => c.sent.length);
+    const failed7 = [], T2 = S7({ failed: failed7 }); let thrown = 0; const realSend = T2.a1.send; T2.a1.send = function(m) { if (m.type === 'fogDiff' && !thrown++) throw new Error('packer'); return realSend.call(this, m); };
+    T2.move(T2.a1, 'tA', 250, 100, true); T2.fire(150); const thrown7 = { a1: kinds(T2.a1), failed: failed7.slice(), rec: J(rec(T2, 'pA1', 'mA')) === J(want(T2, T2.a1, 'mA')), agree: agree(T2) };
+    const T3 = S7(); T3.move(T3.a1, 'tA', 250, 100, true); T3.net.sendItem('k', 'mA', T3.a1); T3.net.conns.forEach(c => { c.sent.length = 0; }); T3.fire(150); const two7 = [kinds(T3.a1), kinds(T3.a2), agree(T3)];
+    const T4 = S7(); T4.move(T4.a1, 'tA', 250, 100, true); for (let i = 0; i < 29; i++) T4.move(T4.a1, 'tA', 250 + 50 * (i % 3), 100, true); const one150 = T4.timers.filter(t => t.ms === 150).length; T4.fire(150); const oneEach = T4.net.conns.map(c => c.sent.filter(m => m.type === 'fogDiff').length);
+    check('fold M7: the fire\'s window is 150 ms, growing with the last fire\'s cost up to 1 s (anything that is no positive number reads 0); thirty drops before a fire arm it once, and a fire sends each connection one message at most; a GM save between a landing and its fire leaves the fire nothing; a catch-up whose send throws is followed by exactly one whole copy to that connection, which is what is then recorded; a whole copy one connection asked for meanwhile leaves the player\'s other connection its own catch-up',
+        J([undefined, NaN, -5, 0, 40, 300, 5000].map(c => T1.api.windowMs(c))) === J([150, 150, 150, 150, 160, 1000, 1000]) && one150 === 1 && J(oneEach) === J([1, 1, 0, 0])
+        && J(crossed) === J([0, 0, 0, 0]) && J(thrown7.a1) === J(['item']) && J(thrown7.failed) === J(['packer']) && thrown7.rec && thrown7.agree && J(two7) === J([[], ['fogDiff'], true]),
+        J([one150, oneEach, crossed, thrown7, two7]));
+    const gw = S7(); gw.move(gw.a1, 'tA', 250, 100, true); gw.winRef.wpHostGesture = 'mA'; gw.fire(150); const held7 = [kinds(gw.a1), gw.timers.filter(t => t.fn && t.ms === 150).length]; gw.winRef.wpHostGesture = null; gw.fire(150); held7.push(kinds(gw.a1));
+    check('fold M7: a fire that finds the GM\'s own gesture open on its map sends nothing and waits (armed again); once the gesture is over the next fire catches the copies up',
+        J(held7) === J([[], 1, ['fogDiff']]), J(held7));
+
+    // fallbacks to the whole copy, the roster after a change only, the lit cells, a hidden Sight
+    const F1 = S7(); F1.api.forgetAll(); F1.move(F1.a1, 'tA', 250, 100, true); F1.fire(150); const noRec7 = [kinds(F1.a1), J(rec(F1, 'pA1', 'mA')) === J(want(F1, F1.a1, 'mA'))];
+    const F2 = S7(); for (let i = 0; i < 201; i++) F2.camp.items.mA.whiteboard.push(T('m' + i, '', 'c_n', 15, 3)); F2.net.sendItem('k', 'mA'); F2.net.conns.forEach(c => { c.sent.length = 0; }); F2.move(F2.a1, 'tA', 250, 100, true); F2.fire(150); const many7 = kinds(F2.a1);
+    const F3 = S7(); F3.camp.items.mA.whiteboard.push(T('big', '', 'c_n', 15, 3, { src: 'data:image/png;base64,' + 'A'.repeat(270000) })); F3.net.sendItem('k', 'mA'); F3.net.conns.forEach(c => { c.sent.length = 0; }); F3.move(F3.a1, 'tA', 250, 100, true); F3.fire(150); const big7 = kinds(F3.a1);
+    const F4 = S7(); F4.camp.items.mA.whiteboard.push(T('x'.repeat(257), '', 'c_n', 15, 3)); F4.net.sendItem('k', 'mA'); F4.net.conns.forEach(c => { c.sent.length = 0; }); F4.move(F4.a1, 'tA', 250, 100, true); F4.fire(150); const long7 = kinds(F4.a1);
+    const R7 = S7(); R7.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Ana', tokId: 'tA' }, { id: 'r_o', name: 'Orc', tokId: 'orc' }] } }; R7.net.targets = { u_b: { id: 'orc', mapId: 'mA', name: 'Bea' } };
+    R7.move(R7.a1, 'tA', 250, 100, true); R7.fire(150); const ros7 = { a1: kinds(R7.a1), rows: R7.msg(R7.a1, 'combats').combats.mA.rows.map(r => r.name), targ: Object.keys(R7.msg(R7.a1, 'targets').targets), b: kinds(R7.b1) };
+    R7.net.conns.forEach(c => { c.sent.length = 0; }); R7.move(R7.a1, 'tA', 100, 100, true); R7.fire(150); ros7.back = R7.msg(R7.a1, 'combats').combats.mA.rows.map(r => r.name); ros7.backTarg = Object.keys(R7.msg(R7.a1, 'targets').targets);
+    const R8 = S7(); R8.net.combats = { mO: { mapId: 'mO', round: 1, turn: 0, rows: [] } }; R8.move(R8.a1, 'tA', 250, 100, true); R8.fire(150); const noFight = kinds(R8.a1);
+    const litB = S7({ fogLitFor: (pid, camp, map) => (pid === 'u_b' && map.id === 'mA' && map.whiteboard.find(w => w.id === 'tA').x > 200 ? { lit: [{ c: 9, r: 9, t: 2 }], capped: false } : null) });
+    litB.net.conns.forEach(c => { litB.net.sendItem('k', 'mA', c); c.sent.length = 0; }); litB.move(litB.a1, 'tA', 250, 100, true); litB.fire(150); const lit7b = { b: litB.b1.sent.filter(m => m.type !== 'pos').map(m => m.type + ':' + J([m.add || null, m.drop || null, m.lit || null])), a: litB.a1.sent.map(m => J(m.lit || null)), view: litB.view(litB.b1).fogLit };
+    litB.net.conns.forEach(c => { c.sent.length = 0; }); litB.move(litB.a1, 'tA', 100, 100, true); litB.fire(150); lit7b.off = litB.b1.sent.filter(m => m.type !== 'pos').map(m => J(m.lit)); lit7b.viewOff = litB.view(litB.b1).fogLit;
+    const sysGm = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'gm' }] }, { F: Fx, gmView: true });
+    const HS = S7({ system: sysGm }); HS.move(HS.a1, 'tA', 250, 100, true); HS.fire(150); const hidSight = kinds(HS.a1);
+    check('fold M7: a copy the host holds no record of, more than 200 creatures to add, a message past 256 KB or an id past 256 characters each go as the whole copy, which is then recorded; the turn order and the pointers follow a change of what is held, only on a map with a fight or a pointer — a creature newly seen by its name, one no longer seen as Hidden; a light the player cannot see gives them its lit cells alone, and takes them away; a player whose Sight is GM-only still gets their landing',
+        J(noRec7) === J([['item'], true]) && J(many7) === J(['item']) && J(big7) === J(['item']) && J(long7) === J(['item'])
+        && J(ros7.a1) === J(['fogDiff', 'combats', 'targets']) && J(ros7.rows) === J(['Ana', 'Orc']) && J(ros7.targ) === J(['u_b']) && J(ros7.b) === J([]) && J(ros7.back) === J(['Ana', 'Hidden']) && J(ros7.backTarg) === J([]) && J(noFight) === J(['fogDiff'])
+        && J(lit7b.b) === J(['fogDiff:[null,null,[{"c":9,"r":9,"t":2}]]']) && J(lit7b.a) === J(['null']) && J(lit7b.view) === J([{ c: 9, r: 9, t: 2 }]) && J(lit7b.off) === J(['[]']) && lit7b.viewOff === null && J(hidSight) === J(['fogDiff']),
+        J([noRec7, many7, big7, long7, ros7, noFight, lit7b, hidSight]));
+
+    // what the mutants found: the roster after a change of what is held only (a lit cell alone sends none), judged with every open drag at its
+    // start (one on another map too); the senses record seeded by a catch-up; the player's own new token never added by it; no fire armed for an
+    // unfogged map; the light cap sent when it changes; the window reads a number only
+    const R9 = S7({ fogLitFor: (pid, camp, map) => (pid === 'u_b' && map.id === 'mA' && map.whiteboard.find(w => w.id === 'tA').x > 200 ? { lit: [{ c: 9, r: 9, t: 2 }], capped: true } : null) });
+    R9.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Ana', tokId: 'tA' }] } }; R9.net.conns.forEach(c => { R9.net.sendItem('k', 'mA', c); c.sent.length = 0; });
+    R9.move(R9.a1, 'tA', 250, 100, true); R9.fire(150); const r9 = { b: kinds(R9.b1), capMsg: (R9.b1.sent.find(m => m.type === 'fogDiff') || {}).capped, cap: R9.view(R9.b1).cap };
+    R9.net.conns.forEach(c => { c.sent.length = 0; }); R9.move(R9.a1, 'tA', 100, 100, true); R9.fire(150); r9.capOff = (R9.b1.sent.find(m => m.type === 'fogDiff') || {}).capped; r9.viewOff = R9.view(R9.b1).cap;
+    const RL = S7(); RL.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Ana', tokId: 'tA' }] }, mB: { mapId: 'mB', round: 1, turn: 0, rows: [{ id: 'r_a2', name: 'Ana', tokId: 'tA2' }, { id: 'r_o2', name: 'Orc2', tokId: 'orc2' }] } };
+    RL.move(RL.a1, 'tA2', 250, 100, false, 'mB'); RL.net.conns.forEach(c => { c.sent.length = 0; }); RL.move(RL.a1, 'tA', 250, 100, true); RL.fire(150); const rl = (RL.msg(RL.a1, 'combats') || { combats: {} }).combats.mB;
+    const SS = S7(); SS.api.sensesForget('u_a'); const ssBefore = Object.keys(SS.api.sensesSig()).filter(k => k.indexOf('u_a|') === 0).length; SS.move(SS.a1, 'tA', 250, 100, true); SS.fire(150); const ssAfter = Object.prototype.hasOwnProperty.call(SS.api.sensesSig(), 'u_a|mA');
+    const OT = S7(); OT.camp.items.mA.whiteboard.push(T('tAnew', 'u_a', 'c_a', 3, 5)); OT.move(OT.a1, 'tA', 250, 100, true); OT.fire(150); const ownAdd = OT.a1.sent.filter(m => m.type === 'fogDiff').some(m => (m.add || []).some(a => a.item.id === 'tAnew')), ownAsk = OT.asks(OT.a1).length;
+    const UF = S7(); UF.camp.items.mA.fog.on = false; UF.move(UF.a1, 'tA', 250, 100, true); const ufArmed = UF.timers.filter(t => t.fn && t.ms === 150).length;
+    check('fold M7: the turn order follows only a change of what is held (lit cells alone send none) and is judged with every open drag at its start, one on another map too; a catch-up seeds what the player\'s copy was made by (senses); the player\'s own token the copy lacks is never added by it (the next whole copy brings it); a map without fog arms nothing; the light cap goes when it changes, both ways; the window reads a number only',
+        J(r9.b) === J(['fogDiff']) && r9.capMsg === true && r9.cap === true && r9.capOff === false && r9.viewOff === false && J(rl && rl.rows.map(r => r.name)) === J(['Ana', 'Hidden'])
+        && ssBefore === 0 && ssAfter === true && ownAdd === false && ownAsk === 0 && ufArmed === 0 && R9.api.windowMs('400') === 150,
+        J([r9, rl, ssBefore, ssAfter, ownAdd, ownAsk, ufArmed]));
+
+    // convergence: a seeded walk of 200 steps over two maps — drops, open drags, a lock put back by the sweep, GM saves, a GM gesture, a hidden
+    // creature, a waiting token — and after every fire every connection's copy equals a fresh copy judged for it, and no page asked for a map
+    const CW = S7(); CW.camp.items.mA.whiteboard.push(T('ghost', '', 'c_n', 9, 6, { hidden: true }), T('wt', 'u_b', '', 6, 9, { isChar: false, waiting: 1 }), T('orcB', '', 'c_n', 4, 12));
+    CW.net.conns.forEach(c => { ['mA', 'mB'].forEach(id => CW.net.sendItem('k', id, c)); c.sent.length = 0; });
+    let seed = 7; const rnd = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const toks = [['a1', 'tA', 'mA'], ['b1', 'tB', 'mA'], ['a2', 'tA2', 'mB']], walk = []; let bad = '';
+    for (let step = 0; step < 200 && !bad; step++) {
+        const k = rnd(10), tk = toks[rnd(3)], x = 50 * rnd(20), y = 50 * rnd(20);
+        if (k < 5) CW.move(CW[tk[0]], tk[1], x, y, true, tk[2]);
+        else if (k < 7) CW.move(CW[tk[0]], tk[1], x, y, false, tk[2]);
+        else if (k === 7) { const o = CW.tok('orc'); o.x = x; o.y = y; CW.net.sendItem('k', 'mA'); }
+        else if (k === 8) { CW.winRef.wpHostGesture = rnd(2) ? 'mA' : null; }
+        else { const t = CW.tok(tk[1], tk[2]); t.locked = true; CW.api.sweep(); delete t.locked; }
+        if (rnd(3) === 0) { CW.winRef.wpHostGesture = null; CW.fire(150); ['mA', 'mB'].forEach(id => { if (!agree(CW, null, id)) bad = 'step ' + step + ' ' + id + ' ' + J([CW.view(CW.a1, id), fresh7(CW, 'u_a', id), CW.view(CW.b1, id), fresh7(CW, 'u_b', id)]); }); walk.push(step); }
+    }
+    CW.winRef.wpHostGesture = null; CW.move(CW.a1, 'tA', 250, 100, true); CW.fire(150); CW.fire(150);
+    check('fold M7: over a seeded walk of 200 steps on two maps (drops, open drags, a lock put back by the sweep, GM saves, the GM\'s gesture, a hidden creature, a waiting token), after every fire every connection\'s copy equals a fresh copy judged for it, in the same order, with the same lit cells and cap, and no player page asked for a whole map',
+        bad === '' && walk.length > 30 && ['mA', 'mB'].every(id => agree(CW, null, id)), bad || J(walk.length));
+
+    const fm7 = bw('fogmove'), pos7 = bw('pos'), pat7 = bw('patch'), rest7 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
+    check('fold M7 (source): the fire\'s one timer lives in its slice, and its stores nowhere else; the pos gate reads where the token sees from once after the seat, records where the drag began at its first accepted move and arms after the save is asked for and before a portal is taken; the map copy reads each own token\'s key before anything lands (at the drag\'s start while one is open) and arms after the erased drawings go; nothing else arms',
+        (fm7.match(/setTimeout\(/g) || []).length === 1 && !/_fogPend|_fogCost|_fogHeld/.test(rest7)
+        && /if \(msg\.final && window\.wpSeatHex && window\.wpSeatHex\(w, map\)\) \{[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*var skN = skW === null \? null : window\.wpFog\.seenKeyOf\(map, w\), mvW = skW === null \|\| skN !== skW;/.test(pos7)
+        && /broadcastPos\(msg, conn, camp, map, w\);\n[^\n]*frW\.lx = w\.x;[^\n]*\n\s*if \(frW\.sk === undefined\) frW\.sk = skW;/.test(pos7)
+        && /saveRemoteSoon\(\);\n\s*if \(typeof fogArm === 'function' && skN !== null && frW\.sk !== skN\) fogArm\(msg\.itemId\);[^\n]*\n\s*net\.tokenDropped\(w, map\);/.test(pos7)
+        && /var fkP = \[\];[^\n]*\n\s*msg\.item\.whiteboard\.forEach\(function\(w\) \{/.test(pat7) && /fkP\.push\(\[lw, fogKey\(liveItem, lw, typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : null\)\]\);\n\s*if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{/.test(pat7)
+        && /if \(liveItem\.whiteboard\.length !== before\) changed = true;\n\s*if \(typeof fogArm === 'function' && fkP\.some\(function\(p\) \{ return fogKey\(liveItem, p\[0\]\) !== p\[1\]; \}\)\) fogArm\(msg\.itemId\);/.test(pat7)
+        && (src.match(/fogArm\(/g) || []).length === 4 && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); net\.sendItem\(camp\.id, m\.id, c\);/.test(fm7));
+
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
     const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));
@@ -5536,7 +5669,11 @@ pendingChecks.push((async () => {
         && /\nfunction fogNow\(\) \{ return Date\.now\(\); \}[^\n]*\n\/\/ \[netcheck:fogmove-start\]/.test(src) && fmS.indexOf('function fogNow') < 0 && (src.match(/function fogNow\(/g) || []).length === 1
         && (whole4('net.sendItem = function(').match(/fogLanded\(itemId, fogSend\)/g) || []).length === 1 && /var fogSend = function\(\) \{[^]*?var clean = sanitizeItem\(it\);/.test(whole4('net.sendItem = function(')) && /var fogSend = function\(\) \{[^\n]*\n\s*var clean = sanitizeItem\(it\);/.test(whole4('net.broadcastItemFiltered = function('))
         && /fogLanded\(null, mkSnap\); else mkSnap\(\);[^\n]*\n\s*conn\.send\(snap\);[^\n]*\n\s*\} catch \(e\) \{ sendFailed\(e, 'snapshot'\);/.test(admS) && (bw('combats').match(/fogLanded\(null, sendAll\)/g) || []).length === 2 && (bw('sensesmoved').match(/fogLanded\(null, sendAll\)/g) || []).length === 1
-        && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /openDrag\(msg\.itemId, lw\)/.test(bw('patch')));
+        && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /frP = \(typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : _dragFrom\[dkP\]\) \|\|/.test(bw('patch')));
+    const PM = mk4(); PM.move(PM.a1, 'tA', 250, 100, false); PM.tok('tA').x = 400; PM.asked.length = 0;
+    PM.api.patch({ type: 'item', campId: 'k', itemId: 'mA', item: { type: 'map', whiteboard: [{ id: 'tA', x: 450, y: 100, rot: 0, front: 0 }] } }, { id: 'u_a' });
+    check('fold M4: a map copy that lands after the GM moved the token mid-drag is judged from the GM\'s place (that drag is over), never from where the drag began',
+        J(PM.asked[0]) === J([400, 100, 450, 100]) && J(PM.place('tA')) === J([450, 100, 0, 0]), J([PM.asked, PM.place('tA')]));
 })());
 // fold M6: the GM's open board gesture, published (inert): the helper run for real on a stub page, and where each gesture sets and clears it
 {

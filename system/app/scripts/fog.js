@@ -93,14 +93,14 @@ function tokenSenses(token, map, camp, waived) {
     var own = !!ch && (waived === true || (ch.npc !== true && ch.partial !== true && !!ch.ownerId && ch.ownerId === token.ownerId));
     out.sheet = own;
     if (tick || (own && sn.blind && set(sn.blind))) out.blind = true;
-    var list = campSenses(camp).concat(campMarkSenses(camp)), offs = [], marks = [];   // senses S4: the mark senses after the full ones
+    var list = campSenses(camp).concat(campMarkSenses(camp)), offs = [], marks = [], nul = nullsAt(map, token);   // senses S4: the mark senses after the full ones; S7a: what a null area switches off where it stands
     var ov = !token.waiting ? C.cleanTokSenses(token.senses) : null, byTok = Object.create(null);   // senses S2b: the token's own ranges come first (never a waiting token's)
     if (ov) ov.forEach(function(e) { byTok[e.id] = e.n; });
     list.forEach(function(s) {
         var mine = Object.prototype.hasOwnProperty.call(byTok, s.id), n = mine ? byTok[s.id] : s.range.by === 'n' ? s.range.n : s.range.by === 'field' && own ? read(s.range.field) : null;
         if (!(typeof n === 'number' && n > 0)) return;
         var e = { id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim', n: n, from: mine ? 'token' : s.range.by === 'n' ? 'n' : 'field' };
-        var why = s.off && own && set(s.off) ? 'off' : s.eyes === true && out.blind ? 'blind' : '';   // senses S3: a sense switched off, or one of the eyes while blind: held, but it sees nothing
+        var why = nul[s.id] === 1 ? 'null' : s.off && own && set(s.off) ? 'off' : s.eyes === true && out.blind ? 'blind' : '';   // senses S3: a sense switched off, or one of the eyes while blind: held, but it sees nothing; S7a: one a null area switches off
         if (why) { offs.push({ id: e.id, n: n, cells: e.cells, from: e.from, why: why }); return; }
         if (s.grade === 'mark') { marks.push({ id: e.id, cells: e.cells, pass: e.pass, all: e.all, k: GLYPH_K[s.glyph] || GLYPH_K.presence, n: n, from: e.from }); return; }   // senses S4
         out.full.push(e);
@@ -111,6 +111,43 @@ function tokenSenses(token, map, camp, waived) {
 }
 // One token's sight, in cells (tokenSenses's eyes)
 function tokenSightCells(token, map, camp) { return tokenSenses(token, map, camp, false).sight; }
+// Senses S7a: null areas — an item that is no token, light or GM-note card and carries nulls (the GM's) switches those senses off for a token
+// whose centre's cell is under it. Read on the host only: a player's copy never carries nulls (a hidden area is dropped from it whole), so an
+// area works hidden too; the host tells a player of their own tokens instead (map.fogOff, on their copy only), which their app reads here
+var _nullCache = Object.create(null);
+function nullAreas(map, grid) {   // [{ keys: { cellKey: 1 }, ids }], kept on the map's save stamp and its grid
+    var C = core(), stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s), hit = _nullCache[map.id];
+    if (hit && hit.stamp === stamp) return hit.areas;
+    var areas = [];
+    (map.whiteboard || []).forEach(function(w) {
+        if (!w || w.isChar || w.waiting || w.type === 'light' || w.gmNoteFor || w.nulls === undefined) return;
+        var ids = C.cleanNulls(w.nulls); if (!ids) return;
+        var keys = Object.create(null); footprintCells(w, grid, C).forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
+        areas.push({ keys: keys, ids: ids });
+    });
+    _nullCache[map.id] = { stamp: stamp, areas: areas };
+    return areas;
+}
+function nullsAt(map, token) {   // { senseId: 1 } switched off where the token stands
+    var out = Object.create(null), C = core(), grid = map && token ? gridForMap(map) : null; if (!C || !grid) return out;
+    var areas = nullAreas(map, grid);
+    if (areas.length) { var k = C.cellKey(C.cellOf(token.x + (token.w || 60) / 2, token.y + (token.h || 52) / 2, grid), grid); areas.forEach(function(a) { if (a.keys[k] === 1) a.ids.forEach(function(id) { out[id] = 1; }); }); }
+    var fo = isClientView() ? map.fogOff : null;   // a player's copy: what the host told them of their own token (the host's own map never holds one it reads)
+    if (fo && typeof fo === 'object' && typeof token.id === 'string' && Object.prototype.hasOwnProperty.call(fo, token.id) && Array.isArray(fo[token.id])) fo[token.id].forEach(function(id) { if (typeof id === 'string') out[id] = 1; });
+    return out;
+}
+// the host's word to one player (fogCopyFor): each of their own visible character tokens with a sense it holds that a null area switches off
+// where it stands — only those, never an area's other senses; null for none
+function fogOffFor(recipientId, camp, map) {
+    if (!recipientId || !map || !Array.isArray(map.whiteboard) || !campSensesOf(camp)) return null;
+    var out = null;
+    map.whiteboard.forEach(function(w) {
+        if (!w || w.ownerId !== recipientId || w.hidden || w.waiting || !w.isChar || typeof w.id !== 'string') return;
+        var ids = (tokenSenses(w, map, camp, false).offs || []).filter(function(o) { return o.why === 'null'; }).map(function(o) { return o.id; }).sort();
+        if (ids.length) (out || (out = {}))[w.id] = ids;
+    });
+    return out;
+}
 // Senses S2a: one token's sense viewers, merged so a drag never sweeps more than it must, with the same union of cells: a sense of 0 cells
 // goes; of the senses alike in passing walls, arc and dim only the longest stays, and a dim one goes where a clear one alike reaches as far;
 // a clear sense the walls stop, in the eyes' own arc, no longer than the eyes' Sight goes (the eyes already see those cells clear). At most
@@ -908,8 +945,11 @@ function blindCaptionsFor(map, camp, ownerId) {
     ((map && map.whiteboard) || []).forEach(function(w) {
         if (!w || w.hidden || !w.isChar || typeof w.id !== 'string') return;   // a waiting token is never blind (tokenSenses)
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
-        var ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'); if (!ts.blind) return;
-        var words = ['Blind']; ts.full.concat(ts.marks || []).forEach(function(e) { var s = byId[e.id]; if (s) words.push(String(s.name) + ' ' + e.n + ' ' + (SENSE_CAP_UNIT[s.unit] || 'yd')); });
+        var ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), nulled = (ts.offs || []).filter(function(o) { return o.why === 'null' && byId[o.id]; }).map(function(o) { return String(byId[o.id].name); });   // senses S7a: the senses a null area switches off here
+        if (!ts.blind && !nulled.length) return;
+        var words = [];
+        if (ts.blind) { words.push('Blind'); ts.full.concat(ts.marks || []).forEach(function(e) { var s = byId[e.id]; if (s) words.push(String(s.name) + ' ' + e.n + ' ' + (SENSE_CAP_UNIT[s.unit] || 'yd')); }); }
+        if (nulled.length) words.push((nulled.length === 1 ? nulled[0] : nulled.slice(0, -1).join(', ') + ' and ' + nulled[nulled.length - 1]) + (nulled.length === 1 ? ' fails here' : ' fail here'));
         out.push({ id: w.id, text: words.join(' · ') });
     });
     return out;
@@ -1171,5 +1211,6 @@ window.wpFog = {
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
+    fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

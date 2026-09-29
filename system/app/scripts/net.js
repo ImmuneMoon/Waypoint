@@ -282,8 +282,17 @@ function cleanHostMap(m) {
     if (Array.isArray(m.rooms)) m.rooms = m.rooms.slice(0, 600); else m.rooms = [];
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
+    if (m.fogMarks !== undefined) { var mkC = window.wpFogCore && window.wpFogCore.cleanFogMarks ? window.wpFogCore.cleanFogMarks(m.fogMarks, ownCellKeysOf(m)) : null; if (mkC) m.fogMarks = mkC; else delete m.fogMarks; }   // senses S4: this player's marks, cleaned again
+    delete m.fogOff;
     if (m.cats && typeof m.cats === 'object') Object.keys(m.cats).forEach(function(k) { var c = m.cats[k]; if (k in Object.prototype) { delete m.cats[k]; return; } if (c && typeof c === 'object' && !safeColor(c.color)) c.color = '#888'; });
     return m;
+}
+// Senses S4: the cells of this player's own tokens on a map (no mark is kept on one): their keys, by the map's grid; none with no grid
+function ownCellKeysOf(m) {
+    var C = window.wpFogCore, out = Object.create(null); if (!C || !C.gridFor || !m || !Array.isArray(m.whiteboard) || !net.myId) return out;
+    var grid = C.gridFor((m.meta && m.meta.gridType) || 'off', m.fog && m.fog.cell); if (!grid) return out;
+    m.whiteboard.forEach(function(w) { var x = w ? Number(w.x) : NaN, y = w ? Number(w.y) : NaN; if (w && w.ownerId === net.myId && isFinite(x) && isFinite(y)) out[C.cellKey(C.cellOf(x + (Number(w.w) || 60) / 2, y + (Number(w.h) || 52) / 2, grid), grid)] = 1; });
+    return out;
 }
 // Client-originated changes are saved coalesced: a stroke or move storm costs one disk write, not one per message
 // (the deltas to players still go out at once; only the write + the save sweep are batched).
@@ -521,6 +530,7 @@ function sanitizeItem(item) {
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
     delete m.fogLit; delete m.lightsCapped;   // lighting L3: only ever set per player, on their own copy (fogCopyFor) — never from the host's map
+    delete m.fogMarks; delete m.fogOff;   // senses S4: likewise a player's marks
     // fog of war (1.5.0 FV2): map.fog travels so a player's client can paint its own-vision overlay; the host
     // separately DROPS the creatures a recipient cannot see (fogFilterClean, per recipient) before each send.
     (m.rooms || []).forEach(function(r) {
@@ -545,7 +555,7 @@ function wireWbItem(w, cloned) {
     if (w.hidden) return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
     // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
-    if (w.senses !== undefined || w.blind !== undefined) { delete w.senses; delete w.blind; }   // senses S2b, S3: a token's own ranges and the GM's Blind tick are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
+    if (w.senses !== undefined || w.blind !== undefined || w.unsensed !== undefined) { delete w.senses; delete w.blind; delete w.unsensed; }   // senses S2b, S3, S4 (unsensed: never on the wire at all): a token's own ranges and the GM's Blind tick are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
     return w;
 }
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
@@ -597,10 +607,13 @@ function fogCopyFor(clean, camp, map, recipientId) {
     sensesSeed(recipientId, camp, map);
     var drop = fogDrop(camp, map, recipientId), out = fogOwnSenses(fogFilterClean(clean, drop), camp, map, recipientId);
     var fl = window.wpFog && window.wpFog.fogLitFor && recipientId ? window.wpFog.fogLitFor(recipientId, camp, map, drop) : null;
-    if (!fl || !(fl.capped || (fl.lit && fl.lit.length))) return out;
+    var mk = window.wpFog && window.wpFog.fogMarksFor && recipientId ? window.wpFog.fogMarksFor(recipientId, camp, map, drop) : null;   // senses S4: their marks
+    var lit = !!(fl && fl.lit && fl.lit.length), cap = !!(fl && fl.capped);
+    if (!lit && !cap && !mk) return out;
     if (out === clean) { var cp = {}; for (var kk in clean) cp[kk] = clean[kk]; out = cp; }
-    if (fl.lit && fl.lit.length) out.fogLit = fl.lit;
-    if (fl.capped) out.lightsCapped = true;
+    if (lit) out.fogLit = fl.lit;
+    if (cap) out.lightsCapped = true;
+    if (mk) out.fogMarks = mk;
     return out;
 }
 // [netcheck:foglit-end]
@@ -728,7 +741,7 @@ function fogSeed(conn, mapId, out) {
     if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string' || !out || !Array.isArray(out.whiteboard)) return false;
     var ids = Object.create(null); out.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') ids[w.id] = 1; });
     var per = _fogHeld[conn.peer] || (_fogHeld[conn.peer] = Object.create(null)), was = per[mapId];
-    per[mapId] = { ids: ids, lit: quickHash(JSON.stringify(out.fogLit || [])), cap: out.lightsCapped === true };
+    per[mapId] = { ids: ids, lit: quickHash(JSON.stringify(out.fogLit || [])), cap: out.lightsCapped === true, mk: quickHash(JSON.stringify(out.fogMarks || [])) };   // senses S4: its marks too
     if (!was) return true;
     var toks = [], cmb = net.combats && own(net.combats, mapId) ? net.combats[mapId] : null;
     if (cmb && Array.isArray(cmb.rows)) cmb.rows.forEach(function(r) { if (r && r.tokId) toks.push(r.tokId); });
@@ -783,7 +796,7 @@ function fogCatchUp(c, camp, m, pid, memo) {
     if (!jd) {   // once per player per fire, in fogCopyFor's order
         sensesSeed(pid, camp, m);
         var dr = fogDrop(camp, m, pid);
-        jd = memo[pid] = { drop: dr || Object.create(null), fl: window.wpFog && window.wpFog.fogLitFor ? window.wpFog.fogLitFor(pid, camp, m, dr) : null };
+        jd = memo[pid] = { drop: dr || Object.create(null), fl: window.wpFog && window.wpFog.fogLitFor ? window.wpFog.fogLitFor(pid, camp, m, dr) : null, mk: window.wpFog && window.wpFog.fogMarksFor ? window.wpFog.fogMarksFor(pid, camp, m, dr) : null };
     }
     var add = [], drop = [], prev = null, long = false;
     (Array.isArray(m.whiteboard) ? m.whiteboard : []).forEach(function(w) {
@@ -796,18 +809,21 @@ function fogCatchUp(c, camp, m, pid, memo) {
         if (held) prev = w.id;
     });
     var fl = jd.fl, litNow = fl && Array.isArray(fl.lit) && fl.lit.length ? fl.lit : [], litHash = quickHash(JSON.stringify(litNow)), capNow = !!(fl && fl.capped);
+    var mkNow = jd.mk || [], mkHash = quickHash(JSON.stringify(mkNow));   // senses S4: their marks, sent whole when they changed ([]: none)
     var msg = { type: 'fogDiff', campId: camp.id, itemId: m.id };
     if (add.length) msg.add = add;
     if (drop.length) msg.drop = drop;
     if (litHash !== rec.lit) msg.lit = litNow;
     if (capNow !== rec.cap) msg.capped = capNow;
+    if (mkHash !== rec.mk) msg.marks = mkNow;
     var moved = add.length > 0 || drop.length > 0;
-    if (!moved && msg.lit === undefined && msg.capped === undefined) return false;   // nothing differs
+    if (!moved && msg.lit === undefined && msg.capped === undefined && msg.marks === undefined) return false;   // nothing differs
     if (add.length > FOG_DIFF_ADD_MAX || long || JSON.stringify(msg).length > FOG_DIFF_BYTES) { net.sendItem(camp.id, m.id, c); return moved; }   // fold R: the whole copy sends the order and the pointers itself, where they changed
     try { c.send(msg); } catch (e) { sendFailed(e); net.sendItem(camp.id, m.id, c); return moved; }   // the whole copy instead, recorded only if it goes out
     add.forEach(function(a) { rec.ids[a.item.id] = 1; }); drop.forEach(function(id) { delete rec.ids[id]; });
     if (msg.lit !== undefined) rec.lit = litHash;
     if (msg.capped !== undefined) rec.cap = capNow;
+    if (msg.marks !== undefined) rec.mk = mkHash;
     if (moved) fogRoster(c, pid, m.id);
     return moved;
 }
@@ -1324,7 +1340,7 @@ function fogDiffShape(msg) {
         return !!a && typeof a === 'object' && !Array.isArray(a) && !!a.item && typeof a.item === 'object' && !Array.isArray(a.item) && fogDiffId(a.item.id) && (a.after === null || fogDiffId(a.after));
     }))) return false;
     if (drop !== undefined && !(Array.isArray(drop) && drop.length <= FOG_DIFF_DROP_MAX && drop.every(fogDiffId))) return false;
-    return (msg.lit === undefined || Array.isArray(msg.lit)) && (msg.capped === undefined || typeof msg.capped === 'boolean');
+    return (msg.lit === undefined || Array.isArray(msg.lit)) && (msg.capped === undefined || typeof msg.capped === 'boolean') && (msg.marks === undefined || Array.isArray(msg.marks));
 }
 function applyFogDiff(msg) {
     var camp = campOf(msg.campId); if (!camp || !validKey(msg.itemId)) return;
@@ -1352,6 +1368,7 @@ function applyFogDiff(msg) {
         });
         if (msg.lit !== undefined) { var FCd = window.wpFogCore, flD = FCd && FCd.cleanFogLit ? FCd.cleanFogLit(msg.lit) : null; if (flD) map.fogLit = flD; else delete map.fogLit; }
         if (msg.capped !== undefined) { if (msg.capped === true) map.lightsCapped = true; else delete map.lightsCapped; }
+        if (msg.marks !== undefined) { var FCm = window.wpFogCore, mkD = FCm && FCm.cleanFogMarks ? FCm.cleanFogMarks(msg.marks, ownCellKeysOf(map)) : null; if (mkD) map.fogMarks = mkD; else delete map.fogMarks; }   // senses S4: their marks, cleaned again
         if (refused) ask();
         var myActive = getActiveCampaign();
         if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();

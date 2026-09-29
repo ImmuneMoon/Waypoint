@@ -58,6 +58,12 @@ function campSenses(camp) {
     var sn = campSensesOf(camp);
     return sn && Array.isArray(sn.list) ? sn.list.filter(function(s) { return !!s && s.grade === 'full' && !!s.range && typeof s.range === 'object'; }) : [];
 }
+// Senses S4: the system's mark senses (a nameless mark where a creature is), [] with none; a mark's glyph as its number on the wire
+function campMarkSenses(camp) {
+    var sn = campSensesOf(camp);
+    return sn && Array.isArray(sn.list) ? sn.list.filter(function(s) { return !!s && s.grade === 'mark' && !!s.range && typeof s.range === 'object'; }) : [];
+}
+var GLYPH_K = { sound: 1, tremor: 2, presence: 3, heat: 4 };
 // One token's sight and full senses, in cells, from ONE resolver (its token's context: effects, posture, elevation). Sight: the mapped sheet
 // field via the formula engine, else the campaign default; clamped. Counted in yards unless the campaign says feet, metres or cells
 // (camp.fog.fields.sightUnit, L4: a d20 game's 60 ft on 5 ft squares is 12 cells). A sense: its number, which every token has, or its field
@@ -87,7 +93,7 @@ function tokenSenses(token, map, camp, waived) {
     var own = !!ch && (waived === true || (ch.npc !== true && ch.partial !== true && !!ch.ownerId && ch.ownerId === token.ownerId));
     out.sheet = own;
     if (tick || (own && sn.blind && set(sn.blind))) out.blind = true;
-    var list = campSenses(camp), offs = [];
+    var list = campSenses(camp).concat(campMarkSenses(camp)), offs = [], marks = [];   // senses S4: the mark senses after the full ones
     var ov = !token.waiting ? C.cleanTokSenses(token.senses) : null, byTok = Object.create(null);   // senses S2b: the token's own ranges come first (never a waiting token's)
     if (ov) ov.forEach(function(e) { byTok[e.id] = e.n; });
     list.forEach(function(s) {
@@ -96,8 +102,10 @@ function tokenSenses(token, map, camp, waived) {
         var e = { id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim', n: n, from: mine ? 'token' : s.range.by === 'n' ? 'n' : 'field' };
         var why = s.off && own && set(s.off) ? 'off' : s.eyes === true && out.blind ? 'blind' : '';   // senses S3: a sense switched off, or one of the eyes while blind: held, but it sees nothing
         if (why) { offs.push({ id: e.id, n: n, cells: e.cells, from: e.from, why: why }); return; }
+        if (s.grade === 'mark') { marks.push({ id: e.id, cells: e.cells, pass: e.pass, all: e.all, k: GLYPH_K[s.glyph] || GLYPH_K.presence, n: n, from: e.from }); return; }   // senses S4
         out.full.push(e);
     });
+    if (marks.length) out.marks = marks;
     if (offs.length) out.offs = offs;
     return out;
 }
@@ -559,7 +567,48 @@ function sightSigFor(recipientId, camp, map) {
         if (!v.sense) { blindNow = !!v.blind; out.push(blindNow ? 'B' : lit ? 'L' : v.range); }
         else if (!lit || blindNow || v.pass || v.arc >= 360) out.push('s' + v.range + (v.pass ? 'p' : '') + (v.arc >= 360 ? 'a' : ''));
     });
+    // senses S4: each mark sense of theirs, by its cells, whether it passes walls, whether it is all round and its glyph (a change moves marks, never cells)
+    if (campMarkSenses(camp).length) (map.whiteboard || []).forEach(function(w) {
+        if (!w || w.hidden || w.type === 'light' || w.ownerId !== recipientId || !w.isChar) return;
+        (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { out.push('m' + m.cells + (m.pass ? 'p' : '') + (m.all ? 'a' : '') + m.k); });
+    });
     return out.join(',');
+}
+// Senses S4: one player's marks on one map — the host's, for their copy (fogCopyFor) and its catch-ups: the creatures dropped from it (a character
+// or a waiting token; never one the GM hid, a light or their own) that a mark sense of one of their tokens finds, as fogcore markCells works them
+// out; never through a sense the GM ticked the token off for (item.unsensed). Null where no fog is drawn, not on Auto, with no grid, no mark
+// sense or no mark. Memoised on exactly what it reads (the viewers, the creatures, the walls), so a re-send with nothing moved works nothing
+// out; the GM is told once per map when a cap cut the marks
+var _marksMemo = Object.create(null), _marksWarned = Object.create(null);
+function fogMarksFor(recipientId, camp, map, drop) {
+    if (!recipientId || !drop || !fogFeatureOn() || !map || map.type !== 'map') return null;
+    var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
+    var C = core(), grid = gridForMap(map); if (!C || !grid) return null;
+    if (!campMarkSenses(camp).length || fogMask(map, camp, grid).mode === 'none') return null;
+    var turningOn = !window.wpVtt || window.wpVtt.on('turning'), arc = turningOn ? visionOf(map).arc : 360, vs = [], cs = [];
+    var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);
+    (map.whiteboard || []).forEach(function(w) {
+        if (!w || w.hidden || w.type === 'light') return;
+        if (w.ownerId === recipientId) {
+            if (!(w.isChar || (w.waiting && waitSight))) return;
+            var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0);
+            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { vs.push({ x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }); });
+            return;
+        }
+        if (drop[w.id] !== 1 || !(w.isChar || w.waiting)) return;
+        var un = C.cleanUnsensed(w.unsensed), skip = null;
+        if (un === true) return;
+        if (un) { skip = Object.create(null); un.forEach(function(id) { skip[id] = 1; }); }
+        cs.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip });
+    });
+    if (!vs.length || !cs.length) return null;
+    var blk = blockersFor(map, grid); if (_blockerOver[map.id]) blk = null;   // walls over their cap block nothing, as for the eyes
+    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + JSON.stringify(vs) + '|' + JSON.stringify(cs), k = recipientId + '|' + map.id, hit = _marksMemo[k];
+    if (hit && hit.sig === sig) return hit.marks;
+    var res = C.markCells(vs, cs, grid, blk), marks = res.marks.length ? res.marks : null;
+    _marksMemo[k] = { sig: sig, marks: marks };
+    if (res.capped && !_marksWarned[map.id] && isGmView()) { _marksWarned[map.id] = 1; toast('Some creatures on this map are past what a player’s senses mark at once: the nearest are marked.'); }
+    return marks;
 }
 // A cached revealed-key set per (recipient, map): stable during a drag (the recipient's own tokens don't move), so the
 // live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit, and alone by
@@ -963,5 +1012,6 @@ window.wpFog = {
     lightLevel: mapLevel, lightCount: lightCount,
     lightSeen: lightSeen,
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
+    fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

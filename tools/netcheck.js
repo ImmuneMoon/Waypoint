@@ -5698,6 +5698,19 @@ pendingChecks.push((async () => {
         && /if\(!dragging\) return;\n\s*if \(window\.wpHostGestureEnd\) window\.wpHostGestureEnd\(\);/.test(upS) && /function abortDrag\(e\) \{\n\s*if \(!dragging\) return;\n\s*el\.dispatchEvent\(new PointerEvent\('pointerup'/.test(dmT)
         && !/senses|amL|invalidateSeen|sightSigFor/.test(dmT), j([resS.length, rotS.length, fogS.length, dragS.length, upS.length]));
 }
+// fold M8: a player's app asks its host for one map whole (net.needItem), and a gesture's moves name the map it began on (net.streamPos)
+{
+    const w8 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
+    const mk8 = role => { const sent = [], n = { active: true, role, paused: false, selfPaused: false, conns: [{ peer: 'h', open: true, send(m) { packCheck(m); sent.push(JSON.parse(j(m))); } }] }; const camp = { id: 'k', activeItemId: 'mB', items: { mA: { id: 'mA', type: 'map' }, mB: { id: 'mB', type: 'map' } } };
+        const relayed = []; new Function('net', 'getActiveCampaign', 'sendFailed', 'broadcastPos', '_posLast', 'var _posLast = 0;\n' + w8('net.needItem = function(') + w8('net.streamPos = function('))(n, () => camp, e => { throw e; }, (m, x, c, map) => relayed.push([m.itemId, map && map.id]));
+        return { n, sent, relayed }; };
+    const c8 = mk8('client'); c8.n.needItem('k', 'mA'); c8.n.needItem('k', 5); c8.n.needItem(null, 'mA'); c8.n.streamPos({ id: 't', x: 1, y: 2 }, true, 'mA'); c8.n.streamPos({ id: 't', x: 1, y: 2 }, true);
+    const h8 = mk8('host'); h8.n.needItem('k', 'mA'); h8.n.streamPos({ id: 't', x: 1, y: 2 }, true, 'mA'); h8.n.streamPos({ id: 't', x: 1, y: 2 }, true, 'constructor');
+    const off8 = mk8('client'); off8.n.active = false; off8.n.needItem('k', 'mA');
+    check('fold M8: a player\'s app asks its host for one map whole in one message (never with an id that is no text, never off a table, never from the host); a gesture\'s final names the map it began on, the map on screen when none is given; on the host the relay is judged on that map (none for a prototype name)',
+        j(c8.sent.map(m => m.type + ':' + m.itemId)) === j(['needItem:mA', 'pos:mA', 'pos:mB']) && j(c8.sent[0]) === j({ type: 'needItem', campId: 'k', itemId: 'mA' }) && h8.sent.length === 0 && j(h8.relayed) === j([['mA', 'mA'], ['constructor', null]]) && off8.sent.length === 0,
+        j([c8.sent, h8.relayed]));
+}
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

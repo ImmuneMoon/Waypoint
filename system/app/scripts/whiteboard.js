@@ -65,17 +65,45 @@ function stanceMenuHtml(it) {
         + '<select class="cm-stance stance-post" style="' + ctl + '">' + POSTURES.map(function(p) { return '<option value="' + p + '"' + (tokenPosture(it) === p ? ' selected' : '') + '>' + POSTURE_LABEL[p] + '</option>'; }).join('') + '</select></div>';
     return html;
 }
+// [systemcheck:owntok-start]
+// Fold M8: a player's gesture follows the live map. A whole copy of the map can land while a drag, a turn or the stance menu is under way and
+// replace every object in it: the gesture finds its token again by id each time it writes, and writes it only while the token is still
+// theirs to move (the table not paused, theirs, shown, not locked, a character or a waiting token). The GM gets the live item by id
+function ownTokenNow(mapId, tokId) {
+    var camp = getActiveCampaign(), items = camp && camp.items, n = window.wpNet;
+    var map = items && typeof mapId === 'string' && Object.prototype.hasOwnProperty.call(items, mapId) ? items[mapId] : null;
+    if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard) || typeof tokId !== 'string') return null;
+    var tok = map.whiteboard.find(function(x) { return !!x && x.id === tokId; }) || null;
+    if (!tok || !n || !n.active || n.role !== 'client') return tok;
+    if (n.paused || n.selfPaused || tok.ownerId !== n.myId || tok.locked || tok.hidden || !(tok.isChar || tok.waiting)) return null;
+    return tok;
+}
+// a drag's members found again on the live map and set at the pointer's place (where the drag began plus how far it went); the ones that
+// are still theirs to move come back
+function regrabDrag(md, mapId, dx, dy) {
+    var out = [];
+    (Array.isArray(md) ? md : []).forEach(function(m) {
+        var t = m && m.item ? ownTokenNow(mapId, m.item.id) : null; if (!t) return;
+        t.x = m.ox + dx; t.y = m.oy + dy; m.item = t; out.push(m);
+    });
+    return out;
+}
+window.wpOwnTokenNow = ownTokenNow; window.wpRegrabDrag = regrabDrag;
+// [systemcheck:owntok-end]
 function wireStanceMenu(cMenu, items, onChange) {
     items = (items || []).filter(function(t) { return t && t.isChar; });
     if (!items.length) return;
+    // fold M8: the rows keep their tokens' ids and find them again at each change; a token gone, or no longer theirs to change, closes the menu
+    var am0 = getActiveMap(), mapId = am0 && am0.id, ids = items.map(function(t) { return t.id; });
+    function live() { var got = ids.map(function(id) { return ownTokenNow(mapId, id); }); if (got.some(function(t) { return !t; })) { cMenu.style.display = 'none'; return null; } return got; }
     var inp = cMenu.querySelector('.stance-elev-in');
-    function setAll(v) { items.forEach(function(t) { setTokenElevation(t, v); }); if (inp) inp.value = tokenElevation(items[0]); onChange(); }
+    function setAll(v) { var ts = live(); if (!ts) return; ts.forEach(function(t) { setTokenElevation(t, v); }); if (inp) inp.value = tokenElevation(ts[0]); onChange(); }
     Array.prototype.forEach.call(cMenu.querySelectorAll('.stance-elev'), function(b) {
-        b.addEventListener('click', function(ce) { ce.stopPropagation(); setAll(tokenElevation(items[0]) + parseInt(b.dataset.d, 10)); });
+        b.addEventListener('click', function(ce) { ce.stopPropagation(); var ts = live(); if (ts) setAll(tokenElevation(ts[0]) + parseInt(b.dataset.d, 10)); });
     });
     if (inp) { inp.addEventListener('click', function(ce) { ce.stopPropagation(); }); inp.addEventListener('change', function() { setAll(this.value); }); }
     var sel = cMenu.querySelector('.stance-post');
-    if (sel) { sel.addEventListener('click', function(ce) { ce.stopPropagation(); }); sel.addEventListener('change', function() { var v = this.value; items.forEach(function(t) { setTokenPosture(t, v); }); onChange(); }); }
+    if (sel) { sel.addEventListener('click', function(ce) { ce.stopPropagation(); }); sel.addEventListener('change', function() { var v = this.value, ts = live(); if (!ts) return; ts.forEach(function(t) { setTokenPosture(t, v); }); onChange(); }); }
 }
 // The token creator (owner, 2026-09-27): a player's new picture for their own token — a picture they choose, framed first. A character's token
 // changes through its character (char-pic: every token of it), a plain one through tok-pic. Their original is never kept (owner): to change
@@ -123,7 +151,7 @@ function showStanceMenu(e, tok) {
     var ownSheet = cMenu.querySelector('.cm-sheet-own'); if (ownSheet) ownSheet.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openSheet(tok.charId); });
     var ownHud = cMenu.querySelector('.cm-hud-own'); if (ownHud) ownHud.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openHud(tok.charId); });
     var ownPic = cMenu.querySelector('.cm-pic-own'); if (ownPic) ownPic.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; newOwnPicture(tok); });
-    wireStanceMenu(cMenu, [tok], function() { save(); render(); });
+    wireStanceMenu(cMenu, [tok], function() { save(!!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')); render(); });   // fold M8: a player's stance goes to the host at once
     var ownLight = cMenu.querySelector('.own-light');
     if (ownLight) { ownLight.addEventListener('click', function(ce) { ce.stopPropagation(); }); ownLight.addEventListener('change', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; askOwnLight(tok, ownLight.value); }); }
 }
@@ -1648,8 +1676,8 @@ window.wpFitToGrid = fitToGrid;
       if (typeof st.posture === 'string' && stanceOn('posture')) { setTokenPosture(t.tok, st.posture); did = true; }
       if (st.elevation !== undefined && stanceOn('elevation') && isFinite(Number(st.elevation))) { setTokenElevation(t.tok, Number(st.elevation)); did = true; }
       if (!did) return false;
-      save(); render();
       var n = window.wpNet;
+      save(!!(n && n.active && n.role === 'client')); render();   // fold M8: a player's stance goes to the host at once
       if (n && n.active && n.role === 'host') { if (t.onScreen && n.sendItem) n.sendItem(t.camp.id, mapId); else if (!t.onScreen && n.broadcastItemFiltered) n.broadcastItemFiltered(t.camp.id, mapId); }
       if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(tokId, true);
       return true;
@@ -1684,13 +1712,14 @@ window.wpFitToGrid = fitToGrid;
           if (!item || !item.isChar) return;
           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && (window.wpNet.paused || window.wpNet.selfPaused || item.ownerId !== window.wpNet.myId || item.locked)) return;
           e.preventDefault(); e.stopPropagation();
-          turning = { item: item, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };
+          turning = { id: item.id, mapId: am.id, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };   // fold M8: by id, found again at each write
       }, true);
       document.addEventListener('pointermove', function(e) {
           if (!turning) return;
           if (!turning.moved && Math.hypot(e.clientX - turning.sx, e.clientY - turning.sy) < 5) return;
+          var it = ownTokenNow(turning.mapId, turning.id); if (!it) { turning = null; return; }   // no longer theirs to turn: the turn is over
           turning.moved = true;
-          var it = turning.item, p = boardPt(e);
+          var p = boardPt(e);
           var cx = it.x + (it.w || 60) / 2, cy = it.y + (it.h || 52) / 2;
           var deg = Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI + 90;   // 0 = up, clockwise
           applyFacing(it, deg, e.shiftKey);
@@ -1698,11 +1727,11 @@ window.wpFitToGrid = fitToGrid;
       });
       document.addEventListener('pointerup', function(e) {
           if (!turning) return;
-          var it = turning.item;
-          if (!turning.moved) window.wpTurnToken(it, turning.shift ? -1 : 1);
-          turning = null;
+          var tn = turning, it = ownTokenNow(tn.mapId, tn.id); turning = null;
+          if (!it) return;   // fold M8: gone, locked or no longer theirs meanwhile: nothing lands
+          if (!tn.moved) window.wpTurnToken(it, tn.shift ? -1 : 1);
           refreshTokenDom(it);
-          if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true);
+          if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true, tn.mapId);
           save(); render();
       });
   }
@@ -1712,7 +1741,7 @@ window.wpFitToGrid = fitToGrid;
 
       if(!handle) return;
 
-      var isRotating = false, item, startAngle, startRot, cx, cy;
+      var isRotating = false, item, startAngle, startRot, cx, cy, rotMapId = null;   // fold M8: the map the turn began on; the item found again by id at each write
 
       handle.addEventListener('pointerdown', function(e) {
 
@@ -1724,7 +1753,7 @@ window.wpFitToGrid = fitToGrid;
 
           if (!item) return;
 
-          isRotating = true;
+          isRotating = true; rotMapId = getActiveMap().id;
 
           cx = item.x + (item.w||100)/2;
           cy = item.y + (item.h||100)/2;
@@ -1772,6 +1801,8 @@ window.wpFitToGrid = fitToGrid;
 
           
 
+          var liveR = ownTokenNow(rotMapId, item.id); if (!liveR) { isRotating = false; hostGestureEnd(); return; }   // fold M8: no longer theirs to turn
+          item = liveR;
           var newRot = Math.round(startRot + diff);
 
           if (e.shiftKey) newRot = Math.round(newRot / 15) * 15; // state.snap to 15 degrees if shift held
@@ -1822,7 +1853,9 @@ window.wpFitToGrid = fitToGrid;
 
           try { handle.releasePointerCapture(e.pointerId); } catch(e){}
 
-          if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true);   // final facing
+          var liveU = ownTokenNow(rotMapId, item.id); if (!liveU) { render(); return; }   // fold M8: nothing lands for a token no longer theirs
+          item = liveU;
+          if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true, rotMapId);   // final facing
           save(); render();
 
       });
@@ -2660,9 +2693,11 @@ window.wpFitToGrid = fitToGrid;
       if (changed) {
           m.whiteboard = out;
           if (state.selWbId && !out.some(function(i) { return i.id === state.selWbId; })) { state.selWbId = null; state.selWbIds = []; }
+          _erasedAny = true;   // fold M8
           save(); render();
       }
   }
+  var _erasedAny = false;
 
   if(wbWrap) {
       wbWrap.addEventListener('pointerdown', function(e) {
@@ -2677,7 +2712,11 @@ window.wpFitToGrid = fitToGrid;
           if (isErasing && window.isEraserMode) eraseAt(e.clientX, e.clientY);
       });
   }
-  document.addEventListener('pointerup', function() { isErasing = false; lastErasePt = null; if (_eraserCursor) _eraserCursor.classList.remove('pressed'); });
+  document.addEventListener('pointerup', function() {
+      isErasing = false; lastErasePt = null; if (_eraserCursor) _eraserCursor.classList.remove('pressed');
+      if (_erasedAny && window.wpNet && window.wpNet.active && window.wpNet.role === 'client') save(true);   // fold M8: a player's erasing goes to the host at once
+      _erasedAny = false;
+  });
 
   /* ---- measure tool: place unit-aware rulers on the board ---- */
 

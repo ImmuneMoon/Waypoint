@@ -673,8 +673,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function selectItemsInMarquee(mx, my, mw, mh, e) {
       if (!(mw > 5 && mh > 5)) { render(); return; }
       var activeMap = getActiveMap(); if (!activeMap) return;
-      var selected = [];
+      var selected = [], nM = window.wpNet, onlyOwn = !!(nM && nM.active && nM.role === 'client');   // fold M8: a player's marquee takes only what they may move
       activeMap.whiteboard.forEach(function(w) {
+          if (onlyOwn && !(w && (w.isChar || w.waiting) && w.ownerId === nM.myId && !w.hidden && !w.locked)) return;
           var cx = w.x + (w.w || 100) / 2, cy = w.y + (w.h || 100) / 2;
           if (cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh) selected.push(w.id);
       });
@@ -692,6 +693,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var startX,startY,moved,dragging=false,item;
       var multiDrag = [];
       var lastPX = 0, lastPY = 0;   // where the pointer last was, for a drag that ends without a pointerup
+      var dragMapId = null, lastDx = 0, lastDy = 0;   // fold M8: the map the drag began on, and how far it went at its last move
       var lockedMq = null;   // set while a drag on a LOCKED item is (maybe) becoming a marquee — {item, box?}; null on every normal drag, so the drag path below is untouched
 
       el.addEventListener('pointerdown',function(e){
@@ -834,9 +836,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             }
             
             multiDrag = [];
+            var nD = window.wpNet, ownOnly = !!(nD && nD.active && nD.role === 'client');   // fold M8: a player's drag holds only what they may move
             state.selWbIds.forEach(id => {
                 var it = activeMap.whiteboard.find(x => x.id === id);
-                if (it && !it.locked) {
+                if (it && !it.locked && (!ownOnly || ((it.isChar || it.waiting) && it.ownerId === nD.myId && !it.hidden))) {
                     var itEl = document.querySelector('.wb-item[data-id="'+id+'"]');
                     multiDrag.push({item: it, ox: it.x, oy: it.y, el: itEl});
                 }
@@ -850,6 +853,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         startX=e.clientX; startY=e.clientY;
         try { el.setPointerCapture(e.pointerId); } catch(_) {} el.classList.add('dragging');
         if (modeStr === 'visual' && window.wpHostGestureStart) window.wpHostGestureStart();   // fold M6: a drag that writes items is open
+        dragMapId = activeMap.id; lastDx = 0; lastDy = 0;
         e.preventDefault();
       });
 
@@ -872,6 +876,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         var dy = (e.clientY - startY) / state.zoomLevel;
         if(Math.abs(e.clientX - startX)>3||Math.abs(e.clientY - startY)>3) moved=true;   // click-vs-drag slop in SCREEN px so it stays 3px at any zoom (dx/dy are world px = screen/zoom)
         
+        var clientVis = modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpOwnTokenNow;
+        if (clientVis) {   // fold M8: the drag follows the live map (a whole copy may have landed): each member found again by id, only while it is theirs
+            var liveP = window.wpOwnTokenNow(dragMapId, item.id); if (!liveP) return;   // the token under the pointer is no longer theirs: nothing more is written
+            item = liveP;
+            multiDrag.forEach(function(m) { var lt = window.wpOwnTokenNow(dragMapId, m.item.id); m.lost = !lt; if (lt) m.item = lt; });
+        }
         var primaryDrag = multiDrag.find(m => m.item.id === item.id) || multiDrag[0];
         if(!primaryDrag) return;
 
@@ -884,18 +894,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         
         var actualDx = snapItem.x - primaryDrag.ox;
         var actualDy = snapItem.y - primaryDrag.oy;
+        lastDx = actualDx; lastDy = actualDy;
 
         multiDrag.forEach(m => {
+            if (m.lost) return;
             m.item.x = m.ox + actualDx;
             m.item.y = m.oy + actualDy;
-            if (m.el) {
-                m.el.style.left = m.item.x + 'px';
-                m.el.style.top = m.item.y + 'px';
+            var mEl = (clientVis && state.wbEls && state.wbEls[m.item.id]) || m.el;
+            if (mEl) {
+                mEl.style.left = m.item.x + 'px';
+                mEl.style.top = m.item.y + 'px';
             }
         });
         
         if(modeStr==='data') renderDataMap(); // update edges
-        if(modeStr==='visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item); // live token motion for remote players
+        if(modeStr==='visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, false, dragMapId); // live token motion for remote players (fold M8: on the map the drag began on)
         if(modeStr==='visual' && window.wpUpdateSelToolbar) window.wpUpdateSelToolbar();   // toolbar rides along with the drag
         if (modeStr === 'visual' && window.wpUpdateHandles) window.wpUpdateHandles();   // dots follow the drag (single or multi)
       });
@@ -939,6 +952,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         clearSnaps();
         try{el.releasePointerCapture(e.pointerId);}catch(_){}
         if(moved){
+          if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpRegrabDrag) {
+              // fold M8: the drop lands on the live map at the pointer's place, whatever copy of the map arrived since the last move. The map
+              // left meanwhile (summoned, travelled): no drop, and the map it began on is asked for whole. The token under the pointer no
+              // longer theirs: nothing lands and the others go back where they were (the host never moved them); another member no longer
+              // theirs is left as the host has it and the rest land
+              var campU = getActiveCampaign();
+              if (!campU || campU.activeItemId !== dragMapId) { if (campU && window.wpNet.needItem) window.wpNet.needItem(campU.id, dragMapId); render(); return; }
+              var survivors = window.wpRegrabDrag(multiDrag, dragMapId, lastDx, lastDy), liveI = window.wpOwnTokenNow(dragMapId, item.id);
+              if (!liveI) { survivors.forEach(function(md) { md.item.x = md.ox; md.item.y = md.oy; }); render(); return; }
+              item = liveI; multiDrag = survivors;
+          }
           if(state.snap && modeStr === 'data'){
               // snap the dragged room, and carry every other dragged room by the same amount
               var snD = getSnapCoords(item.x, item.y), sdxD = snD.x - item.x, sdyD = snD.y - item.y;
@@ -961,7 +985,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   if (md !== refMd) { if (isHexy(md.item)) window.wpSeatHex(md.item, null, true); else { md.item.x += seatDx; md.item.y += seatDy; } }
                   var mel = md.el || state.wbEls[md.item.id];
                   if (mel) { mel.style.left = md.item.x + 'px'; mel.style.top = md.item.y + 'px'; }
-                  if (md.item !== item && modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(md.item, true);
+                  if (md.item !== item && modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(md.item, true, dragMapId);
               });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           } else if((state.snap || multiDrag.some(function(md){ return md.item.gridFit; })) && state.snapMode !== 'items' && modeStr === 'visual' && state.gridType && state.gridType !== 'off'){   // grid seat: grid / both modes only
@@ -974,7 +998,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           }
-          if(modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true); // final, post-snap position
+          if(modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true, dragMapId); // final, post-snap position
           if(modeStr === 'visual' && item.isChar) {
               var am = getActiveMap();
               var cx = item.x + (item.w||100)/2;
@@ -1426,7 +1450,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               currentDrawItem = null;
 
-              save(); render();
+              save(!!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')); render();   // fold M8: a player's stroke goes to the host at once
 
           }
 

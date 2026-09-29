@@ -2267,7 +2267,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
     });
 }
 // [netcheck:bpos-end]
-net.streamPos = function(wItem, final) {
+net.streamPos = function(wItem, final, mapId) {   // fold M8: mapId, the map a gesture began on (else the one on screen)
     if (!net.active || !wItem) return;
     if ((net.paused || net.selfPaused) && net.role === 'client') return;
     var camp = getActiveCampaign();
@@ -2275,11 +2275,17 @@ net.streamPos = function(wItem, final) {
     var now = Date.now();
     if (!final && now - _posLast < 45) return;
     _posLast = now;
-    var msg = { type: 'pos', campId: camp.id, itemId: camp.activeItemId, wbId: wItem.id, x: wItem.x, y: wItem.y, rot: wItem.rot || 0, front: wItem.front || 0, final: !!final };
-    if (net.role === 'host') broadcastPos(msg, null, camp, camp.items[camp.activeItemId], wItem);
+    var onMap = typeof mapId === 'string' ? mapId : camp.activeItemId;
+    var msg = { type: 'pos', campId: camp.id, itemId: onMap, wbId: wItem.id, x: wItem.x, y: wItem.y, rot: wItem.rot || 0, front: wItem.front || 0, final: !!final };
+    if (net.role === 'host') broadcastPos(msg, null, camp, Object.prototype.hasOwnProperty.call(camp.items || {}, onMap) ? camp.items[onMap] : null, wItem);
     else if (net.conns[0] && net.conns[0].open) { try { net.conns[0].send(msg); } catch (e) { sendFailed(e); } }
 };
 
+// Fold M8: a player's app asks its host for one map whole (a drag that began on a map the table has since left)
+net.needItem = function(campId, itemId) {
+    if (!net.active || net.role !== 'client' || typeof campId !== 'string' || typeof itemId !== 'string') return;
+    var c0 = net.conns[0]; if (c0 && c0.open) { try { c0.send({ type: 'needItem', campId: campId, itemId: itemId }); } catch (e) { sendFailed(e); } }
+};
 // Fast path: move the DOM node directly, no full re-render per frame.
 function applyPosToDom(msg) {
     var camp = getActiveCampaign();

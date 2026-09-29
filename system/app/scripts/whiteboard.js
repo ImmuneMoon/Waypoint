@@ -1382,6 +1382,17 @@ window.wpFitToGrid = fitToGrid;
 
   /* ---------- inspector helpers ---------- */
 
+  // [netcheck:hostgesture-start]
+  // Fold M6: the GM's board gesture now open on the hosting machine (a drag that writes items, the resize or rotate handle, a fog-brush stroke):
+  // the id of the map it runs on while it runs, null otherwise. The host's catch-up of the players' copies (a later fold) waits for it to end,
+  // so nothing is judged from a half-made change; nothing reads it yet. Only a host sets it; every way a gesture ends clears it, and so does
+  // the window losing focus
+  window.wpHostGesture = null;
+  function hostGestureStart() { var n = window.wpNet, m = getActiveMap(); window.wpHostGesture = n && n.active && n.role === 'host' && m && typeof m.id === 'string' ? m.id : null; }
+  function hostGestureEnd() { window.wpHostGesture = null; }
+  window.wpHostGestureStart = hostGestureStart; window.wpHostGestureEnd = hostGestureEnd;
+  window.addEventListener('blur', hostGestureEnd);
+  // [netcheck:hostgesture-end]
   function attachResizeHandle() {
 
       var handle = document.getElementById('globalResizeHandle');
@@ -1428,9 +1439,12 @@ window.wpFitToGrid = fitToGrid;
 
           try { handle.setPointerCapture(e.pointerId); } catch(_) {}
 
+          hostGestureStart();   // fold M6
+
           e.preventDefault(); e.stopPropagation();
 
       });
+      handle.addEventListener('pointercancel', hostGestureEnd); handle.addEventListener('lostpointercapture', hostGestureEnd);   // fold M6
 
       handle.addEventListener('pointermove', function(e) {
 
@@ -1504,6 +1518,8 @@ window.wpFitToGrid = fitToGrid;
           if(!isResizing) return;
 
           isResizing = false;
+
+          hostGestureEnd();   // fold M6
 
           clearSnaps();
 
@@ -1731,9 +1747,12 @@ window.wpFitToGrid = fitToGrid;
 
           try { handle.setPointerCapture(e.pointerId); } catch(_) {}
 
+          hostGestureStart();   // fold M6
+
           e.preventDefault(); e.stopPropagation();
 
       });
+      handle.addEventListener('pointercancel', hostGestureEnd); handle.addEventListener('lostpointercapture', hostGestureEnd);   // fold M6
 
       handle.addEventListener('pointermove', function(e) {
 
@@ -1798,6 +1817,8 @@ window.wpFitToGrid = fitToGrid;
           if(!isRotating) return;
 
           isRotating = false;
+
+          hostGestureEnd();   // fold M6
 
           try { handle.releasePointerCapture(e.pointerId); } catch(e){}
 
@@ -3280,6 +3301,7 @@ window.wpFitToGrid = fitToGrid;
           var pt = _fogBoard(e);
           if (e.button === 0 && window.wpFog && window.wpFog.toggleDoorAt && window.wpFog.toggleDoorAt(pt.x, pt.y)) { _fogPaintBtn = -1; e.preventDefault(); return; }   // clicked a door -> toggled it, do not paint
           _fogPaintBtn = e.button;
+          hostGestureStart();   // fold M6: a stroke is open until the pointer comes up
           if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, e.button === 2);
           e.preventDefault();
       });
@@ -3288,7 +3310,8 @@ window.wpFitToGrid = fitToGrid;
           var pt = _fogBoard(e); if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, _fogPaintBtn === 2);
       });
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFogMode) e.preventDefault(); });
-      document.addEventListener('pointerup', function() { _fogPaintBtn = -1; });
+      document.addEventListener('pointerup', function() { if (_fogPaintBtn >= 0) hostGestureEnd(); _fogPaintBtn = -1; });   // fold M6: the stroke is over
+      document.addEventListener('pointercancel', function() { if (_fogPaintBtn >= 0) hostGestureEnd(); _fogPaintBtn = -1; });
   }
   // Fill bucket (1.5.0, GM): click or drag grid cells to drop a cell-sized colored shape (hexagon on hex maps,
   // square on square maps) seated in the cell at layer 'back' (below tokens); right-click a cell clears its fill.

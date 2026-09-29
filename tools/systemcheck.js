@@ -2459,7 +2459,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 j([tGm.combat, tPv.combat.light]));
             // the integration guide and the console's list, against the code they describe
             const ciS = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n'), dcS = fs.readFileSync(path.join(app, 'scripts', 'devconsole.js'), 'utf8').replace(/\r\n/g, '\n');
-            const capsG = /what the rules call a dim and a dark place \(each optional, up to (\d+) characters; shown on the ruler and at a target mark\) and up to (\d+) light presets: a name, two radii as a light's own \(below\), an optional "unit" \("ft", "m" or "cells"; absent: yards\) and "pick": true where players may pick it for their own token\. Nothing in "cover", "checks" or "light" is GM-only: players receive those three whole \(the rest of the system travels as said above, GM-only fields and what reads them removed\)\n/.exec(ciS) || [];
+            const capsG = /what the rules call a dim and a dark place \(each optional, up to (\d+) characters; shown on the ruler and at a target mark\) and up to (\d+) light presets: a name, two radii as a light's own \(below\), an optional "unit" \("ft", "m" or "cells"; absent: yards\) and "pick": true where players may pick it for their own token\. Nothing in "cover", "checks" or "light" is GM-only: players receive those three whole \(the rest of the system travels as said above, GM-only fields and what reads them removed\)\. Its "combat" may also carry "senses"/.exec(ciS) || [];   // senses S1: the senses follow (a deliberate change of this pin)
             const sysT3 = { v: 1, name: 'G', fields: [{ id: 'f_a', key: 'A', kind: 'number', def: 1, vis: 'all' }, { id: 'f_s', key: 'Secret', kind: 'number', def: 4, vis: 'gm' }], rolls: [], sheet: { sections: [] }, combat: { turn: { move: 'Secret + 2', unit: 'yd', secs: 6 }, light: { names: { dim: 'Gloom' } }, checks: 'under3d6', cover: { on: true, style: 'graded', area: { half: 'half' } } } };
             const t3Gm = cleanSystem(sysT3, { F, gmView: true }), t3Pv = cleanSystem(sysT3, { F, gmView: false });
             const longN = new Array(101).join('n'), manyP = []; for (let i = 0; i < 30; i++) manyP.push({ name: 'P' + i, bright: 1, dim: 2 });
@@ -6928,6 +6928,115 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /function live\(\) \{ var got = ids\.map\(function\(id\) \{ return ownTokenNow\(mapId, id\); \}\); if \(got\.some\(function\(t\) \{ return !t; \}\)\) \{ cMenu\.style\.display = 'none'; return null; \} return got; \}/.test(wb8)
             && (wb8.match(/save\(!!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client'\)\)/g) || []).length === 1 && /save\(!!\(n && n\.active && n\.role === 'client'\)\); render\(\);/.test(wb8) && /if \(_erasedAny && window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client'\) save\(true\);/.test(wb8)
             && /save\(!!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client'\)\); render\(\);   \/\/ fold M8: a player's stroke/.test(dm8));
+    }
+    /* ---- senses S1: the system's senses (combat.senses) cleaned, the same in both views; the fields a player cannot read truthfully ---- */
+    {
+        const gmO = { F, gmView: true }, plO = { F, gmView: false }, BEL = String.fromCharCode(7);
+        const fieldsS = [
+            { id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', vis: 'all', def: 6 },
+            { id: 'f_trem', key: 'TremR', label: 'T', kind: 'formula', vis: 'all', formula: 'Sight * 2' },
+            { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', vis: 'gm', def: 5 },
+            { id: 'f_gf', key: 'GmForm', label: 'GF', kind: 'formula', vis: 'all', formula: 'GMFig + 1' },
+            { id: 'f_gf2', key: 'GmForm2', label: 'GF2', kind: 'formula', vis: 'all', formula: 'GmForm * 2' },
+            { id: 'f_pool', key: 'Focus', label: 'Focus', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'GMFig * 3', min: 0 },
+            { id: 'f_skl', key: 'Keen', label: 'Keen', kind: 'skill', vis: 'all', base: 'GMFig' },
+            { id: 'f_gl', key: 'Secrets', label: 'Secrets', kind: 'item-list', vis: 'gm', list: { cats: ['Secret'], lvl: { label: 'Level', min: 0, max: 20, def: 1 } } },
+            { id: 'f_rows', key: 'RowRead', label: 'RR', kind: 'formula', vis: 'all', formula: 'Secrets.Thing.lvl' },
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Skill'], lvl: { label: 'Level', min: 0, max: 20, def: 1 } } },
+            { id: 'f_ek', key: 'EntryRead', label: 'ER', kind: 'formula', vis: 'all', formula: 'Skills.Hush.lvl' },
+            { id: 'f_okk', key: 'KarateRead', label: 'KR', kind: 'formula', vis: 'all', formula: 'Skills.Karate.lvl' },
+            { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { cats: ['Gear'] } },
+            { id: 'f_curse', key: 'CurseRead', label: 'CR', kind: 'formula', vis: 'all', formula: 'Gear.Ring.has * 10' },
+            { id: 'f_blind', key: 'Blinded', label: 'Blinded', kind: 'toggle', vis: 'all' },
+            { id: 'f_deaf', key: 'Deafened', label: 'Deafened', kind: 'toggle', vis: 'all' },
+            { id: 'f_gmt', key: 'GmBlind', label: 'GB', kind: 'toggle', vis: 'gm' },
+            { id: 'f_note', key: 'Notes', label: 'N', kind: 'text', vis: 'all' },
+            { id: 'f_ok', key: 'Keeper', label: 'K', kind: 'resource', vis: 'all', edit: 'owner', maxFormula: 'Sight + 4', min: 0 },
+            { id: 'f_hear', key: 'Hear', label: 'H', kind: 'skill', vis: 'all', base: 'Sight' }];
+        const itemsS = [{ id: 'i_kar', name: 'Karate', category: 'Skill', key: 'Karate', lvl: 4 }, { id: 'i_hush', name: 'Hush', category: 'Skill', key: 'Hush', vis: 'gm', lvl: 5 }, { id: 'i_ring', name: 'Ring', category: 'Gear', key: 'Ring', eq: 'curse' }];
+        const sysOf = (senses, extra) => Object.assign({ v: 1, name: 'Senses', rolls: [], fields: JSON.parse(j(fieldsS)), items: JSON.parse(j(itemsS)), combat: { blastAuto: 'full', senses: senses } }, extra || {});
+        const views = sys => { const g1 = cleanSystem(sys, gmO), p1 = cleanSystem(sys, plO); return [g1, p1, cleanSystem(g1, gmO), cleanSystem(p1, plO), cleanSystem(g1, plO), cleanSystem(JSON.parse(j(g1)), gmO), cleanSystem(JSON.parse(j(p1)), plO)].map(s => s && s.combat && s.combat.senses); };
+        const sameAll = (sys, want) => views(sys).every(v => j(v) === j(want));
+        const SECRETS = ['f_gm', 'f_gf', 'f_gf2', 'f_pool', 'f_skl', 'f_gl', 'f_rows', 'f_ek', 'f_gmt'];
+        const gmF = S.gmViewFields(sysOf(undefined), F), sec = S.secretFieldIds({ fields: gmF, items: itemsS }, F);
+        check('S1 secretFieldIds: a GM-only field, a visible formula naming one, a formula naming that formula, a pool whose max reads one, a skill whose base does, a GM-only list, a formula reading its row, a formula reading a GM-only entry\'s key — and no other (a visible entry, a visible list\'s kept curse, a visible pool, a toggle, text)',
+            j(Object.keys(sec).sort()) === j(SECRETS.slice().sort()) && gmF.length === fieldsS.length && gmF.some(f => f.id === 'f_gm'), j(Object.keys(sec).sort()));
+        const dupF = [{ id: 'f_ga', key: 'X', label: 'X', kind: 'number', vis: 'gm' }, { id: 'f_gb', key: 'x', label: 'x', kind: 'number', vis: 'all' }, { id: 'f_ga', key: 'Y', label: 'Y', kind: 'number', vis: 'all' }, { id: 'bad', key: 'Z', kind: 'number' }];
+        check('S1 gmViewFields and secretFieldIds fail closed: the GM\'s view of the fields keeps the GM-only ones and one per id and key in order; with no engine every field is secret; nothing to read gives nothing',
+            j(S.gmViewFields({ fields: dupF }, F).map(f => f.id)) === j(['f_ga']) && S.gmViewFields({ fields: Array.from({ length: 305 }, (_, i) => ({ id: 'f_n' + i, key: 'N' + i, label: 'N', kind: 'number', vis: i % 2 ? 'gm' : 'all' })) }, F).length === S.LIMITS.fields && Object.keys(S.secretFieldIds({ fields: gmF, items: itemsS }, null)).length === gmF.length
+            && Object.keys(S.secretFieldIds({ fields: gmF, items: itemsS }, {})).length === gmF.length && j(S.secretFieldIds({ fields: [{ id: 'f_nokey', kind: 'number' }, { id: 'f_sight', key: 'Sight', kind: 'number' }] }, F)) === j({ f_nokey: 1 }) && j(S.secretFieldIds(null, F)) === '{}' && j(S.secretFieldIds({ fields: 'x' }, F)) === '{}' && j(S.gmViewFields(null, F)) === '[]');
+        const full = { blind: { field: 'f_blind' }, list: [
+            { id: 'sn_force001', name: 'Force Sight', range: { by: 'field', field: 'f_trem' }, unit: 'ft', grade: 'full', walls: 'pass', arc: 'all', shows: 'dim', veil: true },
+            { id: 'sn_trem0001', name: 'Tremorsense', range: { by: 'n', n: 30 }, grade: 'mark', eyes: true, off: { field: 'f_deaf' }, glyph: 'tremor' },
+            { id: 'sn_curse001', name: 'Curse sense', range: { by: 'field', field: 'f_curse' }, grade: 'mark' },
+            { id: 'sn_pool0001', name: 'Pool sense', range: { by: 'field', field: 'f_ok' }, grade: 'full', off: { field: 'f_curse' } },
+            { id: 'sn_skill001', name: 'Karate sense', range: { by: 'field', field: 'f_okk' }, unit: 'cells', grade: 'full' }] };
+        check('S1 cleanSenses: a system\'s senses come through whole and in a fixed key order, the same in the GM\'s view and the players\', cleaned twice, cleaned again by a player\'s app, and after a round trip through JSON; a visible formula reading a visible list whose row is a kept curse is not secret',
+            sameAll(sysOf(full), full) && j(Object.keys(cleanSystem(sysOf(full), gmO).combat)) === j(['blastAuto', 'blastRoller', 'hpResource', 'cover', 'senses']), j(views(sysOf(full))[1]));
+        const ctl = { id: 'sn_control1', name: 'Control', range: { by: 'n', n: 5 }, grade: 'full' };
+        const perSecret = SECRETS.map(id => {
+            const s = { blind: { field: id }, list: [
+                { id: 'sn_rangefll', name: 'Full', range: { by: 'field', field: id }, grade: 'full' },
+                { id: 'sn_rangemrk', name: 'Mark', range: { by: 'field', field: id }, grade: 'mark' },
+                { id: 'sn_offsense', name: 'Off', range: { by: 'n', n: 9 }, grade: 'mark', off: { field: id } }, ctl] };
+            return [id, views(sysOf(s))];
+        });
+        check('S1 a sense (full or mark) whose range or off reads a value its player cannot read truthfully, and blind on one, are dropped in BOTH views — (1) GM-only, (2) a visible formula naming one, (3) a formula naming that formula, (4) a GM-derived pool, (5) a GM-only list\'s row or a GM-only entry\'s key; a GM-only skill base and a GM-only toggle too — the rest of the senses kept',
+            perSecret.every(([, vs]) => vs.every(v => j(v) === j({ list: [ctl] }))), j(perSecret.filter(([, vs]) => !vs.every(v => j(v) === j({ list: [ctl] }))).map(([id, vs]) => [id, vs[0], vs[1]])));
+        const hostile = { blind: { field: 'f_blind', vis: 'gm', extra: 1 }, vis: 'gm', rules: 'x', list: [
+            { id: 'sn_hostile1', name: '  Heat' + BEL + 'sense ', range: { by: 'field', field: 'f_sight', formula: 'GMFig' }, grade: 'mark', glyph: 'heat', shows: 'dim', vis: 'gm', formula: 'GMFig', ZZPROTO: { walls: 'pass' }, constructor: 'x' },
+            { id: 'sn_full0002', name: 'n'.repeat(80), range: { by: 'n', n: -5 }, grade: 'full', glyph: 'sound', walls: 'block', arc: 'front', eyes: 'true', veil: 1, unit: 'yd' },
+            { id: 'sn_full0003', name: 'Far', range: { by: 'n', n: 200000 }, grade: 'full', unit: 'constructor', shows: 'bright' },
+            { id: 'sn_full0004', name: 'Offs', range: { by: 'n', n: 2 }, grade: 'full', unit: 'FT', off: { field: 'f_note' } },
+            { id: 'sn_full0005', name: 'Offs2', range: { by: 'n', n: 3 }, grade: 'mark', off: { field: 'f_nothere' }, glyph: 'constructor' },
+            { id: 'sn_full0006', name: 'Offs3', range: { by: 'n', n: 4 }, grade: 'mark', off: { field: 'f_ok' }, glyph: 'sound' },
+            { id: 'sn_full0002', name: 'Twin', range: { by: 'n', n: 1 }, grade: 'full' },
+            { id: 'SN_UPPER01', name: 'Bad id', range: { by: 'n', n: 1 }, grade: 'full' }, { id: 'sn_short', name: 'Short', range: { by: 'n', n: 1 }, grade: 'full' }, { name: 'No id', range: { by: 'n', n: 1 }, grade: 'full' },
+            { id: 'sn_seven00', name: 'Seven', range: { by: 'n', n: 1 }, grade: 'full' }, { id: 'sn_ninechars', name: 'Nine', range: { by: 'n', n: 1 }, grade: 'full' }, { id: 'sn_UPPER001', name: 'Upper', range: { by: 'n', n: 1 }, grade: 'full' },
+            { id: 'sn_offskill', name: 'Off skill', range: { by: 'n', n: 1 }, grade: 'full', off: { field: 'f_hear' } },
+            { id: 'sn_noname01', name: '   ', range: { by: 'n', n: 1 }, grade: 'full' }, { id: 'sn_noname02', name: 7, range: { by: 'n', n: 1 }, grade: 'full' },
+            { id: 'sn_nograde1', name: 'No grade', range: { by: 'n', n: 1 } }, { id: 'sn_badgrd01', name: 'Bad grade', range: { by: 'n', n: 1 }, grade: 'Full' }, { id: 'sn_protogr1', name: 'Proto grade', range: { by: 'n', n: 1 }, grade: 'constructor' },
+            { id: 'sn_norange1', name: 'No range', grade: 'full' }, { id: 'sn_txtrange', name: 'Text n', range: { by: 'n', n: '30' }, grade: 'full' }, { id: 'sn_nanrange', name: 'NaN', range: { by: 'n', n: NaN }, grade: 'full' },
+            { id: 'sn_infrange', name: 'Inf', range: { by: 'n', n: Infinity }, grade: 'full' }, { id: 'sn_textfld1', name: 'Text field', range: { by: 'field', field: 'f_note' }, grade: 'full' },
+            { id: 'sn_nofield1', name: 'No field', range: { by: 'field', field: 'f_nothere' }, grade: 'full' }, { id: 'sn_badby001', name: 'Bad by', range: { by: 'formula', field: 'f_sight', n: 3 }, grade: 'full' },
+            { id: 'sn_togrange', name: 'Toggle range', range: { by: 'field', field: 'f_blind' }, grade: 'full' }, null, 5, 'sn_aaaaaaaa', [] ] };
+        const hostileJ = JSON.parse(j(hostile).replace('"ZZPROTO":', '"__proto__":'));   // as a file or the wire has it: "__proto__" an own key, never the prototype
+        const hostileWant = { blind: { field: 'f_blind' }, list: [
+            { id: 'sn_hostile1', name: 'Heat sense', range: { by: 'field', field: 'f_sight' }, grade: 'mark', glyph: 'heat' },
+            { id: 'sn_full0002', name: 'n'.repeat(60), range: { by: 'n', n: 0 }, grade: 'full' },
+            { id: 'sn_full0003', name: 'Far', range: { by: 'n', n: 100000 }, grade: 'full' },
+            { id: 'sn_full0004', name: 'Offs', range: { by: 'n', n: 2 }, grade: 'full' },
+            { id: 'sn_full0005', name: 'Offs2', range: { by: 'n', n: 3 }, grade: 'mark' },
+            { id: 'sn_full0006', name: 'Offs3', range: { by: 'n', n: 4 }, grade: 'mark', glyph: 'sound' },
+            { id: 'sn_offskill', name: 'Off skill', range: { by: 'n', n: 1 }, grade: 'full' }] };
+        check('S1 cleanSenses, as from a hostile host or a file: unknown keys cut (on the block, on blind, on a sense and inside its range); a name cut by code points to 60, control characters gone; a range of a number kept within 0 to 100000; walls, arc, eyes, veil only as their one value; shows only on a full sense and glyph only on a mark sense, each only as a known word; an absent, yards or unknown unit is yards (absent); an off naming no field of a switch kind is left off',
+            sameAll(sysOf(hostileJ), hostileWant) && Object.prototype.hasOwnProperty.call(hostileJ.list[0], '__proto__'), j(views(sysOf(hostileJ))[0]));
+        check('S1 cleanSenses drops a sense with no id of its pattern, a second one of an id, no name, no grade of its two, no range, a range that is text, not finite or of an unknown kind, or a range field that does not exist or is not a number, formula, skill or pool; and blind that names no toggle, number or formula',
+            ['f_note', 'f_sk', 'f_ok', 'f_skl', 'f_hear', 'f_nothere'].every(id => { const s = { blind: { field: id }, list: [ctl] }; return sameAll(sysOf(s), { list: [ctl] }); })
+            && sameAll(sysOf({ blind: 'f_blind', list: [ctl] }), { list: [ctl] }) && S.cleanSenses({ blind: { field: 'x y' }, list: [{ id: 'sn_oddfield', name: 'Odd', range: { by: 'field', field: 'x y' }, grade: 'full' }, ctl] }, { 'x y': 'number' }, {}).list.length === 1 && sameAll(sysOf({ blind: { field: 'f_trem' } }), { blind: { field: 'f_trem' } }) && sameAll(sysOf({ blind: { field: 'f_sight' } }), { blind: { field: 'f_sight' } }));
+        const many = { list: Array.from({ length: 4 }, (_, i) => ({ id: 'sn_drop000' + i, name: '', range: { by: 'n', n: 1 }, grade: 'full' })).concat(Array.from({ length: 12 }, (_, i) => ({ id: 'sn_keep00' + String(i).padStart(2, '0'), name: 'K' + i, range: { by: 'n', n: i }, grade: 'full' }))) };
+        const manyOut = views(sysOf(many))[0];
+        check('S1 cleanSenses, the cap: at most 8 senses are kept, the first 8 that pass (one that is dropped takes no place)',
+            S.LIMITS.senses === 8 && manyOut.list.length === 8 && manyOut.list[0].id === 'sn_keep0000' && manyOut.list[7].id === 'sn_keep0007' && sameAll(sysOf(many), manyOut), manyOut && manyOut.list.length);
+        const holdsNone = [undefined, null, 5, 'senses', true, [], {}, { list: [] }, { list: 'x' }, { list: { 0: ctl } }, { blind: null }, { blind: {} }, { blind: { field: 'f_nothere' } }, { list: [null, 5, { id: 'sn_aaaaaaaa' }] }, { list: [], blind: { field: 'f_note' } }];
+        const plainC = j(Object.keys(S.cleanCombat({}, {})));
+        check('S1 senses that hold nothing are absent: cleanSenses gives null, a system keeps its combat keys exactly and cleans as a system with no senses at all; an empty system has none; the two starters carry none (their pinned hashes stand)',
+            holdsNone.every(x => S.cleanSenses(x, { f_sight: 'number' }, {}) === null) && holdsNone.every(x => j(Object.keys(S.cleanCombat({ senses: x }, {}, { f_sight: 'number' }, {}))) === plainC)
+            && holdsNone.every(x => j(cleanSystem(sysOf(x), gmO)) === j(cleanSystem(sysOf(undefined), gmO)) && j(cleanSystem(sysOf(x), plO)) === j(cleanSystem(sysOf(undefined), plO)))
+            && !('senses' in emptySystem().combat) && !('senses' in cleanSystem(emptySystem(), gmO).combat) && !('senses' in cleanSystem(d20, gmO).combat) && !('senses' in cleanSystem(g3d6, gmO).combat), j(holdsNone.map(x => S.cleanSenses(x, { f_sight: 'number' }, {}))));
+        const fc = { blind: { field: 'f_sight' }, list: [ctl, { id: 'sn_fieldsns', name: 'Field', range: { by: 'field', field: 'f_sight' }, grade: 'full' }, { id: 'sn_offfield', name: 'Off', range: { by: 'n', n: 1 }, grade: 'full', off: { field: 'f_sight' } }] };
+        check('S1 cleanCombat fails closed: with no secret set every field counts as secret (only a sense by number with no field kept); with no field kinds a field names nothing (its sense dropped, its off left off); the two sets given, all of it kept',
+            j(S.cleanCombat({ senses: fc }, {}).senses) === j({ list: [ctl] }) && j(S.cleanCombat({ senses: fc }, {}, { f_sight: 'number' }).senses) === j({ list: [ctl] })
+            && j(S.cleanCombat({ senses: fc }, {}, null, {}).senses) === j({ list: [ctl, { id: 'sn_offfield', name: 'Off', range: { by: 'n', n: 1 }, grade: 'full' }] })
+            && j(S.cleanCombat({ senses: fc }, {}, { f_sight: 'number' }, {}).senses) === j(fc), j(S.cleanCombat({ senses: fc }, {}, null, {}).senses));
+        const dupS = { v: 1, name: 'Dup', rolls: [], fields: [{ id: 'f_ga', key: 'X', label: 'X', kind: 'number', vis: 'gm' }, { id: 'f_gb', key: 'x', label: 'x', kind: 'number', vis: 'all' }], combat: { senses: { list: [{ id: 'sn_dupkey01', name: 'Dup', range: { by: 'field', field: 'f_gb' }, grade: 'full' }, ctl] } } };
+        const ciSn = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n');
+        const glyphsOk = ['sound', 'tremor', 'presence', 'heat'].every(g => S.cleanSenses({ list: [{ id: 'sn_glyph001', name: 'G', range: { by: 'n', n: 1 }, grade: 'mark', glyph: g }] }, {}, {}).list[0].glyph === g);
+        check('S1 the integration guide says what the cleaner keeps: up to the cap of senses, the id\'s pattern, a range by field or by a number within the cleaner\'s bounds, the units, the two grades and the four glyphs',
+            ciSn.includes('"list", up to ' + S.LIMITS.senses + ' senses besides the eyes') && ciSn.includes('"id": "sn_" and 8 of a-z and 0-9') && ciSn.includes('"n": 0-100000') && S.cleanSenses({ list: [{ id: 'sn_bound001', name: 'B', range: { by: 'n', n: 100001 }, grade: 'full' }] }, {}, {}).list[0].range.n === 100000
+            && ciSn.includes('"unit" ("ft", "m" or "cells"; absent: yards), "grade": "full"') && ciSn.includes('"glyph" (a mark sense only: "sound", "tremor", "presence" or "heat"; absent: presence)') && glyphsOk);
+        check('S1 the two views judge by the GM\'s view of the fields: a visible field the GM\'s view drops (its key taken by an earlier GM-only field) names nothing in the players\' view either',
+            views(dupS).every(v => j(v) === j({ list: [ctl] })) && cleanSystem(dupS, plO).fields.some(f => f.id === 'f_gb'), j(views(dupS)));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

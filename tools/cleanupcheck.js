@@ -506,6 +506,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !!cA && cA.items.bare.meta.title === 'Map' && Array.isArray(cA.items.bare.rooms) && Array.isArray(cA.items.bare.links) && Array.isArray(cA.items.bare.whiteboard) && !!cA.items.bare.cats && out._schema === 2, cA && JSON.stringify(cA.items.bare));
         check('import: the system is cleaned and each character cleaned against it (an unknown value goes, a character whose id disagrees goes), and its owner is stamped on its token; characters with no system go',
             !!cA && !!cA.system && Object.keys(cA.chars).join() === 'c_1' && !('f_zz' in cA.chars.c_1.values) && m1.whiteboard[1].ownerId === 'u_x' && !!cB && !('chars' in cB), cA && JSON.stringify([cA.chars, m1.whiteboard[1], cB && cB.chars]));
+        // senses S1: a file's senses (the system's combat.senses) come in cleaned as the app cleans them, on Replace (the load's normaliser) and on Merge (main.js)
+        const sensesSys = () => ({ v: 1, name: 'Sn', rolls: [], fields: [{ id: 'f_st', key: 'Sight', label: 'S', kind: 'number', def: 6, vis: 'all' }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', def: 5, vis: 'gm' }],
+            combat: { senses: { vis: 'gm', blind: { field: 'f_gm' }, list: [
+                { id: 'sn_force001', name: 'Force' + String.fromCharCode(7) + 'Sight', range: { by: 'field', field: 'f_st', formula: 'x' }, grade: 'full', walls: 'pass', shows: 'dim', glyph: 'heat', junk: 1 },
+                { id: 'sn_secret01', name: 'Secret', range: { by: 'field', field: 'f_gm' }, grade: 'mark' }, { id: 'bad', name: 'Bad', range: { by: 'n', n: 1 }, grade: 'full' }] } } });
+        const sensesWant = JSON.stringify({ list: [{ id: 'sn_force001', name: 'Force Sight', range: { by: 'field', field: 'f_st' }, grade: 'full', walls: 'pass', shows: 'dim' }] });
+        const outS = cleanImport({ campaigns: { cS: { id: 'cS', name: 'S', items: {}, system: sensesSys() } } }, deps);
+        const mergeS = S.cleanSystem(sensesSys(), { F, gmView: true });
+        check('S1 import: a file\'s senses come in cleaned — on Replace by the load\'s own normaliser (junk keys cut, a name cleaned, a sense or blind on a GM-only value gone, a bad id gone) and on Merge by the same cleaner main.js runs on a new campaign and on one already here',
+            !!outS && JSON.stringify(outS.campaigns.cS.system.combat.senses) === sensesWant && JSON.stringify(mergeS.combat.senses) === sensesWant
+            && (mainSrc.match(/window\.wpSystemCore\.cleanSystem\(ic\.system, \{ F: window\.wpFormula, gmView: true \}\)/g) || []).length === 2, outS && JSON.stringify(outS.campaigns.cS.system.combat));
         // a page cleanDoc refuses takes nobody with it: its child comes in at the top of the tree
         const pages = { campaigns: { cP: { id: 'cP', name: 'P', items: { d1: { id: 'd1', type: 'doc', meta: { title: 'refuse me' }, blocks: [] }, d2: { id: 'd2', type: 'doc', meta: { title: 'Child', parentId: 'd1' }, blocks: [] } } } } };
         const outP = cleanImport(pages, { migrate, sanitize, DR: { cleanDoc: (d, o) => d.meta && d.meta.title === 'refuse me' ? null : DOC.cleanDoc(d, o), stripMermaidLinks: DOC.stripMermaidLinks } });

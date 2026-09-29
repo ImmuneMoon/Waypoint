@@ -5757,6 +5757,25 @@ pendingChecks.push((async () => {
         && J(stroke10) === J([1, 1, 1]) && J(th10) === J([0, 1, 1, 1]) && unf10[0] >= 1 && unf10[1] === 0,
         J([post10, elev10, noRead10, stroke10, th10, unf10]));
 
+    // senses S2a: a full sense on the host's judgement (the real fog.js vision half over the real sends): a creature in its reach is sent, one past it
+    // dropped, its live moves relayed (canSeePoint); a sheet change that moves a sense's range catches its player's copies up in place; none when nothing moved
+    const sysSn = list => Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }, { id: 'f_fs', key: 'ForceR', label: 'Force', kind: 'number', def: 0, vis: 'all' }], combat: list ? { senses: { list: list } } : {} }, { F: Fx, gmView: true });
+    const snBy = n => [{ id: 'sn_force001', name: 'Force Sight', range: { by: 'n', n: n }, unit: 'ft', grade: 'full' }];
+    const orcAt = W => { const t = W.tok('orc'); return [t.x + 25, t.y + 25]; };
+    const wS = S7({ system: sysSn(snBy(65)) }), wN = S7({ system: sysSn(snBy(55)) }), wX = S7({ system: sysSn(null) });
+    const snSeen = W => ({ a: W.view(W.a1, 'mA').ids.indexOf('orc') >= 0, a2: W.view(W.a2, 'mA').ids.indexOf('orc') >= 0, b: W.view(W.b1, 'mA').ids.indexOf('orc') >= 0, relay: W.fog.canSeePoint('u_a', W.camp, W.camp.items.mA, orcAt(W)[0], orcAt(W)[1]), relayB: W.fog.canSeePoint('u_b', W.camp, W.camp.items.mA, orcAt(W)[0], orcAt(W)[1]) });
+    check('senses S2a (host): on a dark map the orc 13 cells off (her eyes see 12) reaches both of Ana\'s copies and her live relay through a sense of 65 ft; not through one of 55 ft or with none; Bo, 13.2 cells off, is never sent it',
+        J(snSeen(wS)) === J({ a: true, a2: true, b: false, relay: true, relayB: false }) && J(snSeen(wN)) === J({ a: false, a2: false, b: false, relay: false, relayB: false }) && J(snSeen(wX)) === J(snSeen(wN)), J([snSeen(wS), snSeen(wN)]));
+    const wF = S7({ system: sysSn([{ id: 'sn_force001', name: 'Force Sight', range: { by: 'field', field: 'f_fs' }, unit: 'ft', grade: 'full' }]) }), before2 = snSeen(wF);
+    wF.camp.chars.c_a.values.f_fs = 65; wF.clearSent(); wF.net.sensesMoved('c_a'); const pend2 = Object.keys(wF.api.pend()).length + wF.timers.filter(t => t.fn && t.ms === 500).length; wF.fire(500);
+    const got2 = { a1: wF.a1.sent.map(m => m.type + ':' + m.itemId), a2: wF.a2.sent.map(m => m.type + ':' + m.itemId), b: wF.b1.sent.length, seen: snSeen(wF), mB: wF.view(wF.a1, 'mB').ids.indexOf('orc2') >= 0 };
+    wF.clearSent(); wF.net.sensesMoved('c_a'); const quiet2 = wF.timers.filter(t => t.fn && t.ms === 500).length; wF.fire(500);
+    const bQuiet = wF.b1.sent.length + wF.a1.sent.length + wF.a2.sent.length;
+    wF.camp.chars.c_a.values.f_fs = 0; wF.clearSent(); wF.net.sensesMoved('c_a'); wF.fire(500); const back2 = { a1: wF.a1.sent.map(m => m.type + ':' + m.itemId), seen: snSeen(wF) };
+    check('senses S2a (host): a sense read from Ana\'s sheet that grows to reach the orc catches both her copies of each map it stands on up in place (a fogDiff per map, the orc added on both, Bo sent nothing); asked again with nothing moved, nothing is armed or sent; back to 0, the orc goes again',
+        J(before2) === J({ a: false, a2: false, b: false, relay: false, relayB: false }) && pend2 >= 1 && J(got2.a1.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && J(got2.a2.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && got2.b === 0 && got2.mB && J(got2.seen) === J({ a: true, a2: true, b: false, relay: true, relayB: false })
+        && quiet2 === 0 && bQuiet === 0 && J(back2.a1.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && back2.seen.a === false && back2.seen.relay === false, J([before2, pend2, got2, quiet2, bQuiet, back2]));
+
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
     const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));

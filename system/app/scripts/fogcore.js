@@ -337,6 +337,8 @@ function visibleCells(viewer, grid, blockers) {
 function seenCells(viewer, grid, blockers, ctx) {
     var lvl = ctx && fin(ctx.level) ? clamp(Math.round(ctx.level), 0, 2) : null, lit = ctx && isObj(ctx.lit) ? ctx.lit : null, out = [], anyLit = false;
     if (!viewer || !grid) return out;
+    if (viewer.sense) return senseCells(viewer, grid, blockers, lvl, lit);   // senses S2a: judged before the dark and the lighting-off shortcuts
+
     if (lit) for (var lk in lit) { anyLit = true; break; }
     if (lvl === null || (lvl === 0 && !anyLit)) { var base = visibleCells(viewer, grid, blockers); for (var i = 0; i < base.length; i++) out.push({ key: base[i].key, cell: base[i].cell, tier: 2 }); return out; }
     var sight = clamp(viewer.range | 0, 0, LIMITS.rangeCells), here = fin(viewer.x) && fin(viewer.y) ? cellOf(viewer.x, viewer.y, grid) : null;
@@ -353,6 +355,18 @@ function seenCells(viewer, grid, blockers, ctx) {
         var nb = neighbourCells(walls[w].cell, grid), best = lvl;
         for (var n = 0; n < nb.length; n++) { var nk = cellKey(nb[n], grid); if (olit[nk] > best) best = olit[nk]; }
         if (best > 0) out.push({ key: walls[w].key, cell: walls[w].cell, tier: best });
+    }
+    return out;
+}
+// Senses S2a: what a full sense sees — every cell in its range and arc, along a clear line unless it passes walls (pass: no blocker at all),
+// light or none: clear (tier 2); one that sees the dark as dim (dim) shows a cell at its own light raised to dim at least (a wall's own cell
+// at the map's level). With lighting off every cell it reaches is clear. No lit cell beyond its range
+function senseCells(viewer, grid, blockers, lvl, lit) {
+    var cells = visibleCells(viewer, grid, viewer.pass ? null : blockers), out = [];
+    for (var i = 0; i < cells.length; i++) {
+        var o = cells[i], t = 2;
+        if (viewer.dim && lvl !== null) { var lv = blockers && blockers[o.key] ? lvl : Math.max(lvl, (lit && lit[o.key]) || 0); t = lv >= 2 ? 2 : 1; }
+        out.push({ key: o.key, cell: o.cell, tier: t });
     }
     return out;
 }

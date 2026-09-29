@@ -4385,7 +4385,7 @@ pendingChecks.push((async () => {
             && litElse.every((r, i) => lands(r, 'inv:mO>undefined', '1010', ['u_a|mA', 'u_b|mA'], 'relay:tB2:' + (i === 1))), j([lights, litElse]));
 
         // a final move is seated by the host: a stand-in that seats the token in a cell of its choosing
-        const seatAt = (x, y, more) => W => { if (more) more(W); W.win.wpSeatHex = (w, map) => { W.ev.push('seat:' + w.id + ':' + (map && map.id)); w.x = x; w.y = y; return true; }; };
+        const seatAt = (x, y, more) => W => { if (more) more(W); W.win.wpSeatDrop = (w, map, force) => { W.ev.push('seat:' + w.id + ':' + (map && map.id)); if (force !== false) return false; w.x = x; w.y = y; return true; }; };   // the snap rule: the host seats by wpSeatDrop (a token not fitted: force false)
         const keyPre = W => { const real = W.win.wpFog.seenKeyOf; W.win.wpFog.seenKeyOf = (m, w) => { const k = real(m, w); W.ev.push('key:' + (m && m.id) + ':' + w.x + ',' + w.y + ',' + w.rot + ',' + w.front + '=' + k); return k; }; };
         const seatOut = to({ pre: seatAt(300, 100) }, 110, 110), seatIn = to({ pre: seatAt(100, 100) }, 150, 100), seatLit = to({ pre: seatAt(300, 100, lit) }, 110, 110), seatLitIn = to({ pre: seatAt(100, 100, lit) }, 150, 100);
         const readAt = to({ pre: seatAt(300, 100, keyPre) }, 110, 110, { rot: 90, front: 45 }), readStay = to({ pre: keyPre }, 110, 110);
@@ -4519,7 +4519,7 @@ pendingChecks.push((async () => {
                 'var skW = window.wpFog && window.wpFog.seenKeyOf ? window.wpFog.seenKeyOf(map, w) : null;',
                 'w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;',
                 'if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);',
-                'if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }',
+                'if (msg.final && window.wpSeatDrop && window.wpSeatDrop(w, map, w.gridFit === true)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }',
                 'var skN = skW === null ? null : window.wpFog.seenKeyOf(map, w), mvW = skW === null || skN !== skW;',
                 'if (window.wpFog && window.wpFog.invalidateSeen && mvW) window.wpFog.' + ownMove + ';',
                 'msg = { type: \'pos\', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front, final: msg.final === true };',
@@ -5715,13 +5715,32 @@ pendingChecks.push((async () => {
     const fm7 = bw('fogmove'), pos7 = bw('pos'), pat7 = bw('patch'), rest7 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
     check('fold M7 (source): the fire\'s one timer lives in its slice, and its stores nowhere else; the pos gate reads where the token sees from once after the seat, records where the drag began at its first accepted move and arms after the save is asked for and before a portal is taken; the map copy reads each own token\'s key before anything lands (at the drag\'s start while one is open) and arms after the erased drawings go; nothing else arms',
         (fm7.match(/setTimeout\(/g) || []).length === 1 && !/_fogPend|_fogCost|_fogHeld/.test(rest7)
-        && /if \(msg\.final && window\.wpSeatHex && window\.wpSeatHex\(w, map\)\) \{[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*var skN = skW === null \? null : window\.wpFog\.seenKeyOf\(map, w\), mvW = skW === null \|\| skN !== skW;/.test(pos7)
+        && /if \(msg\.final && window\.wpSeatDrop && window\.wpSeatDrop\(w, map, w\.gridFit === true\)\) \{[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*var skN = skW === null \? null : window\.wpFog\.seenKeyOf\(map, w\), mvW = skW === null \|\| skN !== skW;/.test(pos7)
         && /broadcastPos\(msg, conn, camp, map, w\);\n[^\n]*frW\.lx = w\.x;[^\n]*\n\s*if \(frW\.sk === undefined\) frW\.sk = skW;/.test(pos7)
         && /saveRemoteSoon\(\);\n\s*if \(typeof marksOwnMoved === 'function'\) marksOwnMoved\(msg\.itemId, \[w\], pr\.id\);[^\n]*\n\s*if \(typeof fogArm === 'function' && skN !== null && frW\.sk !== skN\) fogArm\(msg\.itemId\);[^\n]*\n\s*net\.tokenDropped\(w, map\);/.test(pos7)
         && /var fkP = \[\];[^\n]*\n\s*msg\.item\.whiteboard\.forEach\(function\(w\) \{/.test(pat7) && /fkP\.push\(\[lw, fogKey\(liveItem, lw, typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : null\)\]\);\n\s*if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{/.test(pat7)
         && /if \(liveItem\.whiteboard\.length !== before\) \{ changed = true; if \(out\) out\.strokes = true; \}\n\s*var mvP = fkP\.filter\(function\(p\) \{ return fogKey\(liveItem, p\[0\]\) !== p\[1\]; \}\);[^\n]*\n\s*if \(mvP\.length && typeof marksOwnMoved === 'function'\) marksOwnMoved\(msg\.itemId, mvP\.map\(function\(p\) \{ return p\[0\]; \}\), profile\.id\);[^\n]*\n\s*if \(typeof fogArm === 'function' && mvP\.length\) fogArm\(msg\.itemId\);/.test(pat7)
         && (src.match(/fogArm\(/g) || []).length === 6 && /if \(window\.wpHostGesture === mapId\) \{ if \(typeof fogArm === 'function'\) fogArm\(mapId\); return; \}/.test(bw('sensesmoved')) && /net\.sendItem\(campT\.id, msg\.itemId, null, conn\);[^\n]*\n\s*if \(typeof fogArm === 'function'\) fogArm\(msg\.itemId\);/.test(bw('threats')) && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); net\.sendItem\(camp\.id, m\.id, c\);/.test(fm7));
 
+    // the snap rule (the owner, 2026-09-29): the GM's Snap on the wire (slices snapsync and snapmsg, run on stubs)
+    {
+        const ssSrc = bw('snapsync'), smSrc = bw('snapmsg');
+        const ssWorld = (role, active) => { const sent = [], box = { on: false }, conns = [{ peer: 'pa', open: true, send: m => sent.push(['pa', m]) }, { peer: 'pb', open: true, send: m => sent.push(['pb', m]) }, { peer: 'pw', open: true, send: m => sent.push(['pw', m]) }, { peer: 'px', open: false, send: m => sent.push(['px', m]) }];
+            const net = { active: active !== false, role: role || 'host', conns: conns, roster: { pa: {}, pb: {}, px: {} } };
+            new Function('net', 'window', 'own', 'sendFailed', "'use strict';\n" + ssSrc)(net, { wpSnapOn: () => box.on }, (o, k) => Object.prototype.hasOwnProperty.call(o, k), () => {});
+            return { net, sent, box }; };
+        const sw = ssWorld(); sw.net.syncSnap(); const s1 = sw.sent.slice(); sw.net.syncSnap(); const s2 = sw.sent.length; sw.box.on = true; sw.net.syncSnap(); const s3 = sw.sent.slice(s1.length); sw.box.on = 'yes'; sw.net.syncSnap(); const s4 = sw.sent.slice(s1.length + s3.length);
+        const swC = ssWorld('client'); swC.box.on = true; swC.net.syncSnap(); const swI = ssWorld('host', false); swI.box.on = true; swI.net.syncSnap();
+        check('snap rule: syncSnap (host) — the table hears whether the GM\'s Snap is on, admitted open connections only, once per change (true only); a player\'s app or a host not live sends nothing; it starts as not yet sent',
+            J(s1) === J([['pa', { type: 'snap', on: false }], ['pb', { type: 'snap', on: false }]]) && s2 === 2 && J(s3) === J([['pa', { type: 'snap', on: true }], ['pb', { type: 'snap', on: true }]]) && J(s4) === J([['pa', { type: 'snap', on: false }], ['pb', { type: 'snap', on: false }]])
+            && swC.sent.length === 0 && swI.sent.length === 0 && /net\.tableSnapOn = false; net\._lastSnapSent = null;/.test(ssSrc), J([s1, s3, s4]));
+        const smRun = (net, msg, peer) => { new Function('net', 'msg', 'conn', "'use strict';\n" + smSrc)(net, msg, { peer: peer }); return net.tableSnapOn; };
+        const smGot = [smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: false }, { on: true }, 'h'), smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: true }, { on: 'yes' }, 'h'), smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: false }, { on: true }, 'other'), smRun({ foreign: false, syncedPeer: 'h', tableSnapOn: false }, { on: true }, 'h'), smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: true }, {}, 'h')];
+        check('snap rule: a player\'s app takes the table\'s Snap from the synced host only, after the snapshot, as true only; the snapshot carries it and the app takes it (true only); a new table starts with Snap as it stands; the host\'s pos gate seats a player\'s drop by wpSeatDrop (a fitted token forced)',
+            J(smGot) === J([true, false, false, false, false]) && /travelLocked: net\.travelLocked, snap: typeof window\.wpSnapOn === 'function' && window\.wpSnapOn\(\) === true, stance:/.test(src) && /setTravelLockLocal\(!!msg\.travelLocked\);\n\s*net\.tableSnapOn = msg\.snap === true;/.test(src)
+            && /net\._lastSnapSent = typeof window\.wpSnapOn === 'function' && window\.wpSnapOn\(\) === true;/.test(src) && /\} else if \(msg\.type === 'snap' && net\.role === 'client'\) \{/.test(src) && !/msg\.type === 'snap' && net\.role === 'host'/.test(src)
+            && /if \(msg\.final && window\.wpSeatDrop && window\.wpSeatDrop\(w, map, w\.gridFit === true\)\) \{ msg = Object\.assign\(\{\}, msg, \{ x: w\.x, y: w\.y \}\); \}/.test(src) && !/window\.wpSeatHex\(w, map\)\) \{ msg = /.test(src), J(smGot));
+    }
     // senses S4b: "Marks in a fight" played On your own turn — the host's refreshes of each player's held marks (slice marksheld, run on stubs)
     {
         const mhSrc = bw('marksheld');

@@ -494,6 +494,40 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       item.x = nx; item.y = ny;
       return true;
   };
+  // [systemcheck:snaprule-start]
+  // The snap rule (the owner, 2026-09-29): Snap decides where a token dropped by hand lands, on every grid — on, in a cell (on hex centred in
+  // it, on a square grid on the lattice, with no grid on a dot of the background); off, exactly where it was dropped. A player's drop follows
+  // the GM's Snap (net.js sends it to the table: net.tableSnapOn); Snap to other items only is no grid seat. A token fitted to the grid
+  // (gridFit) stays fitted, Snap or not; the app's own placements (a waiting token, a portal, a paste) seat as before
+  window.wpSnapOn = function() {
+      var N = window.wpNet; if (N && N.active && N.role === 'client') return N.tableSnapOn === true;
+      return !!state.snap && state.snapMode !== 'items';
+  };
+  // a map with no grid: a one-cell token's centre onto the nearest dot of the background (every 50 px, at 25), a sized-up one's corner on the lattice
+  window.wpSeatDot = function(item) {
+      if (!item) return false;
+      var w = item.w || 0, h = item.h || 0, one = Math.max(w, h) <= 64;
+      var nx = one ? Math.floor((item.x + w / 2) / 50) * 50 + 25 - w / 2 : Math.round(item.x / 50) * 50, ny = one ? Math.floor((item.y + h / 2) / 50) * 50 + 25 - h / 2 : Math.round(item.y / 50) * 50;
+      if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
+      item.x = nx; item.y = ny;
+      return true;
+  };
+  // a token's drop by hand, as Snap decides (the host seats a player's drop with it: its own Snap is the table's). force: a grid-fitted token
+  window.wpSeatDrop = function(item, map, force) {
+      if (!item || !(item.isChar || item.waiting || force)) return false;
+      if (!force && !window.wpSnapOn()) return false;
+      map = map || getActiveMap();
+      var g = map && map.meta && map.meta.gridType;
+      if (!g && map === getActiveMap()) g = state.gridType;
+      if (g === 'hex') return window.wpSeatHex(item, map, force);
+      if (g === 'square') {
+          var nx = Math.round(item.x / 50) * 50, ny = Math.round(item.y / 50) * 50;   // the lattice, as a drag release puts it
+          if (Math.abs(nx - item.x) < 0.01 && Math.abs(ny - item.y) < 0.01) return false;
+          item.x = nx; item.y = ny; return true;
+      }
+      return !force && window.wpSeatDot(item);
+  };
+  // [systemcheck:snaprule-end]
 
   function getSnapCoords(x, y) {
       if (typeof state !== 'undefined' && state.snap) {
@@ -969,14 +1003,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               multiDrag.forEach(function(md) { md.item.x += sdxD; md.item.y += sdyD; var melD = md.el || state.els[md.item.id]; if (melD) { melD.style.left = md.item.x + 'px'; melD.style.top = md.item.y + 'px'; } });
               renderDataMap();
           }
-          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.isChar || md.item.waiting || md.item.type === 'hexagon' || md.item.shape === 'hexagon' || md.item.gridFit; })) {
-              // Hex-shaped items and character tokens ALWAYS seat into a cell on hex
+          var snapOn = window.wpSnapOn(), fitDrag = multiDrag.some(function(md) { return md.item.gridFit; });   // the snap rule: Snap decides on every grid (a player's is the GM's); a fitted item stays fitted
+          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.gridFit || (snapOn && (md.item.isChar || md.item.waiting || md.item.type === 'hexagon' || md.item.shape === 'hexagon')); })) {
+              // With Snap on, hex-shaped items and character tokens seat into a cell on hex
               // maps — every one in the drag, not just the one under the pointer.
               // One hex item in the drag is the reference (the one under the pointer if it is one, else the
               // first): it seats into its cell, every non-hex member (a text box grouped with a teleport
               // point, a floor, a prop) follows by the same correction, and the other hex items seat
               // into their own cells. The group never loosens, whichever member was dragged.
-              var isHexy = function(it) { return it.isChar || it.waiting || it.type === 'hexagon' || it.shape === 'hexagon' || it.gridFit; };   // gridFit images seat by centre too (forced below)
+              var isHexy = function(it) { return it.gridFit || (snapOn && (it.isChar || it.waiting || it.type === 'hexagon' || it.shape === 'hexagon')); };   // gridFit images seat by centre too (forced below)
               var refMd = multiDrag.find(function(md) { return md.item === item && isHexy(item); }) || multiDrag.find(function(md) { return isHexy(md.item); });
               var seatBefore = { x: refMd.item.x, y: refMd.item.y };
               window.wpSeatHex(refMd.item, null, true);   // force: a fitted (non-char) image centres on its hex cell too
@@ -987,7 +1022,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   if (mel) { mel.style.left = md.item.x + 'px'; mel.style.top = md.item.y + 'px'; }
               });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
-          } else if((state.snap || multiDrag.some(function(md){ return md.item.gridFit; })) && state.snapMode !== 'items' && modeStr === 'visual' && state.gridType && state.gridType !== 'off'){   // grid seat: grid / both modes only
+          } else if((snapOn || fitDrag) && modeStr === 'visual' && state.gridType && state.gridType !== 'off'){   // grid seat: grid / both modes only (snapOn), or a fitted item
               // Item-to-item snaps beat the grid: an axis that glued to a
               // neighbor mid-drag keeps its flush/aligned position on release.
               var glued = doSmartSnapping.last || {};
@@ -995,6 +1030,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               // the same correction for every item in the drag: a group never loosens on release
               var sdx = glued.x ? 0 : sn.x - item.x, sdy = glued.y ? 0 : sn.y - item.y;
               multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
+              el.style.left=item.x+'px'; el.style.top=item.y+'px';
+          } else if (snapOn && modeStr === 'visual' && (!state.gridType || state.gridType === 'off') && multiDrag.some(function(md) { return md.item.isChar || md.item.waiting; })) {
+              // the snap rule: a map with no grid — the tokens in the drag land on dots of the background, everything else following the one
+              // under the pointer (or the first token) by its correction, so a group never loosens
+              var isTok = function(it) { return it.isChar || it.waiting; }, refT = multiDrag.find(function(md) { return md.item === item && isTok(item); }) || multiDrag.find(function(md) { return isTok(md.item); });
+              var dotBefore = { x: refT.item.x, y: refT.item.y }; window.wpSeatDot(refT.item);
+              var dotDx = refT.item.x - dotBefore.x, dotDy = refT.item.y - dotBefore.y;
+              multiDrag.forEach(function(md) {
+                  if (md !== refT) { if (isTok(md.item)) window.wpSeatDot(md.item); else { md.item.x += dotDx; md.item.y += dotDy; } }
+                  var melD2 = md.el || state.wbEls[md.item.id]; if (melD2) { melD2.style.left = md.item.x + 'px'; melD2.style.top = md.item.y + 'px'; }
+              });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           }
           // fold M9: every other dragged token's drop lands as well, on any grid (a character or a waiting token, not a hidden one; a player's drag
@@ -1597,6 +1643,7 @@ if(_el_snapBtn) {
         state.snap = !state.snap;
         try { localStorage.setItem('wp_snap', state.snap ? '1' : '0'); } catch(e) {}
         syncDataSnap();
+        if (window.wpNet && window.wpNet.syncSnap) window.wpNet.syncSnap();   // the snap rule: a host's Snap is the table's
     });
 }
 

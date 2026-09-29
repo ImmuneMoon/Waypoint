@@ -937,6 +937,13 @@ Fog of war
   hidden or leaves, and the count says "as heard on your turn". It stops a
   lone player matching a moving mark to a turn in the order; it does not
   hide what players tell each other.
+- Snap decides where a dropped token lands, on every grid. With Snap on it
+  lands in a cell: centred in it on a hex map, on the lattice on a square
+  one, and on a dot of the background on a map with no grid. With Snap off
+  it lands exactly where you drop it, hex maps included (before, hex maps
+  always seated character tokens). Arrow keys follow it too: with Snap on a
+  token hops one cell at a time, off it moves by pixels. Your players' drops
+  follow your Snap. A token you fitted with Fit to Grid stays in its cell.
 - The two starter systems now carry their game's senses: the d20
   Darkvision, Truesight, Blindsight and a Tremorsense mark, the 3d6
   Infravision and a Vibration Sense mark, with Blinded and Deafened

@@ -5595,6 +5595,7 @@ if(_el_wbSnapBtn) {
         state.snap = !!on;
         try { localStorage.setItem('wp_snap', state.snap ? '1' : '0'); } catch(e) {}
         syncSnapMenu();
+        if (window.wpNet && window.wpNet.syncSnap) window.wpNet.syncSnap();   // the snap rule: a host's Snap is the table's
     }
     _el_wbSnapBtn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -5608,6 +5609,7 @@ if(_el_wbSnapBtn) {
             try { localStorage.setItem('wp_snapMode', state.snapMode); } catch(err) {}
             if (!state.snap) setSnap(true);
             syncSnapMenu();
+            if (window.wpNet && window.wpNet.syncSnap) window.wpNet.syncSnap();   // Items only is no grid seat for the table either
             toast(({ grid: 'Snapping to grid cells only.', items: 'Snapping to other items only.', both: 'Snapping to the grid and to other items.' })[state.snapMode]);
         });
     });

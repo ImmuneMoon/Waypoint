@@ -1280,13 +1280,17 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
               ids2.forEach(function(id) {
                   var it = m2.whiteboard.find(function(x) { return x.id === id; });
                   if (!it || it.locked) return;
-                  var hexToken = state.gridType === 'hex' && (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon');
+                  var snapN = window.wpSnapOn ? window.wpSnapOn() : !!state.snap;   // the snap rule: with Snap on a token hops cell to cell, off it moves by pixels like anything else
+                  var hexToken = snapN && state.gridType === 'hex' && (it.isChar || it.type === 'hexagon' || it.shape === 'hexagon');
                   if (hexToken) {
                       // On a hex grid a token hops cell to cell: ↑/↓ one row, ←/→ one
                       // column along the diagonal (Shift takes the other diagonal)
                       if (dy) { it.y += Math.sign(dy) * 52; }
                       else { it.x += Math.sign(dx) * 45; it.y += (e.shiftKey ? -1 : 1) * Math.sign(dx) * -26; }
                       if (window.wpSeatHex) window.wpSeatHex(it, m2);
+                  } else if (snapN && (it.isChar || it.waiting) && window.wpSeatDrop) {   // a square grid or a map with no grid: one cell (one dot) at a time
+                      it.x += Math.sign(dx) * 50; it.y += Math.sign(dy) * 50;
+                      window.wpSeatDrop(it, m2);
                   } else { it.x += dx; it.y += dy; }
                   if (window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(it, true);
               });

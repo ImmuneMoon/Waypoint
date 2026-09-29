@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -3830,7 +3830,9 @@ function saveDraft() {
     if (!draft || !canWrite()) return;
     var camp = getActiveCampaign(); if (!camp) return;
     draft.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name);
-    var clean = cleanSystem(draft, { F: F(), gmView: true });
+    var snD = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' && Array.isArray(draft.combat.senses.list) ? draft.combat.senses : null, pendS = snD ? snD.list.filter(function(s) { return !!s && s.unit === '?'; }) : [], src = draft;   // senses S2a: a sense still waiting for its unit is left out (never a silent yards), and stays in the editor
+    if (pendS.length) src = Object.assign({}, draft, { combat: Object.assign({}, draft.combat, { senses: Object.assign({}, snD, { list: snD.list.filter(function(s) { return !(s && s.unit === '?'); }) }) }) });
+    var clean = cleanSystem(src, { F: F(), gmView: true });
     if (!clean) { toast('The system could not be saved.'); return; }
     var dropped = draft.fields.length - clean.fields.length;
     clean.updated = Date.now();
@@ -3841,6 +3843,7 @@ function saveDraft() {
     var reach = itemReach(prevSys, clean, camp.chars || {}), nR = net(); if (nR && nR.logEvent) reach.lines.forEach(function(l) { nR.logEvent('items', l); });   // Stage 6 F4c2: how far an edit to carried items reaches (after the re-check, so a removed stat's own values are gone), into the session log before the save
     if (window.wpLibrary && window.wpLibrary.refreshCore) { try { if (window.wpLibrary.refreshCore(camp)) clean = camp.system; } catch (e) { console.error(e); } }   // Stage 6 library L1d: the core its formulas now address (the draft below carries it)
     draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
+    if (pendS.length) { var dc = draft.combat || (draft.combat = {}), dsn = dc.senses && typeof dc.senses === 'object' ? dc.senses : (dc.senses = {}); dsn.list = (Array.isArray(dsn.list) ? dsn.list : []).concat(clone(pendS)); markDirty(); }
     save(true);
     var n = net(); if (n && n.syncSystem) n.syncSystem();
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
@@ -3962,6 +3965,25 @@ function refreshErrors() {
         }
     });
     if (lErr.length) errorsById.light = (errorsById.light || []).concat(lErr);
+    // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
+    // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
+    var snE = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' && Array.isArray(draft.combat.senses.list) ? draft.combat.senses.list : null, sErr = [], sKept = 0;
+    if (snE) {
+        var secS = senseSecrets(), rangeF = Object.create(null); senseRangeFields().forEach(function(f) { rangeF[f.id] = f; });
+        snE.forEach(function(s, i) {
+            if (!s || typeof s !== 'object') return;
+            var nm = 'Sense ' + (i + 1), r = s.range && typeof s.range === 'object' ? s.range : {};
+            var named = typeof s.name === 'string' && !!Array.from(s.name.slice(0, 256).replace(lCtl, ' ').trim()).filter(function(ch) { return !(ch.length === 1 && ch >= String.fromCharCode(0xD800) && ch <= String.fromCharCode(0xDFFF)); }).join('').trim();
+            if (s.unit === '?') sErr.push({ message: nm + ': pick what its range counts in. Save leaves it out until you do (it stays here).' });
+            else if (!named) sErr.push({ message: nm + ' needs a name: Save drops it.' });
+            else if (r.by === 'field' && !rangeF[r.field]) sErr.push({ message: nm + ' (' + s.name.trim() + '): pick where its range comes from, Save drops it.' });
+            else if (r.by === 'field' && (!secS || secS[r.field])) sErr.push({ message: nm + ' (' + s.name.trim() + ') reads ' + (rangeF[r.field].label || rangeF[r.field].key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
+            else if (r.by !== 'field' && !(typeof r.n === 'number' && isFinite(r.n))) sErr.push({ message: nm + ' (' + s.name.trim() + ') needs its range: Save drops it.' });
+            else if (sKept >= LIMITS.senses) sErr.push({ message: nm + ': at most ' + LIMITS.senses + ', so Save drops it.' });
+            else { sKept++; if (r.by !== 'field' && (r.n < 0 || r.n > 100000)) sErr.push({ message: nm + ' (' + s.name.trim() + '): a range is 0 to 100000, so Save keeps the nearest.' }); }
+        });
+    }
+    if (sErr.length) errorsById.senses = sErr;
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -4448,6 +4470,7 @@ function renderCombat() {
     }
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
     lightBox(box, cm);   // lighting L4: the system's light rules
+    sensesBox(box, cm);   // senses S2a: the system's senses
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
 }
 // Lighting L4: the system's light rules on the Combat card — what it calls a dim and a dark place (the ruler and a target mark show the names)
@@ -4519,6 +4542,112 @@ function lightClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:lightbox-end]
+// Senses S2a: the system's senses on the Combat card (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
+// character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
+// else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it
+// sees the dark as dim; each row ends in one plain sentence of what it does. Every text lands as a value or a text node. Save cleans them (a
+// sense on a value its owner cannot read is dropped for everyone); refreshErrors says what it would drop
+// [sinkcheck:sensesbox-start]
+var _senseUnit = '', SENSE_WORDS = { yd: 'yards', ft: 'feet', m: 'metres', cells: 'grid cells' };
+function sensesDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : (cm.senses = {}); }
+function senseRangeFields() { return (draft.fields || []).filter(function(f) { return !!f && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); }); }
+function senseSecrets() { try { return secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }, F()); } catch (e) { return null; } }
+function senseSentence(s, fieldsR, secret) {
+    var r = s.range && typeof s.range === 'object' ? s.range : {}, how = (s.walls === 'pass' ? ', through walls' : '') + (s.arc === 'all' ? ', all round' : ''), word = SENSE_WORDS[Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'];
+    if (s.unit === '?') return 'Pick what its range counts in: Save leaves this sense out until you do.';
+    var out = [];
+    if (r.by === 'field') {
+        var f = null; fieldsR.forEach(function(x) { if (x.id === r.field) f = x; });
+        if (!f) return 'Pick where its range comes from: Save drops this sense.';
+        var nm = f.label || f.key;
+        if (!secret || secret[f.id]) return 'Save drops this sense: its owner cannot read ' + nm + ' (a GM-only value, or one worked out from one). Make that value visible to its owner, or give the range as a number.';
+        out.push('Sees everything within the character’s ' + nm + ' (in ' + word + ')' + how + '.'); out.push('A value of 0 or less: that character does not have it.');
+        if (f.edit === 'owner' && f.kind !== 'formula') out.push('Its owner can change this on their sheet.');
+    } else {
+        var n = typeof r.n === 'number' && isFinite(r.n) ? r.n : 0;
+        if (!(n > 0)) return 'A range of 0: no one has it.';
+        out.push('Sees everything within ' + n + ' ' + word + how + '.'); out.push('Every character has this sense.');
+        if (s.unit === 'cells' && n > 60) out.push('60 cells is the most a sense reaches.');
+    }
+    out.push(s.shows === 'dim' ? 'What it sees in the dark it sees as dim.' : 'Seen clearly, light or none: no dim or dark name shows inside its range.');
+    return out.join(' ');
+}
+function sensesBox(box, cm) {
+    var sn = cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : {}, arr = Array.isArray(sn.list) ? sn.list : [], wrap = el('div', 'sys-light sys-senses');
+    var fieldsR = senseRangeFields(), secret = senseSecrets();
+    wrap.appendChild(el('div', 'sys-light-head', 'Senses'));
+    wrap.appendChild(el('div', 'sys-note', 'Senses besides the eyes, for fogged maps: a sense sees every cell within its range, and the creatures standing there reach its player as the eyes would show them. Its range comes from a field of the character (one its player can read) or is one number every character has.'));
+    arr.forEach(function(s0, i) {
+        var s = s0 && typeof s0 === 'object' ? s0 : {}, r = s.range && typeof s.range === 'object' ? s.range : {}, byField = r.by === 'field', rw = el('div', 'sys-flags sys-light-row sys-sense-row'); rw.dataset.si = String(i);
+        var n = input('sys-sense-name field', typeof s.name === 'string' ? s.name : '', 'Its name: Darkvision, Blindsight, Force Sight', 'Name'); n.maxLength = LIMITS.label; rw.appendChild(n);
+        var ropts = [['#n', 'A number (every character)']].concat(fieldsR.map(function(f) { return [f.id, 'From ' + (f.label || f.key)]; }));
+        if (byField && typeof r.field === 'string' && !fieldsR.some(function(f) { return f.id === r.field; })) ropts.push([r.field, 'From a field no longer here']);
+        rw.appendChild(select('sys-sense-from', ropts, byField ? r.field : '#n', 'Where its range comes from: a field of the character (worked out for each character, effects and all) or one number every character has'));
+        if (!byField) { var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', 'Range')); var ni = el('input', 'field sys-sense-n'); ni.type = 'number'; ni.min = '0'; ni.max = '100000'; ni.step = 'any'; ni.value = typeof r.n === 'number' ? String(r.n) : ''; ni.title = 'How far it reaches, for every character (0: no one has it)'; nl.appendChild(ni); rw.appendChild(nl); }
+        rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
+        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever the map’s vision arc'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear']].forEach(function(g) {
+            var tl = el('label', 'sys-hover'), tc = el('input', 'sys-sense-tick'); tc.type = 'checkbox'; tc.checked = g[2]; tc.dataset.tick = g[0]; tl.appendChild(tc); tl.appendChild(document.createTextNode(' ' + g[1])); tl.title = g[3]; rw.appendChild(tl);
+        });
+        [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'sn' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+        wrap.appendChild(el('div', 'sys-note sys-sense-says', senseSentence(s, fieldsR, secret)));
+    });
+    var full = arr.length >= LIMITS.senses, adds = el('div', 'sys-flags');
+    [['dark', '+ Sees without light', 'A sense that sees in the dark, as dim: darkvision'], ['custom', '+ Custom sense', 'A sense of your own: Blindsight, Force Sight']].forEach(function(g) { var b = el('button', 'tool ghost sys-btn sys-light-add', g[1]); b.dataset.act = 'snadd'; b.dataset.tpl = g[0]; b.disabled = full; b.title = full ? 'At most ' + LIMITS.senses : g[2]; adds.appendChild(b); });
+    wrap.appendChild(adds);
+    wrap.appendChild(el('div', 'sys-note', 'Sight is the eyes’ own range in the dark. A sense that sees without light adds to it; the longer of the two is what the token sees.'));
+    var err = errorCell('senses'); err.dataset.errFor = 'senses'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function senseAt(t) { var rw = t.closest('.sys-sense-row'), i = rw ? +rw.dataset.si : -1, sn = sensesDraft(), arr = Array.isArray(sn.list) ? sn.list : []; return i >= 0 && arr[i] && typeof arr[i] === 'object' ? { s: arr[i], rw: rw } : null; }
+function senseSays(at) { var say = at.rw.nextSibling; if (say && say.classList && say.classList.contains('sys-sense-says')) say.textContent = senseSentence(at.s, senseRangeFields(), senseSecrets()); }
+function onSensesInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
+    if (c.indexOf('sys-sense-name') < 0 && c.indexOf('sys-sense-n') < 0) return true;   // the selects' and the ticks' change events do the work
+    var at = senseAt(t); if (!at) return true;
+    if (c.indexOf('sys-sense-name') >= 0) at.s.name = t.value.slice(0, LIMITS.label);
+    else { var r = at.s.range && typeof at.s.range === 'object' ? at.s.range : (at.s.range = { by: 'n' }), nv = Number(t.value); if (t.value.trim() && isFinite(nv)) r.n = nv; else delete r.n; }
+    senseSays(at); markDirty(); patchErrors(); return true;
+}
+function onSensesChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
+    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0) return true;   // the boxes' change events (their input events did the work)
+    var at = senseAt(t); if (!at) return true;
+    var s = at.s;
+    if (c.indexOf('sys-sense-from') >= 0) {
+        s.range = t.value === '#n' ? { by: 'n', n: 0 } : { by: 'field', field: t.value };
+        markDirty(); renderAll(); return true;   // the number box comes or goes
+    }
+    if (c.indexOf('sys-sense-unit') >= 0) { if (t.value === 'yd') { delete s.unit; _senseUnit = 'yd'; } else if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, t.value)) { s.unit = t.value; _senseUnit = t.value; } }
+    else if (t.dataset.tick === 'walls') { if (t.checked) delete s.walls; else s.walls = 'pass'; }
+    else if (t.dataset.tick === 'arc') { if (t.checked) s.arc = 'all'; else delete s.arc; }
+    else if (t.dataset.tick === 'dim') { if (t.checked) s.shows = 'dim'; else delete s.shows; }
+    senseSays(at); markDirty(); patchErrors(); return true;
+}
+function senseUnitFor() {   // a new row's unit: the system's first light's, else the last picked here, else none yet ('?': Save waits for one)
+    var lt = draft.combat && draft.combat.light && typeof draft.combat.light === 'object' ? draft.combat.light : null, p = lt && Array.isArray(lt.presets) && lt.presets.length ? lt.presets[0] : null;
+    if (p && typeof p === 'object') return typeof p.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, p.unit) ? p.unit : 'yd';
+    return _senseUnit || '?';
+}
+function sensesClick(b) {
+    var m = /^sn(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var sn = sensesDraft(), arr = Array.isArray(sn.list) ? sn.list : (sn.list = []);
+    var rw = b.closest('.sys-sense-row'), i = rw ? +rw.dataset.si : -1;
+    if (m[1] === 'add') {
+        if (arr.length >= LIMITS.senses) { toast('At most ' + LIMITS.senses + '.'); return true; }
+        var id = ''; for (var k = 0; k < 20 && !(/^sn_[a-z0-9]{8}$/.test(id) && !arr.some(function(x) { return x && x.id === id; })); k++) id = uid('sn_');
+        var u = senseUnitFor(), row = { id: id, name: b.dataset.tpl === 'dark' ? 'Sees in the dark' : '', range: { by: 'n', n: 0 }, grade: 'full' };
+        if (u !== 'yd') row.unit = u;
+        if (b.dataset.tpl === 'dark') row.shows = 'dim';
+        arr.push(row);
+    }
+    else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    else if (m[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else arr.splice(i, 1);
+    markDirty(); renderAll(); return true;
+}
+// [sinkcheck:sensesbox-end]
 // Turn-based combat T1: the system's turn rules on the Combat card — how far a character moves in one turn (a formula and its unit), how a
 // square grid counts a diagonal (the ruler follows it), how long a round is, the system's own time units and what one turn allows. Save
 // cleans them; refreshErrors says what it would drop
@@ -4622,6 +4751,7 @@ function onInput(e) {
     var t = e.target; if (onLayoutInput(t)) return;
     if (onTurnInput(t)) return;   // turn-based combat T1
     if (onLightInput(t)) return;   // lighting L4
+    if (onSensesInput(t)) return;   // senses S2a
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -4757,6 +4887,7 @@ function onChange(e) {
     if (onLayoutChange(t)) return;
     if (onTurnChange(t)) return;   // turn-based combat T1
     if (onLightChange(t)) return;   // lighting L4
+    if (onSensesChange(t)) return;   // senses S2a
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -4874,6 +5005,7 @@ function onClick(e) {
     if (!b.dataset.act) return;
     if (turnClick(b)) return;   // turn-based combat T1: the Combat card's actions and time units
     if (lightClick(b)) return;   // lighting L4: the Combat card's light presets
+    if (sensesClick(b)) return;   // senses S2a: the Combat card's senses
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

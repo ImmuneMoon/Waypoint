@@ -1806,6 +1806,8 @@
   .sys-light-names input.sys-light-name { width: 280px; max-width: 100%; }
   .sys-light-row input.sys-light-pname { flex: 1 1 140px; min-width: 0; }
   .sys-light-row input[type=number] { width: 76px; }
+  .sys-sense-row input.sys-sense-name { flex: 1 1 140px; min-width: 0; }   /* senses S2a: the Combat card's senses */
+  .sys-sense-says { margin: -2px 0 4px 6px; }
   .sheet-fx-timer { display: inline-flex; gap: 2px; margin-left: 4px; }   /* turn-based combat T5b: a timed effect's pause / reset / stop */
   .sheet-fx-tbtn { font-size: 11px; padding: 0 4px; min-width: 0; }
   .sheet-fx-left { font-size: 11px; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }   /* turn-based combat T5a: what a timed effect has left */

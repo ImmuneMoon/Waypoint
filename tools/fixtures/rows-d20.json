@@ -206,6 +206,45 @@
           }
         ]
       }
+    },
+    {
+      "id": "f_dark",
+      "key": "Darkvision",
+      "label": "Darkvision (ft)",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "min": 0,
+      "max": 1000,
+      "step": 5,
+      "def": 0
+    },
+    {
+      "id": "f_blindsight",
+      "key": "Blindsight",
+      "label": "Blindsight (ft)",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "min": 0,
+      "max": 1000,
+      "step": 5,
+      "def": 0
+    },
+    {
+      "id": "f_true",
+      "key": "Truesight",
+      "label": "Truesight (ft)",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "min": 0,
+      "max": 1000,
+      "step": 5,
+      "def": 0
     }
   ],
   "rolls": [
@@ -384,6 +423,42 @@
           "dim": 60,
           "unit": "ft",
           "pick": true
+        }
+      ]
+    },
+    "senses": {
+      "list": [
+        {
+          "id": "sn_darkvisn",
+          "name": "Darkvision",
+          "range": {
+            "by": "field",
+            "field": "f_dark"
+          },
+          "unit": "ft",
+          "grade": "full",
+          "shows": "dim"
+        },
+        {
+          "id": "sn_truesigh",
+          "name": "Truesight",
+          "range": {
+            "by": "field",
+            "field": "f_true"
+          },
+          "unit": "ft",
+          "grade": "full"
+        },
+        {
+          "id": "sn_blindsgt",
+          "name": "Blindsight",
+          "range": {
+            "by": "field",
+            "field": "f_blindsight"
+          },
+          "unit": "ft",
+          "grade": "full",
+          "arc": "all"
         }
       ]
     }

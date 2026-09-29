@@ -69,7 +69,8 @@ var BY_ID = {
     exportMdBtn: 'The open planner or page as Markdown; with pictures, a zip.',
     helpMdTemplateBtn: 'A page in the import format to start from.',
     imgLibBtn: 'This campaign\'s pictures, with Shared, Unfiled and every campaign\'s a chip away; Import from another campaign… brings pictures in without copying them.',
-    imgLibSource: 'Whose pictures to pick from: another campaign, Shared (the tutorial art) or Unfiled.'
+    imgLibSource: 'Whose pictures to pick from: another campaign, Shared (the tutorial art) or Unfiled.',
+    fxPingTo: 'Who sees your pings: everyone on this map, or one player on it. Alt+click on the map follows this choice; it goes back to everyone when that player leaves the map.'
 };
 
 var BY_TEXT = {
@@ -120,7 +121,7 @@ var BY_TEXT = {
     'sound': 'Ambient loops and one-shot cues from the Sound panel on the play map, heard by every player at the table. Off silences the table for this campaign and hides the panel; the library keeps its files.',
     'dice': 'Rolls at the table: /roll in Table Chat and the roller beside it. The GM\'s machine makes every roll and everyone sees the same card. Off for the campaign, nobody rolls at its table.',
     'character sheets': 'The campaign\'s system (attributes, formulas, rolls) and the sheets built on it. Off for the campaign, the system stays yours to edit but nothing of it shows at the table.',
-    'visual effects': 'The GM\'s ✨ panel: flashes, screen shake, color washes, bursts on the map, weather and banners, seen by the players on that map. Off for the campaign hides the panel; a player can switch it off for themselves.',
+    'visual effects': 'The GM\'s ✨ panel: flashes, screen shake, color washes, bursts on the map, weather and banners, seen by the players on that map, and a ping (Alt+click on the play map) that rings a cell for a moment. Off for the campaign hides the panel; a player can switch it off for themselves.',
     'fog of war': 'Per-player token vision, painted and previewed from the 🌫 fog tool on the play-map toolbar: each player sees only the cells their characters can. Off for the campaign lifts the fog for everyone; the GM runs it for the whole table, so there is no per-player off.',
     'lighting': 'Light and darkness on fogged maps: a map is lit until the GM places a light source, a token can carry a light, and a token\'s sight is how far it sees in the dark. Off for the campaign, a token sees only as far as its sight. The GM runs it for the whole table, so there is no per-player off.',
     'music': 'Named playlists from the Music panel, and a song or playlist a map starts by itself, with a volume of its own. Off for the campaign silences the music and hides the panel; the playlists and files are kept.',

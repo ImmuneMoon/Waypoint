@@ -3291,7 +3291,7 @@ window.wpFitToGrid = fitToGrid;
   window.wpClearSharedBlasts = function() { var had = blasts.some(function(b) { return b.shared; }); blasts = blasts.filter(function(b) { return !b.shared; }); if (had) renderMeasures(); };
   // Visual effects (1.5.0): the ✨ panel arms a burst, a click on the map places it (its own Measure sub-mode)
   var _fxArm = null;
-  window.wpArmFxBurst = function(look, rPx) { _fxArm = { look: look, r: Math.max(20, Math.min(6000, Math.round(rPx || 160))) }; window.isMeasureMode = true; window.wpMeasureKind = 'fx'; toast('Click the map to place the ' + look + ' burst.'); };
+  window.wpArmFxBurst = function(look, rPx) { _fxArm = { look: look, r: Math.max(20, Math.min(6000, Math.round(rPx || 160))) }; window.isMeasureMode = true; window.wpMeasureKind = 'fx'; toast(look === 'ping' ? 'Click the map to ping that spot.' : 'Click the map to place the ' + look + ' burst.'); };
   function placeFx(e) {
       var map = getActiveMap(); if (!map || !_fxArm) { window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; return; }
       var box = wbWrap.getBoundingClientRect();
@@ -3300,6 +3300,23 @@ window.wpFitToGrid = fitToGrid;
       x = Math.max(0, Math.min(30000, x)); y = Math.max(0, Math.min(30000, y));
       var look = _fxArm.look, r = _fxArm.r; _fxArm = null; window.isMeasureMode = false; window.wpMeasureKind = 'ruler';
       if (window.wpFx) window.wpFx.placeBurst(x, y, look, r);
+  }
+  // The GM's ping (fold P): Alt+click on the play map pings that cell for whoever the effects panel's Ping row names
+  // (everyone on the map unless it names one player). Caught on the way down, ahead of the tokens, the selection box and
+  // every tool; a player's Alt+click does what it always did.
+  if (wbWrap) {
+      wbWrap.addEventListener('pointerdown', function(e) {
+          if (!e.altKey || e.button !== 0 || !window.wpFx || !window.wpFx.canPing()) return;
+          var box = wbWrap.getBoundingClientRect();
+          var x = (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y = (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel;
+          if (!(x >= 0 && x <= 30000 && y >= 0 && y <= 30000)) return;
+          e.preventDefault(); e.stopImmediatePropagation(); _pingAlt = true;
+          window.wpFx.ping(x, y);
+      }, true);
+      // The Alt released after a ping is the app's: left unhandled, the desktop window would show its hidden menu bar
+      var _pingAlt = false;
+      document.addEventListener('keyup', function(e) { if (_pingAlt && e.key === 'Alt') { _pingAlt = false; e.preventDefault(); } }, true);
+      wbWrap.addEventListener('dblclick', function(e) { if (e.altKey && window.wpFx && window.wpFx.canPing()) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);   // two quick pings never open a token's Properties
   }
   // Esc cancels an armed throw or FX burst and returns to the arrow
   document.addEventListener('keydown', function(e) {

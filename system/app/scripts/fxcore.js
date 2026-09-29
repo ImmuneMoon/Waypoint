@@ -14,10 +14,12 @@ var LIMITS = Object.freeze({
     density: [0.2, 1],      // weather thickness
     board: 30000,           // the whiteboard is 30000 x 30000
     mapId: 80,
-    flashGapMs: 500         // the receiver's luminance floor between flashes / wash starts / boom bursts / shakes
+    flashGapMs: 500,        // the receiver's luminance floor between flashes / wash starts / boom bursts / shakes
+    pingLive: 8,            // the GM's pings (fold P): at most this many drawn at once on a map, the oldest taken away
+    pingGapMs: 200          // and one that comes sooner than this after the last one drawn is ignored
 });
 var KINDS = { flash: 1, shake: 1, wash: 1, burst: 1, weather: 1, banner: 1, pulse: 1, stop: 1 };
-var LOOKS = { burst: ['boom', 'magic', 'smoke', 'sparks'], weather: ['rain', 'snow', 'embers', 'haze'] };
+var LOOKS = { burst: ['boom', 'magic', 'smoke', 'sparks', 'ping'], weather: ['rain', 'snow', 'embers', 'haze'] };   // a ping is a look, never a preset: its own controls send it
 var STOP_WHAT = { wash: 1, weather: 1, all: 1 };
 var COLOR_RE = /^#[0-9a-f]{6}$/i;
 var TOK_RE = /^wb[A-Za-z0-9_]{1,40}$/;
@@ -79,7 +81,7 @@ function reduced(fx, on) {
     if (fx.kind === 'shake') return null;
     var f = {}; for (var key in fx) if (Object.prototype.hasOwnProperty.call(fx, key)) f[key] = fx[key];
     if (fx.kind === 'flash') { f.ms = Math.min(f.ms, 150); f.dim = true; }
-    else if (fx.kind === 'burst') f.noParticles = true;
+    else if (fx.kind === 'burst') { f.noParticles = true; if (fx.look === 'ping') f.still = true; }   // a ping: a still ring that fades, never a pulse
     else if (fx.kind === 'weather') f.density = Math.max(LIMITS.density[0], f.density / 2);
     return f;
 }
@@ -91,6 +93,15 @@ function reduced(fx, on) {
 function brightKey(fx) { if (!fx) return null; if (fx.kind === 'flash') return 'flash'; if (fx.kind === 'burst' && fx.look === 'boom') return 'boom'; return null; }
 function bright(fx) { return brightKey(fx) !== null; }
 function allowFlash(fx, last, now) { var k = brightKey(fx); if (!k) return true; var t = last && last[k]; return !fin(t) || (now - t) >= LIMITS.flashGapMs; }
+
+// A receiver's bound on the GM's pings (fold P). `live` is the start times of the pings still drawn on the map, oldest
+// first; the clock is passed in. -1: ignore this one (it came sooner than pingGapMs after the last one drawn); otherwise
+// how many of the oldest to take away first, so that no more than pingLive are ever drawn at once.
+function pingAdmit(live, now) {
+    var n = Array.isArray(live) ? live.length : 0, last = n ? live[n - 1] : null;
+    if (fin(last) && now - last < LIMITS.pingGapMs) return -1;
+    return Math.max(0, n + 1 - LIMITS.pingLive);
+}
 
 // The messages that re-create a map's running weather / held wash for a peer arriving on it (map switch, travel, admit, the stream query).
 function runningSet(running, id) {
@@ -119,6 +130,6 @@ var PRESETS = [
     { id: 'weather-haze', label: 'Haze', row: 'weather', fx: { kind: 'weather', look: 'haze', density: 0.5 } }
 ];
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, LOOKS: LOOKS, PRESETS: PRESETS, cleanFx: cleanFx, reduced: reduced, allowFlash: allowFlash, bright: bright, brightKey: brightKey, runningSet: runningSet, codePoints: codePoints };
+var API = { VERSION: VERSION, LIMITS: LIMITS, KINDS: KINDS, LOOKS: LOOKS, PRESETS: PRESETS, cleanFx: cleanFx, reduced: reduced, allowFlash: allowFlash, pingAdmit: pingAdmit, bright: bright, brightKey: brightKey, runningSet: runningSet, codePoints: codePoints };
 if (typeof window !== 'undefined') window.wpFxCore = API;
-export { VERSION, LIMITS, KINDS, LOOKS, PRESETS, cleanFx, reduced, allowFlash, bright, brightKey, runningSet, codePoints };
+export { VERSION, LIMITS, KINDS, LOOKS, PRESETS, cleanFx, reduced, allowFlash, pingAdmit, bright, brightKey, runningSet, codePoints };

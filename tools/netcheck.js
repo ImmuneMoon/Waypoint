@@ -682,6 +682,46 @@ const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) 
         && /net\.sendFxArrival = function\(conn, mapId\) \{[^\n]*\n\s*if \(!net\.active \|\| net\.role !== 'host' \|\| !conn \|\| !conn\.open \|\| !mapId \|\| !window\.wpFx \|\| !own\(net\.roster, conn\.peer\)\) return;/.test(src)
         && (src.match(/type: 'stage'/g) || []).length === 3);
 }
+// the GM's ping (fold P): net.sendFx to everyone on the effect's map, or to one player there (every connection of theirs), admitted peers only
+pendingChecks.push((async () => {
+    const urlF = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
+    const FXC = await import(urlF('fxcore.js'));
+    const sfSrc = between('// [netcheck:sendfx-start]', '// [netcheck:sendfx-end]', 'sendfx');
+    const setup = (o) => {
+        o = o || {};
+        const failed = [];
+        const conns = [mkConn('pA'), mkConn('pA2'), mkConn('pB'), mkConn('pC'), mkConn('pWait'), mkConn('constructor'), mkConn('pShut', false), mkConn('pDet')];
+        if (o.throwB) conns[2].send = function() { throw new Error('gone'); };
+        const net = { active: o.active !== false, role: o.role || 'host', conns, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' }, pC: { id: 'u_c', location: 'm2' }, pShut: { id: 'u_s', location: 'm1' }, pDet: { id: 'u_d', location: 'm1', detached: true } } };
+        new Function('net', 'own', 'window', 'sendFailed', sfSrc)(net, H.own, { wpFxCore: o.noCore ? undefined : FXC }, e => failed.push(e.message));
+        return { net, failed, got: () => conns.filter(c => c.sent.length).map(c => c.peer).join(), sent: p => conns.find(c => c.peer === p).sent };
+    };
+    const ping = { kind: 'burst', look: 'ping', mapId: 'm1', x: 125, y: 75, r: 50, ms: 1600, evil: '<b>', type: 'nope' };
+    const all = setup(); all.net.sendFx(ping);
+    check('ping (host): to everyone on the map — every admitted, open connection whose player is on it (a player\'s second connection too, a wanderer there too), nobody on another map, never a peer waiting for the Allow nor a prototype-key peer',
+        all.got() === 'pA,pA2,pB,pDet' && j(all.sent('pA')) === j([{ kind: 'burst', mapId: 'm1', x: 125, y: 75, look: 'ping', r: 50, ms: 1600, type: 'fx' }]), all.got());
+    const one = setup(); one.net.sendFx(ping, 'u_a');
+    const far = setup(); far.net.sendFx(ping, 'u_c');
+    const nob = setup(); nob.net.sendFx(ping, 'u_zz');
+    const proto = setup(); proto.net.sendFx(ping, 'constructor'); proto.net.sendFx(ping, '__proto__');
+    check('ping (host): to one player — every connection of theirs on that map and nobody else; a player on another map gets nothing (the map test kept); an unknown or prototype name reaches nobody',
+        one.got() === 'pA,pA2' && far.got() === '' && nob.got() === '' && proto.got() === '', j([one.got(), far.got(), nob.got(), proto.got()]));
+    const bad = [5, '', {}, true, ['u_a']].map(t => { const s = setup(); s.net.sendFx(ping, t); return s.got(); });
+    const undef = setup(); undef.net.sendFx(ping, undefined); const nul = setup(); nul.net.sendFx(ping, null);
+    check('ping (host): a recipient that is not a profile id sends nothing at all (never everyone); absent or null is everyone',
+        bad.every(g => g === '') && undef.got() === 'pA,pA2,pB,pDet' && nul.got() === 'pA,pA2,pB,pDet', j(bad));
+    const stopAll = setup(); stopAll.net.sendFx({ kind: 'stop', what: 'weather' });
+    const stopOne = setup(); stopOne.net.sendFx({ kind: 'stop' }, 'u_c');
+    check('ping (host): a stop still clears every admitted player whatever their map, or the one named; waiting and prototype-key peers never hear it',
+        stopAll.got() === 'pA,pA2,pB,pC,pDet' && j(stopAll.sent('pC')) === j([{ kind: 'stop', what: 'weather', type: 'fx' }]) && stopOne.got() === 'pC', j([stopAll.got(), stopOne.got()]));
+    const nots = [{ role: 'client' }, { active: false }, { noCore: true }].map(o => { const s = setup(o); s.net.sendFx(ping); s.net.sendFx(ping, 'u_a'); return s.got(); });
+    const refused = setup(); refused.net.sendFx({ kind: 'burst', look: 'pong', mapId: 'm1', x: 1, y: 1 }); refused.net.sendFx(null); refused.net.sendFx({ look: 'ping', mapId: 'm1', x: 1, y: 1 }, 'u_a');
+    const thr = setup({ throwB: true }); thr.net.sendFx(ping);
+    check('ping (host): only a host in a session sends; what cleanFx refuses goes nowhere; a send that throws is reported and the rest still hear it',
+        nots.every(g => g === '') && refused.got() === '' && thr.got() === 'pA,pA2,pDet' && j(thr.failed) === j(['gone']), j([nots, refused.got(), thr.got(), thr.failed]));
+    check('ping (host): the host still has no receive branch for an effect — the only fx branch is the client\'s, from the synced host, re-cleaned there',
+        (src.match(/msg\.type === 'fx'/g) || []).length === 1 && /\} else if \(msg\.type === 'fx' && net\.role === 'client'\) \{\r?\n[^\n]*\r?\n[^\n]*\r?\n\s*if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer \|\| net\.stream \|\| !window\.wpFxCore \|\| !window\.wpFx\) return;\r?\n\s*var cfx = window\.wpFxCore\.cleanFx\(msg\); if \(cfx\) window\.wpFx\.receive\(cfx\);/.test(src));
+})());
 // the patch gate: own keys only, and a token (or a stroke) the GM locked is frozen for its player
 {
     const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');

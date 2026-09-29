@@ -2586,6 +2586,13 @@
   .fx-particle { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--fx-color, #ffcf5c); opacity: 0; animation: fxParticle var(--fx-dur, 900ms) ease-out forwards; }
   .fx-burst-boom .fx-particle { background: #ff9a3d; }
   @keyframes fxParticle { 0% { transform: translate(0,0); opacity: 1; } 100% { transform: translate(var(--fx-dx,0), var(--fx-dy,0)); opacity: 0; } }
+  /* the GM's ping (fold P): a ring that pulses twice over one cell, over the fog; under reduced motion a still ring that fades */
+  .fx-ping-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--fx-color, #ffd24a); box-shadow: 0 0 6px rgba(0,0,0,0.7), inset 0 0 6px rgba(0,0,0,0.5); opacity: 0; animation: fxPingPulse calc(var(--fx-dur, 1600ms) / 2) ease-out 2; }
+  .fx-ping-echo { animation-delay: calc(var(--fx-dur, 1600ms) / 4); animation-iteration-count: 1; }
+  .fx-ping-dot { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; background: var(--fx-color, #ffd24a); box-shadow: 0 0 4px #000; animation: fxPingFade var(--fx-dur, 1600ms) ease-in forwards; }
+  .fx-ping-still .fx-ping-ring { opacity: 1; animation: fxPingFade var(--fx-dur, 1600ms) ease-in forwards; }
+  @keyframes fxPingPulse { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+  @keyframes fxPingFade { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
   .wb-item.fx-pulse { animation: fxPulse 1.4s ease-out; }
   @keyframes fxPulse { 0% { box-shadow: 0 0 0 0 var(--fx-pulse-color, rgba(224,165,79,0.7)); } 70% { box-shadow: 0 0 0 14px rgba(224,165,79,0); } 100% { box-shadow: 0 0 0 0 rgba(224,165,79,0); } }
   #measureLayer g.blast text.blast-boom { fill: var(--gold); cursor: pointer; font: bold 13px sans-serif; }
@@ -2598,6 +2605,7 @@
   #fxBody .journal-from { font-size: 11.5px; padding: 3px 9px; cursor: pointer; }
   #fxBody .fx-burst-btn.armed { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
   #fxBody .fx-stop { color: var(--red); }
+  #fxBody #fxPingTo { flex: 1; min-width: 0; font-size: 11.5px; }
   #fxBody .fx-slider label { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--dim); flex: 1; }
   #fxBody .fx-slider input[type=range] { flex: 1; }
   #fxBody .fx-dim { color: var(--dim); }

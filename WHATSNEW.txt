@@ -783,6 +783,11 @@ Visual effects
   you clear it, a burst you place on the map (boom, magic, smoke, sparks),
   weather that runs until you stop it (rain, snow, embers, haze), and a text
   banner. Right-click a token for a pulse; the Blast tool gains a Boom.
+- Ping: Alt+click on the play map (or the panel's Ping button, then the map)
+  rings that cell for a moment, drawn over the fog, for everyone on the map;
+  the Ping row's list sends pings to one player on it instead, and Alt+click
+  follows the list until that player leaves the map. A player's screen draws
+  at most eight at once, and Reduce motion keeps the ring still.
 - Everything is drawn on your machine — no files, nothing saved. "Sound with
   it" fires a chosen cue alongside. Reduce motion (per machine) skips shake
   and shortens flashes, and a hard flash guard protects against strobing.

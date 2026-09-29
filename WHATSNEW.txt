@@ -899,7 +899,11 @@ Fog of war
   it counts in, whether walls stop it, whether it sees all round and
   whether it sees the dark as dim, and each sense says in a sentence what
   it does. Sight stays the eyes' own range in the dark; a token sees by the
-  longer of the two. The fog menu names the system's senses.
+  longer of the two. The fog menu names the system's senses. A character
+  token's Properties show each sense as that token has it on its map, and
+  can give the token a range of its own (a creature's sense, a plain
+  token's; 0 switches the sense off for that token); only that token's
+  player receives it.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

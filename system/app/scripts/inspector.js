@@ -1041,6 +1041,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   var L = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(w.light) : null;
                   return lightFieldHtml(w, L, lightPresetsNow());
               })() : '')+
+              (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? sensesFieldHtml(w, activeMap) : '')+   // senses S2b: the system's senses, as this token has them
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1301,6 +1302,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbLU) _el_wbLU.addEventListener('change', setLight);
             var _el_wbLP = document.getElementById('wbLightPreset');
             if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
+            inspector.querySelectorAll('.wb-sense-ov').forEach(function(el) { el.addEventListener('change', function() { setTokenSense(w, this.dataset.si, this.value); }); });   // senses S2b: a token's own range for a sense
             var _el_wbLK = document.getElementById('wbLightLock');
             if (_el_wbLK) _el_wbLK.addEventListener('change', function() { if (this.checked) w.lightLock = true; else delete w.lightLock; save(); });
             var _el_wbFogged = document.getElementById('wbFogged');
@@ -1691,6 +1693,37 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }
   // [sinkcheck:lightfield-end]
+
+  // [sinkcheck:sensesfield-start]
+  // Senses S2b: the Senses block of a character token's Properties (the GM's only) — each full sense of the system, with this token's range
+  // worked out on this map as the host reads it (its player's own whole character, else the token alone: said so), in its unit and in cells,
+  // marked where the cap bites or it comes to under one cell, and a range of the token's own that overrides the sheet's (a creature's sense, a
+  // plain token's; 0: off for this token; empty: the sheet's or the system's again). A sense's name comes from a system file: through esc
+  function sensesFieldHtml(w, map) {
+      var camp = getActiveCampaign(), F = window.wpFog, C = window.wpFogCore; if (!camp || !F || !C) return '';
+      var list = F.campSenses(camp); if (!list.length) return '';
+      var ts = F.tokenSenses(w, map, camp, !w.ownerId), got = Object.create(null), ov = Object.create(null);
+      ts.full.forEach(function(e) { got[e.id] = e; });
+      (C.cleanTokSenses(w.senses) || []).forEach(function(e) { ov[e.id] = e.n; });
+      var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; };
+      var note = w.ownerId && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) && ts.sheet === false ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Read from the token only: its player does not hold this character.</div>' : '';
+      return '<div class="field"><label>Senses</label>' + note + list.map(function(s, i) {
+          var g = got[s.id] || null, mine = Object.prototype.hasOwnProperty.call(ov, s.id);
+          var say = g ? String(g.n) + ' ' + word(s.unit) + (g.from === 'token' ? ', this token’s own' : g.from === 'field' ? ', from the sheet' : ', the system’s') + ': ' + (g.cells > 0 ? g.cells + ' cell' + (g.cells === 1 ? '' : 's') + ' on this map' + (g.cells >= C.LIMITS.rangeCells ? ', the most a sense reaches' : '') : 'under one cell on this map') : mine ? 'Off for this token' : 'Not held';
+          return '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:2px 0;"><span style="flex:1 1 120px; min-width:0;">' + esc(s.name) + '</span><input type="number" class="wb-sense-ov" data-si="' + i + '" min="0" max="100000" step="any" value="' + (mine ? String(ov[s.id]) : '') + '" placeholder="default" title="This token&rsquo;s own range for the sense (a creature&rsquo;s sense, a plain token&rsquo;s): it counts before the sheet&rsquo;s; 0 switches it off for this token; empty: the sheet&rsquo;s or the system&rsquo;s again" style="width:78px;"><span class="muted">' + word(s.unit) + '</span></div><div class="muted" style="margin:-1px 0 4px; font-size:10.5px;">' + esc(say) + '</div>';
+      }).join('') + '</div>';
+  }
+  // A token's own range for one sense, from its Properties: a number (0 switches that sense off for this token) or nothing (the sheet's again).
+  // The sense is named by its place in the system's list, digits alone; a place the list no longer holds changes nothing
+  function setTokenSense(w, si, value) {
+      var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
+      var s = typeof si === 'string' && /^[0-7]$/.test(si) ? F.campSenses(camp)[Number(si)] : null; if (!s) { renderInspector(); return; }
+      var cur = (C.cleanTokSenses(w.senses) || []).filter(function(e) { return e.id !== s.id; }), v = typeof value === 'string' ? value.trim() : '', n = Number(v);
+      if (v !== '' && isFinite(n)) cur.push({ id: s.id, n: Math.max(0, Math.min(100000, n)) });
+      if (cur.length) w.senses = cur; else delete w.senses;
+      save(); render(); renderInspector(); F.invalidateVision(); F.redraw();
+  }
+  // [sinkcheck:sensesfield-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

@@ -580,6 +580,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 jl(lightsOf(icN.items.mL.whiteboard)) === '{}' && jl(lightsOf(icB.items.mL.whiteboard)) === '{}' && jl(lightsOf(icU.items.mL.whiteboard)) === '{}' && !!outN && jl(lightsOf(outN.campaigns.cL.items.mL.whiteboard)) === '{}' && icN.items.mL.whiteboard.length === 9 && outN.campaigns.cL.items.mL.whiteboard.length === 9, jl([lightsOf(icN.items.mL.whiteboard), outN && lightsOf(outN.campaigns.cL.items.mL.whiteboard)]));
             const again = { items: { mL: { id: 'mL', type: 'map', whiteboard: JSON.parse(jl(wbM)) } } }; cleanImportItems(again, depsL);
             check('import: a light already cleaned comes through a second clean unchanged', jl(again.items.mL.whiteboard) === jl(wbM));
+            // senses S2b: a token's own ranges for its senses from a file, cleaned as the app reads them (fogcore cleanTokSenses), on Replace and on Merge
+            const snBoard = (withNull) => [{ id: 's1', type: 'circle', isChar: true, x: 0, y: 0, senses: [{ id: 'sn_force001', n: 1e9 }, { id: 'sn_force001', n: 3 }, { id: 'sn_BAD', n: 1 }, { id: 'sn_other001', n: -5, extra: HT }, { id: 'sn_text0001', n: '4' }] },
+                { id: 's2', type: 'circle', isChar: true, x: 0, y: 0, senses: HT }, { id: 's3', type: 'circle', isChar: true, x: 0, y: 0, senses: [] }, { id: 's4', type: 'rect', x: 0, y: 0, w: 5, h: 5 }, { id: 's5', type: 'circle', isChar: true, x: 0, y: 0, senses: null }].concat(withNull ? [null] : []);
+            const sensesOf = wb => { const o = {}; (wb || []).forEach(w => { if (w && 'senses' in w) o[w.id] = w.senses; }); return o; };
+            const wantSn = { s1: [{ id: 'sn_force001', n: 100000 }, { id: 'sn_other001', n: 0 }] };
+            const fileSn = () => JSON.parse(jl({ campaigns: { cS: { id: 'cS', name: 'S', items: { mS: { id: 'mS', type: 'map', meta: { title: 'M' }, rooms: [], links: [], whiteboard: snBoard() } } } } }));
+            const outSn = cleanImport(fileSn(), depsL), wbSnR = outSn && outSn.campaigns.cS.items.mS.whiteboard;
+            const icSn = { items: { mS: { id: 'mS', type: 'map', whiteboard: snBoard(true) }, pS: { id: 'pS', type: 'planner', blocks: [], whiteboard: [{ id: 'z', senses: [{ id: 'sn_force001', n: 1e9 }] }] } } }; cleanImportItems(icSn, depsL);
+            const againSn = { items: { mS: { id: 'mS', type: 'map', whiteboard: JSON.parse(jl(icSn.items.mS.whiteboard)) } } }; cleanImportItems(againSn, depsL);
+            check('import: a token\'s own ranges for its senses from a file are cleaned as the app reads them, on Replace and on Merge — each sense once (the first kept), its range a number clamped to 0 to 100000, a bad id dropped, nothing else riding along; a list that gives none is taken off; an item without one gains none; a planner\'s own list is not walked; cleaned once, a second clean changes nothing',
+                !!wbSnR && jl(sensesOf(wbSnR)) === jl(wantSn) && jl(sensesOf(icSn.items.mS.whiteboard)) === jl(wantSn) && wbSnR.filter(Boolean).length === 5 && Object.keys(wbSnR[3]).join() === 'id,type,x,y,w,h'
+                && jl(icSn.items.pS.whiteboard[0].senses) === jl([{ id: 'sn_force001', n: 1e9 }]) && jl(againSn.items.mS.whiteboard) === jl(icSn.items.mS.whiteboard), jl([sensesOf(wbSnR || []), sensesOf(icSn.items.mS.whiteboard)]));
+            const icSnN = { items: { mS: { id: 'mS', type: 'map', whiteboard: snBoard(true) } } }; cleanImportItems(icSnN, { DR: DOC, sanitize, FC: { LIMITS: FCr.LIMITS, cleanLight: FCr.cleanLight } });
+            const icSnU = { items: { mS: { id: 'mS', type: 'map', whiteboard: snBoard() } } }; cleanImportItems(icSnU, { DR: DOC, sanitize });
+            const outSnN = cleanImport(fileSn(), deps);
+            check('import: fails closed — with no senses cleaner on hand (none, or a fogcore without one) no token\'s ranges come in, on Merge and on Replace; the items themselves stay',
+                jl(sensesOf(icSnN.items.mS.whiteboard)) === '{}' && jl(sensesOf(icSnU.items.mS.whiteboard)) === '{}' && !!outSnN && jl(sensesOf(outSnN.campaigns.cS.items.mS.whiteboard)) === '{}' && icSnN.items.mS.whiteboard.filter(Boolean).length === 5 && outSnN.campaigns.cS.items.mS.whiteboard.filter(Boolean).length === 5,
+                jl([sensesOf(icSnN.items.mS.whiteboard), outSnN && sensesOf(outSnN.campaigns.cS.items.mS.whiteboard)]));
         }
         // the app routes every whole-file import through it, before the state is replaced or the modal is even closed
         const repl = mainSrc.slice(mainSrc.indexOf("_el_importReplaceBtn.addEventListener('click'"), mainSrc.indexOf('var _el_importCancelBtn'));

@@ -4565,7 +4565,7 @@ function senseSentence(s, fieldsR, secret) {
         if (f.edit === 'owner' && f.kind !== 'formula') out.push('Its owner can change this on their sheet.');
     } else {
         var n = typeof r.n === 'number' && isFinite(r.n) ? r.n : 0;
-        if (!(n > 0)) return 'A range of 0: no one has it.';
+        if (!(n > 0)) return 'A range of 0: no one has it unless a token is given a range of its own in its Properties.';
         out.push('Sees everything within ' + n + ' ' + word + how + '.'); out.push('Every character has this sense.');
         if (s.unit === 'cells' && n > 60) out.push('60 cells is the most a sense reaches.');
     }

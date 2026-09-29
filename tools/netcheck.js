@@ -5270,7 +5270,7 @@ function mkFogClient(FCx, o) {
     const win = { wpFogCore: o.core || FCx, wpFog: { invalidateVision() { rec.invalidated++; }, redraw() { rec.redraws++; } }, save() { rec.saves++; } };
     const recv = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'cleanWaitingItem', 'onLocalSave', 'save',
         '"use strict";\n' + lnM('function own(o, k) {') + '\n' + lnM('function validKey(k) {') + '\n' + lnM('function campOf(id) {') + '\n' + broadcastSrc + '\n' + rich
-        + lnM('function cleanHostWbItem(w) {') + '\n' + lnM('function cleanHostLight(w) {') + '\n' + apply + '\nreturn function(msg, conn) {\n' + branch + '\n};')(
+        + lnM('function cleanHostWbItem(w) {') + '\n' + lnM('function cleanHostLight(w) {') + '\n' + lnM('function cleanHostTokSenses(w) {') + '\n' + apply + '\nreturn function(msg, conn) {\n' + branch + '\n};')(
         net, state, win, () => state.appState.campaigns[state.appState.activeCampaignId], () => { rec.renders++; }, H.cleanWaitingItem, () => { rec.saves++; }, () => { rec.saves++; });
     return { net, state, rec, camp: () => state.appState.campaigns.k, map: id => state.appState.campaigns.k.items[id], recv: (msg, peer) => recv(JSON.parse(JSON.stringify(msg)), { peer: peer === undefined ? 'h' : peer }) };
 }
@@ -5798,6 +5798,59 @@ pendingChecks.push((async () => {
         J(before2) === J({ a: false, a2: false, b: false, relay: false, relayB: false }) && pend2 >= 1 && J(got2.a1.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && J(got2.a2.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && got2.b === 0 && got2.mB && J(got2.seen) === J({ a: true, a2: true, b: false, relay: true, relayB: false })
         && quiet2 === 0 && bQuiet === 0 && J(back2.a1.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && back2.seen.a === false && back2.seen.relay === false, J([before2, pend2, got2, quiet2, bQuiet, back2]));
 
+    // senses S2b: a token's own ranges (item.senses) are the GM's on the host: only that token's player receives them, on their own copies of a
+    // fogged map (fogOwnSenses in fogCopyFor), cleaned, the senses the system holds only; the shared clone, anyone else's copy, an unfogged map,
+    // a catch-up, a hidden or a waiting token never carry them; the host judges that player's copies by them; no patch of a player's sets them
+    const snN = v => (J(v).match(/"senses"/g) || []).length;
+    const snOf = (W, c, id, mapId) => { const it = W.last(c, mapId), t = it && it.whiteboard.find(w => w && w.id === id); return !t ? 'absent' : Object.prototype.hasOwnProperty.call(t, 'senses') ? t.senses : 'none'; };
+    const s65 = () => [{ id: 'sn_force001', n: 65 }];
+    const wT0 = S7({ system: sysSn(snBy(0)) }), wT = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }), seenT = [snSeen(wT0), snSeen(wT)];
+    wT.tok('orc').senses = [{ id: 'sn_force001', n: 900 }]; wT.tok('tB').senses = [{ id: 'sn_force001', n: 5 }];
+    wT.camp.items.mA.whiteboard.push(T('tH', 'u_a', 'c_a', 3, 3, { hidden: true, senses: [{ id: 'sn_force001', n: 70 }] }), { id: 'tW', type: 'circle', waiting: 1, ownerId: 'u_a', x: 150, y: 150, w: 50, h: 50, senses: [{ id: 'sn_force001', n: 80 }] },
+        T('tP', 'u_a', '', 4, 4, { senses: [{ id: 'sn_force001', n: 1e9 }, { id: 'sn_other001', n: 30 }, { id: 'sn_force001', n: 3 }] }), T('tQ', 'u_a', '', 4, 5, { senses: [{ id: 'sn_other001', n: 30 }] }));
+    const hostT = J(wT.camp.items.mA); wT.clearSent(); wT.net.sendItem('k', 'mA');
+    const sentT = { a1: ['tA', 'tB', 'orc', 'tH', 'tW', 'tP', 'tQ'].map(id => snOf(wT, wT.a1, id)), a2: snOf(wT, wT.a2, 'tA'), b: ['tA', 'tB', 'orc', 'tP'].map(id => snOf(wT, wT.b1, id)), nA: snN(wT.last(wT.a1)), nB: snN(wT.last(wT.b1)), orcA: wT.ids(wT.a1).indexOf('orc') >= 0 };
+    const clT = wT.api.clean(wT.camp.items.mA), cpT = wT.api.copy(clT, wT.camp, wT.camp.items.mA, 'u_a'), noneT = [snN(clT), snN(wT.api.copy(clT, wT.camp, wT.camp.items.mA, 'u_zz')), snN(wT.api.copy(clT, wT.camp, wT.camp.items.mA, null)) + snN(wT.api.copy(clT, wT.camp, wT.camp.items.mA, undefined)) + snN(wT.api.copy({ type: 'map', whiteboard: [] }, wT.camp, { id: 'mZ', type: 'map', fog: { on: true, mode: 'auto' } }, 'u_a')), cpT.whiteboard.find(w => w.id === 'tA') !== clT.whiteboard.find(w => w.id === 'tA'), cpT !== clT, snN(cpT)];
+    wT.clearSent(); wT.net.broadcastItemFiltered('k', 'mA'); const bifT = [snOf(wT, wT.a1, 'tA'), snOf(wT, wT.b1, 'tB'), snOf(wT, wT.b1, 'tA'), snN(wT.last(wT.a1)), snN(wT.last(wT.b1))];
+    const joinT = snN(wT.api.copy(wT.api.clean(JSON.parse(hostT)), wT.camp, JSON.parse(hostT), 'u_a'));
+    check('senses S2b (host): a token given a range of its own sees by it on the host\'s judgement (a sense every token has at 0: the orc 13 cells off reaches both of Ana\'s copies only once her token has 65 ft); each copy of a fogged map carries the ranges of its own player\'s visible tokens alone — cleaned (the first of a sense, clamped), only the senses the system holds — never another player\'s, an NPC\'s, a hidden or a waiting token\'s, a plain send or one to the table alike; the join snapshot\'s copy (made from a clone of the map) the same',
+        J(seenT) === J([{ a: false, a2: false, b: false, relay: false, relayB: false }, { a: true, a2: true, b: false, relay: true, relayB: false }])
+        && J(sentT) === J({ a1: [s65(), 'none', 'none', 'none', 'none', [{ id: 'sn_force001', n: 100000 }], 'none'], a2: s65(), b: ['none', [{ id: 'sn_force001', n: 5 }], 'absent', 'none'], nA: 2, nB: 1, orcA: true })
+        && J(bifT) === J([s65(), [{ id: 'sn_force001', n: 5 }], 'none', 2, 1]) && joinT === 2, J([seenT, sentT, bifT, joinT]));
+    check('senses S2b (host): the shared clone every copy is made from never holds a token\'s ranges, nor a copy made for nobody or for a profile with no token there; the owner\'s copy gets a board and a token of its own (the clone untouched), and the host\'s own map is exactly as it was after every send',
+        J(noneT) === J([0, 0, 0, true, true, 2]) && J(wT.camp.items.mA) === hostT && snN(wT.api.clean(wT.camp.items.mA)) === 0, J(noneT));
+    const wU = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }); wU.camp.items.mA.fog.on = false; wU.clearSent(); wU.net.sendItem('k', 'mA'); wU.net.broadcastItemFiltered('k', 'mA'); wU.net.sendItem('k', 'mA', wU.a1);
+    const unfT = [wU.a1.sent.length, wU.b1.sent.length, snN(wU.a1.sent), snN(wU.a2.sent), snN(wU.b1.sent), snN(wU.api.copy(wU.api.clean(wU.camp.items.mA), wU.camp, JSON.parse(J(wU.camp.items.mA)), 'u_a'))];
+    const wDr = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }); wDr.move(wDr.a1, 'tA', 250, 100, false); wDr.clearSent(); wDr.net.sendItem('k', 'mA');
+    const dragT = [wDr.at(wDr.a1, 'tA'), snOf(wDr, wDr.a1, 'tA'), wDr.at(wDr.b1, 'tA'), snOf(wDr, wDr.b1, 'tA')];
+    const wCu = S7({ system: sysSn(snBy(0)) }); wCu.tok('orc').senses = [{ id: 'sn_force001', n: 900 }]; wCu.tok('tA').senses = [{ id: 'sn_force001', n: 5 }];
+    wCu.move(wCu.a1, 'tA', 250, 100, false); wCu.move(wCu.a1, 'tA', 250, 100, true); wCu.fire(150); const cuT = [diffsTo(wCu, wCu.a1).map(m => (m.add || []).map(a => a.item.id)), snN(wCu.a1.sent), snN(wCu.a2.sent), snN(wCu.b1.sent)];
+    check('senses S2b (host): a map with no fog carries no token\'s ranges to anyone (a save, a send to the table, a copy one player asked for, the join snapshot\'s copy made from a clone of it); a drag in progress keeps its player\'s ranges on the token at its live place, the others\' copies at its start without them; a copy caught up in place never carries a creature\'s ranges (the orc added without its own)',
+        J(unfT) === J([3, 2, 0, 0, 0, 0]) && J(dragT) === J([[250, 100, 0, 0], s65(), [100, 100, 0, 0], 'none']) && J(cuT) === J([[['orc']], 0, 0, 0]), J([unfT, dragT, cuT]));
+    const wG = S7({ system: sysSn(snBy(0)) }), gBefore = snSeen(wG); wG.tok('tA').senses = s65(); wG.fog.invalidateVision(); wG.clearSent(); wG.net.sendItem('k', 'mA');
+    const gAfter = [snSeen(wG), snOf(wG, wG.a1, 'tA'), snOf(wG, wG.b1, 'tA'), wG.ids(wG.a1).indexOf('orc') >= 0];
+    delete wG.tok('tA').senses; wG.fog.invalidateVision(); wG.clearSent(); wG.net.sendItem('k', 'mA'); const gGone = [snSeen(wG), snOf(wG, wG.a1, 'tA'), wG.ids(wG.a1).indexOf('orc') >= 0];
+    check('senses S2b (host): the GM giving a token a range of its own (and the save that sends the map) reaches its player at once — the orc on both her copies and through her live relay, her token carrying the range, Bo\'s copy never; taking it away takes the orc and the range away again',
+        J(gBefore) === J(seenT[0]) && J(gAfter) === J([seenT[1], s65(), 'none', true]) && J(gGone) === J([seenT[0], 'none', false]), J([gBefore, gAfter, gGone]));
+    const wPt = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } });
+    wPt.api.item(patchMsg({ senses: [{ id: 'sn_force001', n: 100000 }] }, [{ id: 'tB', x: 100, y: 200, rot: 0, front: 0, senses: [{ id: 'sn_force001', n: 100000 }] }]), wPt.a1);
+    wPt.api.item(patchMsg({ x: 150 }), wPt.a1); wPt.api.patch(patchMsg({ x: 150, senses: [] }), { id: 'u_a' });
+    const patT = [wPt.tok('tA').senses, Object.prototype.hasOwnProperty.call(wPt.tok('tB'), 'senses'), wPt.tok('tA').x, snN(wPt.b1.sent), wPt.a2.sent.filter(m => m.type === 'item').map(m => snN(m))];
+    // what the mutants found: a hidden, waiting or GM-note item sharing a visible token's id never lends it its ranges, nor does a stub take
+    // the visible one's; a senses list with a stray entry sends as ever; a host with no cleaner on hand sends no ranges at all
+    const wDup = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }), dupB = wDup.camp.items.mA.whiteboard;
+    dupB.push({ id: 'tA', type: 'rect', hidden: true, ownerId: 'u_a', x: 0, y: 0, w: 5, h: 5, senses: [{ id: 'sn_force001', n: 70 }] });
+    wDup.clearSent(); wDup.net.sendItem('k', 'mA'); const dupA = wDup.last(wDup.a1).whiteboard.filter(w => w.id === 'tA').map(w => [!!w.hidden, w.senses || 'none']);
+    const wDup2 = S7({ system: sysSn(snBy(0)) }), dupB2 = wDup2.camp.items.mA.whiteboard;
+    dupB2.push({ id: 'tA', type: 'rect', hidden: true, ownerId: 'u_a', x: 0, y: 0, w: 5, h: 5, senses: s65() }, { id: 'tA', type: 'circle', waiting: 1, ownerId: 'u_a', x: 0, y: 0, w: 5, h: 5, senses: s65() }, { id: 'tA', type: 'note', gmNoteFor: 'u_a', ownerId: 'u_a', x: 0, y: 0, senses: s65() });
+    wDup2.clearSent(); wDup2.net.sendItem('k', 'mA'); const dupC = snN(wDup2.last(wDup2.a1));
+    const wStray = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }); wStray.camp.system.combat.senses.list.push(null); wStray.clearSent(); let strayErr = ''; try { wStray.net.sendItem('k', 'mA'); } catch (e) { strayErr = e.message; }
+    const wNoC = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }); delete wNoC.winRef.wpFogCore; wNoC.clearSent(); wNoC.net.sendItem('k', 'mA'); wNoC.winRef.wpFogCore = FCx;
+    check('senses S2b (host): a hidden, a waiting or a GM-note item that shares a visible token\'s id never lends it its ranges and a hidden stub never takes the visible token\'s; a stray entry in the senses list sends as ever; with no cleaner on hand the host sends no ranges at all',
+        J(dupA) === J([[false, s65()], [true, 'none']]) && dupC === 0 && strayErr === '' && J(snOf(wStray, wStray.a1, 'tA')) === J(s65()) && snN(wNoC.a1.sent) + snN(wNoC.a2.sent) + snN(wNoC.b1.sent) === 0 && wNoC.a1.sent.length === 1, J([dupA, dupC, strayErr, wNoC.a1.sent.length]));
+    check('senses S2b (host): no map copy of a player\'s sets a token\'s ranges — their own token\'s stay the GM\'s (a range sent, none sent, an empty list), another\'s get none; the copies it sends on carry the host\'s ranges to that player\'s other connection and none to anyone else',
+        J(patT) === J([s65(), false, 150, 0, [1]]), J(patT));
+
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
     const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));
@@ -5814,6 +5867,32 @@ pendingChecks.push((async () => {
     PM.api.patch({ type: 'item', campId: 'k', itemId: 'mA', item: { type: 'map', whiteboard: [{ id: 'tA', x: 450, y: 100, rot: 0, front: 0 }] } }, { id: 'u_a' });
     check('fold M4: a map copy that lands after the GM moved the token mid-drag is judged from the GM\'s place (that drag is over), never from where the drag began',
         J(PM.asked[0]) === J([400, 100, 450, 100]) && J(PM.place('tA')) === J([450, 100, 0, 0]), J([PM.asked, PM.place('tA')]));
+})());
+// senses S2b: a player's app keeps a token's own ranges from its host only on a token of its own, cleaned again (cleanHostTokSenses through
+// cleanHostWbItem and cleanHostMap, run for real with the real fogcore): a hostile host's on anyone else's token, or with no cleaner, are dropped
+pendingChecks.push((async () => {
+    const FCx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+    const lnS = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
+    const hmS = src.indexOf('function cleanHostMap(m) {'), hmE = src.indexOf('\n}\n', hmS) + 2;
+    const cli = (myId, win) => new Function('window', 'net', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lnS('function cleanHostWbItem(w) {') + '\n' + lnS('function cleanHostLight(w) {') + '\n' + lnS('function cleanHostTokSenses(w) {') + '\n' + src.slice(hmS, hmE) + '\nreturn { item: cleanHostWbItem, map: cleanHostMap };')(win || { wpFogCore: FCx }, { myId: myId }, H.cleanWaitingItem, t => t, v => v);
+    const J = v => JSON.stringify(v), has = (w, k) => Object.prototype.hasOwnProperty.call(w, k);
+    const raw = () => JSON.parse('[{"id":"sn_force001","n":1e9},{"id":"sn_force001","n":4},{"id":"sn_Bad","n":3},{"id":"sn_other001","n":-2},{"id":"__proto__","n":1}]');
+    const toks = () => [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', senses: raw() }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', senses: raw() }, { id: 'orc', type: 'image', isChar: true, senses: raw() },
+        { id: 'nul', type: 'image', ownerId: '', senses: raw() }, { id: 'junk', type: 'image', ownerId: 'u_me', senses: 'sn_force001' }, { id: 'none', type: 'image', ownerId: 'u_me', senses: [] }, { id: 'wt', waiting: 1, type: 'circle', ownerId: 'u_me', x: 1, y: 1, w: 5, h: 5, senses: raw() }];
+    const C = cli('u_me'), got = toks().map(w => C.item(w)).map(w => (has(w, 'senses') ? w.senses : 'none'));
+    const want = [{ id: 'sn_force001', n: 100000 }, { id: 'sn_other001', n: 0 }];
+    const plain = { id: 'p', type: 'image', ownerId: 'u_me', x: 1 }, plainOut = C.item(plain);
+    const noCore = [cli('u_me', {}), cli('u_me', { wpFogCore: {} }), cli('', { wpFogCore: FCx }), cli(undefined, { wpFogCore: FCx })].map(K => toks().map(w => K.item(w)).map(w => (has(w, 'senses') ? 1 : 0)));
+    const mapS = C.map({ id: 'm1', type: 'map', whiteboard: toks(), rooms: [], links: [] });
+    check('senses S2b (client): a player\'s app keeps a token\'s ranges from its host only on a token of its own, cleaned again (the first of a sense kept, clamped, a bad id dropped); another player\'s, an NPC\'s, one owned by nobody, junk, an empty list and a waiting token\'s are dropped; an item without them is the same item with no key added',
+        J(got) === J([want, 'none', 'none', 'none', 'none', 'none', 'none']) && plainOut === plain && !has(plain, 'senses'), J(got));
+    check('senses S2b (client): with no cleaner on hand, or no profile of its own, a player\'s app keeps no token\'s ranges at all; a whole map from the host is cleaned the same way item by item (cleanHostMap)',
+        J(noCore) === J([[0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]) && J(mapS.whiteboard.map(w => (has(w, 'senses') ? w.senses : 'none'))) === J(got), J([noCore, mapS.whiteboard]));
+    const pg = mkFogClient(FCx, { myId: 'u_me', items: { mA: { id: 'mA', type: 'map', fog: { on: true }, meta: {}, rooms: [], links: [], whiteboard: [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', x: 10, y: 10, w: 50, h: 50 }] } } });
+    pg.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: [{ item: { id: 'orc', type: 'image', isChar: true, x: 100, y: 100, senses: raw() }, after: 'me' }, { item: { id: 'me2', type: 'image', isChar: true, ownerId: 'u_me', x: 50, y: 50, senses: raw() }, after: 'orc' }] });
+    const pgW = pg.map('mA').whiteboard;
+    check('senses S2b (client): a map caught up in place (the real fogDiff branch and apply) cleans what it adds the same way — a creature\'s ranges from a hostile host dropped; a token of the player\'s own is never taken from a catch-up (the whole map asked for instead, where its ranges are cleaned as above)',
+        J(pgW.map(w => w.id)) === J(['me', 'orc']) && !has(pgW[1], 'senses') && J(pg.rec.asked.map(m => m.type)) === J(['needItem']), J([pgW, pg.rec.asked]));
 })());
 // fold M6: the GM's open board gesture, published (inert): the helper run for real on a stub page, and where each gesture sets and clears it
 {

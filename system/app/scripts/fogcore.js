@@ -15,6 +15,7 @@ var LIMITS = Object.freeze({
     lights: 200,        // lighting (L2): light sources counted per map — over this the map reads dark (never more light than there is)
     lightVisits: 120000, // lighting (L2): cells all of a map's light sources may walk — over this the map reads dark
     lightName: 60,      // lighting (L4): the name a light keeps of the preset it came from
+    senses: 8,          // senses S2b: the ranges a token gives its own senses (the system holds at most eight)
     arcDeg: 180,        // GURPS front arc
     len: [10, 4000]     // a gridless cell length in board px
 });
@@ -358,6 +359,16 @@ function seenCells(viewer, grid, blockers, ctx) {
     }
     return out;
 }
+// Senses S2b: a token's own ranges for the system's senses (item.senses: [{ id, n }], set by the GM in its Properties) — a sense id of the
+// system's pattern, each once, a range finite and within 0 to 100000 (0: that sense is off for this token), at most eight; null when none is
+// left. Read as the app reads it, on the host, on the player's app for their own token and from a file
+var SENSE_ID_RE = /^sn_[a-z0-9]{8}$/;
+function cleanTokSenses(v) {
+    if (!Array.isArray(v)) return null;
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (!isObj(e) || typeof e.id !== 'string' || !SENSE_ID_RE.test(e.id) || seen[e.id] || !fin(e.n)) continue; seen[e.id] = 1; out.push({ id: e.id, n: clamp(e.n, 0, 100000) }); }
+    return out.length ? out : null;
+}
 // Senses S2a: what a full sense sees — every cell in its range and arc, along a clear line unless it passes walls (pass: no blocker at all),
 // light or none: clear (tier 2); one that sees the dark as dim (dim) shows a cell at its own light raised to dim at least (a wall's own cell
 // at the map's level). With lighting off every cell it reaches is clear. No lit cell beyond its range
@@ -479,6 +490,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

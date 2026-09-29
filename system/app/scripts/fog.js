@@ -80,10 +80,13 @@ function tokenSenses(token, map, camp, waived) {
     out.sight = C.unitCells(yards, cf.fields.sightUnit, per);
     var list = campSenses(camp); if (!list.length) return out;
     var own = !!ch && (waived === true || (ch.npc !== true && ch.partial !== true && !!ch.ownerId && ch.ownerId === token.ownerId));
+    out.sheet = own;
+    var ov = !token.waiting ? C.cleanTokSenses(token.senses) : null, byTok = Object.create(null);   // senses S2b: the token's own ranges come first (never a waiting token's)
+    if (ov) ov.forEach(function(e) { byTok[e.id] = e.n; });
     list.forEach(function(s) {
-        var n = s.range.by === 'n' ? s.range.n : s.range.by === 'field' && own ? read(s.range.field) : null;
+        var mine = Object.prototype.hasOwnProperty.call(byTok, s.id), n = mine ? byTok[s.id] : s.range.by === 'n' ? s.range.n : s.range.by === 'field' && own ? read(s.range.field) : null;
         if (!(typeof n === 'number' && n > 0)) return;
-        out.full.push({ id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim' });
+        out.full.push({ id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim', n: n, from: mine ? 'token' : s.range.by === 'n' ? 'n' : 'field' });
     });
     return out;
 }
@@ -912,5 +915,6 @@ window.wpFog = {
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     lightLevel: mapLevel, lightCount: lightCount,
     lightSeen: lightSeen,
+    tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

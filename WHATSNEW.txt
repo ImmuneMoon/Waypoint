@@ -23,7 +23,8 @@ Play map & settings
   🎬 Scene; Draw, Eraser and Fill form one group. Only one toolbar menu is
   open at a time, clicking the active tool while its menu is open puts it
   away and returns to the arrow, and the Sound and Visual effects panels
-  take turns instead of stacking.
+  take turns instead of stacking. An open toolbar menu, such as the fog
+  menu, draws over a selected token's toolbar instead of under it.
 - The Planners, Handbook and Maps headers in the sidebar show just their
   title: right-click one for its actions (collapse all, search and new, plus
   new from a Markdown file for planners and pages).

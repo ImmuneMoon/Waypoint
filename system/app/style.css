@@ -240,6 +240,7 @@
         padding: 6px;
         gap: 6px;
         z-index: 8993;   /* the map's own tool bar (and its flyouts, which stack inside it): over the map, under the token toolbar (8995) and every floating window (9000 and up) — a window dragged over it covers it, as the owner chose */
+        transition: z-index 0s .2s;   /* drops back under the token toolbar only once a closed flyout has faded (below) */
         box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
     .wb-tool-btn {
@@ -323,6 +324,9 @@
         opacity: 1;
         pointer-events: auto;
     }
+    /* A tool bar with a flyout open (the fog menu, the pen's, snap, measure…) rises over the token toolbar (8995), so a selected
+       token's bar never covers the menu in use; still under every floating window (9000 and up). */
+    .floating-toolbar:has(.shape-menu.show) { z-index: 8996; transition-delay: 0s; }
 
     /* ---- draw tool options menu ---- */
     .draw-tool-btn { position: relative; }
@@ -793,7 +797,7 @@
 
   /* Floating mini-toolbar above the whiteboard selection */
   #selToolbar {
-    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map, the party and combat strips (8990) — under every floating window (the sheet, a HUD, the doc panel: 9000 and up) */
+    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map, the party and combat strips (8990) and the tool bar (8993) — under a tool bar whose flyout is open (8996) and every floating window (the sheet, a HUD, the doc panel: 9000 and up) */
     background: var(--panel2); border: 1px solid var(--edge); border-radius: 7px;
     padding: 3px 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     pointer-events: none;   /* the bar itself never blocks the board... */

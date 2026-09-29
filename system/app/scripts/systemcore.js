@@ -3359,7 +3359,19 @@ function sbRowOps(json, sys, find) {
     var st = function(e, k) { var s = isObj(e) && isObj(e.stats) ? e.stats[k] : undefined; return typeof s === 'number' ? s : 0; };
     var facts = function(f, lvl, on) { var fx = {}; if (isObj(f.list) && isObj(f.list.lvl) && typeof lvl === 'number' && fin(lvl)) fx.lvl = lvlClamp(f.list.lvl, lvl); if (isObj(f.list) && isObj(f.list.on) && typeof on === 'boolean') fx.on = on; return Object.keys(fx).length ? fx : null; };
     var push = function(f, q) { out.ops.push({ f: f.id, q: q }); if (!seenL[f.id]) { seenL[f.id] = 1; out.lists.push(f.id); } };
-    var addLib = function(f, e, fx, ov) { var id = rid(); push(f, { op: 'add', defId: e.id, rowId: id }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); if (ov) push(f, { op: 'ov', rowId: id, ov: ov }); out.rows++; };
+    // A list that takes an entry once (no quantity, no second row of it) would refuse the file's second row of one entry: that row comes in as
+    // a row of its own under the file's name (owner, 2026-09-28: his sheet holds a trait twice, one per weapon, or a bought copy beside a
+    // species' own). The first row of an entry is the library's. Where the second row's price is the entry's own and players may see the
+    // entry, the row of its own reads as the entry does (a twin): its price by level, its notes and its changes, so a level raised later
+    // and what the trait adds count as they do on the library's row. A GM-only entry lends a row of its own nothing
+    var usedLib = map(), taken = function(f, e) { return isObj(f.list) && f.list.noQty === true && f.list.multi !== true && usedLib[f.id + '|' + e.id] === 1; };
+    var twinOf = function(e, keys) {   // what a twin takes from its entry (copies): the price stats named (the first always, the others when they hold something), its category, its notes, its changes
+        var o = { stats: {}, mods: null, modsOn: false, notes: typeof e.notes === 'string' ? cutText(e.notes, LIMITS.text) : '', category: typeof e.category === 'string' ? cutText(e.category, LIMITS.category) : '' };
+        keys.forEach(function(k, i) { var v = st(e, k); if (v || i === 0) o.stats[k] = v; });
+        if (Array.isArray(e.mods) && e.mods.length) { o.mods = JSON.parse(JSON.stringify(e.mods.slice(0, LIMITS.effectMods))); o.modsOn = e.modsOn === true; }
+        return o;
+    };
+    var addLib = function(f, e, fx, ov) { var id = rid(); usedLib[f.id + '|' + e.id] = 1; push(f, { op: 'add', defId: e.id, rowId: id }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); if (ov) push(f, { op: 'ov', rowId: id, ov: ov }); out.rows++; };
     var addCustom = function(f, def, fx) { var id = rid(); var d = { name: cutText(def.name, LIMITS.name) || 'Item' }; ['category', 'notes', 'key'].forEach(function(k) { if (typeof def[k] === 'string' && def[k].trim()) d[k] = def[k]; }); if (isObj(def.stats) && Object.keys(def.stats).length) d.stats = def.stats; if (Array.isArray(def.mods) && def.mods.length) { d.mods = def.mods; if (def.modsOn === true) d.modsOn = true; } push(f, { op: 'custom', rowId: id, def: d }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); out.rows++; };
     var cat0 = function(f) { return isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats[0] : ''; };
     var rowsAt = function(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(function(r) { return isObj(r) && typeof r.name === 'string' && r.name.trim(); }) : []; };
@@ -3382,9 +3394,11 @@ function sbRowOps(json, sys, find) {
         rows.forEach(function(t) {
             var pts = sbInt(t.points) || 0, lvl = sbInt(t.level), g = sbInt(t.baselinePoints) || 0, nm = cutText(t.name, LIMITS.name);
             var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), el = e ? (lvl !== undefined && e.name === nm ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
-            if (e && st(e, 'bp') + st(e, 'per') * el === pts) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); return; }
-            var stats = { bp: pts }; if (g) stats.granted = g; if (e && st(e, 'szd')) stats.szd = 1;
-            addCustom(f, { name: nm, category: cat0(f), stats: stats, mods: sbMods(t.modifiers, ix) }, facts(f, lvl === undefined ? 0 : lvl));
+            var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts;
+            if (same && !taken(f, e)) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); return; }
+            var tw = same && e.vis !== 'gm' ? twinOf(e, ['bp', 'per']) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods;   // the file's own bag, where it states one, before the entry's changes
+            var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1;
+            addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl));
         });
     });
     // powers and techniques: a library entry only when its CP at the row's level is the row's CP; forms by name
@@ -3400,18 +3414,25 @@ function sbRowOps(json, sys, find) {
         var f = list(p[0]), rows = rowsAt(isObj(json.abilities) ? json.abilities[p[1]] : null); if (rows.length && !f) { skip(p[0]); return; } if (!f) return;
         rows.forEach(function(r) {
             var L = sbInt(r.level) || 1, cp = sbInt(r.cpCost), g = sbInt(r.baselinePoints) || 0, e = entry(f, cutText(r.name, LIMITS.name));
-            if (e && (cp === undefined || cpAt(e, L) === cp)) { addLib(f, e, facts(f, L), g ? { stats: { granted: g } } : null); return; }
+            var same = !!e && (cp === undefined || cpAt(e, L) === cp);
+            if (same && !taken(f, e)) { addLib(f, e, facts(f, L), g ? { stats: { granted: g } } : null); return; }
+            var tw = same && e.vis !== 'gm' ? twinOf(e, ['cpA', 'cpC', 'cpK']) : null;
             var d2 = function(v) { var x = sbInt(v) || 0; return Math.max(0, Math.min(99, Math.round(x))) * 1010101; };
-            var stats = { cpA: cp || 0 }; if (g) stats.granted = g;
+            var stats = tw ? tw.stats : { cpA: cp || 0 }; if (g) stats.granted = g;
             if (p[0] === 'powers') { stats.fpP = d2(r.fpCost); stats.epP = d2(r.epCost); stats.al = Object.prototype.hasOwnProperty.call(AL, r.alignment) ? AL[r.alignment] : 1; }
             else { var skB = (sbInt(r.skillBonus) || 0) - (sbInt(r.skillPenalty) || 0); if (skB) stats.skB = skB; }
             var pk = pickOf(f, p[2], r.baseSkill); if (pk) stats[p[2]] = pk;
-            addCustom(f, { name: r.name, category: cat0(f), notes: cutText(r.effect, LIMITS.text), stats: stats }, facts(f, L));   // its own CP (a flat cost reads the same at any level), its level kept
+            addCustom(f, { name: r.name, category: (tw && tw.category) || cat0(f), notes: cutText(r.effect, LIMITS.text) || (tw ? tw.notes : ''), stats: stats, mods: tw ? tw.mods : null, modsOn: !!tw && tw.modsOn }, facts(f, L));   // its own CP (a flat cost reads the same at any level), its level kept
         });
     });
     var fF = list('forms'), fr = rowsAt(isObj(json.abilities) ? json.abilities.lightsaberForms : null);
     if (fr.length && !fF) skip('forms');
-    if (fF) fr.forEach(function(r) { var L = sbInt(r.level) || 1, g = sbInt(r.baselinePoints) || 0, e = entry(fF, cutText(r.name, LIMITS.name)); if (e) addLib(fF, e, facts(fF, L, r.active === true), g ? { stats: { granted: g } } : null); else addCustom(fF, { name: r.name, category: cat0(fF), stats: Object.assign({ cpA: sbInt(r.cpCost) || 0 }, g ? { granted: g } : {}) }, facts(fF, L, r.active === true)); });
+    if (fF) fr.forEach(function(r) {
+        var L = sbInt(r.level) || 1, g = sbInt(r.baselinePoints) || 0, cpF = sbInt(r.cpCost), e = entry(fF, cutText(r.name, LIMITS.name));
+        if (e && !taken(fF, e)) { addLib(fF, e, facts(fF, L, r.active === true), g ? { stats: { granted: g } } : null); return; }
+        var tw = e && e.vis !== 'gm' && (cpF === undefined || cpAt(e, L) === cpF) ? twinOf(e, ['cpA', 'cpC', 'cpK']) : null, stats = tw ? tw.stats : { cpA: cpF || 0 }; if (g) stats.granted = g;
+        addCustom(fF, { name: r.name, category: (tw && tw.category) || cat0(fF), notes: tw ? tw.notes : '', stats: stats, mods: tw ? tw.mods : null, modsOn: !!tw && tw.modsOn }, facts(fF, L, r.active === true));
+    });
     // languages: custom rows — the tongue, its tier (native, broken, accented, fluent), comprehension only, granted free
     var fL = list('languages'), lg = Array.isArray(json.languageEntries) ? json.languageEntries.slice(0, LIMITS.carried).filter(function(x) { return isObj(x) && typeof x.tongue === 'string' && x.tongue.trim(); }) : [];
     if (lg.length && !fL) skip('languages');

@@ -1141,7 +1141,9 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     var before = liveItem.whiteboard.length;
     liveItem.whiteboard = liveItem.whiteboard.filter(function(w) { return !(w.type === 'path' && w.byPlayer && w.ownerId === profile.id && !w.locked && !sentIds[w.id]); });   // a locked one stays
     if (liveItem.whiteboard.length !== before) { changed = true; if (out) out.strokes = true; }
-    if (typeof fogArm === 'function' && fkP.some(function(p) { return fogKey(liveItem, p[0]) !== p[1]; })) fogArm(msg.itemId);   // fold M7: a cell, a facing or a stance that landed (a put-back arms nothing)
+    var mvP = fkP.filter(function(p) { return fogKey(liveItem, p[0]) !== p[1]; });   // fold M7: a cell, a facing or a stance that landed (a put-back arms nothing)
+    if (mvP.length && typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, mvP.map(function(p) { return p[0]; }), profile.id);   // senses S4b: their own drop on its turn
+    if (typeof fogArm === 'function' && mvP.length) fogArm(msg.itemId);
     return changed;
 }
 // [netcheck:patch-end]
@@ -2663,6 +2665,7 @@ function handlePos(msg, conn) {
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
             saveRemoteSoon();
+            if (typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, [w], pr.id);   // senses S4b: their own drop on its turn takes their marks afresh
             if (typeof fogArm === 'function' && skN !== null && frW.sk !== skN) fogArm(msg.itemId);   // fold M7: it landed somewhere it sees from differently than where the drag began: catch the copies up
             net.tokenDropped(w, map);   // landed on a portal? the player travels
         }
@@ -2980,11 +2983,63 @@ function broadcastTargets() {
     if (typeof fogLanded === 'function') fogLanded(null, sendAll); else sendAll();   // fold M4: judged with every open drag at its start
 }
 // [netcheck:combats-end]
+// [netcheck:marksheld-start]
+// Senses S4b: "Marks in a fight" played On your own turn (the campaign's fog defaults: marks 'turn'). While a fight runs on a fogged map each
+// player's marks there come from what the host holds for them (fog.js marksHold; never saved, never sent), taken afresh only: when a token of
+// theirs starts its turn, when they drop a token of theirs on its turn, at each new round for a player with no token in the fight, and at the
+// fight's start for everyone; at its end the marks follow every move again. Each refresh catches that player's copies of the map up in place
+// (only what changed goes out), judged with every open drag at its start
+function marksStrict(camp) { var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults : null; return !!d && d.marks === 'turn'; }
+function marksMap(camp, mapId) { var m = typeof mapId === 'string' && camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; return m && mapFogged(m) ? m : null; }
+function marksRefresh(pids, mapId) {
+    var F = window.wpFog, camp = getActiveCampaign(), m = marksMap(camp, mapId);
+    if (!net.active || net.role !== 'host' || !F || typeof F.marksHold !== 'function' || !m || !pids.length) return;   // (every caller has judged the table's setting)
+    var memo = Object.create(null);
+    fogLanded(mapId, function() {
+        pids.forEach(function(pid) { F.marksHold(pid, camp, m, fogDrop(camp, m, pid)); });
+        net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && typeof pr.id === 'string' && pids.indexOf(pr.id) >= 0) fogCatchUp(c, camp, m, pr.id, memo); });
+    });
+}
+function marksOwners(m) {   // every player with a token on that map, and every admitted one
+    var seen = Object.create(null), out = [], add = function(pid) { if (typeof pid === 'string' && pid && !seen[pid]) { seen[pid] = 1; out.push(pid); } };
+    (Array.isArray(m.whiteboard) ? m.whiteboard : []).forEach(function(w) { if (w && (w.isChar || w.waiting) && !w.hidden) add(w.ownerId); });
+    net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr) add(pr.id); });
+    return out;
+}
+function marksRowOwner(m, row) { var w = row && typeof row.tokId === 'string' && Array.isArray(m.whiteboard) ? m.whiteboard.find(function(x) { return !!x && x.id === row.tokId; }) : null; return w && typeof w.ownerId === 'string' && w.ownerId ? w.ownerId : null; }
+function marksTurn(mapId, c) {   // a token's turn began: its player's marks
+    var camp = getActiveCampaign(), m = marksMap(camp, mapId); if (!m || !marksStrict(camp)) return;
+    var pid = marksRowOwner(m, c && Array.isArray(c.rows) ? c.rows[c.turn] : null); if (pid) marksRefresh([pid], mapId);
+}
+function marksRound(mapId, c) {   // a new round: the marks of each player with no token in the fight
+    var camp = getActiveCampaign(), m = marksMap(camp, mapId); if (!m || !marksStrict(camp)) return;
+    var inFight = Object.create(null); (c && Array.isArray(c.rows) ? c.rows : []).forEach(function(r) { var p = marksRowOwner(m, r); if (p) inFight[p] = 1; });
+    marksRefresh(marksOwners(m).filter(function(p) { return inFight[p] !== 1; }), mapId);
+}
+function marksStart(mapId) {   // a fight began: everyone's marks, held from now
+    var camp = getActiveCampaign(), m = marksMap(camp, mapId);
+    if (window.wpFog && typeof window.wpFog.marksForget === 'function') window.wpFog.marksForget(mapId);
+    if (m && marksStrict(camp)) marksRefresh(marksOwners(m), mapId);
+}
+function marksEnd(mapId) {   // a fight ended: the marks follow every move again, and every copy of the map catches up
+    var camp = getActiveCampaign(), m = marksMap(camp, mapId);
+    if (window.wpFog && typeof window.wpFog.marksForget === 'function') window.wpFog.marksForget(mapId);
+    if (!net.active || net.role !== 'host' || !m || !marksStrict(camp)) return;
+    var memo = Object.create(null);
+    fogLanded(mapId, function() { net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && typeof pr.id === 'string') fogCatchUp(c, camp, m, pr.id, memo); }); });
+}
+function marksOwnMoved(mapId, toks, pid) {   // a player dropped tokens of theirs: their marks, when one of them is on its turn
+    var camp = getActiveCampaign(), m = marksMap(camp, mapId), c = net.combats && typeof mapId === 'string' && own(net.combats, mapId) ? net.combats[mapId] : null;
+    if (!m || !c || !Array.isArray(c.rows) || !marksStrict(camp)) return;
+    var row = c.rows[c.turn]; if (!row || typeof row.tokId !== 'string') return;
+    if (toks.some(function(w) { return !!w && w.id === row.tokId && w.ownerId === pid; })) marksRefresh([pid], mapId);
+}
+// [netcheck:marksheld-end]
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
-function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } }
-function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } try { turnFxStart(mapId, c); } catch (e) { console.error(e); } }   // turn-based combat T2b: a character's turn just began; T3b: its move
+function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round
+function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } try { turnFxStart(mapId, c); } catch (e) { console.error(e); } if (typeof marksTurn === 'function') { try { marksTurn(mapId, c); } catch (e) { console.error(e); } } }   // turn-based combat T2b: a character's turn just began; T3b: its move; senses S4b: its player's marks
 // [netcheck:turnmove-start]
 // Turn-based combat T3b (D1, D2): the move of the character whose turn begins — how far its token may go this turn, in the map's cells (its
 // system's Move per turn, worked out through its player's view with its token; none, a GM-only one, one that fails: no limit) and how far
@@ -3100,6 +3155,7 @@ net.combatSet = function(mapId, combat) {
     if (combat) {
         combat.mapId = mapId;
         net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
+        if (!had && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
         if (!had || had.round !== net.combats[mapId].round) roundChanged(mapId, net.combats[mapId]);   // G10: the first round (a roster edit keeps its round)
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
@@ -3108,6 +3164,7 @@ net.combatSet = function(mapId, combat) {
         if (had) { try { fxCombatEdge(mapId, had, 'resume'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks run again
         if (had) { logEvent('table', 'Combat ended on ' + mapTitleOf(mapId) + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); toast('Combat ended on ' + mapTitleOf(mapId) + '.'); }
         delete net.combats[mapId];
+        if (had && typeof marksEnd === 'function') { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again
     }
     broadcastCombats(); combatRefresh();
     if (combat && !had) { try { fxCombatEdge(mapId, net.combats[mapId], 'bank'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks stop (what ran is kept)
@@ -5018,6 +5075,7 @@ function startHosting(forceFresh) {
     sensesReset();   // Senses S0: and from no copy made for anyone
     _dragFrom = Object.create(null); _refusedAt = Object.create(null);   // fold M4: and from no drag of the last table
     fogForgetAll();   // fold M5: and from no record of what anyone's copy held
+    if (window.wpFog && typeof window.wpFog.marksForget === 'function') window.wpFog.marksForget(null);   // senses S4b: and no marks held for anyone
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     if (forceFresh) net._hostGen = 0;

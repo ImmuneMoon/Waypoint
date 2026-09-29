@@ -1303,6 +1303,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbLP = document.getElementById('wbLightPreset');
             if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
             inspector.querySelectorAll('.wb-sense-ov').forEach(function(el) { el.addEventListener('change', function() { setTokenSense(w, this.dataset.si, this.value); }); });   // senses S2b: a token's own range for a sense
+            inspector.querySelectorAll('.wb-unsensed').forEach(function(el) { el.addEventListener('change', function() { setTokenUnsensed(w, this.dataset.mi, this.checked); }); });   // senses S4: never shown as a mark by that sense
             var _el_wbBT = document.getElementById('wbBlindTick');
             if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
             var _el_wbLK = document.getElementById('wbLightLock');
@@ -1705,13 +1706,16 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // for any character token, system or none, and a note when its sheet makes it blind
   function sensesFieldHtml(w, map) {
       var camp = getActiveCampaign(), F = window.wpFog, C = window.wpFogCore; if (!camp || !F || !C) return '';
-      var list = F.campSenses(camp), SCi = window.wpSystemCore;
+      var marksL = F.campMarkSenses(camp), list = F.campSenses(camp).concat(marksL), SCi = window.wpSystemCore;   // senses S4: the mark senses after the full ones
       var ts = F.tokenSenses(w, map, camp, !w.ownerId), got = Object.create(null), off = Object.create(null), ov = Object.create(null);
-      ts.full.forEach(function(e) { got[e.id] = e; });
+      ts.full.concat(ts.marks || []).forEach(function(e) { got[e.id] = e; });
       (ts.offs || []).forEach(function(e) { off[e.id] = e; });
       (C.cleanTokSenses(w.senses) || []).forEach(function(e) { ov[e.id] = e.n; });
       var tick = '<div class="field check-row"><input type="checkbox" id="wbBlindTick" ' + (w.blind === true ? 'checked' : '') + '> <label for="wbBlindTick" title="Its eyes see only its own cell, whatever the light; a sense that does not use the eyes still works. Only its player receives this.">Blind</label></div>'
           + (ts.blind && w.blind !== true ? '<div class="muted" style="margin:-4px 0 6px; font-size:10.5px;">Blind by its character&rsquo;s sheet.</div>' : '');
+      var un = C.cleanUnsensed(w.unsensed);   // senses S4: the mark senses that never mark this token (the GM's)
+      var unHtml = marksL.length ? '<div class="field"><label>Never shown as a mark by</label>' + marksL.map(function(s, i) { var on = un === true || (Array.isArray(un) && un.indexOf(s.id) >= 0); return '<div class="field check-row" style="margin-bottom:4px;"><input type="checkbox" class="wb-unsensed" id="wbUnsensed' + i + '" data-mi="' + i + '" ' + (on ? 'checked' : '') + '> <label for="wbUnsensed' + i + '">' + esc(s.name) + '</label></div>'; }).join('')
+          + '<div class="muted" style="margin:0 0 4px; font-size:10.5px;">A sense that shows everything in range still shows this token; hide the token to keep it from those.</div></div>' : '';
       if (!list.length) return tick;
       var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; };
       var note = w.ownerId && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) && ts.sheet === false ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Read from the token only: its player does not hold this character.</div>' : '';
@@ -1722,7 +1726,17 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           var say = g ? String(g.n) + ' ' + word(s.unit) + from(g) + ': ' + (g.cells > 0 ? g.cells + ' cell' + (g.cells === 1 ? '' : 's') + ' on this map' + (g.cells >= C.LIMITS.rangeCells ? ', the most a sense reaches' : '') : 'under one cell on this map')
               : o ? String(o.n) + ' ' + word(s.unit) + from(o) + ': ' + (o.why === 'blind' ? 'off while blind' : 'off, ' + offBy(s)) : mine ? 'Off for this token' : 'Not held';
           return '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:2px 0;"><span style="flex:1 1 120px; min-width:0;">' + esc(s.name) + '</span><input type="number" class="wb-sense-ov" data-si="' + i + '" min="0" max="100000" step="any" value="' + (mine ? String(ov[s.id]) : '') + '" placeholder="default" title="This token&rsquo;s own range for the sense (a creature&rsquo;s sense, a plain token&rsquo;s): it counts before the sheet&rsquo;s; 0 switches it off for this token; empty: the sheet&rsquo;s or the system&rsquo;s again" style="width:78px;"><span class="muted">' + word(s.unit) + '</span></div><div class="muted" style="margin:-1px 0 4px; font-size:10.5px;">' + esc(say) + '</div>';
-      }).join('') + '</div>' + tick;
+      }).join('') + '</div>' + unHtml + tick;
+  }
+  // Senses S4: a mark sense that never marks this token (a flyer and a tremorsense), from its Properties — by its place in the system's mark
+  // senses, digits alone; the rest of the ticks kept (true, every sense, becomes their ids); none left, no key
+  function setTokenUnsensed(w, mi, on) {
+      var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
+      var mk = F.campMarkSenses(camp), s = typeof mi === 'string' && /^[0-7]$/.test(mi) ? mk[Number(mi)] : null; if (!s) { renderInspector(); return; }
+      var un = C.cleanUnsensed(w.unsensed), ids = (un === true ? mk.map(function(x) { return x.id; }) : un || []).filter(function(id) { return id !== s.id; });
+      if (on === true) ids.push(s.id);
+      if (ids.length) w.unsensed = ids; else delete w.unsensed;
+      save(); render(); renderInspector(); F.invalidateVision(); F.redraw();
   }
   // Senses S3: the GM's Blind tick on a token, from its Properties: true, or no key
   function setTokenBlind(w, on) { var F = window.wpFog; if (on === true) w.blind = true; else delete w.blind; save(); render(); renderInspector(); if (F) { F.invalidateVision(); F.redraw(); } }
@@ -1730,7 +1744,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // The sense is named by its place in the system's list, digits alone; a place the list no longer holds changes nothing
   function setTokenSense(w, si, value) {
       var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
-      var s = typeof si === 'string' && /^[0-7]$/.test(si) ? F.campSenses(camp)[Number(si)] : null; if (!s) { renderInspector(); return; }
+      var s = typeof si === 'string' && /^[0-7]$/.test(si) ? F.campSenses(camp).concat(F.campMarkSenses(camp))[Number(si)] : null; if (!s) { renderInspector(); return; }   // senses S4: a mark sense's place after the full ones (eight in all at most)
       var cur = (C.cleanTokSenses(w.senses) || []).filter(function(e) { return e.id !== s.id; }), v = typeof value === 'string' ? value.trim() : '', n = Number(v);
       if (v !== '' && isFinite(n)) cur.push({ id: s.id, n: Math.max(0, Math.min(100000, n)) });
       if (cur.length) w.senses = cur; else delete w.senses;

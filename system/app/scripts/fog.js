@@ -735,6 +735,7 @@ function draw() {
     ctx.fill();                                                    // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
+    drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill());   // senses S4: the marks, over the fog
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
 }
@@ -759,17 +760,69 @@ function drawCaptions(ctx, s) {
     ctx.restore();
 }
 
+// Senses S4: a player's marks on their fog — each a glyph in its cell told apart by its shape (1 sound: three arcs, 2 tremor: a zigzag, 3 presence: a
+// ring round a dot, 4 heat: a teardrop), in one colour, moving slowly (still under reduced motion; never flashing), never on a cell they see; its fixed
+// word drawn over it while the pointer is on its cell; the count in words ("Heard: 2 · Felt: 1") at the board's bottom left. The marks of a player's
+// own copy, or on the GM's screen those the previewed player gets (the host's own work); none in the GM's own view. Text is canvas text alone
+var MARK_WORD = { 1: 'Heard', 2: 'Felt', 3: 'Sensed', 4: 'Heat' }, _markHover = null;
+function marksStill() { try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true; } catch (e) {} try { return localStorage.getItem('wp_fxReduced') === '1'; } catch (e) { return false; } }
+function marksToDraw(map, camp) {
+    if (isClientView()) return Array.isArray(map.fogMarks) ? map.fogMarks : [];
+    if (previewMode === 'off' || previewMode === 'party') return [];
+    return fogMarksFor(previewMode, camp, map, fogDropIds(previewMode, camp, map) || Object.create(null)) || [];
+}
+function glyphPath(ctx, k, x, y, R) {
+    if (k === 1) { for (var j = 1; j <= 3; j++) { ctx.moveTo(x - R * 0.7 + R * 0.45 * j * Math.cos(-0.8), y + R * 0.45 * j * Math.sin(-0.8)); ctx.arc(x - R * 0.7, y, R * 0.45 * j, -0.8, 0.8); } return; }
+    if (k === 2) { ctx.moveTo(x - R, y); ctx.lineTo(x - R * 0.6, y - R * 0.5); ctx.lineTo(x - R * 0.2, y + R * 0.5); ctx.lineTo(x + R * 0.2, y - R * 0.5); ctx.lineTo(x + R * 0.6, y + R * 0.5); ctx.lineTo(x + R, y); return; }
+    if (k === 3) { ctx.moveTo(x + R * 0.8, y); ctx.arc(x, y, R * 0.8, 0, Math.PI * 2); return; }
+    ctx.moveTo(x, y - R); ctx.quadraticCurveTo(x + R * 0.9, y + R * 0.2, x, y + R * 0.85); ctx.quadraticCurveTo(x - R * 0.9, y + R * 0.2, x, y - R);
+}
+function drawMarks(ctx, s, marks, seenKeys, grid, now, still) {
+    var C = core(); if (!marks || !marks.length || !C || !grid || !ctx.fillText) return;
+    var wrap = ui('whiteboardWrap'), z = state.zoomLevel || 1, sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0, W = s.clientWidth, H = s.clientHeight;
+    var R = Math.max(6, (grid.type === 'square' ? grid.size : grid.s * 1.7) * z * 0.3), count = { 1: 0, 2: 0, 3: 0, 4: 0 }, hoverAt = null;
+    ctx.save();
+    ctx.strokeStyle = '#e8e6f5'; ctx.fillStyle = '#e8e6f5'; ctx.lineWidth = Math.max(1.5, R * 0.18); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (var i = 0; i < marks.length; i++) {
+        var m = marks[i], cell = m.q !== undefined ? { q: m.q, r: m.r } : { c: m.c, r: m.r }, key = C.cellKey(cell, grid);
+        if (!MARK_WORD[m.k] || (seenKeys && seenKeys[key])) continue;
+        count[m.k]++;
+        var ctr = C.cellCenter(cell, grid), x = ctr.x * z - sx, y = ctr.y * z - sy;
+        if (x < -2 * R || y < -2 * R || x > W + 2 * R || y > H + 2 * R) continue;   // off the board's view
+        ctx.globalAlpha = still ? 0.85 : 0.62 + 0.28 * Math.sin(now / 900 + i * 1.3);   // a slow swell, each its own phase
+        ctx.beginPath(); glyphPath(ctx, m.k, x, y, R); ctx.stroke();
+        if (m.k === 3) { ctx.beginPath(); ctx.arc(x, y, R * 0.2, 0, Math.PI * 2); ctx.fill(); }
+        if (_markHover === key) hoverAt = { x: x, y: y, word: MARK_WORD[m.k] };
+    }
+    ctx.globalAlpha = 1; ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var pill = function(t, cx, cy) { var w = Math.min(ctx.measureText(t).width + 14, 360), h = 17; ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8e6f5'; ctx.fillText(t, cx, cy + 0.5, 346); return w; };
+    if (hoverAt) pill(hoverAt.word, hoverAt.x, hoverAt.y - R - 12);
+    var said = [1, 2, 3, 4].filter(function(k) { return count[k] > 0; }).map(function(k) { return MARK_WORD[k] + ': ' + count[k]; }).join(' · ');
+    if (said) { var tw = Math.min(ctx.measureText(said).width + 14, 360), rl = ui('rulerLeft'), inset = rl && rl.offsetWidth > 0 ? rl.offsetWidth : 0; pill(said, inset + 12 + tw / 2, H - 22); }   // clear of the left ruler while it shows
+    ctx.restore();
+}
+// the cell the pointer is on, for a mark's word (the board's own coordinates, as the fog draws them)
+(function wireMarkHover() {
+    if (typeof document === 'undefined') return;
+    var w = ui('whiteboardWrap'); if (!w || !w.addEventListener) return;
+    w.addEventListener('pointermove', function(e) {
+        var map = activeMap(), grid = map ? gridForMap(map) : null, C = core(); if (!grid || !C) { _markHover = null; return; }
+        var r = w.getBoundingClientRect(), z = state.zoomLevel || 1;
+        _markHover = C.cellKey(C.cellOf((e.clientX - r.left + w.scrollLeft) / z, (e.clientY - r.top + w.scrollTop) / z, grid), grid);
+    }, { passive: true });
+    w.addEventListener('pointerleave', function() { _markHover = null; });
+})();
 // Senses S3: why a blind token's screen is dark and what still works — "Blind", then each sense of its that still sees with its range — above
 // each character token of the viewer's that is blind (a player's own; on the GM's screen the player previewed, or every token), worked out from
 // this app's own system, characters and tokens (the host sends no word of it). A sense's name is a system file's text: drawn as text, never markup
 var SENSE_CAP_UNIT = { ft: 'ft', m: 'm', cells: 'cells' };
 function blindCaptionsFor(map, camp, ownerId) {
-    var out = [], byId = Object.create(null); campSenses(camp).forEach(function(s) { byId[s.id] = s; });
+    var out = [], byId = Object.create(null); campSenses(camp).concat(campMarkSenses(camp)).forEach(function(s) { byId[s.id] = s; });   // senses S4: a mark sense still works blind too
     ((map && map.whiteboard) || []).forEach(function(w) {
         if (!w || w.hidden || !w.isChar || typeof w.id !== 'string') return;   // a waiting token is never blind (tokenSenses)
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
         var ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'); if (!ts.blind) return;
-        var words = ['Blind']; ts.full.forEach(function(e) { var s = byId[e.id]; if (s) words.push(String(s.name) + ' ' + e.n + ' ' + (SENSE_CAP_UNIT[s.unit] || 'yd')); });
+        var words = ['Blind']; ts.full.concat(ts.marks || []).forEach(function(e) { var s = byId[e.id]; if (s) words.push(String(s.name) + ' ' + e.n + ' ' + (SENSE_CAP_UNIT[s.unit] || 'yd')); });
         out.push({ id: w.id, text: words.join(' · ') });
     });
     return out;

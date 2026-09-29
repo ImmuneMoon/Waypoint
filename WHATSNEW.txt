@@ -913,6 +913,16 @@ Fog of war
   sense that works blind. A blind player's screen says "Blind" above their
   token with the senses that still work, and a token's right-click menu
   names its senses in one line.
+- Marks: a sense can mark what it finds instead of showing it. A creature a
+  player's mark sense finds but their eyes do not appears on their fog as a
+  nameless mark in its cell, told apart by its shape (three arcs for a
+  sound, a zigzag for a tremor, a ring round a dot for a presence, a
+  teardrop for heat), with its word (Heard, Felt, Sensed, Heat) while the
+  pointer is on it and a count at the bottom left of the board. Nothing of
+  the creature reaches the player, only the cell. The marks swell slowly
+  and hold still under reduced motion. A token's Properties can keep it
+  from any mark sense ("Never shown as a mark by"), and the GM's preview
+  of a player shows that player's marks.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

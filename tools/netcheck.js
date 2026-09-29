@@ -2190,7 +2190,7 @@ pendingChecks.push((async () => {
         undoLine.length > 0 && /window\.wpNet\.sendItem\(camp\.id, item\.id\);[^\n]*wUndo\.forEach\([^\n]*broadcastItemFiltered[^\n]*\}\); if \(window\.wpNet\.syncCombatHidden\) window\.wpNet\.syncCombatHidden\(\); \}/.test(undoLine), undoLine.slice(0, 400));
     // the host's save calls it right after the map it saved went out (its stub first), run for real: net.onLocalSave sliced whole, over stubs
     const olsSrc = fnSrc('net.onLocalSave = function() {', '\n};\n', 'onLocalSave') + '\n};';
-    const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog'];
+    const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncSenses', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog'];
     const runSave = (s, patch) => {
         const log = [], real = s.net.syncCombatHidden;
         SYNCS.forEach(k => { s.net[k] = () => log.push(k); });
@@ -2667,6 +2667,28 @@ pendingChecks.push((async () => {
     check('Lighting: a change to the table\'s vision rules (the fog, lighting or facing switch, the master, the fog defaults) re-sends every fogged map of the hosted campaign to the players, filtered for each (not only the map on screen); nothing from a client or off a session',
         j(r1) === j(['k_r/mA', 'k_r/mF']) && sentR.length === 2
         && /net\.broadcastStance\(\);\n\s*if \(net\.resendFogged\) net\.resendFogged\(\);/.test(src) && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); \} \} \}\);\n\s*if \(net\.resendFogged\) net\.resendFogged\(\);   \/\/ a default sight changed/.test(src), j(sentR));
+    // senses S2a: a change to the system's senses re-sends the system (a no-op where the save already sent it) and then every fogged map; nothing
+    // while they stand still, even as the rest of the system changes (the real syncSenses, sliced by its markers)
+    {
+        const ssS = between('// [netcheck:syncsenses-start]', '// [netcheck:syncsenses-end]', 'syncsenses'), logS = [];
+        let msgS = { type: 'system', campId: 'k_s', system: { fields: [], combat: { senses: { list: [{ id: 'sn_force001' }] } } } };
+        const netS = { active: true, role: 'host', systemMessage: () => msgS, syncSystem: f => logS.push('system' + (f ? ':forced' : '')), resendFogged: () => logS.push('maps') };
+        new Function('net', ssS)(netS);
+        const at = () => logS.length, runS = () => { const n0 = at(); netS.syncSenses(); return logS.slice(n0); };
+        const s1 = runS(), s2 = runS();
+        msgS = { type: 'system', campId: 'k_s', system: { fields: [{ id: 'f_new' }], combat: { senses: { list: [{ id: 'sn_force001' }] } } } }; const s3 = runS();
+        msgS = { type: 'system', campId: 'k_s', system: { fields: [], combat: { senses: { list: [{ id: 'sn_force001', walls: 'pass' }] } } } }; const s4 = runS();
+        msgS = { type: 'system', campId: 'k_s', system: { fields: [], combat: {} } }; const s5 = runS(), s6 = runS();
+        msgS = { type: 'system', campId: 'k_other', system: { fields: [], combat: {} } }; const s7 = runS();
+        netS.role = 'client'; msgS.system.combat.senses = { list: [] }; const s8 = runS(); netS.role = 'host'; netS.active = false; const s9 = runS(); netS.active = true;
+        const msgKeep = msgS; msgS = null; const s10 = runS(); msgS = msgKeep;
+        check('senses S2a: a change to the system\'s senses sends the system first and then every fogged map; nothing again while they stand still, even as the rest of the system changes (the system goes by its own sync); a change of campaign counts; nothing from a client, off a session or with no system',
+            j([s1, s2, s3, s4, s5, s6, s7, s8, s9, s10]) === j([['system', 'maps'], [], [], ['system', 'maps'], ['system', 'maps'], [], ['system', 'maps'], [], [], []]), j([s1, s2, s3, s4, s5, s6, s7, s8, s9, s10]));
+        check('senses S2a (source): every host save runs it right after the system\'s own sync; the snapshot sets its signature with the system\'s, and hosting afresh clears it',
+            /net\.syncSystem\(\);   \/\/ and the system \(character sheets\), the same way\r?\n\s*net\.syncSenses\(\);/.test(src)
+            && /var sysm = net\.systemMessage\(\); if \(sysm\) \{ net\._lastSystemSig = quickHash\(JSON\.stringify\(sysm\.system\)\); net\._lastSensesSig = sensesSigOf\(sysm\); \}/.test(src)
+            && /net\._lastSystemSig = null;   \/\/ and the system\r?\n\s*net\._lastSensesSig = null;/.test(src) && (src.match(/net\.syncSenses = function/g) || []).length === 1);
+    }
     // lighting L3: one player's copy of a fogged map (the real fogDrop / fogFilterClean / fogCopyFor): the creatures they cannot see dropped, the lit
     // cells only they get (never on the shared clone), the host's light cap; the host's own map never carries either
     const flF = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit');

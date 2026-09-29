@@ -1402,6 +1402,7 @@ net.onLocalSave = function() {
         net.syncSounds();   // the sound index changed with this save? the list follows the same way
         net.syncMusic();    // and the music library, the same way
         net.syncSystem();   // and the system (character sheets), the same way
+        net.syncSenses();   // and its senses: a change re-sends every fogged map after it (senses S2a)
         net.syncDocStyle(); // and the campaign's document look (doc theming), the same way
         net.syncCampName(); // and its name (a rename reaches the players' top bar), the same way
         net.syncTurnRules(); // and who may press an effect's timer (turn-based combat T5b), the same way
@@ -1770,6 +1771,22 @@ net.syncCampFog = function() {
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
     if (net.resendFogged) net.resendFogged();   // a default sight changed: every fogged map, re-filtered
 };
+// [netcheck:syncsenses-start]
+// Senses S2a: a change to the system's senses (the players' view holds them as the GM's does) moves who sees what by them: the system
+// goes first (a no-op where this save already sent it), then every fogged map of the hosted campaign, re-filtered. The system alone
+// re-sends no map
+net._lastSensesSig = null;
+function sensesSigOf(msg) { var sn = msg && msg.system && msg.system.combat ? msg.system.combat.senses : null; return (msg ? msg.campId : '') + '\n' + JSON.stringify(sn || null); }
+net.syncSenses = function() {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.systemMessage(); if (!msg) return;
+    var s = sensesSigOf(msg);
+    if (s === net._lastSensesSig) return;
+    net._lastSensesSig = s;
+    if (net.syncSystem) net.syncSystem();
+    if (net.resendFogged) net.resendFogged();
+};
+// [netcheck:syncsenses-end]
 // [netcheck:campfogsync-end]
 // Turn-based combat T5b: who may pause, reset or stop an effect's countdown (camp.turnRules.timers) — a player's sheet shows the controls
 // only when they may. The join snapshot carries it; a change mid-session goes out the way a rename does, the one word only (the host
@@ -3538,7 +3555,7 @@ function admitPlayer(conn, prof, provenKey) {
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
     var mc = window.wpMusic && window.wpMusic.controlSnapshot ? window.wpMusic.controlSnapshot() : null; if (mc) { mc.type = 'music-ctl'; try { conn.send(mc); } catch (e) { sendFailed(e); } }   // if the GM is driving the table's music now, catch this joiner up (fresh position)
-    var sysm = net.systemMessage(); if (sysm) net._lastSystemSig = quickHash(JSON.stringify(sysm.system));   // the snapshot carried the system: no re-send on the next save
+    var sysm = net.systemMessage(); if (sysm) { net._lastSystemSig = quickHash(JSON.stringify(sysm.system)); net._lastSensesSig = sensesSigOf(sysm); }   // the snapshot carried the system, its senses too: no re-send on the next save
     var dsm = net.docStyleMessage(); if (dsm) net._lastDocStyleSig = quickHash(JSON.stringify(dsm.docStyle));   // and the campaign's document look
     var npm = net.newPlayersMessage(); if (npm) net._lastNewPlayersSig = newPlayersSig(npm);   // and the rules for players without a character (Onboarding F1a)
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
@@ -4977,6 +4994,7 @@ function startHosting(forceFresh) {
     net._lastSoundSig = null;    // and the sound list
     net._lastMusicSig = null;    // and the music library
     net._lastSystemSig = null;   // and the system
+    net._lastSensesSig = null;   // and its senses (senses S2a)
     net._lastDocStyleSig = null; // and the campaign's document look
     net._lastNewPlayersSig = null; // and the rules for players without a character (Onboarding F1a)
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));

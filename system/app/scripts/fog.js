@@ -391,7 +391,7 @@ function fogLitFor(recipientId, camp, map, drop) {
     var dLit = litOf(map, grid, blk, dsrc);
     // the cells this player's tokens see: their line of sight as their copy works it out — never a manual reveal (no light is read there), a
     // manual cut left in (a cut beside a lit wall still lights its face on their side)
-    var cand = [], ck = Object.create(null);
+    var cand = [], ck = Object.create(null); _viewPass++;
     vs.forEach(function(v) { var s = viewSeen(map, grid, blk, lvl, v, lc); for (var i = 0; i < s.length; i++) { var k = s[i].key; if (!ck[k] && (dLit[k] || 0) > lvl) { ck[k] = 1; cand.push(s[i]); } } });
     if (!cand.length) return null;
     var ownLit = litOf(map, grid, blk, lightSources(map, grid, blk, drop)), out = [];
@@ -414,17 +414,25 @@ function lightCount(map) { var C = core(), n = 0; ((map && map.whiteboard) || []
 // One viewer's seen cells, memoised per map on its cell, facing (only for a cone: all-around vision never reads it), sight and arc, so a drag
 // recomputes only the token that moves. The memo is stamped on exactly what seenCells reads beyond the viewer — the grid, the map's light level
 // and its blockers' content version — so a save that changes none of them (a token moved, a note typed) keeps it. Bounded by cells across
-// every map: past the budget it starts afresh
-var _viewCache = Object.create(null), _viewCells = 0, VIEW_BUDGET = 250000;
+// every map (senses S2a): past the budget entries go until 80% of it holds the new one — other maps' first, the least recently used first,
+// then this map's own from an earlier pass (the pass under way is about to ask for them), never an entry used in the pass under way (a
+// revealed set, a player's lit cells) — so a table whose senses multiply the viewers is not swept afresh on every draw
+var _viewCache = Object.create(null), _viewCells = 0, VIEW_BUDGET = 600000, _viewTick = 0, _viewPass = 0;
+function viewEvict(need, mapId) {
+    var others = [], mine = [];
+    Object.keys(_viewCache).forEach(function(id) { var mc = _viewCache[id]; Object.keys(mc.m).forEach(function(k) { var e = mc.m[k]; if (e.pass !== _viewPass) (id === mapId ? mine : others).push({ mc: mc, k: k, e: e }); }); });
+    var byUse = function(a, b) { return a.e.used - b.e.used; }, all = others.sort(byUse).concat(mine.sort(byUse));
+    for (var i = 0; i < all.length && _viewCells + need > VIEW_BUDGET * 0.8; i++) { var o = all[i]; delete o.mc.m[o.k]; o.mc.cells -= o.e.hit.length; _viewCells -= o.e.hit.length; }
+}
 function viewSeen(map, grid, blk, lvl, v, lc) {
     var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (lc ? lc.ver : 0), mc = _viewCache[map.id];
     if (!mc || mc.stamp !== stamp) { if (mc) _viewCells -= mc.cells; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
     var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was)
-    if (hit) return hit;
-    hit = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
-    if (_viewCells + hit.length > VIEW_BUDGET) { _viewCache = Object.create(null); _viewCells = 0; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
-    mc.m[k] = hit; mc.cells += hit.length; _viewCells += hit.length;
-    return hit;
+    if (hit) { hit.used = ++_viewTick; hit.pass = _viewPass; return hit.hit; }
+    var cells = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
+    if (_viewCells + cells.length > VIEW_BUDGET) viewEvict(cells.length, map.id);
+    mc.m[k] = { hit: cells, used: ++_viewTick, pass: _viewPass }; mc.cells += cells.length; _viewCells += cells.length;
+    return cells;
 }
 // The cells revealed to ownerId, each with its tier (2 clear or bright, 1 dim): their tokens' vision ∪ manual adds (clear) − manual cuts.
 // null = the whole map (reveal mode); else { list: [{key, cell}], keys: {key: tier}, through? }. Senses S2a: through, { key: 1 } for a cell
@@ -436,6 +444,7 @@ function revealedTiers(map, camp, ownerId) {
     var keys = Object.create(null), list = [], plain = Object.create(null), passed = null;
     var put = function(key, cell, t) { var o = keys[key]; if (o === undefined) { keys[key] = t; list.push({ key: key, cell: cell }); } else if (t > o) keys[key] = t; };
     if (mf.mode !== 'cover') {
+        _viewPass++;   // a pass of its own: the vision memo never lets go of what it sweeps here while it sweeps
         var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lvl = mapLevel(map);
         if (over && lvl !== null) lvl = 0;   // walls over the cap block nothing: the map reads by sight alone, never lit through them
         var lc = lvl === null || over ? null : litFor(map, grid, blk);   // lighting off: no light sources either

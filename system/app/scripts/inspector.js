@@ -1042,6 +1042,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   return lightFieldHtml(w, L, lightPresetsNow());
               })() : '')+
               (w.isChar && !w.waiting && window.wpCanPersistLocal && window.wpCanPersistLocal() ? sensesFieldHtml(w, activeMap) : '')+   // senses S2b: the system's senses, as this token has them
+              (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.gmNoteFor && window.wpCanPersistLocal && window.wpCanPersistLocal() ? nullsFieldHtml(w) : '')+   // senses S7a: a null area (hidden or not)
               '<div class="divider"></div>'+
               '<button class="tool ghost" id="wbDup" style="width:100%; margin-bottom:5px;" title="Make a full copy of this item, settings and data included (Ctrl+D)">&#10697; Duplicate</button>'+
               '<button class="tool ghost danger" id="wbDel" style="width:100%">Delete Shape</button>'+
@@ -1304,6 +1305,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
             inspector.querySelectorAll('.wb-sense-ov').forEach(function(el) { el.addEventListener('change', function() { setTokenSense(w, this.dataset.si, this.value); }); });   // senses S2b: a token's own range for a sense
             inspector.querySelectorAll('.wb-unsensed').forEach(function(el) { el.addEventListener('change', function() { setTokenUnsensed(w, this.dataset.mi, this.checked); }); });   // senses S4: never shown as a mark by that sense
+            inspector.querySelectorAll('.wb-null').forEach(function(el) { el.addEventListener('change', function() { setItemNulls(w, this.dataset.ni, this.checked); }); });   // senses S7a: the senses that fail in this area
             var _el_wbBT = document.getElementById('wbBlindTick');
             if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
             var _el_wbLK = document.getElementById('wbLightLock');
@@ -1724,7 +1726,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       return '<div class="field"><label>Senses</label>' + note + list.map(function(s, i) {
           var g = got[s.id] || null, o = off[s.id] || null, mine = Object.prototype.hasOwnProperty.call(ov, s.id);
           var say = g ? String(g.n) + ' ' + word(s.unit) + from(g) + ': ' + (g.cells > 0 ? g.cells + ' cell' + (g.cells === 1 ? '' : 's') + ' on this map' + (g.cells >= C.LIMITS.rangeCells ? ', the most a sense reaches' : '') : 'under one cell on this map')
-              : o ? String(o.n) + ' ' + word(s.unit) + from(o) + ': ' + (o.why === 'blind' ? 'off while blind' : 'off, ' + offBy(s)) : mine ? 'Off for this token' : 'Not held';
+              : o ? String(o.n) + ' ' + word(s.unit) + from(o) + ': ' + (o.why === 'blind' ? 'off while blind' : o.why === 'null' ? 'fails here (a null area)' : 'off, ' + offBy(s)) : mine ? 'Off for this token' : 'Not held';
           return '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:2px 0;"><span style="flex:1 1 120px; min-width:0;">' + esc(s.name) + '</span><input type="number" class="wb-sense-ov" data-si="' + i + '" min="0" max="100000" step="any" value="' + (mine ? String(ov[s.id]) : '') + '" placeholder="default" title="This token&rsquo;s own range for the sense (a creature&rsquo;s sense, a plain token&rsquo;s): it counts before the sheet&rsquo;s; 0 switches it off for this token; empty: the sheet&rsquo;s or the system&rsquo;s again" style="width:78px;"><span class="muted">' + word(s.unit) + '</span></div><div class="muted" style="margin:-1px 0 4px; font-size:10.5px;">' + esc(say) + '</div>';
       }).join('') + '</div>' + unHtml + tick;
   }
@@ -1748,6 +1750,23 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var cur = (C.cleanTokSenses(w.senses) || []).filter(function(e) { return e.id !== s.id; }), v = typeof value === 'string' ? value.trim() : '', n = Number(v);
       if (v !== '' && isFinite(n)) cur.push({ id: s.id, n: Math.max(0, Math.min(100000, n)) });
       if (cur.length) w.senses = cur; else delete w.senses;
+      save(); render(); renderInspector(); F.invalidateVision(); F.redraw();
+  }
+  // Senses S7a: a null area — the senses that fail for a token whose cell this piece covers, ticked in its Properties (the GM's; it works hidden,
+  // and players never get it). One tick per sense of the system, named by its place, digits alone
+  function nullsFieldHtml(w) {
+      var camp = getActiveCampaign(), F = window.wpFog, C = window.wpFogCore; if (!camp || !F || !C || !F.campSenses) return '';
+      var list = F.campSenses(camp).concat(F.campMarkSenses(camp)); if (!list.length) return '';
+      var on = C.cleanNulls(w.nulls) || [];
+      return '<div class="field"><label>Senses fail here</label>' + list.map(function(s, i) { return '<div class="field check-row" style="margin-bottom:4px;"><input type="checkbox" class="wb-null" id="wbNull' + i + '" data-ni="' + i + '" ' + (on.indexOf(s.id) >= 0 ? 'checked' : '') + '> <label for="wbNull' + i + '">' + esc(s.name) + '</label></div>'; }).join('')
+          + '<div class="muted" style="margin:0 0 4px; font-size:10.5px;">A token whose cell this covers loses the ticked senses (a place where the Force is silent). It works hidden too: players never get it, and a hidden one leaves nothing on their map.</div></div>';
+  }
+  function setItemNulls(w, ni, on) {
+      var F = window.wpFog, C = window.wpFogCore, camp = getActiveCampaign(); if (!F || !C || !camp) return;
+      var list = F.campSenses(camp).concat(F.campMarkSenses(camp)), s = typeof ni === 'string' && /^[0-7]$/.test(ni) ? list[Number(ni)] : null; if (!s) { renderInspector(); return; }
+      var ids = (C.cleanNulls(w.nulls) || []).filter(function(id) { return id !== s.id; });
+      if (on === true) ids.push(s.id);
+      if (ids.length) w.nulls = ids; else delete w.nulls;
       save(); render(); renderInspector(); F.invalidateVision(); F.redraw();
   }
   // [sinkcheck:sensesfield-end]

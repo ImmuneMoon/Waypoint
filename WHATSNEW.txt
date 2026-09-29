@@ -952,6 +952,12 @@ Fog of war
   there stay hidden. Ground seen only through a sense that passes walls is
   not kept; hiding a cell by hand takes it out of memory, and Cover all or
   Reveal all clears everyone's memory of the map.
+- Null areas: tick "Senses fail here" in a shape's or a picture's
+  Properties, and a token whose cell it covers loses those senses (a place
+  where the Force is silent, a room that muffles sound). It works hidden:
+  a hidden area never reaches players, not even its outline. The player
+  whose token stands in one is told which of its senses fail there, and
+  the caption over their token says so ("Hearing fails here").
 - The two starter systems now carry their game's senses: the d20
   Darkvision, Truesight, Blindsight and a Tremorsense mark, the 3d6
   Infravision and a Vibration Sense mark, with Blinded and Deafened

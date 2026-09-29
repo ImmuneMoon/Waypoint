@@ -5273,7 +5273,7 @@ function mkFogClient(FCx, o) {
     const win = { wpFogCore: o.core || FCx, wpFog: { invalidateVision() { rec.invalidated++; }, redraw() { rec.redraws++; } }, save() { rec.saves++; } };
     const recv = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'cleanWaitingItem', 'onLocalSave', 'save',
         '"use strict";\n' + lnM('function own(o, k) {') + '\n' + lnM('function validKey(k) {') + '\n' + lnM('function campOf(id) {') + '\n' + broadcastSrc + '\n' + rich
-        + lnM('function cleanHostWbItem(w) {') + '\n' + lnM('function cleanHostLight(w) {') + '\n' + lnM('function cleanHostTokSenses(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + apply + '\nreturn function(msg, conn) {\n' + branch + '\n};')(
+        + lnM('function cleanHostWbItem(w) {') + '\n' + lnM('function cleanHostLight(w) {') + '\n' + lnM('function cleanHostTokSenses(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n' + apply + '\nreturn function(msg, conn) {\n' + branch + '\n};')(
         net, state, win, () => state.appState.campaigns[state.appState.activeCampaignId], () => { rec.renders++; }, H.cleanWaitingItem, () => { rec.saves++; }, () => { rec.saves++; });
     return { net, state, rec, camp: () => state.appState.campaigns.k, map: id => state.appState.campaigns.k.items[id], recv: (msg, peer) => recv(JSON.parse(JSON.stringify(msg)), { peer: peer === undefined ? 'h' : peer }) };
 }
@@ -5386,7 +5386,7 @@ pendingChecks.push((async () => {
     const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
     const fogSrc = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
     const realAllow = clock => new Function('window', 'Date', lineOf('var _lim = Object.create(null);') + '\n' + lineOf('function allow(') + '\nreturn allow;')({ wpDiceCore: Dx4 }, { now: clock });   // fold M9: the host's real limiter, on the world's clock
-    const buildFog4 = () => new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells, fogMarksFor: fogMarksFor };');
+    const buildFog4 = () => new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor };');
     const whole4 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
     const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('),
@@ -5744,6 +5744,25 @@ pendingChecks.push((async () => {
             && /net\._lastSnapSent = typeof window\.wpSnapOn === 'function' && window\.wpSnapOn\(\) === true;/.test(src) && /\} else if \(msg\.type === 'snap' && net\.role === 'client'\) \{/.test(src) && !/msg\.type === 'snap' && net\.role === 'host'/.test(src)
             && /if \(msg\.final && window\.wpSeatDrop && window\.wpSeatDrop\(w, map, w\.gridFit === true\)\) \{ msg = Object\.assign\(\{\}, msg, \{ x: w\.x, y: w\.y \}\); \}/.test(src) && !/window\.wpSeatHex\(w, map\)\) \{ msg = /.test(src), J(smGot));
     }
+    // senses S7a (host): null areas on the wire — a hidden one left out whole, a visible one without its nulls, a player's word of their own tokens (fogOff)
+    {
+        const sysNl = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }], combat: { senses: { list: [{ id: 'sn_hear0001', name: 'Hearing', grade: 'mark', glyph: 'sound', walls: 'pass', arc: 'all', range: { by: 'n', n: 80 }, unit: 'ft' }] } } }, { F: Fx, gmView: true });
+        const nW = S7({ system: sysNl }), mA = nW.camp.items.mA, tAt = nW.tok('tA'), bx = tAt.x, by = tAt.y;
+        mA.whiteboard.push({ id: 'zoneV', type: 'rect', x: tAt.x - 50, y: tAt.y - 50, w: 150, h: 150, nulls: ['sn_hear0001', 'sn_other0001'] }, { id: 'zoneH', type: 'rect', hidden: true, x: 5000, y: 5000, w: 100, h: 100, nulls: ['sn_hear0001'] }, { id: 'zoneJ', type: 'rect', hidden: true, x: 6000, y: 6000, w: 100, h: 100, nulls: 'junk' });
+        mA.meta = Object.assign({}, mA.meta, { updated: (mA.meta && mA.meta.updated || 0) + 1 }); nW.clearSent(); nW.net.sendItem('k', 'mA');
+        const nA = nW.last(nW.a1), nB = nW.last(nW.b1), allSent = J(nW.a1.sent.concat(nW.a2.sent, nW.b1.sent)), cloneN = nW.api.clean(mA);
+        const nGot = { aOff: nA && nA.fogOff, aMarks: nA && Object.prototype.hasOwnProperty.call(nA, 'fogMarks'), bOff: nB && Object.prototype.hasOwnProperty.call(nB, 'fogOff'), zoneV: nA && J(nA.whiteboard.find(w => w.id === 'zoneV') || null), hidIds: /zoneH|zoneJ/.test(allSent), nulls: /nulls|sn_other0001/.test(allSent), clone: /zoneH|zoneJ|nulls|fogOff/.test(J(cloneN)) };
+        nW.clearSent(); nW.move(nW.a1, 'tA', bx + 400, by, false); nW.move(nW.a1, 'tA', bx + 400, by, true); nW.fire(150);
+        const outD = nW.a1.sent.filter(m => m.type === 'fogDiff').map(m => J(m.off === undefined ? 'none' : m.off));
+        nW.clearSent(); nW.move(nW.a1, 'tA', bx, by, false); nW.move(nW.a1, 'tA', bx, by, true); nW.fire(150);
+        const backD = nW.a1.sent.filter(m => m.type === 'fogDiff').map(m => J(m.off === undefined ? 'none' : m.off));
+        check('senses S7a (host): a null area the GM hid never reaches a player — no item, id or box (not even junk nulls); a visible one travels as its shape without its nulls; the owner of a token standing in one is told which of its senses fail there (only senses it holds; its marks by that sense gone), on their own copy only, never the shared clone; walking out sends them an empty word, walking back the word again',
+            J(nGot.aOff) === J({ tA: ['sn_hear0001'] }) && nGot.aMarks === false && nGot.bOff === false && /"id":"zoneV"/.test(nGot.zoneV) && !/nulls/.test(nGot.zoneV) && nGot.hidIds === false && nGot.nulls === false && nGot.clone === false
+            && J(outD) === J([J({})]) && J(backD) === J([J({ tA: ['sn_hear0001'] })]), J([nGot, outD, backD]));
+        check('senses S7a (source): a hidden null area is left out of a player\'s copy whole and its live moves reach no one; the whole copy, the catch-up and the player\'s app carry and clean fogOff',
+            /if \(w\.hidden && w\.nulls !== undefined\) return null;/.test(src) && /if \(w && \(w\.gmNoteFor \|\| \(w\.hidden && w\.nulls !== undefined\)\)\) return;/.test(src) && /delete w\.unsensed; delete w\.nulls; \}/.test(src)
+            && /if \(off\) out\.fogOff = off;/.test(src) && /if \(ofHash !== rec\.of\) msg\.off = ofNow;/.test(src) && /FCo\.cleanFogOff\(msg\.off, ownTokIdsOf\(map\)\)/.test(src) && /window\.wpFogCore\.cleanFogOff\(m\.fogOff, ownTokIdsOf\(m\)\)/.test(src));
+    }
     // senses S4b: "Marks in a fight" played On your own turn — the host's refreshes of each player's held marks (slice marksheld, run on stubs)
     {
         const mhSrc = bw('marksheld');
@@ -6014,7 +6033,7 @@ pendingChecks.push((async () => {
     const FCx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
     const lnS = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
     const hmS = src.indexOf('function cleanHostMap(m) {'), hmE = src.indexOf('\n}\n', hmS) + 2;
-    const cli = (myId, win) => new Function('window', 'net', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lnS('function cleanHostWbItem(w) {') + '\n' + lnS('function cleanHostLight(w) {') + '\n' + lnS('function cleanHostTokSenses(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + src.slice(hmS, hmE) + '\nreturn { item: cleanHostWbItem, map: cleanHostMap };')(win || { wpFogCore: FCx }, { myId: myId }, H.cleanWaitingItem, t => t, v => v);
+    const cli = (myId, win) => new Function('window', 'net', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lnS('function cleanHostWbItem(w) {') + '\n' + lnS('function cleanHostLight(w) {') + '\n' + lnS('function cleanHostTokSenses(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n' + src.slice(hmS, hmE) + '\nreturn { item: cleanHostWbItem, map: cleanHostMap };')(win || { wpFogCore: FCx }, { myId: myId }, H.cleanWaitingItem, t => t, v => v);
     const J = v => JSON.stringify(v), has = (w, k) => Object.prototype.hasOwnProperty.call(w, k);
     const raw = () => JSON.parse('[{"id":"sn_force001","n":1e9},{"id":"sn_force001","n":4},{"id":"sn_Bad","n":3},{"id":"sn_other001","n":-2},{"id":"__proto__","n":1}]');
     const toks = () => [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', senses: raw() }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', senses: raw() }, { id: 'orc', type: 'image', isChar: true, senses: raw() },
@@ -6033,14 +6052,19 @@ pendingChecks.push((async () => {
     const blMap = C.map({ id: 'm1', type: 'map', whiteboard: blToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'blind') ? w.blind : 0));
     // senses S4a (client): a player's marks from a hostile host — a whole map cleaned (cleanHostMap) and a map caught up in place (applyFogDiff)
     const mkMarks = () => JSON.parse('[{"c":3,"r":3,"k":1},{"c":3,"r":3,"k":2},{"c":0,"r":0,"k":1},{"c":5,"r":5,"k":9},{"c":6,"r":6,"k":2,"id":"orc","name":"Orc"},{"q":2,"r":2,"k":4},"x",null]');
-    const mapMk = cli('u_me').map({ id: 'm1', type: 'map', meta: { gridType: 'square' }, fog: { on: true }, whiteboard: [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', x: 10, y: 10, w: 30, h: 30 }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', x: 310, y: 310, w: 30, h: 30 }], rooms: [], links: [], fogMarks: mkMarks(), fogOff: { me: ['sn_aaaaaaaa'] } });
+    const mapMk = cli('u_me').map({ id: 'm1', type: 'map', meta: { gridType: 'square' }, fog: { on: true }, whiteboard: [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', x: 10, y: 10, w: 30, h: 30 }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', x: 310, y: 310, w: 30, h: 30 }], rooms: [], links: [], fogMarks: mkMarks(), fogOff: { me: ['sn_aaaaaaaa', 'bad', 'sn_aaaaaaaa'], bo: ['sn_bbbbbbbb'], ghost: ['sn_cccccccc'] } });
     const mapMkJunk = [cli('u_me').map({ id: 'm2', type: 'map', whiteboard: [], rooms: [], links: [], fogMarks: 'x' }), cli('u_me', {}).map({ id: 'm3', type: 'map', whiteboard: [], rooms: [], links: [], fogMarks: [{ c: 1, r: 1, k: 1 }] })];
-    check('senses S4a (client): a player\'s app keeps its marks from its host only as a whole cell and a glyph number 1-4 (no id, no name), the first mark of a cell, none on a cell of its own token; marks that are no list, or no cleaner on hand, give none; a player\'s own notes of another kind (fogOff) are not taken yet',
-        J(mapMk.fogMarks) === J([{ c: 3, r: 3, k: 1 }, { c: 6, r: 6, k: 2 }, { q: 2, r: 2, k: 4 }]) && !('fogOff' in mapMk) && mapMkJunk.every(m => !('fogMarks' in m)), J([mapMk.fogMarks, mapMkJunk]));
+    check('senses S4a (client): a player\'s app keeps its marks from its host only as a whole cell and a glyph number 1-4 (no id, no name), the first mark of a cell, none on a cell of its own token; marks that are no list, or no cleaner on hand, give none; S7a: what a null area switches off (fogOff) only for its own tokens, ids by pattern, each once',
+        J(mapMk.fogMarks) === J([{ c: 3, r: 3, k: 1 }, { c: 6, r: 6, k: 2 }, { q: 2, r: 2, k: 4 }]) && J(mapMk.fogOff) === J({ me: ['sn_aaaaaaaa'] }) && mapMkJunk.every(m => !('fogMarks' in m) && !('fogOff' in m)), J([mapMk.fogMarks, mapMk.fogOff, mapMkJunk]));
     const pgM = mkFogClient(FCx, { myId: 'u_me', items: { mA: { id: 'mA', type: 'map', meta: { gridType: 'square' }, fog: { on: true }, rooms: [], links: [], whiteboard: [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', x: 10, y: 10, w: 30, h: 30 }] } } });
     pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', marks: mkMarks() }); const pgM1 = JSON.parse(J(pgM.map('mA').fogMarks || null));
     pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', marks: [] }); const pgM2 = 'fogMarks' in pgM.map('mA');
     pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', marks: 'x' }); const pgM3 = pgM.rec.asked.map(m => m.type);
+    pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', off: { me: ['sn_hear0001'], bo: ['sn_hear0001'] } }); const pgO1 = JSON.parse(J(pgM.map('mA').fogOff || null));
+    pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', off: {} }); const pgO2 = 'fogOff' in pgM.map('mA');
+    const askedN = pgM.rec.asked.length; pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', off: [['sn_hear0001']] }); const pgO3 = pgM.rec.asked.length - askedN;
+    check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',
+        J(pgO1) === J({ me: ['sn_hear0001'] }) && pgO2 === false && pgO3 === 1, J([pgO1, pgO2, pgO3]));
     check('senses S4a (client): a map caught up in place takes its marks the same way (cleaned, none on its own token), an empty list takes them away, marks that are no list are refused whole (the whole map asked for)',
         J(pgM1) === J([{ c: 3, r: 3, k: 1 }, { c: 6, r: 6, k: 2 }, { q: 2, r: 2, k: 4 }]) && pgM2 === false && J(pgM3) === J(['needItem']), J([pgM1, pgM2, pgM3]));
     check('senses S3 (client): a player\'s app keeps the GM\'s Blind tick from its host only on a token of its own and only as true (no cleaner needed); another player\'s, an NPC\'s, one owned by nobody, a waiting token\'s or any other value is dropped, item by item and in a whole map; with no profile of its own, none',

@@ -380,6 +380,22 @@ function cleanUnsensed(v) {
     for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (typeof e !== 'string' || !SENSE_ID_RE.test(e) || seen[e]) continue; seen[e] = 1; out.push(e); }
     return out.length ? out : null;
 }
+// Senses S7a: the senses a null area switches off for a token standing in it (item.nulls, the GM's) — at most eight sense ids by pattern, each
+// once; null for none
+function cleanNulls(v) {
+    if (!Array.isArray(v)) return null;
+    var out = [], seen = Object.create(null);
+    for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (typeof e !== 'string' || !SENSE_ID_RE.test(e) || seen[e]) continue; seen[e] = 1; out.push(e); }
+    return out.length ? out : null;
+}
+// Senses S7a: a player's own tokens whose senses a null area switches off, as their app takes it from the host (map.fogOff) — keys only of
+// ownIds (their own tokens on that map), each a list cleanNulls keeps; null for none
+function cleanFogOff(v, ownIds) {
+    if (!isObj(v) || Array.isArray(v) || !isObj(ownIds)) return null;
+    var out = Object.create(null), n = 0;
+    Object.keys(v).forEach(function(id) { if (n >= LIMITS.marks || ownIds[id] !== 1) return; var ids = cleanNulls(v[id]); if (ids) { out[id] = ids; n++; } });
+    return n ? out : null;
+}
 // Senses S4: the host's marks — for each creature, nearest first to any viewer, the first of the player's mark senses that finds it: within
 // its range (free to test), in its arc, along a clear line unless it passes walls (only lines count, at most LIMITS.markTests: past that the far
 // creatures go untested). One mark per cell, the lowest glyph number winning; past LIMITS.marks cells the nearest kept; sorted by cell key, so
@@ -555,6 +571,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

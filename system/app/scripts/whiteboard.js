@@ -208,7 +208,7 @@ function tokenSensesLine(tok) {
     (ts.offs || []).forEach(function(e) {
         var t = said(e), s = byId[e.id]; if (!t) return;
         var f = e.why === 'off' && s.off && S && S.fieldById ? S.fieldById(camp.system, s.off.field) : null;
-        words.push(t + ': off' + (e.why === 'blind' ? ' while blind' : f && typeof f.label === 'string' && f.label ? ', ' + f.label : ''));
+        words.push(t + (e.why === 'null' ? ': fails here' : ': off' + (e.why === 'blind' ? ' while blind' : f && typeof f.label === 'string' && f.label ? ', ' + f.label : '')));   // senses S7a: a null area
     });
     if (!words.length) return '';
     return '<div class="menu-item cm-senses" style="color:var(--dim); cursor:default; white-space:normal; max-width:280px; font-size:11px;">Senses: ' + esc(words.join(' · ')) + '</div>';

@@ -3730,7 +3730,7 @@ function sbFinder(camp, sys) {
     var by = Object.create(null), add = function(e) { if (e && typeof e.name === 'string' && typeof e.id === 'string') { var k = e.name.trim().toLowerCase(); (by[k] = by[k] || []).push(e); } };
     (Array.isArray(sys.items) ? sys.items : []).forEach(add);
     var L = window.wpLibrary, packs = camp && camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
-    if (L && L.entriesOf) packs.forEach(function(p) { (L.entriesOf(p.id) || []).forEach(add); });
+    if (L && L.entriesOf) packs.forEach(function(p) { (L.entriesOf(p.id) || []).forEach(function(e) { add(p && p.vis === 'gm' && e ? ((L.entryFor && L.entryFor(e.id)) || Object.assign({}, e, { vis: 'gm' })) : e); }); });   // F11b: a GM-only pack's entry as the GM-only copy the library hands out (the pack file keeps the entry's own vis)
     return function(name) { return by[String(name).trim().toLowerCase()] || []; };
 }
 // Onboarding F4: what a player may pick by name — the view's items (never a GM-only one) and the entries of the packs players may see, as players

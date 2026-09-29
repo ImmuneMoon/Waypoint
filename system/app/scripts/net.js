@@ -1027,7 +1027,7 @@ function applyItem(msg) {
 // Host-side validation: from a player's patch, apply ONLY position/rotation of
 // whiteboard items owned by that player. Everything else is ignored.
 // [netcheck:patch-start]
-function applyClientItemFiltered(msg, profile) {
+function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes, set when a drawing of theirs was added, redrawn or erased
     if (!profile) return false;
     var camp = campOf(msg.campId);   // own keys only: a campId or itemId such as "constructor" names nothing (it used to reach a prototype's function and throw)
     if (!camp || !validKey(msg.itemId) || !own(camp.items, msg.itemId)) return false;
@@ -1046,7 +1046,7 @@ function applyClientItemFiltered(msg, profile) {
         if (!lw) {
             // New item: only a drawing signed with this player's id, in a sane shape
             var stroke = playerStroke(w, profile.id);
-            if (stroke && ownStrokes++ < 600) { liveItem.whiteboard.push(stroke); changed = true; }
+            if (stroke && ownStrokes++ < 600) { liveItem.whiteboard.push(stroke); changed = true; if (out) out.strokes = true; }
             return;
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
@@ -1054,7 +1054,7 @@ function applyClientItemFiltered(msg, profile) {
         if (lw.locked) return;   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
         if (lw.type === 'path' && lw.byPlayer) {
             var re = playerStroke(w, profile.id);
-            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; }
+            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; if (out) out.strokes = true; }
             return;
         }
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
@@ -1094,7 +1094,7 @@ function applyClientItemFiltered(msg, profile) {
     // A player's own drawing missing from their copy was erased by them
     var before = liveItem.whiteboard.length;
     liveItem.whiteboard = liveItem.whiteboard.filter(function(w) { return !(w.type === 'path' && w.byPlayer && w.ownerId === profile.id && !w.locked && !sentIds[w.id]); });   // a locked one stays
-    if (liveItem.whiteboard.length !== before) changed = true;
+    if (liveItem.whiteboard.length !== before) { changed = true; if (out) out.strokes = true; }
     if (typeof fogArm === 'function' && fkP.some(function(p) { return fogKey(liveItem, p[0]) !== p[1]; })) fogArm(msg.itemId);   // fold M7: a cell, a facing or a stance that landed (a put-back arms nothing)
     return changed;
 }
@@ -1331,7 +1331,7 @@ function applyFogDiff(msg) {
 // [netcheck:fogdiffapply-end]
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
 function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on && window.wpVtt && window.wpVtt.on('fog')); }
-net.sendItem = function(campId, itemId, onlyConn) {
+net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place)
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
@@ -1339,7 +1339,7 @@ net.sendItem = function(campId, itemId, onlyConn) {
         delete _lastSent[itemId];                                                     // leaving the shared-delta path: the next non-fog send is whole
         var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
             var sendOne = function(conn) {
-                var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
+                var pr = net.roster[conn.peer]; if (!pr || !conn.open || (exceptConn && conn === exceptConn)) return;
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
                 try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
@@ -1605,7 +1605,18 @@ function sensesFire(pid, mapId) {
     if (!m || !mapFogged(m)) { sensesDrop(key); return; }
     var sig = window.wpFog.sightSigFor(pid, camp, m);
     if (sig === null) { sensesDrop(key); return; }
-    if (sig === _sensesSig[key] || (sensesHidden(camp) && sensesReads(camp, m, pid))) return;   // that map went to them since, or the sight is back where it was
+    var hid = sensesHidden(camp) && sensesReads(camp, m, pid);
+    if (typeof fogCatchUp === 'function') {
+        // fold M10: each of their connections is caught up in place against what that copy holds (nothing that did not change is sent, the
+        // turn order and the pointers only after a change of what is held); a hidden Sight sends nothing, as before; while the GM's own
+        // gesture is open on that map, the map's own fire does it once the gesture is over
+        if (hid) return;
+        if (window.wpHostGesture === mapId) { if (typeof fogArm === 'function') fogArm(mapId); return; }
+        var memo = Object.create(null);
+        fogLanded(null, function() { net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && pr.id === pid) fogCatchUp(c, camp, m, pid, memo); }); });
+        return;
+    }
+    if (sig === _sensesSig[key] || hid) return;   // that map went to them since, or the sight is back where it was
     var inFight = !!(net.combats && Object.prototype.hasOwnProperty.call(net.combats, mapId)), aimed = Object.keys(net.targets || {}).some(function(p) { var t = net.targets[p]; return !!t && t.mapId === mapId; });
     var sendAll = function() {   // fold M4: the copy, the order and the pointers all judged with every open drag at its start
         net.conns.forEach(function(c) {
@@ -3703,11 +3714,12 @@ function handleMessage(msg, conn) {
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
     } else if (msg.type === 'item') {
         if (net.role === 'host') {
+            // [netcheck:itempatch-start]
             if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client edits are dropped
             if (!allow('item', { perMs: 40, burst: 60, windowMs: 5000, table: 2000 }, conn.peer)) return;   // a patch storm from one player: dropped, never saved
             var profile = net.roster[conn.peer];
             if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's patch lands
-            var changed = applyClientItemFiltered(msg, profile);
+            var pOut = {}, changed = applyClientItemFiltered(msg, profile, pOut);
             if (changed) {
                 setTimeout(function() { checkRoomHandouts(state.appState.campaigns[msg.campId].items[msg.itemId]); }, 50);
                 var myActive = getActiveCampaign();
@@ -3715,8 +3727,9 @@ function handleMessage(msg, conn) {
                 else if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(null, true);   // 5h Fold 3: the GM's dial may follow a token on a map off screen
                 saveRemoteSoon();
                 if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the live position relay judges by where things now stand
-                net.sendItem(msg.campId, msg.itemId);   // the filtered result goes back out as a delta
+                net.sendItem(msg.campId, msg.itemId, null, pOut.strokes ? null : conn);   // the filtered result goes back out as a delta; fold M10: on a fogged map a token-only change goes to every other copy, the sender's catching up in place when its fire comes (a drawing goes to all)
             }
+            // [netcheck:itempatch-end]
         } else {
             applyItem(msg);
         }
@@ -3740,7 +3753,8 @@ function handleMessage(msg, conn) {
         if (campT.activeItemId === msg.itemId) render(); else if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, true);
         saveRemoteSoon();
         if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: a Sight formula may read the marks
-        net.sendItem(campT.id, msg.itemId);
+        net.sendItem(campT.id, msg.itemId, null, conn);   // fold M10: the sender wrote its marks itself; on a fogged map its copy catches up in place
+        if (typeof fogArm === 'function') fogArm(msg.itemId);
         // [netcheck:threats-end]
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
         applyItemDelta(msg);

@@ -58,7 +58,7 @@ function tokenSightCells(token, map, camp) {
     var C = core(); if (!C || !token) return 0;
     var cf = campFog(camp), yards = cf.defaults.sight || 0;
     if (cf.fields.sight && camp && camp.system && camp.chars && token.charId && window.wpSystemCore && window.wpFormula) {
-        var ch = camp.chars[token.charId];
+        var ch = typeof token.charId === 'string' && typeof camp.chars === 'object' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null;   // a character of the campaign's own: a name the list only inherits ('constructor') stands for none, and sees by the default
         if (ch) {
             var f = window.wpSystemCore.fieldById(camp.system, cf.fields.sight);
             if (f && f.key) {
@@ -463,9 +463,55 @@ function fogDropIds(recipientId, camp, map) {
     });
     return any ? drop : null;
 }
+// Senses S0: what one player's own tokens see by on a map, as a text the host compares — each of their viewers' sight in cells, in the map's
+// own order (viewersFor's, so who counts as a viewer is decided in one place). null where a change of sight changes nothing a player is sent:
+// the fog feature off, a map without fog, not on Auto (Reveal all shows everything, Cover all reads no viewer), no grid, no fog drawn. On a
+// lit or a dim map (Lighting on, the walls under their cap) the CELLS a token sees do not depend on its sight, only how clear they show, which
+// a player's own screen works out: every viewer reads 'L' there, and a change of sight sends nothing
+function sightSigFor(recipientId, camp, map) {
+    if (!fogFeatureOn() || !map || map.type !== 'map' || !recipientId) return null;
+    var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
+    var grid = gridForMap(map); if (!grid) return null;
+    if (fogMask(map, camp, grid).mode === 'none') return null;
+    var lvl = mapLevel(map), lit = lvl !== null && lvl >= 1;
+    if (lit) { blockersFor(map, grid); lit = !_blockerOver[map.id]; }   // the walls are counted only where their cap can change the answer
+    return viewersFor(map, camp, recipientId).map(function(v) { return lit ? 'L' : v.range; }).join(',');
+}
 // A cached revealed-key set per (recipient, map): stable during a drag (the recipient's own tokens don't move), so the
-// live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit.
+// live pos fast-path stays cheap. Cleared by invalidateVision() on any save / token move / snapshot / fog edit, and alone by
+// invalidateSeen() where only who sees what may have moved (a player's own move or a character's change, saved as a remote change):
+// of one map when its id is given (every player's set for it, or one player's when theirs is given too: their own token moved and
+// nobody else sees by it, since it carries no light or the map is not dark), else of all. A key is the recipient, a bar, the map's id: the map is what follows the first bar (a
+// profile id holds none; a map's id, from a file, may)
 var _keyCache = Object.create(null);
+function invalidateSeen(mapId, recipientId) {
+    if (typeof mapId !== 'string' || !mapId) { _keyCache = Object.create(null); return; }
+    if (typeof recipientId === 'string' && recipientId) { delete _keyCache[recipientId + '|' + mapId]; return; }
+    Object.keys(_keyCache).forEach(function(k) { var i = k.indexOf('|'); if (i >= 0 && k.slice(i + 1) === mapId) delete _keyCache[k]; });
+}
+// Where a token sees and lights from, as a text the host compares before and after a move: the cell of its centre as a viewer's is read,
+// the cell of its centre as a light's is read, and the way it faces; and its exact place where it carries a light whose cell is a wall's
+// or a closed door's (that light is seated beside the wall by where the token stands inside the cell). Null where the map has no grid to
+// count by or the place is no number (the host then judges afresh). The same text means the same cells seen and the same cells lit
+function seenKeyOf(map, w) {
+    var C = core(), grid = map && w ? gridForMap(map) : null; if (!C || !grid) return null;
+    var x = Number(w.x), y = Number(w.y); if (!isFinite(x) || !isFinite(y)) return null;
+    var lk = C.cellKey(C.cellOf(x + (w.w || 0) / 2, y + (w.h || 0) / 2, grid), grid);
+    var key = C.cellKey(C.cellOf(x + (w.w || 60) / 2, y + (w.h || 52) / 2, grid), grid) + '|' + lk + '|' + ((w.rot || 0) + (w.front || 0));
+    if (w.light) { var blk = blockersFor(map, grid); if (blk && blk[lk]) key += '|' + x + ',' + y; }
+    return key;
+}
+// Whether a light that moves can change which cells anybody sees on this map: only where light is judged and the map is dark (set dark,
+// or dark by a light source placed on it), its walls under their cap. On a lit or a dim map a light changes how a cell is shown, never
+// whether it is seen; with Lighting off or the walls over their cap no light is read at all. A map that holds no fog, or whose fog is off,
+// is left as it lies: nothing of it is read further and no fog is written into it (nobody's set is asked there)
+function lightMoves(map) {
+    if (!map || !fogFeatureOn() || !map.fog || typeof map.fog !== 'object' || !map.fog.on) return false;
+    if (mapLevel(map) !== 0) return false;
+    var grid = gridForMap(map); if (!grid) return false;
+    blockersFor(map, grid);
+    return !_blockerOver[map.id];
+}
 function invalidateVision() { _coverCache = Object.create(null); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); }
 function canSeePoint(recipientId, camp, map, x, y) {
     if (!fogFeatureOn() || !map) return true;
@@ -785,7 +831,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

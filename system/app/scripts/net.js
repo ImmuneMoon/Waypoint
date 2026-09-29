@@ -545,6 +545,18 @@ function sanitizeItem(item) {
    filtered whiteboard per peer (never re-cloning images — §11R-5). AND with the existing hidden stub: an unseen token
    is dropped whether it was full or a hidden stub, matched by id. */
 // [netcheck:foglit-start]
+// Senses S0: what each player's own tokens saw by when their copy of a fogged map was last made (profile id | map id -> wpFog.sightSigFor's
+// text). The host's memory only: never saved, never sent. Every copy made for a player seeds it, so a later change is judged against what
+// that player holds. _sensesAt is the text the host last knew, by a copy made or by the hook: when it moves, that map's set of who sees what
+// (the live position relay's) is emptied, since a set may have been worked out under the old one
+var _sensesSig = Object.create(null), _sensesAt = Object.create(null);
+function sensesSeed(pid, camp, map) {
+    if (!pid || !map || !window.wpFog || !window.wpFog.sightSigFor) return;
+    var s = window.wpFog.sightSigFor(pid, camp, map), k = pid + '|' + map.id;
+    if (s === null) { delete _sensesSig[k]; delete _sensesAt[k]; return; }
+    _sensesSig[k] = s;
+    if (_sensesAt[k] !== s) { _sensesAt[k] = s; if (window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(map.id); }
+}
 function fogDrop(camp, map, recipientId) { return (window.wpFog && recipientId && camp && map) ? window.wpFog.fogDropIds(recipientId, camp, map) : null; }
 function fogFilterClean(clean, dropSet) {
     if (!dropSet || !clean || clean.type !== 'map' || !Array.isArray(clean.whiteboard)) return clean;
@@ -556,6 +568,7 @@ function fogFilterClean(clean, dropSet) {
 // (fogLit: the lit cells a light on a dropped creature gives the cells they see; lightsCapped: the host's lights past a cap). Always set on a copy
 // made for that player: the shared clone never carries one player's cells
 function fogCopyFor(clean, camp, map, recipientId) {
+    sensesSeed(recipientId, camp, map);
     var drop = fogDrop(camp, map, recipientId), out = fogFilterClean(clean, drop);
     var fl = window.wpFog && window.wpFog.fogLitFor && recipientId ? window.wpFog.fogLitFor(recipientId, camp, map, drop) : null;
     if (!fl || !(fl.capped || (fl.lit && fl.lit.length))) return out;
@@ -1135,6 +1148,7 @@ net.sendItem = function(campId, itemId, onlyConn) {
 // one-off sends (travel, summon, bring, push) that always send whole; a fogged map never leaks a creature through them.
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
+    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     var clean = sanitizeItem(it); if (!clean) return;
     if (!mapFogged(it)) { broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
@@ -1148,6 +1162,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
 // The send baseline goes too, so the next send after off→on is whole. Never through broadcast(): admitted only.
 net.itemGone = function(campId, itemId) {
     delete _lastSent[itemId];
+    if (typeof sensesForgetMap === 'function') sensesForgetMap(itemId);   // Senses S0: and what anyone's copy of it was made by
     if (!(net.active && net.role === 'host')) return;
     var msg = { type: 'itemGone', campId: campId, itemId: itemId };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
@@ -1313,6 +1328,74 @@ net.resendFogged = function() {
     Object.keys(camp.items).forEach(function(id) { var m = camp.items[id]; if (m && m.type === 'map' && m.fog && m.fog.on === true) net.broadcastItemFiltered(camp.id, id); });
 };
 // [netcheck:resendfogged-end]
+// [netcheck:sensesmoved-start]
+// Senses S0: a character's change can move what its tokens see by (a Sight typed on the sheet, an effect put on or run out, a roll's
+// consequence, the system's own formulas) with no map saved, and nothing sent a map then: a player kept creatures they should no longer see, or
+// lacked ones they now should. Every host path that changes a character calls this. Who sees what is judged afresh at once (the live position
+// relay goes by it); then each admitted player's own tokens are compared, in cells, with what their copy of each fogged map was made by, and a
+// player whose sight moved is sent that map again: their own copy, after the character itself, at most once in half a second (the state at
+// that moment), with the turn order and the target pointers their new sight gives them. charId: the character that changed, or null for any
+// (the system, the library, a character deleted). Nothing of a message is read here
+// Where the campaign's Sight is one a player cannot work out for themselves (a GM-only field, or one worked out from a GM-only value) nothing
+// is sent from here: a map arriving would tell them the hidden number had moved, by how much and when. Their copy follows at the next
+// ordinary send of that map, as before this fold (the host's own judgement, the live relay's too, goes by the real sight at once)
+var _sensesPend = Object.create(null), SENSES_RESEND_MS = 500;
+function sensesPids() { var seen = Object.create(null), out = []; net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && pr.id && !seen[pr.id]) { seen[pr.id] = 1; out.push(pr.id); } }); return out; }
+function sensesHidden(camp) {
+    var S = SC(), fid = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.fields && typeof camp.fog.fields === 'object' ? camp.fog.fields.sight : '';
+    if (!fid || typeof fid !== 'string' || !camp.system) return false;   // no field mapped: the campaign's default, which every side holds
+    if (!S || !S.fieldById || !S.gmDerivedNames || !window.wpFormula) return true;   // it cannot be judged: nothing is sent
+    try { var f = S.fieldById(camp.system, fid); if (!f || !f.key) return false; return f.vis === 'gm' || S.gmDerivedNames(camp.system, window.wpFormula, [f.key]).length > 0; } catch (e) { return true; }
+}
+// Whether a token of that player's on that map reads the campaign's Sight field at all: one that stands for a character. A waiting token and a
+// plain token see by the campaign's default, which their own app holds too, so a hidden Sight field hides nothing of theirs
+function sensesReads(camp, m, pid) {
+    return (Array.isArray(m.whiteboard) ? m.whiteboard : []).some(function(w) { return !!w && w.ownerId === pid && typeof w.charId === 'string' && !!camp.chars && typeof camp.chars === 'object' && Object.prototype.hasOwnProperty.call(camp.chars, w.charId); });
+}
+function sensesDrop(key) { delete _sensesSig[key]; delete _sensesAt[key]; if (_sensesPend[key]) { clearTimeout(_sensesPend[key]); delete _sensesPend[key]; } }
+net.sensesMoved = function(charId) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(); if (!camp || !camp.items || typeof camp.items !== 'object' || !window.wpFog || !window.wpFog.sightSigFor) return;
+    var pids = sensesPids(); if (!pids.length) return;
+    var hidden = null;
+    Object.keys(camp.items).forEach(function(id) {
+        var m = camp.items[id]; if (!m || m.type !== 'map') return;
+        if (!mapFogged(m)) { pids.forEach(function(pid) { sensesDrop(pid + '|' + id); }); return; }
+        if (charId && !(Array.isArray(m.whiteboard) ? m.whiteboard : []).some(function(w) { return w && w.charId === charId; })) return;
+        pids.forEach(function(pid) {
+            var key = pid + '|' + id, sig = window.wpFog.sightSigFor(pid, camp, m);
+            if (sig === null) { sensesDrop(key); return; }
+            if (sig !== _sensesAt[key]) { _sensesAt[key] = sig; if (window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(id); }   // who sees what on that map is judged afresh, at once and only then: the live position relay goes by it
+            if (sig === _sensesSig[key] || _sensesPend[key]) return;   // nothing moved, or a send is on its way (it reads the state of its own moment)
+            if (hidden === null) hidden = sensesHidden(camp);
+            if (hidden && sensesReads(camp, m, pid)) return;
+            _sensesPend[key] = setTimeout(function() { sensesFire(pid, id); }, SENSES_RESEND_MS);
+        });
+    });
+};
+function sensesFire(pid, mapId) {
+    var key = pid + '|' + mapId; delete _sensesPend[key];
+    if (!net.active || net.role !== 'host' || !window.wpFog || !window.wpFog.sightSigFor) return;
+    var camp = getActiveCampaign(), m = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null;
+    if (!m || !mapFogged(m)) { sensesDrop(key); return; }
+    var sig = window.wpFog.sightSigFor(pid, camp, m);
+    if (sig === null) { sensesDrop(key); return; }
+    if (sig === _sensesSig[key] || (sensesHidden(camp) && sensesReads(camp, m, pid))) return;   // that map went to them since, or the sight is back where it was
+    var inFight = !!(net.combats && Object.prototype.hasOwnProperty.call(net.combats, mapId)), aimed = Object.keys(net.targets || {}).some(function(p) { var t = net.targets[p]; return !!t && t.mapId === mapId; });
+    net.conns.forEach(function(c) {
+        var pr = c && c.open ? net.roster[c.peer] : null; if (!pr || pr.id !== pid) return;
+        net.sendItem(camp.id, mapId, c);   // their own copy (fogCopyFor), which seeds what it was made by
+        try {
+            if (inFight) c.send({ type: 'combats', combats: combatsFor(pid) });
+            if (aimed) c.send({ type: 'targets', targets: targetsFor(pid) });
+        } catch (e) { sendFailed(e); }
+    });
+}
+function sensesKeys() { var all = Object.create(null); [_sensesSig, _sensesAt, _sensesPend].forEach(function(o) { Object.keys(o).forEach(function(k) { all[k] = 1; }); }); return Object.keys(all); }
+function sensesForget(pid) { var pre = pid + '|'; sensesKeys().forEach(function(k) { if (k.indexOf(pre) === 0) sensesDrop(k); }); }
+function sensesForgetMap(mapId) { sensesKeys().forEach(function(k) { var i = k.indexOf('|'); if (i > 0 && k.slice(i + 1) === mapId) sensesDrop(k); }); }   // the map is what follows the first bar: a profile id holds none, a map's id (from a file) may
+function sensesReset() { sensesKeys().forEach(sensesDrop); }
+// [netcheck:sensesmoved-end]
 // The hosted campaign's sounds reach the table as a list (uploads by path, bundled defaults by id, what is playing
 // now): to one peer at admit, to every admitted peer on a save that changed the index, and straight from the
 // library (hiding a default never passes through save()). Never broadcast(): admitted peers only. The signature
@@ -1473,6 +1556,7 @@ net.syncNewPlayers = function() {
     var first = net._lastNewPlayersSig === null; net._lastNewPlayersSig = s;
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
     if (!first) net.tidyWaiting();
+    if (!first && net.sensesMoved) net.sensesMoved(null);   // Senses S0: whether a waiting token sees is part of the rule: the players it changes anything for get their maps again
 };
 // [netcheck:newplayerssync-end]
 // [netcheck:libmansync-start]
@@ -1637,6 +1721,7 @@ var _uploadAt = {}, UPLOAD_GAP_MS = 10000;   // Stage 6 U2: host: peer -> when t
 var _triedSaid = {}, TRY_QUIET_MS = 30000;   // host: 'charId|item|kind' -> { at, more } — the last said refused attempt (memory only)
 net.syncChars = function() {   // every character, per peer (after the system changed)
     if (!net.active || net.role !== 'host') return;
+    if (net.sensesMoved) net.sensesMoved(null);
     var camp = getActiveCampaign(); if (!camp) return;
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
@@ -1647,6 +1732,7 @@ net.syncChars = function() {   // every character, per peer (after the system ch
 };
 net.syncChar = function(id) {   // one character whole (renamed, reassigned, portrait) or gone for a peer that may not see it
     if (!net.active || net.role !== 'host') return;
+    if (net.sensesMoved) net.sensesMoved(id);
     var camp = getActiveCampaign(); if (!camp) return;
     var srcM = camp.chars && camp.chars[id], mkM = !!(srcM && srcM.making === 1);   // Onboarding F3: a character in the making: its owner hears of it, nobody else (not even that it is gone)
     net.conns.forEach(function(c) {
@@ -1658,6 +1744,7 @@ net.syncChar = function(id) {   // one character whole (renamed, reassigned, por
 };
 net.syncCharDelta = function(id, values) {   // changed values, filtered to what each peer may see (null = reverted to the default)
     if (!net.active || net.role !== 'host') return;
+    if (net.sensesMoved) net.sensesMoved(id);   // before anything turns this away: a change that sends its owner nothing (a kept curse) moves their sight all the same
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !camp.chars || !camp.chars[id] || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, making: src.making, values: {} };   // making (Onboarding F3): charFor itself refuses it to anyone but its owner
@@ -1939,6 +2026,7 @@ var _posLast = 0;
 // Non-fog maps take the plain single broadcast (byte-identical to before). canSeePoint uses a cached revealed set that is
 // stable during a drag (the recipient's own tokens are still), so this stays cheap; a creature entering vision is fully
 // revealed on the drag's stop (sendItem), not mid-drag.
+// [netcheck:bpos-start]
 function broadcastPos(msg, exceptConn, camp, map, w) {
     if (!map || !mapFogged(map)) { broadcast(msg, exceptConn); return; }
     var cx = (msg.x || 0) + ((w && w.w) || 60) / 2, cy = (msg.y || 0) + ((w && w.h) || 52) / 2;
@@ -1948,6 +2036,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
         if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy))) { try { c.send(msg); } catch (e) { sendFailed(e); } }
     });
 }
+// [netcheck:bpos-end]
 net.streamPos = function(wItem, final) {
     if (!net.active || !wItem) return;
     if ((net.paused || net.selfPaused) && net.role === 'client') return;
@@ -2229,11 +2318,16 @@ function handlePos(msg, conn) {
         }
         if (turnLimitCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: the move limit, while it is their turn
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
+        var skW = window.wpFog && window.wpFog.seenKeyOf ? window.wpFog.seenKeyOf(map, w) : null;   // Senses S0: where the token saw and lit from before this move
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         if (msg.final) setTimeout(function() { checkRoomHandouts(map); }, 50);
         // Host is the authority on cells: seat the token here too, in case the
         // player's copy didn't (grid state not yet applied on their side)
         if (msg.final && window.wpSeatHex && window.wpSeatHex(w, map)) { msg = Object.assign({}, msg, { x: w.x, y: w.y }); }
+        // Senses S0: the live position relay goes by who sees what. A token now in another cell or facing another way: what ITS PLAYER sees
+        // is judged afresh, and where it carries a light on a dark map, what everybody on that map sees (they see by its light). Still in
+        // its cell and facing as it did, nothing changed for anybody: the sets stay
+        if (window.wpFog && window.wpFog.invalidateSeen && (skW === null || window.wpFog.seenKeyOf(map, w) !== skW)) window.wpFog.invalidateSeen(msg.itemId, w.light && (!window.wpFog.lightMoves || window.wpFog.lightMoves(map)) ? undefined : pr.id);
         msg = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front, final: msg.final === true };   // relayed as rebuilt: nothing else a peer added travels on
         applyPosToDom(msg);
         broadcastPos(msg, conn, camp, map, w);
@@ -2312,6 +2406,7 @@ function cellsText(n, map) {   // "6 squares (30 ft)": the map's cells and its o
 function snapBack(camp, map, w, msg, to) {   // the token goes back where its drag began, for everyone (the mover too)
     if (typeof msg.x === 'number') _refusedAt[msg.itemId + '|' + msg.wbId] = msg.x + ',' + msg.y;
     w.x = to.x; w.y = to.y;
+    if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the drag moved the token on the host as it went: who sees what is judged from where it stands again
     var back = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: to.x, y: to.y, rot: w.rot || 0, front: w.front || 0, final: true };
     applyPosToDom(back); broadcastPos(back, null, camp, map, w);
 }
@@ -3181,6 +3276,7 @@ net.kickPlayer = function(peerKey) {
     var conn = net.conns.find(function(c) { return c.peer === peerKey; });
     var p = own(net.roster, peerKey) ? net.roster[peerKey] : null;
     if (p) { bannedIds[p.id] = true; delete net.roster[peerKey]; renderRoster(); }
+    if (p && p.id && typeof sensesForget === 'function' && !net.conns.some(function(c) { return c.open && c.peer !== peerKey && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: the close that follows finds no roster entry to forget them by
     if (p) dropWaitingFor(p.id);   // Onboarding F1a: their waiting token goes with them   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
     if (conn) {
         try { conn.send({ type: 'kicked' }); } catch (e) { sendFailed(e); }
@@ -3315,6 +3411,7 @@ function handleMessage(msg, conn) {
                 if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
                 else if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(null, true);   // 5h Fold 3: the GM's dial may follow a token on a map off screen
                 saveRemoteSoon();
+                if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the live position relay judges by where things now stand
                 net.sendItem(msg.campId, msg.itemId);   // the filtered result goes back out as a delta
             }
         } else {
@@ -3339,6 +3436,7 @@ function handleMessage(msg, conn) {
         if (thT.length) tokT.threats = thT; else delete tokT.threats;
         if (campT.activeItemId === msg.itemId) render(); else if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, true);
         saveRemoteSoon();
+        if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: a Sight formula may read the marks
         net.sendItem(campT.id, msg.itemId);
         // [netcheck:threats-end]
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
@@ -4390,6 +4488,7 @@ function wireConn(conn) {
         delete _connMeta[conn.peer]; delete _shareBytes[conn.peer]; delete lastSeen[conn.peer];
         var p = net.roster[conn.peer];
         delete net.roster[conn.peer];
+        if (p && p.id && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: their last connection: what their copies were made by is forgotten, and no send waits for them
         renderRoster();
         if (net.role === 'host') {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
@@ -4518,6 +4617,7 @@ function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase()
 net._hostGen = 0;
 function startHosting(forceFresh) {
     _lastSent = {};   // a new table starts from the snapshot, not from anything sent before
+    sensesReset();   // Senses S0: and from no copy made for anyone
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     if (forceFresh) net._hostGen = 0;

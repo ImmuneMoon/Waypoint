@@ -1185,6 +1185,7 @@ net.onLocalSave = function() {
         net.syncNewPlayers(); // and the rules for players without a character (Onboarding F1a), the same way
         net.syncCampFog();  // and its fog defaults (an empty map's fog, the default sight), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
+        if (net.syncCombatHidden) net.syncCombatHidden();   // fold M0: after the map (its stub first): a token hidden or shown mid-fight changes its row
         patch = null;
     }
     if (patch) {
@@ -2028,6 +2029,8 @@ var _posLast = 0;
 // revealed on the drag's stop (sendItem), not mid-drag.
 // [netcheck:bpos-start]
 function broadcastPos(msg, exceptConn, camp, map, w) {
+    if (w && w.gmNoteFor) return;   // fold M0: a GM-note card never reaches a player (sanitizeItem drops it), so neither does its place while the GM drags it
+    if (w && w.hidden && msg.front) msg = Object.assign({}, msg, { front: 0 });   // fold M0: a hidden token reaches players as a stub with no facing, so its live moves carry none (a copy: the caller's own message is left as it is)
     if (!map || !mapFogged(map)) { broadcast(msg, exceptConn); return; }
     var cx = (msg.x || 0) + ((w && w.w) || 60) / 2, cy = (msg.y || 0) + ((w && w.h) || 52) / 2;
     net.conns.forEach(function(c) {
@@ -2585,11 +2588,26 @@ function combatsFor(recipientId) {
     var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
     Object.keys(net.combats || {}).forEach(function(mapId) {
         var cmb = net.combats[mapId], map = fogged && camp && camp.items[mapId];
-        var drop = map && map.type === 'map' && map.fog && map.fog.on ? (fogDrop(camp, map, recipientId) || {}) : null;
-        out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) { return combatRowOut(r, i, !!(drop && r.tokId && drop[r.tokId])); }) };
+        var drop = map && map.type === 'map' && map.fog && map.fog.on ? (fogDrop(camp, map, recipientId) || {}) : null, hid = combatHidden(camp, mapId);
+        out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) { return combatRowOut(r, i, !!(r.tokId && ((drop && drop[r.tokId]) || hid[r.tokId]))); }) };
     });
     return out;
 }
+// Fold M0: the tokens the GM has hidden on a combat's map, fogged or not: a hidden token reaches players as a nameless stub, so its row does
+// too (the GM may hide a creature after the fight began). The GM's own strip reads net.combats, never this
+function combatHidden(camp, mapId) {
+    var m = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null, out = Object.create(null);
+    (m && Array.isArray(m.whiteboard) ? m.whiteboard : []).forEach(function(w) { if (w && w.hidden && typeof w.id === 'string') out[w.id] = 1; });
+    return out;
+}
+// ...and when the GM hides or shows a token of a running fight, the players' rows follow at once (a save: their strip was sent whole)
+// (what the table was last sent, recorded by every send of the rows to the table: broadcastCombats)
+var _combatHidSig = '';
+function combatHidSigNow() { var camp = getActiveCampaign(); return Object.keys(net.combats || {}).sort().map(function(mapId) { var hid = combatHidden(camp, mapId); return mapId + ':' + ((net.combats[mapId] || {}).rows || []).map(function(r) { return r && r.tokId && hid[r.tokId] ? 1 : 0; }).join(''); }).join('|'); }
+net.syncCombatHidden = function() {
+    if (!net.active || net.role !== 'host') return;
+    if (combatHidSigNow() !== _combatHidSig) broadcastCombats();
+};
 function targetsFor(recipientId) {
     var camp = getActiveCampaign(); if (!anyFog(camp)) return net.targets;
     var out = {};
@@ -2603,15 +2621,16 @@ function targetsFor(recipientId) {
 }
 function broadcastCombats() {
     var camp = getActiveCampaign();
+    _combatHidSig = combatHidSigNow();   // fold M0: which rows the table now holds redacted for a hidden token
     if (!anyFog(camp)) { broadcast({ type: 'combats', combats: combatsFor(null) }, null); return; }
     net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'combats', combats: combatsFor(pr.id) }); } catch (e) { sendFailed(e); } });
 }
-// [netcheck:combats-end]
 function broadcastTargets() {
     var camp = getActiveCampaign();
     if (!anyFog(camp)) { broadcast({ type: 'targets', targets: net.targets }, null); return; }
     net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) { sendFailed(e); } });
 }
+// [netcheck:combats-end]
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
@@ -4494,7 +4513,7 @@ function wireConn(conn) {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
-            if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcast({ type: 'targets', targets: net.targets }, null); }
+            if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcastTargets(); }   // fold M0: each player the pointers they may see (a fogged table), never all of them
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();
             render();

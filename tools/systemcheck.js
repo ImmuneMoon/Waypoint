@@ -6888,6 +6888,47 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && lb5.indexOf('pk.title = \'Ticked: a player may pick this light for their own token, from its right-click menu (your machine copies it from this list). Unticked: only you set it, in a token\\u2019s Properties\';') > 0 && !/for now/i.test(lb5) && !/For now only you set a light/.test(sh5)
             && /\/\/ and its light presets \(a light's Properties offer them; ticked, a player may pick one for their own token\)\./.test(sh5));
     }
+    // fold M8: a player's gestures follow the live map (whiteboard.js sliced by its owntok markers and run for real on stub pages), and where
+    // the drag, the turns, the stance rows and the saves use it (datamap.js and whiteboard.js, pinned)
+    {
+        const wb8 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL), dm8 = fs.readFileSync(path.join(app, 'scripts', 'datamap.js'), 'utf8').replace(/\r\n/g, NL);
+        const oA = wb8.indexOf('// [systemcheck:owntok-start]'), oZ = wb8.indexOf('// [systemcheck:owntok-end]'), oSrc = oA >= 0 && oZ > oA ? wb8.slice(oA, oZ) : 'throw new Error("owntok not found")';
+        const page = (net, camp) => { const win = { wpNet: net }; const api = new Function('window', 'getActiveCampaign', '"use strict";\n' + oSrc + '\nreturn { own: ownTokenNow, regrab: regrabDrag };')(win, () => camp); return { win, api }; };
+        const tk = (id, more) => Object.assign({ id, type: 'image', isChar: true, ownerId: 'u_me', x: 100, y: 100, w: 50, h: 50 }, more || {});
+        const mkCamp = wb => ({ id: 'k', items: { mA: { id: 'mA', type: 'map', whiteboard: wb }, dD: { id: 'dD', type: 'doc', whiteboard: [tk('mine')] } } });
+        const me = { active: true, role: 'client', myId: 'u_me', paused: false, selfPaused: false };
+        const campA = mkCamp([tk('mine'), tk('lockedT', { locked: true }), tk('hid', { hidden: true }), tk('theirs', { ownerId: 'u_x' }), tk('wait', { isChar: false, waiting: 1 }), tk('wall', { isChar: false, type: 'rect' })]);
+        const P = page(me, campA), ids = ['mine', 'lockedT', 'hid', 'theirs', 'wait', 'wall', 'nope'].map(id => { const t = P.api.own('mA', id); return t ? t.id : null; });
+        const edge = [P.api.own('dD', 'mine'), P.api.own('constructor', 'mine'), P.api.own('mZ', 'mine'), P.api.own('mA', 5)];
+        const paused = [page(Object.assign({}, me, { paused: true }), campA).api.own('mA', 'mine'), page(Object.assign({}, me, { selfPaused: true }), campA).api.own('mA', 'mine')];
+        const gmIds = ['mine', 'lockedT', 'wall'].map(id => { const t = page({ active: true, role: 'host', myId: 'u_gm' }, campA).api.own('mA', id); return t ? t.id : null; }), solo = page(undefined, campA).api.own('mA', 'theirs');
+        check('M8 ownTokenNow (whiteboard.js, run for real): on a player\'s machine a gesture finds its token again only while it is theirs to move — their own shown, unlocked character or waiting token, the table and they not paused; never another\'s, a locked, a hidden (a stub) or a plain item, nor anything on a page, a map not held or a prototype key; the GM, or no table, gets the live item by id',
+            j(ids) === j(['mine', null, null, null, 'wait', null, null]) && edge.every(v => v === null) && paused.every(v => v === null) && j(gmIds) === j(['mine', 'lockedT', 'wall']) && solo && solo.id === 'theirs', j([ids, gmIds]));
+        // a map object replaced between the last move and the release, with no move after it: every member lands at the pointer's place
+        const oldWb = [tk('a', { x: 100, y: 100 }), tk('b', { x: 150, y: 100 }), tk('c', { x: 200, y: 100 })], campR = mkCamp(oldWb), R = page(me, campR);
+        const md = oldWb.map(t => ({ item: t, ox: t.x, oy: t.y }));
+        campR.items.mA = { id: 'mA', type: 'map', whiteboard: [tk('a', { x: 100, y: 100 }), tk('b', { x: 150, y: 100, locked: true }), tk('c', { x: 200, y: 100 })] };   // a whole copy lands: b now locked
+        const surv = R.api.regrab(md, 'mA', 50, 100), live = campR.items.mA.whiteboard;
+        check('M8 regrabDrag (run for real): after a whole copy of the map lands between the last move and the release, the drop finds each member on the new map and sets it at the pointer\'s place (where it began plus how far the drag went); a member the new copy shows locked is left as the host has it and is not among those that land; the old objects are not what is written',
+            j(surv.map(m => m.item.id)) === j(['a', 'c']) && surv.every(m => live.includes(m.item)) && j(live.map(t => [t.x, t.y])) === j([[150, 200], [150, 100], [250, 200]]) && j(oldWb.map(t => [t.x, t.y])) === j([[100, 100], [150, 100], [200, 100]]),
+            j([surv.map(m => m.item.id), live.map(t => [t.x, t.y])]));
+        const dragS = (() => { const a = dm8.indexOf('  function attachDrag(el, modeStr){'), b = dm8.indexOf("\n      el.addEventListener('dblclick'", a); return a >= 0 && b > a ? dm8.slice(a, b) : ''; })();
+        const upS = (() => { const a = dm8.indexOf("      el.addEventListener('pointerup',function(e){"), b = dm8.indexOf('          if(state.snap && modeStr === \'data\'){', a); return a >= 0 && b > a ? dm8.slice(a, b) : ''; })();
+        check('M8 the drag (datamap.js, pinned): it keeps the map it began on; on a player\'s machine each move finds its members again by id and remembers how far it went; at the release, before any seat or final, the drop is regrabbed on the live map — the map left meanwhile asks for it whole and drops nothing, a token under the pointer no longer theirs lands nothing and puts the others back; every final and every move names the map the drag began on; the GM\'s and the data view\'s drags are untouched by it',
+            /dragMapId = activeMap\.id; lastDx = 0; lastDy = 0;/.test(dragS) && /var clientVis = modeStr === 'visual' && window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client' && window\.wpOwnTokenNow;/.test(dragS) && /lastDx = actualDx; lastDy = actualDy;/.test(dragS) && /if \(m\.lost\) return;/.test(dragS)
+            && /if \(clientVis\) \{[^\n]*\n\s*var liveP = window\.wpOwnTokenNow\(dragMapId, item\.id\); if \(!liveP\) return;[^\n]*\n\s*item = liveP;\n\s*multiDrag\.forEach\(function\(m\) \{ var lt = window\.wpOwnTokenNow\(dragMapId, m\.item\.id\); m\.lost = !lt; if \(lt\) m\.item = lt; \}\);/.test(dragS)
+            && /var survivors = window\.wpRegrabDrag\(multiDrag, dragMapId, lastDx, lastDy\), liveI = window\.wpOwnTokenNow\(dragMapId, item\.id\);/.test(upS) && /item = liveI; multiDrag = survivors;/.test(upS)
+            && /if\(moved\)\{\n\s*if \(modeStr === 'visual' && window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client' && window\.wpRegrabDrag\) \{/.test(upS) && /window\.wpNet\.needItem\(campU\.id, dragMapId\); render\(\); return; \}/.test(upS) && /survivors\.forEach\(function\(md\) \{ md\.item\.x = md\.ox; md\.item\.y = md\.oy; \}\); render\(\); return; \}/.test(upS)
+            && (dm8.match(/streamPos\(item, false, dragMapId\)/g) || []).length === 1 && (dm8.match(/streamPos\(item, true, dragMapId\)/g) || []).length === 1 && (dm8.match(/streamPos\(md\.item, true, dragMapId\)/g) || []).length === 1 && !/streamPos\(item(, true)?\)/.test(dm8) && !/streamPos\(md\.item, true\)/.test(dm8),
+            j([dragS.length, upS.length]));
+        check('M8 a player\'s marquee and drag take only what they may move (their own shown, unlocked character or waiting tokens); the arrow turn, the rotate handle and the stance rows find their token again by id at every write (a turn or a row whose token is gone, locked or no longer theirs lands nothing, and the menu closes); a player\'s stance, stroke and erasing go to the host at once',
+            /if \(onlyOwn && !\(w && \(w\.isChar \|\| w\.waiting\) && w\.ownerId === nM\.myId && !w\.hidden && !w\.locked\)\) return;/.test(dm8) && /\(!ownOnly \|\| \(\(it\.isChar \|\| it\.waiting\) && it\.ownerId === nD\.myId && !it\.hidden\)\)/.test(dm8)
+            && /turning = \{ id: item\.id, mapId: am\.id,/.test(wb8) && /var it = ownTokenNow\(turning\.mapId, turning\.id\); if \(!it\) \{ turning = null; return; \}/.test(wb8) && /var tn = turning, it = ownTokenNow\(tn\.mapId, tn\.id\); turning = null;\n\s*if \(!it\) return;/.test(wb8) && /streamPos\(it, true, tn\.mapId\)/.test(wb8)
+            && /var liveR = ownTokenNow\(rotMapId, item\.id\); if \(!liveR\)/.test(wb8) && /var liveU = ownTokenNow\(rotMapId, item\.id\); if \(!liveU\)/.test(wb8) && /streamPos\(item, true, rotMapId\)/.test(wb8)
+            && /function live\(\) \{ var got = ids\.map\(function\(id\) \{ return ownTokenNow\(mapId, id\); \}\); if \(got\.some\(function\(t\) \{ return !t; \}\)\) \{ cMenu\.style\.display = 'none'; return null; \} return got; \}/.test(wb8)
+            && (wb8.match(/save\(!!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client'\)\)/g) || []).length === 1 && /save\(!!\(n && n\.active && n\.role === 'client'\)\); render\(\);/.test(wb8) && /if \(_erasedAny && window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client'\) save\(true\);/.test(wb8)
+            && /save\(!!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'client'\)\); render\(\);   \/\/ fold M8: a player's stroke/.test(dm8));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

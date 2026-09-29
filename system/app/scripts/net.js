@@ -1122,6 +1122,55 @@ function applyItemDelta(msg) {
     if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // a delta may change sight-blockers (doors/walls) — recompute occlusion
     net.applyingRemote = false;
 }
+// [netcheck:fogdiffapply-start]
+// Fold M: a player's copy of one fogged map caught up in place by the host ('fogDiff'): the creatures they now see added, each cleaned as a
+// whole map's items are, the ones they no longer see dropped, the lit cells a light they cannot see gives them replaced. The shape is checked
+// whole before anything changes; anything refused (their own token named, an item the cleaner turns away, the 6000 a map holds) asks for the
+// whole map once the rest is in. The map object, its other parts and their own tokens are never replaced, and nothing is saved, so no patch
+// goes back
+var FOG_DIFF_ADD_MAX = 200, FOG_DIFF_DROP_MAX = 6000, FOG_DIFF_ID_MAX = 256;
+function fogDiffId(v) { return typeof v === 'string' && v.length > 0 && v.length <= FOG_DIFF_ID_MAX; }
+function fogDiffShape(msg) {
+    var add = msg.add, drop = msg.drop;
+    if (add !== undefined && !(Array.isArray(add) && add.length <= FOG_DIFF_ADD_MAX && add.every(function(a) {
+        return !!a && typeof a === 'object' && !Array.isArray(a) && !!a.item && typeof a.item === 'object' && !Array.isArray(a.item) && fogDiffId(a.item.id) && (a.after === null || fogDiffId(a.after));
+    }))) return false;
+    if (drop !== undefined && !(Array.isArray(drop) && drop.length <= FOG_DIFF_DROP_MAX && drop.every(fogDiffId))) return false;
+    return (msg.lit === undefined || Array.isArray(msg.lit)) && (msg.capped === undefined || typeof msg.capped === 'boolean');
+}
+function applyFogDiff(msg) {
+    var camp = campOf(msg.campId); if (!camp || !validKey(msg.itemId)) return;
+    var map = own(camp.items, msg.itemId) ? camp.items[msg.itemId] : null, ask = function() { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); };
+    if (!map) { ask(); return; }   // never had it: the whole thing
+    if (typeof map !== 'object' || map.type !== 'map') return;
+    if (!fogDiffShape(msg) || !Array.isArray(map.whiteboard)) { ask(); return; }
+    var wb = map.whiteboard, refused = false;
+    var mine = function(w) { return !!(w && net.myId && w.ownerId === net.myId); };
+    var idAt = function(id) { for (var i = 0; i < wb.length; i++) if (wb[i] && wb[i].id === id) return i; return -1; };
+    net.applyingRemote = true;
+    try {
+        if (msg.drop && msg.drop.length) {   // backwards, on the same array
+            var gone = Object.create(null); msg.drop.forEach(function(id) { gone[id] = 1; });
+            for (var i = wb.length - 1; i >= 0; i--) { var d = wb[i]; if (!d || gone[d.id] !== 1) continue; if (mine(d)) refused = true; else wb.splice(i, 1); }
+        }
+        (msg.add || []).forEach(function(a) {
+            var x = cleanHostWbItem(a.item);
+            if (!x || mine(x)) { refused = true; return; }
+            var at = idAt(x.id);
+            if (at >= 0) { if (mine(wb[at])) refused = true; else wb[at] = x; return; }   // held already: replaced where it stands
+            if (wb.length >= FOG_DIFF_DROP_MAX) { refused = true; return; }   // the 6000 a map holds (cleanHostMap)
+            var k = a.after === null ? -1 : idAt(a.after);
+            if (a.after === null) wb.splice(0, 0, x); else if (k >= 0) wb.splice(k + 1, 0, x); else wb.push(x);
+        });
+        if (msg.lit !== undefined) { var FCd = window.wpFogCore, flD = FCd && FCd.cleanFogLit ? FCd.cleanFogLit(msg.lit) : null; if (flD) map.fogLit = flD; else delete map.fogLit; }
+        if (msg.capped !== undefined) { if (msg.capped === true) map.lightsCapped = true; else delete map.lightsCapped; }
+        if (refused) ask();
+        var myActive = getActiveCampaign();
+        if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId) render();
+        if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+    } finally { net.applyingRemote = false; }
+}
+// [netcheck:fogdiffapply-end]
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
 function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on && window.wpVtt && window.wpVtt.on('fog')); }
 net.sendItem = function(campId, itemId, onlyConn) {
@@ -3971,6 +4020,14 @@ function handleMessage(msg, conn) {
         campFg.fog = FCf.cleanCampFog(msg.fog);
         if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
         // [netcheck:campfog-end]
+    } else if (msg.type === 'fogDiff' && net.role === 'client') {
+        // [netcheck:fogdiff-start]
+        // Fold M: the host catching this player's copy of one fogged map up in place (applyFogDiff): from the synced host only, never in the
+        // stream window, for the hosted campaign
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || !validKey(msg.itemId)) return;
+        applyFogDiff(msg);
+        // [netcheck:fogdiff-end]
     } else if (msg.type === 'campName' && net.role === 'client') {
         // [netcheck:campname-start]
         // the hosted campaign renamed mid-session: from the synced host only, for the hosted campaign, a string (cut to 200); the top bar

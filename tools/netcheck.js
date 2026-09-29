@@ -5322,9 +5322,10 @@ pendingChecks.push((async () => {
     const whole4 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
     const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('),
-        whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
+        fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.itemGone = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
         src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogmove'),
-        'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS };'].join('\n');
+        'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS,',
+        'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor };'].join('\n');
     const NAMES4 = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'playerStroke', 'bellOut', 'renderNotepad', 'fogNow'];
     const build4 = new Function(...NAMES4, modSrc);
     const J = v => JSON.stringify(v);
@@ -5348,9 +5349,10 @@ pendingChecks.push((async () => {
         const win = { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpDiceCore: null, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'host' }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } };
         W.fog = buildFog4()(win, { getElementById: () => null }, () => null, () => camp, state);
         win.wpFog = Object.assign({}, W.fog, { moveBlocked: (map, w, fx, fy, tx, ty) => { W.asked.push([fx, fy, tx, ty]); return !!(o.wall && o.wall(fx, fy, tx, ty)); } });
+        if (o.fogLitFor) win.wpFog.fogLitFor = o.fogLitFor;   // a stand-in where a case needs lit cells on a copy without building the corner that gives them
         const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
         const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && Object.prototype.hasOwnProperty.call(W.net.roster, c.peer)) c.send(m); }); };
-        W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, () => false, bc, {}, setT, clearT,
+        W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, () => false, bc, {}, setT, clearT,
             () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, () => true, () => {}, () => {}, () => {}, m => ev.push('dom:' + m.wbId), () => null, () => {}, () => {}, () => W.now);
         W.move = (conn, wbId, x, y, fin, itemId, more) => W.api.pos(Object.assign({ type: 'pos', campId: 'k', itemId: itemId || 'mA', wbId, x, y, rot: 0, front: 0, final: fin }, more || {}), conn);
         W.tok = (id, mapId) => camp.items[mapId || 'mA'].whiteboard.find(w => w.id === id);
@@ -5486,6 +5488,43 @@ pendingChecks.push((async () => {
         && J(turn18) === J([true, [100, 100, 0, 0], [[100, 100, 0, true]], [250]]),
         J([quiet15, cl16, opened17, idle17, turn18]));
 
+    // fold M5: the host's record of what each connection's copy of each fogged map holds (inert: nothing reads it yet), seeded only after a send
+    // that went out, per connection, and forgotten with the connection, the player, the map, an unfogged send and a new table
+    const rec = (W, peer, mapId) => { const per = W.api.held()[peer], r = per && per[mapId]; return r ? { ids: Object.keys(r.ids).sort(), lit: r.lit, cap: r.cap } : null; };
+    const want = (W, c, mapId) => { const it = W.last(c, mapId); return it ? { ids: it.whiteboard.map(w => w.id).sort(), lit: W.api.hash(JSON.stringify(it.fogLit || [])), cap: it.lightsCapped === true } : null; };
+    const R1 = mk4(); R1.net.sendItem('k', 'mA'); const all1 = ['a1', 'a2', 'b1'].map(k => J(rec(R1, R1[k].peer, 'mA')) === J(want(R1, R1[k], 'mA'))), w1 = R1.api.held().pW === undefined;
+    R1.camp.items.mA.whiteboard.push(T('wolf', '', 'c_n', 3, 2)); R1.clearSent(); R1.net.sendItem('k', 'mA', R1.a1); const only1 = [J(rec(R1, 'pA1', 'mA')) === J(want(R1, R1.a1, 'mA')), rec(R1, 'pA1', 'mA').ids.includes('wolf'), rec(R1, 'pA2', 'mA').ids.includes('wolf')];
+    R1.clearSent(); R1.net.broadcastItemFiltered('k', 'mB'); const bif1r = ['a1', 'a2', 'b1'].map(k => J(rec(R1, R1[k].peer, 'mB')) === J(want(R1, R1[k], 'mB')));
+    const failed2 = [], R2 = mk4({ failed: failed2 }); R2.a2.send = () => { throw new Error('packer'); }; R2.net.sendItem('k', 'mA');
+    const R2b = mk4({ failed: failed2 }); R2b.b1.send = () => { throw new Error('packer'); }; R2b.net.broadcastItemFiltered('k', 'mA');
+    const noRec = [rec(R2, 'pA2', 'mA'), !!rec(R2, 'pA1', 'mA'), rec(R2b, 'pB', 'mA'), !!rec(R2b, 'pA1', 'mA'), J(failed2) === J(['packer', 'packer'])];
+    const R3 = mk4(); R3.camp.items.mO.fog.on = false; const snapCopy = R3.api.copy(R3.api.clean(R3.camp.items.mA), R3.camp, R3.camp.items.mA, 'u_b');
+    R3.api.seedSnap(R3.b1, { appState: { activeCampaignId: 'k', campaigns: { k: { items: { mA: snapCopy, mO: R3.api.clean(R3.camp.items.mO), zz: { type: 'map', whiteboard: [{ id: 'q' }] } } } } } });
+    const snap3 = [J(rec(R3, 'pB', 'mA')) === J({ ids: snapCopy.whiteboard.map(w => w.id).sort(), lit: R3.api.hash(JSON.stringify(snapCopy.fogLit || [])), cap: snapCopy.lightsCapped === true }), !!rec(R3, 'pB', 'mO'), rec(R3, 'pB', 'zz'), Object.keys(R3.api.held())];
+    const R4 = mk4(); R4.net.sendItem('k', 'mA'); R4.net.sendItem('k', 'mB'); R4.net.itemGone('k', 'mB'); const gone4 = [!!rec(R4, 'pA1', 'mA'), rec(R4, 'pA1', 'mB'), rec(R4, 'pB', 'mB')];
+    R4.camp.items.mA.fog.on = false; R4.net.sendItem('k', 'mA'); gone4.push(rec(R4, 'pA1', 'mA'), rec(R4, 'pB', 'mA'));
+    const R4b = mk4(); R4b.net.sendItem('k', 'mA'); const had4b = !!rec(R4b, 'pA1', 'mA'); R4b.camp.items.mA.fog.on = false; R4b.net.broadcastItemFiltered('k', 'mA'); gone4.push(had4b, rec(R4b, 'pA1', 'mA'), rec(R4b, 'pB', 'mA'));
+    const R5 = mk4(); R5.net.sendItem('k', 'mA'); R5.net.kickPlayer('pA1'); const kick5 = [rec(R5, 'pA1', 'mA'), rec(R5, 'pA2', 'mA'), !!rec(R5, 'pB', 'mA')];
+    const R6 = mk4(); R6.net.sendItem('k', 'mA'); R6.api.forgetAll(); const all6 = Object.keys(R6.api.held()).length;
+    const litMap = mk4({ fogLitFor: pid => (pid === 'u_a' ? { lit: [{ c: 3, r: 3, t: 2 }, { c: 4, r: 3, t: 1 }], capped: true } : null) }); litMap.net.sendItem('k', 'mA');
+    const lit7 = [rec(litMap, 'pA1', 'mA'), want(litMap, litMap.a1, 'mA'), (litMap.last(litMap.a1, 'mA').fogLit || []).length, J(rec(litMap, 'pB', 'mA')) === J(want(litMap, litMap.b1, 'mA')), rec(litMap, 'pA1', 'mA').cap, rec(litMap, 'pB', 'mA').cap, rec(litMap, 'pA1', 'mA').lit !== rec(litMap, 'pB', 'mA').lit];
+    const barPeer = mk4(); barPeer.a1.peer = 'p|A'; barPeer.net.roster = { 'p|A': { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } }; barPeer.camp.items['A|mA'] = barPeer.camp.items.mA; barPeer.net.sendItem('k', 'A|mA');
+    const bar8 = [!!rec(barPeer, 'p|A', 'A|mA'), rec(barPeer, 'p', 'A|mA'), rec(barPeer, 'p|A', 'A')];
+    check('fold M5: after each send that went out, the host records per connection what that copy of the fogged map holds — its items\' ids, its lit cells as a hash, its light cap — equal to the copy itself (a GM save to all, a copy to one connection alone leaving the player\'s other connection\'s record as it was, a copy sent to the table); a peer not admitted gets none; a send that throws records nothing for that connection and the others as ever',
+        all1.every(Boolean) && w1 && J(only1) === J([true, true, false]) && bif1r.every(Boolean) && noRec[0] === null && noRec[1] && noRec[2] === null && noRec[3] && noRec[4] && J(lit7[0]) === J(lit7[1]) && lit7[2] === 2 && lit7[3] && lit7[4] === true && lit7[5] === false && lit7[6],
+        J([all1, only1, bif1r, noRec, lit7]));
+    check('fold M5: the join snapshot records every fogged map of the hosted campaign it carried (never an unfogged one, never a map the host does not hold); the record is forgotten for a map that goes (for everyone) or is sent to the table unfogged, for every connection of a removed player (another\'s kept), and at a new table; a connection\'s id or a map\'s id holding a bar never collide',
+        snap3[0] && snap3[1] === false && snap3[2] === null && J(snap3[3]) === J(['pB']) && J(gone4) === J([true, null, null, null, null, true, null, null]) && J(kick5) === J([null, null, true]) && all6 === 0 && J(bar8) === J([true, null, null]),
+        J([snap3, gone4, kick5, all6, bar8]));
+    const fmSrc5 = bw('fogmove'), otherSrc5 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
+    const scripts5 = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f) && f !== 'net.js').filter(f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').indexOf('_fogHeld') >= 0);
+    check('fold M5 (source): the record is named only inside its slice and in no other script; each whole send seeds after its try (a send that throws returns first); the snapshot seeds only once it went out, after its try; the close handler, kickPlayer, itemGone, both unfogged sends and a new table forget',
+        fmSrc5.indexOf('var _fogHeld') >= 0 && otherSrc5.indexOf('_fogHeld') < 0 && scripts5.length === 0
+        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}\n\s*if \(typeof fogSeed === 'function'\) fogSeed\(conn, itemId, out\);/g) || []).length === 2
+        && /conn\.send\(snap\); snapOk = true;/.test(src) && /\n\s*if \(snapOk && typeof fogSeedSnapshot === 'function'\) fogSeedSnapshot\(conn, snap\);/.test(src)
+        && /fogDragSweep\(\);[^\n]*\n\s*if \(typeof fogForgetConn === 'function'\) fogForgetConn\(conn\.peer\);/.test(src) && /if \(typeof fogForgetConn === 'function'\) keys\.forEach\(fogForgetConn\);/.test(whole4('net.kickPlayer = function('))
+        && /fogForgetMap\(itemId\)/.test(whole4('net.itemGone = function(')) && /fogForgetAll\(\);/.test(fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting')), J(scripts5));
+
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
     const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));
@@ -5496,7 +5535,7 @@ pendingChecks.push((async () => {
         && /renderRoster\(\); \}\n\s*if \(p && typeof fogDragSweep === 'function'\) fogDragSweep\(\);/.test(kpS) && lvS.indexOf('fogDragSweep(true)') > 0 && lvS.indexOf('fogDragSweep(true)') < lvS.indexOf('net.conns = []') && /sensesReset\(\);[^\n]*\n\s*_dragFrom = Object\.create\(null\); _refusedAt = Object\.create\(null\);/.test(shS)
         && /\nfunction fogNow\(\) \{ return Date\.now\(\); \}[^\n]*\n\/\/ \[netcheck:fogmove-start\]/.test(src) && fmS.indexOf('function fogNow') < 0 && (src.match(/function fogNow\(/g) || []).length === 1
         && (whole4('net.sendItem = function(').match(/fogLanded\(itemId, fogSend\)/g) || []).length === 1 && /var fogSend = function\(\) \{[^]*?var clean = sanitizeItem\(it\);/.test(whole4('net.sendItem = function(')) && /var fogSend = function\(\) \{[^\n]*\n\s*var clean = sanitizeItem\(it\);/.test(whole4('net.broadcastItemFiltered = function('))
-        && /fogLanded\(null, mkSnap\); else mkSnap\(\);[^\n]*\n\s*conn\.send\(snap\);\n\s*\} catch \(e\) \{ sendFailed\(e, 'snapshot'\);/.test(admS) && (bw('combats').match(/fogLanded\(null, sendAll\)/g) || []).length === 2 && (bw('sensesmoved').match(/fogLanded\(null, sendAll\)/g) || []).length === 1
+        && /fogLanded\(null, mkSnap\); else mkSnap\(\);[^\n]*\n\s*conn\.send\(snap\);[^\n]*\n\s*\} catch \(e\) \{ sendFailed\(e, 'snapshot'\);/.test(admS) && (bw('combats').match(/fogLanded\(null, sendAll\)/g) || []).length === 2 && (bw('sensesmoved').match(/fogLanded\(null, sendAll\)/g) || []).length === 1
         && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /openDrag\(msg\.itemId, lw\)/.test(bw('patch')));
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

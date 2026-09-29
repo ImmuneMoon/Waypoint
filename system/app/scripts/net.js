@@ -694,6 +694,25 @@ function fogDragSweep(all) {   // all: the session is ending, every open drag go
         if (now - e.at > FOG_DRAG_STALE_MS) dragEnd(e, camp, m, w);
     });
 }
+// Fold M5: what each connection's copy of each fogged map holds, as the host last sent it whole: its items' ids, its lit cells (a hash) and its
+// light cap. The host's memory only, never saved or sent; recorded only after a send that went out; both levels prototype-free, never parsed
+// apart (a connection's id and a map's id may hold any character). Forgotten when the connection closes or its player is removed, when the
+// map goes or is sent to the table unfogged, and at a new table
+var _fogHeld = Object.create(null);
+function fogSeed(conn, mapId, out) {
+    if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string' || !out || !Array.isArray(out.whiteboard)) return;
+    var ids = Object.create(null); out.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') ids[w.id] = 1; });
+    var per = _fogHeld[conn.peer] || (_fogHeld[conn.peer] = Object.create(null));
+    per[mapId] = { ids: ids, lit: quickHash(JSON.stringify(out.fogLit || [])), cap: out.lightsCapped === true };
+}
+function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campaign, as the join snapshot carried it
+    var camp = getActiveCampaign(), cs = snap && snap.appState && snap.appState.campaigns, sc = camp && cs && own(cs, camp.id) ? cs[camp.id] : null;
+    if (!sc || !sc.items || !camp.items) return;
+    Object.keys(camp.items).forEach(function(id) { if (mapFogged(camp.items[id]) && own(sc.items, id)) fogSeed(conn, id, sc.items[id]); });
+}
+function fogForgetConn(peer) { if (typeof peer === 'string') delete _fogHeld[peer]; }
+function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
+function fogForgetAll() { _fogHeld = Object.create(null); }
 // [netcheck:fogmove-end]
 /* ---------- stage (which campaign/map the table is on) ---------- */
 // The GM can pin the table to a specific map ("Players arrive at" in the Host
@@ -1241,7 +1260,8 @@ net.sendItem = function(campId, itemId, onlyConn) {
                 var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
-                try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); }
+                try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
+                if (typeof fogSeed === 'function') fogSeed(conn, itemId, out);   // fold M5: what that copy now holds
             };
             var clean = sanitizeItem(it); if (!clean) return;
             if (onlyConn) sendOne(onlyConn); else net.conns.forEach(sendOne);
@@ -1250,6 +1270,7 @@ net.sendItem = function(campId, itemId, onlyConn) {
         return;
     }
     var clean = sanitizeItem(it); if (!clean) return;
+    if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: an unfogged map is one copy for all: no record of it
     var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
     if (onlyConn) { try { onlyConn.send(full); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing
     var d = itemDelta(itemId, clean);
@@ -1264,7 +1285,7 @@ net.sendItem = function(campId, itemId, onlyConn) {
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
-    if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
+    if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
         var clean = sanitizeItem(it); if (!clean) return;
@@ -1272,7 +1293,8 @@ net.broadcastItemFiltered = function(campId, itemId) {
             var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
             var out = fogCopyFor(clean, camp, it, pr.id);
             if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
-            try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); }
+            try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
+            if (typeof fogSeed === 'function') fogSeed(conn, itemId, out);   // fold M5: what that copy now holds
         });
     };
     if (typeof fogLanded === 'function') fogLanded(itemId, fogSend); else fogSend();
@@ -1282,6 +1304,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
 net.itemGone = function(campId, itemId) {
     delete _lastSent[itemId];
     if (typeof sensesForgetMap === 'function') sensesForgetMap(itemId);   // Senses S0: and what anyone's copy of it was made by
+    if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: and what anyone's copy of it holds
     if (!(net.active && net.role === 'host')) return;
     var msg = { type: 'itemGone', campId: campId, itemId: itemId };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
@@ -3392,11 +3415,13 @@ function admitPlayer(conn, prof, provenKey) {
     if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
+    var snapOk = false;
     try {
         var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; };
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
-        conn.send(snap);
+        conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); }
+    if (snapOk && typeof fogSeedSnapshot === 'function') fogSeedSnapshot(conn, snap);   // fold M5: what each of its fogged maps holds
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
@@ -3455,6 +3480,7 @@ net.kickPlayer = function(peerKey) {
     var keys = p && p.id ? Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === p.id; }) : [peerKey];
     if (p) { bannedIds[p.id] = true; keys.forEach(function(k) { delete net.roster[k]; }); renderRoster(); }
     if (p && typeof fogDragSweep === 'function') fogDragSweep();   // fold M4: a drag of theirs still open goes back where it began
+    if (typeof fogForgetConn === 'function') keys.forEach(fogForgetConn);   // fold M5: and nothing is kept of what their copies held
     if (p && p.id && typeof sensesForget === 'function') sensesForget(p.id);   // Senses S0: no connection of theirs is left, and the closes that follow find no roster entry to forget them by
     if (p) dropWaitingFor(p.id);   // Onboarding F1a: their waiting token goes with them   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
     if (p && p.id && net.targets && own(net.targets, p.id)) { delete net.targets[p.id]; if (typeof render === 'function') render(); if (typeof broadcastTargets === 'function') broadcastTargets(); }   // fold M1: their pointer goes with them (the removed get none of these: every send is roster-gated)
@@ -4681,6 +4707,7 @@ function wireConn(conn) {
         delete net.roster[conn.peer];
         if (p && p.id && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: their last connection: what their copies were made by is forgotten, and no send waits for them
         if (net.role === 'host' && typeof fogDragSweep === 'function') fogDragSweep();   // fold M4: a drag this connection left open goes back where it began
+        if (typeof fogForgetConn === 'function') fogForgetConn(conn.peer);   // fold M5: and what its copies held
         renderRoster();
         if (net.role === 'host') {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
@@ -4811,6 +4838,7 @@ function startHosting(forceFresh) {
     _lastSent = {};   // a new table starts from the snapshot, not from anything sent before
     sensesReset();   // Senses S0: and from no copy made for anyone
     _dragFrom = Object.create(null); _refusedAt = Object.create(null);   // fold M4: and from no drag of the last table
+    fogForgetAll();   // fold M5: and from no record of what anyone's copy held
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
     if (forceFresh) net._hostGen = 0;

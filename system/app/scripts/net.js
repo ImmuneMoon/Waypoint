@@ -269,7 +269,10 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); return w; }
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined) cleanHostTokSenses(w); return w; }
+// Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
+// on anyone else's token, and none with no cleaner on hand
+function cleanHostTokSenses(w) { var FCs = window.wpFogCore, ts = FCs && FCs.cleanTokSenses && !!w.ownerId && w.ownerId === net.myId ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; }
 // Lighting L4: an item's light as the host sent it, cleaned again (fogcore cleanLight: numbers clamped, a unit the app knows, the name short
 // plain text); with no cleaner on hand it does not come in
 function cleanHostLight(w) { var FCl = window.wpFogCore, lc = FCl && FCl.cleanLight ? FCl.cleanLight(w.light) : null; if (lc) w.light = lc; else if (w.type === 'light' && FCl && FCl.cleanLight) w.light = { bright: 0, dim: 0 }; else delete w.light; }
@@ -542,6 +545,7 @@ function wireWbItem(w, cloned) {
     if (w.hidden) return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
     // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
+    if (w.senses !== undefined) delete w.senses;   // senses S2b: a token's own ranges are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
     return w;
 }
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
@@ -572,9 +576,25 @@ function fogFilterClean(clean, dropSet) {
 // Lighting L3: one player's copy of a fogged map — the creatures they cannot see dropped, plus what their copy's own lights cannot show them
 // (fogLit: the lit cells a light on a dropped creature gives the cells they see; lightsCapped: the host's lights past a cap). Always set on a copy
 // made for that player: the shared clone never carries one player's cells
+// Senses S2b: a player's own tokens on their copy of a fogged map carry the ranges the GM gave them (item.senses, as the host reads it: cleaned,
+// the senses the system holds only). Never a hidden or waiting token's, never on an unfogged map; the shared clone never holds them, so the
+// copy gets a board and a token of its own; with nothing to give, the same object
+function fogOwnSenses(out, camp, map, pid) {
+    var FCs = window.wpFogCore; if (!pid || !FCs || !mapFogged(map) || !Array.isArray(map.whiteboard)) return out;
+    var list = camp && camp.system && camp.system.combat && camp.system.combat.senses && Array.isArray(camp.system.combat.senses.list) ? camp.system.combat.senses.list : [], ids = Object.create(null), give = Object.create(null), any = false;
+    list.forEach(function(s) { if (s) ids[s.id] = 1; });
+    map.whiteboard.forEach(function(w) {
+        if (w.ownerId !== pid || w.hidden || w.waiting || w.gmNoteFor) return;
+        var ts = (FCs.cleanTokSenses(w.senses) || []).filter(function(e) { return ids[e.id] === 1; }); if (ts.length) { give[w.id] = ts; any = true; }
+    });
+    if (!any) return out;
+    var cp = {}; for (var k in out) cp[k] = out[k];
+    cp.whiteboard = out.whiteboard.map(function(w) { if (!give[w.id] || w.hidden) return w; var c = {}; for (var kk in w) c[kk] = w[kk]; c.senses = give[w.id]; return c; });
+    return cp;
+}
 function fogCopyFor(clean, camp, map, recipientId) {
     sensesSeed(recipientId, camp, map);
-    var drop = fogDrop(camp, map, recipientId), out = fogFilterClean(clean, drop);
+    var drop = fogDrop(camp, map, recipientId), out = fogOwnSenses(fogFilterClean(clean, drop), camp, map, recipientId);
     var fl = window.wpFog && window.wpFog.fogLitFor && recipientId ? window.wpFog.fogLitFor(recipientId, camp, map, drop) : null;
     if (!fl || !(fl.capped || (fl.lit && fl.lit.length))) return out;
     if (out === clean) { var cp = {}; for (var kk in clean) cp[kk] = clean[kk]; out = cp; }

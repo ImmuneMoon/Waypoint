@@ -609,6 +609,11 @@ function cleanImportItems(ic, deps) {
             var L = FC ? FC.cleanLight(w.light) : null;
             if (L) w.light = L; else if (w.type === 'light' && FC) w.light = { bright: 0, dim: 0 }; else delete w.light;
         });
+        if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) {   // senses S2b: a token's own ranges from a file, cleaned as the app reads them; with no cleaner on hand they do not come in
+            if (!isObj(w)) return;
+            var TS = FC && typeof FC.cleanTokSenses === 'function' ? FC.cleanTokSenses(w.senses) : null;
+            if (TS) w.senses = TS; else delete w.senses;
+        });
     });
 }
 // Onboarding F1a: a waiting token lives only while its session runs — a save, an export or an import never keeps one. Returns how many went.

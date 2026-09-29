@@ -29,6 +29,10 @@
     { "id": "f_luck", "key": "Luck", "label": "Luck", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_fit", "key": "Fit", "label": "Fit", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_stunned", "key": "Stunned", "label": "Stunned", "kind": "toggle", "def": false, "edit": "owner", "vis": "all", "hover": true },
+    { "id": "f_blinded", "key": "Blinded", "label": "Blinded", "kind": "toggle", "def": false, "edit": "gm", "vis": "all", "hover": true },
+    { "id": "f_deafened", "key": "Deafened", "label": "Deafened", "kind": "toggle", "def": false, "edit": "gm", "vis": "all", "hover": true },
+    { "id": "f_infra", "key": "Infravision", "label": "Infravision (yd)", "kind": "number", "def": 0, "min": 0, "max": 1000, "step": 1, "edit": "gm", "vis": "all", "hover": false },
+    { "id": "f_vibe", "key": "VibrationSense", "label": "Vibration Sense (yd)", "kind": "number", "def": 0, "min": 0, "max": 1000, "step": 1, "edit": "gm", "vis": "all", "hover": false },
     { "id": "f_traits", "key": "Traits", "label": "Advantages and disadvantages", "kind": "notes", "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_notes", "key": "Notes", "label": "Notes", "kind": "notes", "edit": "owner", "vis": "all", "hover": false },
     { "id": "f_gmnotes", "key": "GMnotes", "label": "GM notes", "kind": "notes", "edit": "gm", "vis": "gm", "hover": false }
@@ -51,6 +55,13 @@
         { "name": "Torch", "bright": 3, "dim": 6, "pick": true },
         { "name": "Lantern", "bright": 5, "dim": 10, "pick": true }
       ]
+    },
+    "senses": {
+      "blind": { "field": "f_blinded" },
+      "list": [
+        { "id": "sn_infravsn", "name": "Infravision", "range": { "by": "field", "field": "f_infra" }, "grade": "full", "eyes": true },
+        { "id": "sn_vibrsens", "name": "Vibration Sense", "range": { "by": "field", "field": "f_vibe" }, "grade": "mark", "walls": "pass", "arc": "all", "glyph": "tremor" }
+      ]
     }
   },
   "sheet": {
@@ -60,7 +71,12 @@
       { "id": "s_skills", "title": "Skills", "cols": 2, "fields": [ { "id": "f_sk_brawl", "w": 1 }, { "id": "f_sk_guns", "w": 1 }, { "id": "f_sk_stealth", "w": 1 }, { "id": "f_sk_firstaid", "w": 1 }, { "id": "f_sk_climb", "w": 1 }, { "id": "f_sk_fasttalk", "w": 1 }, { "id": "f_sk_pilot", "w": 1 }, { "id": "f_sk_comp", "w": 1 }, { "id": "f_sk_lock", "w": 1 }, { "id": "f_sk_search", "w": 1 } ] },
       { "id": "s_checks", "title": "Checks", "cols": 3, "fields": [ { "roll": "r_st", "w": 1 }, { "roll": "r_dx", "w": 1 }, { "roll": "r_iq", "w": 1 }, { "roll": "r_ht", "w": 1 }, { "roll": "r_will", "w": 1 }, { "roll": "r_per", "w": 1 } ] },
       { "id": "s_traits", "title": "Advantages", "cols": 4, "fields": [ { "id": "f_combatreflexes", "w": 1 }, { "id": "f_luck", "w": 1 }, { "id": "f_fit", "w": 1 }, { "id": "f_stunned", "w": 1 }, { "id": "f_traits", "w": "row" } ] },
+      { "id": "s_senses", "title": "Senses", "cols": 4, "fields": [ { "id": "f_blinded", "w": 1 }, { "id": "f_deafened", "w": 1 }, { "id": "f_infra", "w": 1 }, { "id": "f_vibe", "w": 1 } ] },
       { "id": "s_notes", "title": "Notes", "cols": 1, "fields": [ { "id": "f_notes", "w": "row" }, { "id": "f_gmnotes", "w": "row" } ] }
     ]
-  }
+  },
+  "effects": [
+    { "id": "e_blinded", "name": "Blinded", "icon": "", "tone": "", "dur": "", "notes": "", "vis": "all", "mods": [ { "f": "f_blinded", "op": "on" } ] },
+    { "id": "e_deafened", "name": "Deafened", "icon": "", "tone": "", "dur": "", "notes": "", "vis": "all", "mods": [ { "f": "f_deafened", "op": "on" } ] }
+  ]
 }

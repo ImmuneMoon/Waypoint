@@ -234,6 +234,19 @@
       "def": 0
     },
     {
+      "id": "f_trem",
+      "key": "Tremorsense",
+      "label": "Tremorsense (ft)",
+      "kind": "number",
+      "vis": "all",
+      "hover": false,
+      "edit": "gm",
+      "min": 0,
+      "max": 1000,
+      "step": 5,
+      "def": 0
+    },
+    {
       "id": "f_true",
       "key": "Truesight",
       "label": "Truesight (ft)",
@@ -493,6 +506,35 @@
           "unit": "ft",
           "grade": "full",
           "arc": "all"
+        },
+        {
+          "id": "sn_tremorsn",
+          "name": "Tremorsense",
+          "range": {
+            "by": "field",
+            "field": "f_trem"
+          },
+          "unit": "ft",
+          "grade": "mark",
+          "walls": "pass",
+          "arc": "all",
+          "glyph": "tremor"
+        },
+        {
+          "id": "sn_hearing0",
+          "name": "Hearing",
+          "range": {
+            "by": "n",
+            "n": 0
+          },
+          "unit": "ft",
+          "grade": "mark",
+          "walls": "pass",
+          "arc": "all",
+          "off": {
+            "field": "f_deafened"
+          },
+          "glyph": "sound"
         }
       ]
     }

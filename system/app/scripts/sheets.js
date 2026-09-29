@@ -4556,6 +4556,9 @@ function lightClick(b) {
 // sense on a value its owner cannot read is dropped for everyone); refreshErrors says what it would drop
 // [sinkcheck:sensesbox-start]
 var _senseUnit = '', SENSE_WORDS = { yd: 'yards', ft: 'feet', m: 'metres', cells: 'grid cells' };
+// senses S4: a mark sense's mark, as its player sees it (the shape the fog draws, and the word shown while the pointer is on it); none: a presence
+var SENSE_GLYPH_SAY = { sound: 'three arcs, “Heard”', tremor: 'a zigzag, “Felt”', presence: 'a ring round a dot, “Sensed”', heat: 'a teardrop, “Heat”' };
+function senseGlyphOf(s) { return typeof s.glyph === 'string' && Object.prototype.hasOwnProperty.call(SENSE_GLYPH_SAY, s.glyph) ? s.glyph : 'presence'; }
 function sensesDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : (cm.senses = {}); }
 function senseRangeFields() { return (draft.fields || []).filter(function(f) { return !!f && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); }); }
 function senseSecrets() { try { return secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }, F()); } catch (e) { return null; } }
@@ -4564,6 +4567,7 @@ function senseSwitchFields() { var fs = (draft.fields || []).filter(function(f) 
 function senseSwitchOf(v) { var id = v && typeof v === 'object' && typeof v.field === 'string' ? v.field : '', out = null; if (id) senseSwitchFields().forEach(function(f) { if (f.id === id) out = f; }); return out; }
 function senseSentence(s, fieldsR, secret) {
     var r = s.range && typeof s.range === 'object' ? s.range : {}, how = (s.walls === 'pass' ? ', through walls' : '') + (s.arc === 'all' ? ', all round' : ''), word = SENSE_WORDS[Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'];
+    var mark = s.grade === 'mark', verb = mark ? 'Marks every creature within ' : 'Sees everything within ';   // senses S4
     if (s.unit === '?') return 'Pick what its range counts in: Save leaves this sense out until you do.';
     var out = [], sw = s.off !== undefined ? senseSwitchOf(s.off) : null, swName = sw ? sw.label || sw.key : '';
     if (sw && (!secret || secret[sw.id])) return 'Save drops this sense: its owner cannot read ' + swName + ', which switches it off (a GM-only value, or one worked out from one). Make that value visible to its owner, or have it never switched off.';
@@ -4572,18 +4576,19 @@ function senseSentence(s, fieldsR, secret) {
         if (!f) return 'Pick where its range comes from: Save drops this sense.';
         var nm = f.label || f.key;
         if (!secret || secret[f.id]) return 'Save drops this sense: its owner cannot read ' + nm + ' (a GM-only value, or one worked out from one). Make that value visible to its owner, or give the range as a number.';
-        out.push('Sees everything within the character’s ' + nm + ' (in ' + word + ')' + how + '.'); out.push('A value of 0 or less: that character does not have it.');
+        out.push(verb + 'the character’s ' + nm + ' (in ' + word + ')' + how + '.'); out.push('A value of 0 or less: that character does not have it.');
         if (f.edit === 'owner' && f.kind !== 'formula') out.push('Its owner can change this on their sheet.');
     } else {
         var n = typeof r.n === 'number' && isFinite(r.n) ? r.n : 0;
         if (!(n > 0)) return 'A range of 0: no one has it unless a token is given a range of its own in its Properties.';
-        out.push('Sees everything within ' + n + ' ' + word + how + '.'); out.push('Every character has this sense.');
+        out.push(verb + n + ' ' + word + how + '.'); out.push('Every character has this sense.');
         if (s.unit === 'cells' && n > 60) out.push('60 cells is the most a sense reaches.');
     }
     if (s.eyes === true) out.push('A sense of the eyes: off while the character is blind.');
     if (sw) out.push('Off while ' + swName + ' is ticked or above 0.' + (sw.edit === 'owner' && sw.kind !== 'formula' ? ' Its owner can change that on their sheet.' : ''));
     else if (s.off !== undefined) out.push('Its switch is no longer here: Save keeps the sense, never switched off.');
-    out.push(s.shows === 'dim' ? 'What it sees in the dark it sees as dim.' : 'Seen clearly, light or none: no dim or dark name shows inside its range.');
+    if (mark) out.push('A creature it finds that the eyes do not see shows to its player as a nameless mark in its cell, never as itself: ' + SENSE_GLYPH_SAY[senseGlyphOf(s)] + '.');
+    else out.push(s.shows === 'dim' ? 'What it sees in the dark it sees as dim.' : 'Seen clearly, light or none: no dim or dark name shows inside its range.');
     return out.join(' ');
 }
 // senses S3: the sentence under the blind switch
@@ -4598,16 +4603,19 @@ function sensesBox(box, cm) {
     var sn = cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : {}, arr = Array.isArray(sn.list) ? sn.list : [], wrap = el('div', 'sys-light sys-senses');
     var fieldsR = senseRangeFields(), secret = senseSecrets(), swF = senseSwitchFields();
     wrap.appendChild(el('div', 'sys-light-head', 'Senses'));
-    wrap.appendChild(el('div', 'sys-note', 'Senses besides the eyes, for fogged maps: a sense sees every cell within its range, and the creatures standing there reach its player as the eyes would show them. Its range comes from a field of the character (one its player can read) or is one number every character has.'));
+    wrap.appendChild(el('div', 'sys-note', 'Senses besides the eyes, for fogged maps: a sense sees every cell within its range, and the creatures standing there reach its player as the eyes would show them, or it marks them: a creature it finds that the eyes do not see shows to its player as a nameless mark in its cell. Its range comes from a field of the character (one its player can read) or is one number every character has.'));
     arr.forEach(function(s0, i) {
         var s = s0 && typeof s0 === 'object' ? s0 : {}, r = s.range && typeof s.range === 'object' ? s.range : {}, byField = r.by === 'field', rw = el('div', 'sys-flags sys-light-row sys-sense-row'); rw.dataset.si = String(i);
         var n = input('sys-sense-name field', typeof s.name === 'string' ? s.name : '', 'Its name: Darkvision, Blindsight, Force Sight', 'Name'); n.maxLength = LIMITS.label; rw.appendChild(n);
+        var mark = s.grade === 'mark';   // senses S4: what it shows, and a mark's own mark
+        rw.appendChild(select('sys-sense-grade', [['full', 'Shows everything in range'], ['mark', 'A nameless mark']], mark ? 'mark' : 'full', 'Everything in range: its cells are seen and the creatures there appear as themselves. A nameless mark: a creature it finds that the eyes do not see shows to its player as a mark in its cell, never as itself'));
+        if (mark) rw.appendChild(select('sys-sense-glyph', [['sound', 'Mark: a sound'], ['tremor', 'Mark: a tremor'], ['presence', 'Mark: a presence'], ['heat', 'Mark: heat']], senseGlyphOf(s), 'The mark its player sees, told apart by its shape: three arcs for a sound, a zigzag for a tremor, a ring for a presence, a teardrop for heat'));
         var ropts = [['#n', 'A number (every character)']].concat(fieldsR.map(function(f) { return [f.id, 'From ' + (f.label || f.key)]; }));
         if (byField && typeof r.field === 'string' && !fieldsR.some(function(f) { return f.id === r.field; })) ropts.push([r.field, 'From a field no longer here']);
         rw.appendChild(select('sys-sense-from', ropts, byField ? r.field : '#n', 'Where its range comes from: a field of the character (worked out for each character, effects and all) or one number every character has'));
         if (!byField) { var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', 'Range')); var ni = el('input', 'field sys-sense-n'); ni.type = 'number'; ni.min = '0'; ni.max = '100000'; ni.step = 'any'; ni.value = typeof r.n === 'number' ? String(r.n) : ''; ni.title = 'How far it reaches, for every character (0: no one has it)'; nl.appendChild(ni); rw.appendChild(nl); }
         rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
-        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever the map’s vision arc'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Force)']].forEach(function(g) {
+        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever the map’s vision arc'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Force)']].filter(function(g) { return !(mark && g[0] === 'dim'); }).forEach(function(g) {   // a mark sees no cells: no dim
             var tl = el('label', 'sys-hover'), tc = el('input', 'sys-sense-tick'); tc.type = 'checkbox'; tc.checked = g[2]; tc.dataset.tick = g[0]; tl.appendChild(tc); tl.appendChild(document.createTextNode(' ' + g[1])); tl.title = g[3]; rw.appendChild(tl);
         });
         var offId = s.off && typeof s.off === 'object' && typeof s.off.field === 'string' ? s.off.field : '', oopts = [['', 'Never switched off']].concat(swF.map(function(f) { return [f.id, 'Off while ' + (f.label || f.key)]; }));   // senses S3
@@ -4618,7 +4626,7 @@ function sensesBox(box, cm) {
         wrap.appendChild(el('div', 'sys-note sys-sense-says', senseSentence(s, fieldsR, secret)));
     });
     var full = arr.length >= LIMITS.senses, adds = el('div', 'sys-flags');
-    [['dark', '+ Sees without light', 'A sense that sees in the dark, as dim: darkvision'], ['noeyes', '+ Sees without eyes', 'A sense that works blind, all round: blindsight, a sense of the Force'], ['custom', '+ Custom sense', 'A sense of your own: Tremorsense, Force Sight']].forEach(function(g) { var b = el('button', 'tool ghost sys-btn sys-light-add', g[1]); b.dataset.act = 'snadd'; b.dataset.tpl = g[0]; b.disabled = full; b.title = full ? 'At most ' + LIMITS.senses : g[2]; adds.appendChild(b); });
+    [['dark', '+ Sees without light', 'A sense that sees in the dark, as dim: darkvision'], ['noeyes', '+ Sees without eyes', 'A sense that works blind, all round: blindsight, a sense of the Force'], ['hears', '+ Hears', 'A nameless mark for a sound, through walls, all round; off while the system’s Deafened toggle is ticked, if it has one'], ['feels', '+ Feels through the ground', 'A nameless mark for a tremor, through walls, all round: tremorsense'], ['near', '+ Senses what is near', 'A nameless mark for a presence, through walls, all round'], ['creature', '+ A creature’s sense (set per token)', 'A nameless mark with a range of 0: no one has it until a token is given a range of its own in its Properties (a beast’s vibration sense)'], ['custom', '+ Custom sense', 'A sense of your own']].forEach(function(g) { var b = el('button', 'tool ghost sys-btn sys-light-add', g[1]); b.dataset.act = 'snadd'; b.dataset.tpl = g[0]; b.disabled = full; b.title = full ? 'At most ' + LIMITS.senses : g[2]; adds.appendChild(b); });
     wrap.appendChild(adds);
     wrap.appendChild(el('div', 'sys-note', 'Sight is the eyes’ own range in the dark. A sense that sees without light adds to it; the longer of the two is what the token sees.'));
     var blId = sn.blind && typeof sn.blind === 'object' && typeof sn.blind.field === 'string' ? sn.blind.field : '', bopts = [['', 'No blind switch']].concat(swF.map(function(f) { return [f.id, 'Blind while ' + (f.label || f.key)]; }));   // senses S3: the system's blind switch
@@ -4640,11 +4648,16 @@ function onSensesInput(t) {
 }
 function onSensesChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
-    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0) return true;   // the boxes' change events (their input events did the work)
     if (c.indexOf('sys-sense-blind') >= 0) { var snd = sensesDraft(); if (t.value) snd.blind = { field: t.value }; else delete snd.blind; markDirty(); renderAll(); return true; }   // senses S3: the blind switch (its sentence redrawn)
     var at = senseAt(t); if (!at) return true;
     var s = at.s;
     if (c.indexOf('sys-sense-off') >= 0) { if (t.value) s.off = { field: t.value }; else delete s.off; senseSays(at); markDirty(); patchErrors(); return true; }
+    if (c.indexOf('sys-sense-grade') >= 0) {   // senses S4: everything in range or a mark (the glyph list and the dim tick come or go)
+        if (t.value === 'mark') { s.grade = 'mark'; delete s.shows; s.glyph = senseGlyphOf(s); } else if (t.value === 'full') { s.grade = 'full'; delete s.glyph; } else return true;
+        markDirty(); renderAll(); return true;
+    }
+    if (c.indexOf('sys-sense-glyph') >= 0) { if (s.grade !== 'mark' || typeof t.value !== 'string' || !Object.prototype.hasOwnProperty.call(SENSE_GLYPH_SAY, t.value)) return true; s.glyph = t.value; senseSays(at); markDirty(); patchErrors(); return true; }
     if (c.indexOf('sys-sense-from') >= 0) {
         s.range = t.value === '#n' ? { by: 'n', n: 0 } : { by: 'field', field: t.value };
         markDirty(); renderAll(); return true;   // the number box comes or goes
@@ -4668,10 +4681,13 @@ function sensesClick(b) {
     if (m[1] === 'add') {
         if (arr.length >= LIMITS.senses) { toast('At most ' + LIMITS.senses + '.'); return true; }
         var id = ''; for (var k = 0; k < 20 && !(/^sn_[a-z0-9]{8}$/.test(id) && !arr.some(function(x) { return x && x.id === id; })); k++) id = uid('sn_');
-        var u = senseUnitFor(), row = { id: id, name: b.dataset.tpl === 'dark' ? 'Sees in the dark' : b.dataset.tpl === 'noeyes' ? 'Sees without eyes' : '', range: { by: 'n', n: 0 }, grade: 'full' };
+        var tpl = b.dataset.tpl, mk = { hears: ['Hearing', 'sound'], feels: ['Tremorsense', 'tremor'], near: ['Presence', 'presence'], creature: ['A creature’s sense', 'tremor'] }, mt = Object.prototype.hasOwnProperty.call(mk, tpl) ? mk[tpl] : null;
+        var u = senseUnitFor(), row = { id: id, name: tpl === 'dark' ? 'Sees in the dark' : tpl === 'noeyes' ? 'Sees without eyes' : mt ? mt[0] : '', range: { by: 'n', n: 0 }, grade: mt ? 'mark' : 'full' };
         if (u !== 'yd') row.unit = u;
-        if (b.dataset.tpl === 'dark') { row.shows = 'dim'; row.eyes = true; }   // senses S3: darkvision is a sense of the eyes
-        if (b.dataset.tpl === 'noeyes') row.arc = 'all';
+        if (tpl === 'dark') { row.shows = 'dim'; row.eyes = true; }   // senses S3: darkvision is a sense of the eyes
+        if (tpl === 'noeyes') row.arc = 'all';
+        if (mt) { row.walls = 'pass'; row.arc = 'all'; row.glyph = mt[1]; }   // senses S4: the marks' templates pass walls and hear all round
+        if (tpl === 'hears') { var sec = senseSecrets(), deaf = senseSwitchFields().filter(function(f) { return f.kind === 'toggle' && /^deaf/i.test(String(f.key || '')) && sec && !sec[f.id]; })[0]; if (deaf) row.off = { field: deaf.id }; }   // off while Deafened, one its owner can read
         arr.push(row);
     }
     else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;

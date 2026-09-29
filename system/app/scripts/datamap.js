@@ -849,6 +849,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         doSmartSnapping.last = null;   // fresh drag: no item-snap memory yet
         startX=e.clientX; startY=e.clientY;
         try { el.setPointerCapture(e.pointerId); } catch(_) {} el.classList.add('dragging');
+        if (modeStr === 'visual' && window.wpHostGestureStart) window.wpHostGestureStart();   // fold M6: a drag that writes items is open
         e.preventDefault();
       });
 
@@ -919,6 +920,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
       el.addEventListener('pointerup',function(e){
         if(!dragging) return;
+        if (window.wpHostGestureEnd) window.wpHostGestureEnd();   // fold M6: whatever it was, the gesture is over (abortDrag ends here too)
         if (lockedMq) {   // finish a locked-item interaction: a drag became a marquee, a still click selects the locked item
             dragging = false;
             try { el.releasePointerCapture(e.pointerId); } catch(_) {}

@@ -5538,6 +5538,29 @@ pendingChecks.push((async () => {
         && /fogLanded\(null, mkSnap\); else mkSnap\(\);[^\n]*\n\s*conn\.send\(snap\);[^\n]*\n\s*\} catch \(e\) \{ sendFailed\(e, 'snapshot'\);/.test(admS) && (bw('combats').match(/fogLanded\(null, sendAll\)/g) || []).length === 2 && (bw('sensesmoved').match(/fogLanded\(null, sendAll\)/g) || []).length === 1
         && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /openDrag\(msg\.itemId, lw\)/.test(bw('patch')));
 })());
+// fold M6: the GM's open board gesture, published (inert): the helper run for real on a stub page, and where each gesture sets and clears it
+{
+    const rdS = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').replace(/\r\n/g, '\n');
+    const wbT = rdS('whiteboard.js'), dmT = rdS('datamap.js');
+    const hgA = wbT.indexOf('// [netcheck:hostgesture-start]'), hgB = wbT.indexOf('// [netcheck:hostgesture-end]'), hgS = hgA >= 0 && hgB > hgA ? wbT.slice(hgA, hgB) : 'throw new Error("hostgesture not found")';
+    const page = (n, map) => { const win = { wpNet: n, on: {}, addEventListener(t, f) { this.on[t] = f; } }; new Function('window', 'getActiveMap', '"use strict";\n' + hgS)(win, () => map); return win; };
+    const host = page({ active: true, role: 'host' }, { id: 'mA' }), seen = [host.wpHostGesture];
+    host.wpHostGestureStart(); seen.push(host.wpHostGesture); host.wpHostGestureEnd(); seen.push(host.wpHostGesture); host.wpHostGestureStart(); host.on.blur(); seen.push(host.wpHostGesture);
+    const others = [page({ active: true, role: 'client' }, { id: 'mA' }), page({ active: false, role: 'host' }, { id: 'mA' }), page(undefined, { id: 'mA' }), page({ active: true, role: 'host' }, null), page({ active: true, role: 'host' }, { id: 5 })].map(p => { p.wpHostGesture = 'stale'; p.wpHostGestureStart(); return p.wpHostGesture; });
+    check('fold M6: the GM\'s open board gesture is published only on a hosting machine — the map\'s id while it runs, null when it ends or the window loses focus; a player\'s machine, a table not running, no table, no map or a map id that is no text publish none (and a stale mark is cleared)',
+        j(seen) === j([null, 'mA', null, null]) && j(others) === j([null, null, null, null, null]) && typeof host.on.blur === 'function', j([seen, others]));
+    const cut = (t, a, b) => { const i = t.indexOf(a), k = t.indexOf(b, i + 1); return i >= 0 && k > i ? t.slice(i, k) : ''; };
+    const resS = cut(wbT, '  function attachResizeHandle() {', '\n  function facingStepFor('), rotS = cut(wbT, '  function attachRotateHandle() {', '\n  // Default opacity for newly created items'), fogS = cut(wbT, '      var _fogPaintBtn = -1;', '\n  // Fill bucket');
+    const dragS = cut(dmT, '  function attachDrag(el, modeStr){', "\n      el.addEventListener('pointermove',function(e){"), upS = cut(dmT, "      el.addEventListener('pointerup',function(e){", '\n        if (lockedMq) {');
+    const handle = (s, flag) => (s.match(/hostGestureStart\(\);/g) || []).length === 1 && new RegExp('setPointerCapture\\(e\\.pointerId\\); \\} catch\\(_\\) \\{\\}\\n\\n\\s*hostGestureStart\\(\\);').test(s) && new RegExp(flag + ' = false;\\n\\n\\s*hostGestureEnd\\(\\);').test(s)
+        && /handle\.addEventListener\('pointercancel', hostGestureEnd\); handle\.addEventListener\('lostpointercapture', hostGestureEnd\);/.test(s);
+    check('fold M6 (source): the resize and rotate handles publish the gesture once they hold the pointer and clear it at their pointerup, a cancel or a lost capture; a fog-brush stroke publishes it only when it paints (a door click does not) and clears it when the pointer comes up or is cancelled; a board drag publishes it on the play map only, once it holds the pointer, and clears it first thing at its pointerup (which a cancel, a lost capture and a lost focus reach through abortDrag); datamap.js names none of the host\'s senses',
+        handle(resS, 'isResizing') && handle(rotS, 'isRotating') && fogS.indexOf('toggleDoorAt') >= 0 && fogS.indexOf('toggleDoorAt') < fogS.indexOf('hostGestureStart();') && /_fogPaintBtn = e\.button;\n\s*hostGestureStart\(\);/.test(fogS)
+        && /document\.addEventListener\('pointerup', function\(\) \{ if \(_fogPaintBtn >= 0\) hostGestureEnd\(\); _fogPaintBtn = -1; \}\);/.test(fogS) && /document\.addEventListener\('pointercancel', function\(\) \{ if \(_fogPaintBtn >= 0\) hostGestureEnd\(\); _fogPaintBtn = -1; \}\);/.test(fogS)
+        && /el\.classList\.add\('dragging'\);\n\s*if \(modeStr === 'visual' && window\.wpHostGestureStart\) window\.wpHostGestureStart\(\);/.test(dragS) && (dmT.match(/wpHostGestureStart\(\)/g) || []).length === 1
+        && /if\(!dragging\) return;\n\s*if \(window\.wpHostGestureEnd\) window\.wpHostGestureEnd\(\);/.test(upS) && /function abortDrag\(e\) \{\n\s*if \(!dragging\) return;\n\s*el\.dispatchEvent\(new PointerEvent\('pointerup'/.test(dmT)
+        && !/senses|amL|invalidateSeen|sightSigFor/.test(dmT), j([resS.length, rotS.length, fogS.length, dragS.length, upS.length]));
+}
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

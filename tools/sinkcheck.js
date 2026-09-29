@@ -980,9 +980,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const mkSf = (camp, opt) => {
             const o = opt || {}, calls = { saves: 0, renders: 0, inspectors: 0, vision: 0, redraws: 0 };
             const win = { wpFog: o.noFog ? undefined : { campSenses: () => (o.list || []), tokenSenses: (w, map, c, waived) => { calls.asked = [w.id, map && map.id, !!c, waived]; return o.ts || { full: [] }; }, invalidateVision() { calls.vision++; }, redraw() { calls.redraws++; } } };
+            if (o.sc) win.wpSystemCore = o.sc;
             if (!o.noCore) win.wpFogCore = FCs;
             const env = { getActiveCampaign: () => camp, window: win, save: () => { calls.saves++; }, render: () => { calls.renders++; }, renderInspector: () => { calls.inspectors++; } };
-            const api = new Function('env', 'esc', "'use strict';\nvar getActiveCampaign = env.getActiveCampaign, window = env.window, save = env.save, render = env.render, renderInspector = env.renderInspector;\n" + slice('inspector.js', 'sensesfield') + '\nreturn { sensesFieldHtml: sensesFieldHtml, setTokenSense: setTokenSense };')(env, escS);
+            const api = new Function('env', 'esc', "'use strict';\nvar getActiveCampaign = env.getActiveCampaign, window = env.window, save = env.save, render = env.render, renderInspector = env.renderInspector;\n" + slice('inspector.js', 'sensesfield') + '\nreturn { sensesFieldHtml: sensesFieldHtml, setTokenSense: setTokenSense, setTokenBlind: setTokenBlind };')(env, escS);
             api.calls = calls; return api;
         };
         const listS = [{ id: 'sn_aaaaaaaa', name: T, unit: 'ft' }, { id: 'sn_bbbbbbbb', name: P, unit: P }, { id: 'sn_cccccccc', name: 'Tremorsense', unit: 'm' }, { id: 'sn_dddddddd', name: 'Scent', unit: 'cells' }, { id: 'sn_eeeeeeee', name: 'Echo' }];
@@ -1002,8 +1003,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const hProto = mkSf({ id: 'c1', chars: {} }, { list: listS.slice(2, 3), ts: { sheet: false, full: [] } }).sensesFieldHtml({ id: 't4', isChar: true, ownerId: 'u_a', charId: 'constructor' }, { id: 'm1' });
         check('senses block: a sense this token lacks reads "Not held"; the note that the sheet was not read shows only for a player\'s token on a character of the campaign\'s own (never an NPC token, a character the campaign lacks or a prototype\'s name); an NPC token asks with the sheet\'s rule waived',
             /<div class="muted"[^>]*>Not held<\/div>/.test(hNot) && hNot.indexOf('Read from the token only') < 0 && hNpcH.indexOf('Read from the token only') < 0 && j(hNpc.calls.asked) === j(['t3', 'm1', true, true]) && hProto.indexOf('Read from the token only') < 0, [hNot, hNpcH]);
+        const TICK = '<div class="field check-row"><input type="checkbox" id="wbBlindTick" > <label for="wbBlindTick" title="Its eyes see only its own cell, whatever the light; a sense that does not use the eyes still works. Only its player receives this.">Blind</label></div>';
         const emptyS = [mkSf(null, { list: listS }).sensesFieldHtml(tokS, { id: 'm1' }), mkSf(campS, { list: [] }).sensesFieldHtml(tokS, { id: 'm1' }), mkSf(campS, { list: listS, noFog: true }).sensesFieldHtml(tokS, { id: 'm1' }), mkSf(campS, { list: listS, noCore: true }).sensesFieldHtml(tokS, { id: 'm1' })];
-        check('senses block: nothing at all without a campaign, a sense in the system, the fog module or its cleaner', j(emptyS) === j(['', '', '', '']), j(emptyS));
+        check('senses block: nothing at all without a campaign, the fog module or its cleaner; with no sense in the system, the Blind tick alone (senses S3)', j(emptyS) === j(['', TICK, '', '']), j(emptyS));
+        // senses S3: the Blind tick, the sheet's blindness, a sense held but off
+        const tickOf = (w, ts) => mkSf(campS, { list: [], ts: ts }).sensesFieldHtml(w, { id: 'm1' });
+        const tk = { on: tickOf({ id: 'b1', isChar: true, blind: true }), yes: tickOf({ id: 'b2', isChar: true, blind: 'yes' }), sheet: tickOf({ id: 'b3', isChar: true }, { full: [], blind: true }), both: tickOf({ id: 'b4', isChar: true, blind: true }, { full: [], blind: true }) };
+        check('senses block (S3): the Blind tick is ticked only for a token whose tick is true; a token its sheet makes blind says so under an unticked box (not when the tick is set too); the markup is fixed text',
+            tk.on === TICK.replace('id="wbBlindTick" >', 'id="wbBlindTick" checked>') && tk.yes === TICK && tk.sheet === TICK + '<div class="muted" style="margin:-4px 0 6px; font-size:10.5px;">Blind by its character&rsquo;s sheet.</div>' && tk.both === tk.on && [tk.on, tk.sheet].every(h => risks(h).length === 0), j(tk));
+        const scS = { fieldById: (sys, id) => (id === 'f_deaf' ? { id: 'f_deaf', label: T } : id === 'f_gone' ? { id: 'f_gone', label: '' } : null) };
+        const offList = [{ id: 'sn_aaaaaaaa', name: 'Eyes', unit: 'ft', eyes: true }, { id: 'sn_bbbbbbbb', name: 'Hearing', unit: 'm', off: { field: 'f_deaf' } }, { id: 'sn_cccccccc', name: 'Smell', off: { field: 'f_gone' } }];
+        const offTs = { full: [], blind: true, offs: [{ id: 'sn_aaaaaaaa', n: 60, cells: 12, from: 'n', why: 'blind' }, { id: 'sn_bbbbbbbb', n: 30, cells: 6, from: 'field', why: 'off' }, { id: 'sn_cccccccc', n: 5, cells: 5, from: 'token', why: 'off' }] };
+        const hOff = mkSf(campS, { list: offList, ts: offTs, sc: scS }).sensesFieldHtml({ id: 'b5', isChar: true, senses: [{ id: 'sn_cccccccc', n: 5 }] }, { id: 'm1' }), hOffNo = mkSf(campS, { list: offList, ts: offTs }).sensesFieldHtml({ id: 'b5', isChar: true }, { id: 'm1' });
+        const saysOff = h => Array.from(h.matchAll(/<div class="muted" style="margin:-1px 0 4px; font-size:10.5px;">([^<]*)<\/div>/g)).map(m => m[1]);
+        check('senses block (S3): a sense held but off says so where "Not held" would mislead — one of the eyes "off while blind", one switched off "off," and its switch\'s label (escaped: a hostile label is text), or "its switch" where it cannot be named; the Blind note and tick follow the rows',
+            j(saysOff(hOff)) === j(['60 ft, the system’s: off while blind', '30 m, from the sheet: off, ' + escS(T), '5 yd, this token’s own: off, its switch']) && risks(hOff).length === 0 && hOff.indexOf(T) < 0
+            && j(saysOff(hOffNo)) === j(['60 ft, the system’s: off while blind', '30 m, from the sheet: off, its switch', '5 yd, this token’s own: off, its switch']) && /<\/div><div class="field check-row"><input type="checkbox" id="wbBlindTick" > <label for="wbBlindTick"[^>]*>Blind<\/label><\/div><div class="muted"[^>]*>Blind by its character&rsquo;s sheet\.<\/div>$/.test(hOff), j([saysOff(hOff), saysOff(hOffNo)]));
+        const SB = mkSf(campS, { list: [] }), tB1 = { id: 't', isChar: true }; SB.setTokenBlind(tB1, true); const bl1 = tB1.blind; SB.setTokenBlind(tB1, false); const bl2 = 'blind' in tB1; SB.setTokenBlind(tB1, 'yes'); const bl3 = 'blind' in tB1;
+        const noFogB = mkSf(campS, { list: [], noFog: true }), tB2 = { id: 't2', isChar: true }; noFogB.setTokenBlind(tB2, true);
+        check('senses set (S3): the Blind tick sets true or takes the key away (anything but true takes it away), saving, redrawing the board, the panel and the fog each time; with no fog module it still saves',
+            bl1 === true && bl2 === false && bl3 === false && j(SB.calls) === j({ saves: 3, renders: 3, inspectors: 3, vision: 3, redraws: 3 }) && tB2.blind === true && noFogB.calls.saves === 1, j([SB.calls, noFogB.calls]));
         // setTokenSense, run for real against the real fogcore
         const SS = mkSf(campS, { list: listS.slice(0, 3) }), tokT = { id: 't1', isChar: true, senses: [{ id: 'sn_zzzzzzzz', n: 5 }, 'junk', { id: 'sn_bbbbbbbb', n: 7 }] };
         SS.setTokenSense(tokT, '0', '12'); const st1 = j(tokT.senses); SS.setTokenSense(tokT, '1', ' 0 '); const st2 = j(tokT.senses); SS.setTokenSense(tokT, '2', '1e9'); SS.setTokenSense(tokT, '0', '-4'); const st3 = j(tokT.senses);
@@ -1025,7 +1044,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('senses block (inspector.js): a character token\'s Properties show it after the Light block, never a waiting token\'s and only where this machine saves (the GM\'s), its number boxes wired to setTokenSense by their place',
             /lightFieldHtml\(w, L, lightPresetsNow\(\)\);\r?\n\s*\}\)\(\) : ''\)\+\r?\n\s*\(w\.isChar && !w\.waiting && window\.wpCanPersistLocal && window\.wpCanPersistLocal\(\) \? sensesFieldHtml\(w, activeMap\) : ''\)\+/.test(inspS)
             && /inspector\.querySelectorAll\('\.wb-sense-ov'\)\.forEach\(function\(el\) \{ el\.addEventListener\('change', function\(\) \{ setTokenSense\(w, this\.dataset\.si, this\.value\); \}\); \}\);/.test(inspS) && (inspS.match(/sensesFieldHtml\(/g) || []).length === 2 && (inspS.match(/setTokenSense\(/g) || []).length === 2
-            && /\nwindow\.wpFog = \{[^]*?\n    tokenSenses: tokenSenses, campSenses: campSenses,[^\n]*\n[^]*?\n\};/.test(read('fog.js').replace(/\r\n/g, '\n')));
+            && /\nwindow\.wpFog = \{[^]*?\n    tokenSenses: tokenSenses, campSenses: campSenses,[^\n]*\n[^]*?\n\};/.test(read('fog.js').replace(/\r\n/g, '\n'))
+            && /var _el_wbBT = document\.getElementById\('wbBlindTick'\);\r?\n\s*if \(_el_wbBT\) _el_wbBT\.addEventListener\('change', function\(\) \{ setTokenBlind\(w, this\.checked\); \}\);/.test(inspS) && (inspS.match(/setTokenBlind\(/g) || []).length === 2);
     }
     /* ---- Lighting L5: a player's own light — a preset's name comes from a system file, a light's own name from the host's map, a player's and a token's name from the wire ---- */
     {

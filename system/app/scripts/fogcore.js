@@ -338,6 +338,7 @@ function visibleCells(viewer, grid, blockers) {
 function seenCells(viewer, grid, blockers, ctx) {
     var lvl = ctx && fin(ctx.level) ? clamp(Math.round(ctx.level), 0, 2) : null, lit = ctx && isObj(ctx.lit) ? ctx.lit : null, out = [], anyLit = false;
     if (!viewer || !grid) return out;
+    if (viewer.blind) { var own = fin(viewer.x) && fin(viewer.y) ? cellOf(viewer.x, viewer.y, grid) : null; if (own) out.push({ key: cellKey(own, grid), cell: own, tier: 2 }); return out; }   // senses S3: blind eyes see their own cell alone, whatever the light
     if (viewer.sense) return senseCells(viewer, grid, blockers, lvl, lit);   // senses S2a: judged before the dark and the lighting-off shortcuts
 
     if (lit) for (var lk in lit) { anyLit = true; break; }

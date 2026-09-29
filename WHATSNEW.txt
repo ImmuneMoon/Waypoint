@@ -903,7 +903,10 @@ Fog of war
   token's Properties show each sense as that token has it on its map, and
   can give the token a range of its own (a creature's sense, a plain
   token's; 0 switches the sense off for that token); only that token's
-  player receives it.
+  player receives it. Properties also hold a Blind tick: a blind token's
+  eyes see only its own cell, whatever the light, while a sense that does
+  not use the eyes still works. A token is blind too when its character's
+  sheet says so (the system's blind switch, a Blinded effect).
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

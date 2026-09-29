@@ -1303,6 +1303,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbLP = document.getElementById('wbLightPreset');
             if (_el_wbLP) _el_wbLP.addEventListener('change', function() { applyLightPreset(w, this.value, activeMap); });
             inspector.querySelectorAll('.wb-sense-ov').forEach(function(el) { el.addEventListener('change', function() { setTokenSense(w, this.dataset.si, this.value); }); });   // senses S2b: a token's own range for a sense
+            var _el_wbBT = document.getElementById('wbBlindTick');
+            if (_el_wbBT) _el_wbBT.addEventListener('change', function() { setTokenBlind(w, this.checked); });   // senses S3: the GM's Blind tick
             var _el_wbLK = document.getElementById('wbLightLock');
             if (_el_wbLK) _el_wbLK.addEventListener('change', function() { if (this.checked) w.lightLock = true; else delete w.lightLock; save(); });
             var _el_wbFogged = document.getElementById('wbFogged');
@@ -1698,21 +1700,32 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // Senses S2b: the Senses block of a character token's Properties (the GM's only) — each full sense of the system, with this token's range
   // worked out on this map as the host reads it (its player's own whole character, else the token alone: said so), in its unit and in cells,
   // marked where the cap bites or it comes to under one cell, and a range of the token's own that overrides the sheet's (a creature's sense, a
-  // plain token's; 0: off for this token; empty: the sheet's or the system's again). A sense's name comes from a system file: through esc
+  // plain token's; 0: off for this token; empty: the sheet's or the system's again). A sense's name comes from a system file: through esc.
+  // Senses S3: a sense held but off (its switch on the sheet, or one of the eyes while blind) says so, naming the switch; the Blind tick,
+  // for any character token, system or none, and a note when its sheet makes it blind
   function sensesFieldHtml(w, map) {
       var camp = getActiveCampaign(), F = window.wpFog, C = window.wpFogCore; if (!camp || !F || !C) return '';
-      var list = F.campSenses(camp); if (!list.length) return '';
-      var ts = F.tokenSenses(w, map, camp, !w.ownerId), got = Object.create(null), ov = Object.create(null);
+      var list = F.campSenses(camp), SCi = window.wpSystemCore;
+      var ts = F.tokenSenses(w, map, camp, !w.ownerId), got = Object.create(null), off = Object.create(null), ov = Object.create(null);
       ts.full.forEach(function(e) { got[e.id] = e; });
+      (ts.offs || []).forEach(function(e) { off[e.id] = e; });
       (C.cleanTokSenses(w.senses) || []).forEach(function(e) { ov[e.id] = e.n; });
+      var tick = '<div class="field check-row"><input type="checkbox" id="wbBlindTick" ' + (w.blind === true ? 'checked' : '') + '> <label for="wbBlindTick" title="Its eyes see only its own cell, whatever the light; a sense that does not use the eyes still works. Only its player receives this.">Blind</label></div>'
+          + (ts.blind && w.blind !== true ? '<div class="muted" style="margin:-4px 0 6px; font-size:10.5px;">Blind by its character&rsquo;s sheet.</div>' : '');
+      if (!list.length) return tick;
       var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; };
       var note = w.ownerId && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) && ts.sheet === false ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Read from the token only: its player does not hold this character.</div>' : '';
+      var from = function(e) { return e.from === 'token' ? ', this token’s own' : e.from === 'field' ? ', from the sheet' : ', the system’s'; };
+      var offBy = function(s) { var f = s.off && SCi && SCi.fieldById ? SCi.fieldById(camp.system, s.off.field) : null; return f && typeof f.label === 'string' && f.label ? f.label : 'its switch'; };
       return '<div class="field"><label>Senses</label>' + note + list.map(function(s, i) {
-          var g = got[s.id] || null, mine = Object.prototype.hasOwnProperty.call(ov, s.id);
-          var say = g ? String(g.n) + ' ' + word(s.unit) + (g.from === 'token' ? ', this token’s own' : g.from === 'field' ? ', from the sheet' : ', the system’s') + ': ' + (g.cells > 0 ? g.cells + ' cell' + (g.cells === 1 ? '' : 's') + ' on this map' + (g.cells >= C.LIMITS.rangeCells ? ', the most a sense reaches' : '') : 'under one cell on this map') : mine ? 'Off for this token' : 'Not held';
+          var g = got[s.id] || null, o = off[s.id] || null, mine = Object.prototype.hasOwnProperty.call(ov, s.id);
+          var say = g ? String(g.n) + ' ' + word(s.unit) + from(g) + ': ' + (g.cells > 0 ? g.cells + ' cell' + (g.cells === 1 ? '' : 's') + ' on this map' + (g.cells >= C.LIMITS.rangeCells ? ', the most a sense reaches' : '') : 'under one cell on this map')
+              : o ? String(o.n) + ' ' + word(s.unit) + from(o) + ': ' + (o.why === 'blind' ? 'off while blind' : 'off, ' + offBy(s)) : mine ? 'Off for this token' : 'Not held';
           return '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:2px 0;"><span style="flex:1 1 120px; min-width:0;">' + esc(s.name) + '</span><input type="number" class="wb-sense-ov" data-si="' + i + '" min="0" max="100000" step="any" value="' + (mine ? String(ov[s.id]) : '') + '" placeholder="default" title="This token&rsquo;s own range for the sense (a creature&rsquo;s sense, a plain token&rsquo;s): it counts before the sheet&rsquo;s; 0 switches it off for this token; empty: the sheet&rsquo;s or the system&rsquo;s again" style="width:78px;"><span class="muted">' + word(s.unit) + '</span></div><div class="muted" style="margin:-1px 0 4px; font-size:10.5px;">' + esc(say) + '</div>';
-      }).join('') + '</div>';
+      }).join('') + '</div>' + tick;
   }
+  // Senses S3: the GM's Blind tick on a token, from its Properties: true, or no key
+  function setTokenBlind(w, on) { var F = window.wpFog; if (on === true) w.blind = true; else delete w.blind; save(); render(); renderInspector(); if (F) { F.invalidateVision(); F.redraw(); } }
   // A token's own range for one sense, from its Properties: a number (0 switches that sense off for this token) or nothing (the sheet's again).
   // The sense is named by its place in the system's list, digits alone; a place the list no longer holds changes nothing
   function setTokenSense(w, si, value) {

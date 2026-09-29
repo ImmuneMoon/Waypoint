@@ -5851,6 +5851,34 @@ pendingChecks.push((async () => {
     check('senses S2b (host): no map copy of a player\'s sets a token\'s ranges — their own token\'s stay the GM\'s (a range sent, none sent, an empty list), another\'s get none; the copies it sends on carry the host\'s ranges to that player\'s other connection and none to anyone else',
         J(patT) === J([s65(), false, 150, 0, [1]]), J(patT));
 
+    // senses S3-1: blindness on the host's judgement and on the wire — the GM's Blind tick (item.blind) goes only to its own player on a
+    // fogged map, true only; a Blinded sheet with no map saved empties the live relay at once and catches the copies up; no patch sets it
+    const sysBl = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }, { id: 'f_bl', key: 'Blinded', label: 'Blinded', kind: 'toggle', vis: 'all', edit: 'gm' }], combat: { senses: { blind: { field: 'f_bl' } } } }, { F: Fx, gmView: true });
+    const blOf = (W, c, id, mapId) => { const it = W.last(c, mapId), t = it && it.whiteboard.find(w => w && w.id === id); return !t ? 'absent' : Object.prototype.hasOwnProperty.call(t, 'blind') ? t.blind : 'none'; };
+    const bAt = (W, id) => { const t = W.tok(id); return [t.x + 25, t.y + 25]; };
+    const wBl = S7({ system: sysBl }), blBefore = [wBl.view(wBl.a1).ids.slice(), wBl.fog.canSeePoint('u_a', wBl.camp, wBl.camp.items.mA, ...bAt(wBl, 'tB'))];
+    wBl.tok('tA').blind = true; wBl.tok('tB').blind = 'yes'; wBl.fog.invalidateVision(); wBl.clearSent(); wBl.net.sendItem('k', 'mA');
+    const blT = { before: blBefore, a1: wBl.ids(wBl.a1), a2: wBl.ids(wBl.a2), b: wBl.ids(wBl.b1), aTA: blOf(wBl, wBl.a1, 'tA'), aTAsenses: snOf(wBl, wBl.a1, 'tA'), a2TA: blOf(wBl, wBl.a2, 'tA'), bTA: blOf(wBl, wBl.b1, 'tA'), bTB: blOf(wBl, wBl.b1, 'tB'), relay: wBl.fog.canSeePoint('u_a', wBl.camp, wBl.camp.items.mA, ...bAt(wBl, 'tB')), clone: /"blind"/.test(J(wBl.api.clean(wBl.camp.items.mA))), host: [wBl.tok('tA').blind, wBl.tok('tB').blind] };
+    check('senses S3 (host): a token the GM ticks Blind is judged blind at once (on a dark map Bo\'s token 2 cells off leaves both of Ana\'s copies and her live relay) and only its own player receives the tick, true only, on both her copies; Bo\'s copy carries none, nor any tick not true; the shared clone never holds one; the host\'s own map keeps both as set',
+        J(blT) === J({ before: [['tA', 'tB'], true], a1: ['tA'], a2: ['tA'], b: ['tA', 'tB'], aTA: true, aTAsenses: 'none', a2TA: true, bTA: 'none', bTB: 'none', relay: false, clone: false, host: [true, 'yes'] }), J(blT));
+    const wBn = S7({ system: sysBl }); wBn.tok('orc').x = 200; wBn.tok('orc').blind = true; wBn.tok('tB').blind = true; wBn.fog.invalidateVision(); wBn.clearSent(); wBn.net.sendItem('k', 'mA');
+    const blN = [blOf(wBn, wBn.a1, 'orc'), blOf(wBn, wBn.a1, 'tB'), blOf(wBn, wBn.b1, 'tB'), blOf(wBn, wBn.b1, 'orc'), wBn.ids(wBn.a1)];
+    const wBu = S7({ system: sysBl, tA: { blind: true } }); wBu.camp.items.mA.fog.on = false; wBu.clearSent(); wBu.net.sendItem('k', 'mA'); wBu.net.broadcastItemFiltered('k', 'mA');
+    const blU = [wBu.a1.sent.length, (J(wBu.a1.sent).match(/"blind"/g) || []).length + (J(wBu.b1.sent).match(/"blind"/g) || []).length, (J(wBu.api.copy(wBu.api.clean(wBu.camp.items.mA), wBu.camp, JSON.parse(J(wBu.camp.items.mA)), 'u_a')).match(/"blind"/g) || []).length];
+    check('senses S3 (host): an NPC\'s tick never reaches anyone (the orc Ana sees arrives without it), another player\'s never reaches Ana (Bo\'s own copy carries his, and blind he is sent no orc); a map with no fog carries no tick to anyone, the join snapshot\'s copy of it included',
+        J(blN) === J(['none', 'none', true, 'absent', ['tA', 'tB', 'orc']]) && blU[0] >= 1 && blU[1] === 0 && blU[2] === 0, J([blN, blU]));
+    const wBs = S7({ system: sysBl }), bsBefore = wBs.fog.canSeePoint('u_a', wBs.camp, wBs.camp.items.mA, ...bAt(wBs, 'tB'));
+    wBs.camp.chars.c_a.values.f_bl = true; wBs.clearSent(); wBs.net.sensesMoved('c_a');
+    const bsNow = { relay: wBs.fog.canSeePoint('u_a', wBs.camp, wBs.camp.items.mA, ...bAt(wBs, 'tB')), sentYet: wBs.a1.sent.length, bo: wBs.fog.canSeePoint('u_b', wBs.camp, wBs.camp.items.mA, ...bAt(wBs, 'tA')) };
+    wBs.fire(500); const bsAfter = { a1: wBs.view(wBs.a1).ids, a2: wBs.view(wBs.a2).ids, b: wBs.b1.sent.length, kinds: wBs.a1.sent.map(m => m.type + ':' + m.itemId).sort() };
+    wBs.camp.chars.c_a.values.f_bl = false; wBs.clearSent(); wBs.net.sensesMoved('c_a'); const bsBack = wBs.fog.canSeePoint('u_a', wBs.camp, wBs.camp.items.mA, ...bAt(wBs, 'tB')); wBs.fire(500); const bsBack2 = wBs.view(wBs.a1).ids;
+    check('senses S3 (host): a Blinded toggle put on Ana\'s sheet with no map saved empties her live relay at once (before anything is sent; Bo\'s own sight untouched) and then catches both her copies up in place, Bo sent nothing; taking it off gives the relay and the copies back',
+        bsBefore === true && J(bsNow) === J({ relay: false, sentYet: 0, bo: true }) && J(bsAfter.a1) === J(['tA']) && J(bsAfter.a2) === J(['tA']) && bsAfter.b === 0 && bsAfter.kinds.indexOf('fogDiff:mA') >= 0 && bsBack === true && J(bsBack2) === J(['tA', 'tB']), J([bsBefore, bsNow, bsAfter, bsBack, bsBack2]));
+    const wBp = S7({ system: sysBl, tA: { blind: true } }); wBp.api.item(patchMsg({ blind: false }), wBp.a1); wBp.api.patch(patchMsg({ x: 150 }), { id: 'u_a' });
+    const wBq = S7({ system: sysBl }); wBq.api.item(patchMsg({ blind: true }, [{ id: 'tB', x: 100, y: 200, rot: 0, front: 0, blind: true }]), wBq.a1);
+    check('senses S3 (host): no map copy of a player\'s sets or clears the Blind tick — their own blinded token stays blind (a copy saying false, one with none), an unblinded one gains none, another\'s gains none',
+        wBp.tok('tA').blind === true && !('blind' in wBq.tok('tA')) && !('blind' in wBq.tok('tB')), J([wBp.tok('tA'), wBq.tok('tA'), wBq.tok('tB')]));
+
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
     const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));
@@ -5888,11 +5916,16 @@ pendingChecks.push((async () => {
         J(got) === J([want, 'none', 'none', 'none', 'none', 'none', 'none']) && plainOut === plain && !has(plain, 'senses'), J(got));
     check('senses S2b (client): with no cleaner on hand, or no profile of its own, a player\'s app keeps no token\'s ranges at all; a whole map from the host is cleaned the same way item by item (cleanHostMap)',
         J(noCore) === J([[0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]) && J(mapS.whiteboard.map(w => (has(w, 'senses') ? w.senses : 'none'))) === J(got), J([noCore, mapS.whiteboard]));
+    const blToks = () => [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', blind: true }, { id: 'me2', type: 'image', isChar: true, ownerId: 'u_me', blind: 'yes' }, { id: 'me3', type: 'image', isChar: true, ownerId: 'u_me', blind: 1 }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', blind: true }, { id: 'orc', type: 'image', isChar: true, blind: true }, { id: 'nul', type: 'image', ownerId: '', blind: true }, { id: 'wt', waiting: 1, type: 'circle', ownerId: 'u_me', x: 1, y: 1, w: 5, h: 5, blind: true }, { id: 'plain', type: 'image', ownerId: 'u_me' }];
+    const blGot = [cli('u_me'), cli('u_me', {}), cli('', { wpFogCore: FCx })].map(K => blToks().map(w => K.item(w)).map(w => (has(w, 'blind') ? w.blind : 0)));
+    const blMap = C.map({ id: 'm1', type: 'map', whiteboard: blToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'blind') ? w.blind : 0));
+    check('senses S3 (client): a player\'s app keeps the GM\'s Blind tick from its host only on a token of its own and only as true (no cleaner needed); another player\'s, an NPC\'s, one owned by nobody, a waiting token\'s or any other value is dropped, item by item and in a whole map; with no profile of its own, none',
+        J(blGot) === J([[true, 0, 0, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]) && J(blMap) === J(blGot[0]), J([blGot, blMap]));
     const pg = mkFogClient(FCx, { myId: 'u_me', items: { mA: { id: 'mA', type: 'map', fog: { on: true }, meta: {}, rooms: [], links: [], whiteboard: [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', x: 10, y: 10, w: 50, h: 50 }] } } });
-    pg.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: [{ item: { id: 'orc', type: 'image', isChar: true, x: 100, y: 100, senses: raw() }, after: 'me' }, { item: { id: 'me2', type: 'image', isChar: true, ownerId: 'u_me', x: 50, y: 50, senses: raw() }, after: 'orc' }] });
+    pg.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: [{ item: { id: 'orc', type: 'image', isChar: true, x: 100, y: 100, senses: raw(), blind: true }, after: 'me' }, { item: { id: 'me2', type: 'image', isChar: true, ownerId: 'u_me', x: 50, y: 50, senses: raw() }, after: 'orc' }] });
     const pgW = pg.map('mA').whiteboard;
     check('senses S2b (client): a map caught up in place (the real fogDiff branch and apply) cleans what it adds the same way — a creature\'s ranges from a hostile host dropped; a token of the player\'s own is never taken from a catch-up (the whole map asked for instead, where its ranges are cleaned as above)',
-        J(pgW.map(w => w.id)) === J(['me', 'orc']) && !has(pgW[1], 'senses') && J(pg.rec.asked.map(m => m.type)) === J(['needItem']), J([pgW, pg.rec.asked]));
+        J(pgW.map(w => w.id)) === J(['me', 'orc']) && !has(pgW[1], 'senses') && !has(pgW[1], 'blind') && J(pg.rec.asked.map(m => m.type)) === J(['needItem']), J([pgW, pg.rec.asked]));
 })());
 // fold M6: the GM's open board gesture, published (inert): the helper run for real on a stub page, and where each gesture sets and clears it
 {

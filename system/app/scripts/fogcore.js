@@ -533,6 +533,7 @@ function cleanFog(fog) {   // per-map: { on, mode, vision?, cell?, manual:{adds,
     var vis = cleanVision(fog.vision); if (vis) out.vision = vis;   // absent → grid-type default is resolved at read time
     if (fog.light === 'bright' || fog.light === 'dim' || fog.light === 'dark') out.light = fog.light;   // lighting (backlog 14): the map's light; absent = auto
     if (isObj(fog.cell) && (fog.cell.grid === 'square' || fog.cell.grid === 'hex') && fin(fog.cell.len)) out.cell = { grid: fog.cell.grid, len: clamp(fog.cell.len, LIMITS.len[0], LIMITS.len[1]) };
+    if (fin(fog.epoch) && fog.epoch >= 1) out.epoch = clamp(Math.floor(fog.epoch), 1, 1e9);   // senses S6: bumped by Cover all and Reveal all, which empties every player's memory of the map; absent = 0
     var m = isObj(fog.manual) ? fog.manual : {};
     var adds = [], cuts = [];
     (Array.isArray(m.adds) ? m.adds : []).forEach(function(c) { if (adds.length < LIMITS.manual) { var cc = cleanCell(c); if (cc) adds.push(cc); } });
@@ -550,6 +551,7 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     if (d.on === true) out.defaults.on = true;   // "new maps start with fog on" — stamped onto new maps only, never retroactive (stored only when true)
     if (d.emptyFog === 'none') out.defaults.emptyFog = 'none';   // a map with NO play-area item marked: 'none' = no fog; default (absent) = fog the whole map
     if (d.marks === 'turn') out.defaults.marks = 'turn';   // senses S4b: "Marks in a fight" On your own turn; absent = as they move
+    if (d.remember === true) out.defaults.remember = true;   // senses S6: "Players remember what they have seen"; absent = off
     return out;
 }
 

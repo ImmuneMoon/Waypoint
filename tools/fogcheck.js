@@ -505,12 +505,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('Lighting: a player\'s copy of a lit map keeps a creature in their line of sight at any distance; a dark map or a wall between still drops it',
             dropB === null && !!dropK && dropK.foe === 1 && !!dropW && dropW.foe === 1 && !dropK.me, lj([dropB, dropK, dropW]));
         // the overlay's punch (draw, run strict on a recording canvas): a dim cell part-way, a clear one fully, each tier one path filled once
-        const drawRun = (tiersRes) => { const rec = [], cx = { save() {}, restore() {}, clearRect() {}, fillRect() { rec.push({ base: true, style: this.fillStyle }); }, beginPath() { this._n = 0; }, rect() { this._n++; }, moveTo() {}, lineTo() {}, closePath() { this._n++; }, clip() {}, fill() { rec.push({ op: this.globalCompositeOperation, style: this.fillStyle, n: this._n }); } };
+        const drawRun = (tiersRes, memOpt) => { const rec = [], cx = { save() {}, restore() {}, clearRect() {}, fillRect() { rec.push({ base: true, style: this.fillStyle }); }, beginPath() { this._n = 0; }, rect() { this._n++; }, moveTo() {}, lineTo() {}, closePath() { this._n++; }, clip() {}, fill() { rec.push({ op: this.globalCompositeOperation, style: this.fillStyle, n: this._n }); }, drawImage(img, x, y) { rec.push({ img: img.tag, at: [x, y], alpha: this.globalAlpha, op: this.globalCompositeOperation }); } };
             const canvas = { getContext: () => cx }, scr = { clientWidth: 2000, clientHeight: 2000, querySelector: () => canvas };
-            new Function('screenEl', 'placeScreen', 'ui', 'core', 'active', 'activeMap', 'activeCamp', 'gridForMap', 'fogMask', 'revealedTiers', 'drawOwner', 'isClientView', 'state', 'hexPath', 'drawCaptions', 'drawSenseCaptions', 'blindCaptionsFor', 'drawMarks', 'marksToDraw', 'marksStill', 'marksStrictOn', 'Date', "'use strict';" + NL + cut('function draw(') + NL + 'return draw;')(
+            new Function('screenEl', 'placeScreen', 'ui', 'core', 'active', 'activeMap', 'activeCamp', 'gridForMap', 'fogMask', 'revealedTiers', 'drawOwner', 'isClientView', 'state', 'hexPath', 'drawCaptions', 'drawSenseCaptions', 'blindCaptionsFor', 'drawMarks', 'marksToDraw', 'marksStill', 'marksStrictOn', 'rememberOn', 'memRemember', 'memLayer', 'Date', "'use strict';" + NL + cut('function draw(') + NL + 'return draw;')(
                 () => scr, () => {}, () => ({ scrollLeft: 0, scrollTop: 0 }), () => FC, () => true, () => ({ id: 'amap' }), () => ({ id: 'acamp' }), () => grid, () => ({ mode: 'all' }), () => tiersRes, () => '*', () => true, { zoomLevel: 1 }, () => {}, (c2, s2) => { rec.push({ captions: c2 === cx && s2 === scr }); },
                 (c3, s3, caps) => { rec.push({ captions: c3 === cx && s3 === scr, senses: caps }); }, (m, c, o) => [m.id, c.id, o],
-                (c4, s4, mk, seen, g, now, still, held) => { rec.push({ captions: c4 === cx && s4 === scr, marks: [mk, seen === tiersRes.keys, g === grid, now, still, held] }); }, (m, c) => ['marks of', m.id, c.id], () => 'still?', (c, m) => ['strict?', c.id, m.id], { now: () => 1234 })();
+                (c4, s4, mk, seen, g, now, still, held) => { rec.push({ captions: c4 === cx && s4 === scr, marks: [mk, seen === tiersRes.keys, g === grid, now, still, held] }); }, (m, c) => ['marks of', m.id, c.id], () => 'still?', (c, m) => ['strict?', c.id, m.id], () => !!memOpt, () => (memOpt ? memOpt.mem : null), () => (memOpt ? memOpt.lay : null), { now: () => 1234 })();
             drawRun.captions = rec.filter(r => r.captions !== undefined); return rec.filter(r => !r.base && r.captions === undefined); };
         const cellsT = [[0, 0, 2], [1, 0, 1], [2, 0, 1], [3, 0, 2], [4, 0, 2]], tiersMix = { list: cellsT.map(([c, r]) => ({ key: c + ',' + r, cell: { c, r } })), keys: {} }; cellsT.forEach(([c, r, t]) => { tiersMix.keys[c + ',' + r] = t; });
         const tiersClear = { list: tiersMix.list, keys: Object.fromEntries(Object.keys(tiersMix.keys).map(k => [k, 2])) }, pm = drawRun(tiersMix), pc = drawRun(tiersClear);
@@ -1680,6 +1680,60 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const stGot = { d20: stTs('d20'), d20gm: stTs('d20', {}, true), s3d6: stTs('3d6'), s3d6gm: stTs('3d6', {}, true), d20dark: stTs('d20', { f_dark: 60 }), d20trem: stTs('d20', { f_trem: 30 }), d20blind: stTs('d20', { f_blinded: true }), s3d6vibe: stTs('3d6', { f_vibe: 10 }), s3d6infra: stTs('3d6', { f_infra: 10 }) };
             check('S4a-3 the two starters give a fresh character no full sense, no mark and no blindness, on its player\'s side and in the GM\'s union; a range the GM enters gives that sense (Darkvision, a Tremorsense mark, a Vibration Sense mark, Infravision) and Blinded blinds',
                 lj(stGot) === lj({ d20: [[], [], false], d20gm: [[], [], false], s3d6: [[], [], false], s3d6gm: [[], [], false], d20dark: [['sn_darkvisn'], [], false], d20trem: [[], ['sn_tremorsn'], false], d20blind: [[], [], true], s3d6vibe: [[], ['sn_vibrsens'], false], s3d6infra: [['sn_infravsn'], [], false] }), lj(stGot));
+            {
+            // (9b3) senses S6: explored terrain — the store (memFor, memRemember), its caps and its layer (memLayer), run strict on stubs
+            const memSrc = fogSrc.slice(fogSrc.indexOf('// [fogcheck:memory-start]'), fogSrc.indexOf('// [fogcheck:memory-end]'));
+            const memMk = () => { const toasts = [], made = [];
+                const doc = { createElement: tag => { const rec = { rects: 0, fills: 0 }, cv = { tag: tag, width: 0, height: 0, rec: rec, getContext: () => ({ clearRect() {}, beginPath() {}, fill() { rec.fills++; }, rect() { rec.rects++; } }) }; made.push(cv); return cv; } };
+                const api = new Function('core', 'mapFog', 'toast', 'document', "'use strict';" + NL + memSrc + NL + 'return { rememberOn: rememberOn, memFor: memFor, memRemember: memRemember, memLayer: memLayer, memForget: memForget, st: function() { return { total: _memTotal, order: _memOrder.slice() }; }, caps: function(a, b) { MEM_MAP = a; MEM_ALL = b; } };')(() => FC, m => m.fog, t => toasts.push(t), doc);
+                api.toasts = toasts; api.made = made; return api; };
+            const mSq50 = FC.gridFor('square', 50), mapM = (id, fog) => ({ id: id, fog: Object.assign({ on: true, mode: 'auto', manual: { adds: [], cuts: [] } }, fog || {}) });
+            const tiersOf = (cells, through) => ({ list: cells.map(([c, r]) => ({ key: c + ',' + r, cell: { c: c, r: r } })), keys: {}, through: through });
+            const keysOf = m => Object.keys(m.cells).sort();
+            const MA = memMk(), mA = mapM('mA');
+            const r1 = MA.memRemember(mA, mSq50, tiersOf([[1, 1], [2, 1], [3, 1]], { '3,1': 1 })), k1 = keysOf(r1), r1n = r1.n;
+            const k2 = keysOf(MA.memRemember(mA, mSq50, tiersOf([[5, 5]])));
+            mA.fog.manual.cuts = [{ c: 2, r: 1 }]; const k3 = keysOf(MA.memRemember(mA, mSq50, tiersOf([[2, 1], [6, 6]])));
+            mA.fog.manual.cuts = []; const k4 = keysOf(MA.memRemember(mA, mSq50, tiersOf([[2, 1]])));
+            check('S6 memRemember: a player keeps every cell they see, a second view adding to the first; never one only a sense that passes walls showed; a cell the GM cuts leaves memory and is not kept while cut, and comes back once it is seen again after',
+                lj(k1) === lj(['1,1', '2,1']) && lj(k2) === lj(['1,1', '2,1', '5,5']) && lj(k3) === lj(['1,1', '5,5', '6,6']) && lj(k4) === lj(['1,1', '2,1', '5,5', '6,6']) && r1n === 2, lj([k1, k2, k3, k4]));
+            const ME = memMk(), mE = mapM('mE'); ME.memRemember(mE, mSq50, tiersOf([[1, 1], [2, 2]]));
+            mE.fog.epoch = 1; const e1 = keysOf(ME.memRemember(mE, mSq50, tiersOf([[3, 3]])));
+            const mE2 = mapM('mE2'); ME.memRemember(mE2, FC.gridFor('off', { grid: 'square', len: 50 }), tiersOf([[1, 1]]));
+            const e2 = keysOf(ME.memRemember(mE2, FC.gridFor('off', { grid: 'square', len: 60 }), tiersOf([[4, 4]]))), e3 = keysOf(ME.memRemember(mE, FC.gridFor('hex', 30), tiersOf([[5, 5]]))), e4 = keysOf(ME.memRemember(mE, FC.gridFor('hex', 30), tiersOf([[6, 6]])));
+            ME.memForget(); const e5 = ME.st(), e6 = keysOf(ME.memRemember(mE, FC.gridFor('hex', 30), tiersOf([[7, 7]])));
+            const mE3 = mapM('mE3'); ME.memRemember(mE3, FC.gridFor('off', { grid: 'square', len: 30 }), tiersOf([[1, 1]])); const e7 = keysOf(ME.memRemember(mE3, FC.gridFor('off', { grid: 'hex', len: 60 }), tiersOf([[2, 2]])));
+            check('S6 the store of a map is emptied by a new fog epoch (Cover all, Reveal all), a change of cell size and a change of grid; memForget empties every map',
+                lj(e1) === lj(['3,3']) && lj(e2) === lj(['4,4']) && lj(e3) === lj(['5,5']) && lj(e4) === lj(['5,5', '6,6']) && e5.total === 0 && e5.order.length === 0 && lj(e6) === lj(['7,7']) && lj(e7) === lj(['2,2']), lj([e1, e2, e3, e4, e5, e6, e7]));
+            const MC = memMk(), mC = mapM('mC'), bigCells = []; for (let i = 0; i < 60001; i++) bigCells.push([i % 300, Math.floor(i / 300)]);
+            const capN = MC.memRemember(mC, mSq50, tiersOf(bigCells)).n, capN2 = MC.memRemember(mC, mSq50, tiersOf([[5000, 5000]])).n;
+            check('S6 a map\'s memory holds at most 60,000 cells: past them it keeps no more and says so once; the cap across maps is 200,000',
+                capN === 60000 && capN2 === 60000 && MC.toasts.length === 1 && /memory of this map is full/.test(MC.toasts[0]) && /var MEM_MAP = 60000, MEM_ALL = 200000,/.test(memSrc), lj([capN, MC.toasts]));
+            const MO = memMk(); MO.caps(10, 25); const tenOf = r => Array.from({ length: 10 }, (_, i) => [i, r]);
+            MO.memRemember(mapM('m1'), mSq50, tiersOf(tenOf(1))); MO.memRemember(mapM('m2'), mSq50, tiersOf(tenOf(2))); const m3 = MO.memRemember(mapM('m3'), mSq50, tiersOf(tenOf(3))); const o1 = MO.st();
+            const MQ = memMk(); MQ.caps(10, 15); const mX = mapM('mX'); MQ.memRemember(mX, mSq50, tiersOf(tenOf(1).slice(0, 5))); MQ.memRemember(mapM('mY'), mSq50, tiersOf(tenOf(2)));
+            const mXn = MQ.memRemember(mX, mSq50, tiersOf(tenOf(3).slice(0, 3))).n, oQ = MQ.st();
+            check('S6 past the cap across maps the oldest map\'s memory goes first, whole; the map being seen keeps adding; when the map being seen is itself the oldest, it keeps no more',
+                m3.n === 10 && lj(o1.order) === lj(['m2', 'm3']) && o1.total === 20 && mXn === 5 && oQ.total === 15 && lj(oQ.order) === lj(['mX', 'mY']), lj([o1, mXn, oQ]));
+            const ML = memMk(), mLm = mapM('mL'), mem60 = ML.memRemember(mLm, mSq50, tiersOf(bigCells.slice(0, 59999)));
+            let traced = 0; const tr = (cx, cell) => { traced++; cx.rect(); };
+            const lay1 = ML.memLayer(mLm, mem60, 1, 0, 0, 800, 600, tr), t1 = traced, lay2 = ML.memLayer(mLm, mem60, 1, 0, 0, 800, 600, tr), t2 = traced;
+            const lay3 = ML.memLayer(mLm, mem60, 1, 25, 0, 800, 600, tr), t3 = traced; ML.memRemember(mLm, mSq50, tiersOf([[9000, 1]])); const lay4 = ML.memLayer(mLm, mem60, 1, 25, 0, 800, 600, tr), t4 = traced;
+            check('S6 memLayer: the remembered cells are traced once into a layer the size of the board\'s view; a draw with the same view and memory traces none of them again (60,000 cells), a scroll or a new remembered cell traces them afresh',
+                t1 === 59999 && lay2 === lay1 && t2 === t1 && lay3 === lay1 && t3 === 119998 && t4 === 179998 && lay1.width === 800 && lay1.height === 600 && ML.made.length === 1 && lay1.rec.fills === 3, lj([t1, t2, t3, t4, lay1.rec]));
+            check('S6 rememberOn: the campaign\'s "Players remember what they have seen", true only',
+                ML.rememberOn({ fog: { defaults: { remember: true } } }) === true && [{ fog: { defaults: { remember: 'yes' } } }, { fog: { defaults: {} } }, { fog: null }, null, {}].every(c => ML.rememberOn(c) === false));
+            const ps = drawRun(tiersMix, { mem: { n: 5 }, lay: { tag: 'LAYER' } }), dimN = tiersMix.list.filter(o => tiersMix.keys[o.key] === 1).length, clearN = tiersMix.list.length - dimN;
+            check('S6 the overlay draws remembered ground a third of the way through a player\'s fog (the layer, once) before the dim and clear cells; a dim cell it also remembers is filled with fog again first, so it is as dim as any other; with nothing remembered, exactly as before',
+                lj(ps) === lj([{ img: 'LAYER', at: [0, 0], alpha: 0.3, op: 'destination-out' }, { op: 'source-over', style: 'rgba(5,6,12,0.97)', n: dimN }, { op: 'destination-out', style: 'rgba(0,0,0,0.5)', n: dimN }, { op: 'destination-out', style: 'rgba(0,0,0,1)', n: clearN }]) && lj(drawRun(tiersMix)) === lj(pm), lj(ps));
+            check('S6 (source): the overlay keeps a player\'s own memory only while the campaign says so; Cover all and Reveal all start a new epoch; a table of another campaign empties it; the fog menu\'s tick keeps only true',
+                /var mem = isClientView\(\) && rememberOn\(camp\) \? memRemember\(map, grid, tiers\) : null, memLay = mem && mem\.n \? memLayer\(map, mem, z, sx, sy, W, H, traceOn\) : null;/.test(fogSrc)
+                && /mfR\.mode = 'reveal'; mfR\.epoch = \(mfR\.epoch \|\| 0\) \+ 1;/.test(fogSrc) && /mfC\.mode = 'cover'; mfC\.epoch = \(mfC\.epoch \|\| 0\) \+ 1;/.test(fogSrc)
+                && /function onSnapshot\(\) \{[^\n]*var mc = activeCamp\(\); if \(!mc \|\| mc\.id !== _memCamp\) memForget\(\); _memCamp = mc \? mc\.id : null;/.test(fogSrc) && /if \(frem\.checked\) cf\.defaults\.remember = true; else delete cf\.defaults\.remember;/.test(fogSrc));
+            check('S6 fogcore: cleanFog keeps a map\'s fog epoch as a whole number from 1 (absent otherwise, so a map without one is as before); cleanCampFog keeps "remember" as true only',
+                FC.cleanFog({ on: true, epoch: 3.7 }).epoch === 3 && [0, -2, 'x', NaN, null].every(v => !('epoch' in FC.cleanFog({ on: true, epoch: v }))) && FC.cleanFog({ on: true, epoch: 1e12 }).epoch === 1e9 && !('epoch' in FC.cleanFog({ on: true }))
+                && FC.cleanCampFog({ defaults: { remember: true } }).defaults.remember === true && ['yes', 1, false, null].every(v => !('remember' in FC.cleanCampFog({ defaults: { remember: v } }).defaults)));
+            }
             // (9c) senses S2b: a token's own ranges (item.senses) — fogcore cleanTokSenses, and tokenSenses reading them before the sheet's
             const TSj = JSON.parse('[{"id":"sn_force001","n":1e9},{"id":"sn_force001","n":5},{"id":"sn_UPPER001","n":3},{"id":"sn_short","n":3},{"id":"sn_minus001","n":-4},{"id":"sn_text0001","n":"6"},{"id":"sn_nan00001","n":null},{"id":["sn_array001"],"n":2},{"id":"xsn_force0011","n":2},null,7,{"id":"__proto__","n":1},{"id":"sn_a0000001","n":1},{"id":"sn_a0000002","n":2},{"id":"sn_a0000003","n":3},{"id":"sn_a0000004","n":4},{"id":"sn_a0000005","n":5},{"id":"sn_a0000006","n":6},{"id":"sn_a0000007","n":7}]');
             check('S2b fogcore cleanTokSenses: a token\'s own ranges — an id of the sense pattern, each once (the first kept), a range finite and within 0 to 100000, at most eight; nothing else is a list of them',

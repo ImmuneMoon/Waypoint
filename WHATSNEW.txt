@@ -945,6 +945,13 @@ Fog of war
   always seated character tokens). Arrow keys follow it too: with Snap on a
   token hops one cell at a time, off it moves by pixels. Your players' drops
   follow your Snap. A token you fitted with Fit to Grid stays in its cell.
+- Players remember what they have seen (the fog menu, off until you tick
+  it): each player's own screen keeps the ground they have seen this
+  session, dimmed further than a dim cell. Remembered ground shows every
+  piece on it that is not a character token, as it is now, while creatures
+  there stay hidden. Ground seen only through a sense that passes walls is
+  not kept; hiding a cell by hand takes it out of memory, and Cover all or
+  Reveal all clears everyone's memory of the map.
 - The two starter systems now carry their game's senses: the d20
   Darkvision, Truesight, Blindsight and a Tremorsense mark, the 3d6
   Infravision and a Vibration Sense mark, with Blinded and Deafened

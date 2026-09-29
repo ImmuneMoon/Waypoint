@@ -5763,6 +5763,17 @@ pendingChecks.push((async () => {
             /if \(w\.hidden && w\.nulls !== undefined\) return null;/.test(src) && /if \(w && \(w\.gmNoteFor \|\| \(w\.hidden && w\.nulls !== undefined\)\)\) return;/.test(src) && /delete w\.unsensed; delete w\.nulls; \}/.test(src)
             && /if \(off\) out\.fogOff = off;/.test(src) && /if \(ofHash !== rec\.of\) msg\.off = ofNow;/.test(src) && /FCo\.cleanFogOff\(msg\.off, ownTokIdsOf\(map\)\)/.test(src) && /window\.wpFogCore\.cleanFogOff\(m\.fogOff, ownTokIdsOf\(m\)\)/.test(src));
     }
+    // senses S7b (host): smoke on the wire — a visible piece travels with its tick (every side must agree on what it hides), and a token walks through it
+    {
+        const sW = S7({}), mS = sW.camp.items.mA, tS = sW.tok('tA'), sx0 = tS.x, sy0 = tS.y;
+        mS.whiteboard.push({ id: 'smokeV', type: 'rect', x: tS.x + 100, y: tS.y - 50, w: 100, h: 150, smoke: true });
+        mS.meta = Object.assign({}, mS.meta, { updated: (mS.meta && mS.meta.updated || 0) + 1 }); sW.clearSent(); sW.net.sendItem('k', 'mA');
+        const sA = sW.last(sW.a1), sB = sW.last(sW.b1), smA = sA && sA.whiteboard.find(w => w.id === 'smokeV'), smB = sB && sB.whiteboard.find(w => w.id === 'smokeV');
+        sW.clearSent(); sW.move(sW.a1, 'tA', sx0 + 300, sy0, false); sW.move(sW.a1, 'tA', sx0 + 300, sy0, true); sW.fire(150);
+        const tEnd = sW.tok('tA'), refused = sW.a1.sent.some(m => m.type === 'refused' || m.type === 'posBack' || (m.type === 'pos' && m.id === 'tA' && m.x === sx0));
+        check('senses S7b (host): a visible smoke piece reaches each player with its tick (their screen hides by it as the host does); a player\'s token walks into and through smoke, the move never refused (smoke blocks sight, never movement)',
+            !!smA && smA.smoke === true && !!smB && smB.smoke === true && tEnd.x !== sx0 && Math.abs(tEnd.x - (sx0 + 300)) <= 50 && refused === false, J([smA, smB, tEnd.x - sx0, refused]));
+    }
     // senses S4b: "Marks in a fight" played On your own turn — the host's refreshes of each player's held marks (slice marksheld, run on stubs)
     {
         const mhSrc = bw('marksheld');
@@ -6063,6 +6074,11 @@ pendingChecks.push((async () => {
     pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', off: { me: ['sn_hear0001'], bo: ['sn_hear0001'] } }); const pgO1 = JSON.parse(J(pgM.map('mA').fogOff || null));
     pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', off: {} }); const pgO2 = 'fogOff' in pgM.map('mA');
     const askedN = pgM.rec.asked.length; pgM.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', off: [['sn_hear0001']] }); const pgO3 = pgM.rec.asked.length - askedN;
+    const smToks = () => [{ id: 's1', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: true }, { id: 's2', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: 'yes' }, { id: 's3', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: 1 }, { id: 's4', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: { on: true } }, { id: 's5', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: false }, { id: 's6', type: 'rect', x: 0, y: 0, w: 50, h: 50 }];
+    const smCli = [cli('u_me'), cli('u_me', {}), cli('', { wpFogCore: FCx })].map(K => smToks().map(w => K.item(w)).map(w => (has(w, 'smoke') ? w.smoke : 0)));
+    const smMapC = C.map({ id: 'm1', type: 'map', whiteboard: smToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'smoke') ? w.smoke : 0));
+    check('senses S7b (client): a player\'s app keeps a smoke tick from its host only as true, with or without a cleaner or a profile; any other value is dropped, item by item and in a whole map',
+        J(smCli) === J([[true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0]]) && J(smMapC) === J(smCli[0]), J([smCli, smMapC]));
     check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',
         J(pgO1) === J({ me: ['sn_hear0001'] }) && pgO2 === false && pgO3 === 1, J([pgO1, pgO2, pgO3]));
     check('senses S4a (client): a map caught up in place takes its marks the same way (cleaned, none on its own token), an empty list takes them away, marks that are no list are refused whole (the whole map asked for)',

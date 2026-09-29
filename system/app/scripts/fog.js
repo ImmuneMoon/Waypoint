@@ -100,9 +100,10 @@ function tokenSenses(token, map, camp, waived) {
         var mine = Object.prototype.hasOwnProperty.call(byTok, s.id), n = mine ? byTok[s.id] : s.range.by === 'n' ? s.range.n : s.range.by === 'field' && own ? read(s.range.field) : null;
         if (!(typeof n === 'number' && n > 0)) return;
         var e = { id: s.id, cells: C.unitCells(n, s.unit, per), pass: s.walls === 'pass', all: s.arc === 'all', dim: s.shows === 'dim', n: n, from: mine ? 'token' : s.range.by === 'n' ? 'n' : 'field' };
+        if (s.veil === true) e.veil = true;   // senses S7b: it sees through smoke
         var why = nul[s.id] === 1 ? 'null' : s.off && own && set(s.off) ? 'off' : s.eyes === true && out.blind ? 'blind' : '';   // senses S3: a sense switched off, or one of the eyes while blind: held, but it sees nothing; S7a: one a null area switches off
         if (why) { offs.push({ id: e.id, n: n, cells: e.cells, from: e.from, why: why }); return; }
-        if (s.grade === 'mark') { marks.push({ id: e.id, cells: e.cells, pass: e.pass, all: e.all, k: GLYPH_K[s.glyph] || GLYPH_K.presence, n: n, from: e.from }); return; }   // senses S4
+        if (s.grade === 'mark') { var mk = { id: e.id, cells: e.cells, pass: e.pass, all: e.all, k: GLYPH_K[s.glyph] || GLYPH_K.presence, n: n, from: e.from }; if (e.veil) mk.veil = true; marks.push(mk); return; }   // senses S4
         out.full.push(e);
     });
     if (marks.length) out.marks = marks;
@@ -157,12 +158,12 @@ function senseViewers(ts, eyesArc) {
     (ts.full || []).forEach(function(s) {
         var arc = s.all ? 360 : eyesArc;
         if (!(s.cells > 0)) return;
-        if (!ts.blind && !s.pass && !s.dim && arc === eyesArc && s.cells <= ts.sight) return;   // senses S3: blind eyes see none of those cells
-        var k = (s.pass ? 'p' : 's') + '|' + arc + '|' + (s.dim ? 'd' : 'c');
+        if (!ts.blind && !s.pass && !s.dim && !s.veil && arc === eyesArc && s.cells <= ts.sight) return;   // senses S3: blind eyes see none of those cells; S7b: one that sees through smoke sees what the eyes do not
+        var vl = s.veil === true && !s.pass, k = (s.pass ? 'p' : 's') + '|' + arc + '|' + (s.dim ? 'd' : 'c') + (vl ? 'v' : '');
         if (!best[k]) order.push(k);
-        if (!best[k] || s.cells > best[k].range) best[k] = { range: s.cells, arc: arc, pass: s.pass, dim: s.dim };
+        if (!best[k] || s.cells > best[k].range) { best[k] = { range: s.cells, arc: arc, pass: s.pass, dim: s.dim }; if (vl) best[k].veil = true; }
     });
-    return order.sort().map(function(k) { return best[k]; }).filter(function(v) { var cl = v.dim ? best[(v.pass ? 'p' : 's') + '|' + v.arc + '|c'] : null; return !(cl && cl.range >= v.range); });
+    return order.sort().map(function(k) { return best[k]; }).filter(function(v) { var cl = v.dim ? best[(v.pass ? 'p' : 's') + '|' + v.arc + '|c' + (v.veil ? 'v' : '')] : null; return !(cl && cl.range >= v.range); });
 }
 
 /* ---------- who reveals what ----------
@@ -187,7 +188,7 @@ function viewersFor(map, camp, ownerId) {
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
         var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*');
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
-        if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
+        if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.veil) v.veil = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
     });
     return out;
 }
@@ -202,6 +203,35 @@ function eligibleBlocker(w) {
     if (w.rot) return false;                                        // a rotated rect/hex/diamond footprint is not supported in v1
     if (w.fill) return true;                                        // a fill-bucket cell
     return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond';   // an axis-aligned solid shape
+}
+// Senses S7b (the owner's answer 5a): smoke — a piece the GM ticks as smoke (item.smoke, true) hides what is in it and past it from the eyes and
+// from every sense the walls stop that does not see through smoke (a sense's veil). A set of its own beside the sight-blockers, so movement,
+// cover, light and doors never read it: tokens walk through it, it gives no cover, light passes and a light in it stays put. Like a wall, only
+// a piece that is not hidden counts (a player's app judges from its own copy); a turned shape other than a circle is not supported
+var _smokeCache = Object.create(null), _smokeStamp = Object.create(null), _smokeSig = Object.create(null), _smokeVer = Object.create(null), _smokeUnion = Object.create(null), _smokeWarned = Object.create(null);
+function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's save stamp and grid; its content version moves only when the set does
+    var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s);
+    if (_smokeStamp[map.id] === stamp) return _smokeCache[map.id];
+    // the walls' cap holds for smoke too, judged on a piece's box before its cells are listed: over it no smoke hides anything (the same answer
+    // on every side, as for walls), and the GM is told once
+    var C = core(), set = null, n = 0, over = false, cap = C.LIMITS.blockerCells, cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
+    (map.whiteboard || []).forEach(function(w) {
+        if (over || !w || w.smoke !== true || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0 || (w.type !== 'circle' && w.rot)) return;
+        var bw = Math.abs(Number(w.w) || 0), bh = Math.abs(Number(w.h) || 0);
+        if (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap) { over = true; return; }
+        footprintCells(w, grid, C).forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { set[k] = 1; if (++n > cap) over = true; } });
+    });
+    if (over) { set = null; if (!_smokeWarned[map.id] && !isClientView()) { _smokeWarned[map.id] = 1; toast('Too much smoke on this map — smoke is not hiding anything here.'); } }
+    else _smokeWarned[map.id] = 0;
+    var sig = set ? Object.keys(set).sort().join(';') : '';
+    if (_smokeSig[map.id] !== sig) { _smokeSig[map.id] = sig; _smokeVer[map.id] = (_smokeVer[map.id] || 0) + 1; delete _smokeUnion[map.id]; }
+    _smokeStamp[map.id] = stamp; _smokeCache[map.id] = set;
+    return set;
+}
+function smokeUnion(map, blk, sm) {   // the walls and the smoke as one set, for a line smoke stops; kept while the walls' set is the same object
+    var su = _smokeUnion[map.id];
+    if (!su || su.blk !== blk) { var un = Object.create(null), k; if (blk) for (k in blk) un[k] = 1; for (k in sm) un[k] = 1; su = _smokeUnion[map.id] = { blk: blk, set: un }; }
+    return su.set;
 }
 // The grid cells an eligible blocker item covers — shared by blockersFor and the door click-toggle so they agree.
 function footprintCells(w, grid, C) {
@@ -484,11 +514,13 @@ function viewEvict(need, mapId) {
     for (var i = 0; i < all.length && _viewCells + need > VIEW_BUDGET * 0.8; i++) { var o = all[i]; delete o.mc.m[o.k]; o.mc.cells -= o.e.hit.length; _viewCells -= o.e.hit.length; }
 }
 function viewSeen(map, grid, blk, lvl, v, lc) {
-    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (lc ? lc.ver : 0), mc = _viewCache[map.id];
+    var sm = smokeFor(map, grid), useSm = !!sm && !v.veil && !(v.sense && v.pass);   // senses S7b: smoke hides from the eyes and from a sense the walls stop that does not see through it
+    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (lc ? lc.ver : 0) + '|' + (_smokeVer[map.id] || 0), mc = _viewCache[map.id];
     if (!mc || mc.stamp !== stamp) { if (mc) _viewCells -= mc.cells; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
-    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : v.blind ? '|b' : ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was)
+    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : v.blind ? '|b' : '') + (sm && !useSm && !v.pass ? '|v' : ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was); S7b: one that sees through smoke apart
     if (hit) { hit.used = ++_viewTick; hit.pass = _viewPass; return hit.hit; }
-    var cells = C.seenCells(v, grid, blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
+    var cells = C.seenCells(v, grid, useSm ? smokeUnion(map, blk, sm) : blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
+    if (useSm) { var ownK = C.cellKey(C.cellOf(v.x, v.y, grid), grid); cells = cells.filter(function(o) { return o.key === ownK || sm[o.key] !== 1; }); }   // nothing in smoke is seen but a token's own cell
     if (_viewCells + cells.length > VIEW_BUDGET) viewEvict(cells.length, map.id);
     mc.m[k] = { hit: cells, used: ++_viewTick, pass: _viewPass }; mc.cells += cells.length; _viewCells += cells.length;
     return cells;
@@ -547,21 +579,23 @@ function lightSeen(from, to, map, camp) {
     if (byHand(mf.manual.adds)) return 2;
     var d = C.cellDist(a, b, grid), ts = tokenSenses(from, map, camp, !from.ownerId), lit = null, litRead = false, sense = null;
     var litAt = function() { if (!litRead) { litRead = true; var lc = over ? null : litFor(map, grid, blk); lit = lc ? lc.lit : null; } return lit; };
+    // senses S7b: smoke stops the eyes and a sense the walls stop that does not see through it — a target in it (but the viewer's own cell) or past it
+    var sm = smokeFor(map, grid), ak = C.cellKey(a, grid), smLine = function(to, tk) { return !sm || ((tk === ak || sm[tk] !== 1) && C.lineClear(a, to, grid, smokeUnion(map, blk, sm))); };
     senseViewers(ts, v.arc).forEach(function(s) {   // senses S2a: a full sense that reaches the target reads it clear, or (dim) its own light raised to dim, as seenCells shows it
-        if (!(d <= s.range + 1e-9) || !C.cellInArc({ x: v.x, y: v.y, front: v.front, arc: s.arc }, b, grid) || (!s.pass && !C.lineClear(a, b, grid, blk))) return;
+        if (!(d <= s.range + 1e-9) || !C.cellInArc({ x: v.x, y: v.y, front: v.front, arc: s.arc }, b, grid) || (!s.pass && !C.lineClear(a, b, grid, blk)) || (!s.pass && !s.veil && !smLine(b, bk))) return;
         var t = 2;
         if (s.dim) { var lv = over ? 0 : blk && blk[bk] ? lvl : Math.max(lvl, (litAt() && lit[bk]) || 0); t = lv >= 2 ? 2 : 1; }
         if (sense === null || t > sense) sense = t;
     });
     var up = function(t) { return sense !== null && sense > t ? sense : t; };
     if (ts.blind) return d <= 1e-9 ? 2 : sense;   // senses S3: blind eyes read no light but their own cell's; a full sense still reads what it reaches
-    if (!(d <= C.LIMITS.rangeCells + 1e-9) || !C.cellInArc(v, b, grid) || !C.lineClear(a, b, grid, blk)) return sense;   // out of the eyes' reach: a sense's answer or none
+    if (!(d <= C.LIMITS.rangeCells + 1e-9) || !C.cellInArc(v, b, grid) || !C.lineClear(a, b, grid, blk) || !smLine(b, bk)) return sense;   // out of the eyes' reach: a sense's answer or none
     if (d <= ts.sight + 1e-9) return 2;
     if (over) return up(0);   // walls over their cap: the map reads by sight alone, never by a light judged through them
     litAt();
     if (!blk || !blk[bk]) return up(Math.max(lvl, (lit && lit[bk]) || 0));
     var best = lvl;
-    C.neighbourCells(b, grid).forEach(function(n) { var nk = C.cellKey(n, grid); if (blk[nk] || !C.cellInArc(v, n, grid) || !C.lineClear(a, n, grid, blk)) return; var l = Math.max(lvl, (lit && lit[nk]) || 0); if (l > best) best = l; });
+    C.neighbourCells(b, grid).forEach(function(n) { var nk = C.cellKey(n, grid); if (blk[nk] || !C.cellInArc(v, n, grid) || !C.lineClear(a, n, grid, blk) || !smLine(n, nk)) return; var l = Math.max(lvl, (lit && lit[nk]) || 0); if (l > best) best = l; });
     return up(best);
 }
 
@@ -602,12 +636,12 @@ function sightSigFor(recipientId, camp, map) {
     var out = [], blindNow = false;   // senses S3: blind eyes read 'B' anywhere (they see their own cell alone), and then every sense counts
     viewersFor(map, camp, recipientId).forEach(function(v) {
         if (!v.sense) { blindNow = !!v.blind; out.push(blindNow ? 'B' : lit ? 'L' : v.range); }
-        else if (!lit || blindNow || v.pass || v.arc >= 360) out.push('s' + v.range + (v.pass ? 'p' : '') + (v.arc >= 360 ? 'a' : ''));
+        else if (!lit || blindNow || v.pass || v.arc >= 360 || v.veil) out.push('s' + v.range + (v.pass ? 'p' : '') + (v.arc >= 360 ? 'a' : '') + (v.veil ? 'v' : ''));   // S7b: one that sees through smoke sees what the eyes do not
     });
     // senses S4: each mark sense of theirs, by its cells, whether it passes walls, whether it is all round and its glyph (a change moves marks, never cells)
     if (campMarkSenses(camp).length) (map.whiteboard || []).forEach(function(w) {
         if (!w || w.hidden || w.type === 'light' || w.ownerId !== recipientId || !w.isChar) return;
-        (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { out.push('m' + m.cells + (m.pass ? 'p' : '') + (m.all ? 'a' : '') + m.k); });
+        (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { out.push('m' + m.cells + (m.pass ? 'p' : '') + (m.all ? 'a' : '') + m.k + (m.veil ? 'v' : '')); });
     });
     return out.join(',');
 }
@@ -629,7 +663,7 @@ function marksStrictOn(camp, map) {
 function marksBlk(map, grid) { var blk = blockersFor(map, grid); return _blockerOver[map.id] ? null : blk; }   // walls over their cap block nothing, as for the eyes
 function marksHeldOf(key, inp, blk, keep) {   // what a refresh holds: the creatures found now and where they stand, and the senses that looked
     var found = Object.create(null), pos = Object.create(null), sids = Object.create(null);
-    if (inp && inp.vs.length && inp.cs.length) inp.C.markCells(inp.vs, inp.cs, inp.grid, blk, found);
+    if (inp && inp.vs.length && inp.cs.length) inp.C.markCells(inp.vs, inp.cs, inp.grid, blk, found, inp.smoke);
     if (inp) { inp.cs.forEach(function(c) { if (found[c.id] === 1) pos[c.id] = { x: c.x, y: c.y }; }); inp.vs.forEach(function(v) { if (typeof v.sid === 'string') sids[v.sid] = 1; }); }
     var held = { pos: pos, sids: sids }; if (keep) _marksHeld[key] = held;
     return held;
@@ -655,7 +689,7 @@ function marksInputs(recipientId, camp, map, drop) {
         if (w.ownerId === recipientId) {
             if (!(w.isChar || (w.waiting && waitSight))) return;
             var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0);
-            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { vs.push({ x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }); });
+            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; vs.push(vm); });
             return;
         }
         if (drop[w.id] !== 1 || !(w.isChar || w.waiting)) return;
@@ -664,7 +698,7 @@ function marksInputs(recipientId, camp, map, drop) {
         if (un) { skip = Object.create(null); un.forEach(function(id) { skip[id] = 1; }); }
         cs.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip, id: w.id });
     });
-    return { C: C, grid: grid, vs: vs, cs: cs };
+    return { C: C, grid: grid, vs: vs, cs: cs, smoke: smokeFor(map, grid) };   // senses S7b: the map's smoke, for a mark sense that does not see through it
 }
 function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's preview reads what is held, never takes a refresh of its own
     var inp = marksInputs(recipientId, camp, map, drop); if (!inp) return null;
@@ -675,9 +709,9 @@ function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's p
         cs = cs.filter(function(c) { return !!held.pos[c.id]; }).map(function(c) { var p = held.pos[c.id]; return { x: p.x, y: p.y, skip: c.skip }; });
     }
     if (!vs.length || !cs.length) return null;
-    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + JSON.stringify(vs) + '|' + JSON.stringify(cs), k = recipientId + '|' + map.id, hit = _marksMemo[k];
+    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (_smokeVer[map.id] || 0) + '|' + JSON.stringify(vs) + '|' + JSON.stringify(cs), k = recipientId + '|' + map.id, hit = _marksMemo[k];   // S7b: marks move when smoke does
     if (hit && hit.sig === sig) return hit.marks;
-    var res = C.markCells(vs, cs, grid, blk), marks = res.marks.length ? res.marks : null;
+    var res = C.markCells(vs, cs, grid, blk, null, inp.smoke), marks = res.marks.length ? res.marks : null;   // senses S7b: smoke hides from a mark sense that does not see through it
     _marksMemo[k] = { sig: sig, marks: marks };
     if (res.capped && !_marksWarned[map.id] && isGmView()) { _marksWarned[map.id] = 1; toast('Some creatures on this map are past what a player’s senses mark at once: the nearest are marked.'); }
     return marks;

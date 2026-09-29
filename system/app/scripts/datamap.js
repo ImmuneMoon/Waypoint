@@ -985,7 +985,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   if (md !== refMd) { if (isHexy(md.item)) window.wpSeatHex(md.item, null, true); else { md.item.x += seatDx; md.item.y += seatDy; } }
                   var mel = md.el || state.wbEls[md.item.id];
                   if (mel) { mel.style.left = md.item.x + 'px'; mel.style.top = md.item.y + 'px'; }
-                  if (md.item !== item && modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(md.item, true, dragMapId);
               });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           } else if((state.snap || multiDrag.some(function(md){ return md.item.gridFit; })) && state.snapMode !== 'items' && modeStr === 'visual' && state.gridType && state.gridType !== 'off'){   // grid seat: grid / both modes only
@@ -998,6 +997,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               multiDrag.forEach(function(md) { md.item.x += sdx; md.item.y += sdy; var melG = md.el || state.wbEls[md.item.id]; if (melG) { melG.style.left = md.item.x + 'px'; melG.style.top = md.item.y + 'px'; } });
               el.style.left=item.x+'px'; el.style.top=item.y+'px';
           }
+          // fold M9: every other dragged token's drop lands as well, on any grid (a character or a waiting token, not a hidden one; a player's drag
+          // holds only their own): before, only a hex map's seat sent them, and elsewhere they reached the table with the next save
+          if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) multiDrag.forEach(function(md) { if (md.item !== item && (md.item.isChar || md.item.waiting) && !md.item.hidden) window.wpNet.streamPos(md.item, true, dragMapId); });
           if(modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, true, dragMapId); // final, post-snap position
           if(modeStr === 'visual' && item.isChar) {
               var am = getActiveMap();

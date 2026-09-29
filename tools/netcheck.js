@@ -5317,9 +5317,10 @@ pendingChecks.push((async () => {
 // ONE module over the real fog.js, so they share the host's open drags; timers are fakes, the clock is the world's, every send packs for the wire
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
-    const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx4 = await import(url('dicecore.js'));
     const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
     const fogSrc = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+    const realAllow = clock => new Function('window', 'Date', lineOf('var _lim = Object.create(null);') + '\n' + lineOf('function allow(') + '\nreturn allow;')({ wpDiceCore: Dx4 }, { now: clock });   // fold M9: the host's real limiter, on the world's clock
     const buildFog4 = () => new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells };');
     const whole4 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
     const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
@@ -5363,7 +5364,7 @@ pendingChecks.push((async () => {
         const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
         const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && Object.prototype.hasOwnProperty.call(W.net.roster, c.peer)) c.send(m); }); };
         W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, () => false, bc, {}, setT, clearT,
-            () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, () => true, () => {}, () => {}, () => {}, m => ev.push('dom:' + m.wbId), () => null, () => {}, () => {}, () => W.now);
+            () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, o.realAllow ? realAllow(() => W.now) : () => true, () => {}, () => {}, () => {}, m => ev.push('dom:' + m.wbId), () => null, () => {}, () => {}, () => W.now);
         W.move = (conn, wbId, x, y, fin, itemId, more) => W.api.pos(Object.assign({ type: 'pos', campId: 'k', itemId: itemId || 'mA', wbId, x, y, rot: 0, front: 0, final: fin }, more || {}), conn);
         W.tok = (id, mapId) => camp.items[mapId || 'mA'].whiteboard.find(w => w.id === id);
         W.clearSent = () => W.net.conns.forEach(c => { c.sent.length = 0; });
@@ -5657,6 +5658,24 @@ pendingChecks.push((async () => {
         && /var fkP = \[\];[^\n]*\n\s*msg\.item\.whiteboard\.forEach\(function\(w\) \{/.test(pat7) && /fkP\.push\(\[lw, fogKey\(liveItem, lw, typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : null\)\]\);\n\s*if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{/.test(pat7)
         && /if \(liveItem\.whiteboard\.length !== before\) changed = true;\n\s*if \(typeof fogArm === 'function' && fkP\.some\(function\(p\) \{ return fogKey\(liveItem, p\[0\]\) !== p\[1\]; \}\)\) fogArm\(msg\.itemId\);/.test(pat7)
         && (src.match(/fogArm\(/g) || []).length === 4 && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); net\.sendItem\(camp\.id, m\.id, c\);/.test(fm7));
+
+    // fold M9: a final always lands — its own limiter (the host's real RateLimit on the world's clock), and a drop sends a final for every
+    // dragged token on every grid
+    const finalsTo = (W, id) => W.b1.sent.filter(m => m.type === 'pos' && m.wbId === id && m.final === true).length;
+    const L1 = mk4({ realAllow: true }); L1.move(L1.a1, 'tA', 250, 100, false); L1.move(L1.a1, 'tA', 300, 100, true); const oneTick = [L1.place('tA'), finalsTo(L1, 'tA'), L1.timers.filter(t => t.ms === 250).length];
+    const L2 = mk4({ realAllow: true }); ['tA_b', 'tA_c'].forEach((id, i) => L2.camp.items.mA.whiteboard.push(T(id, 'u_a', 'c_a', 3 + i, 3)));
+    L2.move(L2.a1, 'tA', 250, 100, true); L2.move(L2.a1, 'tA_b', 300, 150, true); L2.move(L2.a1, 'tA_c', 350, 150, true); const three = [L2.place('tA'), L2.place('tA_b'), L2.place('tA_c')];
+    const L3 = mk4({ realAllow: true }); let dial = 0; for (let i = 0; i < 300; i++) { L3.now = i * 33; L3.move(L3.a1, 'tA', 100, 100, true, 'mA', { rot: (i % 4) * 90 }); dial++; } const held10 = [finalsTo(L3, 'tA'), L3.place('tA')[2]];
+    const L4 = mk4({ realAllow: true }); for (let i = 0; i < 241; i++) L4.move(L4.a1, 'tA', 100 + (i % 2) * 50, 100, true); const cap4 = finalsTo(L4, 'tA');
+    const L5 = mk4({ realAllow: true }); L5.move(L5.a1, 'tA', 150, 100, false); L5.now = 5; L5.move(L5.a1, 'tA', 200, 100, false); const at5 = L5.place('tA')[0]; L5.now = 8; L5.move(L5.a1, 'tA', 250, 100, false); const at8 = L5.place('tA')[0];
+    check('fold M9: a final has its own limiter (the host\'s real one on the world\'s clock): a drag\'s last move and its drop in the same instant both land (the drop written, relayed, saved); three tokens dropped in one gesture all land; the Facing dial held ten seconds at the key repeat (a final every 33 ms) lands every step; the 241st final within 4 s is refused; a drag\'s moves keep their 8 ms spacing',
+        j(oneTick) === j([[300, 100, 0, 0], 1, 1]) && j(three) === j([[250, 100, 0, 0], [300, 150, 0, 0], [350, 150, 0, 0]]) && j(held10) === j([300, 270]) && cap4 === 240 && at5 === 150 && at8 === 250,
+        j([oneTick, three, held10, cap4, at5, at8]));
+    const dmS9 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'datamap.js'), 'utf8').replace(/\r\n/g, '\n');
+    const seatA9 = dmS9.indexOf("if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some("), finA9 = dmS9.indexOf("window.wpNet.streamPos(item, true, dragMapId); // final, post-snap position"), loop9 = dmS9.indexOf('multiDrag.forEach(function(md) { if (md.item !== item && (md.item.isChar || md.item.waiting) && !md.item.hidden) window.wpNet.streamPos(md.item, true, dragMapId); });');
+    check('fold M9 (source): the two limiters have their own names and a final none of the drag\'s spacing; the drop sends a final for every other dragged character or waiting token that is not hidden, after the seat and before the one under the pointer, on every grid (no longer inside the hex seat)',
+        /if \(!allow\(msg\.final \? 'posFinal' : 'pos', msg\.final \? \{ perMs: 0, burst: 240, windowMs: 4000, table: 20000 \} : \{ perMs: 8, burst: 240, windowMs: 4000, table: 20000 \}, conn\.peer\)\) return;/.test(src)
+        && seatA9 > 0 && loop9 > seatA9 && finA9 > loop9 && (dmS9.match(/streamPos\(md\.item, true, dragMapId\)/g) || []).length === 1 && dmS9.slice(seatA9, loop9).indexOf('streamPos(md.item') < 0);
 
     // (6) where it is wired, in the source
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));

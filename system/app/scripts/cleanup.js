@@ -616,6 +616,7 @@ function cleanImportItems(ic, deps) {
             if (w.blind !== undefined && w.blind !== true) delete w.blind;   // senses S3: the GM's Blind tick, true only
             if (w.unsensed !== undefined) { var U = FC && typeof FC.cleanUnsensed === 'function' ? FC.cleanUnsensed(w.unsensed) : null; if (U) w.unsensed = U; else delete w.unsensed; }   // senses S4: the senses that never mark this token
             if (w.nulls !== undefined) { var NU = FC && typeof FC.cleanNulls === 'function' ? FC.cleanNulls(w.nulls) : null; if (NU) w.nulls = NU; else delete w.nulls; }   // senses S7a: the senses a null area switches off
+            if (w.smoke !== undefined && w.smoke !== true) delete w.smoke;   // senses S7b: smoke only as true
         });
         if (it.type === 'map') { delete it.fogLit; delete it.lightsCapped; delete it.fogMarks; delete it.fogOff; }   // senses S4: a player's own notes on their copy of a map, never a map's own
     });

@@ -958,6 +958,12 @@ Fog of war
   a hidden area never reaches players, not even its outline. The player
   whose token stands in one is told which of its senses fail there, and
   the caption over their token says so ("Hearing fails here").
+- Smoke: tick Smoke in a rectangle's, hexagon's, circle's or diamond's
+  Properties and it hides what is in it and past it from the eyes, and
+  from a sense the walls stop unless the System editor ticks that sense
+  "Sees through smoke" (a sense that passes walls always does). A token in
+  smoke still sees its own cell. Tokens walk through it, it gives no cover,
+  light passes, and a hidden piece hides nothing.
 - The two starter systems now carry their game's senses: the d20
   Darkvision, Truesight, Blindsight and a Tremorsense mark, the 3d6
   Infravision and a Vibration Sense mark, with Blinded and Deafened

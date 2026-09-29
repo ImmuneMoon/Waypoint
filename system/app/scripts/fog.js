@@ -579,8 +579,34 @@ function sightSigFor(recipientId, camp, map) {
 // out; never through a sense the GM ticked the token off for (item.unsensed). Null where no fog is drawn, not on Auto, with no grid, no mark
 // sense or no mark. Memoised on exactly what it reads (the viewers, the creatures, the walls), so a re-send with nothing moved works nothing
 // out; the GM is told once per map when a cap cut the marks
-var _marksMemo = Object.create(null), _marksWarned = Object.create(null);
-function fogMarksFor(recipientId, camp, map, drop) {
+// Senses S4b: "Marks in a fight" played On your own turn (camp.fog.defaults.marks 'turn'; docs/SENSES_PLAN.md section 10, item 4). While a fight
+// runs on a map, a player's marks there come from what the host holds for them (never saved, never sent): the creatures their mark senses found
+// at the last refresh, where each stood then, and the senses that looked. A creature seen, hidden or gone since goes at once, as does a sense
+// switched off; a sense switched on, or a creature that came since, waits for the next refresh. net.js refreshes (marksHold) at the start of a
+// turn of their token, their own drop on it, a new round for a player with no token in the fight and the fight's start; its end forgets them
+var _marksMemo = Object.create(null), _marksWarned = Object.create(null), _marksHeld = Object.create(null);
+function marksStrictOn(camp, map) {
+    var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults : null, N = window.wpNet;
+    return !!d && d.marks === 'turn' && !!map && typeof map.id === 'string' && !!N && typeof N.combatFor === 'function' && !!N.combatFor(map.id);
+}
+function marksBlk(map, grid) { var blk = blockersFor(map, grid); return _blockerOver[map.id] ? null : blk; }   // walls over their cap block nothing, as for the eyes
+function marksHeldOf(key, inp, blk, keep) {   // what a refresh holds: the creatures found now and where they stand, and the senses that looked
+    var found = Object.create(null), pos = Object.create(null), sids = Object.create(null);
+    if (inp && inp.vs.length && inp.cs.length) inp.C.markCells(inp.vs, inp.cs, inp.grid, blk, found);
+    if (inp) { inp.cs.forEach(function(c) { if (found[c.id] === 1) pos[c.id] = { x: c.x, y: c.y }; }); inp.vs.forEach(function(v) { if (typeof v.sid === 'string') sids[v.sid] = 1; }); }
+    var held = { pos: pos, sids: sids }; if (keep) _marksHeld[key] = held;
+    return held;
+}
+function marksHold(recipientId, camp, map, drop) {   // a refresh (net.js): judged at this moment
+    if (typeof recipientId !== 'string' || !recipientId || !map || typeof map.id !== 'string') return;
+    var inp = marksInputs(recipientId, camp, map, drop);
+    marksHeldOf(recipientId + '|' + map.id, inp, inp ? marksBlk(map, inp.grid) : null, true);
+}
+function marksForget(mapId) {   // a map's held marks (a fight began or ended there), or every map's (null: the setting changed, the table ended)
+    Object.keys(_marksHeld).forEach(function(k) { if (mapId === null || mapId === undefined || k.slice(k.indexOf('|') + 1) === mapId) delete _marksHeld[k]; });
+}
+// the viewers (a player's mark senses, where their tokens stand) and the creatures those may mark, or null where no mark can be
+function marksInputs(recipientId, camp, map, drop) {
     if (!recipientId || !drop || !fogFeatureOn() || !map || map.type !== 'map') return null;
     var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
     var C = core(), grid = gridForMap(map); if (!C || !grid) return null;
@@ -599,10 +625,19 @@ function fogMarksFor(recipientId, camp, map, drop) {
         var un = C.cleanUnsensed(w.unsensed), skip = null;
         if (un === true) return;
         if (un) { skip = Object.create(null); un.forEach(function(id) { skip[id] = 1; }); }
-        cs.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip });
+        cs.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip, id: w.id });
     });
+    return { C: C, grid: grid, vs: vs, cs: cs };
+}
+function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's preview reads what is held, never takes a refresh of its own
+    var inp = marksInputs(recipientId, camp, map, drop); if (!inp) return null;
+    var C = inp.C, grid = inp.grid, vs = inp.vs, cs = inp.cs, blk = marksBlk(map, grid);
+    if (marksStrictOn(camp, map)) {   // senses S4b: from what is held (a player new to the fight has theirs taken now)
+        var hk = recipientId + '|' + map.id, held = _marksHeld[hk] || marksHeldOf(hk, inp, blk, !peek);
+        vs = vs.filter(function(v) { return held.sids[v.sid] === 1; });
+        cs = cs.filter(function(c) { return !!held.pos[c.id]; }).map(function(c) { var p = held.pos[c.id]; return { x: p.x, y: p.y, skip: c.skip }; });
+    }
     if (!vs.length || !cs.length) return null;
-    var blk = blockersFor(map, grid); if (_blockerOver[map.id]) blk = null;   // walls over their cap block nothing, as for the eyes
     var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + JSON.stringify(vs) + '|' + JSON.stringify(cs), k = recipientId + '|' + map.id, hit = _marksMemo[k];
     if (hit && hit.sig === sig) return hit.marks;
     var res = C.markCells(vs, cs, grid, blk), marks = res.marks.length ? res.marks : null;
@@ -735,7 +770,7 @@ function draw() {
     ctx.fill();                                                    // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
-    drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill());   // senses S4: the marks, over the fog
+    drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill(), marksStrictOn(camp, map));   // senses S4: the marks, over the fog
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
 }
@@ -769,7 +804,7 @@ function marksStill() { try { if (window.matchMedia && window.matchMedia('(prefe
 function marksToDraw(map, camp) {
     if (isClientView()) return Array.isArray(map.fogMarks) ? map.fogMarks : [];
     if (previewMode === 'off' || previewMode === 'party') return [];
-    return fogMarksFor(previewMode, camp, map, fogDropIds(previewMode, camp, map) || Object.create(null)) || [];
+    return fogMarksFor(previewMode, camp, map, fogDropIds(previewMode, camp, map) || Object.create(null), true) || [];
 }
 function glyphPath(ctx, k, x, y, R) {
     if (k === 1) { for (var j = 1; j <= 3; j++) { ctx.moveTo(x - R * 0.7 + R * 0.45 * j * Math.cos(-0.8), y + R * 0.45 * j * Math.sin(-0.8)); ctx.arc(x - R * 0.7, y, R * 0.45 * j, -0.8, 0.8); } return; }
@@ -777,7 +812,7 @@ function glyphPath(ctx, k, x, y, R) {
     if (k === 3) { ctx.moveTo(x + R * 0.8, y); ctx.arc(x, y, R * 0.8, 0, Math.PI * 2); return; }
     ctx.moveTo(x, y - R); ctx.quadraticCurveTo(x + R * 0.9, y + R * 0.2, x, y + R * 0.85); ctx.quadraticCurveTo(x - R * 0.9, y + R * 0.2, x, y - R);
 }
-function drawMarks(ctx, s, marks, seenKeys, grid, now, still) {
+function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held) {   // held: the table plays On your own turn and a fight runs here (S4b)
     var C = core(); if (!marks || !marks.length || !C || !grid || !ctx.fillText) return;
     var wrap = ui('whiteboardWrap'), z = state.zoomLevel || 1, sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0, W = s.clientWidth, H = s.clientHeight;
     var R = Math.max(6, (grid.type === 'square' ? grid.size : grid.s * 1.7) * z * 0.3), count = { 1: 0, 2: 0, 3: 0, 4: 0 }, hoverAt = null;
@@ -798,6 +833,7 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still) {
     var pill = function(t, cx, cy) { var w = Math.min(ctx.measureText(t).width + 14, 360), h = 17; ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8e6f5'; ctx.fillText(t, cx, cy + 0.5, 346); return w; };
     if (hoverAt) pill(hoverAt.word, hoverAt.x, hoverAt.y - R - 12);
     var said = [1, 2, 3, 4].filter(function(k) { return count[k] > 0; }).map(function(k) { return MARK_WORD[k] + ': ' + count[k]; }).join(' · ');
+    if (said && held) said += ' — as heard on your turn';
     if (said) { var tw = Math.min(ctx.measureText(said).width + 14, 360), rl = ui('rulerLeft'), inset = rl && rl.offsetWidth > 0 ? rl.offsetWidth : 0; pill(said, inset + 12 + tw / 2, H - 22); }   // clear of the left ruler while it shows
     ctx.restore();
 }
@@ -916,6 +952,8 @@ function syncMenu() {
     fillSightField();
     // senses S2a: the system's senses, named (as text), with the way to the editor where they are set; hidden with no system
     var srow = ui('fogSensesRow'); if (srow) srow.style.display = camp && camp.system && typeof camp.system === 'object' ? '' : 'none';
+    var mrow = ui('fogMarksRow'); if (mrow) mrow.style.display = campMarkSenses(camp).length ? '' : 'none';   // senses S4b: shown only with a mark sense
+    var msel = ui('fogMarksMode'); if (msel && document.activeElement !== msel) msel.value = cf.defaults.marks === 'turn' ? 'turn' : 'move';
     var stxt = ui('fogSensesText'); if (stxt) { var snl = camp && camp.system && camp.system.combat && camp.system.combat.senses && Array.isArray(camp.system.combat.senses.list) ? camp.system.combat.senses.list : [], snn = snl.filter(function(s) { return !!s && typeof s.name === 'string' && !!s.name; }).map(function(s) { return s.name; }); stxt.textContent = snn.length ? snn.join(', ') : 'This system defines no extra senses'; }
     // vision mode (all-around vs a facing cone), decoupled from grid type
     var vis = visionOf(map), vsel = ui('fogVision');
@@ -964,6 +1002,13 @@ var LIGHT_SAID = {
     if (sfield) sfield.addEventListener('change', function() { var camp = activeCamp(); if (!camp) return; var cf = campFog(camp); cf.fields.sight = sfield.value || undefined; if (!sfield.value) delete cf.fields.sight; save(); syncMenu(); redraw(); });
     var sedit = ui('fogSensesEdit');
     if (sedit) sedit.addEventListener('click', function() { closeMenu(); if (window.wpSheets && window.wpSheets.open) window.wpSheets.open('items'); });   // senses S2a: they are set on the System editor's Combat card
+    var msel = ui('fogMarksMode');   // senses S4b: "Marks in a fight" (what is held is forgotten: the new rule starts from now)
+    if (msel) msel.addEventListener('change', function() {
+        var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
+        if (msel.value === 'turn') cf.defaults.marks = 'turn'; else delete cf.defaults.marks;
+        marksForget(null); save(); invalidateVision(); syncMenu(); redraw();
+        toast(msel.value === 'turn' ? 'In a fight, each player’s marks now move when a turn of theirs starts.' : 'Marks now follow every move, in a fight or not.');
+    });
     var sunit = ui('fogSightUnit');
     if (sunit) sunit.addEventListener('change', function() {
         var camp = activeCamp(), C = core(); if (!camp || !C) return; var cf = campFog(camp), u = C.lightUnit(sunit.value);
@@ -1066,5 +1111,6 @@ window.wpFog = {
     lightSeen: lightSeen,
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)
+    marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

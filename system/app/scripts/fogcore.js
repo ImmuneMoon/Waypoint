@@ -384,8 +384,10 @@ function cleanUnsensed(v) {
 // its range (free to test), in its arc, along a clear line unless it passes walls (only lines count, at most LIMITS.markTests: past that the far
 // creatures go untested). One mark per cell, the lowest glyph number winning; past LIMITS.marks cells the nearest kept; sorted by cell key, so
 // neither their order nor how many share a cell says anything. viewers: [{ x, y, front, range (cells), arc, pass, k (1-4), sid }]; creatures:
-// [{ x, y, skip }] (skip: true, or { senseId: 1 } for the senses that never mark it). { marks: [{ c, r, k } | { q, r, k }], capped }
-function markCells(viewers, creatures, grid, blockers) {
+// [{ x, y, skip, id }] (skip: true, or { senseId: 1 } for the senses that never mark it). { marks: [{ c, r, k } | { q, r, k }], capped }.
+// found (S4b, the host's held marks): an object each creature any sense finds is named in by its id (1), whether or not its cell already had a
+// better mark; the marks themselves are the same with or without it
+function markCells(viewers, creatures, grid, blockers, found) {
     var out = { marks: [], capped: false }; if (!grid || !Array.isArray(viewers) || !Array.isArray(creatures)) return out;
     var vs = [];
     viewers.forEach(function(v) { if (isObj(v) && fin(v.x) && fin(v.y) && fin(v.range) && v.range > 0 && (v.k === 1 || v.k === 2 || v.k === 3 || v.k === 4)) vs.push({ v: v, cell: cellOf(v.x, v.y, grid), range: Math.min(v.range, LIMITS.rangeCells) }); });
@@ -395,19 +397,20 @@ function markCells(viewers, creatures, grid, blockers) {
         if (!isObj(cr) || !fin(cr.x) || !fin(cr.y) || cr.skip === true) return;
         var cell = cellOf(cr.x, cr.y, grid), d = Infinity;
         vs.forEach(function(o) { var dd = cellDist(o.cell, cell, grid); if (dd < d) d = dd; });
-        cs.push({ cell: cell, key: cellKey(cell, grid), d: d, skip: isObj(cr.skip) ? cr.skip : null });
+        cs.push({ cell: cell, key: cellKey(cell, grid), d: d, skip: isObj(cr.skip) ? cr.skip : null, id: cr.id });
     });
     var byKey = function(a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; };
     cs.sort(function(a, b) { return a.d - b.d || byKey(a, b); });
     var got = Object.create(null), tests = 0;
     cs.forEach(function(cr) {
         vs.forEach(function(o) {
-            var v = o.v, g = got[cr.key];
-            if (g && g.k <= v.k) return;
+            var v = o.v, g = got[cr.key], better = !g || v.k < g.k;
+            if (!better && !(found && typeof cr.id === 'string' && found[cr.id] !== 1)) return;
             if (cr.skip && typeof v.sid === 'string' && cr.skip[v.sid] === 1) return;
             if (!(cellDist(o.cell, cr.cell, grid) <= o.range + 1e-9) || !cellInArc(v, cr.cell, grid)) return;
             if (!v.pass && blockers) { if (tests >= LIMITS.markTests) { out.capped = true; return; } tests++; if (!lineClear(o.cell, cr.cell, grid, blockers)) return; }
-            got[cr.key] = { cell: cr.cell, key: cr.key, d: cr.d, k: v.k };
+            if (found && typeof cr.id === 'string') found[cr.id] = 1;
+            if (better) got[cr.key] = { cell: cr.cell, key: cr.key, d: cr.d, k: v.k };
         });
     });
     var list = Object.keys(got).map(function(key) { return got[key]; });
@@ -546,6 +549,7 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     var dv = cleanVision(d.vision); if (dv) out.defaults.vision = dv;   // stamped onto new maps only (never retroactive)
     if (d.on === true) out.defaults.on = true;   // "new maps start with fog on" — stamped onto new maps only, never retroactive (stored only when true)
     if (d.emptyFog === 'none') out.defaults.emptyFog = 'none';   // a map with NO play-area item marked: 'none' = no fog; default (absent) = fog the whole map
+    if (d.marks === 'turn') out.defaults.marks = 'turn';   // senses S4b: "Marks in a fight" On your own turn; absent = as they move
     return out;
 }
 

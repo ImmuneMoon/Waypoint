@@ -140,6 +140,10 @@ function fmtSpan(cal, secs) {
     return parts.length ? parts.join(', ') : 'no time';
 }
 
+// Item 20 K2: a campaign's clock (camp.clock), cleaned: { t (world time, a whole number of seconds from 0 to 10^15; absent or no number: 0),
+// hide? (true only: the GM keeps the date from players) }. Not an object: null (no clock yet: day 1 at 00:00)
+function cleanClock(v) { if (!isObj(v)) return null; var o = { t: clampT(v.t) }; if (v.hide === true) o.hide = true; return o; }
+
 // The editor's starting points (fresh objects: a caller may keep and change one). 'twelve': the real-world year, a leap day in February
 // every fourth year; 'days': a plain count of days (no calendar at all)
 var PRESETS = Object.freeze(['twelve', 'days']);
@@ -151,6 +155,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, dateOf: dateOf, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, dateOf: dateOf, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

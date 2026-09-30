@@ -30,7 +30,8 @@ var FEATURES = [
     { id: 'turning',   label: 'Token facing',     legacyKey: null, noLocal: true },  // 1.5.0: token facing/turning — the front wedge + the fog facing cone follow it; GM-controlled like fog (off ⇒ no wedge, fog falls back to all-around)
     { id: 'music',     label: 'Music',            legacyKey: null },
     { id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false },  // 1.5.0 turn-based combat (owner, 2026-09-26): while a combat runs, turns are taken in order — the player on turn ends it; OFF by default (opt-in); GM-controlled                  // 1.5.0: per-campaign named playlists, per-map auto-play, GM take-control; a self-toggle with its OWN volume, separate from Sound/SFX
-    { id: 'lighting',  label: 'Lighting',         legacyKey: null, noLocal: true }   // 1.5.0 light & darkness (owner 2026-09-28): a fogged map is lit until the GM places a light source; GM-controlled like fog; ON by default
+    { id: 'lighting',  label: 'Lighting',         legacyKey: null, noLocal: true },  // 1.5.0 light & darkness (owner 2026-09-28): a fogged map is lit until the GM places a light source; GM-controlled like fog; ON by default
+    { id: 'calendar',  label: 'Calendar',         legacyKey: null, def: false }      // 1.5.0 item 20 (owner 2026-09-30): the campaign's date and time in the header; OFF by default; a player may hide it for themselves
 ];
 // noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: an optional default-off flag
 // (def:false) for a future opt-in feature; absent → on, so every feature (fog included) is on by default.
@@ -334,14 +335,14 @@ function playerDefaults() { var g = globalVtt(), out = {}; FEATURES.forEach(func
 function seedEntry(e, G, P) {
     var seeded = [];
     FEATURES.forEach(function(f) {
-        if (!selfToggles(f)) return;   // a noLocal feature is never seeded into the player's off-list
+        if (!selfToggles(f) || f.def === false) return;   // a noLocal feature is never seeded into the player's off-list, nor an opt-in one (item 20: the calendar) — off by default for new campaigns says nothing of what a player wants at a table; they follow it until they switch it off there
         if (G[f.id] && !P[f.id] && e.decided.indexOf(f.id) < 0 && e.off.indexOf(f.id) < 0) { e.off.push(f.id); seeded.push(f.id); }
     });
     return seeded;
 }
 function lists(e, G, P) {
     var A = [], B = [];
-    FEATURES.forEach(function(f) { if (!selfToggles(f)) return; if (G[f.id] && e.off.indexOf(f.id) >= 0) A.push(f.id); else if (!G[f.id] && P[f.id]) B.push(f.id); });
+    FEATURES.forEach(function(f) { if (!selfToggles(f) || f.def === false) return; if (G[f.id] && e.off.indexOf(f.id) >= 0) A.push(f.id); else if (!G[f.id] && P[f.id]) B.push(f.id); });   // an opt-in feature is never on the join notice (seedEntry)
     return { A: A, B: B };
 }
 function joined() {

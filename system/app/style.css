@@ -1832,6 +1832,23 @@
   .sys-turn-head { font-weight: 600; }
   .sys-light { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* lighting L4: the Combat card's light rules */
   .sys-light-head { font-weight: 600; }
+  .hdr-clock { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; white-space: nowrap; font-size: 12px; margin-right: 6px; }   /* item 20 K2: the campaign's clock in the header */
+  .hdr-clock .clock-txt { overflow: hidden; text-overflow: ellipsis; }
+  .hdr-clock.clock-private { opacity: .75; border: 1px dashed var(--edge); }
+  .cal-now { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-nav .cal-title { flex: 1; text-align: center; font-weight: 600; }
+  .cal-grid { display: grid; gap: 3px; }
+  .cal-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim); text-align: center; overflow: hidden; }
+  .cal-day { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; padding: 6px 0; font-size: 12px; cursor: pointer; min-width: 0; }
+  .cal-day:hover { border-color: var(--gold); }
+  .cal-day.cal-is-today { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .cal-day.cal-is-picked { background: rgba(224,165,79,0.22); }
+  .cal-pick, .cal-steps, .cal-any { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .cal-pick .field, .cal-any .field { width: auto; flex: 0 0 auto; }
+  .cal-pick input[type=number] { width: 64px; }
+  .cal-any input.cal-any-n { width: 100px; }
+  .cal-tick { display: inline-flex; align-items: center; gap: 4px; }
   .sys-cal { display: flex; flex-direction: column; gap: 6px; }   /* item 20 K1: the System editor's Calendar tab */
   #sysCalendar { max-height: 64vh; overflow-y: auto; padding-right: 4px; }   /* the tab's own scroller, as a tab's rows are: the pane, kept across a redraw */
   .sys-cal-sub { font-weight: 600; font-size: 12px; margin-top: 6px; color: var(--dim); }

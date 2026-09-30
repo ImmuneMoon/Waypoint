@@ -2510,7 +2510,7 @@ pendingChecks.push((async () => {
         undoLine.length > 0 && /window\.wpNet\.sendItem\(camp\.id, item\.id\);[^\n]*wUndo\.forEach\([^\n]*broadcastItemFiltered[^\n]*\}\); if \(window\.wpNet\.syncCombatHidden\) window\.wpNet\.syncCombatHidden\(\); \}/.test(undoLine), undoLine.slice(0, 400));
     // the host's save calls it right after the map it saved went out (its stub first), run for real: net.onLocalSave sliced whole, over stubs
     const olsSrc = fnSrc('net.onLocalSave = function() {', '\n};\n', 'onLocalSave') + '\n};';
-    const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncSenses', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog'];
+    const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncSenses', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog', 'syncClock'];
     const runSave = (s, patch) => {
         const log = [], real = s.net.syncCombatHidden;
         SYNCS.forEach(k => { s.net[k] = () => log.push(k); });
@@ -2932,9 +2932,9 @@ pendingChecks.push((async () => {
         !!blank && blank.camp === 'Unnamed Campaign' && blank.map === 'Untitled' && !!noMeta && noMeta.camp === 'Unnamed Campaign' && noMeta.map === 'Untitled' && !!long && long.camp.length === 200 && long.map.length === 200, j([blank, noMeta, long && [long.camp.length, long.map.length]]));
     const rd = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', f), 'utf8').replace(/\r\n/g, '\n');
     const mainSrc = rd(path.join('scripts', 'main.js')), htmlSrc = rd('index.html'), cssSrc = rd('style.css');
-    check('where (client): wired — renderWhere paints only through paintWhere with the real document, off the synced host\'s campaign; main.js render() calls it before its no-map return; renderRoster calls it as the session class changes',
+    check('where (client): wired — renderWhere paints only through paintWhere with the real document, off the synced host\'s campaign; main.js render() calls it before its no-map return, and the clock in the header after it (item 20 K2); renderRoster calls it as the session class changes',
         /function renderWhere\(\) \{[^}]*tableWhere\(net, campOf\(state\.appState && state\.appState\.activeCampaignId\)\);[^}]*paintWhere\(box, mapBox, w, document\);\n\}/.test(src) && /var box = ui\('tableWhere'\), mapBox = ui\('tableWhereMap'\); if \(!box \|\| !mapBox\) return;/.test(src)
-        && /export function render\(\) \{\s*if \(window\.wpHideTooltip\)[^\n]*\n\s*if \(window\.wpNet && window\.wpNet\.renderWhere\) window\.wpNet\.renderWhere\(\);[^\n]*\n\s*var activeMap = getActiveMap\(\);\s*if\(!activeMap\) return;/.test(mainSrc)
+        && /export function render\(\) \{\s*if \(window\.wpHideTooltip\)[^\n]*\n\s*if \(window\.wpNet && window\.wpNet\.renderWhere\) window\.wpNet\.renderWhere\(\);[^\n]*\n\s*if \(window\.wpCalendar && window\.wpCalendar\.refresh\) window\.wpCalendar\.refresh\(\);[^\n]*\n\s*var activeMap = getActiveMap\(\);\s*if\(!activeMap\) return;/.test(mainSrc)
         && /classList\.toggle\('net-client'[^\n]*\n\s*renderWhere\(\);/.test(src));
     check('where (client): the campaign\'s box sits beside the campaign select, the map\'s in the next section (after the breadcrumb\'s place), both hidden unless a joined player has something to show',
         /<header>[\s\S]*<select id="campaignSelect"[^\n]*\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<div class="header-sep"><\/div>[\s\S]*<div id="mapBreadcrumb"><\/div>\n\s*<div id="tableWhereMap" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)
@@ -6589,6 +6589,66 @@ pendingChecks.push((async () => {
         j(c8.sent.map(m => m.type + ':' + m.itemId)) === j(['needItem:mA', 'pos:mA', 'pos:mB']) && j(c8.sent[0]) === j({ type: 'needItem', campId: 'k', itemId: 'mA' }) && h8.sent.length === 0 && j(h8.relayed) === j([['mA', 'mA'], ['constructor', null]]) && off8.sent.length === 0,
         j([c8.sent, h8.relayed]));
 }
+// Item 20 K2: the campaign's clock on the wire — the host's sync (sliced by its clocksync markers), the join snapshot (the real
+// sanitizeAppState), a player's branch (clockmsg) and a combat round moving it (the real combatStep), each run for real
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const CCx = await import(url('calendarcore.js')), ownK = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const syncK = between('// [netcheck:clocksync-start]', '// [netcheck:clocksync-end]', 'clocksync'), rcvK = between('// [netcheck:clockmsg-start]', '// [netcheck:clockmsg-end]', 'clockmsg');
+    const vttK = { campaignOn: (id, camp) => id === 'calendar' && !!camp && !!camp.vtt && camp.vtt.cal === true };
+    const hostK = camp => { const sent = { a: [], w: [] };
+        const net = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); sent.a.push(JSON.parse(JSON.stringify(m))); } }, { peer: 'pW', open: true, send: m => sent.w.push(m) }, { peer: 'pC', open: false, send: m => sent.w.push(m) }], roster: { pA: { id: 'u_a' }, pC: { id: 'u_c' } } };
+        const clockOut = new Function('net', 'getActiveCampaign', 'own', 'sendFailed', 'window', syncK + '\nreturn clockOut;')(net, () => camp, ownK, e => { throw e; }, { wpCalendarCore: CCx, wpVtt: vttK });
+        return { net, sent, clockOut }; };
+    const campK = { id: 'k_1', vtt: { cal: true }, clock: { t: 3600.7, hide: false, junk: '<b>' } }, hK = hostK(campK), stepK = [], snapK = () => stepK.push(hK.sent.a.length);
+    hK.net.syncClock(); snapK(); hK.net.syncClock(); snapK();
+    campK.clock.t = 7200; hK.net.syncClock(); snapK();
+    campK.clock.hide = true; hK.net.syncClock(); snapK();
+    campK.clock.t = 9000; hK.net.syncClock(); snapK();
+    campK.clock.hide = false; hK.net.syncClock(); snapK();
+    campK.vtt.cal = false; hK.net.syncClock(); snapK();
+    hK.net.role = 'client'; campK.vtt.cal = true; hK.net.syncClock(); snapK(); hK.net.role = 'host'; hK.net.active = false; campK.clock.t = 1; hK.net.syncClock(); snapK();
+    check('item 20 K2 the campaign\'s clock on the wire (net.syncClock, sliced by its clocksync markers, run for real): a change goes to admitted open players once (a waiting peer and a closed connection get nothing) as its time alone in whole seconds, never the hide flag or anything else; while the GM keeps the date from players or the Calendar is off the message carries null, once; a client or a host off a table sends nothing; every host save calls it after the fog defaults, the snapshot sets its signature and a new table forgets it; no host branch reads a clock',
+        j(stepK) === j([1, 1, 2, 3, 3, 4, 5, 5, 5]) && hK.sent.w.length === 0 && j(hK.sent.a) === j([{ type: 'clock', campId: 'k_1', clock: { t: 3600 } }, { type: 'clock', campId: 'k_1', clock: { t: 7200 } }, { type: 'clock', campId: 'k_1', clock: null }, { type: 'clock', campId: 'k_1', clock: { t: 9000 } }, { type: 'clock', campId: 'k_1', clock: null }])
+        && /net\.syncCampFog\(\);[^\n]*\n\s*net\.syncClock\(\);/.test(src) && src.includes("var ckm = net.clockMessage(); if (ckm) net._lastClockSig = ckm.campId + '\\n' + JSON.stringify(ckm.clock);") && /net\._lastNewPlayersSig = null;[^\n]*\n\s*net\._lastClockSig = null;/.test(src) && !/msg\.type === 'clock' && net\.role === 'host'/.test(src), j([stepK, hK.sent.a]));
+    const outK = [hostK({ id: 'a', vtt: { cal: true } }).clockOut({ id: 'a', vtt: { cal: true } }), hostK({}).clockOut({ id: 'b', vtt: { cal: true }, clock: 'x' }), hostK({}).clockOut({ id: 'c', vtt: { cal: true }, clock: { t: -4 } }), hostK({}).clockOut({ id: 'd', vtt: { cal: true }, clock: { t: 1e20 } }), hostK({}).clockOut({ id: 'e', clock: { t: 5 } }), hostK({}).clockOut(null)];
+    check('item 20 K2 what a player may be sent of a clock (clockOut): day 1 when there is none yet, the time cleaned (below 0 is 0, past the limit the limit), nothing with the Calendar off or no campaign',
+        j(outK) === j([{ t: 0 }, { t: 0 }, { t: 0 }, { t: 1e15 }, null, null]), j(outK));
+    // the join snapshot: the real sanitizeAppState, with and without the clock's rule beside it
+    const saSrcK = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const clockOutSrc = syncK.slice(syncK.indexOf('function clockOut('), syncK.indexOf('\n', syncK.indexOf('function clockOut(')));
+    const SAk = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + clockOutSrc + '\n' + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it);
+    const SA0 = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it);
+    const gmK = (clock, cal) => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', vtt: { cal: cal !== false }, clock: clock, activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', whiteboard: [] } } }, k2: { id: 'k2', name: 'Other', vtt: { cal: true }, clock: { t: 99 }, activeItemId: 'm2', items: { m2: { id: 'm2', type: 'map', whiteboard: [] } } } } });
+    const snK = [SAk(gmK({ t: 500.5, hide: false, notes: 'x' }), 'u_p'), SAk(gmK({ t: 500, hide: true }), 'u_p'), SAk(gmK({ t: 500 }, false), 'u_p'), SAk(gmK(undefined), 'u_p'), SA0(gmK({ t: 500 }), 'u_p'), SAk(gmK({ t: 500 }))].map(s => s.campaigns.k1 ? (ownK(s.campaigns.k1, 'clock') ? s.campaigns.k1.clock : 'none') : 'no campaign');
+    const keptK = gmK({ t: 500, hide: true }); SAk(keptK, 'u_p');
+    check('item 20 K2 the join snapshot (the real sanitizeAppState, run for real) carries the hosted campaign\'s clock as its time alone while players may see it; none while the GM keeps the date from players or the Calendar is off, day 1 with no clock yet; without the clock\'s rule beside it none at all (it fails closed); the stream window alike; the GM\'s own state left as it was',
+        j(snK) === j([{ t: 500 }, 'none', 'none', { t: 0 }, 'none', { t: 500 }]) && j(keptK.campaigns.k1.clock) === j({ t: 500, hide: true }) && keptK.campaigns.k2.clock.t === 99
+        && src.includes("var ckS = camp.id === c.activeCampaignId && typeof clockOut === 'function' ? clockOut(camp) : null; if (ckS) camp.clock = ckS; else delete camp.clock;"), j(snK));
+    // a player's app: the host's clock message
+    const runK = (msg, peer, o) => { o = o || {}; const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', clock: { t: 42 } }, k_2: { id: 'k_2' } } } }, calls = [];
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvK)(Object.assign({ role: 'client', foreign: true, syncedPeer: 'host1', stream: false }, o.net || {}), { peer }, msg, st, id => (ownK(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpCalendarCore: CCx, wpCalendar: { refresh: () => calls.push('refresh') } });
+        return [ownK(st.appState.campaigns.k_1, 'clock') ? st.appState.campaigns.k_1.clock : 'none', calls.length, st.appState.campaigns.k_2]; };
+    const rK = [runK({ type: 'clock', campId: 'k_1', clock: { t: 99.9, hide: true, junk: 1 } }, 'host1'), runK({ type: 'clock', campId: 'k_1', clock: null }, 'host1'), runK({ type: 'clock', campId: 'k_1', clock: { t: -3 } }, 'host1'), runK({ type: 'clock', campId: 'k_1', clock: { t: 1e20 } }, 'host1'), runK({ type: 'clock', campId: 'k_1', clock: 'x' }, 'host1')];
+    const rNo = [runK({ type: 'clock', campId: 'k_1', clock: { t: 7 } }, 'other'), runK({ type: 'clock', campId: 'k_2', clock: { t: 7 } }, 'host1'), runK({ type: 'clock', campId: '__proto__', clock: { t: 7 } }, 'host1'), runK({ type: 'clock', campId: 5, clock: { t: 7 } }, 'host1'), runK({ type: 'clock', campId: 'k_1', clock: { t: 7 } }, 'host1', { net: { stream: true } }), runK({ type: 'clock', campId: 'k_1', clock: { t: 7 } }, 'host1', { net: { foreign: false } })];
+    check('item 20 K2 a player\'s app takes the clock (the clockmsg branch, run for real) from the synced host only, for the campaign on screen only, cleaned again as its time alone (never a hide or anything else; below 0 is 0, past the limit the limit), and redraws the chip; null or a clock that is no object takes it away; another peer, another campaign, a prototype\'s name, the stream window or a player not at the table changes nothing',
+        j(rK) === j([[{ t: 99 }, 1, { id: 'k_2' }], ['none', 1, { id: 'k_2' }], [{ t: 0 }, 1, { id: 'k_2' }], [{ t: 1e15 }, 1, { id: 'k_2' }], ['none', 1, { id: 'k_2' }]]) && rNo.every(r => j(r) === j([{ t: 42 }, 0, { id: 'k_2' }])), j([rK, rNo]));
+    // a round of a fight: the real combatStep, over stubs, with the clock's hook watched
+    const csK = fnSrc('net.combatStep = function', '// [netcheck:turnhold-start]', 'combatStep');
+    const mkK = (turn, nRows, withHook) => { const calls = [], net = { role: 'host', combats: { m1: { mapId: 'm1', round: 1, turn: turn, rows: Array.from({ length: nRows }, (_, i) => ({ id: 'r' + i, name: 'R' + i, tokId: null, init: 0, src: null })) } } };
+        const names = ['net', 'own', 'toast', 'logEvent', 'mapTitleOf', 'broadcastCombats', 'combatRefresh', 'roundChanged', 'turnStarted'].concat(withHook ? ['clockRounds'] : []), args = [net, H.own, () => {}, () => {}, () => 'Hall', () => {}, () => {}, () => {}, () => {}].concat(withHook ? [n => calls.push(n)] : []);
+        new Function(...names, "'use strict';\n" + csK).apply(null, args); return { net, calls }; };
+    const K1 = mkK(1, 2, true); [1, 1, -1, -1, -1, -1].forEach(d => K1.net.combatStep('m1', d));
+    const K2 = mkK(0, 1, true); [1, 1, 1, -1].forEach(d => K2.net.combatStep('m1', d));
+    const K3 = mkK(1, 2, false); let k3ok = true; try { K3.net.combatStep('m1', 1); } catch (e) { k3ok = false; }
+    const K4 = mkK(1, 2, true); K4.net.role = 'client'; K4.net.combatStep('m1', 1);
+    check('item 20 K2 a round of a fight moves the clock (the real combatStep, run for real): each new round tells the clock one round on, a step back past a round\'s first turn one back; a step within a round or back at the very first turn tells it nothing; without the clock\'s hook it runs as before; a player\'s app steps nothing; a round edited in the roster tells it the difference, and the hook reaches the calendar through a guard',
+        j(K1.calls) === j([1, -1]) && j(K2.calls) === j([1, 1, 1, -1]) && k3ok && K3.net.combats.m1.round === 2 && j(K4.calls) === j([])
+        && src.includes("if (c.round !== r0 && typeof clockRounds === 'function') clockRounds(c.round - r0);") && src.includes("if (had && had.round !== net.combats[mapId].round && typeof clockRounds === 'function') clockRounds(net.combats[mapId].round - had.round);")
+        && src.includes('function clockRounds(n) { try { if (window.wpCalendar && window.wpCalendar.rounds) window.wpCalendar.rounds(n); } catch (e) { console.error(e); } }'), j([K1.calls, K2.calls, K4.calls]));
+    check('item 20 K2 the session log has a Time kind (net.js _logKinds, pinned) and its filter an option for it',
+        /var _logKinds = \{[^}]*char: 'Characters', time: 'Time' \};/.test(src) && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<option value="travel">Travel</option><option value="time">Time</option>'));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

@@ -3328,7 +3328,9 @@ function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts g
 // [netcheck:fxtime-start]
 // Turn-based combat T5a (D9, D10): timed effects — each row's one remaining amount (systemcore fxTick) moves on the character's own turns in a
 // combat, stops while a combat runs and starts again at its end, and runs by the clock outside combat (this machine checks every few seconds:
-// the GM's own, hosting or alone). What runs out comes off, with a line for its player and the GM
+// the GM's own, hosting or alone). What runs out comes off, with a line for its player and the GM. Item 20 K4 (the owner's answer): with the
+// Calendar on, time outside a fight runs by the game clock instead — the check only stops a clock still running (what ran is kept), and each
+// move of the game clock on (never back) takes that much from every timed effect outside a fight (net.fxGameTime); switched off, they run again
 function charCombat(camp, charId) {   // the combat a character's token is in, and its map id — or null
     var hit = null; if (!camp || !camp.items) return null;
     Object.keys(net.combats || {}).forEach(function(mid) { if (hit || !own(camp.items, mid)) return; var cb = net.combats[mid], mp = camp.items[mid];
@@ -3337,9 +3339,9 @@ function charCombat(camp, charId) {   // the combat a character's token is in, a
     return hit;
 }
 net.charInCombat = function(charId) { return !!(net.active && charCombat(getActiveCampaign(), charId)); };
-function fxApply(camp, ch, kind, now) {   // one tick of one character: its lists stored and sent, what ran out told
+function fxApply(camp, ch, kind, now, secs) {   // one tick of one character: its lists stored and sent, what ran out told (secs: the game clock's move, K4)
     var S = SC(); if (!S || !S.fxTick || !camp || !camp.system || !ch) return;
-    var r = S.fxTick(camp.system, ch, kind, now), ids = Object.keys(r.values); if (!ids.length) return;
+    var r = S.fxTick(camp.system, ch, kind, now, secs), ids = Object.keys(r.values); if (!ids.length) return;
     ch.values = ch.values || {}; ids.forEach(function(fid) { ch.values[fid] = r.values[fid]; }); ch.updated = now;
     saveRemoteSoon();
     if (net.active && net.role === 'host') net.syncCharDelta(ch.id, r.values);
@@ -3360,8 +3362,14 @@ function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now
 function fxClockTick() {   // out of combat: the clock, on the GM's own machine
     if (net.role === 'client' || net.stream || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), now = Date.now(); if (!camp || !camp.system || !camp.chars) return;
-    Object.keys(camp.chars).forEach(function(id) { if (!charCombat(camp, id)) fxApply(camp, camp.chars[id], 'clock', now); });
+    var byGame = !!(window.wpVtt && window.wpVtt.on('calendar'));   // K4: the Calendar on — real time never counts outside a fight
+    Object.keys(camp.chars).forEach(function(id) { if (charCombat(camp, id)) return; if (byGame) fxApply(camp, camp.chars[id], 'bank', now); else { fxApply(camp, camp.chars[id], 'resume', now); fxApply(camp, camp.chars[id], 'clock', now); } });
 }
+net.fxGameTime = function(secs) {   // K4: the game clock moved on secs seconds (calendar.js): every timed effect outside a fight runs that much
+    if (net.role === 'client' || net.stream || typeof secs !== 'number' || !isFinite(secs) || !(secs > 0) || (window.wpVtt && (!window.wpVtt.on('sheets') || !window.wpVtt.on('calendar')))) return;
+    var camp = getActiveCampaign(), now = Date.now(); if (!camp || !camp.system || !camp.chars) return;
+    Object.keys(camp.chars).forEach(function(id) { if (!charCombat(camp, id)) fxApply(camp, camp.chars[id], 'game', now, secs); });
+};
 var _fxClock = null;
 function fxClockStart() { if (!_fxClock && typeof setInterval === 'function') _fxClock = setInterval(function() { try { fxClockTick(); } catch (e) {} }, 5000); }
 // [netcheck:fxtime-end]

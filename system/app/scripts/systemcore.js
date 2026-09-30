@@ -661,8 +661,10 @@ function cleanFxTimer(t) {
 function fxLeftNow(t, now) { if (!isObj(t) || typeof t.left !== 'number') return Infinity; return t.at > 0 && typeof now === 'number' ? t.left - Math.max(0, (now - t.at) / 1000) : t.left; }
 // T5a: one character's timed effects at a moment. kind: 'turn' — its turn began in a combat (a running clock is banked, then one round
 // passes); 'bank' — a combat began (the clock stops; what ran is kept); 'resume' — a combat ended (the clock starts again unless paused);
-// 'clock' — out of combat, real time. A row whose time is up comes off. { values: { fieldId: list } (changed lists only), expired: [names] }
-function fxTick(sys, char, kind, now) {
+// 'clock' — out of combat, real time; 'game' (item 20 K4: the Calendar on, out of combat) — the game clock moved on secs seconds: a row not paused
+// loses that much (a clock still running is banked first) and stops. A row whose time is up comes off. { values: { fieldId: list } (changed lists
+// only), expired: [names] }
+function fxTick(sys, char, kind, now, secs) {
     var out = { values: {}, expired: [] }; if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(char.values) || typeof now !== 'number') return out;
     var rs = roundSecs(sys), defs = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string') defs[d.id] = d; });
     sys.fields.forEach(function(f) {
@@ -675,6 +677,7 @@ function fxTick(sys, char, kind, now) {
             if (kind === 'turn') { t.left = left - rs; t.at = 0; changed = true; }
             else if (kind === 'bank') { if (t.at > 0) { t.left = left; t.at = 0; changed = true; } }
             else if (kind === 'resume') { if (!t.p && !(t.at > 0)) { t.at = now; changed = true; } }
+            else if (kind === 'game') { if (!t.p && typeof secs === 'number' && fin(secs) && secs > 0) { t.left = left - secs; t.at = 0; changed = true; } }   // item 20 K4: the game clock's move
             var endL = kind === 'resume' ? t.left : fxLeftNow(t, now);
             if (kind !== 'resume' && endL <= 0.0005) { out.expired.push(typeof r.ref === 'string' ? (defs[r.ref] ? defs[r.ref].name : 'An effect') : (r.name || 'An effect')); changed = true; return; }
             var nr = Object.assign({}, r, { t: cleanFxTimer(t) }); list.push(nr);

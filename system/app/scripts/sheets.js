@@ -4116,6 +4116,23 @@ function refreshErrors() {
         else if (!secS || secS[blF.id]) sErr.push({ message: 'The blind switch reads ' + (blF.label || blF.key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
     }
     if (sErr.length) errorsById.senses = sErr;
+    // conditions C4: what Save drops of an automatic effect's formula, under the effect's row — read as the cleaner reads it (systemcore
+    // cleanEffectDef and the public rule: the owner's "Only public ones"); a token's name read there is 0, a warning
+    var auFx = (draft.effects || []).filter(function(d) { return d && typeof d === 'object' && typeof d.id === 'string' && typeof d.auto === 'string' && d.auto.trim(); }), auSys = null, auTok = { posture: 1, elevation: 1, facing: 1, arc: 1, threats: 1, combatround: 1, rangemod: 1, targetdistance: 1 };
+    auFx.forEach(function(d) {
+        var t0 = d.auto.trim(), pa = F() ? F().parse(t0) : null, msg = null;
+        if (d.vis === 'gm') msg = { message: 'Applies itself when: a GM-only effect cannot apply itself (its switching on would give it away): Save drops the formula.' };
+        else if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) msg = { message: 'Applies itself when: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' };
+        else if (!pa || !pa.ok) msg = { message: 'Applies itself when: ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.', prop: 'formula', pos: pa && pa.error ? pa.error.pos : undefined, len: pa && pa.error ? pa.error.len : undefined };
+        else if (rfDice(pa.ast && pa.ast.body)) msg = { message: 'Applies itself when: the formula cannot roll dice: Save drops it.' };
+        else {
+            auSys = auSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core };
+            var gmN = gmDerivedNames(auSys, F(), Array.isArray(pa.names) ? pa.names : []);
+            if (gmN.length) msg = { message: 'Applies itself when: it reads ' + gmN[0] + ', which players cannot read (a GM-only value, or one worked out from one), so its switching on would give it away: Save drops the formula.' };
+            else { var tokN = (Array.isArray(pa.names) ? pa.names : []).filter(function(n) { return typeof n === 'string' && auTok[n.toLowerCase().split('.')[0]] === 1 && !(draft.fields || []).some(function(f) { return f && typeof f.key === 'string' && f.key.toLowerCase() === n.toLowerCase().split('.')[0]; }); }); if (tokN.length) warningsById[d.id] = (warningsById[d.id] || []).concat([{ message: 'Applies itself when: ' + tokN[0] + ' reads 0 here: an automatic effect works from the character\u2019s own values, never a token\u2019s.' }]); }
+        }
+        if (msg) errorsById[d.id] = (errorsById[d.id] || []).concat([msg]);
+    });
     // conditions C3: what Save drops or changes of the postures, under the Combat card's Postures box — read as systemcore cleanPostures reads
     var psE = draft.combat && Array.isArray(draft.combat.postures) ? draft.combat.postures : null, pErr = [], pKept = 0, pSeen = Object.create(null), kindsP = Object.create(null);
     if (psE && psE.length) {
@@ -4155,6 +4172,7 @@ function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if 
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
+    if (/^e_/.test(id)) { var dAu = (draft.effects || []).find(function(x) { return x && x.id === id; }); return prop === 'formula' && dAu && typeof dAu.auto === 'string' ? dAu.auto.trim() : ''; }   // conditions C4: an effect's automatic formula, as refreshErrors read it
     var f = draft.fields.find(function(x) { return x.id === id; });
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
@@ -4354,6 +4372,8 @@ function effectRow(d) {
     flags.appendChild(select('sys-fx-vis', [['all', 'Visible to players'], ['gm', 'GM only']], d.vis || 'all', 'GM only: off the players\u2019 list until you apply it to their character'));
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this effect', '&times;']]));
     row.appendChild(top); row.appendChild(mods); row.appendChild(flags);
+    var auR = el('div', 'sys-flags sys-fx-autorow'), auI = input('sys-fx-auto field', typeof d.auto === 'string' ? d.auto : '', 'A formula: while it is true, or a number other than 0, the effect is on by itself for every character, as HP <= 0 turns on Unconscious. It reads the character\u2019s own values with the effects applied by hand (never another automatic effect, and a token\u2019s names read 0). Only a visible effect reading only what players can read applies itself', 'Applies itself when\u2026 (e.g. HP <= 0)'); auI.maxLength = LIMITS.formula; auR.appendChild(auI); row.appendChild(auR);   // conditions C4
+    var auE = errorCell(d.id); auE.dataset.errFor = d.id; row.appendChild(auE);
     return row;
 }
 function fxOfRow(target) { var row = target.closest && target.closest('.sys-fx-row'); if (!row) return null; return (draft.effects || []).find(function(x) { return x.id === row.dataset.eid; }) || null; }
@@ -5128,6 +5148,7 @@ function onInput(e) {
         else if (fc.indexOf('sys-fx-icon') >= 0) fxd.icon = t.value.slice(0, 32);
         else if (fc.indexOf('sys-fx-dur') >= 0) fxd.dur = t.value.slice(0, 200);
         else if (fc.indexOf('sys-fx-notes') >= 0) fxd.notes = t.value.slice(0, LIMITS.text);
+        else if (fc.indexOf('sys-fx-auto') >= 0) { var auV = t.value.slice(0, LIMITS.formula); if (auV.trim()) fxd.auto = auV; else delete fxd.auto; }   // conditions C4: the automatic formula (emptied: the key goes)
         else if (fc.indexOf('sys-fx-amt') >= 0) { var mln = t.closest('.sys-fx-mod'), mm = mln ? (fxd.mods || [])[+mln.dataset.mi] : null; if (mm) mm.v = t.value === '' ? 0 : Number(t.value); }
         else return;
         markDirty(); patchErrors(); return;

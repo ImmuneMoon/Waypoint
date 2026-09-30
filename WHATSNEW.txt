@@ -516,6 +516,10 @@ Turn-based combat
   seven, then rename, reorder or add (up to 12), each with a tag for its
   chip, notes, a Smaller target tick and changes like an effect's, applied
   while a token takes it. Formulas read Posture as its place in the list.
+- A status effect can switch itself on: "Applies itself when" takes a
+  formula (HP <= 0 for Unconscious), and while it is true the effect is on,
+  marked Automatic on the sheet, on the token and in its Effects menu. Only
+  a visible effect reading what players can read applies itself.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -3965,6 +3965,32 @@ function refreshErrors() {
         }
     });
     if (lErr.length) errorsById.light = (errorsById.light || []).concat(lErr);
+    // range penalties R1: what Save drops from the range rule, under the Combat card's Range box — read as the cleaner reads (systemcore
+    // cleanRangeRules): a formula that reads, rolls no dice and names only Distance; a step whose distance is above 0 and at most 1,000,000, with
+    // a modifier, the first of each distance, at most 40 (self-contained: the tests run this function alone)
+    var rgE = draft.combat && draft.combat.range && typeof draft.combat.range === 'object' && !Array.isArray(draft.combat.range) ? draft.combat.range : null, rErr = [];
+    var byE = !rgE ? '' : typeof rgE.formula === 'string' ? 'formula' : 'table';   // rangeBy's reading
+    var rfDice = function(nd) { if (!nd || typeof nd !== 'object') return false; if (nd.t === 'dice') return true; return Object.keys(nd).some(function(k) { return !!nd[k] && typeof nd[k] === 'object' && rfDice(nd[k]); }); };
+    if (byE === 'formula') {
+        var rfT = typeof rgE.formula === 'string' ? rgE.formula.trim() : '', rfP = rfT && F() ? F().parse(rfT) : null, rfN = rfP && rfP.ok && Array.isArray(rfP.names) ? rfP.names.filter(function(n) { return String(n).toLowerCase() !== 'distance'; }) : [];
+        if (!rfT) rErr.push({ message: 'Range: type the formula (it reads Distance), or Save drops the rule.' });
+        else if (!rfP || !rfP.ok) rErr.push({ message: 'Range: ' + (rfP && rfP.error && rfP.error.message ? rfP.error.message : 'the formula cannot be read.') + ' Save drops the rule.', prop: 'formula', pos: rfP && rfP.error ? rfP.error.pos : undefined, len: rfP && rfP.error ? rfP.error.len : undefined });
+        else if (rfN.length) rErr.push({ message: 'Range: the formula reads only Distance, not ' + rfN[0] + ': Save drops the rule.' });
+        else if (rfDice(rfP.ast && rfP.ast.body)) rErr.push({ message: 'Range: the formula cannot roll dice: Save drops the rule.' });
+        else if (rfT.length > LIMITS.formula || /[\u0000-\u001f\u007f]/.test(rfT)) rErr.push({ message: 'Range: the formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops the rule.' });
+    } else if (byE === 'table') {
+        var rsE = Array.isArray(rgE.steps) ? rgE.steps : [], rSeen = Object.create(null), rKept = 0, rNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; };
+        rsE.forEach(function(s, i) {
+            var nm = 'Range step ' + (i + 1);
+            if (!s || typeof s !== 'object' || !rNum(s.to) || !(s.to > 0) || s.to > 1e6) rErr.push({ message: nm + ' needs a distance above 0 and at most 1,000,000: Save drops it.' });
+            else if (!rNum(s.mod)) rErr.push({ message: nm + ' needs a modifier (0 for none): Save drops it.' });
+            else if (rSeen[String(s.to)]) rErr.push({ message: nm + ': another step already reaches ' + s.to + ', so Save drops it.' });
+            else if (rKept >= LIMITS.rangeSteps) rErr.push({ message: nm + ': at most ' + LIMITS.rangeSteps + ', so Save drops it.' });
+            else { rSeen[String(s.to)] = 1; rKept++; if (Math.abs(s.mod) > 1000) rErr.push({ message: nm + ': a modifier is -1000 to 1000, so Save keeps the nearest.' }); }
+        });
+        if (!rKept) rErr.push({ message: 'Range: add a step, or Save drops the rule.' });
+    }
+    if (rErr.length) errorsById.range = (errorsById.range || []).concat(rErr);
     // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
     // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
     var snO = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' ? draft.combat.senses : null, snE = snO && Array.isArray(snO.list) ? snO.list : null, sErr = [], sKept = 0;
@@ -4005,6 +4031,7 @@ function errorCell(id) {
 function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'cost') return 'Costs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
+    if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
     var f = draft.fields.find(function(x) { return x.id === id; });
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
@@ -4476,6 +4503,7 @@ function renderCombat() {
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
+    rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
     lightBox(box, cm);   // lighting L4: the system's light rules
     sensesBox(box, cm);   // senses S2a: the system's senses
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
@@ -4549,6 +4577,81 @@ function lightClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:lightbox-end]
+// Range penalties R1 (docs/RANGE_PLAN.md): the system's range rule on the Combat card — none, a table of distance steps and their modifier, or
+// a formula reading Distance — and the unit its distances count in. The ruler and a target mark show the modifier. A formula held as text
+// (even empty) is the formula way, anything else the table; the draft keeps what the other way held (_f, _s) until Save, which keeps neither.
+// Every text lands as a value or a text node. Save cleans it; refreshErrors says what it would drop
+// [sinkcheck:rangebox-start]
+function rangeDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.range && typeof cm.range === 'object' && !Array.isArray(cm.range) ? cm.range : (cm.range = {}); }
+function rangeBy(rg) { return !rg || typeof rg !== 'object' || Array.isArray(rg) ? '' : typeof rg.formula === 'string' ? 'formula' : 'table'; }
+function rangeBox(box, cm) {
+    var rg = cm.range && typeof cm.range === 'object' && !Array.isArray(cm.range) ? cm.range : null, by = rangeBy(rg), wrap = el('div', 'sys-range');
+    wrap.appendChild(el('div', 'sys-light-head', 'Range'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s range penalty: a modifier by how far the target is. The ruler shows it, and each target mark beside its cover and light. A table gives each distance\u2019s modifier (up to that distance; past the last row, its modifier holds); a formula works it out from Distance, in the unit picked here.'));
+    var r1 = el('div', 'sys-flags sys-range-top');
+    r1.appendChild(labeledSelect('sys-range-by', 'Range penalty', [['', 'None'], ['table', 'By a table'], ['formula', 'By a formula']], by, 'None: no range penalty is shown. A table: a modifier for each distance. A formula: a modifier worked out from Distance.'));
+    if (by) r1.appendChild(labeledSelect('sys-range-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']], typeof rg.unit === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, rg.unit) ? rg.unit : 'yd', 'What its distances count in: each map\u2019s scale converts it (60 ft on 5 ft squares is 12 squares)'));
+    wrap.appendChild(r1);
+    if (by === 'formula') {
+        var fr = el('div', 'sys-flags sys-range-frow'), fm = input('sys-range-formula field', typeof rg.formula === 'string' ? rg.formula : '', 'The modifier at a distance: Distance is how far the target is, in the unit above; no dice, and no other name', 'Modifier, e.g. -2 * floor(Distance / 30)');
+        fm.maxLength = LIMITS.formula; fr.appendChild(fm); wrap.appendChild(fr);
+    } else if (by === 'table') {
+        var st = Array.isArray(rg.steps) ? rg.steps : [];
+        st.forEach(function(s0, i) {
+            var s = s0 && typeof s0 === 'object' ? s0 : {}, rw = el('div', 'sys-flags sys-range-row'); rw.dataset.ri = String(i);
+            [['to', 'Up to', 'How far this step reaches (from the step before it)'], ['mod', 'Modifier', 'The modifier up to this distance: -4, or 0 for none']].forEach(function(g) {
+                var nl = el('label', 'sys-num'); if (i === 0) nl.appendChild(el('span', 'sys-num-cap', g[1]));   // the captions once, over the first row: a long table stays compact
+                var ni = el('input', 'field sys-range-s' + g[0]); ni.type = 'number'; ni.step = 'any'; if (g[0] === 'to') { ni.min = '0'; ni.max = '1000000'; } else { ni.min = '-1000'; ni.max = '1000'; }
+                ni.value = typeof s[g[0]] === 'number' ? String(s[g[0]]) : ''; ni.title = g[2]; nl.appendChild(ni); rw.appendChild(nl);
+            });
+            var db = el('button', 'tool ghost sys-btn', '\u00d7'); db.dataset.act = 'rgdel'; db.title = 'Remove this step'; rw.appendChild(db);
+            wrap.appendChild(rw);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-range-add', '+ Step'); ad.dataset.act = 'rgadd'; ad.disabled = st.length >= LIMITS.rangeSteps; ad.title = ad.disabled ? 'At most ' + LIMITS.rangeSteps : 'A distance and its modifier; Save puts the steps in order'; wrap.appendChild(ad);
+    }
+    var err = errorCell('range'); err.dataset.errFor = 'range'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onRangeInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
+    if (c.indexOf('sys-range-by') >= 0 || c.indexOf('sys-range-unit') >= 0) return true;   // their change events do the work
+    var rg = rangeDraft();
+    if (c.indexOf('sys-range-formula') >= 0) rg.formula = t.value.slice(0, LIMITS.formula);
+    else {
+        var rw = t.closest('.sys-range-row'), i = rw ? +rw.dataset.ri : -1, s = Array.isArray(rg.steps) && rg.steps[i] && typeof rg.steps[i] === 'object' ? rg.steps[i] : null; if (!s) return true;
+        var key = c.indexOf('sys-range-sto') >= 0 ? 'to' : c.indexOf('sys-range-smod') >= 0 ? 'mod' : ''; if (!key) return true;
+        var nv = Number(t.value); if (t.value.trim() && isFinite(nv)) s[key] = nv; else delete s[key];
+    }
+    markDirty(); patchErrors(); return true;
+}
+function onRangeChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
+    if (c.indexOf('sys-range-by') < 0 && c.indexOf('sys-range-unit') < 0) return true;   // the boxes' change events (their input events did the work)
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
+    if (c.indexOf('sys-range-unit') >= 0) { var ru = rangeDraft(); if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(RANGE_UNITS, t.value)) ru.unit = t.value; else delete ru.unit; markDirty(); patchErrors(); return true; }
+    var want = t.value === 'table' || t.value === 'formula' ? t.value : '';
+    if (!want) { delete cm.range; markDirty(); renderAll(); return true; }
+    var rg = rangeDraft(), was = rangeBy(rg);
+    if (want !== was) {   // what the other way held waits in the draft, in case the GM comes back to it before Save
+        if (want === 'table') { if (typeof rg.formula === 'string') rg._f = rg.formula; delete rg.formula; if (Array.isArray(rg._s)) rg.steps = rg._s; delete rg._s; }
+        else { if (Array.isArray(rg.steps)) rg._s = rg.steps; delete rg.steps; rg.formula = typeof rg._f === 'string' ? rg._f : ''; delete rg._f; }
+    }
+    markDirty(); renderAll(); return true;
+}
+function rangeClick(b) {
+    var m = /^rg(add|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    if (m[1] === 'add') {
+        var rg = rangeDraft(), arr = Array.isArray(rg.steps) ? rg.steps : (rg.steps = []);
+        if (arr.length >= LIMITS.rangeSteps) { toast('At most ' + LIMITS.rangeSteps + '.'); return true; }
+        var last = arr.length && arr[arr.length - 1] && typeof arr[arr.length - 1].to === 'number' ? arr[arr.length - 1].to : 0; arr.push({ to: last > 0 ? last * 2 : 10, mod: 0 });
+    } else {   // a remove: only a row the table holds (it makes no table of its own)
+        var rgD = draft.combat && draft.combat.range, st = rgD && Array.isArray(rgD.steps) ? rgD.steps : [], rw = b.closest('.sys-range-row'), i = rw ? +rw.dataset.ri : -1;
+        if (!(i >= 0 && i < st.length && Math.floor(i) === i)) return true;
+        st.splice(i, 1);
+    }
+    markDirty(); renderAll(); return true;
+}
+// [sinkcheck:rangebox-end]
 // Senses S2a: the system's senses on the Combat card (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
 // character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
 // else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it
@@ -4803,6 +4906,7 @@ function onInput(e) {
     if (onTurnInput(t)) return;   // turn-based combat T1
     if (onLightInput(t)) return;   // lighting L4
     if (onSensesInput(t)) return;   // senses S2a
+    if (onRangeInput(t)) return;   // range penalties R1
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -4939,6 +5043,7 @@ function onChange(e) {
     if (onTurnChange(t)) return;   // turn-based combat T1
     if (onLightChange(t)) return;   // lighting L4
     if (onSensesChange(t)) return;   // senses S2a
+    if (onRangeChange(t)) return;   // range penalties R1
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -5057,6 +5162,7 @@ function onClick(e) {
     if (turnClick(b)) return;   // turn-based combat T1: the Combat card's actions and time units
     if (lightClick(b)) return;   // lighting L4: the Combat card's light presets
     if (sensesClick(b)) return;   // senses S2a: the Combat card's senses
+    if (rangeClick(b)) return;   // range penalties R1: the Combat card's range table
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

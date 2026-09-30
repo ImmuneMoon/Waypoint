@@ -1068,6 +1068,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (toRoom && !traveled) import('./io.js').then(function(m) { m.toast((item.charName || 'Character') + ' is now in ' + (toRoom.name || 'that room') + '.'); });
           }
           save();
+          if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.targets && Object.keys(window.wpNet.targets).length && multiDrag.some(function(md) { return md.item.isChar; })) render();   // range penalties R1: a target mark's tags (cover, light, range) read where the tokens stand, so the mover's own screen draws them again once the drop lands
         } else {
           if(modeStr==='data'){
               if(isLinkMode()){

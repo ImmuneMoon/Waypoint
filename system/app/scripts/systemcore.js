@@ -26,6 +26,7 @@ var LIMITS = Object.freeze({
     turnActs: 6,                             // turn-based combat T1: what one turn allows (Action, Bonus action, Maneuver)
     turnUnits: 6,                            // turn-based combat T1: the system's own time units (a segment, a watch)
     lightPresets: 24,                        // lighting L4: the system's light presets (a torch, a lantern)
+    rangeSteps: 40,                          // range penalties R1: the range table's steps (a Size and Speed/Range table from 2 to 1,000,000 yards is 38)
     senses: 8,                               // senses S1: the system's senses besides the eyes (Tremorsense, Force Sight)
     cols: 4, editsPerWindow: 20, editWindowMs: 5000, editTimeoutMs: 5000, valueChars: 20000, editBatch: 10,   // HUD frame (HF4b): values in one batched edit (a section's Reset all)
     band: 12, bandGroups: 6,                 // Stage 5c: placements on the pinned band (one row under the name); Stage 6: named groups of them, each pinned by its viewer
@@ -419,6 +420,85 @@ function lightName(sys, level) {
 }
 // A system's light presets, cleaned (a copy: a caller may keep it)
 function lightPresets(sys) { var lr = sys && isObj(sys.combat) ? cleanLightRules(sys.combat.light) : null; return lr && lr.presets ? lr.presets : []; }
+// Range penalties R1 (docs/RANGE_PLAN.md; owner's answers 2026-09-29: a table or a formula, shown on the ruler and at a target mark):
+// camp.system.combat.range, the system's range rule, absent when it holds none. unit: what its distances count in when not yards (ft, m or
+// cells). formula: the modifier worked out from Distance alone (no dice, no other name); kept, it wins and the steps go. steps: the table,
+// each { to, mod } ("up to 10: -4"), sorted by distance, the first of each distance kept; a distance above 0 and at most 1,000,000, a
+// modifier within 1000 either way, to the hundredth. No vis and no field refs: both views carry it whole. F: the formula engine (no engine:
+// no formula is kept, fail closed)
+var RANGE_UNITS = Object.freeze({ ft: 1, m: 1, cells: 1 });
+function rangeFormulaOk(text, F) {
+    if (!F || typeof F.parse !== 'function') return false;
+    var p = F.parse(text); if (!p || !p.ok || !p.ast || hasDice(p.ast.body)) return false;
+    return (Array.isArray(p.names) ? p.names : []).every(function(n) { return typeof n === 'string' && lower(n) === 'distance'; });
+}
+function rangeModNum(v) { var q = Math.max(-1000, Math.min(1000, Math.round(v * 100) / 100)); return q === 0 ? 0 : q; }   // never -0
+function cleanRangeRules(r, F) {
+    if (!isObj(r)) return null;
+    var out = {}, fm = cleanFormulaText(r.formula);
+    if (typeof r.unit === 'string' && hasOwn(RANGE_UNITS, r.unit)) out.unit = r.unit;
+    if (fm && rangeFormulaOk(fm, F)) out.formula = fm;
+    else {
+        var st = [], seen = map();
+        (Array.isArray(r.steps) ? r.steps : []).forEach(function(s) {
+            if (st.length >= LIMITS.rangeSteps || !isObj(s) || !fin(s.to) || !(s.to > 0) || s.to > 1e6 || !fin(s.mod)) return;
+            var k = String(s.to); if (seen[k]) return;
+            seen[k] = 1; st.push({ to: s.to, mod: rangeModNum(s.mod) });
+        });
+        st.sort(function(a, b) { return a.to - b.to; });
+        if (st.length) out.steps = st;
+    }
+    return out.formula || out.steps ? out : null;
+}
+// The modifier a cleaned range rule gives at a distance in its unit: the table's first step that reaches it (past the last, the last one's
+// holds), or the formula with Distance; null with no rule, a distance that is no number, or a formula whose answer is no finite number
+function rangeModOf(rr, dist, F) {
+    if (!isObj(rr) || typeof dist !== 'number' || !isFinite(dist) || dist < 0) return null;
+    var v = null;
+    if (rr.formula) {
+        if (!F || typeof F.evaluate !== 'function') return null;
+        var res = F.evaluate(rr.formula, { vars: function(l) { return l === 'distance' ? dist : undefined; } });
+        if (res && res.ok && typeof res.value === 'number' && isFinite(res.value)) v = res.value;
+    } else if (Array.isArray(rr.steps) && rr.steps.length) {
+        for (var i = 0; i < rr.steps.length && v === null; i++) if (dist <= rr.steps[i].to) v = rr.steps[i].mod;
+        if (v === null) v = rr.steps[rr.steps.length - 1].mod;
+    }
+    return v === null ? null : rangeModNum(v);
+}
+// The hex a board point falls in (flat-top, 30 px sides, 52 px rows): whiteboard.js hexCellOf's rounding, so range counts the hexes the ruler does
+function hexCellAt(x, y) {
+    var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
+    var rx = Math.round(q), ry = Math.round(r), rz = Math.round(-q - r);
+    var dx = Math.abs(rx - q), dy = Math.abs(ry - r), dz = Math.abs(rz - (-q - r));
+    if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
+    return { q: rx, r: ry };
+}
+// The distance between two points of a map, in a range rule's unit (yards with none), as the ruler counts it: a hex grid counts hexes, a
+// square one follows the system's diagonal rule (combat.turn.diag), a gridless map the straight line over 50 px cells; the map's scale converts
+// (mapCellScale). dz: yards of height between the two (the elevation feature on), for the 3D distance the ruler's 3D line and a blast count.
+// To the millionth (30 ft on 5 ft squares is 30); null for a point that is not two numbers
+function rangeDist(sys, mp, a, b, unit, dz) {
+    var num = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e9; };
+    if (!isObj(a) || !isObj(b) || !num(a.x) || !num(a.y) || !num(b.x) || !num(b.y)) return null;
+    var g = mapGridOf(mp), cells;
+    if (g === 'hex') { var ha = hexCellAt(a.x, a.y), hb = hexCellAt(b.x, b.y), dq = ha.q - hb.q, dr = ha.r - hb.r; cells = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
+    else if (g === 'square') { var dg = sys && isObj(sys.combat) && isObj(sys.combat.turn) ? sys.combat.turn.diag : ''; cells = gridCells((b.x - a.x) / 50, (b.y - a.y) / 50, dg === 'one' || dg === 'alt' ? dg : ''); }
+    else cells = Math.hypot(b.x - a.x, b.y - a.y) / 50;
+    var sc = mapCellScale(mp), cellYd = sc.per * MAP_UNITS[sc.unit], u = typeof unit === 'string' && hasOwn(RANGE_UNITS, unit) ? unit : 'yd';
+    var d = u === 'cells' ? cells : u === sc.unit ? cells * sc.per : cells * cellYd / MAP_UNITS[u];
+    var h = typeof dz === 'number' && isFinite(dz) && dz !== 0 ? (u === 'cells' ? dz / cellYd : dz / MAP_UNITS[u]) : 0;
+    if (h) d = Math.hypot(d, h);
+    return Math.round(d * 1e6) / 1e6;
+}
+// What the system's range rule says between two points of a map: { mod, dist, unit } (unit: yd, ft, m or cells), or null with no rule or no
+// modifier. opts: { F, dz } (dz as rangeDist takes it). The ruler, a target mark and (R2) a roll's names read this one rule
+function rangeOf(sys, mp, a, b, opts) {
+    opts = isObj(opts) ? opts : {};
+    var rr = sys && isObj(sys.combat) ? cleanRangeRules(sys.combat.range, opts.F) : null; if (!rr) return null;
+    var u = rr.unit || 'yd', d = rangeDist(sys, mp, a, b, u, opts.dz); if (d === null) return null;
+    var m = rangeModOf(rr, d, opts.F);
+    return m === null ? null : { mod: m, dist: d, unit: u };
+}
 // Senses S1 (docs/SENSES_PLAN.md 3.1): camp.system.combat.senses, the system's senses besides the eyes, absent when it holds none. list: each
 // sense an id (sn_ + 8), a name (cut by code points; text sinks only), a range (a field of the character, or a number every character has; a
 // range of 0 or less is not having it), the unit it counts in when not yards (ft, m or cells), its grade (full: sees the cells; mark: shows a
@@ -600,7 +680,7 @@ function fxTick(sys, char, kind, now) {
     return out;
 }
 // camp.system.combat — blast automation, who rolls, the resource damage subtracts from, and the cover rule. resIds: map of resource field ids.
-function cleanCombat(c, resIds, fieldIds, secretIds) {   // senses S1: fieldIds (id -> kind, the GM's view) and secretIds (secretFieldIds) for the senses
+function cleanCombat(c, resIds, fieldIds, secretIds, F) {   // senses S1: fieldIds (id -> kind, the GM's view) and secretIds (secretFieldIds) for the senses; range R1: F for the range formula
     c = isObj(c) ? c : {};
     var out = { blastAuto: BLAST_AUTO[c.blastAuto] ? c.blastAuto : 'full', blastRoller: c.blastRoller === 'gm' ? 'gm' : 'owner', hpResource: '', cover: cleanCover(c.cover) };
     if (typeof c.hpResource === 'string' && resIds && resIds[c.hpResource]) out.hpResource = c.hpResource;
@@ -608,6 +688,7 @@ function cleanCombat(c, resIds, fieldIds, secretIds) {   // senses S1: fieldIds 
     if (c.checks === 'under3d6') out.checks = 'under3d6';   // Stage 6 F8: 3d6 roll-under criticals (absent: success or failure by the margin)
     var lt = cleanLightRules(c.light); if (lt) out.light = lt;   // lighting L4: the system's light rules (absent: none)
     var sn = cleanSenses(c.senses, fieldIds, secretIds); if (sn) out.senses = sn;   // senses S1: the system's senses (absent: none)
+    var rg = cleanRangeRules(c.range, F); if (rg) out.range = rg;   // range penalties R1: the system's range rule (absent: none)
     return out;
 }
 // Stage 6 F4c2: the system's rules for item lists (the Lists tab's Rules box) — ownerStats: players may change the stats of their own copies
@@ -1067,7 +1148,7 @@ function cleanSystem(sys, opts) {
     if (effs.length) out.effects = effs;
     var gmF = isObj(sys.combat) && sys.combat.senses !== undefined ? gmViewFields(sys, F) : null, gmKinds = map(), secret = null;   // senses S1: judged on the fields as the GM's view has them, in both views
     if (gmF) { gmF.forEach(function(f) { gmKinds[f.id] = f.kind; }); secret = secretFieldIds({ fields: gmF, items: sys.items, core: sys.core }, F); }
-    out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret);
+    out.combat = cleanCombat(sys.combat, resIds, gmKinds, secret, F);
     costTargets(out, gmView);   // turn-based combat T1: what each roll costs, against the actions just cleaned
     if (!gmView && typeof showMention === 'function' && out.combat.turn && out.combat.turn.move && showMention(out.combat.turn.move)) { delete out.combat.turn.move; delete out.combat.turn.unit; if (!Object.keys(out.combat.turn).length) delete out.combat.turn; }   // T1: a move naming a GM-only value goes (their moves are then not limited by it)
     var lr = cleanListRules(sys.listRules); if (lr) out.listRules = lr;   // Stage 6 F4c2: Setting A, in both views (absent: GM only)
@@ -3940,6 +4021,6 @@ function secretFieldIds(sys, F) {
 }
 // The system's initiative roll (the one flagged init) or null
 function initRoll(sys) { if (!sys || !Array.isArray(sys.rolls)) return null; for (var i = 0; i < sys.rolls.length; i++) if (sys.rolls[i] && sys.rolls[i].init) return sys.rolls[i]; return null; }
-var API = { VERSION: VERSION, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, cleanLightRules: cleanLightRules, lightName: lightName, lightPresets: lightPresets, LIGHT_UNITS: LIGHT_UNITS, cleanSenses: cleanSenses, secretFieldIds: secretFieldIds, gmViewFields: gmViewFields, coverTier: coverTier, coverOutcome: coverOutcome, coverDamage: coverDamage, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, sbRowOps: sbRowOps, sbMods: sbMods, sbFpText: sbFpText, sbTextBag: sbTextBag, sbFacing: sbFacing, sbProposal: sbProposal, sbApplyProposal: sbApplyProposal, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, sbFill: sbFill, fmtNum: fmtNum, suggest: suggest };
+var API = { VERSION: VERSION, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, cleanLightRules: cleanLightRules, lightName: lightName, lightPresets: lightPresets, LIGHT_UNITS: LIGHT_UNITS, cleanRangeRules: cleanRangeRules, rangeModOf: rangeModOf, rangeDist: rangeDist, rangeOf: rangeOf, RANGE_UNITS: RANGE_UNITS, cleanSenses: cleanSenses, secretFieldIds: secretFieldIds, gmViewFields: gmViewFields, coverTier: coverTier, coverOutcome: coverOutcome, coverDamage: coverDamage, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, sbRowOps: sbRowOps, sbMods: sbMods, sbFpText: sbFpText, sbTextBag: sbTextBag, sbFacing: sbFacing, sbProposal: sbProposal, sbApplyProposal: sbApplyProposal, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, sbFill: sbFill, fmtNum: fmtNum, suggest: suggest };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, sbRowOps, sbMods, sbFpText, sbTextBag, sbFacing, sbProposal, sbApplyProposal, cleanCharUpload, cleanUploads, fillMaking, sbFill, fmtNum, suggest };
+export { VERSION, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, stanceCtx, tokenCtx, withRound, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, sbRowOps, sbMods, sbFpText, sbTextBag, sbFacing, sbProposal, sbApplyProposal, cleanCharUpload, cleanUploads, fillMaking, sbFill, fmtNum, suggest };

@@ -951,6 +951,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (!marksEl) { marksEl = document.createElement('div'); marksEl.className = 'target-marks'; el.appendChild(marksEl); }
               var tcov = tgs.map(function(t) { var mt = targeterTok(t.id, activeMap); if (!mt || !window.wpFog || !window.wpFog.coverBetween) return null; return window.wpFog.coverBetween(mt.x + (mt.w || 60) / 2, mt.y + (mt.h || 52) / 2, item.x + (item.w || 60) / 2, item.y + (item.h || 52) / 2); });   // cover follow-ups (owner 2026-09-28): the cover between each targeter's token here and this one, worked out from this viewer's own board
               var tsig = tgs.map(function(t, ti) { return t.id + ':' + (tcov[ti] ? tcov[ti].name : ''); }).join(',');
+              var trng = tgs.map(function(t) { var mr = targeterTok(t.id, activeMap); return mr && mr !== item ? rangeSeen(activeMap, tokenCentre(mr), tokenCentre(item), mr, item) : null; });   // range R1: the modifier from each targeter's token here to this one (the same token cover measures from)
+              tsig += '|' + trng.map(function(r) { return r ? r.mod + ':' + Math.round(r.dist * 10) + r.unit : ''; }).join(',');
               var tlit = tgs.map(function(t) { var ml = targeterTok(t.id, activeMap); return ml ? lightSeenBy(ml, item, activeMap) : null; });   // lighting L4: the light this token stands in as each targeter's token sees it — on the GM's screen, and on a player's for their own mark alone
               tsig += '|' + tlit.map(function(l) { return l ? l.lv + ':' + l.name : ''; }).join(',');
               if (marksEl.dataset.sig !== tsig) {
@@ -967,7 +969,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       var ini = String(t.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
                       if (mine && mine.src) return pair('<img class="target-mark" src="' + esc(resolveImg(mine.src)) + '" alt="" title="' + tip + '" style="border-color:hsl(' + t.hue + ',75%,55%);">');
                       return pair('<span class="target-mark target-mark-ini" title="' + tip + '" style="background:hsl(' + t.hue + ',75%,55%);">' + esc(ini) + '</span>');
-                  }).map(function(mkH, ti) { return targetLightHtml(mkH, tlit[ti]); }).join('');
+                  }).map(function(mkH, ti) { return targetRangeHtml(mkH, trng[ti]); }).map(function(mkH, ti) { return targetLightHtml(mkH, tlit[ti]); }).join('');
               }
               el.classList.toggle('targeted-by-me', tgs.some(function(t) { return t.id === window.wpNet.myId; }));
           } else if (marksEl) { marksEl.remove(); el.classList.remove('targeted-by-me'); }
@@ -2824,6 +2826,22 @@ window.wpFitToGrid = fitToGrid;
   function targetLightHtml(markHtml, l) { return l ? '<span class="target-pair">' + markHtml + '<span class="target-light' + (l.lv === 0 ? ' dark' : '') + '" title="' + esc(l.name) + '">' + TARGET_LIGHT_GLYPH[l.lv === 0 ? 0 : 1] + '</span></span>' : markHtml; }
   function targetLightCaption(list) { var seen = Object.create(null), out = []; (Array.isArray(list) ? list : []).forEach(function(l) { if (l && typeof l.name === 'string' && l.name && !seen[l.name]) { seen[l.name] = 1; out.push(l.name); } }); return out.join(' \u00b7 '); }
   // [sinkcheck:lightlabel-end]
+  // [sinkcheck:rangelabel-start]
+  // Range penalties R1 (docs/RANGE_PLAN.md): the modifier the system's range rule gives, on every ruler (range is distance alone) and at each
+  // target mark, from its targeter's token as its cover is. Between two character tokens it is measured centre to centre, with their elevation
+  // when that feature is on, as a roll will read it (R2). Worked out on this screen from its own copy of the map: nothing on the wire. A number
+  // and a unit's short name, never a name from a file
+  function rangeSeen(map, a, b, tA, tB) {   // { mod, dist, unit } or null: no rule, no map
+      var S = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null; if (!S || !S.rangeOf || !sys || !map) return null;
+      var dz = tA && tB && stanceOn('elevation') ? tokenElevation(tB) - tokenElevation(tA) : 0;
+      return S.rangeOf(sys, map, a, b, { F: window.wpFormula, dz: dz });
+  }
+  function rangeModText(m) { return typeof m !== 'number' || !isFinite(m) ? '' : m < 0 ? '\u2212' + String(-m) : m > 0 ? '+' + String(m) : '0'; }
+  var RANGE_UNIT_WORD = { yd: 'yd', ft: 'ft', m: 'm', cells: 'cells' };
+  function rangeTitle(rg) { return 'Range ' + rangeModText(rg.mod) + ' (' + (Math.round(rg.dist * 10) / 10) + ' ' + (Object.prototype.hasOwnProperty.call(RANGE_UNIT_WORD, rg.unit) ? RANGE_UNIT_WORD[rg.unit] : 'yd') + ')'; }
+  function rulerRangeText(x, y, rg) { return rg ? '<text x="' + x + '" y="' + y + '">Range ' + esc(rangeModText(rg.mod)) + '</text>' : ''; }
+  function targetRangeHtml(markHtml, rg) { return rg && rg.mod !== 0 ? '<span class="target-pair">' + markHtml + '<span class="target-range" title="' + esc(rangeTitle(rg)) + '">' + esc(rangeModText(rg.mod)) + '</span></span>' : markHtml; }
+  // [sinkcheck:rangelabel-end]
   // Turn-based combat T1 (D8): on a square grid the ruler counts a diagonal as the system says (every diagonal 1 square, or alternating 1-2);
   // null keeps the straight line (no rule, a hex grid, no grid)
   function diagCells(m) {
@@ -2876,6 +2894,8 @@ window.wpFitToGrid = fitToGrid;
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
           var litR = bothTok ? lightSeenBy(tA, tB, amR) : null;   // lighting L4: the light the far token stands in, as the near one (where the ruler began) sees it
           if (litR) html += rulerLightText(mx + 8, _covY + (labCov ? 19 : 0), litR);
+          var rgR = bothTok ? rangeSeen(amR, tokenCentre(tA), tokenCentre(tB), tA, tB) : rangeSeen(amR, { x: m.x1, y: m.y1 }, { x: m.x2, y: m.y2 }, null, null);   // range R1: on every ruler; between two tokens as a roll reads it
+          if (rgR) html += rulerRangeText(mx + 8, _covY + (labCov ? 19 : 0) + (litR ? 19 : 0), rgR);
           html += '</g>';
 
       });

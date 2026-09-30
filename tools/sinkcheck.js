@@ -1029,6 +1029,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /\n    lightBox\(box, cm\);[^\n]*\n    sensesBox\(box, cm\);/.test(shL) && /if \(onLightInput\(t\)\) return;[^\n]*\n\s*if \(onSensesInput\(t\)\) return;/.test(shL) && /if \(onLightChange\(t\)\) return;[^\n]*\n\s*if \(onSensesChange\(t\)\) return;/.test(shL) && /if \(lightClick\(b\)\) return;[^\n]*\n\s*if \(sensesClick\(b\)\) return;/.test(shL));
         check('light box (sheets.js): the Combat card builds it, and its boxes, selects and buttons are handled before the card\'s other handlers',
             /\n    lightBox\(box, cm\);[^\n]*\n    sensesBox\(box, cm\);[^\n]*\n    turnBox\(box, cm\);/.test(shL) && /\n    if \(onLightInput\(t\)\) return;/.test(shL) && /\n    if \(onLightChange\(t\)\) return;/.test(shL) && /\n    if \(lightClick\(b\)\) return;/.test(shL));
+        // range penalties R1: the Combat card's Range box (sheets.js rangeBox) on the same recording page, and the ruler's and a target mark's
+        // words (whiteboard.js, sliced by its rangelabel markers)
+        const rbSrc = slice('sheets.js', 'rangebox'), FRl = await import(modUrl('formula.js'));
+        const mkRange = (draft0, errs) => {
+            const made = [], htmlSet = [], calls = { dirty: 0, patched: 0, all: 0, toasts: [] };
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            const env = { draft: draft0, document: doc, LIMITS: SYl.LIMITS, RANGE_UNITS: SYl.RANGE_UNITS, markDirty: () => { calls.dirty++; }, patchErrors: () => { calls.patched++; }, renderAll: () => { calls.all++; }, toast: m => calls.toasts.push(m), errs: errs || [] };
+            const api = new Function('env', "'use strict';\nvar draft = env.draft, document = env.document, LIMITS = env.LIMITS, RANGE_UNITS = env.RANGE_UNITS, markDirty = env.markDirty, patchErrors = env.patchErrors, renderAll = env.renderAll, toast = env.toast;\n"
+                + lineAt('function el(tag, cls, text) {') + '\n' + lineAt('function opt(value, text, selected) {') + '\n' + lineAt('function input(cls, value, title, placeholder) {') + '\n' + lineAt('function select(cls, options, value, title) {') + '\n' + lineAt('function labeledSelect(cls, cap, options, value, title) {') + '\n'
+                + "function errorCell(id) { var cell = el('div', 'sys-err'); env.errs.forEach(function(m) { cell.appendChild(el('div', 'sys-err-line', m)); }); return cell; }\n"
+                + rbSrc + '\nreturn { rangeBox: rangeBox, onRangeInput: onRangeInput, onRangeChange: onRangeChange, rangeClick: rangeClick };')(env);
+            api.made = made; api.htmlSet = htmlSet; api.calls = calls; api.fake = fake; return api;
+        };
+        const cmRf = { range: { formula: T, unit: P } }, BR1 = mkRange({ combat: cmRf }, [T]), rootR1 = BR1.fake('div'); BR1.rangeBox(rootR1, cmRf);
+        const cmRt = { range: { steps: [{ to: T, mod: P }, { to: 5, mod: -2 }], unit: 'constructor' } }, BR2 = mkRange({ combat: cmRt }), rootR2 = BR2.fake('div'); BR2.rangeBox(rootR2, cmRt);
+        const fmR1 = byCls(BR1, 'sys-range-formula'), unR1 = byCls(BR1, 'sys-range-unit'), toR2 = byCls(BR2, 'sys-range-sto'), mdR2 = byCls(BR2, 'sys-range-smod'), unR2 = byCls(BR2, 'sys-range-unit');
+        check('range box: the sliced source writes no markup; a hostile formula lands as an input value, what Save would drop as a text node, a hostile unit picks yards; a step\'s boxes show only numbers; nothing is written through innerHTML',
+            !/innerHTML|insertAdjacentHTML|outerHTML/.test(rbSrc) && !/innerHTML|insertAdjacentHTML|outerHTML/.test(lineAt('function labeledSelect(cls, cap, options, value, title) {')) && BR1.htmlSet.length === 0 && BR2.htmlSet.length === 0
+            && fmR1.length === 1 && fmR1[0].value === T && fmR1[0].type === 'text' && BR1.made.some(e => e.textContent === T && e.className === 'sys-err-line') && j(unR1[0].children.filter(o => o.selected).map(o => o.value)) === j(['yd'])
+            && j(toR2.map(i => i.value)) === j(['', '5']) && j(mdR2.map(i => i.value)) === j(['', '-2']) && toR2.concat(mdR2).every(i => i.type === 'number') && j(unR2[0].children.filter(o => o.selected).map(o => o.value)) === j(['yd'])
+            && BR1.made.concat(BR2.made).every(e => e.tag !== 'script' && e.tag !== 'img' && e.tag !== 'a'), j([BR1.htmlSet, fmR1.map(i => i.value), toR2.map(i => i.value), mdR2.map(i => i.value)]));
+        const dRx = { combat: { range: { by: 'table', steps: [{ to: 1, mod: 0 }] } } }, BR3 = mkRange(dRx), tgRx = (cls, value, row) => ({ className: cls, value: value, dataset: {}, closest: s => (s === '.sys-range-row' && row) || null });
+        BR3.onRangeInput(tgRx('field sys-range-sto', T, { dataset: { ri: '0' } })); BR3.onRangeInput(tgRx('field sys-range-smod', P, { dataset: { ri: '0' } })); BR3.onRangeChange(tgRx('sys-range-unit', P)); BR3.onRangeChange(tgRx('sys-range-by', 'formula')); BR3.onRangeInput(tgRx('field sys-range-formula', T + 'x'.repeat(400)));
+        check('range box: its handlers take a step\'s boxes only as numbers (hostile text removes the key), a unit only from the app\'s own list, and the formula as text cut at 300 (Save cleans it: a formula that names anything but Distance is dropped)',
+            j(dRx.combat.range._s) === j([{}]) && !('unit' in dRx.combat.range) && dRx.combat.range.formula.length === SYl.LIMITS.formula && dRx.combat.range.formula.indexOf(T) === 0 && SYl.cleanRangeRules({ formula: T }, FRl) === null && !!SYl.cleanRangeRules({ formula: 'Distance' }, FRl), j(dRx.combat.range));
+        const rlS = slice('whiteboard.js', 'rangelabel'), winRl = { wpSystemCore: SYl, wpSheets: { systemOf: () => ({ combat: { range: { steps: [{ to: 1, mod: -4 }] } } }) } };
+        const RL = new Function('esc', 'window', 'stanceOn', 'tokenElevation', "'use strict';\n" + rlS + '\nreturn { rangeSeen: rangeSeen, rangeModText: rangeModText, rangeTitle: rangeTitle, rulerRangeText: rulerRangeText, targetRangeHtml: targetRangeHtml };')(SC.esc, winRl, () => false, () => 0);
+        const hostR = { mod: T, dist: P, unit: T }, markRl = '<span class="target-mark">AB</span>';
+        check('range words: the ruler\'s line and a target mark\'s tag are built from a number and a unit from the app\'s own list only — a hostile modifier shows nothing, a hostile unit reads yards, a hostile distance is no number — escaped, never a name from a file; the sliced source writes no markup of its own',
+            !/innerHTML|insertAdjacentHTML|outerHTML/.test(rlS) && RL.rangeModText(T) === '' && RL.rulerRangeText(1, 2, hostR) === '<text x="1" y="2">Range </text>' && RL.targetRangeHtml(markRl, hostR).indexOf('<img') < 0 && RL.targetRangeHtml(markRl, hostR).indexOf(' onmouseover="') < 0
+            && / yd\)$/.test(RL.rangeTitle(hostR)) && RL.rangeTitle(hostR).indexOf('<') < 0 && !/esc\(rg\.unit|rg\.unit \+/.test(rlS), j([RL.rulerRangeText(1, 2, hostR), RL.targetRangeHtml(markRl, hostR), RL.rangeTitle(hostR)]));
+        check('range box and words (wiring): the Combat card builds the Range box before the Light box and hands its events on after the Senses box; the ruler and a target mark add the range only through rulerRangeText and targetRangeHtml',
+            /\n    rangeBox\(box, cm\);[^\n]*\n    lightBox\(box, cm\);/.test(shL) && /if \(onSensesInput\(t\)\) return;[^\n]*\n\s*if \(onRangeInput\(t\)\) return;/.test(shL) && /if \(sensesClick\(b\)\) return;[^\n]*\n\s*if \(rangeClick\(b\)\) return;/.test(shL)
+            && (wbL.match(/rulerRangeText\(/g) || []).length === 2 && (wbL.match(/targetRangeHtml\(/g) || []).length === 2 && !/rgR\.mod|trng\[ti\]\.mod/.test(wbL));
     }
     /* ---- Senses S2b: a token's Senses block in its Properties — a sense's name comes from a system file, a token's own ranges from a save ---- */
     {

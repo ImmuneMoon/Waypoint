@@ -1950,6 +1950,24 @@ pendingChecks.push((async () => {
 // for the row they saw (a stale or second press never skips the next character), turn-based combat on, not paused, rate-limited; the client
 // offers it only then (net.myTurnTok) and sends the row it saw
 {
+    {   // initiative O1: a player's own initiative roll into the fight on their map, once (initIntoFight, run for real)
+        const ifSrc = between('// [netcheck:initfight-start]', '// [netcheck:initfight-end]', 'initfight'), J = JSON.stringify;
+        const mkIF = () => { const out = { bc: 0, rf: 0, toasts: [], logs: [] }, net = { role: 'host', combats: { m1: { mapId: 'm1', round: 2, turn: 1, rows: [{ id: 'r_a', name: 'Ana', tokId: 't_a', init: 18, src: null, rolled: 1 }, { id: 'r_g', name: 'Goblin', tokId: 't_g', init: 12, src: null, rolled: 1 }, { id: 'r_b', name: 'Bo', tokId: 't_b', init: 0, src: null }, { id: 'c_t', name: 'Trap', tokId: null, init: 5, src: null }] } } };
+            const camp = { items: { m1: { type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_ana', ownerId: 'u_a' }, { id: 't_g', isChar: true, charId: 'c_gob' }, { id: 't_b', isChar: true, charId: 'c_bo', ownerId: 'u_b' }] }, m2: { type: 'map', whiteboard: [] } } };
+            out.fn = new Function('net', 'own', 'SC', 'toast', 'logEvent', 'mapTitleOf', 'broadcastCombats', 'combatRefresh', "'use strict';\n" + ifSrc + '\nreturn initIntoFight;')(net, H.own, () => ({ orderByInit: rows => rows.map((r, i) => ({ r, i })).sort((a, b) => (b.r.init - a.r.init) || (a.i - b.i)).map(x => x.r) }), t => out.toasts.push(t), (k, t) => out.logs.push(t), () => 'Hall', () => out.bc++, () => out.rf++);
+            return Object.assign(out, { net, camp }); };
+        const W1 = mkIF(), got1 = W1.fn(W1.camp, 'm1', 'c_bo', 'u_b', 14.256), rows1 = W1.net.combats.m1.rows.map(r => r.id), turn1 = W1.net.combats.m1.turn, bo1 = W1.net.combats.m1.rows.find(r => r.id === 'r_b');
+        const again = W1.fn(W1.camp, 'm1', 'c_bo', 'u_b', 30), rows1b = W1.net.combats.m1.rows.map(r => r.id);
+        const W2 = mkIF(), none = [W2.fn(W2.camp, 'm1', 'c_ana', 'u_a', 25), W2.fn(W2.camp, 'm1', 'c_bo', 'u_a', 25), W2.fn(W2.camp, 'm2', 'c_bo', 'u_b', 25), W2.fn(W2.camp, 'm9', 'c_bo', 'u_b', 25), W2.fn(W2.camp, 'm1', 'c_gob', 'u_b', 25), W2.fn(W2.camp, 'm1', 'c_bo', 'u_b', NaN), W2.fn(W2.camp, 'm1', 'c_bo', '', 25)];
+        const W3 = mkIF(); W3.net.role = 'client'; const cl3 = W3.fn(W3.camp, 'm1', 'c_bo', 'u_b', 14);
+        check('initiative O1 (host, run for real): a player\'s own initiative roll sets their row\'s number in the combat on the map they are on when it has none yet (rounded to the hundredth, marked rolled), the order re-sorts by initiative and whoever\'s turn it is keeps it; one broadcast, the GM told the number and the place; a second roll, a row with a number, another player\'s token, an NPC\'s, another map, no combat, a total that is no number, no profile or a player\'s app: nothing',
+            got1 === true && J(rows1) === J(['r_a', 'r_b', 'r_g', 'c_t']) && turn1 === 2 && bo1.init === 14.26 && bo1.rolled === 1 && W1.bc === 1 && W1.rf === 1 && J(W1.toasts) === J(['Bo rolled initiative: 14.26, now 2 of 4.']) && W1.logs.length === 1
+            && again === false && J(rows1b) === J(rows1) && W1.bc === 1 && none.every(x => x === false) && W2.bc === 0 && J(W2.net.combats.m1.rows.map(r => r.init)) === J([18, 12, 0, 5]) && cl3 === false, J([rows1, turn1, bo1, W1.toasts, none]));
+        const rrSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq');
+        check('initiative O1 (source): the roll request takes a player\'s own initiative roll into the fight after the roll goes out — only when the entry it was rebuilt from is the system\'s initiative roll; players never get a row\'s number or its rolled mark (combatRowOut)',
+            rrSrc.includes("if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);") && rrSrc.indexOf('initIntoFight(campQ') > rrSrc.indexOf("else { sendTable(recQ, null);")
+            && /function combatRowOut\(r, i, unseen\) \{ return unseen \? \{ id: 'h' \+ i, name: 'Hidden', tokId: null, src: null \} : \{ id: r\.id, name: r\.name, tokId: r\.tokId, src: r\.src \}; \}/.test(src) && /if \(r\.rolled === 1 \|\| r\.rolled === true\) o\.rolled = 1;/.test(src));
+    }
     const teSrc = between('// [netcheck:turnend-start]', '// [netcheck:turnend-end]', 'turnend');
     const runTE = (msg, o) => {
         o = o || {}; const steps = [];
@@ -2354,7 +2372,7 @@ pendingChecks.push((async () => {
         && j(rowsOf(uA)).indexOf('gob') < 0 && j(rowsOf(uA)).indexOf('Goblin') < 0 && j(uA.combats.m2).indexOf('Orc2') < 0 && j(uA.combats.m2).indexOf('o2.png') < 0, j(uA));
     check('fold M0: without fog that is still one broadcast, the same for each admitted player, nothing to a waiting or closed connection; the join snapshot (combatsFor) says the same; the host keeps the hidden token\'s row whole with its number',
         U.bcast.length === ub0 + 1 && j(uB) === j(uA) && j(U.bcast[U.bcast.length - 1]) === j(uA) && U.conns[2].sent.length === 0 && U.conns[3].sent.length === 0
-        && j(uSnap) === j([uA.combats, uA.combats]) && j(uHost) === j({ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 23, src: 'gob.png' }), j([U.bcast.length - ub0, uSnap, uHost]));
+        && j(uSnap) === j([uA.combats, uA.combats]) && j(uHost) === j({ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 23, src: 'gob.png', rolled: 1 }) && !/rolled|init/.test(j(uA)), j([U.bcast.length - ub0, uSnap, uHost]));   // initiative O1: the roster's roll marks the host's row rolled (a deliberate change); a player gets neither
     tokOf(U, 'm1', 't_gob').hidden = false; tokOf(U, 'm2', 't_orc').hidden = false; U.N.broadcastCombats(); const uShown = U.last(U.conns[0]);
     check('fold M0: a token shown again goes out whole — its row as it was, on both maps',
         j(uShown) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: order }, m2: m2Out(false) } }), j(uShown));

@@ -29,12 +29,12 @@ var FEATURES = [
     { id: 'fog',       label: 'Fog of war',       legacyKey: null, noLocal: true },  // 1.5.0: per-player token vision; GM-controlled, no player self-toggle; on by default (GM still paints the fog)
     { id: 'turning',   label: 'Token facing',     legacyKey: null, noLocal: true },  // 1.5.0: token facing/turning — the front wedge + the fog facing cone follow it; GM-controlled like fog (off ⇒ no wedge, fog falls back to all-around)
     { id: 'music',     label: 'Music',            legacyKey: null },
-    { id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true, def: false },  // 1.5.0 turn-based combat (owner, 2026-09-26): while a combat runs, turns are taken in order — the player on turn ends it; OFF by default (opt-in); GM-controlled                  // 1.5.0: per-campaign named playlists, per-map auto-play, GM take-control; a self-toggle with its OWN volume, separate from Sound/SFX
+    { id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true },  // 1.5.0 turn-based combat (owner, 2026-09-26): while a combat runs, turns are taken in order — the player on turn ends it; ON by default since 2026-09-30 (every feature is opt-out); GM-controlled                  // 1.5.0: per-campaign named playlists, per-map auto-play, GM take-control; a self-toggle with its OWN volume, separate from Sound/SFX
     { id: 'lighting',  label: 'Lighting',         legacyKey: null, noLocal: true },  // 1.5.0 light & darkness (owner 2026-09-28): a fogged map is lit until the GM places a light source; GM-controlled like fog; ON by default
-    { id: 'calendar',  label: 'Calendar',         legacyKey: null, def: false }      // 1.5.0 item 20 (owner 2026-09-30): the campaign's date and time in the header; OFF by default; a player may hide it for themselves
+    { id: 'calendar',  label: 'Calendar',         legacyKey: null }      // 1.5.0 item 20 (owner 2026-09-30): the campaign's date and time in the header; ON by default (every feature is opt-out); a player may hide it for themselves
 ];
-// noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: an optional default-off flag
-// (def:false) for a future opt-in feature; absent → on, so every feature (fog included) is on by default.
+// noLocal: a feature the GM controls for the whole table — no per-player "off for me". def: a default-off flag (def:false) for an
+// opt-in feature — none today: every feature is on by default and the GM switches it off (owner, 2026-09-30: "all features are opt out").
 function selfToggles(f) { return !!f && !f.noLocal; }
 function defaultOn(f) { return !f || f.def !== false; }
 var GLOBAL_KEY = 'wp_vtt_global', LOCAL_KEY = 'wp_vtt_local', MAX_TABLES = 50;
@@ -335,7 +335,7 @@ function playerDefaults() { var g = globalVtt(), out = {}; FEATURES.forEach(func
 function seedEntry(e, G, P) {
     var seeded = [];
     FEATURES.forEach(function(f) {
-        if (!selfToggles(f) || f.def === false) return;   // a noLocal feature is never seeded into the player's off-list, nor an opt-in one (item 20: the calendar) — off by default for new campaigns says nothing of what a player wants at a table; they follow it until they switch it off there
+        if (!selfToggles(f) || f.def === false) return;   // a noLocal feature is never seeded into the player's off-list, nor an opt-in one (none today) — off by default for new campaigns would say nothing of what a player wants at a table; they follow it until they switch it off there
         if (G[f.id] && !P[f.id] && e.decided.indexOf(f.id) < 0 && e.off.indexOf(f.id) < 0) { e.off.push(f.id); seeded.push(f.id); }
     });
     return seeded;

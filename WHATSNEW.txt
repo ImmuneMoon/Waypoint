@@ -474,6 +474,15 @@ Turn-based combat
   what is left, with pause, reset and stop (Effect timers, under Settings ▸
   VTT features ▸ Turn-based combat, says who may use them). Any other note
   (until dawn) stays until someone ends it.
+- Range penalties: the Combat card gains a Range box, your game's penalty
+  for distance, by a table (up to 10: -4; past the last row its modifier
+  holds; up to 40 rows) or by a formula reading Distance, in yards, feet,
+  metres or grid cells. Every ruler shows the modifier ("Range -4"), and
+  each target mark carries it at its lower corner beside its cover and
+  light. A hex grid counts hexes, a square one follows your diagonal rule,
+  and between two tokens their heights count while Token elevation is on.
+- A target mark's cover, light and range now follow a token at once when
+  you drop it on your own screen, not at the next redraw.
 
 Items
 - The System editor has an Items tab: your campaign's own weapons, gear and

@@ -2184,6 +2184,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 lj(sigGot) === lj({ dark: '4,s10a', darkPass: '4,s10pa', darkDim: '4,s10a', lit: 'L,s10a', litPass: 'L,s10pa', litDim: 'L,s10a', coneAll: 'L,s10a', cone: 'L', none: '4' }) && sigMoves === '4,s11a', lj([sigGot, sigMoves]));
         }
     }
+    {   // conditions C2: fogcore cleanTokFx — a token with no sheet keeps its own effects, structure only (names and icons cleaned where drawn)
+        const J = JSON.stringify, long = 'N'.repeat(80), ctf = X.cleanTokFx([{ id: 'x_a', ref: 'e_bless' }, { id: 'x_a', ref: 'e_other' }, { id: 'x_b', ref: 'e_bless' }, { id: 'x_c', name: ' Hex' + String.fromCharCode(1) + 'ed ', icon: 'I'.repeat(90), tone: 'debuff' }, { id: 'x_d', name: long, tone: 'evil' },
+            { id: 'bad', ref: 'e_x' }, { id: 'x_e', ref: 'nope' }, { id: 'x_f', name: '   ' }, { id: 'x_g', name: 5 }, null, 'x', { id: 'x_h', ref: 'e_two', name: 'kept as a ref' }].concat(Array.from({ length: 20 }, (_, i) => ({ id: 'x_m' + i, name: 'M' + i }))));
+        check('conditions C2 cleanTokFx: a token\'s own effects — at most 12 rows, each id once (x_ and a word), a library effect once by its id (e_ and a word), one made on the spot with a plain name of 60 at most, an icon of 64 characters at most, a tone of the two words; anything else left out; none for no list or an empty one',
+            J(ctf.slice(0, 4)) === J([{ id: 'x_a', ref: 'e_bless' }, { id: 'x_c', name: 'Hex ed', icon: 'I'.repeat(64), tone: 'debuff' }, { id: 'x_d', name: 'N'.repeat(60), icon: '', tone: '' }, { id: 'x_h', ref: 'e_two' }]) && ctf.length === 12 && ctf[11].name === 'M7'
+            && X.cleanTokFx([]) === null && X.cleanTokFx('x') === null && X.cleanTokFx([{ id: 'x_z', name: '' }]) === null, J(ctf));
+    }
     {   // difficult terrain T1: fogcore cleanTerrain, and the fill tool's cells (whiteboard.js sliced by its fillcell markers) and its menu (fillmenu), run for real
         const fs = require('fs'), J = JSON.stringify;
         const ct = [2, 3, 2.4, 2.6, 1.5, 1.49, 1, 0, -5, 10, 10.4, 11, 1e9, NaN, Infinity, -Infinity, '3', true, null, undefined, {}, [3]].map(v => X.cleanTerrain(v));

@@ -3052,7 +3052,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     b.addEventListener('click', function(e) {
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
     });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }

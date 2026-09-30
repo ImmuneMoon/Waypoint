@@ -3090,7 +3090,10 @@ function cleanCombats(c) {
     Object.keys(c).slice(0, 40).forEach(function(mapId) {
         var k = c[mapId]; if (!k || typeof k !== 'object' || !Array.isArray(k.rows)) return;
         var rows = k.rows.slice(0, 60).map(function(r) {
-            return r && typeof r === 'object' ? { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null } : null;
+            if (!r || typeof r !== 'object') return null;
+            var o = { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null };
+            if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
+            return o;
         }).filter(Boolean);
         if (!rows.length) return;
         out[String(mapId).slice(0, 80)] = { mapId: String(mapId).slice(0, 80), round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
@@ -3348,6 +3351,26 @@ net.combatSet = function(mapId, combat) {
     if (combat && !had) { try { fxCombatEdge(mapId, net.combats[mapId], 'bank'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks stop (what ran is kept)
     if (combat && !had) turnStarted(mapId, net.combats[mapId]);   // T2b: the first turn (after the broadcast: its player's note comes last)
 };
+// [netcheck:initfight-start]
+// Initiative & turn order O1 (the owner's answer, "Into the fight, once"): a player's own roll of the system's initiative roll — the host
+// rebuilt it from the entry (roll-req's act path) — sets their row's number in the combat on the map they are on, if the row has none yet
+// (rolled or given by the GM), and the order re-sorts by initiative; whoever's turn it is keeps it. A second roll, a row with a number, no
+// combat there, or no row of their character's token: nothing. Everyone gets the new order (never a number); the GM is told the number
+function initIntoFight(camp, mapId, charId, pid, value) {
+    if (net.role !== 'host' || typeof mapId !== 'string' || typeof charId !== 'string' || typeof pid !== 'string' || !pid || typeof value !== 'number' || !isFinite(value)) return false;
+    var c = own(net.combats, mapId) ? net.combats[mapId] : null, map = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!c || !Array.isArray(c.rows) || !map || !Array.isArray(map.whiteboard)) return false;
+    var mine = {}; map.whiteboard.forEach(function(w) { if (w && w.isChar && w.charId === charId && w.ownerId === pid && typeof w.id === 'string') mine[w.id] = 1; });
+    var row = c.rows.find(function(r) { return r && typeof r.tokId === 'string' && mine[r.tokId] === 1; }); if (!row || row.rolled === 1) return false;
+    var cur = c.rows[c.turn], S = SC();
+    row.init = Math.max(-1e6, Math.min(1e6, Math.round(value * 100) / 100)); row.rolled = 1;
+    c.rows = S && S.orderByInit ? S.orderByInit(c.rows) : c.rows;
+    var at = cur ? c.rows.indexOf(cur) : 0; c.turn = at >= 0 ? at : 0;
+    toast((row.name || 'Someone') + ' rolled initiative: ' + row.init + ', now ' + (c.rows.indexOf(row) + 1) + ' of ' + c.rows.length + '.');
+    logEvent('table', (row.name || 'Someone') + ' rolled initiative on ' + mapTitleOf(mapId) + ': ' + row.init);
+    broadcastCombats(); combatRefresh();
+    return true;
+}
+// [netcheck:initfight-end]
 net.combatStep = function(mapId, dir) {
     if (net.role !== 'host') return;
     var c = net.combats[mapId]; if (!c || !c.rows.length) return;
@@ -4987,6 +5010,7 @@ function handleMessage(msg, conn) {
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         var ruleQ = campQ && campQ.system && campQ.system.combat && campQ.system.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the system's roll outcomes
         logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }));
+        if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);   // initiative O1: their own initiative roll into the fight on their map, once
         if (actQ && actQ.then) {   // Stage 6 HUD R1: its consequences on the host's copy, through the roller's view, all or nothing (nothing to apply is quiet)
             var mfHitQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ, vdQ = Dq.verdictOf(resQ, ruleQ), thQ = SQ.thenChanges(actQ, mfHitQ ? false : (vdQ && vdQ.kind === 'check' ? vdQ.pass : null), mfHitQ);   // R3: a malfunction is a failure, with its own changes
             var taQ = thQ.length ? SQ.applyAct(campQ.system, chQ, { apply: thQ }, varsQ, Fq, tcQ, q.row ? { f: q.row.f, r: q.row.r } : null) : null;   // R2b: a list roll may move its row's counters

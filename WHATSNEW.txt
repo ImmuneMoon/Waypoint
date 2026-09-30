@@ -520,6 +520,9 @@ Turn-based combat
   formula (HP <= 0 for Unconscious), and while it is true the effect is on,
   marked Automatic on the sheet, on the token and in its Effects menu. Only
   a visible effect reading what players can read applies itself.
+- The combat roster has Roll all: your system's initiative roll for every
+  ticked character without a number yet. In a running fight a player's own
+  initiative roll from their sheet takes its place in the order, once.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

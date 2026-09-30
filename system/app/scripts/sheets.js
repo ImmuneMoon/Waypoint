@@ -3886,7 +3886,7 @@ function refreshErrors() {
         if (errs.length) errorsById[f.id] = errs;
     });
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
-    // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past ten, a price naming none, another list's spelling),
+    // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
     // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
     var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null), firstDef = Object.create(null);
     draft.fields.forEach(function(f) {

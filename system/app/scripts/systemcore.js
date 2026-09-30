@@ -17,7 +17,7 @@ var LIMITS = Object.freeze({
     items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
     rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
     listCats: 20, rowNote: 200, lvlAbs: 1e6,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level
-    listStats: 10, entryStats: 16, statAbs: 1e9,   // Stage 6 F4c1: a list's stats, the stats an item carries, the size of a stat (a price, a weight: 99,999,999 fits)
+    listStats: 12, entryStats: 16, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange), the stats an item carries, the size of a stat (a price, a weight: 99,999,999 fits)
     listCols: 6,                             // Stage 6 F5a1: a list's columns (a formula per row)
     pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
     rowRolls: 4,                             // Stage 6 F5b: a list's rolls (a button on each row)

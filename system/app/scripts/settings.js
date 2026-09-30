@@ -324,7 +324,8 @@ var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
     fog: ['Fog of war on \u2014 the \u{1F32B} fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
     lighting: ['Lighting on \u2014 a fogged map is lit until you place a light source, so every token sees what is in its line of sight.', 'Lighting off for this campaign \u2014 a token sees only as far as its sight, as before.'],
     turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.'],
-    turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.']
+    turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.'],
+    video: ['Video on \u2014 the Scene menu has the Video panel.', 'Video off for this campaign \u2014 nothing plays; the videos and their files are kept.']
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
@@ -631,7 +632,7 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    release needs a newer shell, the button becomes Get Installer instead. A quiet check runs a
    few seconds after launch; a newer version raises the header Update button and a notice. */
 var _upd = { info: null, shellOld: null, shell: null };
-var SHELL_WANTED = '1.5.0';   // 1.5.0 adds /api/library (the item library's pack files beside the save); 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer
+var SHELL_WANTED = '1.5.0';   // 1.5.0 adds /api/library (the item library's pack files beside the save) and serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole); 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer
 var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
 function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
 // Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the

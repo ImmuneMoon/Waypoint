@@ -87,3 +87,6 @@ jobs:
       - name: calendarcheck — the game calendar's pure core
         if: ${{ !cancelled() }}
         run: node tools/calendarcheck.js
+      - name: videocheck — campaign videos' pure core and the Video panel's rules
+        if: ${{ !cancelled() }}
+        run: node tools/videocheck.js

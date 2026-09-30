@@ -190,6 +190,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
             }
         }
         if (c.fog !== undefined && window.wpFogCore) c.fog = window.wpFogCore.cleanCampFog(c.fog);
+        if (c.videos !== undefined && window.wpVideoCore) { var vdL = window.wpVideoCore.cleanVideos(c.videos); if (vdL.length) c.videos = vdL; else delete c.videos; }   // item 21 V1: the campaign's video library, cleaned on load (with its cleaner not loaded it stays as it is: never lost; the panel cleans it again as it reads)
         if (c.clock !== undefined) { var ckL = window.wpCalendarCore && window.wpCalendarCore.cleanClock ? window.wpCalendarCore.cleanClock(c.clock) : null; if (ckL) c.clock = ckL; else delete c.clock; }   // item 20 K2: the campaign's clock, cleaned on load (none without the cleaner)   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
     });
 
@@ -1520,7 +1521,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; dropWaiting(c); });   // Onboarding F1a: nor a waiting token
 
       var json = JSON.stringify(payload, null, 2);
-      var paths = collectImagePaths(payload);
+      var paths = collectImagePaths(payload).filter(function(p) { return p.indexOf('/saves/images/video/') !== 0; });   // item 21: a campaign's videos stay out of the zip (it is built in memory, with no ZIP64): the library's entries travel, the files stay in the saves folder
       if (scope === 'campaign' || scope === 'all') {   // a campaign's own pictures travel even when nothing references them yet
           try {
               var listed = await (await fetch('/api/list-images')).json();

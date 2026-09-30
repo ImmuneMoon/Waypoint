@@ -441,7 +441,7 @@ Turn-based combat
   is so many seconds; your own time units (a watch) by their length; and the
   actions a turn allows (Action 1, Bonus action 1, Reaction 1). A roll or an
   apply action can cost one of them.
-- Turn-based combat is a new VTT feature (Settings ▸ VTT features), off by
+- Turn-based combat is a new VTT feature (Settings ▸ VTT features), on by
   default and yours to control for the whole table. While a combat runs, the
   player whose token has the turn gets End turn on the turn strip, their
   sheet and their HUD: it moves play on exactly as your Next turn does, and
@@ -550,7 +550,7 @@ Turn-based combat
 - Heights follow your Imperial or Metric choice: a token's elevation, a
   piece's height, the ruler's 3D line and a blast's labels, in yards or
   metres.
-- The Calendar (Settings ▸ VTT features; off until you turn it on): the
+- The Calendar (Settings ▸ VTT features; on by default): the
   campaign's date and time in the header. Its chip opens the calendar: the
   month as a grid by the week, steps to move time on (a minute to a week, or
   any amount, in your system's own units too), a day and time to set, and

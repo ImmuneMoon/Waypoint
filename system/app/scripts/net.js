@@ -4719,11 +4719,7 @@ function handleMessage(msg, conn) {
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
         var Cdr = window.wpFogCore; if (!Cdr) return;
         var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
-        var dCellsR = (doorEl.fill ? [Cdr.cellOf(doorEl.x + (doorEl.w || 0) / 2, doorEl.y + (doorEl.h || 0) / 2, gridDR)]
-            : doorEl.type === 'hexagon' ? Cdr.cellsUnderHex(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR)
-            : doorEl.type === 'circle' ? Cdr.cellsUnderCircle(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR)
-            : doorEl.type === 'diamond' ? Cdr.cellsUnderDiamond(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR)
-            : Cdr.cellsUnderRect(doorEl.x, doorEl.y, doorEl.w || 0, doorEl.h || 0, gridDR));
+        var dCellsR = Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn)
         var adjacentR = (amDR.whiteboard || []).some(function(w) {
             if (!w || !w.isChar || w.hidden || w.ownerId !== profDR.id) return false;
             var tc = Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR);

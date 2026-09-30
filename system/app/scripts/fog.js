@@ -214,10 +214,8 @@ function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
     if (w.isChar || w.waiting) return false;                        // a token never blocks sight: a player's copy may lack it (fog drops it), so host and client would disagree
     if (w.sightType === 'door' && w.doorOpen) return false;         // an OPEN door blocks nothing; a closed one blocks like a wall
-    if (w.type === 'circle') return true;                           // a pillar; its footprint is rotation-invariant
-    if (w.rot) return false;                                        // a rotated rect/hex/diamond footprint is not supported in v1
     if (w.fill) return true;                                        // a fill-bucket cell
-    return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond';   // an axis-aligned solid shape
+    return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'circle' || w.type === 'image';   // item 18: a solid shape or an image, turned or not, by its outline (fogcore itemCells)
 }
 // Senses S7b (the owner's answer 5a): smoke — a piece the GM ticks as smoke (item.smoke, true) hides what is in it and past it from the eyes and
 // from every sense the walls stop that does not see through smoke (a sense's veil). A set of its own beside the sight-blockers, so movement,
@@ -271,13 +269,7 @@ function smokeUnion(map, blk, sm) {   // the walls and the smoke as one set, for
     return su.set;
 }
 // The grid cells an eligible blocker item covers — shared by blockersFor and the door click-toggle so they agree.
-function footprintCells(w, grid, C) {
-    if (w.fill) return [C.cellOf(w.x + (w.w || 0) / 2, w.y + (w.h || 0) / 2, grid)];
-    if (w.type === 'hexagon') return C.cellsUnderHex(w.x, w.y, w.w || 0, w.h || 0, grid);
-    if (w.type === 'circle') return C.cellsUnderCircle(w.x, w.y, w.w || 0, w.h || 0, grid);
-    if (w.type === 'diamond') return C.cellsUnderDiamond(w.x, w.y, w.w || 0, w.h || 0, grid);
-    return C.cellsUnderRect(w.x, w.y, w.w || 0, w.h || 0, grid);
-}
+function footprintCells(w, grid, C) { return C.itemCells(w, grid); }   // item 18: by its outline, turned as the board draws it (unturned: as before)
 function blockersFor(map, grid) {
     if (!map || !grid) return null;
     // Key the memo on map.meta.updated (stamped every save, io.js) as well as map.id, so a blocker MOVE busts it even
@@ -1145,7 +1137,18 @@ function syncMenu() {
     fillPreviewOptions();
     var note = ui('fogNote'); if (note) note.textContent = gridForMap(map) ? '' : 'Gridless map: pick a measurement grid above so fog can compute cells.';
 }
-function openMenu() { var m = ui('fogMenu'); if (!m || !canWrite()) return; syncMenu(); m.classList.add('show'); redraw(); }
+// Found live (item 18): on a short window the menu, opening upward from the toolbar and capped only by the viewport, ran its top rows (Fog on
+// this map first) under the page's header, where no click reaches them. Opened or the window resized, it now keeps its top below the header
+// and scrolls inside
+// [fogcheck:fitmenu-start]
+function fitMenu(m) {
+    if (!m || typeof m.getBoundingClientRect !== 'function') return;
+    m.style.maxHeight = '';
+    var hd = document.querySelector('header'), top = (hd ? hd.getBoundingClientRect().bottom : 0) + 8, r = m.getBoundingClientRect();
+    if (r.top < top) m.style.maxHeight = Math.max(160, Math.floor(r.height - (top - r.top))) + 'px';
+}
+// [fogcheck:fitmenu-end]
+function openMenu() { var m = ui('fogMenu'); if (!m || !canWrite()) return; syncMenu(); m.classList.add('show'); fitMenu(m); redraw(); }
 function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show'); }
 
 var LIGHT_SAID = {
@@ -1159,6 +1162,7 @@ var LIGHT_SAID = {
 (function wire() {
     var menu = ui('fogMenu'); if (!menu) return;
     ['pointerdown', 'click'].forEach(function(ev) { menu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+    window.addEventListener('resize', function() { if (menu.classList.contains('show')) fitMenu(menu); });   // an open menu keeps clear of the header as the window changes
     var on = ui('fogOn');
     if (on) on.addEventListener('change', function() {
         var map = activeMap(); if (!map) return;

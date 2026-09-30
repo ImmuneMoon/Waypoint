@@ -19,6 +19,7 @@ const dataFile = path.join(savesDir, 'data.json');
 //   WAYPOINT_SYSTEM_DIR=<a scratch copy of system/>                     (never the repo's own)
 const updater = require('../system/resources/app/updater');
 const libstore = require('../system/resources/app/libstore');   // Stage 6 library L1b: the shell's own pack store
+const servefile = require('../system/resources/app/servefile');   // item 21 V1: the shell's own file serving (media types, byte ranges)
 const shellPkg = require('../system/resources/app/package.json');
 const UPDATE_REPO = (fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8').match(/const UPDATE_REPO = '([^']+)'/) || [])[1] || 'owner/repo';
 const updateHandler = updater.makeHandler({
@@ -264,8 +265,7 @@ const server = http.createServer((req, res) => {
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         const ext = path.extname(filePath).toLowerCase();
         const mimes = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
-        res.writeHead(200, Object.assign({ 'Content-Type': mimes[ext] || 'text/plain', 'Cache-Control': 'no-cache, no-store, must-revalidate' }, pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : {}));
-        fs.createReadStream(filePath).pipe(res);
+        servefile.serveFile(req, res, filePath, Object.assign({ 'Content-Type': servefile.mediaType(ext) || mimes[ext] || 'text/plain', 'Cache-Control': 'no-cache, no-store, must-revalidate' }, pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : {}));   // item 21 V1: as main.js — a media file's own type, its length and a byte range when asked for
     } else {
         res.writeHead(404); res.end('Not Found');
     }

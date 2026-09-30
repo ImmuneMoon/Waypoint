@@ -7,6 +7,7 @@ const { app, BrowserWindow, shell } = require('electron');
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
+const servefile = require('./servefile');   // item 21 V1: a media file's type and byte ranges, shared with tools/dev-server.js
 const SHELL_VERSION = require('./package.json').version;
 const http = require('http');
 const fs = require('fs');
@@ -372,13 +373,12 @@ const server = http.createServer((req, res) => {
         if (ext === '.svg') mime = 'image/svg+xml';
         if (ext === '.ico') mime = 'image/x-icon';
         if (ext === '.woff2') mime = 'font/woff2';
-        
-        res.writeHead(200, { 
+        mime = servefile.mediaType(ext) || mime;   // item 21 V1: a video or a sound by its own type (saves/ answers nosniff)
+        servefile.serveFile(req, res, filePath, {   // item 21 V1: its length, and a byte range when asked for (a video seeks without being read whole)
             'Content-Type': mime,
             ...(pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : {}),   // a file under saves/ (a picture, a sound, an imported page) is inert if ever opened as a page
             'Cache-Control': 'no-cache, no-store, must-revalidate'
         });
-        fs.createReadStream(filePath).pipe(res);
     } else {
         res.writeHead(404);
         res.end('Not Found');

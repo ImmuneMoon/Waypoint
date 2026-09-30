@@ -1476,6 +1476,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             wbP.includes("if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class=\"chip post\" title=\"' + esc(postAt.p.name) + (postAt.p.small === true ? '&#10;' + esc(POSTURE_RANGED_LINE) : '') + '\">' + esc(postAt.p.tag) + '</span>';")
             && inspP.replace(/\r\n/g, '\n').includes("html += '<div class=\"field\"><label for=\"wbPosture\">Posture</label><select id=\"wbPosture\">' + stanceApi.postures().map(function(p, i) { return '<option value=\"' + esc(p.id) + '\"' + (i === curPI ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>'; }"));
     }
+    /* ---- item 21 V1: the GM's Video panel — names, numbers and ids from a campaign file reach its markup through esc; a video element's address only through videoSrc ---- */
+    {
+        const VC = await import(modUrl('videocore.js'));
+        const vp = new Function('esc', 'fmtDur', 'fmtSize', 'sumLine', slice('video.js', 'videopanel') + '\nreturn { rowsHtml: rowsHtml, bodyHtml: bodyHtml, metaOf: metaOf };')(SC.esc, VC.fmtDur, VC.fmtSize, VC.sumLine);
+        const hostile = [{ id: P, name: T, path: '/saves/images/video/c/a.mp4', size: 10, dur: 3, w: T, h: 2 }, { id: 'v_abcdefgh', name: P, path: U, size: 1 }];
+        const hB = vp.bodyHtml(true, hostile, P, { name: T + P, pct: 50 }), hOff = vp.bodyHtml(false, hostile, null, null);
+        const cleaned = VC.cleanVideos([{ id: 'v_abcdefgh', name: T + P, path: '/saves/images/video/c/k_x.mp4', size: 5 }]), hC = vp.bodyHtml(true, cleaned, 'v_abcdefgh', null);
+        check('item 21 V1 the Video panel: a hostile name, id, picture size or upload name (even raw, before any cleaner) renders as text and values only — nothing in the panel can run or call out, no path ever reaches its markup; switched off it says so and lists nothing',
+            risks(hB).length === 0 && hB.indexOf(T) < 0 && hB.indexOf('onmouseover="') < 0 && hB.indexOf(U) < 0 && hB.indexOf('/saves/images/video') < 0 && hB.indexOf(SC.esc(T)) >= 0
+            && risks(hC).length === 0 && hC.indexOf('value="' + SC.esc(T + P) + '"') >= 0 && hC.indexOf('class="vid-row active" data-id="v_abcdefgh"') >= 0
+            && !/vid-row|<input/.test(hOff) && /Video is off for this campaign/.test(hOff), [risks(hB), risks(hC)]);
+        const srcs = [U, '//evil.example/x.mp4', 'javascript:alert(1)//.mp4', '/saves/images/video/c/../../data.json', '/saves/images/video/c/x.html', '/saves/images/map/x.mp4', '/saves/images/video/c/a b.mp4', '/saves/images/video/c/x.mp4?q=1', '/saves/images/video/c/%2e%2e.mp4', '/saves/images/video/c/.hidden.mp4', null, 5].map(VC.videoSrc);
+        check('item 21 V1 a video element\'s address comes only from videoSrc: an uploaded video\'s path with its file name encoded (a name in any script), never a web address, a scheme, a walk, a page, a picture folder, a space, a query or a percent sign',
+            srcs.every(x => x === '') && VC.videoSrc('/saves/images/video/camp_1/k3_Überfahrt\u00e9.mp4') === '/saves/images/video/camp_1/' + encodeURIComponent('k3_Überfahrt\u00e9.mp4') && VC.videoSrc('/saves/images/video/c/k_(1).webm') === '/saves/images/video/c/k_(1).webm', srcs);
+        const vjs = read('video.js');
+        check('item 21 V1 video.js writes markup in one place (the body, from bodyHtml), the caption and the progress line as text, and a video element\'s address only from videoSrc',
+            (vjs.match(/innerHTML/g) || []).length === 1 && /ui\('videoBody'\)\.innerHTML = bodyHtml\(on, list, showing, uploading\);/.test(vjs) && !/insertAdjacentHTML|outerHTML|document\.write/.test(vjs)
+            && /src = v \? videoSrc\(v\.path\) : ''/.test(vjs) && (vjs.match(/\.src = /g) || []).length === 2 && /el\.src = src;/.test(vjs) && /v\.src = url;/.test(vjs)
+            && /ui\('videoCaption'\)\.textContent = /.test(vjs) && /s\.textContent = 'Adding ' \+ uploading\.name/.test(vjs));
+    }
     delete global.window;
 
     summed = true;

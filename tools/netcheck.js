@@ -730,6 +730,18 @@ pendingChecks.push((async () => {
         JSON.stringify(Object.keys(forP.campaigns)) === '["k1"]' && forP.campaigns.k1.items.m1.whiteboard.length === 1 && JSON.stringify(Object.keys(forStream.campaigns)) === '["k1"]' && !/Secret game|orc_m2|p2/.test(JSON.stringify(forP)) && forP._schema === 2
         && JSON.stringify(odd.campaigns) === '{}' && JSON.stringify(none.campaigns) === '{}' && JSON.stringify(Object.keys(kept.campaigns)) === '["k1","k2"]', JSON.stringify([Object.keys(forP.campaigns), Object.keys(forStream.campaigns), odd.campaigns, none.campaigns]));
 }
+// item 21 V1: the campaign's video library is the GM's alone — the real sanitizeAppState leaves it out of the join snapshot and the stream window
+{
+    const saSrcV = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const SAv = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrcV + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it);
+    const vids = () => [{ id: 'v_abcdefgh', name: 'The reveal', path: '/saves/images/video/k1/aaaa_reveal.mp4', size: 123456, dur: 42 }];
+    const gmV = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: null, items: {}, videos: vids() } } });
+    const forPv = SAv(gmV(), 'u_p'), forSv = SAv(gmV()), keptV = gmV(); SAv(keptV, 'u_p');
+    const netNoDelete = src.replace(/        delete camp\.videos;[^\n]*\n/, '');
+    check('item 21 V1 the video library never leaves the host: the join snapshot and the stream window carry no videos key, no name and no path of one; the GM\'s own campaign keeps its library; net.js names camp.videos nowhere but where it strips it (no message carries it)',
+        !('videos' in forPv.campaigns.k1) && !('videos' in forSv.campaigns.k1) && !/The reveal|reveal\.mp4|v_abcdefgh/.test(JSON.stringify([forPv, forSv])) && JSON.stringify(keptV.campaigns.k1.videos) === JSON.stringify(vids())
+        && /        delete camp\.uploads;[^\n]*\n        delete camp\.videos;/.test(src) && !/\.videos\b/.test(netNoDelete), JSON.stringify(forPv.campaigns.k1));
+}
 // the table's follow and the summons: a connection still waiting for the GM's Allow hears nothing, not even where the table is
 {
     const stSrc = between('// [netcheck:stage-start]', '// [netcheck:stage-end]', 'stage');
@@ -2947,7 +2959,7 @@ pendingChecks.push((async () => {
     const mainSrc = rd(path.join('scripts', 'main.js')), htmlSrc = rd('index.html'), cssSrc = rd('style.css');
     check('where (client): wired — renderWhere paints only through paintWhere with the real document, off the synced host\'s campaign; main.js render() calls it before its no-map return, and the clock in the header after it (item 20 K2); renderRoster calls it as the session class changes',
         /function renderWhere\(\) \{[^}]*tableWhere\(net, campOf\(state\.appState && state\.appState\.activeCampaignId\)\);[^}]*paintWhere\(box, mapBox, w, document\);\n\}/.test(src) && /var box = ui\('tableWhere'\), mapBox = ui\('tableWhereMap'\); if \(!box \|\| !mapBox\) return;/.test(src)
-        && /export function render\(\) \{\s*if \(window\.wpHideTooltip\)[^\n]*\n\s*if \(window\.wpNet && window\.wpNet\.renderWhere\) window\.wpNet\.renderWhere\(\);[^\n]*\n\s*if \(window\.wpCalendar && window\.wpCalendar\.refresh\) window\.wpCalendar\.refresh\(\);[^\n]*\n\s*var activeMap = getActiveMap\(\);\s*if\(!activeMap\) return;/.test(mainSrc)
+        && /export function render\(\) \{\s*if \(window\.wpHideTooltip\)[^\n]*\n\s*if \(window\.wpNet && window\.wpNet\.renderWhere\) window\.wpNet\.renderWhere\(\);[^\n]*\n\s*if \(window\.wpCalendar && window\.wpCalendar\.refresh\) window\.wpCalendar\.refresh\(\);[^\n]*\n\s*if \(window\.wpVideo && window\.wpVideo\.refresh\) window\.wpVideo\.refresh\(\);[^\n]*\n\s*var activeMap = getActiveMap\(\);\s*if\(!activeMap\) return;/.test(mainSrc)
         && /classList\.toggle\('net-client'[^\n]*\n\s*renderWhere\(\);/.test(src));
     check('where (client): the campaign\'s box sits beside the campaign select, the map\'s in the next section (after the breadcrumb\'s place), both hidden unless a joined player has something to show',
         /<header>[\s\S]*<select id="campaignSelect"[^\n]*\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<div class="header-sep"><\/div>[\s\S]*<div id="mapBreadcrumb"><\/div>\n\s*<div id="tableWhereMap" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)

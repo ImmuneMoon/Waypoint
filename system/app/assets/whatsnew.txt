@@ -850,6 +850,19 @@ Music
   is a VTT feature (Settings ▸ VTT features), and a player can switch it off
   for themselves.
 
+Video
+- Video is a new VTT feature (Settings ▸ VTT features, on by default): the
+  🎬 Scene menu has a Video panel for the campaign's videos. Add videos...
+  copies MP4 or WebM files of any size into your saves folder, with a
+  progress line; a file this app cannot play, or one with no picture, is
+  refused. Each video has a name you can change, its length, size and
+  picture size, a button to watch it in the panel and one to delete it with
+  its file. The panel moves by its head, resizes from its corner and goes
+  full screen.
+- The local server answers a byte range: a long video or song loads in
+  parts and seeks without being read whole, and a video or a sound is
+  served under its own type.
+
 Dice
 - Roll at the table: type /roll 2d6 + 3 in Table Chat (or /r), or open the
   dice roller beside the message box: quick buttons for d4 to d100, a Roll

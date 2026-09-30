@@ -527,6 +527,9 @@ Turn-based combat
   value (the higher first, such as DX) or a roll made only for those still
   tied (1d6, d20), so a 3d6 game can order by Basic Speed and roll only for
   ties, and a d20 game roll and roll again.
+- Hold a turn: on the turn strip, Hold lets the one on turn wait; Act later
+  that round puts them right after whoever is acting, and they keep that
+  place. A hold not used by the round's end is lost.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

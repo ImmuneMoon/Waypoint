@@ -2315,6 +2315,20 @@ net.turnEnd = function() {
     try { net.conns[0].send({ type: 'turn-end', mapId: t.mapId, row: t.rowId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
     return { ok: true };
 };
+// Initiative O3: the player holds their own turn, or acts from their own hold (the host checks the row is theirs and still on turn or held)
+net.turnHold = function() {
+    var t = net.myTurnTok(); if (!t) return { error: 'It is not your turn.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    try { net.conns[0].send({ type: 'turn-hold', mapId: t.mapId, row: t.rowId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
+};
+net.turnAct = function(rowId) {
+    if (!net.active || net.role !== 'client' || typeof rowId !== 'string') return { error: 'Not at the table.' };
+    var camp = getActiveCampaign(), mid = camp && camp.activeItemId; if (typeof mid !== 'string') return { error: 'Not at the table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    try { net.conns[0].send({ type: 'turn-act', mapId: mid, row: rowId }); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
+};
 // A player's change of a carried list on their own character (Stage 6 F4a: a row op q = { op, defId?, rowId?, qty? }), applied at once, judged on the host.
 net.charItem = function(charId, fieldId, q) {
     var S = SC(), camp = getActiveCampaign();
@@ -3093,6 +3107,7 @@ function cleanCombats(c) {
             if (!r || typeof r !== 'object') return null;
             var o = { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null };
             if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
+            if (r.held === 1 || r.held === true) o.held = 1;   // initiative O3: holding its turn this round (shown to the table)
             if (Array.isArray(r.tb)) { var tb = r.tb.slice(0, 3).map(function(v) { return Array.isArray(v) ? v.slice(0, 8).filter(function(n) { return typeof n === 'number' && isFinite(n); }).map(function(n) { return Math.max(-1e6, Math.min(1e6, n)); }) : null; }); if (tb.some(function(v) { return v && v.length; })) o.tb = tb; }   // initiative O2: its tie rolls, each step's in order, kept so a later sort never shuffles; the host's own
             return o;
         }).filter(Boolean);
@@ -3115,7 +3130,7 @@ function applyNotepad(m) {
    for a token they cannot see is REDACTED (name "Hidden"; no token, no picture, and an id of its place rather than the row's, which
    carries the token's) — the order, count and turn index stay intact; a target pointer at an unseen token is dropped. Non-fog tables
    keep the single broadcast. */
-function combatRowOut(r, i, unseen) { return unseen ? { id: 'h' + i, name: 'Hidden', tokId: null, src: null } : { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; }
+function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }   // initiative O3: a seen row's hold too (an unseen one tells nothing)
 function combatsFor(recipientId) {
     var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
     Object.keys(net.combats || {}).forEach(function(mapId) {
@@ -3380,11 +3395,35 @@ net.combatStep = function(mapId, dir) {
     if (t >= c.rows.length) { t = 0; c.round += 1; }
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = c.rows.length - 1; } else t = 0; }
     c.turn = t;
+    if (c.round !== r0) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost
+    if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
     broadcastCombats(); combatRefresh();
     if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
 };
+// [netcheck:turnhold-start]
+// Initiative O3 (the owner's answer, "After the current turn"): the character whose turn it is holds it — play moves on as with Next turn and
+// its row waits, held; later in the round, when its owner or the GM presses Act, the held row goes right after whoever is acting and keeps
+// that place (it acts next). A hold not used by the round's end is lost (combatStep), and the character acts in its usual place
+net.combatHold = function(mapId) {
+    if (net.role !== 'host') return false;
+    var c = own(net.combats, mapId) ? net.combats[mapId] : null, row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!row) return false;
+    row.held = 1; toast((row.name || 'Someone') + ' holds their turn.'); logEvent('table', (row.name || 'Someone') + ' held their turn on ' + mapTitleOf(mapId));
+    net.combatStep(mapId, 1);   // play moves on (it broadcasts); a hold on the round's last turn is lost at once, as combatStep clears holds at a new round
+    return true;
+};
+net.combatAct = function(mapId, rowId) {
+    if (net.role !== 'host') return false;
+    var c = own(net.combats, mapId) ? net.combats[mapId] : null; if (!c || !Array.isArray(c.rows) || typeof rowId !== 'string') return false;
+    var i = c.rows.findIndex(function(r) { return r && r.id === rowId; }); if (i < 0 || i === c.turn || c.rows[i].held !== 1) return false;
+    var row = c.rows.splice(i, 1)[0], t = c.turn - (i < c.turn ? 1 : 0); delete row.held;
+    c.rows.splice(t + 1, 0, row); c.turn = t;
+    toast((row.name || 'Someone') + ' acts next.'); logEvent('table', (row.name || 'Someone') + ' acted from a hold on ' + mapTitleOf(mapId));
+    broadcastCombats(); combatRefresh();
+    return true;
+};
+// [netcheck:turnhold-end]
 net.combatEnd = function(mapId) {
     if (net.role !== 'host' || !net.combats[mapId]) return;
     var c = net.combats[mapId];
@@ -4402,6 +4441,22 @@ function handleMessage(msg, conn) {
         if (chA.name) recA.as = String(chA.name).slice(0, 60);
         postApply(recA, Sa.applyScope(campA.system, chA, actA, rowGmA, Fa), chA, conn);
         // [netcheck:charapply-end]
+    } else if ((msg.type === 'turn-hold' || msg.type === 'turn-act') && net.role === 'host') {
+        // [netcheck:turnholdmsg-start]
+        // Initiative O3: a player holds their own turn (the row on turn, theirs) or acts from their own hold — turn-based combat on, the combat on
+        // the map they are on, the row's token a character token of theirs; then the GM's own hold or act
+        if (net.paused || peerPaused(conn.peer)) return;
+        if (!window.wpVtt || !window.wpVtt.on('turns')) return;
+        var prH = net.roster[conn.peer]; if (!prH || typeof msg.mapId !== 'string' || msg.mapId !== prH.location || typeof msg.row !== 'string') return;
+        if (!allow('turnhold', { perMs: 400, burst: 4, windowMs: 4000, table: 400 }, conn.peer)) return;
+        var cbH = own(net.combats, msg.mapId) ? net.combats[msg.mapId] : null, rowH = cbH && Array.isArray(cbH.rows) ? cbH.rows.find(function(r) { return r && r.id === msg.row; }) : null;
+        if (!rowH || typeof rowH.tokId !== 'string') return;
+        var campH = getActiveCampaign(), mapH = campH && campH.items && own(campH.items, msg.mapId) ? campH.items[msg.mapId] : null;
+        var tokH = mapH && mapH.type === 'map' && Array.isArray(mapH.whiteboard) ? mapH.whiteboard.find(function(w) { return w && w.id === rowH.tokId; }) : null;
+        if (!tokH || !tokH.isChar || !tokH.ownerId || tokH.ownerId !== prH.id) return;
+        if (msg.type === 'turn-hold') { if (cbH.rows[cbH.turn] === rowH) net.combatHold(msg.mapId); }
+        else net.combatAct(msg.mapId, rowH.id);
+        // [netcheck:turnholdmsg-end]
     } else if (msg.type === 'turn-end' && net.role === 'host') {
         // [netcheck:turnend-start]
         // Turn-based combat T2: a player ends their own turn — turn-based combat on, the combat on the map they are on, the row they saw still the

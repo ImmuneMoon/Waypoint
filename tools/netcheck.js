@@ -669,6 +669,40 @@ const siSrc = () => {
     return (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);
 };
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
+// conditions C1: a character token's effects on the wire — the real sanitizeItem and wireWbItem with fxbOf and fxbMoved, sliced and run
+pendingChecks.push((async () => {
+    const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));
+    const J = JSON.stringify;
+    const fxA = src.indexOf('// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees'), fxB = src.indexOf('/* ---------- fog of war (1.5.0 FV2): per-recipient creature drop');
+    const fxS = siSrc() + '\n' + (fxA > 0 && fxB > fxA ? src.slice(fxA, fxB) : '');
+    const sysF = { v: 1, name: 'F', fields: [{ id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects', vis: 'all' }], rolls: [], effects: [{ id: 'e_pub', name: 'Blessed', icon: 'icon:bolt', tone: 'buff', vis: 'all', mods: [] }, { id: 'e_gm', name: 'Cursed', icon: 'X', tone: 'debuff', vis: 'gm', mods: [] }] };
+    const mkF = role => {
+        const sent = [], camp = { id: 'k', system: sysF, chars: { c_a: { id: 'c_a', name: 'A', values: { f_fx: [{ id: 'r1', ref: 'e_pub', on: true }, { id: 'r2', ref: 'e_gm', on: true }] } }, c_b: { id: 'c_b', name: 'B', values: {} }, c_c: { id: 'c_c', name: 'C', values: {} } },
+            items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tA', isChar: true, charId: 'c_a', x: 0, y: 0, w: 50, h: 50 }, { id: 'box', type: 'rect', x: 0, y: 0, w: 50, h: 50, fxb: [{ n: 'Odd' }] }, { id: 'plate', type: 'rect', charId: 'c_a', x: 0, y: 0, w: 50, h: 50 }] }, m2: { id: 'm2', type: 'map', whiteboard: [{ id: 'tB', isChar: true, charId: 'c_b', x: 0, y: 0, w: 50, h: 50, fxb: [{ n: '<b>Forged</b>', i: 'x', t: 'buff' }] }] },
+                m3: { id: 'm3', type: 'map', whiteboard: [{ id: 'tA2', isChar: true, charId: 'c_a', x: 0, y: 0, w: 50, h: 50, hidden: true }] }, m4: { id: 'm4', type: 'map', whiteboard: [{ id: 'tC', isChar: true, charId: 'c_c', x: 0, y: 0, w: 50, h: 50 }] } } };
+        const net = { role, active: true, sendItem: (cid, mid) => sent.push(cid + ':' + mid) };
+        const api = new Function('net', 'getActiveCampaign', 'SC', 'own', 'window', "'use strict';\n" + fxS + '\nreturn { sanitizeItem: sanitizeItem, wireWbItem: wireWbItem, fxbMoved: fxbMoved };')(net, () => camp, () => Sx, H.own, {});
+        return { camp, net, api, sent };
+    };
+    const F1 = mkF('host'), c1 = F1.api.sanitizeItem(F1.camp.items.m1), c2 = F1.api.sanitizeItem(F1.camp.items.m2), c3 = F1.api.sanitizeItem(F1.camp.items.m3), alone = F1.api.wireWbItem(F1.camp.items.m1.whiteboard[0], false);
+    const tokOf = (m, id) => m.whiteboard.find(w => w.id === id), hostKept = JSON.stringify(F1.camp.items);
+    const cl = mkF('client'), cc1 = cl.api.sanitizeItem(cl.camp.items.m1);
+    check('conditions C1 (host, run for real): a character token\'s copy carries the effects the table sees (fxb: name, icon, tone), never a GM-only one, whole or sent alone; a token whose character has none and any other piece carry none (even one naming the character), a stray fxb on the host\'s map never travels; a hidden token\'s stub carries none; the host\'s own map is left as it was; worked out on a host alone',
+        J(tokOf(c1, 'tA').fxb) === J([{ n: 'Blessed', i: 'icon:bolt', t: 'buff' }]) && !/Cursed/.test(J(c1)) && J(alone.fxb) === J(tokOf(c1, 'tA').fxb) && !('fxb' in tokOf(c1, 'box')) && !('fxb' in tokOf(c1, 'plate')) && !('fxb' in tokOf(c2, 'tB'))
+        && J(tokOf(c3, 'tA2')) === J({ id: 'tA2', type: 'rect', hidden: true, x: 0, y: 0, w: 50, h: 50, rot: 0, locked: true }) && !/"fxb":\[\{"n":"Blessed/.test(hostKept) && /Odd/.test(hostKept) && !('fxb' in tokOf(cc1, 'tA')), J([tokOf(c1, 'tA'), tokOf(c2, 'tB'), tokOf(c3, 'tA2')]));
+    F1.camp.chars.c_a.values.f_fx[0].on = false; F1.api.fxbMoved('c_a'); const mv1 = F1.sent.slice(); F1.sent.length = 0;
+    F1.api.fxbMoved('c_a'); const mv2 = F1.sent.slice(); F1.sent.length = 0;
+    F1.camp.chars.c_b.values.f_fx = [{ id: 'r3', ref: 'e_pub', on: true }]; F1.api.fxbMoved(null); const mv3 = F1.sent.slice(); F1.sent.length = 0;
+    F1.camp.chars.c_c.values.f_fx = [{ id: 'r4', ref: 'e_pub', on: true }]; F1.api.fxbMoved('c_c'); const mv4 = F1.sent.slice(); F1.sent.length = 0;
+    F1.camp.chars.c_a.values.f_fx[1].on = false; F1.api.fxbMoved('c_a'); const mv5 = F1.sent.slice(); F1.sent.length = 0;
+    F1.camp.chars.c_a.values.f_fx[0].on = true; F1.api.fxbMoved('constructor'); F1.api.fxbMoved(5); const mv6 = F1.sent.slice(); F1.net.active = false; F1.api.fxbMoved('c_a'); const mv7 = F1.sent.slice();
+    const cl2 = mkF('client'); cl2.api.sanitizeItem(cl2.camp.items.m1); cl2.camp.chars.c_a.values.f_fx[0].on = false; cl2.api.fxbMoved('c_a');
+    check('conditions C1 (host, run for real): a character whose list moved since a copy was made sends every map holding a shown token of theirs again (a hidden one\'s map not), once; nothing moved sends nothing; every character looked at together alike; one no copy has carried yet, a GM-only effect\'s change the table never sees, a name that is no character of theirs, a session not running or a player\'s app send nothing',
+        J(mv1) === J(['k:m1']) && J(mv2) === J([]) && J(mv3) === J(['k:m2']) && J(mv4) === J([]) && J(mv5) === J([]) && J(mv6) === J([]) && J(mv7) === J([]) && J(cl2.sent) === J([]), J([mv1, mv2, mv3, mv4, mv5, mv6, mv7]));
+    check('conditions C1 (source): the three funnels every character change leaves by look for moved effects — syncChars for every character, syncChar and syncCharDelta for the one that changed',
+        /net\.syncChars = function\(\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(null\);/.test(src) && /net\.syncChar = function\(id\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src)
+        && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src));
+})());
 /* ================= a session is one campaign (owner's answer 2026-09-29, found during senses S0 (b)): the real sanitizeAppState copies only the hosted campaign ================= */
 {
     const saSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
@@ -4212,7 +4246,7 @@ pendingChecks.push((async () => {
         check('senses S0 (source): each of the three funnels every character change leaves by calls the hook as its first statement after its host test — syncChars for any character, syncChar and syncCharDelta for the one that changed, ahead of whatever turns a change away — and nothing else in net.js calls it but a change of the rules for new players',
             /net\.syncChars = function\(\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(null\);\n/.test(src)
             && /net\.syncChar = function\(id\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(id\);\n/.test(src)
-            && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(id\);[^\n]*\n    var camp = getActiveCampaign\(\), S = SC\(\); if \(/.test(src)
+            && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n    if \(!net\.active \|\| net\.role !== 'host'\) return;\n    if \(net\.sensesMoved\) net\.sensesMoved\(id\);[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);[^\n]*\n    var camp = getActiveCampaign\(\), S = SC\(\); if \(/.test(src)
             && (srcC.match(/sensesMoved\(/g) || []).length === 4 && (srcC.replace(nsS2.replace(/\/\/[^\n]*/g, ''), '').match(/sensesMoved\(/g) || []).length === 3 && (srcC.match(/net\.sensesMoved = function\(charId\) \{/g) || []).length === 1 && (srcC.match(/sensesFire\(/g) || []).length === 2);
     }
 
@@ -6332,7 +6366,7 @@ pendingChecks.push((async () => {
     const FCx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
     const lnS = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
     const hmS = src.indexOf('function cleanHostMap(m) {'), hmE = src.indexOf('\n}\n', hmS) + 2;
-    const cli = (myId, win) => new Function('window', 'net', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lnS('function cleanHostWbItem(w) {') + '\n' + lnS('function cleanHostLight(w) {') + '\n' + lnS('function cleanHostTokSenses(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n' + src.slice(hmS, hmE) + '\nreturn { item: cleanHostWbItem, map: cleanHostMap };')(win || { wpFogCore: FCx }, { myId: myId }, H.cleanWaitingItem, t => t, v => v);
+    const cli = (myId, win) => new Function('window', 'net', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lnS('function cleanHostWbItem(w) {') + '\n' + lnS('function cleanHostLight(w) {') + '\n' + lnS('function cleanHostTokSenses(w) {') + '\n' + lnS('function cleanHostFxb(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n' + src.slice(hmS, hmE) + '\nreturn { item: cleanHostWbItem, map: cleanHostMap };')(win || { wpFogCore: FCx }, { myId: myId }, H.cleanWaitingItem, t => t, v => v);
     const J = v => JSON.stringify(v), has = (w, k) => Object.prototype.hasOwnProperty.call(w, k);
     const raw = () => JSON.parse('[{"id":"sn_force001","n":1e9},{"id":"sn_force001","n":4},{"id":"sn_Bad","n":3},{"id":"sn_other001","n":-2},{"id":"__proto__","n":1}]');
     const toks = () => [{ id: 'me', type: 'image', isChar: true, ownerId: 'u_me', senses: raw() }, { id: 'bo', type: 'image', isChar: true, ownerId: 'u_bo', senses: raw() }, { id: 'orc', type: 'image', isChar: true, senses: raw() },
@@ -6370,6 +6404,14 @@ pendingChecks.push((async () => {
     const trMapC = C.map({ id: 'm1', type: 'map', whiteboard: trToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'terrain') ? w.terrain : 0));
     check('terrain T1 (client): a player\'s app keeps a piece\'s difficult terrain from its host as its cost, a whole number 2 to 10 (40 reads 10), with or without a profile; a word, 1 or an object is dropped, item by item and in a whole map; with no cleaner on hand it does not come in',
         J(trCli) === J([[3, 3, 10, 0, 0, 0, 0], [3, 3, 10, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]) && J(trMapC) === J(trCli[0]), J([trCli, trMapC]));
+    const SxC = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));
+    const fxToks = () => [{ id: 'f1', isChar: true, x: 0, y: 0, w: 50, h: 50, fxb: Array.from({ length: 10 }, (_, i) => ({ n: i === 0 ? 'Bless' + String.fromCharCode(0) + 'ed' + 'x'.repeat(80) : 'E' + i, i: i === 1 ? 'icon:bolt' : i === 2 ? 'icon:nosuch' : i === 3 ? '<img src=x onerror=alert(1)>' : '', t: i === 4 ? 'debuff' : i === 5 ? 'evil' : 'buff' })) },
+        { id: 'f2', type: 'rect', x: 0, y: 0, w: 50, h: 50, fxb: [{ n: 'Box' }] }, { id: 'f3', isChar: true, x: 0, y: 0, w: 50, h: 50, fxb: 'x' }, { id: 'f4', isChar: true, x: 0, y: 0, w: 50, h: 50, fxb: [{ n: 5 }, null, { n: '   ' }] }];
+    const fxCli = cli('u_me', { wpFogCore: FCx, wpSystemCore: SxC }), fxGot = fxToks().map(w => fxCli.item(w)).map(w => (has(w, 'fxb') ? w.fxb : 'none')), fxNo = fxToks().map(w => cli('u_me').item(w)).map(w => has(w, 'fxb'));
+    const f0 = fxGot[0];
+    check('conditions C1 (client): a player\'s app keeps a character token\'s effects from its host cleaned — at most 8, a name as plain text of 60 at most, an icon only as the app would draw it, a tone of the two words; none on another piece, a list that is no list or one with no name left; with no cleaner on hand they do not come in',
+        Array.isArray(f0) && f0.length === 8 && f0[0].n.length === 60 && f0[0].n.indexOf(String.fromCharCode(0)) < 0 && f0[1].i === 'icon:bolt' && f0[2].i === '' && f0[3].i === SxC.cleanIcon('<img src=x onerror=alert(1)>') && f0[4].t === 'debuff' && f0[5].t === '' && f0[6].t === 'buff'
+        && fxGot[1] === 'none' && fxGot[2] === 'none' && fxGot[3] === 'none' && J(fxNo) === J([false, false, false, false]), J([fxGot, fxNo]));
     check('senses S7b (client): a player\'s app keeps a smoke tick from its host only as true, with or without a cleaner or a profile; any other value is dropped, item by item and in a whole map',
         J(smCli) === J([[true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0]]) && J(smMapC) === J(smCli[0]), J([smCli, smMapC]));
     check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',

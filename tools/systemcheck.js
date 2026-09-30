@@ -7360,6 +7360,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('S1 the two views judge by the GM\'s view of the fields: a visible field the GM\'s view drops (its key taken by an earlier GM-only field) names nothing in the players\' view either',
             views(dupS).every(v => j(v) === j({ list: [ctl] })) && cleanSystem(dupS, plO).fields.some(f => f.id === 'f_gb'), j(views(dupS)));
     }
+    {   // conditions C1 (owner 2026-09-30, the Foundry model): tokenEffects — what a character's token shows, for the table and for the GM
+        const J = JSON.stringify, sysT = { fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }, { id: 'f_fx2', key: 'More', kind: 'effects' }, { id: 'f_n', key: 'N', kind: 'number' }],
+            effects: [{ id: 'e_pub', name: 'Blessed', icon: 'icon:bolt', tone: 'buff', vis: 'all' }, { id: 'e_gm', name: 'Cursed', icon: 'X', tone: 'debuff', vis: 'gm' }, { id: 'e_odd', name: 'Odd' + String.fromCharCode(7) + 'ly', icon: '<img src=x>', tone: 'evil' }] };
+        const chT = { id: 'c', values: { f_fx: [{ id: 'r1', ref: 'e_pub', on: true }, { id: 'r2', ref: 'e_gm' }, { id: 'r3', ref: 'e_pub', on: false }, { id: 'r4', ref: 'e_gone', on: true }, { id: 'r5', name: 'Charged', icon: 'icon:nosuch', tone: 'debuff', on: true }, 'x', null],
+            f_fx2: [{ id: 'r6', ref: 'e_odd' }], f_n: [{ id: 'r7', ref: 'e_pub' }] } };
+        const tbl = S.tokenEffects(sysT, chT, false), gmL = S.tokenEffects(sysT, chT, true), many = S.tokenEffects(sysT, { values: { f_fx: Array.from({ length: 12 }, (_, i) => ({ id: 'q' + i, ref: 'e_pub' })) } }, false);
+        const none = [S.tokenEffects(null, chT, true), S.tokenEffects(sysT, null, true), S.tokenEffects(sysT, { values: 'x' }, true), S.tokenEffects({ fields: 'x' }, chT, true), S.tokenEffects(sysT, { values: Object.create({ f_fx: [{ ref: 'e_pub' }] }) }, true)].map(x => x.length);
+        check('conditions C1 tokenEffects: a token shows each switched-on row of its character\'s effects lists in list order — a library row by its definition, an ad hoc row as written — never one switched off, one whose effect is gone, a row that is no row or a row under a field that is no effects list; the table never sees a GM-only effect, the GM sees it marked; names as plain text, icons as the app draws them, a tone of the two words; at most 8; nothing without a system, a character or values of its own',
+            J(tbl) === J([{ n: 'Blessed', i: 'icon:bolt', t: 'buff' }, { n: 'Charged', i: '', t: 'debuff' }, { n: 'Odd ly', i: S.cleanIcon('<img src=x>'), t: '' }])
+            && J(gmL) === J([{ n: 'Blessed', i: 'icon:bolt', t: 'buff' }, { n: 'Cursed', i: 'X', t: 'debuff', g: 1 }, { n: 'Charged', i: '', t: 'debuff' }, { n: 'Odd ly', i: S.cleanIcon('<img src=x>'), t: '' }])
+            && many.length === 8 && J(none) === J([0, 0, 0, 0, 0]), J([tbl, gmL, many.length, none]));
+        const ixC = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuC = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8'), giC = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('conditions C1 Help, the tour and the integration guide: an effect that is on shows on its character\'s token for everyone who sees it, a GM-only one for the GM alone; a save never carries fxb',
+            ixC.includes('An effect that is switched on shows as a small <b>icon on its character&rsquo;s token</b> on the map') && ixC.includes('Everyone who sees the token sees its effects, except a GM-only effect, which only you see (ringed dashed).')
+            && tuC.includes('An effect that is on shows as a small icon on its character&rsquo;s token, for everyone who sees the token; a GM-only effect only for you.') && giC.includes('A character token never carries `fxb` in a save'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

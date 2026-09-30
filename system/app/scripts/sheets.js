@@ -409,6 +409,17 @@ function hoverLinesForToken(w, camp, mapId) {   // mapId: the map the token stan
     if (c.partial && Array.isArray(c.lines)) return c.lines.slice();   // 5h: a teammate's copy shows the host's lines (it lacks the fields their formulas read)
     try { var midH = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? mapId : camp.activeItemId, amH = camp.items && camp.items[midH]; return hoverLines(sys, c, F(), withRange(withRound(tokenCtx(amH, w, tokenFlags()), combatOn(midH)), rangeFor(c, midH, amH, w, camp))); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map (HF5 review: the map it stands on, as its sheet reads it)
 }
+// [sinkcheck:tokenfxlist-start]
+// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects a character token shows on this screen — the GM's worked out from its character, a
+// GM-only one marked; a player's (and the GM's campaign on a player's screen) as the host sent them on the token (fxb); none while
+// character sheets are off
+function tokenFx(w) {
+    if (!w || !w.isChar || (window.wpVtt && !window.wpVtt.on('sheets'))) return [];
+    var n = window.wpNet; if (n && (n.foreign || (n.active && n.role === 'client'))) return Array.isArray(w.fxb) ? w.fxb : [];
+    var S = window.wpSystemCore, camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp);
+    return S && S.tokenEffects && sys && c ? S.tokenEffects(sys, c, true) : [];
+}
+// [sinkcheck:tokenfxlist-end]
 function hoverLinesForTokenId(camp, tokId) {
     if (!camp || !tokId) return [];
     var w = null, onMap = null; Object.keys(camp.items || {}).some(function(id) { var m = camp.items[id]; if (!m || m.type !== 'map') return false; w = (m.whiteboard || []).find(function(x) { return x && x.id === tokId; }) || null; if (w) onMap = id; return !!w; });
@@ -5413,7 +5424,7 @@ setTimeout(sync, 0);
 window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
-    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId,
+    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 

@@ -3262,7 +3262,7 @@ window.wpFitToGrid = fitToGrid;
       var rYd = blastRadiusYd(b), hits = [], applied = 0, halved = 0, shielded = 0;
       blastDistances(b, map).forEach(function(r) {
           if (r.d > rYd + 1e-9 || !r.tok.charId) return;
-          var ch = camp.chars && camp.chars[r.tok.charId]; if (!ch) return;
+          var ch = camp.chars && typeof r.tok.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch) return;   // own ids only: a token from a file naming '__proto__' writes no damage onto a prototype
           var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, total) : total;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && total > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
           var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
@@ -3285,7 +3285,7 @@ window.wpFitToGrid = fitToGrid;
       if (!_lastThrowTx || !_lastThrowTx.hits.length) { toast('Nothing to undo.'); return; }
       var camp = getActiveCampaign(); if (!camp) return;
       _lastThrowTx.hits.forEach(function(h) {
-          var ch = camp.chars && camp.chars[h.charId]; if (!ch) return;
+          var ch = camp.chars && typeof h.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, h.charId) ? camp.chars[h.charId] : null; if (!ch) return;
           ch.values = ch.values || {};
           if (h.prev === undefined) delete ch.values[h.hpId]; else ch.values[h.hpId] = h.prev;
           ch.updated = Date.now();

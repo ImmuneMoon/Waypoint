@@ -1987,10 +1987,10 @@ net.syncSenses = function() {
 // [netcheck:campfogsync-end]
 // [netcheck:clocksync-start]
 // Item 20 K2: the hosted campaign's clock — the join snapshot carries it; a change goes to admitted players the way the fog defaults do,
-// once per change, cleaned again on arrival: its time alone. While the Calendar feature is off or the GM keeps the date from players the
+// once per change, cleaned again on arrival: its time alone, and (K3) the dated notes players may see. While the Calendar feature is off or the GM keeps the date from players the
 // message carries null and a player's app drops its clock. A host has NO branch for 'clock'
 net._lastClockSig = null;
-function clockOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || !CCo.cleanClock || !window.wpVtt || !window.wpVtt.campaignOn('calendar', camp)) return null; var ck = CCo.cleanClock(camp.clock) || { t: 0 }; return ck.hide ? null : { t: ck.t }; }
+function clockOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || !CCo.cleanClock || !window.wpVtt || !window.wpVtt.campaignOn('calendar', camp)) return null; var ck = CCo.cleanClock(camp.clock) || { t: 0 }; if (ck.hide) return null; var o = { t: ck.t }, ns = (ck.notes || []).filter(function(n) { return n.vis === 'all'; }).map(function(n) { return { id: n.id, day: n.day, text: n.text }; }); if (ns.length) o.notes = ns; return o; }   // K3: the notes players may see, never a GM-only one
 net.clockMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'clock', campId: camp.id, clock: clockOut(camp) }; };
 net.syncClock = function() {
     if (!net.active || net.role !== 'host') return;
@@ -4784,12 +4784,12 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'clock' && net.role === 'client') {
         // [netcheck:clockmsg-start]
         // item 20 K2: the hosted campaign's clock from the synced host, for the hosted campaign, cleaned again (calendarcore cleanClock): its
-        // time alone, never a hide; null takes it away (the Calendar off, or the GM keeps the date from players)
+        // time alone and (K3) its notes as text, never a hide or a vis; null takes it away (the Calendar off, or the GM keeps the date from players)
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campCk = campOf(msg.campId), CCk = window.wpCalendarCore; if (!campCk || !CCk || !CCk.cleanClock) return;
         var ckIn = msg.clock === null ? null : CCk.cleanClock(msg.clock);
-        if (ckIn) campCk.clock = { t: ckIn.t }; else delete campCk.clock;
+        if (ckIn) { var ckKeep = { t: ckIn.t }; if (ckIn.notes) ckKeep.notes = ckIn.notes.map(function(n) { return { id: n.id, day: n.day, text: n.text }; }); campCk.clock = ckKeep; } else delete campCk.clock;   // K3: its notes as text, never a vis
         if (window.wpCalendar) window.wpCalendar.refresh();
         // [netcheck:clockmsg-end]
     } else if (msg.type === 'fogDiff' && net.role === 'client') {

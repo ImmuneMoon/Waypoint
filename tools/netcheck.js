@@ -6649,6 +6649,28 @@ pendingChecks.push((async () => {
     check('item 20 K2 the session log has a Time kind (net.js _logKinds, pinned) and its filter an option for it',
         /var _logKinds = \{[^}]*char: 'Characters', time: 'Time' \};/.test(src) && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<option value="travel">Travel</option><option value="time">Time</option>'));
 })());
+// Item 20 K3: a clock's dated notes on the wire — only those players may see, as text; a player's app keeps them as text again
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const CCx = await import(url('calendarcore.js')), ownK = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const syncN = between('// [netcheck:clocksync-start]', '// [netcheck:clocksync-end]', 'clocksync'), rcvN = between('// [netcheck:clockmsg-start]', '// [netcheck:clockmsg-end]', 'clockmsg');
+    const vttN = { campaignOn: (id, camp) => id === 'calendar' && !!camp && !!camp.vtt && camp.vtt.cal === true };
+    const campN = { id: 'k_1', vtt: { cal: true }, clock: { t: 60, notes: [{ id: 'n_aaaaaaaa', day: 3, text: 'Secret plan', vis: 'gm' }, { id: 'n_bbbbbbbb', day: 2, text: 'Market day', vis: 'all' }, { id: 'n_cccccccc', day: 9, text: 'Festival', vis: 'all', extra: '<b>' }, { id: 'n_dddddddd', day: 4, text: 'GM only' }] } }, sentN = [];
+    const netN = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send: m => { packCheck(m); sentN.push(JSON.parse(JSON.stringify(m))); } }], roster: { pA: { id: 'u_a' } } };
+    const clockOutN = new Function('net', 'getActiveCampaign', 'own', 'sendFailed', 'window', syncN + '\nreturn clockOut;')(netN, () => campN, ownK, e => { throw e; }, { wpCalendarCore: CCx, wpVtt: vttN });
+    netN.syncClock(); const n1 = sentN.slice(); campN.clock.notes[0].text = 'Secret plan changed'; netN.syncClock(); const n2 = sentN.length; campN.clock.notes[3].vis = 'all'; netN.syncClock(); const n3 = sentN.slice(-1)[0];
+    campN.clock.hide = true; const hid = clockOutN(campN);
+    check('item 20 K3 a clock\'s notes on the wire (net.syncClock and clockOut, run for real): only the notes players may see, as their id, day and text in day order, never a GM-only one, never its vis or anything else; a change to a GM-only note sends nothing, one shown to players sends the notes again; nothing at all while the date is kept from players',
+        j(n1) === j([{ type: 'clock', campId: 'k_1', clock: { t: 60, notes: [{ id: 'n_bbbbbbbb', day: 2, text: 'Market day' }, { id: 'n_cccccccc', day: 9, text: 'Festival' }] } }]) && n2 === 1 && !/Secret|GM only/.test(j(n1))
+        && j(n3.clock.notes.map(n => n.id)) === j(['n_bbbbbbbb', 'n_dddddddd', 'n_cccccccc']) && !('vis' in n3.clock.notes[0]) && hid === null, j([n1, n3]));
+    const runN = msg => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', clock: { t: 1 } } } } };
+        new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvN)({ role: 'client', foreign: true, syncedPeer: 'host1', stream: false }, { peer: 'host1' }, msg, st, id => (ownK(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpCalendarCore: CCx, wpCalendar: { refresh: () => {} } });
+        return st.appState.campaigns.k_1.clock; };
+    const rN = runN({ type: 'clock', campId: 'k_1', clock: { t: 90, notes: [{ id: 'n_bbbbbbbb', day: 2, text: 'Market\u0000 day', vis: 'gm', x: 1 }, { id: 'bad', day: 1, text: 'x' }, { id: 'n_cccccccc', day: 'x', text: 'y' }, { id: 'n_dddddddd', day: 1, text: '<img src=x onerror=alert(1)>', vis: 'all' }] } });
+    const rN2 = runN({ type: 'clock', campId: 'k_1', clock: { t: 90, notes: 'x' } });
+    check('item 20 K3 a player\'s app keeps the notes a host sends (the clockmsg branch, run for real) as cleaned text in day order — an id of the pattern, a whole day, its text one line — never a vis or anything else; notes that are no list are none',
+        j(rN) === j({ t: 90, notes: [{ id: 'n_dddddddd', day: 1, text: '<img src=x onerror=alert(1)>' }, { id: 'n_bbbbbbbb', day: 2, text: 'Market day' }] }) && j(rN2) === j({ t: 90 }), j([rN, rN2]));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

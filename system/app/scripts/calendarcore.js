@@ -14,9 +14,11 @@ var LIMITS = Object.freeze({
     year: 1e7,                          // the year day 1 falls in, and a leap rule's year, either way
     hours: 100, minutes: 1000, seconds: 1000,   // a day's hours, an hour's minutes, a minute's seconds
     leapEvery: 1000, leapDays: 100,     // a leap rule: every 2 to 1000 years, 1 to 100 days more
+    notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
     time: 1e15                          // world time, in seconds (about 31 million years of 24-hour days)
 });
 var DAY = Object.freeze({ hours: 24, minutes: 60, seconds: 60 });   // a day's shape when the calendar says nothing
+var NOTE_ID = /^n_[a-z0-9]{8}$/;   // item 20 K3: a dated note's id
 var CTRL_RE_G = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 
 function isObj(o) { return !!o && typeof o === 'object' && !Array.isArray(o); }
@@ -141,8 +143,20 @@ function fmtSpan(cal, secs) {
 }
 
 // Item 20 K2: a campaign's clock (camp.clock), cleaned: { t (world time, a whole number of seconds from 0 to 10^15; absent or no number: 0),
-// hide? (true only: the GM keeps the date from players) }. Not an object: null (no clock yet: day 1 at 00:00)
-function cleanClock(v) { if (!isObj(v)) return null; var o = { t: clampT(v.t) }; if (v.hide === true) o.hide = true; return o; }
+// hide? (true only: the GM keeps the date from players), notes? (K3: dated notes, each { id: n_ and 8 of a-z 0-9, once; day: the day it
+// falls on, days from day 1 counted from 0; text: one line, 400 code points; vis: 'all' only, players see it, absent: the GM's alone }, at
+// most 500, in day order, a note with no day or no text dropped) }. Not an object: null (no clock yet: day 1 at 00:00)
+function cleanClock(v) {
+    if (!isObj(v)) return null;
+    var o = { t: clampT(v.t) }, seen = Object.create(null), ns = []; if (v.hide === true) o.hide = true;
+    (Array.isArray(v.notes) ? v.notes : []).forEach(function(n) {
+        if (ns.length >= LIMITS.notes || !isObj(n) || typeof n.id !== 'string' || !NOTE_ID.test(n.id) || seen[n.id] === 1) return;
+        var day = whole(n.day, 0, LIMITS.time), tx = cutName(n.text, LIMITS.noteChars); if (day === null || !tx) return;
+        seen[n.id] = 1; var nn = { id: n.id, day: day, text: tx }; if (n.vis === 'all') nn.vis = 'all'; ns.push(nn);
+    });
+    if (ns.length) o.notes = ns.map(function(n, i) { return [n, i]; }).sort(function(a, b) { return a[0].day - b[0].day || a[1] - b[1]; }).map(function(x) { return x[0]; });
+    return o;
+}
 
 // The editor's starting points (fresh objects: a caller may keep and change one). 'twelve': the real-world year, a leap day in February
 // every fourth year; 'days': a plain count of days (no calendar at all)

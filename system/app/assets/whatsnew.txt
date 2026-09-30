@@ -557,6 +557,9 @@ Turn-based combat
   whether players see the date. Each round of a combat moves it on by the
   round's length, every move you make goes in the session log, and a player
   may hide it for themselves.
+- Notes on dates: pick a day in the calendar and write a note on it, for you
+  alone or for your players too; days with notes are marked, the next five
+  are listed as Coming up, and you are reminded when the clock reaches one.
 - The System editor's Calendar tab: the calendar your game keeps, its
   months and the festival weeks or holidays outside the month count, its
   week, the day's hours, how its years are numbered (counting down, if yours

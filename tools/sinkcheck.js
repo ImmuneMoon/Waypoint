@@ -1367,6 +1367,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && (tlS.match(/reason: '([a-z]+)'/g) || []).every(r => Object.prototype.hasOwnProperty.call(WHY, /'([a-z]+)'/.exec(r)[1])) && (tlS.match(/reason: '([a-z]+)'/g) || []).length >= 10
             && /var WK = pK\.kind === 'tok-pic' \? TOK_WHY : pK\.kind === 'tok-light' \? LIGHT_WHY : MK_WHY; pK\.done\(\{ error: typeof msg\.reason === 'string' && Object\.prototype\.hasOwnProperty\.call\(WK, msg\.reason\) \? WK\[msg\.reason\] : 'The GM could not do that\.' \}\);/.test(netO), WHY);
     }
+    {   // conditions C1: a token's effects drawn on it (whiteboard.js tokenFxHtml, sliced by its tokenfx markers) and which list a screen draws
+        // (sheets.js tokenFx, tokenfxlist), run for real on hostile names and icons
+        const J = JSON.stringify, SYc = await import(modUrl('systemcore.js') + '?c1'), inspC = read('inspector.js'), escC = new Function((/\n  function esc\(s\)\{[^\n]*\}\n/.exec(inspC) || ['function esc(s){return String(s)}'])[0] + '\nreturn esc;')();
+        const txS = slice('whiteboard.js', 'tokenfx'), TX = new Function('esc', 'window', "'use strict';\n" + txS + '\nreturn tokenFxHtml;')(escC, { wpSystemCore: SYc });
+        const hostile = [{ n: '<img src=x onerror=alert(1)>', i: 'icon:bolt', t: 'buff' }, { n: 'P"q', i: '<script>x</script>', t: 'debuff' }, { n: 'quiet', i: '', t: 'x" onclick="y', g: 1 }, { n: 'E4', i: 'icon:bolt' }, { n: 'E5', i: 'a' }, { n: 'E6', i: 'b' }, { n: 'E7', i: 'c' }, { n: 'E8', i: 'd' }, { n: 'E9', i: 'e' }];
+        const hx = TX(hostile), glyphs = hx.match(/url\(&quot;[^&]*&quot;\)/g) || [];
+        check('conditions C1: a token\'s effects are drawn as a row of icons — a glyph as a mask whose address comes only from the app\'s own table, an emoji or symbol and every name escaped, a tone only as its class, a GM-only one dashed; six drawn then "+N" for the rest of eight; nothing for an empty list or one with no named effect',
+            !/<img|<script| onclick="| onerror="/.test(hx) && glyphs.length === 4 && glyphs.every(u => u === 'url(&quot;/assets/icons/fa/solid/bolt.svg&quot;)') && hx.indexOf('&lt;script&gt;') > 0 && hx.indexOf('title="&lt;img src=x onerror=alert(1)&gt; · P&quot;q · quiet · E4 · E5 · E6 · E7 · E8"') > 0
+            && (hx.match(/class="tfx(?: [^"]*)?"/g) || []).map(c => c.slice(7, -1)).join('|') === 'tfx buff|tfx debuff|tfx gm|tfx|tfx|tfx|tfx more' && hx.indexOf('>+2</span>') > 0 && hx.indexOf('<span class="tfx gm">Q</span>') > 0
+            && TX([]) === '' && TX(null) === '' && TX([{ n: '' }, { i: 'x' }, null, 'x']) === '' && !/innerHTML|insertAdjacentHTML|outerHTML/.test(txS), hx.slice(0, 400));
+        const tlS = slice('sheets.js', 'tokenfxlist'), campC = { system: { fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], effects: [{ id: 'e_gm', name: 'Cursed', icon: 'X', vis: 'gm' }] }, chars: { c_a: { id: 'c_a', values: { f_fx: [{ id: 'r', ref: 'e_gm' }] } } } };
+        const mkTL = (net, sheetsOn) => new Function('window', 'getActiveCampaign', 'systemOf', 'charById', "'use strict';\n" + tlS + '\nreturn tokenFx;')({ wpSystemCore: SYc, wpNet: net, wpVtt: { on: k => k !== 'sheets' || sheetsOn !== false } }, () => campC, c => c.system, id => campC.chars[id] || null);
+        const tokC = { id: 't', isChar: true, charId: 'c_a', fxb: [{ n: 'Sent', i: '', t: '' }] };
+        const tlGot = [mkTL(null)(tokC), mkTL({ active: true, role: 'host' })(tokC), mkTL({ active: true, role: 'client' })(tokC), mkTL({ foreign: true })(tokC), mkTL({ active: true, role: 'client' })({ id: 'u', isChar: true }), mkTL(null, false)(tokC), mkTL(null)({ id: 'p', charId: 'c_a' })];
+        check('conditions C1: which effects a screen draws on a token — the GM\'s worked out from its own character (a GM-only one marked), a player\'s (or the GM\'s campaign on a player\'s screen) only what the host sent on the token; none while character sheets are off or on a piece that is no character token',
+            J(tlGot) === J([[{ n: 'Cursed', i: 'X', t: '', g: 1 }], [{ n: 'Cursed', i: 'X', t: '', g: 1 }], [{ n: 'Sent', i: '', t: '' }], [{ n: 'Sent', i: '', t: '' }], [], [], []]), J(tlGot));
+    }
     delete global.window;
 
     summed = true;

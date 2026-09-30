@@ -997,6 +997,11 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
               if (stanceEl.dataset.sig !== stanceHtml) { stanceEl.dataset.sig = stanceHtml; stanceEl.innerHTML = stanceHtml; }
           } else if (stanceEl) stanceEl.remove();
+          var fxHtml = item.isChar && window.wpSheets && window.wpSheets.tokenFx ? tokenFxHtml(window.wpSheets.tokenFx(item)) : '', fxEl = el.querySelector(':scope > .token-fx');   // conditions C1: its effects
+          if (fxHtml) {
+              if (!fxEl) { fxEl = document.createElement('div'); fxEl.className = 'token-fx'; el.appendChild(fxEl); }
+              if (fxEl.dataset.sig !== fxHtml) { fxEl.dataset.sig = fxHtml; fxEl.innerHTML = fxHtml; }
+          } else if (fxEl) fxEl.remove();
           if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1) && !item.locked) {
 
               el.classList.add('sel');
@@ -2826,6 +2831,27 @@ window.wpFitToGrid = fitToGrid;
   function targetLightHtml(markHtml, l) { return l ? '<span class="target-pair">' + markHtml + '<span class="target-light' + (l.lv === 0 ? ' dark' : '') + '" title="' + esc(l.name) + '">' + TARGET_LIGHT_GLYPH[l.lv === 0 ? 0 : 1] + '</span></span>' : markHtml; }
   function targetLightCaption(list) { var seen = Object.create(null), out = []; (Array.isArray(list) ? list : []).forEach(function(l) { if (l && typeof l.name === 'string' && l.name && !seen[l.name]) { seen[l.name] = 1; out.push(l.name); } }); return out.join(' \u00b7 '); }
   // [sinkcheck:lightlabel-end]
+  // [sinkcheck:tokenfx-start]
+  // Conditions C1 (docs/CONDITIONS_PLAN.md): a token's effects as a row of small icons at its top left (6 drawn, then "+N"), ringed by tone, a
+  // GM-only one dashed, their names in the row's title. A glyph is a mask whose URL is built only from glyphPath's answer (the fixed table);
+  // an emoji or a symbol is escaped text; an effect with no icon shows its name's first letter
+  var FX_GLYPH_BASE = '/assets/icons/fa/';
+  function tokenFxHtml(list) {
+      if (!Array.isArray(list) || !list.length) return '';
+      var S = window.wpSystemCore, names = [], h = '', n = 0;
+      list.slice(0, 8).forEach(function(e) {
+          if (!e || typeof e !== 'object' || typeof e.n !== 'string' || !e.n) return;
+          names.push(e.n); n++;
+          if (n > 6) return;
+          var cls = 'tfx' + (e.t === 'buff' ? ' buff' : e.t === 'debuff' ? ' debuff' : '') + (e.g === 1 ? ' gm' : ''), p = S && S.glyphPath ? S.glyphPath(e.i) : '';
+          if (p) h += '<span class="' + cls + '"><i class="wp-glyph" style="-webkit-mask-image:url(&quot;' + FX_GLYPH_BASE + esc(p) + '.svg&quot;);mask-image:url(&quot;' + FX_GLYPH_BASE + esc(p) + '.svg&quot;)"></i></span>';
+          else h += '<span class="' + cls + '">' + esc(typeof e.i === 'string' && e.i ? e.i : e.n.charAt(0).toUpperCase()) + '</span>';
+      });
+      if (!n) return '';
+      if (n > 6) h += '<span class="tfx more">+' + (n - 6) + '</span>';
+      return '<span class="tfx-row" title="' + esc(names.join(' · ')) + '">' + h + '</span>';
+  }
+  // [sinkcheck:tokenfx-end]
   // [sinkcheck:rangelabel-start]
   // Range penalties R1 (docs/RANGE_PLAN.md): the modifier the system's range rule gives, on every ruler (range is distance alone) and at each
   // target mark, from its targeter's token as its cover is. Between two character tokens it is measured centre to centre, with their elevation

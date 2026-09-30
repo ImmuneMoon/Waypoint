@@ -498,6 +498,9 @@ Turn-based combat
   ranged weapons only, and halve damage past half range.
 - A list can carry up to twelve stats (ten before), so a weapons list that
   already has many has room for Half and MaxRange.
+- A status effect that is switched on shows as a small icon on its
+  character's token (ringed green for a buff, red for a debuff), for
+  everyone who sees the token; a GM-only effect only for the GM.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

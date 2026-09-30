@@ -269,10 +269,13 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } return w; }   // senses S7b: smoke only as true; difficult terrain T1: its cost, 2-10, or none
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } return w; }   // senses S7b: smoke only as true; difficult terrain T1: its cost, 2-10, or none
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
+// Conditions C1: a character token's effects as the host sent them, cleaned again — at most 8, a name as plain text of 60 at most, an icon the
+// app draws (systemcore cleanIcon), a tone of the two words; only on a character token; with no cleaner on hand they do not come in
+function cleanHostFxb(w) { var S = window.wpSystemCore, out = []; if (w.isChar && S && S.cleanIcon && Array.isArray(w.fxb)) w.fxb.slice(0, 8).forEach(function(e) { if (!e || typeof e !== 'object' || typeof e.n !== 'string') return; var n = e.n.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').trim().slice(0, 60); if (n) out.push({ n: n, i: S.cleanIcon(e.i), t: e.t === 'buff' || e.t === 'debuff' ? e.t : '' }); }); if (out.length) w.fxb = out; else delete w.fxb; }
 // Lighting L4: an item's light as the host sent it, cleaned again (fogcore cleanLight: numbers clamped, a unit the app knows, the name short
 // plain text); with no cleaner on hand it does not come in
 function cleanHostLight(w) { var FCl = window.wpFogCore, lc = FCl && FCl.cleanLight ? FCl.cleanLight(w.light) : null; if (lc) w.light = lc; else if (w.type === 'light' && FCl && FCl.cleanLight) w.light = { bright: 0, dim: 0 }; else delete w.light; }
@@ -563,7 +566,32 @@ function wireWbItem(w, cloned) {
     // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
     if (w.senses !== undefined || w.blind !== undefined || w.unsensed !== undefined || w.nulls !== undefined) { delete w.senses; delete w.blind; delete w.unsensed; delete w.nulls; }   // S7a: a null area's senses are the GM's   // senses S2b, S3, S4 (unsensed: never on the wire at all): a token's own ranges and the GM's Blind tick are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
+    if (w.fxb !== undefined) delete w.fxb;   // conditions C1: never taken from the map; worked out afresh below
+    if (w.isChar && typeof w.charId === 'string' && typeof fxbOf === 'function') { var fxb = fxbOf(w.charId); if (fxb) w.fxb = fxb; }
     return w;
+}
+// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees on a character token, the host's list for its character ([{ n, i,
+// t }], never a GM-only effect) or null. Each list worked out is remembered, so a change of it is found once (fxbMoved)
+var _fxbSig = Object.create(null);
+function fxbOf(charId) {
+    if (net.role !== 'host') return null;
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars || !own(camp.chars, charId)) return null;
+    var list = S.tokenEffects(camp.system, camp.chars[charId], false).map(function(e) { return { n: e.n, i: e.i, t: e.t }; });
+    _fxbSig[charId] = JSON.stringify(list);
+    return list.length ? list : null;
+}
+// A character's change (called where sensesMoved is): every map holding a token of a character whose list moved since a copy was last made
+// is sent again, its per-player delta carrying the one token. id: one character, or null for every one
+function fxbMoved(id) {
+    if (!net.active || net.role !== 'host') return;
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars) return;
+    var moved = Object.create(null), any = false;
+    (id === null ? Object.keys(camp.chars) : [id]).forEach(function(cid) {
+        if (typeof cid !== 'string' || !own(camp.chars, cid) || _fxbSig[cid] === undefined) return;   // no copy made with it yet: nothing to catch up
+        var was = _fxbSig[cid]; fxbOf(cid); if (was !== _fxbSig[cid]) { moved[cid] = 1; any = true; }
+    });
+    if (!any) return;
+    Object.keys(camp.items || {}).forEach(function(mid) { var m = camp.items[mid]; if (m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return w && w.isChar && !w.hidden && typeof w.charId === 'string' && moved[w.charId] === 1; })) net.sendItem(camp.id, mid); });   // a hidden token's stub carries none
 }
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
    window.wpFog.fogDropIds(recipientId, camp, map) → the ids of character tokens the recipient cannot see, or null
@@ -2133,6 +2161,7 @@ var _triedSaid = {}, TRY_QUIET_MS = 30000;   // host: 'charId|item|kind' -> { at
 net.syncChars = function() {   // every character, per peer (after the system changed)
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(null);
+    if (typeof fxbMoved === 'function') fxbMoved(null);   // conditions C1: the effects on the tokens
     var camp = getActiveCampaign(); if (!camp) return;
     net.conns.forEach(function(c) {
         if (!c.open || !net.roster[c.peer]) return;
@@ -2144,6 +2173,7 @@ net.syncChars = function() {   // every character, per peer (after the system ch
 net.syncChar = function(id) {   // one character whole (renamed, reassigned, portrait) or gone for a peer that may not see it
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);
+    if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1
     var camp = getActiveCampaign(); if (!camp) return;
     var srcM = (camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null), mkM = !!(srcM && srcM.making === 1);   // Onboarding F3: a character in the making: its owner hears of it, nobody else (not even that it is gone)
     net.conns.forEach(function(c) {
@@ -2156,6 +2186,7 @@ net.syncChar = function(id) {   // one character whole (renamed, reassigned, por
 net.syncCharDelta = function(id, values) {   // changed values, filtered to what each peer may see (null = reverted to the default)
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);   // before anything turns this away: a change that sends its owner nothing (a kept curse) moves their sight all the same
+    if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1: the effects on their tokens
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !(camp && camp.chars && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null) || !window.wpSheets) return;
     var view = window.wpSheets.playerSystem(camp); if (!view) return;
     var src = camp.chars[id], probe = { id: id, name: src.name, ownerId: src.ownerId, npc: src.npc, making: src.making, values: {} };   // making (Onboarding F3): charFor itself refuses it to anyone but its owner

@@ -36,6 +36,8 @@ function sanitizeItem(item) {
     });
     return m;
 }
+// The sanitizer as it was before 1.5.0 carried every campaign of the GM's (a session carries the hosted one alone since the owner's answer of
+// 2026-09-29): saves written then still hold them, and that is what the classifier is given, so this copy keeps them all on purpose
 function sanitizeAppState(s) {
     var c = JSON.parse(JSON.stringify(s));
     delete c.imageCats;

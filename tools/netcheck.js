@@ -526,7 +526,7 @@ const j = JSON.stringify;
     const bounded = JSON.parse('{"a":1e20,"b":[1e300,-1e20,5,1.5],"t":1790000000000,"s":"1e300"}', wireNum);
     const threw2 = v => { try { packCheck(v); return false; } catch (e) { return true; } };
     check('wire clones: sanitizeItem and sanitizeAppState bound every number as they copy (a GM box, an import or a formula past 64 bits can never stop a map, a join or a snapshot)',
-        /var m = JSON\.parse\(JSON\.stringify\(item\), wireNum\);/.test(src) && /var c = JSON\.parse\(JSON\.stringify\(s\), wireNum\);/.test(src) && threw2({ a: 1e20 }) && !threw2(bounded)
+        /var m = JSON\.parse\(JSON\.stringify\(item\), wireNum\);/.test(src) && /var c = JSON\.parse\(JSON\.stringify\(one\), wireNum\);/.test(src) && threw2({ a: 1e20 }) && !threw2(bounded)
         && bounded.a === 1e15 && bounded.b[0] === 1e15 && bounded.b[1] === -1e15 && bounded.b[2] === 5 && bounded.b[3] === 1.5 && bounded.t === 1790000000000 && bounded.s === '1e300', j(bounded));
     check('pos relay: the host rebuilds a player\'s move from its own fields before relaying it (extras a modified client adds never reach the table)', /msg = \{ type: 'pos', campId: msg\.campId, itemId: msg\.itemId, wbId: msg\.wbId, x: msg\.x, y: msg\.y, rot: msg\.rot, front: msg\.front, final: msg\.final === true \};[^\n]*\n\s*applyPosToDom\(msg\);\s*broadcastPos\(msg, conn, camp, map, w\);/.test(src));
     check('share: the size counted against a player\'s budget is real binary\'s (a decoded map claiming a negative byteLength is refused)', /if \(en\.data && !\(en\.data instanceof ArrayBuffer \|\| ArrayBuffer\.isView\(en\.data\)\)\) return;/.test(src));
@@ -652,6 +652,16 @@ pendingChecks.push((async () => {
 const lineOf = k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
 const ownKeySrc = [lineOf('function own('), lineOf('function validKey('), lineOf('function campOf(')].join('\n') + '\n';   // the real own-key one-liners
 const fnSrc = (start, end, label) => { const i = src.indexOf(start), k = src.indexOf(end, i + 1); if (i < 0 || k < 0) throw new Error('netcheck: ' + label + ' not found in net.js'); return src.slice(i, k); };
+/* ================= fog on is true alone (found during senses S0, (a)): net.js reads a map's fog as fog.js does ================= */
+{
+    const fgSrc = fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n' + lineOf('function mapFogged(');
+    const FG = new Function('window', "'use strict';\n" + fgSrc + '\nreturn { anyFog: anyFog, mapFogged: mapFogged };')({ wpFog: {}, wpVtt: { on: () => true } });
+    const ons = [true, 'yes', 1, {}, [], 'true', false, null, undefined];
+    const fgGot = ons.map(v => [FG.mapFogged({ type: 'map', fog: { on: v } }), FG.anyFog({ items: { m: { type: 'map', fog: { on: v } } } })]);
+    const srcNC = src.replace(/\/\/[^\n]*/g, ''), reads = srcNC.match(/fog\.on\b[^\n]{0,9}/g) || [];
+    check('fog on is true alone in net.js, as fog.js cleans it: a map whose fog.on is "yes", 1, an object or anything but true is unfogged for the sends and for the join as it is for the fog (never per-player once and shared after); every read of fog.on in net.js compares it to true',
+        JSON.stringify(fgGot) === JSON.stringify(ons.map(v => [v === true, v === true])) && reads.length === 5 && reads.every(r => /^fog\.on === true/.test(r)), JSON.stringify([fgGot, reads]));
+}
 // fold M2: sanitizeItem as it runs, with the two it calls: wireNum (above it) and wireWbItem (right after it)
 const siSrc = () => {
     const a = src.indexOf('function sanitizeItem('), b = src.indexOf('\n}\n', src.indexOf('function wireWbItem(', a));
@@ -659,6 +669,18 @@ const siSrc = () => {
     return (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);
 };
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
+/* ================= a session is one campaign (owner's answer 2026-09-29, found during senses S0 (b)): the real sanitizeAppState copies only the hosted campaign ================= */
+{
+    const saSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrc + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it);
+    const map = id => ({ id, type: 'map', meta: { title: id }, rooms: [], links: [], whiteboard: [{ id: 'orc_' + id, type: 'image', isChar: true, x: 1, y: 1, w: 50, h: 50 }] });
+    const gm = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: map('m1') } }, k2: { id: 'k2', name: 'Secret game', activeItemId: 'm2', items: { m2: map('m2'), p2: { id: 'p2', type: 'planner', blocks: [] } } } } });
+    const forP = SA(gm(), 'u_p'), forStream = SA(gm()), odd = SA(Object.assign(gm(), { activeCampaignId: 'constructor' })), none = SA(Object.assign(gm(), { activeCampaignId: 'k9' }));
+    const kept = gm(); SA(kept, 'u_p');
+    check('a session is one campaign: the join snapshot and the stream window carry the hosted campaign alone — never the GM\'s other games, their names, maps or planners; an active campaign that is no campaign of theirs (a prototype\'s name, one gone) carries none; the GM\'s own state is left as it was',
+        JSON.stringify(Object.keys(forP.campaigns)) === '["k1"]' && forP.campaigns.k1.items.m1.whiteboard.length === 1 && JSON.stringify(Object.keys(forStream.campaigns)) === '["k1"]' && !/Secret game|orc_m2|p2/.test(JSON.stringify(forP)) && forP._schema === 2
+        && JSON.stringify(odd.campaigns) === '{}' && JSON.stringify(none.campaigns) === '{}' && JSON.stringify(Object.keys(kept.campaigns)) === '["k1","k2"]', JSON.stringify([Object.keys(forP.campaigns), Object.keys(forStream.campaigns), odd.campaigns, none.campaigns]));
+}
 // the table's follow and the summons: a connection still waiting for the GM's Allow hears nothing, not even where the table is
 {
     const stSrc = between('// [netcheck:stage-start]', '// [netcheck:stage-end]', 'stage');
@@ -3845,8 +3867,8 @@ pendingChecks.push((async () => {
 // an accepted pos that takes the token into another cell or turns it (wpFog.seenKeyOf, read before the write and again after the seat) drops that
 // player's set for that map, and every player's set for it where the token carries a light on a dark map (wpFog.lightMoves); one that leaves it
 // in its cell and facing as it did drops nothing, but for a light carried inside a wall's cell, which is judged by its exact place; no map is sent
-// after it by this fold. The threats branch, net.itemGone, net.kickPlayer and net.syncNewPlayers run for real too; a hidden Sight (sensesHidden) sends
-// nothing from the hook to a player whose character stands on that map (sensesReads).
+// after it by this fold. The threats branch, net.itemGone, net.kickPlayer and net.syncNewPlayers run for real too; a hidden Sight is the campaign's
+// default on both sides (the owner's answer of 2026-09-29: fog.js sightSecret, in fogcheck), so the hook holds nothing back.
 // Timers are fakes fired by hand; every message sent packs for the wire
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
@@ -3866,7 +3888,7 @@ pendingChecks.push((async () => {
     const posS2 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patS2 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), clS2 = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
     const netSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siS, flS, afS, mfS, whole('net.sendItem = function('), whole('net.broadcastItemFiltered = function('), whole('net.itemGone = function('), whole('net.kickPlayer = function('), smS, nsS2, cbS, svS, dlS, ftS, bpS,
         'return { edit: function(msg, conn) {', edS, '}, fx: function(msg, conn) {', fxS, '}, threats: function(msg, conn) {', thS2, '}, sig: function() { return _sensesSig; }, pend: function() { return _sensesPend; }, at: function() { return _sensesAt; }, seed: sensesSeed, fire: sensesFire, forget: sensesForget, reset: sensesReset, pids: sensesPids,',
-        'hidden: sensesHidden, drop: sensesDrop, forgetMap: sensesForgetMap, keys: sensesKeys, banned: function() { return bannedIds; }, reads: sensesReads,',
+        'drop: sensesDrop, forgetMap: sensesForgetMap, keys: sensesKeys, banned: function() { return bannedIds; },',
         'targets: typeof broadcastTargets === \'function\' ? broadcastTargets : null, targetsFor: typeof targetsFor === \'function\' ? targetsFor : null,',
         'copy: fogCopyFor, pos: broadcastPos, saveSoon: saveRemoteSoon, turn: turnFxStart, ms: SENSES_RESEND_MS, last: function() { return _lastSent; } };'].join('\n');
     const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'own', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster'];
@@ -4540,32 +4562,21 @@ pendingChecks.push((async () => {
         const sysDeep = sysOf([base, gmFig, F('f_mid', 'Mid', 'formula', { formula: 'GMFig * 2' }), F('f_sight', 'Sight', 'formula', { formula: 'Base + Mid' })]), sysPool = sysOf([gmFig, F('f_sight', 'Sight', 'resource', { maxFormula: 'GMFig * 6', def: 'max', min: 0 })]);
         const sysGmForm = sysOf([base, F('f_sight', 'Sight', 'formula', { formula: 'Base + 10', vis: 'gm' })]);
         const W = mkW({ maps: ['mA'] }), campOf2 = (system, fog) => ({ id: 'k', system, fog: fog === undefined ? { fields: { sight: 'f_sight' } } : fog });
-        const hid = (system, fog) => W.api.hidden(campOf2(system, fog));
-        const plainOnes = [hid(sysS), hid(sysVis), hid(sysGm, { fields: {} }), hid(sysGm, { fields: { sight: '' } }), hid(sysGm, { fields: { sight: 5 } }), hid(sysGm, { fields: null }), hid(sysGm, null), hid(sysGm, 'f_sight'), hid(null), hid(sysGm, { fields: { sight: 'f_nothing' } }), hid(sysDer, { fields: { sight: 'f_base' } }), W.api.hidden(null), W.api.hidden(undefined)];
-        const hiddenOnes = [hid(sysGm), hid(sysDer), hid(sysDeep), hid(sysGmForm), hid(sysDer, { fields: { sight: 'f_g' } })], pool = hid(sysPool), poolCounts = Sx.gmDerivedNames(sysPool, Fx, ['Sight']).length > 0;
-        const broken = [[() => null], [() => ({})], [() => Object.assign({}, Sx, { gmDerivedNames: undefined })], [() => Object.assign({}, Sx, { fieldById: undefined })], [() => Object.assign({}, Sx, { gmDerivedNames() { throw new Error('no'); } })], [() => Object.assign({}, Sx, { fieldById() { throw new Error('no'); } })], [null, true]].map(([sc, noF]) => {
-            const V = mkW({ maps: ['mA'] }); if (sc) V.SC = sc; if (noF) delete V.win.wpFormula; let r; try { r = [V.api.hidden(campOf2(sysVis)), V.api.hidden(campOf2(sysVis, { fields: {} })), V.api.hidden(campOf2(sysVis, { fields: { sight: 5 } })), V.api.hidden(campOf2(sysVis, { fields: { sight: ['f_sight'] } })), V.api.hidden(campOf2(null))]; } catch (e) { r = 'threw: ' + e.message; } return r; });
-        const ownRule = (() => { const V = mkW({ maps: ['mA'] }); V.SC = () => Object.assign({}, Sx, { gmDerivedNames: () => [] }); return [V.api.hidden(campOf2(sysGm)), V.api.hidden(campOf2(sysGmForm)), V.api.hidden(campOf2(sysVis)), V.api.hidden(campOf2(sysDer))]; })();
-        check('senses S0: whether the campaign\'s Sight is hidden from players (sensesHidden, over the real character system and formula engine) — not with no field mapped, a mapped name that is no field, a number players see or a formula over values they see; hidden where the field is GM-only, a number or a formula, and where a formula players see reads a GM-only value, itself or through another formula, or is a pool whose full value reads one',
-            plainOnes.every(v => v === false) && hiddenOnes.every(v => v === true) && pool === true && poolCounts === true, j([plainOnes, hiddenOnes, pool, poolCounts]));
-        check('senses S0: where that cannot be judged — no character system on hand, one without the means, no formula engine, or an error while judging — a mapped Sight counts as hidden; with no field mapped, a mapped name that is not text or no character system in the campaign it never does; a GM-only field is hidden by its own mark, whatever the engine says of it',
-            broken.every(r => j(r) === j([true, false, false, false, false])) && j(ownRule) === j([true, true, false, false]), j([broken, ownRule]));
         const sent = V => ({ made: V.made(500), inv: V.invs(), pend: V.pendKeys(), fired: V.fire(500), items: V.itemsOut(), sig: V.sigs()['u_a|mA'], at: V.ats()['u_a|mA'], fog: V.net.conns.map(c => c.sent.filter(m => m.type === 'combats' || m.type === 'targets').length) });
         const prime = system => { const V = mkW({ maps: ['mA', 'mO'], system }); V.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Ana', tokId: 'tA', init: 3, src: null }] } }; V.net.sensesMoved(null); V.clear(); return V; };
         const hv = prime(sysVis); hv.api.edit(EDIT('f_base', 55), hv.a1); const seenOut = sent(hv);
         const hd = prime(sysDer); hd.api.edit(EDIT('f_base', 55), hd.a1); const derTypes = hd.types(hd.a1), derOut = sent(hd);
         const hg = prime(sysGm); hg.gm('c_a', 70); const gmOut = sent(hg); hg.ev.length = 0; hg.gm('c_a', 70); hg.net.sensesMoved(null); const gmAgain = sent(hg);
         const hn = prime(sysDer); hn.SC = () => null; hn.camp.chars.c_a.values.f_base = 55; hn.net.sensesMoved('c_a'); const blindOut = sent(hn);
-        check('senses S0: with a hidden Sight a change that moves it sets no send and sends no map, turn order or pointer to anyone, at once or later — a player\'s own edit of a value the hidden formula reads, the GM\'s change of a GM-only number, a Sight that cannot be judged — though that map\'s set is still emptied when the host\'s own text moved, once; the same edit with a Sight players see queues and sends their map',
+        check('senses S0: a hidden Sight is the campaign\'s default on the host too (the owner\'s answer, 2026-09-29), so a change of it moves nothing — a player\'s own edit of a value the hidden formula reads, the GM\'s change of a GM-only number, a system the hook cannot judge: no send, no map, turn order or pointer, no set emptied, the text the default\'s (6 cells) — while the same edit with a Sight players see queues and sends their map',
             j(seenOut) === j({ made: 1, inv: ['inv:mA'], pend: ['u_a|mA'], fired: 1, items: [1, 1, 0, 0, 0], sig: '13', at: '13', fog: [1, 1, 0, 0, 0] }) && j(derTypes) === j(['char-ack', 'charDelta'])
-            && [derOut, blindOut].every(r => j(r) === j({ made: 0, inv: ['inv:mA'], pend: [], fired: 0, items: [0, 0, 0, 0, 0], sig: '12', at: '13', fog: [0, 0, 0, 0, 0] })) && j(gmOut) === j({ made: 0, inv: ['inv:mA'], pend: [], fired: 0, items: [0, 0, 0, 0, 0], sig: '12', at: '14', fog: [0, 0, 0, 0, 0] })
-            && j(gmAgain) === j({ made: 0, inv: [], pend: [], fired: 0, items: [0, 0, 0, 0, 0], sig: '12', at: '14', fog: [0, 0, 0, 0, 0] }), j([seenOut, derTypes, derOut, gmOut, gmAgain, blindOut]));
+            && [derOut, blindOut, gmOut, gmAgain].every(r => j(r) === j({ made: 0, inv: [], pend: [], fired: 0, items: [0, 0, 0, 0, 0], sig: '6', at: '6', fog: [0, 0, 0, 0, 0] })), j([seenOut, derTypes, derOut, gmOut, gmAgain, blindOut]));
         const late = prime(sysS); late.gm('c_a', 70); const lateKeys = late.pendKeys(); late.clear(); late.camp.system = sysGm; const lateOut = sent(late), lateLeft = late.pendKeys();
         const ctl = prime(sysS); ctl.gm('c_a', 70); ctl.clear(); const ctlOut = sent(ctl);
         const next = prime(sysGm); next.gm('c_a', 70); next.clear(); next.net.sendItem('k', 'mA'); const nextOut = [next.items(next.a1), next.sigs()['u_a|mA']];
-        check('senses S0: a send already waiting when the Sight becomes hidden sends nothing when it fires and waits no longer; the player\'s copy follows at the next ordinary send of that map, made by the real sight',
-            j(lateKeys) === j(['u_a|mA']) && lateOut.fired === 1 && j(lateOut.items) === j([0, 0, 0, 0, 0]) && j(lateOut.fog) === j([0, 0, 0, 0, 0]) && lateOut.sig === '12' && j(lateLeft) === j([]) && ctlOut.fired === 1 && j(ctlOut.items) === j([1, 1, 0, 0, 0]) && ctlOut.sig === '14'
-            && j(nextOut) === j([['mA:tA+orc'], '14']), j([lateOut, lateLeft, ctlOut, nextOut]));
+        check('senses S0: a send already waiting when the Sight becomes hidden fires as any other, with a copy made by the campaign\'s default (the Sight it now has for that player), and waits no longer; the next ordinary send of that map is made by the default too, never the hidden number',
+            j(lateKeys) === j(['u_a|mA']) && lateOut.fired === 1 && j(lateOut.items) === j([1, 1, 0, 0, 0]) && j(lateOut.fog) === j([1, 1, 0, 0, 0]) && lateOut.sig === '6' && j(lateLeft) === j([]) && ctlOut.fired === 1 && j(ctlOut.items) === j([1, 1, 0, 0, 0]) && ctlOut.sig === '14'
+            && j(nextOut) === j([['mA:tA'], '6']), j([lateOut, lateLeft, ctlOut, nextOut]));
     }
 
     // 23. the three stores, dropped as one: a row, a map's rows, a player's rows, all of them
@@ -4591,15 +4602,15 @@ pendingChecks.push((async () => {
             && j(afterDrop) === j({ sig: less(afterPid.sig, k => /^u_a\|m/.test(k)), at: less(afterPid.at, k => /^u_a\|m/.test(k)), pend: less(afterPid.pend, k => /^u_a\|m/.test(k)) }) && clearedDrop === 1
             && firedLeft === 5 && j(sentLeft) === j([['ab:tb3'], ['mA:tB', 'mO:tB2+orc3', 'ab:tb4'], [], ['mA:tA+orc+ogre+t1+t10']]) && j(afterReset) === j([{ sig: [], at: [], pend: [] }, [], true, 0]), j([all0, afterMap, clearedMap, afterPid, clearedPid, afterDrop, clearedDrop, firedLeft, sentLeft, afterReset]));
 
-        // rows no send waits for: what a copy was made by with the text last known, kept since the copy was made; and the text last known alone, kept where the
-        // Sight is hidden (the hook records what it saw and sends nothing to a player whose own character stands there)
+        // rows no send waits for: what a copy was made by with the text last known, kept since the copy was made; and rows whose sends the hook queued
+        // (a Sight hidden from players reads the campaign's default, as any other)
         const O = mkW({ maps: ['mA', 'mO'] }), o0 = [Object.keys(O.sigs()), Object.keys(O.ats()), O.pendKeys()]; O.api.forgetMap('mA'); const o1 = [Object.keys(O.sigs()), Object.keys(O.ats())]; O.api.forget('u_a'); const o2 = [Object.keys(O.sigs()), Object.keys(O.ats())]; O.api.reset(); const o3 = [Object.keys(O.sigs()), Object.keys(O.ats())];
         const sysHid = Sx.cleanSystem({ v: 1, name: 'H', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'gm' }] }, { F: Fx, gmView: true });
         const hidW = () => { const V = mkW({ maps: ['mA', 'mO'], bare: true, system: sysHid }); V.net.sensesMoved(null); return V; }, rowsOf = V => [Object.keys(V.sigs()), Object.keys(V.ats()), V.pendKeys()];
         const h0 = rowsOf(hidW()), hMap = (() => { const V = hidW(); V.api.forgetMap('mA'); return rowsOf(V); })(), hPid = (() => { const V = hidW(); V.api.forget('u_a'); return rowsOf(V); })(), hAll = (() => { const V = hidW(); V.api.reset(); return rowsOf(V); })(), hGone = (() => { const V = hidW(); V.net.itemGone('k', 'mO'); return rowsOf(V); })();
-        check('senses S0: a row no send waits for is dropped like any other — what a copy was made by and the text last known, both kept from the moment the copy is made, before the hook ever ran; and the text last known alone, kept where a hidden Sight sent a player with a character there nothing: by map, by player, by a map that left the table, and all of them for a new table',
+        check('senses S0: a row is dropped like any other — what a copy was made by and the text last known, both kept from the moment the copy is made, before the hook ever ran; and the rows of sends the hook queued (a hidden Sight reads the default, as any other), with their sends: by map, by player, by a map that left the table, and all of them for a new table',
             j(o0) === j([['u_a|mA', 'u_a|mO', 'u_b|mA', 'u_b|mO'], ['u_a|mA', 'u_a|mO', 'u_b|mA', 'u_b|mO'], []]) && j(o1) === j([['u_a|mO', 'u_b|mO'], ['u_a|mO', 'u_b|mO']]) && j(o2) === j([['u_b|mO'], ['u_b|mO']]) && j(o3) === j([[], []])
-            && j(h0) === j([[], ['u_a|mA', 'u_a|mO', 'u_b|mA', 'u_b|mO'], ['u_a|mO']]) && j(hMap) === j([[], ['u_a|mO', 'u_b|mO'], ['u_a|mO']]) && j(hPid) === j([[], ['u_b|mA', 'u_b|mO'], []]) && j(hAll) === j([[], [], []]) && j(hGone) === j([[], ['u_a|mA', 'u_b|mA'], []]), j([o0, o1, o2, o3, h0, hMap, hPid, hAll, hGone]));
+            && j(h0) === j([[], ['u_a|mA', 'u_a|mO', 'u_b|mA', 'u_b|mO'], ['u_a|mA', 'u_a|mO', 'u_b|mA', 'u_b|mO']]) && j(hMap) === j([[], ['u_a|mO', 'u_b|mO'], ['u_a|mO', 'u_b|mO']]) && j(hPid) === j([[], ['u_b|mA', 'u_b|mO'], ['u_b|mA', 'u_b|mO']]) && j(hAll) === j([[], [], []]) && j(hGone) === j([[], ['u_a|mA', 'u_b|mA'], ['u_a|mA', 'u_b|mA']]), j([o0, o1, o2, o3, h0, hMap, hPid, hAll, hGone]));
 
         // a map that stopped being fogged: the hook drops its rows for every player, whichever character changed
         const U = mkW({ maps: ['mA', 'mO'] }); U.gm('c_a', 70); U.gm('c_b', 70); const uKeys = [U.api.keys().slice().sort(), U.pendKeys()]; U.ev.length = 0;
@@ -4667,32 +4678,17 @@ pendingChecks.push((async () => {
             && merge(c => Object.assign(both(c), { syncChars: undefined })) === 'fogged' && merge(c => Object.assign(both(c), { resendFogged: undefined })) === 'chars' && (mainT.match(/resendFogged/g) || []).length === 2 && (mainT.match(/nM\.syncChars\(\)/g) || []).length === 1, j([mergeLine, merge(both)]));
     }
 
-    // 25. a hidden Sight is judged per player and map: only a token that stands for a character reads the campaign's Sight field (sensesReads)
+    // 25. which token reads a character's Sight at all (the real tokenSightCells): a token of the campaign's own character, by its own name
     {
-        const W = mkW({ maps: ['mA'], bare: true }), rd = (camp, m, pid) => { try { return W.api.reads(camp, m, pid); } catch (e) { return 'threw: ' + e.message; } };
-        const chars = { c_a: { id: 'c_a' }, c_b: { id: 'c_b' } }, mp = wb => ({ id: 'm', type: 'map', whiteboard: wb }), cp = ch => ({ id: 'k', chars: ch });
-        const tok = (owner, charId, more) => Object.assign({ id: 't', isChar: true, ownerId: owner }, charId === undefined ? {} : { charId }, more || {});
-        const one = (t, pid, ch) => rd(cp(ch === undefined ? chars : ch), mp([t]), pid || 'u_a');
-        const yes = [one(tok('u_a', 'c_a')), rd(cp(chars), mp([null, 0, '', tok('u_b', 'c_b'), tok('u_a'), tok('u_a', 'c_zz'), tok('u_a', 'c_a')]), 'u_a'), one(tok('u_a', 'c_b')), one(tok('u_a', 'c_a', { hidden: true })), one(tok('u_b', 'c_b'), 'u_b')];
-        const waitingTok = one(tok('u_a', undefined, { isChar: false, waiting: 1 })), plainTok = [one(tok('u_a')), one(tok('u_a', ''))], anothers = [one(tok('u_b', 'c_b')), one(tok('u_b', 'c_a')), one(tok('', 'c_a')), one(tok(undefined, 'c_a')), one(tok('u_a2', 'c_a')), one(tok('xu_a', 'c_a'))];
-        const noChar = [one(tok('u_a', 'c_zz')), one(tok('u_a', 'C_A')), one(tok('u_a', 'c_a '))], protoNames = ['__proto__', 'constructor', 'hasOwnProperty', 'toString', 'valueOf'].map(n => one(tok('u_a', n)));
-        const notText = [one(tok('u_a', 5), 'u_a', { 5: { id: 5 } }), one(tok('u_a', true), 'u_a', { true: {} }), one(tok('u_a', ['c_a'])), one(tok('u_a', { toString: () => 'c_a' })), one(tok('u_a', null), 'u_a', { null: {} })];
-        const heir = one(tok('u_a', 'c_a'), 'u_a', Object.create({ c_a: { id: 'c_a' } }));
-        const noChars = [undefined, null, 0, 5, true, '', 'c_a', () => {}].map(ch => rd({ id: 'k', chars: ch }, mp([tok('u_a', 'c_a')]), 'u_a')).concat([rd({ id: 'k' }, mp([tok('u_a', 'c_a')]), 'u_a'), rd({ id: 'k', chars: 'abc' }, mp([tok('u_a', '0')]), 'u_a'), rd({ id: 'k', chars: 'abc' }, mp([tok('u_a', 'length')]), 'u_a')]);
-        const noList = [undefined, null, 0, 'text', 5, true, { 0: tok('u_a', 'c_a'), length: 1 }, { whiteboard: [tok('u_a', 'c_a')] }].map(wb => rd(cp(chars), mp(wb), 'u_a')).concat([rd(cp(chars), mp([]), 'u_a'), rd(cp(chars), { id: 'm', type: 'map' }, 'u_a'), rd(cp(chars), mp([null, undefined, 0, '', false]), 'u_a')]);
-        const no = [waitingTok].concat(plainTok, anothers, noChar, protoNames, notText, [heir], noChars, noList);
-        check('senses S0: whether a player\'s token on a map reads the campaign\'s Sight field at all (sensesReads, run for real) — only a token of that player\'s, on that map, whose character is one the campaign holds under its own name (shown or hidden, among others that do not count); never a waiting token, a plain token, another player\'s token or a creature\'s, a character the campaign does not hold, a name of the prototype or one only inherited, a name that is not text, a campaign whose characters are missing or are no object, a map whose items are no list or an empty one; nothing is thrown',
-            yes.length === 5 && yes.every(v => v === true) && no.length === 45 && no.every(v => v === false), j([yes, no]));
-
         const sysHid = Sx.cleanSystem({ v: 1, name: 'H', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'gm' }] }, { F: Fx, gmView: true });
-        // the two sides of one rule: the token that reads no Sight field for the host's hook (sensesReads) is the token fog.js gives the campaign's default
+        // a token that stands for no character of the campaign's own sees by the campaign's default
         const Wt = mkW({ maps: ['mA'], bare: true }); Wt.camp.chars[5] = { id: 5, name: 'Five', values: { f_sight: 100 } }; Wt.camp.chars = Object.assign(Object.create({ c_heir: { id: 'c_heir', name: 'Heir', values: { f_sight: 100 } } }), Wt.camp.chars);
-        const sees = charId => { const t = T('tX', 'u_a', null, 2, 2); if (charId !== undefined) t.charId = charId; let c; try { c = Wt.fog.tokenSightCells(t, Wt.camp.items.mA, Wt.camp); } catch (e) { c = 'threw: ' + e.message; } return [c, rd(Wt.camp, { id: 'm', type: 'map', whiteboard: [t] }, 'u_a')]; };
+        const sees = charId => { const t = T('tX', 'u_a', null, 2, 2); if (charId !== undefined) t.charId = charId; let c; try { c = Wt.fog.tokenSightCells(t, Wt.camp.items.mA, Wt.camp); } catch (e) { c = 'threw: ' + e.message; } return c; };
         const ownChar = [sees('c_a'), sees('5')], noOwn = ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__', 'c_heir', 'c_zz', '', 5, true, ['c_a'], { toString: () => 'c_a' }, null, undefined].map(sees);
         const charsFn = Object.assign(() => {}, { c_a: { id: 'c_a', name: 'Ana', values: { f_sight: 100 } } });
-        const listless = [[undefined], [null], ['c_a'], [5], [true], [charsFn], ['abc', 'length'], ['abc', '0']].map(a => { const t = T('tX', 'u_a', a[1] || 'c_a', 2, 2), camp = Object.assign({}, Wt.camp, { chars: a[0] }); let c; try { c = Wt.fog.tokenSightCells(t, Wt.camp.items.mA, camp); } catch (e) { c = 'threw: ' + e.message; } return [c, rd(camp, { id: 'm', type: 'map', whiteboard: [t] }, 'u_a')]; });
-        check('senses S0: the host\'s hook and the fog agree on which token reads the campaign\'s Sight field (sensesReads beside the real tokenSightCells) — a token whose character the campaign holds under its own name sees by that character\'s Sight (60 ft is 12 cells, 100 ft is 20) and counts as reading it; a name the list only inherits, a name of the prototype, a name that is not text, a character the campaign does not hold or a campaign whose characters are missing or are no object (a text or a function with names of its own) stands for no character: that token sees by the campaign\'s default (30 ft, 6 cells) and reads nothing; nothing is thrown',
-            j(ownChar) === j([[12, true], [20, true]]) && noOwn.length === 14 && noOwn.every(v => j(v) === j([6, false])) && listless.length === 8 && listless.every(v => j(v) === j([6, false])), j([ownChar, noOwn, listless]));
+        const listless = [[undefined], [null], ['c_a'], [5], [true], [charsFn], ['abc', 'length'], ['abc', '0']].map(a => { const t = T('tX', 'u_a', a[1] || 'c_a', 2, 2), camp = Object.assign({}, Wt.camp, { chars: a[0] }); let c; try { c = Wt.fog.tokenSightCells(t, Wt.camp.items.mA, camp); } catch (e) { c = 'threw: ' + e.message; } return c; });
+        check('senses S0: which token reads the campaign\'s Sight field (the real tokenSightCells) — a token whose character the campaign holds under its own name sees by that character\'s Sight (60 ft is 12 cells, 100 ft is 20); a name the list only inherits, a name of the prototype, a name that is not text, a character the campaign does not hold or a campaign whose characters are missing or are no object (a text or a function with names of its own) stands for no character: that token sees by the campaign\'s default (30 ft, 6 cells); nothing is thrown',
+            j(ownChar) === j([12, 20]) && noOwn.length === 14 && noOwn.every(v => v === 6) && listless.length === 8 && listless.every(v => v === 6), j([ownChar, noOwn, listless]));
         // mW: Bo's waiting token, an orc 3 cells off; mP: Bo's plain token, an orc 8 cells off (the default sight is 30 ft, 6 cells, then 50 ft, 10 cells)
         const mkH = system => {
             const V = mkW({ maps: ['mA', 'mO'], bare: true, system });
@@ -4702,21 +4698,21 @@ pendingChecks.push((async () => {
             V.maps = c => c.sent.filter(m => m.type === 'item').map(m => m.itemId + ':' + m.item.whiteboard.map(w => w.id).join('+'));
             return V;
         };
-        const H = mkH(sysHid), held0 = [H.sigs()['u_b|mW'], H.sigs()['u_b|mP'], H.sigs()['u_a|mA'], H.api.hidden(H.camp)]; H.change();
+        const H = mkH(sysHid), held0 = [H.sigs()['u_b|mW'], H.sigs()['u_b|mP'], H.sigs()['u_a|mA']]; H.change();
         const hNow = { pend: H.pendKeys(), made: H.made(500), inv: H.invs().filter((e, i, l) => l.indexOf(e) === i).sort(), at: H.ats(), now: H.itemsOut() }, hFired = H.fire(500), hOut = { a1: H.maps(H.a1), a2: H.maps(H.a2), b1: H.maps(H.b1), sig: H.sigs(), left: H.pendKeys() };
         H.clear(); H.net.sensesMoved(null); const hAgain = [H.pendKeys(), H.invs(), H.itemsOut()];
         const V0 = mkH(sysS); V0.change(); const vNow = V0.pendKeys(); V0.fire(500); const vOut = { a1: V0.maps(V0.a1), b1: V0.maps(V0.b1) };
-        check('senses S0: with a hidden Sight nothing is queued or sent only to a player who owns a character\'s token on that map — at one and the same call (the rule \'a waiting token sees\' switched on through the real net.syncNewPlayers, the campaign\'s default sight raised, two characters\' hidden Sight changed) the player whose only token on a map is a waiting one, or a plain one, is sent that map with what it now sees, while no map with a character\'s token on it is queued or sent to its player; the host still empties each of those maps\' sets and records the text it saw; with a Sight players see the same call sends every map that moved',
-            j(held0) === j(['', '6', '12', true]) && j(hNow) === j({ pend: ['u_b|mP', 'u_b|mW'], made: 2, inv: ['inv:mA', 'inv:mO', 'inv:mP', 'inv:mW'], at: { 'u_a|mA': '14', 'u_a|mO': '', 'u_a|mP': '', 'u_a|mW': '', 'u_b|mA': '14', 'u_b|mO': '14', 'u_b|mP': '10', 'u_b|mW': '10' }, now: [0, 0, 0, 0, 0] }) && hFired === 2
-            && j(hOut) === j({ a1: [], a2: [], b1: ['mW:tw+orcW', 'mP:tp+orcP'], sig: { 'u_a|mA': '12', 'u_a|mO': '', 'u_a|mP': '', 'u_a|mW': '', 'u_b|mA': '12', 'u_b|mO': '12', 'u_b|mP': '10', 'u_b|mW': '10' }, left: [] }) && j(hAgain) === j([[], [], [0, 0, 0, 0, 0]])
+        check('senses S0: with a hidden Sight the campaign\'s default is what counts, for every player alike — at one and the same call (the rule \'a waiting token sees\' switched on through the real net.syncNewPlayers, the campaign\'s default sight raised, two characters\' hidden Sight changed) every map whose text moved is queued and sent to its players, a character\'s token and a waiting or plain one alike, each copy made by the default (10 cells: the orcs a real 70 ft would show stay out); the host empties each of those maps\' sets once; with a Sight players see the same call sends every map that moved, made by the real Sight',
+            j(held0) === j(['', '6', '6']) && j(hNow) === j({ pend: ['u_a|mA', 'u_b|mA', 'u_b|mO', 'u_b|mP', 'u_b|mW'], made: 5, inv: ['inv:mA', 'inv:mO', 'inv:mP', 'inv:mW'], at: { 'u_a|mA': '10', 'u_a|mO': '', 'u_a|mP': '', 'u_a|mW': '', 'u_b|mA': '10', 'u_b|mO': '10', 'u_b|mP': '10', 'u_b|mW': '10' }, now: [0, 0, 0, 0, 0] }) && hFired === 5
+            && j(hOut) === j({ a1: ['mA:tA'], a2: ['mA:tA'], b1: ['mA:tB', 'mO:tB2', 'mW:tw+orcW', 'mP:tp+orcP'], sig: { 'u_a|mA': '10', 'u_a|mO': '', 'u_a|mP': '', 'u_a|mW': '', 'u_b|mA': '10', 'u_b|mO': '10', 'u_b|mP': '10', 'u_b|mW': '10' }, left: [] }) && j(hAgain) === j([[], [], [0, 0, 0, 0, 0]])
             && j(vNow) === j(['u_a|mA', 'u_b|mA', 'u_b|mO', 'u_b|mP', 'u_b|mW']) && j(vOut) === j({ a1: ['mA:tA+orc'], b1: ['mA:tB', 'mO:tB2+orc3', 'mW:tw+orcW', 'mP:tp+orcP'] }), j([held0, hNow, hFired, hOut, hAgain, vNow, vOut]));
-        // the same at the fire: the sends were queued while players saw the Sight, which is hidden by the time they fire
+        // the same at the fire: the sends were queued while players saw the Sight, which is hidden by the time they fire (the default is theirs then)
         const L = mkH(sysS); L.change(); const lKeys = L.pendKeys(); L.camp.system = sysHid; L.clear(); const lFired = L.fire(500), lOut = { a1: L.maps(L.a1), a2: L.maps(L.a2), b1: L.maps(L.b1), rest: L.net.conns.map(c => c.sent.filter(m => m.type !== 'item').length), left: L.pendKeys(), sig: [L.sigs()['u_a|mA'], L.sigs()['u_b|mA'], L.sigs()['u_b|mO'], L.sigs()['u_b|mW'], L.sigs()['u_b|mP']] };
-        // a player with a character's token and a waiting token on one map: the character's token reads the hidden Sight, so nothing is sent
-        const X = mkH(sysHid); X.camp.items.mW.whiteboard.push(T('tB9', 'u_b', 'c_b', 2, 4)); X.sendAll(); X.change(); const xNow = [X.pendKeys(), X.api.reads(X.camp, X.camp.items.mW, 'u_b'), X.api.reads(X.camp, X.camp.items.mW, 'u_a'), X.api.reads(X.camp, X.camp.items.mP, 'u_b')];
-        check('senses S0: the same when a send fires — queued while players could see the Sight, which is hidden by the time it fires, a map with a character\'s token of that player on it is not sent and waits no longer, while the map their waiting or plain token stands on is; and a player with both a character\'s token and a waiting token on one map is sent nothing of it',
-            j(lKeys) === j(['u_a|mA', 'u_b|mA', 'u_b|mO', 'u_b|mP', 'u_b|mW']) && lFired === 5 && j(lOut) === j({ a1: [], a2: [], b1: ['mW:tw+orcW', 'mP:tp+orcP'], rest: [0, 0, 0, 0, 0], left: [], sig: ['12', '12', '12', '10', '10'] })
-            && j(xNow) === j([['u_b|mP'], true, false, false]), j([lKeys, lFired, lOut, xNow]));
+        // a player with a character's token and a waiting token on one map: both see by the default, and the map goes to them
+        const X = mkH(sysHid); X.camp.items.mW.whiteboard.push(T('tB9', 'u_b', 'c_b', 2, 4)); X.sendAll(); X.change(); const xNow = [X.pendKeys()]; X.fire(500); xNow.push(X.maps(X.b1));
+        check('senses S0: the same when a send fires — queued while players could see the Sight, which is hidden by the time it fires, every map goes to its players made by the campaign\'s default (never the hidden number) and waits no longer; and a player with both a character\'s token and a waiting token on one map is sent it, made by the default',
+            j(lKeys) === j(['u_a|mA', 'u_b|mA', 'u_b|mO', 'u_b|mP', 'u_b|mW']) && lFired === 5 && j(lOut) === j({ a1: ['mA:tA'], a2: ['mA:tA'], b1: ['mA:tB', 'mO:tB2', 'mW:tw+orcW', 'mP:tp+orcP'], rest: [0, 0, 0, 0, 0], left: [], sig: ['10', '10', '10', '10', '10'] })
+            && j(xNow) === j([['u_a|mA', 'u_b|mA', 'u_b|mO', 'u_b|mP', 'u_b|mW'], ['mA:tB', 'mO:tB2', 'mW:tw+orcW+tB9', 'mP:tp+orcP']]), j([lKeys, lFired, lOut, xNow]));
     }
 
     // 26. every copy made for a player records the text the host last knew as well, and empties that map's set when it moved (sensesSeed)
@@ -4789,7 +4785,7 @@ pendingChecks.push((async () => {
             hostBranches.length === 24 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
             && count(src, /_sensesSig/g) === count(flS + smS, /_sensesSig/g) && count(src, /_sensesPend/g) === count(smS, /_sensesPend/g) && count(smS, /_sensesPend/g) > 0 && count(flS, /_sensesSig/g) > 0 && !/_senses(Sig|Pend|At)/.test(sheetsT + ioT + fogT + dmT + read('main.js'))
             && count(src, /_sensesAt/g) === count(flS + smS, /_sensesAt/g) && count(flS, /_sensesAt/g) > 0 && count(smS, /_sensesAt/g) > 0
-            && count(src.replace(/\/\/[^\n]*/g, ''), /sensesReads\(/g) === 3 && count(smCode, /sensesReads\(/g) === 3 && count(smCode, /sensesHidden\(/g) === 3 && count(smCode, /setTimeout\(/g) === 1 && count(smCode, /SENSES_RESEND_MS/g) === 2, j([hostBranches.length, count(src, /_sensesSig/g), count(src, /_sensesPend/g), count(src, /_sensesAt/g), count(smCode, /setTimeout\(/g)]));
+            && !/sensesReads|sensesHidden/.test(src) && count(smCode, /setTimeout\(/g) === 1 && count(smCode, /SENSES_RESEND_MS/g) === 2, j([hostBranches.length, count(src, /_sensesSig/g), count(src, /_sensesPend/g), count(src, /_sensesAt/g), count(smCode, /setTimeout\(/g)]));
         check('senses S0 (source): this fold holds no send after a player\'s own move — net.js names no send for a move that landed, no store and no timer of one, the pos gate and the patch path send no map and call no hook themselves, and the play map\'s own drag code holds no statement of this fold',
             !/sensesLanded|_landPend|landDrop|SENSES_LANDED_MS/.test(src) && !/senses[A-Z]|_senses|SENSES_/.test(posCode + patCode) && !/sendItem\(|broadcastItemFiltered\(|resendFogged\(/.test(posCode + patCode) && posCode.length > 0 && patCode.length > 0
             && dmT.length > 0 && !/senses/i.test(dmT) && !/\bamL\b/.test(dmT) && !/invalidateSeen|sightSigFor/.test(dmT), j([/sensesLanded|_landPend|landDrop|SENSES_LANDED_MS/.test(src), /senses/i.test(dmT), dmT.length]));
@@ -5815,7 +5811,7 @@ pendingChecks.push((async () => {
     litB.net.conns.forEach(c => { litB.net.sendItem('k', 'mA', c); c.sent.length = 0; }); litB.move(litB.a1, 'tA', 250, 100, true); litB.fire(150); const lit7b = { b: litB.b1.sent.filter(m => m.type !== 'pos').map(m => m.type + ':' + J([m.add || null, m.drop || null, m.lit || null])), a: litB.a1.sent.map(m => J(m.lit || null)), view: litB.view(litB.b1).fogLit };
     litB.net.conns.forEach(c => { c.sent.length = 0; }); litB.move(litB.a1, 'tA', 100, 100, true); litB.fire(150); lit7b.off = litB.b1.sent.filter(m => m.type !== 'pos').map(m => J(m.lit)); lit7b.viewOff = litB.view(litB.b1).fogLit;
     const sysGm = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'gm' }] }, { F: Fx, gmView: true });
-    const HS = S7({ system: sysGm }); HS.move(HS.a1, 'tA', 250, 100, true); HS.fire(150); const hidSight = kinds(HS.a1);
+    const HS = S7({ system: sysGm }); HS.move(HS.a1, 'tA', 500, 100, true); HS.fire(150); const hidSight = kinds(HS.a1);   // her Sight GM-only: the default (6 cells) sees the orc from five cells
     check('fold M7: a copy the host holds no record of, more than 200 creatures to add, a message past 256 KB or an id past 256 characters each go as the whole copy, which is then recorded; the turn order and the pointers follow a change of what is held, only on a map with a fight or a pointer — a creature newly seen by its name, one no longer seen as Hidden; a light the player cannot see gives them its lit cells alone, and takes them away; a player whose Sight is GM-only still gets their landing',
         J(noRec7) === J([['item'], true]) && J(many7) === J(['item']) && J(big7) === J(['item']) && J(long7) === J(['item'])
         && J(ros7.a1) === J(['fogDiff', 'combats', 'targets']) && J(ros7.rows) === J(['Ana', 'Orc']) && J(ros7.targ) === J(['u_b']) && J(ros7.b) === J([]) && J(ros7.back) === J(['Ana', 'Hidden']) && J(ros7.backTarg) === J([]) && J(noFight) === J(['fogDiff'])
@@ -5997,8 +5993,8 @@ pendingChecks.push((async () => {
     const SL = S7(); SL.camp.items.mA.whiteboard.push(T('ogre', '', 'c_n', 18, 2)); SL.net.conns.forEach(c => { SL.net.sendItem('k', 'mA', c); c.sent.length = 0; });
     SL.move(SL.a1, 'tA', 250, 100, false); SL.net.conns.forEach(c => { c.sent.length = 0; }); SL.camp.chars.c_a.values.f_sight = 70; SL.net.sensesMoved('c_a'); SL.fire(500);
     const landedS = ((diffsTo(SL, SL.a2).find(m => m.itemId === 'mA') || {}).add || []).map(a => a.item.id);
-    check('fold M10: a Sight that has turned GM-only by the time its change fires sends nothing and arms nothing, even with the GM\'s gesture open (the hidden test comes first); a change of one player\'s Sight catches up only that player\'s connections, never another\'s stale copy; it is judged with an open drag at its start',
-        J(hidLate) === J([[], 0, []]) && J(onlyHers) === J([]) && J(landedS) === J(['orc']), J([hidLate, onlyHers, landedS]));
+    check('fold M10: a Sight that has turned GM-only by the time its change fires is judged by the campaign\'s default, as any other change: with the GM\'s gesture open it waits for it, and it sends nothing where the default changes nothing she holds; a change of one player\'s Sight catches up only that player\'s connections, never another\'s stale copy; it is judged with an open drag at its start',
+        J(hidLate) === J([[], 1, []]) && J(onlyHers) === J([]) && J(landedS) === J(['orc']), J([hidLate, onlyHers, landedS]));
     const patchMsg = (props, extra) => ({ type: 'item', campId: 'k', itemId: 'mA', item: { type: 'map', whiteboard: [Object.assign({ id: 'tA', x: 100, y: 100, rot: 0, front: 0 }, props)].concat(extra || []) } });
     const PI = S7(); PI.api.item(patchMsg({ posture: 'crouching' }), PI.a1); const post10 = [itemsTo(PI, PI.a1), itemsTo(PI, PI.a2), itemsTo(PI, PI.b1), PI.timers.filter(t => t.fn && t.ms === 150).length];
     const sysElev = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'formula', formula: '30 + Elevation * 10', edit: 'owner', vis: 'all' }] }, { F: Fx, gmView: true });

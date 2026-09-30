@@ -957,6 +957,10 @@ Fog of war
   that player's actions it already holds, and their app keeps the ones it
   does not, on their screen and in what it sends next. It needs both of you
   on this version; with an older GM's Waypoint a player's app works as before.
+- A Sight taken from a character field its players cannot read (GM-only, or
+  worked out from one) is no longer used: their tokens see by the default
+  range, on your screen and theirs alike (before, your machine judged by the
+  hidden number while their screen drew the default). The fog menu says so.
 - Players remember what they have seen (the fog menu, off until you tick
   it): each player's own screen keeps the ground they have seen this
   session, dimmed further than a dim cell. Remembered ground shows every
@@ -1024,6 +1028,9 @@ Documents: look, panels and search
   with a highlighted snippet, ranked after the name matches.
 
 Security
+- A player who joins your table receives only the campaign you are hosting:
+  your other campaigns (their names, maps and planners) no longer reach
+  them, and their campaign list offers the hosted one alone.
 - Players you have hosted before are recognised by a private table key their
   copy of Waypoint receives when you first let them in, not by the name they
   give; someone using a known name without it waits for you to let them in,

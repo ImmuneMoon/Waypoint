@@ -24,7 +24,7 @@ var _lastMeasureMapId = null;
 // The ids are the website's (shadow-base.com details.posture); the 1.4.6 pre-release ids
 // prone / supine and the handbook's long names are still accepted on read.
 var POSTURES = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'];
-var POSTURE_LABEL = { standing: 'Standing', crouching: 'Crouching', sitting: 'Sitting', kneeling: 'Kneeling', crawling: 'Crawling', 'lying-prone': 'Lying prone', 'lying-face-up': 'Lying face up' };
+var POSTURE_LABEL = { standing: 'Standing', crouching: 'Crouching', sitting: 'Sitting', kneeling: 'Kneeling', crawling: 'Crawling', 'lying-prone': 'Lying prone (face down)', 'lying-face-up': 'Lying face up' };   // the website's labels (posture-rules.ts POSTURE_EFFECTS)
 var POSTURE_CHIP = { crouching: 'CRO', sitting: 'SIT', kneeling: 'KNL', crawling: 'CRW', 'lying-prone': 'PRN', 'lying-face-up': 'SUP' };
 function normalizePosture(v) {
     var s = String(v || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
@@ -47,6 +47,15 @@ function stanceOn(which) {   // 'elevation' | 'posture'
 function setTokenElevation(it, v) { v = Math.round(Number(v) * 10) / 10; if (!isFinite(v) || v === 0) delete it.elevation; else it.elevation = Math.max(-999, Math.min(999, v)); }
 function setTokenPosture(it, v) { v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v; }
 function fmtElev(e) { return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round(Math.abs(e) * 10) / 10); }
+// [systemcheck:postranged-start]
+// Every posture but standing makes a smaller target: -2 to a foe's RANGED attack roll (Chapter 9, Change Posture, Target Modifier; the owner's
+// rulings of 2026-09-30). Display only, no roll reads it: after the distance on a ruler that ends on the token, and a second line under its
+// posture in its chip's tooltip and its hover card, while Token posture is on (as the chip is). The figure is fixed here as it is in the
+// website's RANGED_TARGET_PENALTY (src/lib/posture-rules.ts): if the rule changes, both change together. Plain text: callers escape it
+var POSTURE_RANGED = -2;
+var POSTURE_RANGED_LINE = 'Ranged attacks against this token are at \u2212' + (-POSTURE_RANGED) + ' (their roll)';
+function postureRanged(tok) { var p = tok && tok.isChar && stanceOn('posture') ? tokenPosture(tok) : 'standing'; return p === 'standing' ? '' : '\u2212' + (-POSTURE_RANGED) + ' ranged (posture: ' + POSTURE_LABEL[p].toLowerCase() + ')'; }
+// [systemcheck:postranged-end]
 window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenPosture: tokenPosture, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev };
 
 // Context-menu rows for elevation (− / value / +) and posture (select); shared by the GM's
@@ -500,6 +509,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
                       if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
                       if (stanceBits.length) { var ttStance = document.createElement('div'); ttStance.className = 'rc'; ttStance.style.cssText = 'color:var(--gold); font-size:11px;'; ttStance.textContent = stanceBits.join(' · '); ttRoot.appendChild(ttStance); }
+                      if (postureRanged(wItem)) { var ttRanged = document.createElement('div'); ttRanged.className = 'rc'; ttRanged.style.cssText = 'color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;'; ttRanged.textContent = POSTURE_RANGED_LINE; ttRoot.appendChild(ttRanged); }   // posture: a foe's ranged roll at -2 (display only)
                       tt.textContent = ''; tt.appendChild(ttRoot);
 
                       tt.style.display = 'block';
@@ -993,7 +1003,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           var postV = item.isChar && stanceOn('posture') ? tokenPosture(item) : 'standing';
           var stanceHtml = '';
           if (elevV) stanceHtml += '<span class="chip elev' + (elevV < 0 ? ' below' : '') + '" title="Elevation ' + fmtElev(elevV) + ' yd">' + fmtElev(elevV) + '</span>';
-          if (postV !== 'standing') stanceHtml += '<span class="chip post" title="' + POSTURE_LABEL[postV] + '">' + POSTURE_CHIP[postV] + '</span>';
+          if (postV !== 'standing') stanceHtml += '<span class="chip post" title="' + esc(POSTURE_LABEL[postV]) + '&#10;' + esc(POSTURE_RANGED_LINE) + '">' + POSTURE_CHIP[postV] + '</span>';   // its tooltip's second line: a foe's ranged roll at -2
           var stanceEl = el.querySelector(':scope > .token-stance');
           if (stanceHtml) {
               if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
@@ -2969,7 +2979,8 @@ window.wpFitToGrid = fitToGrid;
               var cv = window.wpFog.coverBetween(m.x1, m.y1, m.x2, m.y2);   // advisory: Waypoint estimates cover from the map's blockers; the GM makes the call
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
-          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + '</text>';
+          var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: a foe's ranged roll at -2 against the token the ruler ends on, after the distance (display only)
+          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
@@ -3298,7 +3309,7 @@ window.wpFitToGrid = fitToGrid;
       _blastHitIds = Object.keys(hit);
       _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.add('blast-hit'); });
   }
-  window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length) renderMeasures(); };
+  window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
   function clearBlasts() { blasts = []; renderMeasures(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
   // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there

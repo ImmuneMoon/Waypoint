@@ -2889,7 +2889,8 @@ window.wpFitToGrid = fitToGrid;
       var h = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">Effects &mdash; ' + esc(tok.charName || tok.name || 'Token') + '</div>';
       if (!m.rows.length && m.char) h += '<div class="menu-item" style="color:var(--dim); cursor:default;">No effects in the system&rsquo;s library.</div>';
       m.rows.forEach(function(r, k) {
-          h += '<div class="menu-item cm-fx' + (r.on ? ' on' : '') + '" data-fi="' + k + '">' + (r.on ? '&#9745; ' : '&#9744; ') + fxIconHtml(r.icon) + ' ' + esc(r.name) + (r.gm ? ' <span class="cm-fx-tag gm">GM</span>' : '') + (r.rowId && !r.on ? ' <span class="cm-fx-tag">off</span>' : '') + '</div>';
+          var inert = r.auto === true && !r.rowId;   // conditions C4: on by its own formula, with no row to end: nothing to click
+          h += '<div class="menu-item cm-fx' + (r.on ? ' on' : '') + (inert ? ' auto' : '') + '"' + (inert ? '' : ' data-fi="' + k + '"') + '>' + (r.on ? '&#9745; ' : '&#9744; ') + fxIconHtml(r.icon) + ' ' + esc(r.name) + (r.gm ? ' <span class="cm-fx-tag gm">GM</span>' : '') + (r.auto === true ? ' <span class="cm-fx-tag">auto</span>' : '') + (r.rowId && !r.on ? ' <span class="cm-fx-tag">off</span>' : '') + '</div>';
       });
       if (!m.char) h += '<div class="menu-divider"></div><div class="menu-item cm-fx-new" style="gap:4px; cursor:default;"><input class="field cm-fx-name" maxlength="60" placeholder="New effect&hellip;" style="width:110px;"><select class="field cm-fx-tone"><option value="">Neutral</option><option value="buff">Buff</option><option value="debuff">Debuff</option></select><button class="tool ghost cm-fx-add" type="button">Add</button></div>';
       return h;

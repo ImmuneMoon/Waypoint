@@ -3903,6 +3903,9 @@ pendingChecks.push((async () => {
     const noCore = [CN, CO].map(C => items().map(w => C.cleanHostWbItem(w)).map(w => (ownK(w, 'light') ? w.light : 'none')));
     check('Lighting: with no light cleaner on hand a client takes no light at all from its host — a good one, a hostile one and a light source\'s alike are removed, never kept as they came',
         j(noCore) === j([Array(11).fill('none'), Array(11).fill('none')]), j(noCore));
+    const htGot = [2, 2.345, 1e9, '3', -1, { v: 1 }, null].map((h, i) => CL.cleanHostWbItem({ id: 'hh' + i, type: 'rect', height: h })).map(w => (ownK(w, 'height') ? w.height : 'none')), htNo = CN.cleanHostWbItem({ id: 'hq', type: 'rect', height: 2 });
+    check('item 19 H1: a client cleans a piece\'s height its host sends again (run for real) — yards above 0 to the hundredth, at most 10,000; text, a number not above 0, an object or nothing none; with no cleaner on hand none',
+        j(htGot) === j([2, 2.35, 10000, 'none', 'none', 'none', 'none']) && !ownK(htNo, 'height'), j(htGot));
     const mapL = CL.cleanHostMap({ id: 'm1', type: 'map', whiteboard: items().concat([null, { id: 9 }, 'x']), rooms: 'x', cats: { a: { color: 'url(x)' }, b: { color: '#123456' } }, fogLit: '<img>', lightsCapped: 'yes' });
     check('Lighting: a whole map from the host has every item\'s light cleaned the same way (cleanHostMap, run for real) — the items that are not items dropped, each light as the item cleaner leaves it, the map\'s own lit cells and light cap still cleaned',
         j(mapL.whiteboard.map(w => w.id)) === j(['t1', 't2', 't3', 'l1', 'l2', 't4', 'q1', 't5', 't6', 'l3', 'x1']) && j(mapL.whiteboard.map(w => (ownK(w, 'light') ? w.light : 'none'))) === j(lights) && !ownK(mapL, 'fogLit') && !ownK(mapL, 'lightsCapped') && j(mapL.rooms) === '[]' && mapL.cats.a.color === '#888' && mapL.cats.b.color === '#123456', j(mapL));

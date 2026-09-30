@@ -541,6 +541,12 @@ Turn-based combat
 - A pen line can be a wall: tick Blocks sight on it and it blocks as the
   line itself, a thin wall between cells. Sight, light, cover and players'
   moves stop at it; set to Door it opens and closes like any door.
+- Height and cover: a piece's Height (its Properties) and your system's
+  Height and cover rule (the Combat card): with token elevation on, from
+  above a see-over piece gives no cover, from below it hides the target.
+- Heights follow your Imperial or Metric choice: a token's elevation, a
+  piece's height, the ruler's 3D line and a blast's labels, in yards or
+  metres.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

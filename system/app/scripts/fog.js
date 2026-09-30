@@ -339,14 +339,15 @@ function inMask(mask, key) { return mask.mode === 'all' ? true : (mask.mode === 
 // grid, reuse the same sight-blocker set fog uses, and map the system-neutral result to this campaign-system's cover
 // tier. Returns { name, block } or null (no grid / same cell / no cover / cover off). Local + advisory: reads state,
 // mutates nothing, sends nothing on the wire; host and client both run the identical fogcore + coverTier.
-function coverBetween(x1, y1, x2, y2) {
+function coverBetween(x1, y1, x2, y2, hA, hB) {   // item 19 H1: hA, hB — the heights at the two ends (yards; the first end looks at the second), read by the system's height rule
     var map = activeMap(), camp = activeCamp(), C = core(); if (!map || !C) return null;
     if (!coverOn(camp && camp.system)) return null;                     // cover off (the default): nothing to work out
     var grid = gridForMap(map); if (!grid) return null;                 // gridless with no assigned cell → can't measure cover
     var a = C.cellOf(x1, y1, grid), b = C.cellOf(x2, y2, grid);
     if (C.cellKey(a, grid) === C.cellKey(b, grid)) return null;         // same cell → no cover
     var sys = camp && camp.system; if (!window.wpSystemCore) return null;
-    var cs = coverSetsFor(map, grid), cov = C.coverBetween(a, b, grid, cs && cs.hard, cs && cs.soft, cs && cs.all);   // cover follow-ups: the cover pieces (a see-over one too, never a token)
+    var cs = coverSetsFor(map, grid); if (heightRuleOf(sys) === 'clears') cs = heightCover(cs, hA, hB, grid);   // item 19 H1: height clears low cover (from above; from below it hides)
+    var cov = C.coverBetween(a, b, grid, cs && cs.hard, cs && cs.soft, cs && cs.all);   // cover follow-ups: the cover pieces (a see-over one too, never a token)
     return window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect);
 }
 // Cover follow-ups (owner 2026-09-28): the cells that give cover on a map — hard (a sight-blocker) and soft (see-over: a crate, a low wall), by
@@ -358,30 +359,52 @@ function coverSetsFor(map, grid) {
     var stamp = (map.meta && map.meta.updated) || 0;
     if (_coverCache[map.id] !== undefined && _coverStamp[map.id] === stamp) return _coverCache[map.id];
     var C = core(), wb = map.whiteboard || [], cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false, hs = [], ss = [];
+    var softH = Object.create(null), softLines = [];   // item 19 H1: each see-over cell's height (its tallest piece; 1 yard where none is given) and each see-over line's
     for (var i = 0; i < wb.length && !over; i++) {
         var role = C.coverRole(wb[i]); if (!role) continue;
-        if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; continue; }   // item 18 W2: a pen line's cover is its line
+        var hW = C.cleanHeight(wb[i].height) || 1;
+        if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; if (role === 'soft' && pz.length) softLines.push({ segs: pz, h: hW }); continue; }   // item 18 W2: a pen line's cover is its line
         var cells = footprintCells(wb[i], grid, C);
-        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } }
+        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else { if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } if (soft[k] && !(softH[k] >= hW)) softH[k] = hW; } }
     }
     // the walls and the see-over cells together over the cap (a cell counted once): the walls keep their cover, the see-over pieces give none.
     // all: the union the fogcore calls read, built once here
     var all = hard;
-    if (!over && ns) { all = Object.create(null); for (var hk in hard) all[hk] = 1; for (var sk in soft) all[sk] = 1; if (Object.keys(all).length > cap) { all = hard; soft = Object.create(null); ns = 0; ss = []; } }
+    if (!over && ns) { all = Object.create(null); for (var hk in hard) all[hk] = 1; for (var sk in soft) all[sk] = 1; if (Object.keys(all).length > cap) { all = hard; soft = Object.create(null); ns = 0; ss = []; softLines = []; } }
     var hasH = nh || hs.length, hasS = ns || ss.length;   // item 18 W2: the lines' walls on the sets that give their cover (all: both)
     if (hasS && all === hard) { all = Object.create(null); for (var hk2 in hard) all[hk2] = 1; }
     if (hasH) C.withWalls(hard, hs, grid); if (hasS) { C.withWalls(soft, ss, grid); if (all !== hard) C.withWalls(all, hs.concat(ss), grid); }
-    var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all };
+    var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines };
     _coverStamp[map.id] = stamp; _coverCache[map.id] = result;
     return result;
 }
+// [fogcheck:heightcover-start]
+// Item 19 H1 (the owner's answer, 2026-09-30: the handbook's Ch7 rule, per system — "height clears low cover"): the map's cover sets for one
+// attacker at height hA and one target at hT (yards). A see-over piece hH tall (1 yard where none is given) gives no cover when hA > hH (looked
+// at from above it), hides the target as a wall does (total) when hA < hT <= hH (from below), else is see-over cover as before; walls block
+// at any height. The map's own sets (coverSetsFor) untouched; no see-over piece: those very sets
+function heightRuleOf(sys) { var h = sys && sys.combat && typeof sys.combat === 'object' ? sys.combat.height : null; return h && typeof h === 'object' && h.rule === 'clears' ? 'clears' : ''; }
+function heightCover(cs, hA, hT, grid) {
+    var C = core(); if (!cs || (!cs.soft && !(cs.softLines && cs.softLines.length))) return cs;
+    hA = typeof hA === 'number' && isFinite(hA) ? hA : 0; hT = typeof hT === 'number' && isFinite(hT) ? hT : 0;
+    var soft = Object.create(null), hide = Object.create(null), ns = 0, nx = 0, k, sSegs = [], xSegs = [];
+    for (k in cs.soft || {}) { var H = cs.softH && cs.softH[k] >= 0 ? cs.softH[k] : 1; if (hA > H) continue; if (hA < hT && hT <= H) { hide[k] = 1; nx++; } else { soft[k] = 1; ns++; } }
+    (cs.softLines || []).forEach(function(g) { if (hA > g.h) return; if (hA < hT && hT <= g.h) xSegs = xSegs.concat(g.segs); else sSegs = sSegs.concat(g.segs); });
+    var hard = cs.hard;
+    if (nx || xSegs.length) { hard = Object.create(null); for (k in cs.hard || {}) hard[k] = 1; C.copyWalls(cs.hard, hard); for (k in hide) hard[k] = 1; C.withWalls(hard, xSegs, grid); }
+    var softOut = ns || sSegs.length ? C.withWalls(soft, sSegs, grid) : null, all = hard;
+    if (softOut) { all = Object.create(null); for (k in hard || {}) all[k] = 1; for (k in soft) all[k] = 1; C.copyWalls(hard, all); C.copyWalls(softOut, all); }
+    return { hard: hard, soft: softOut, all: all };
+}
+// [fogcheck:heightcover-end]
 // The cover a board point (a blast's centre) has to a token on a map: its system's tier, or null (no grid, cover off, none). Local and advisory on
 // every viewer; the host alone turns it into damage (whiteboard.js applyBlastDamage)
-function coverAt(x, y, tok, map) {
+function coverAt(x, y, tok, map, hFrom, hTok) {   // item 19 H1: hFrom, hTok — the blast's height and the token's (yards), read by the system's height rule
     var C = core(), camp = activeCamp(); if (!C || !C.coverFromPoint || !map || !tok) return null;
     var sys = camp && camp.system; if (!coverOn(sys) || !window.wpSystemCore) return null;
     var grid = gridForMap(map); if (!grid) return null;
     var cs = coverSetsFor(map, grid); if (!cs) return null;
+    if (heightRuleOf(sys) === 'clears') { cs = heightCover(cs, hFrom, hTok, grid); if (!cs) return null; }
     // a token over several cells is as exposed as its most exposed cell (the cells whose centres it covers, leaving out any inside a wall
     // unless all are; its centre's cell when it covers none, or more than 64, a box far bigger ruled out first): a line of effect to any cell
     // beats none, then the least coverage

@@ -583,7 +583,7 @@ function fxbOf(w) {
     if (net.role !== 'host' || !w || typeof w !== 'object') return null;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects) return null;
     var list, key;
-    if (typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId)) { key = w.charId; list = S.tokenEffects(camp.system, camp.chars[w.charId], false); }
+    if (typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId)) { key = w.charId; list = S.tokenEffects(camp.system, camp.chars[w.charId], false, window.wpFormula); }   // conditions C4: its automatic effects too
     else if (Array.isArray(w.fx) && S.tokenOwnEffects && typeof w.id === 'string') { key = 'w:' + w.id; list = S.tokenOwnEffects(camp.system, w.fx, false); }
     else return null;
     list = list.map(function(e) { return { n: e.n, i: e.i, t: e.t }; });

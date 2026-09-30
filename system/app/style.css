@@ -585,6 +585,7 @@
   .menu-item.cm-fx.on { color: var(--text); }
   .cm-fx-tag { font-size: 9px; letter-spacing: .04em; color: var(--dim); border: 1px solid currentColor; padding: 0 3px; border-radius: 3px; margin-left: 4px; }
   .cm-fx-tag.gm { color: #e0a54f; border-style: dashed; }
+  .cm-fx.auto { cursor: default; }   /* conditions C4: an automatic effect on, nothing to click */
   .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }
   .token-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--bg); pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
   /* a player's picture token whose bytes have not arrived: a dashed disc with the initials, so the token is never an invisible box */
@@ -2223,6 +2224,7 @@
   .sheet-fx-name { font-weight: 600; }
   .sheet-fx-tone { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
   .sheet-fx-dur { font-size: 11px; color: var(--dim); font-style: italic; }
+  .sheet-fx-autotag { font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; }   /* conditions C4: an automatic effect's row */
   .sheet-fx-rm { margin-left: auto; }
   .sheet-fx-mods { flex: 1 1 100%; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .sheet-fx-add-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -417,7 +417,7 @@ function tokenFx(w) {
     if (!w || !w.isChar || (window.wpVtt && !window.wpVtt.on('sheets'))) return [];
     var n = window.wpNet; if (n && (n.foreign || (n.active && n.role === 'client'))) return Array.isArray(w.fxb) ? w.fxb : [];
     var S = window.wpSystemCore, camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp); if (!S || !sys) return [];
-    if (c) return S.tokenEffects ? S.tokenEffects(sys, c, true) : [];
+    if (c) return S.tokenEffects ? S.tokenEffects(sys, c, true, F()) : [];   // conditions C4: its automatic effects too
     return Array.isArray(w.fx) && S.tokenOwnEffects ? S.tokenOwnEffects(sys, w.fx, true) : [];   // C2: a token with no sheet, its own
 }
 // Conditions C2: what a token's Effects menu offers on this screen, or null — { char: the character's id ('' for a token with no sheet),
@@ -437,10 +437,12 @@ function tokenFxModel(w) {
         if (!gm) return null;
         var FC = window.wpFogCore; rows = (FC && FC.cleanTokFx ? FC.cleanTokFx(w.fx) : null) || [];
     }
+    var autoOn = {}; if (c) autoEffectsOn(sys, c, F()).forEach(function(d) { autoOn[d.id] = 1; });   // conditions C4: an automatic effect on shows ticked and tagged, and never ends from here
     (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) {
         if (!d || typeof d.id !== 'string') return;
-        var r = rows.find(function(x) { return x && x.ref === d.id && typeof x.id === 'string'; });
-        out.push({ ref: d.id, rowId: r ? r.id : '', name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '', gm: d.vis === 'gm', on: !!r && r.on !== false });
+        var r = rows.find(function(x) { return x && x.ref === d.id && typeof x.id === 'string'; }), au = autoOn[d.id] === 1;
+        var row = { ref: d.id, rowId: r ? r.id : '', name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '', gm: d.vis === 'gm', on: (!!r && r.on !== false) || au }; if (au) row.auto = true;
+        out.push(row);
     });
     rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.ref !== 'string') out.push({ ref: '', rowId: r.id, name: r.name || 'Effect', icon: r.icon || '', tone: r.tone || '', gm: false, on: r.on !== false }); });
     return { char: c ? c.id : '', field: f ? f.id : '', rows: out };
@@ -2698,6 +2700,24 @@ function fxLeftChip(t, sys) {
     if (!_fxTicker && typeof window !== 'undefined' && window.requestAnimationFrame) _fxTicker = setInterval(function() { document.querySelectorAll('.sheet-fx-left').forEach(function(x) { if (x._t) x.textContent = fxLeftText(x._t, x._sys); }); }, 1000);
     return chip;
 }
+// [sinkcheck:autofx-start]
+// Conditions C4: the automatic effects on for this character, after its rows in the system's first effects list — each as a row that says
+// Automatic, with its changes; no switch and no end (it follows its formula, as the Foundry sheet's automatic effects do). One a row of the
+// list already applies is not drawn twice. Text nodes only
+function autoFxInto(wrap, f, c, rows, sys, labels) {
+    var first = sys && Array.isArray(sys.fields) ? sys.fields.find(function(x) { return x && x.kind === 'effects'; }) : null; if (!first || first.id !== f.id) return;
+    var applied = {}; (Array.isArray(rows) ? rows : []).forEach(function(r) { if (r && r.on !== false && typeof r.ref === 'string') applied[r.ref] = 1; });
+    autoEffectsOn(sys, c, F()).forEach(function(d) {
+        if (applied[d.id] === 1) return;
+        var line = el('div', 'sheet-fx sheet-fx-auto' + (d.tone === 'buff' || d.tone === 'debuff' ? ' sheet-fx-' + d.tone : ''));
+        if (d.icon) line.appendChild(iconNode(d.icon, 'sheet-fx-icon'));
+        var nm = el('span', 'sheet-fx-name', d.name || 'Effect'); if (d.notes) nm.title = d.notes; line.appendChild(nm);
+        var tg = el('span', 'sheet-fx-autotag', 'Automatic'); tg.title = 'On while ' + d.auto; line.appendChild(tg);
+        var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
+        wrap.appendChild(line);
+    });
+}
+// [sinkcheck:autofx-end]
 function effectsInto(wrap, f, c, rows, sys, editable) {
     editable = editable && _fxLive;
     var lib = {}, labels = {};
@@ -2723,6 +2743,7 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
         var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
         wrap.appendChild(line);
     });
+    autoFxInto(wrap, f, c, rows, sys, labels);
     if (!wrap.childNodes.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No effects.'));
     if (!editable) return;
     var bar = el('div', 'sheet-fx-add-row'), defs = (sys && sys.effects) || [];

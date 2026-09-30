@@ -619,6 +619,7 @@ function cleanImportItems(ic, deps) {
             if (w.smoke !== undefined && w.smoke !== true) delete w.smoke;   // senses S7b: smoke only as true
             if (w.terrain !== undefined) { var TR = FC && typeof FC.cleanTerrain === 'function' ? FC.cleanTerrain(w.terrain) : null; if (TR) w.terrain = TR; else delete w.terrain; }   // difficult terrain T1: its cost, 2-10
             delete w.fxb;   // conditions C1: a token's effects as the table sees them are worked out by a host, never a file's
+            if (w.fx !== undefined) { var TF = FC && typeof FC.cleanTokFx === 'function' ? FC.cleanTokFx(w.fx) : null; if (TF) w.fx = TF; else delete w.fx; }   // conditions C2: a token's own effects
         });
         if (it.type === 'map') { delete it.fogLit; delete it.lightsCapped; delete it.fogMarks; delete it.fogOff; }   // senses S4: a player's own notes on their copy of a map, never a map's own
     });

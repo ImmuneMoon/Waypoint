@@ -413,6 +413,22 @@ function cleanNulls(v) {
     for (var i = 0; i < v.length && out.length < LIMITS.senses; i++) { var e = v[i]; if (typeof e !== 'string' || !SENSE_ID_RE.test(e) || seen[e]) continue; seen[e] = 1; out.push(e); }
     return out.length ? out : null;
 }
+// Conditions C2 (docs/CONDITIONS_PLAN.md): the effects a token with no character sheet carries (item.fx, the GM's) — at most 12 rows, each
+// once by id: a library effect by its id (once per token), or one made on the spot with a name (plain, 60 at most), an icon (64 characters at
+// most: drawn only as the app's own cleaner keeps it) and a tone; null for none
+var TOKFX_ROW = /^x_[A-Za-z0-9_]{1,24}$/, TOKFX_REF = /^e_[A-Za-z0-9_]{1,24}$/;
+function cleanTokFx(v) {
+    if (!Array.isArray(v)) return null;
+    var out = [], ids = Object.create(null), refs = Object.create(null);
+    for (var i = 0; i < v.length && out.length < 12; i++) {
+        var r = v[i]; if (!isObj(r) || typeof r.id !== 'string' || !TOKFX_ROW.test(r.id) || ids[r.id]) continue;
+        if (r.ref !== undefined) { if (typeof r.ref !== 'string' || !TOKFX_REF.test(r.ref) || refs[r.ref]) continue; ids[r.id] = 1; refs[r.ref] = 1; out.push({ id: r.id, ref: r.ref }); continue; }
+        var nm = typeof r.name === 'string' ? r.name.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, 60) : ''; if (!nm) continue;
+        ids[r.id] = 1;
+        out.push({ id: r.id, name: nm, icon: typeof r.icon === 'string' ? r.icon.slice(0, 64) : '', tone: r.tone === 'buff' || r.tone === 'debuff' ? r.tone : '' });
+    }
+    return out.length ? out : null;
+}
 // Difficult terrain T1: what moving into a piece costs (item.terrain, the GM's) — a number rounded to a whole one, 2 to 10 (above 10 is 10);
 // below 2, or anything but a finite number, is none (null)
 function cleanTerrain(v) {
@@ -608,6 +624,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanTokFx, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

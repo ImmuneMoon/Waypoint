@@ -143,15 +143,17 @@ function showStanceMenu(e, tok) {
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own">&#128203; Sheet&hellip;</div>' : '';
     var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own">&#12336; HUD&hellip;</div>' : '';   // HUD frame (HF2b)
     var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own">&#128444;&#65039; New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
+    var fxRow = window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tok) ? '<div class="menu-item cm-fx-own">&#10022; Effects&hellip;</div>' : '';   // conditions C2: where their sheet lets them
     rows += ownLightHtml(tok);   // lighting L5: their own light
     rows += tokenSensesLine(tok);   // senses S3: its senses, read-only
-    if (!rows && !sheetRow && !hudRow && !picRow) return;
-    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
+    if (!rows && !sheetRow && !hudRow && !picRow && !fxRow) return;
+    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + fxRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
     placeMenu(cMenu, e);
     var ownSheet = cMenu.querySelector('.cm-sheet-own'); if (ownSheet) ownSheet.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openSheet(tok.charId); });
     var ownHud = cMenu.querySelector('.cm-hud-own'); if (ownHud) ownHud.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openHud(tok.charId); });
     var ownPic = cMenu.querySelector('.cm-pic-own'); if (ownPic) ownPic.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; newOwnPicture(tok); });
+    var ownFx = cMenu.querySelector('.cm-fx-own'); if (ownFx) ownFx.addEventListener('click', function(ce) { ce.stopPropagation(); showTokenFxMenu(tok); });   // conditions C2
     wireStanceMenu(cMenu, [tok], function() { save(!!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')); render(); });   // fold M8: a player's stance goes to the host at once
     var ownLight = cMenu.querySelector('.own-light');
     if (ownLight) { ownLight.addEventListener('click', function(ce) { ce.stopPropagation(); }); ownLight.addEventListener('change', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; askOwnLight(tok, ownLight.value); }); }
@@ -2852,6 +2854,49 @@ window.wpFitToGrid = fitToGrid;
       return '<span class="tfx-row" title="' + esc(names.join(' · ')) + '">' + h + '</span>';
   }
   // [sinkcheck:tokenfx-end]
+  // [sinkcheck:tokfxmenu-start]
+  // Conditions C2 (docs/CONDITIONS_PLAN.md): a token's Effects menu — the model's rows (wpSheets.tokenFxModel) as menu lines ticked when
+  // applied, a GM-only one marked, one applied but switched off saying so; a click adds the library effect or ends the one applied. A token
+  // with no sheet (the GM's) gets a line to make one on the spot. Names escaped; an icon drawn as on the token
+  function fxIconHtml(i) {
+      var S = window.wpSystemCore, p = S && S.glyphPath ? S.glyphPath(i) : '';
+      if (p) return '<i class="wp-glyph" style="-webkit-mask-image:url(&quot;' + FX_GLYPH_BASE + esc(p) + '.svg&quot;);mask-image:url(&quot;' + FX_GLYPH_BASE + esc(p) + '.svg&quot;)"></i>';
+      return typeof i === 'string' && i ? esc(i) : '';
+  }
+  function tokenFxMenuHtml(tok, m) {
+      var h = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">Effects &mdash; ' + esc(tok.charName || tok.name || 'Token') + '</div>';
+      if (!m.rows.length && m.char) h += '<div class="menu-item" style="color:var(--dim); cursor:default;">No effects in the system&rsquo;s library.</div>';
+      m.rows.forEach(function(r, k) {
+          h += '<div class="menu-item cm-fx' + (r.on ? ' on' : '') + '" data-fi="' + k + '">' + (r.on ? '&#9745; ' : '&#9744; ') + fxIconHtml(r.icon) + ' ' + esc(r.name) + (r.gm ? ' <span class="cm-fx-tag gm">GM</span>' : '') + (r.rowId && !r.on ? ' <span class="cm-fx-tag">off</span>' : '') + '</div>';
+      });
+      if (!m.char) h += '<div class="menu-divider"></div><div class="menu-item cm-fx-new" style="gap:4px; cursor:default;"><input class="field cm-fx-name" maxlength="60" placeholder="New effect&hellip;" style="width:110px;"><select class="field cm-fx-tone"><option value="">Neutral</option><option value="buff">Buff</option><option value="debuff">Debuff</option></select><button class="tool ghost cm-fx-add" type="button">Add</button></div>';
+      return h;
+  }
+  function tokenFxOp(tok, m, q) {
+      if (m.char) { if (window.wpSheets && window.wpSheets.tokenFxCharOp) window.wpSheets.tokenFxCharOp(m.char, m.field, q); return; }
+      if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // a token with no sheet: its own effects, the GM's
+      var FC = window.wpFogCore, rows = (FC && FC.cleanTokFx ? FC.cleanTokFx(tok.fx) : null) || [];
+      if (q.op === 'add' && typeof q.ref === 'string' && !rows.some(function(r) { return r.ref === q.ref; })) rows.push({ id: 'x_' + uid(), ref: q.ref });
+      else if (q.op === 'remove' && typeof q.rowId === 'string') rows = rows.filter(function(r) { return r.id !== q.rowId; });
+      else if (q.op === 'new' && typeof q.name === 'string') rows.push({ id: 'x_' + uid(), name: q.name, icon: '', tone: q.tone });   // cleaned below, as every row is
+      var cl = FC && FC.cleanTokFx ? FC.cleanTokFx(rows) : null; if (cl) tok.fx = cl; else delete tok.fx;
+      save(); render();
+  }
+  function showTokenFxMenu(tok) {
+      var cMenu = document.getElementById('contextMenu'), S = window.wpSheets; if (!cMenu || !S || !S.tokenFxModel) return;
+      var m = S.tokenFxModel(tok); if (!m) { cMenu.style.display = 'none'; return; }
+      cMenu.onclick = null;   // its lines answer for themselves: the item menu's handler never sees them
+      cMenu.innerHTML = tokenFxMenuHtml(tok, m);
+      cMenu.style.display = 'flex';
+      var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok); }, 0); };
+      cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
+          line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
+      });
+      var nm = cMenu.querySelector('.cm-fx-name'), tn = cMenu.querySelector('.cm-fx-tone'), add = cMenu.querySelector('.cm-fx-add');
+      [nm, tn, cMenu.querySelector('.cm-fx-new')].forEach(function(x) { if (x) x.addEventListener('click', function(ce) { ce.stopPropagation(); }); });
+      if (add) add.addEventListener('click', function(ce) { ce.stopPropagation(); var v = nm ? nm.value.trim() : ''; if (!v) return; tokenFxOp(tok, m, { op: 'new', name: v, tone: tn ? tn.value : '' }); again(); });
+  }
+  // [sinkcheck:tokfxmenu-end]
   // [sinkcheck:rangelabel-start]
   // Range penalties R1 (docs/RANGE_PLAN.md): the modifier the system's range rule gives, on every ruler (range is distance alone) and at each
   // target mark, from its targeter's token as its cover is. Between two character tokens it is measured centre to centre, with their elevation
@@ -6106,7 +6151,7 @@ document.addEventListener('contextmenu', function(e) {
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
-                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO) || tokenSensesLine(tokO))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO) || tokenSensesLine(tokO) || (window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tokO)))) { e.preventDefault(); showStanceMenu(e, tokO); }
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;
@@ -6242,6 +6287,7 @@ document.addEventListener('contextmenu', function(e) {
             }
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
             if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
+            if (isWb && firstItem && selectedIds.length === 1 && window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(firstItem)) html += '<div class="menu-item cm-effects">&#10022; Effects&hellip;</div>';   // conditions C2
             if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';   // the token creator: the selected tokens (a character's change together)
             var gmLit = isWb ? gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // lighting L5: the selected lights, switched together
             if (gmLit) html += '<div class="menu-item cm-light">&#128161; ' + (gmLit.anyOn ? 'Light off' : 'Light on') + '</div>';
@@ -6321,6 +6367,7 @@ document.addEventListener('contextmenu', function(e) {
             var action = ce.target.className;
 
             if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance'))) return; // control rows keep the menu open
+            if (typeof action === 'string' && isWb && action.includes('cm-effects')) { var itFx = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; }); if (itFx) setTimeout(function() { showTokenFxMenu(itFx); }, 0); return; }   // conditions C2: the menu becomes its Effects list, once this click is done (swapped now, the clicked line would be gone from the menu and the page would read it as a click outside)
 
             if (isWb) {
                 if (action.includes('cm-group')) {

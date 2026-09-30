@@ -580,6 +580,11 @@
   .token-fx .tfx.gm { outline: 1px dashed #e0a54f; outline-offset: 1px; }
   .token-fx .tfx .wp-glyph { width: 9px; height: 9px; vertical-align: 0; }
   .token-fx .tfx.more { width: auto; padding: 0 3px; border-radius: 7px; }
+  /* Conditions C2: a token's Effects menu — a line per effect, ticked when applied; a GM-only one tagged, one switched off saying so */
+  .menu-item.cm-fx .wp-glyph { width: 12px; height: 12px; }
+  .menu-item.cm-fx.on { color: var(--text); }
+  .cm-fx-tag { font-size: 9px; letter-spacing: .04em; color: var(--dim); border: 1px solid currentColor; padding: 0 3px; border-radius: 3px; margin-left: 4px; }
+  .cm-fx-tag.gm { color: #e0a54f; border-style: dashed; }
   .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }
   .token-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--bg); pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
   /* a player's picture token whose bytes have not arrived: a dashed disc with the initials, so the token is never an invisible box */

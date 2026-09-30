@@ -416,8 +416,40 @@ function hoverLinesForToken(w, camp, mapId) {   // mapId: the map the token stan
 function tokenFx(w) {
     if (!w || !w.isChar || (window.wpVtt && !window.wpVtt.on('sheets'))) return [];
     var n = window.wpNet; if (n && (n.foreign || (n.active && n.role === 'client'))) return Array.isArray(w.fxb) ? w.fxb : [];
-    var S = window.wpSystemCore, camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp);
-    return S && S.tokenEffects && sys && c ? S.tokenEffects(sys, c, true) : [];
+    var S = window.wpSystemCore, camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp); if (!S || !sys) return [];
+    if (c) return S.tokenEffects ? S.tokenEffects(sys, c, true) : [];
+    return Array.isArray(w.fx) && S.tokenOwnEffects ? S.tokenOwnEffects(sys, w.fx, true) : [];   // C2: a token with no sheet, its own
+}
+// Conditions C2: what a token's Effects menu offers on this screen, or null — { char: the character's id ('' for a token with no sheet),
+// field: its effects list's id, rows: [{ ref, rowId, name, icon, tone, gm, on }] } — each effect of the system's library (rowId: the row
+// that applies it, on: applied and switched on), then those made on the spot that it carries. The GM: a character token whose sheet has an
+// effects list, or a token with no sheet (its own effects); a player: their own character's token, where its sheet lets them change them
+function tokenFxModel(w) {
+    if (!w || !w.isChar || w.waiting || (window.wpVtt && !window.wpVtt.on('sheets'))) return null;
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (!sys) return null;
+    var gm = !isClient() && canWrite(), c = charById(w.charId, camp), f = null, rows, out = [];
+    if (c) {
+        f = (Array.isArray(sys.fields) ? sys.fields : []).find(function(x) { return x && x.kind === 'effects' && typeof x.id === 'string'; }) || null; if (!f || c.partial) return null;
+        var mine = !!myId() && c.ownerId === myId();
+        if (!(gm || (mine && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1)))) return null;
+        rows = c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [];
+    } else {
+        if (!gm) return null;
+        var FC = window.wpFogCore; rows = (FC && FC.cleanTokFx ? FC.cleanTokFx(w.fx) : null) || [];
+    }
+    (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) {
+        if (!d || typeof d.id !== 'string') return;
+        var r = rows.find(function(x) { return x && x.ref === d.id && typeof x.id === 'string'; });
+        out.push({ ref: d.id, rowId: r ? r.id : '', name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '', gm: d.vis === 'gm', on: !!r && r.on !== false });
+    });
+    rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.ref !== 'string') out.push({ ref: '', rowId: r.id, name: r.name || 'Effect', icon: r.icon || '', tone: r.tone || '', gm: false, on: r.on !== false }); });
+    return { char: c ? c.id : '', field: f ? f.id : '', rows: out };
+}
+function tokenFxCharOp(charId, fieldId, q) {   // a character token's menu: the sheet's own path (the GM's edit, or the host asked)
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), f = sys && Array.isArray(sys.fields) ? sys.fields.find(function(x) { return x && x.id === fieldId && x.kind === 'effects'; }) : null;
+    if (!c || !f || !q) return;
+    if (q.op === 'add' && typeof q.ref === 'string') commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: q.ref });
+    else if (q.op === 'remove' && typeof q.rowId === 'string') commitEffect(c, f, { op: 'remove', rowId: q.rowId });
 }
 // [sinkcheck:tokenfxlist-end]
 function hoverLinesForTokenId(camp, tokId) {
@@ -5424,7 +5456,7 @@ setTimeout(sync, 0);
 window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
-    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx,
+    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 

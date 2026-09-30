@@ -567,31 +567,46 @@ function wireWbItem(w, cloned) {
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
     if (w.senses !== undefined || w.blind !== undefined || w.unsensed !== undefined || w.nulls !== undefined) { delete w.senses; delete w.blind; delete w.unsensed; delete w.nulls; }   // S7a: a null area's senses are the GM's   // senses S2b, S3, S4 (unsensed: never on the wire at all): a token's own ranges and the GM's Blind tick are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
     if (w.fxb !== undefined) delete w.fxb;   // conditions C1: never taken from the map; worked out afresh below
-    if (w.isChar && typeof w.charId === 'string' && typeof fxbOf === 'function') { var fxb = fxbOf(w.charId); if (fxb) w.fxb = fxb; }
+    if (w.isChar && typeof fxbOf === 'function') { var fxb = fxbOf(w); if (fxb) w.fxb = fxb; }   // C2: a token with no sheet, from its own
+    if (w.fx !== undefined) delete w.fx;   // conditions C2: a token's own rows are the GM's (their GM-only ids and names): the table gets fxb
     return w;
 }
-// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees on a character token, the host's list for its character ([{ n, i,
-// t }], never a GM-only effect) or null. Each list worked out is remembered, so a change of it is found once (fxbMoved)
+// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees on a token, the host's list ([{ n, i, t }], never a GM-only effect) or
+// null — a character token's from its character, a token with no sheet from its own rows (C2). Each list worked out is remembered (by the
+// character, or by the token for one of its own), so a change of it is found once (fxbMoved)
 var _fxbSig = Object.create(null);
-function fxbOf(charId) {
-    if (net.role !== 'host') return null;
-    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars || !own(camp.chars, charId)) return null;
-    var list = S.tokenEffects(camp.system, camp.chars[charId], false).map(function(e) { return { n: e.n, i: e.i, t: e.t }; });
-    _fxbSig[charId] = JSON.stringify(list);
+function fxbOf(w) {
+    if (net.role !== 'host' || !w || typeof w !== 'object') return null;
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects) return null;
+    var list, key;
+    if (typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId)) { key = w.charId; list = S.tokenEffects(camp.system, camp.chars[w.charId], false); }
+    else if (Array.isArray(w.fx) && S.tokenOwnEffects && typeof w.id === 'string') { key = 'w:' + w.id; list = S.tokenOwnEffects(camp.system, w.fx, false); }
+    else return null;
+    list = list.map(function(e) { return { n: e.n, i: e.i, t: e.t }; });
+    _fxbSig[key] = JSON.stringify(list);
     return list.length ? list : null;
 }
-// A character's change (called where sensesMoved is): every map holding a token of a character whose list moved since a copy was last made
-// is sent again, its per-player delta carrying the one token. id: one character, or null for every one
+// A character's change (called where sensesMoved is): every map holding a shown token of a character whose list moved since a copy was last
+// made is sent again, its per-player delta carrying the one token. id: one character, or null for every one (the system changed: a token
+// with no sheet looked at again too, since its library effects may have)
 function fxbMoved(id) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars) return;
-    var moved = Object.create(null), any = false;
+    var moved = Object.create(null), out = Object.create(null);
     (id === null ? Object.keys(camp.chars) : [id]).forEach(function(cid) {
         if (typeof cid !== 'string' || !own(camp.chars, cid) || _fxbSig[cid] === undefined) return;   // no copy made with it yet: nothing to catch up
-        var was = _fxbSig[cid]; fxbOf(cid); if (was !== _fxbSig[cid]) { moved[cid] = 1; any = true; }
+        var was = _fxbSig[cid]; fxbOf({ charId: cid }); if (was !== _fxbSig[cid]) moved[cid] = 1;
     });
-    if (!any) return;
-    Object.keys(camp.items || {}).forEach(function(mid) { var m = camp.items[mid]; if (m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return w && w.isChar && !w.hidden && typeof w.charId === 'string' && moved[w.charId] === 1; })) net.sendItem(camp.id, mid); });   // a hidden token's stub carries none
+    Object.keys(camp.items || {}).forEach(function(mid) {
+        var m = camp.items[mid]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+        m.whiteboard.forEach(function(w) {
+            if (!w || !w.isChar || w.hidden) return;   // a hidden token's stub carries none
+            if (typeof w.charId === 'string' && own(camp.chars, w.charId)) { if (moved[w.charId] === 1) out[mid] = 1; return; }
+            var k = 'w:' + w.id; if (id !== null || !Array.isArray(w.fx) || typeof w.id !== 'string' || _fxbSig[k] === undefined) return;
+            var was = _fxbSig[k]; fxbOf(w); if (was !== _fxbSig[k]) out[mid] = 1;
+        });
+    });
+    Object.keys(out).forEach(function(mid) { net.sendItem(camp.id, mid); });
 }
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
    window.wpFog.fogDropIds(recipientId, camp, map) → the ids of character tokens the recipient cannot see, or null

@@ -2226,7 +2226,7 @@ function unseenMods(c, view, full) {
 var FACING_NAMES = Object.freeze(['Facing', 'Arc', 'Arc.front', 'Arc.side', 'Arc.rear', 'Threats', 'Threats.front', 'Threats.side', 'Threats.rear']);
 // Stage 6: the token's stance — Posture (the index of its posture below; 0 standing) and Elevation (yards), each 0 while its VTT feature is off
 var POSTURE_IDS = Object.freeze(['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up']);
-var POSTURE_NAMES = Object.freeze(['Standing', 'Crouching', 'Sitting', 'Kneeling', 'Crawling', 'Lying prone', 'Lying face up']);
+var POSTURE_NAMES = Object.freeze(['Standing', 'Crouching', 'Sitting', 'Kneeling', 'Crawling', 'Lying prone (face down)', 'Lying face up']);   // the website's labels (posture-rules.ts POSTURE_EFFECTS), as the map's
 var TOKEN_NAMES = Object.freeze(FACING_NAMES.concat(['Posture', 'Elevation', 'CombatRound', 'RangeMod', 'TargetDistance']));   // range penalties R2: RangeMod and TargetDistance, the range to the roller's target (withRange)   // HUD frame (HF5b): CombatRound, the round of the combat on the token's map (round is the rounding function)
 function postureIndex(v) {   // the same reading as the map's chip (whiteboard.js normalizePosture): the ids, the 1.4.6 ids, the handbook's long names
     if (typeof v !== 'string') return 0;

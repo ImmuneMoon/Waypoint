@@ -505,6 +505,10 @@ Turn-based combat
   without opening the sheet; a token with no character sheet keeps effects
   of its own (the library's, or one made on the spot). A player gets it on
   their own character's token where the sheet lets them change effects.
+- A token that is not standing is a smaller target: a ruler that ends on it
+  shows "-2 ranged (posture: kneeling)" after the distance, and its posture
+  chip's tooltip and hover card say ranged attacks against it are at -2
+  (their roll). Shown only, never rolled; it follows the Token posture switch.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

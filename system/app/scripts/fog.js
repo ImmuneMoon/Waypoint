@@ -72,6 +72,21 @@ var GLYPH_K = { sound: 1, tremor: 2, presence: 3, heat: 4 };
 // of 0 or less is not having the sense; the cells in the sense's own unit through this map's scale. { sight, full: [{ id, cells, pass, all, dim }] }
 // Senses S3: blind (the GM's tick on the token, or the system's blind field ticked or above 0 on a sheet read by the same rule) sets blind:
 // true; a sense of the eyes is then off, as is a sense whose off field is ticked or above 0: held but off, in offs [{ id, n, cells, from, why }]
+// Found during senses S0, (d) — the owner's answer (2026-09-29): a Sight its player cannot read truthfully (a GM-only field, or one worked out
+// from one: secretFieldIds, as for a sense's range) is the campaign's default on both sides, so the host never judges what a player sees by a
+// number their own screen cannot paint by. Unjudgeable (no system core or formula engine, or it throws): the default. One slot, kept on the
+// system object and its stamp
+var _sightSec = { sys: null, u: null, sec: null };
+function sightSecret(camp, fid) {
+    var S0 = window.wpSystemCore, F = window.wpFormula, sys = camp && camp.system;
+    if (!fid || typeof fid !== 'string' || !sys || typeof sys !== 'object') return false;
+    if (!S0 || typeof S0.secretFieldIds !== 'function' || typeof S0.gmViewFields !== 'function' || !F) return true;
+    if (_sightSec.sys !== sys || _sightSec.u !== sys.updated) {
+        var sec = null; try { sec = S0.secretFieldIds({ fields: S0.gmViewFields(sys, F), items: sys.items, core: sys.core }, F); } catch (e) { sec = null; }
+        _sightSec = { sys: sys, u: sys.updated, sec: sec };
+    }
+    return !_sightSec.sec || Object.prototype.hasOwnProperty.call(_sightSec.sec, fid);
+}
 function tokenSenses(token, map, camp, waived) {
     var C = core(), out = { sight: 0, full: [] }; if (!C || !token) return out;
     var cf = campFog(camp), yards = cf.defaults.sight || 0, per = cellYardsForMap(map), S0 = window.wpSystemCore, F = window.wpFormula;
@@ -86,7 +101,7 @@ function tokenSenses(token, map, camp, waived) {
     };
     var read = function(fid) { var f = S0 && fid ? S0.fieldById(camp.system, fid) : null, rv = f && f.key ? resolver() : null, v = rv ? rv(f.key) : null; return typeof v === 'number' && isFinite(v) ? v : null; };
     var set = function(sw) { var f = S0 && sw ? S0.fieldById(camp.system, sw.field) : null, rv = f && f.key ? resolver() : null, v = rv ? rv(f.key) : null; return v === true || (typeof v === 'number' && v > 0); };   // senses S3: a switch, ticked or above 0
-    if (cf.fields.sight && ch) { var sv = read(cf.fields.sight); if (sv !== null && sv >= 0) yards = sv; }
+    if (cf.fields.sight && ch && !(typeof sightSecret === 'function' && sightSecret(camp, cf.fields.sight))) { var sv = read(cf.fields.sight); if (sv !== null && sv >= 0) yards = sv; }   // S0 (d): a Sight its player cannot read is the default
     out.sight = C.unitCells(yards, cf.fields.sightUnit, per);
     var tick = token.blind === true && !token.waiting, sn = campSensesOf(camp);   // senses S3: the GM's tick works with no system at all
     if (!sn) { if (tick) out.blind = true; return out; }
@@ -1060,6 +1075,8 @@ function fillSightField() {
     var ok = Array.prototype.some.call(sel.options, function(o) { return o.value === (cf.fields.sight || ''); });
     sel.value = ok ? (cf.fields.sight || '') : '';
     var wrap = ui('fogSightFieldRow'); if (wrap) wrap.style.display = (sys && Array.isArray(sys.fields) && sys.fields.length) ? '' : 'none';
+    var note = ui('fogSightSecret');   // S0 (d): a field its player cannot read is not used for their sight: said, as text
+    if (note) { var hid = !!(sel.value && sightSecret(camp, sel.value)); note.style.display = hid ? '' : 'none'; note.textContent = hid ? 'Players cannot read this field (it is GM-only, or worked out from one), so their tokens see by the default range below.' : ''; }
 }
 function syncMenu() {
     var map = activeMap(); if (!map) return;

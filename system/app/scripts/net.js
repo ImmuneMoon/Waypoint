@@ -629,13 +629,17 @@ function fogCopyFor(clean, camp, map, recipientId) {
 // Is any map in the hosted campaign fogged? While false, every per-recipient loop below stays on the old single-broadcast path.
 function anyFog(camp) {
     if (!window.wpFog || !window.wpVtt || !window.wpVtt.on('fog') || !camp || !camp.items) return false;
-    return Object.keys(camp.items).some(function(id) { var it = camp.items[id]; return !!(it && it.type === 'map' && it.fog && it.fog.on); });
+    return Object.keys(camp.items).some(function(id) { var it = camp.items[id]; return !!(it && it.type === 'map' && it.fog && it.fog.on === true); });   // fog on is true alone, as fog.js reads it (fogcore cleanFog)
 }
 // Everything a player receives is built from the two clones above and below: a number the wire's packer would refuse (a whole number past
 // 64 bits — typed into a box, imported, computed) is bounded as it is copied, so one value can never stop a map, a join or a snapshot.
 function wireNum(k, v) { return (typeof v === 'number' && (v > 1e15 || v < -1e15)) ? (v > 0 ? 1e15 : -1e15) : v; }
 function sanitizeAppState(s, recipientId) {   // recipientId: the player this copy is for (characters are per recipient); absent = nobody's (the stream window)
-    var c = JSON.parse(JSON.stringify(s), wireNum);
+    // a session is one campaign (owner's answer, 2026-09-29): only the hosted campaign is copied at all — the GM's other games (their names,
+    // maps and planners) never reach a player or the stream window
+    var one = {}; Object.keys(s || {}).forEach(function(k) { if (k !== 'campaigns') one[k] = s[k]; });
+    one.campaigns = {}; if (s && s.campaigns && typeof s.activeCampaignId === 'string' && own(s.campaigns, s.activeCampaignId)) one.campaigns[s.activeCampaignId] = s.campaigns[s.activeCampaignId];
+    var c = JSON.parse(JSON.stringify(one), wireNum);
     delete c.imageCats;   // the GM's picture-library categories
     delete c._foreign; delete c._cleanup; delete c._picsV;   // origin marker, cleanup notes and the picture-category migration marker stay on this machine
     Object.values(c.campaigns || {}).forEach(function(camp) {
@@ -1486,7 +1490,7 @@ function applyFogDiff(msg) {
 }
 // [netcheck:fogdiffapply-end]
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
-function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on && window.wpVtt && window.wpVtt.on('fog')); }
+function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on === true && window.wpVtt && window.wpVtt.on('fog')); }   // true alone, as fog.js reads it: a map stored with on 'yes' is unfogged for both, never per-player once and shared after
 net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place)
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     var ak = typeof withAck === 'function' ? withAck : function(m) { return m; };   // 14c: how far each connection's copy goes (a harness without it sends as before)
@@ -1725,23 +1729,13 @@ net.resendFogged = function() {
 // ordinary send of that map, as before this fold (the host's own judgement, the live relay's too, goes by the real sight at once)
 var _sensesPend = Object.create(null), SENSES_RESEND_MS = 500;
 function sensesPids() { var seen = Object.create(null), out = []; net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && pr.id && !seen[pr.id]) { seen[pr.id] = 1; out.push(pr.id); } }); return out; }
-function sensesHidden(camp) {
-    var S = SC(), fid = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.fields && typeof camp.fog.fields === 'object' ? camp.fog.fields.sight : '';
-    if (!fid || typeof fid !== 'string' || !camp.system) return false;   // no field mapped: the campaign's default, which every side holds
-    if (!S || !S.fieldById || !S.gmDerivedNames || !window.wpFormula) return true;   // it cannot be judged: nothing is sent
-    try { var f = S.fieldById(camp.system, fid); if (!f || !f.key) return false; return f.vis === 'gm' || S.gmDerivedNames(camp.system, window.wpFormula, [f.key]).length > 0; } catch (e) { return true; }
-}
-// Whether a token of that player's on that map reads the campaign's Sight field at all: one that stands for a character. A waiting token and a
-// plain token see by the campaign's default, which their own app holds too, so a hidden Sight field hides nothing of theirs
-function sensesReads(camp, m, pid) {
-    return (Array.isArray(m.whiteboard) ? m.whiteboard : []).some(function(w) { return !!w && w.ownerId === pid && typeof w.charId === 'string' && !!camp.chars && typeof camp.chars === 'object' && Object.prototype.hasOwnProperty.call(camp.chars, w.charId); });
-}
+// (A Sight its player cannot read is the campaign's default on both sides since the owner's answer of 2026-09-29 — fog.js sightSecret — so a
+// change of it moves nothing here, and a change of the default reaches every player it moves: nothing to hold back)
 function sensesDrop(key) { delete _sensesSig[key]; delete _sensesAt[key]; if (_sensesPend[key]) { clearTimeout(_sensesPend[key]); delete _sensesPend[key]; } }
 net.sensesMoved = function(charId) {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(); if (!camp || !camp.items || typeof camp.items !== 'object' || !window.wpFog || !window.wpFog.sightSigFor) return;
     var pids = sensesPids(); if (!pids.length) return;
-    var hidden = null;
     Object.keys(camp.items).forEach(function(id) {
         var m = camp.items[id]; if (!m || m.type !== 'map') return;
         if (!mapFogged(m)) { pids.forEach(function(pid) { sensesDrop(pid + '|' + id); }); return; }
@@ -1751,8 +1745,6 @@ net.sensesMoved = function(charId) {
             if (sig === null) { sensesDrop(key); return; }
             if (sig !== _sensesAt[key]) { _sensesAt[key] = sig; if (window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(id); }   // who sees what on that map is judged afresh, at once and only then: the live position relay goes by it
             if (sig === _sensesSig[key] || _sensesPend[key]) return;   // nothing moved, or a send is on its way (it reads the state of its own moment)
-            if (hidden === null) hidden = sensesHidden(camp);
-            if (hidden && sensesReads(camp, m, pid)) return;
             _sensesPend[key] = setTimeout(function() { sensesFire(pid, id); }, SENSES_RESEND_MS);
         });
     });
@@ -1764,18 +1756,16 @@ function sensesFire(pid, mapId) {
     if (!m || !mapFogged(m)) { sensesDrop(key); return; }
     var sig = window.wpFog.sightSigFor(pid, camp, m);
     if (sig === null) { sensesDrop(key); return; }
-    var hid = sensesHidden(camp) && sensesReads(camp, m, pid);
     if (typeof fogCatchUp === 'function') {
         // fold M10: each of their connections is caught up in place against what that copy holds (nothing that did not change is sent, the
-        // turn order and the pointers only after a change of what is held); a hidden Sight sends nothing, as before; while the GM's own
-        // gesture is open on that map, the map's own fire does it once the gesture is over
-        if (hid) return;
+        // turn order and the pointers only after a change of what is held); while the GM's own gesture is open on that map, the map's own
+        // fire does it once the gesture is over
         if (window.wpHostGesture === mapId) { if (typeof fogArm === 'function') fogArm(mapId); return; }
         var memo = Object.create(null);
         fogLanded(null, function() { net.conns.forEach(function(c) { var pr = c && c.open ? net.roster[c.peer] : null; if (pr && pr.id === pid) fogCatchUp(c, camp, m, pid, memo); }); });
         return;
     }
-    if (sig === _sensesSig[key] || hid) return;   // that map went to them since, or the sight is back where it was
+    if (sig === _sensesSig[key]) return;   // that map went to them since, or the sight is back where it was
     var inFight = !!(net.combats && Object.prototype.hasOwnProperty.call(net.combats, mapId)), aimed = Object.keys(net.targets || {}).some(function(p) { var t = net.targets[p]; return !!t && t.mapId === mapId; });
     var sendAll = function() {   // fold M4: the copy, the order and the pointers all judged with every open drag at its start
         net.conns.forEach(function(c) {
@@ -3071,7 +3061,7 @@ function combatsFor(recipientId) {
     var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
     Object.keys(net.combats || {}).forEach(function(mapId) {
         var cmb = net.combats[mapId], map = fogged && camp && camp.items[mapId];
-        var drop = map && map.type === 'map' && map.fog && map.fog.on ? (fogDrop(camp, map, recipientId) || {}) : null, hid = combatHidden(camp, mapId);
+        var drop = map && map.type === 'map' && map.fog && map.fog.on === true ? (fogDrop(camp, map, recipientId) || {}) : null, hid = combatHidden(camp, mapId);
         out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) { return combatRowOut(r, i, !!(r.tokId && ((drop && drop[r.tokId]) || hid[r.tokId]))); }) };
     });
     return out;
@@ -3096,7 +3086,7 @@ function targetsFor(recipientId) {
     var out = {};
     Object.keys(net.targets || {}).forEach(function(pid) {
         var t = net.targets[pid], map = camp && t && camp.items[t.mapId];
-        if (!map || map.type !== 'map' || !(map.fog && map.fog.on)) { out[pid] = t; return; }
+        if (!map || map.type !== 'map' || !(map.fog && map.fog.on === true)) { out[pid] = t; return; }
         var drop = fogDrop(camp, map, recipientId) || {};
         if (!(t.id && drop[t.id])) out[pid] = t;
     });

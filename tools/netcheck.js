@@ -6684,6 +6684,24 @@ pendingChecks.push((async () => {
     check('item 20 K3 a player\'s app keeps the notes a host sends (the clockmsg branch, run for real) as cleaned text in day order — an id of the pattern, a whole day, its text one line — never a vis or anything else; notes that are no list are none',
         j(rN) === j({ t: 90, notes: [{ id: 'n_dddddddd', day: 1, text: '<img src=x onerror=alert(1)>' }, { id: 'n_bbbbbbbb', day: 2, text: 'Market day' }] }) && j(rN2) === j({ t: 90 }), j([rN, rN2]));
 })());
+// Item 20 K5: a time rules summary (net.timeCard) to its player and the GM, or the GM alone; the counts never on the wire; a fight's end asks
+{
+    const tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard'), pidT = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const mkT = role => { const out = { chat: [], log: [] }, mk = (p) => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pA2'), mk('pB'), Object.assign(mk('pW'), {})];
+        const net = { active: true, role: role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pA2: { id: 'u_a' }, pB: { id: 'u_b' } } };
+        new Function('net', 'pushChat', 'logEvent', 'sendFailed', pidT + tcS)(net, m => out.chat.push(m), (k, t) => out.log.push([k, t]), e => { throw e; });
+        return { net, out, conns }; };
+    const T1 = mkT(); T1.net.timeCard({ id: 'c_a', ownerId: 'u_a', name: 'Pat' }, 'Pat: Heal ' + 'x'.repeat(2000), false);
+    const T2 = mkT(); T2.net.timeCard({ id: 'c_a', ownerId: 'u_a' }, 'secret', true); T2.net.timeCard({ id: 'c_n', ownerId: 'u_a', npc: true }, 'orc', false); T2.net.timeCard(null, 'x', false);
+    const T3 = mkT('client'); T3.net.timeCard({ id: 'c_a', ownerId: 'u_a' }, 'x', false);
+    check('item 20 K5 a time rules summary (net.timeCard, run for real): a private line for the GM (pushed to its own chat) and one to every connection of the character\'s player, never another\'s or a waiting one, capped at 1500 characters, with a Session Log line under Time; the GM alone for a rule its player may not see or an NPC; nothing from a player\'s app or with no character',
+        T1.out.chat.length === 1 && T1.out.chat[0].scope === 'whisper' && T1.out.chat[0].text.length === 1500 && T1.conns[0].sent.length === 1 && T1.conns[1].sent.length === 1 && T1.conns[2].sent.length === 0 && T1.conns[3].sent.length === 0 && T1.out.log.length === 1 && T1.out.log[0][0] === 'time'
+        && T2.out.chat.length === 2 && T2.conns.every(c => c.sent.length === 0) && T3.out.chat.length === 0 && T3.conns.every(c => c.sent.length === 0), j([T1.conns.map(c => c.sent.length), T2.out.chat.map(m => m.text)]));
+    check('item 20 K5 the counts never travel (clockOut sends a clock\'s time and its notes players may see, never what the time rules counted); a fight\'s end asks the calendar about its rounds after its effects\' clocks run again (pinned)',
+        /var o = \{ t: ck\.t \}, ns = /.test(src) && !/acc/.test(between('// [netcheck:clocksync-start]', '// [netcheck:clocksync-end]', 'clocksync'))
+        && src.includes("if (had && typeof clockFightEnd === 'function') clockFightEnd();") && src.includes('function clockFightEnd() { try { if (window.wpCalendar && window.wpCalendar.fightEnded) window.wpCalendar.fightEnded(); } catch (e) { console.error(e); } }')
+        && /fxCombatEdge\(mapId, had, 'resume'\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n\s*if \(had && typeof clockFightEnd === 'function'\) clockFightEnd\(\);/.test(src));
+}
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

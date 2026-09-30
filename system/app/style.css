@@ -1850,6 +1850,14 @@
   .cal-any input.cal-any-n { width: 100px; }
   .cal-tick { display: inline-flex; align-items: center; gap: 4px; }
   .cal-day.cal-has-note { box-shadow: inset 0 -3px 0 var(--gold); }   /* item 20 K3: a day that holds a note */
+  .cal-pend { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--gold); border-radius: 8px; background: rgba(224,165,79,0.08); }   /* item 20 K5: the time rules due */
+  .cal-pend-head { font-weight: 600; color: var(--gold); }
+  .cal-pend-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; cursor: pointer; }
+  .cal-pend-name { font-weight: 600; }
+  .cal-pend-rules { color: var(--dim); overflow-wrap: anywhere; }
+  .cal-pend-bar, .cal-kind { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .cal-kind-btn.cal-kind-on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .sys-roll-everyrow input.sys-roll-evn { width: 70px; }
   .cal-notes, .cal-coming { display: flex; flex-direction: column; gap: 4px; }
   .cal-note, .cal-note-add { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .cal-note-txt { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }

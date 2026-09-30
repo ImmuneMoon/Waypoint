@@ -8,11 +8,12 @@
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { roundSecs } from './systemcore.js';
-import { cleanCalendar, cleanClock, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS } from './calendarcore.js';
+import { cleanCalendar, cleanClock, cleanAcc, ruleFires, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS } from './calendarcore.js';
 
 function net() { return window.wpNet || null; }
 function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.systemOf() : null; }
 // [sinkcheck:calendarwin-start]
+var restMode = false, pend = null, roundPend = 0;   // item 20 K5: time moved on as Rest (else Active), the time rules waiting for the GM's word, a fight's rounds not yet counted
 var view = null, pick = null, winSig = '', winCamp = '';   // the window's period in view ({ yi, period }, or { page } with no periods), the day picked (a day number from 0) or null, what it last drew and for which campaign
 function sysCal() { var s = sysNow(); return s && s.calendar ? s.calendar : null; }
 function isPlayer() { var n = net(); return !!(n && n.foreign); }
@@ -69,6 +70,52 @@ function noteDays(notes) { var m = Object.create(null); notes.forEach(function(n
 function newNoteId() { var s = ''; while (s.length < 8) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); return 'n_' + s; }
 function notesReached(notes, t0, t1, dl) { if (!(t1 > t0) || !(dl > 0)) return []; var d0 = Math.floor(t0 / dl), d1 = Math.floor(t1 / dl); return notes.filter(function(n) { return n.day > d0 && n.day <= d1; }); }
 function winSigOf(camp, ck, cal) { return camp.id + '|' + ck.t + '|' + (ck.hide ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }
+// Item 20 K5 (the owner's answers of 2026-09-30): the time rules — rolls and apply actions that also run every so often by this clock. Rest adds
+// up per character and rule, activity breaks it (calendarcore ruleFires); the steps and any amount run them as Rest or Active, a Set forward
+// always asks (the GM's choice), a fight's rounds count as activity and are asked about when it ends. What is due waits in the window: players'
+// characters ticked, NPCs offered; Apply runs the ticked ones on this machine (sheets.js runTimeRules), Skip lets the time pass; either way
+// what each rule has counted is kept (camp.clock.acc, the GM's own)
+function isPc(ch) { return !!ch && ch.npc !== true && typeof ch.ownerId === 'string' && !!ch.ownerId; }
+function clockRules(sys) { return sys && Array.isArray(sys.rolls) ? sys.rolls.filter(function(r) { return r && r.every; }) : []; }
+function sysUnits(sys) { return sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : []; }
+function commitAcc(acc) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer()) return;
+    var ck = clockOf(camp) || { t: 0 }, nc = Object.assign({}, ck), a = cleanAcc(acc); if (a) nc.acc = a; else delete nc.acc; camp.clock = nc; save();
+}
+function timePassed(secs, rest) {
+    var camp = getActiveCampaign(), sys = sysNow(); if (!camp || isPlayer() || typeof secs !== 'number' || !(secs > 0) || !sys) return false;
+    var rules = clockRules(sys); if (!rules.length) return false;
+    var ck = clockOf(camp) || { t: 0 }, res = ruleFires(sysCal(), sysUnits(sys), rules, camp.chars ? Object.keys(camp.chars) : [], ck.acc, secs, !!rest);
+    if (!res.fires.length) { commitAcc(res.acc); return false; }
+    var on = Object.create(null); res.fires.forEach(function(f) { on[f.c] = isPc(camp.chars[f.c]); });
+    pend = { secs: secs, rest: !!rest, fires: res.fires, acc: res.acc, on: on, camp: camp.id };
+    if (!winOpen()) openWin(); else renderWin();
+    return true;
+}
+function pendWords(cal) { return pend ? fmtSpan(cal, pend.secs) + (pend.rest ? ' of rest' : ' of activity') : ''; }
+function pendPanel(body, cal) {
+    var box = cel('div', 'cal-pend'), camp = getActiveCampaign(), sys = sysNow(), byC = Object.create(null), order = [];
+    box.appendChild(cel('div', 'cal-pend-head', 'Time rules due \u2014 ' + pendWords(cal)));
+    pend.fires.forEach(function(f) { if (!byC[f.c]) { byC[f.c] = []; order.push(f.c); } byC[f.c].push(f); });
+    order.forEach(function(cid) {
+        var ch = camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, cid) ? camp.chars[cid] : null; if (!ch) return;
+        var row = cel('label', 'cal-pend-row'), tick = cel('input', 'cal-pend-tick'); tick.type = 'checkbox'; tick.dataset.char = cid; tick.checked = pend.on[cid] === true; row.appendChild(tick);
+        row.appendChild(cel('span', 'cal-pend-name', (ch.name || 'A character') + (isPc(ch) ? '' : ' (NPC)')));
+        row.appendChild(cel('span', 'cal-pend-rules', byC[cid].map(function(f) { var rl = clockRules(sys).filter(function(r) { return r.id === f.r; })[0]; return (rl && rl.label ? rl.label : 'A rule') + ' \u00d7' + f.n; }).join(', ')));
+        box.appendChild(row);
+    });
+    var bar = cel('div', 'cal-pend-bar');
+    bar.appendChild(cbtn('cal-pend-apply', 'Apply', 'Run the ticked characters\u2019 rules now: the rolls are made for them and each player gets a summary', 'calpendapply'));
+    bar.appendChild(cbtn('cal-pend-skip', 'Skip', 'Let this time pass with no rules run', 'calpendskip'));
+    box.appendChild(bar); body.appendChild(box);
+}
+function pendDone(apply) {
+    if (!pend) return false;
+    var p = pend, cal = sysCal(); pend = null;
+    var camp = getActiveCampaign(); if (!camp || camp.id !== p.camp) { renderWin(); return false; }
+    if (apply) { var go = p.fires.filter(function(f) { return p.on[f.c] === true; }); if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, fmtSpan(cal, p.secs) + (p.rest ? ' of rest' : ' of activity')); }
+    commitAcc(p.acc); renderWin(); return true;
+}
 function comingUp(body, cal, notes, today, gm) {   // the next five notes from today on (a player's app holds only those it may see)
     var next = notes.filter(function(n) { return n.day >= today; }).slice(0, 5); if (!next.length) return;
     var box = cel('div', 'cal-coming'); box.appendChild(cel('div', 'sys-num-cap', 'Coming up'));
@@ -100,11 +147,12 @@ function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, t = ck.t, gm = !isPlayer(), sys = sysNow(), dl = dayLength(cal), now = dateOf(cal, t);
-    if (camp.id !== winCamp) { view = null; pick = null; winCamp = camp.id; }   // another campaign on screen: its own calendar, from the clock
+    if (camp.id !== winCamp) { view = null; pick = null; winCamp = camp.id; if (pend && pend.camp !== camp.id) pend = null; }   // another campaign on screen: its own calendar, from the clock
     if (!view) view = viewOf(cal, t);
     winSig = winSigOf(camp, ck, cal);
     body.textContent = '';
     body.appendChild(cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)));
+    if (gm && pend) pendPanel(body, cal);   // K5: what the time rules have due, first
     var notes = notesOf(ck), g = gridOf(cal, view, t, pick, noteDays(notes)), nav = cel('div', 'cal-nav');
     nav.appendChild(cbtn('cal-prev', '\u25c0', 'The period before', 'calprev')); nav.appendChild(cel('span', 'cal-title', g.title)); nav.appendChild(cbtn('cal-next', '\u25b6', 'The period after', 'calnext'));
     nav.appendChild(cbtn('cal-back', 'Today', 'Back to the period the clock is in', 'caltoday'));
@@ -128,16 +176,19 @@ function renderWin() {
             if (i) pr.appendChild(cel('span', 'cal-colon', ':'));
             var n = cel('input', 'field ' + f[0]); n.type = 'number'; n.min = '0'; n.max = String(f[2]); n.step = '1'; n.value = String(f[1]); n.title = f[3]; pr.appendChild(n);
         });
-        pr.appendChild(cbtn('cal-set', 'Set the clock', 'The clock goes to this day at this time', 'calset'));
+        var setB = cbtn('cal-set', 'Set the clock', 'The clock goes to this day at this time; later, you are asked whether the time rules run for the time skipped', 'calset'); if (pend) { setB.disabled = true; setB.title = 'Apply or skip the time rules first'; } pr.appendChild(setB);
     }
     body.appendChild(pr);
     if (pick !== null) dayNotes(body, cal, notes, pick, true);
+    var kd = cel('div', 'cal-kind'); kd.appendChild(cel('span', 'sys-num-cap', 'Time passes as'));
+    [['active', 'Active', 'Activity: the time rules that run any time'], ['rest', 'Rest', 'Rest: every time rule, and a rule during rest only counts it']].forEach(function(k) { var b = cbtn('cal-kind-btn' + ((k[0] === 'rest') === restMode ? ' cal-kind-on' : ''), k[1], k[2], 'calkind'); b.dataset.kind = k[0]; kd.appendChild(b); });
+    body.appendChild(kd);
     var st = cel('div', 'cal-steps'); st.appendChild(cel('span', 'sys-num-cap', 'Move time on'));
-    stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label, 'Move the clock on ' + fmtSpan(cal, s.secs), 'calstep'); b.dataset.secs = String(s.secs); st.appendChild(b); });
+    stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label, 'Move the clock on ' + fmtSpan(cal, s.secs), 'calstep'); b.dataset.secs = String(s.secs); if (pend) { b.disabled = true; b.title = 'Apply or skip the time rules first'; } st.appendChild(b); });
     body.appendChild(st);
     var an = cel('div', 'cal-any'), ai = cel('input', 'field cal-any-n'); ai.type = 'number'; ai.step = 'any'; ai.placeholder = 'Amount'; ai.title = 'How much: below 0 moves the clock back'; an.appendChild(ai);
     var us = cel('select', 'field cal-any-u'); us.title = 'What the amount counts in'; unitsOf(cal, sys).forEach(function(u) { var o = cel('option', '', u.name); o.value = u.id; us.appendChild(o); }); an.appendChild(us);
-    an.appendChild(cbtn('cal-any-go', 'Move', 'Move the clock on (or back) by this amount', 'calany'));
+    var goB = cbtn('cal-any-go', 'Move', 'Move the clock on (or back) by this amount', 'calany'); if (pend) { goB.disabled = true; goB.title = 'Apply or skip the time rules first'; } an.appendChild(goB);
     body.appendChild(an);
     var hl = cel('label', 'cal-tick'), hc = cel('input', 'cal-hide'); hc.type = 'checkbox'; hc.checked = !ck.hide; hc.title = 'Off: players see no date or time; you still do';
     hl.appendChild(hc); hl.appendChild(document.createTextNode(' Players see the date')); body.appendChild(hl);
@@ -187,24 +238,29 @@ function onWinClick(e) {
     if (act === 'caltoday') { view = viewOf(cal, tOf(camp)); pick = null; renderWin(); return; }
     if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 VTT features brings it back.'); } return; }
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
-    if (act === 'calstep') { moveBy(Number(b.dataset.secs)); return; }
+    if (act === 'calkind') { restMode = b.dataset.kind === 'rest'; renderWin(); return; }   // K5
+    if (act === 'calpendapply') { pendDone(true); return; }
+    if (act === 'calpendskip') { pendDone(false); return; }
+    if (pend && (act === 'calstep' || act === 'calany' || act === 'calset')) { toast('Apply or skip the time rules first.'); return; }
+    if (act === 'calstep') { var sv = Number(b.dataset.secs); if (moveBy(sv) && sv > 0) timePassed(sv, restMode); return; }
     if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true)); return; }
     if (act === 'calnotedel') { delNote(b.dataset.note); return; }
     if (act === 'calany') {
         var ni = q('cal-any-n'), ui = q('cal-any-u'), n = ni ? Number(ni.value) : NaN, u = ui ? unitsOf(cal, sysNow()).filter(function(x) { return x.id === ui.value; })[0] : null;
         if (!u || !(String(ni.value).trim() !== '' && isFinite(n)) || !n) { toast('Type an amount: below 0 moves the clock back.'); return; }
-        moveBy(Math.round(n * u.secs)); return;
+        var mv = Math.round(n * u.secs); if (moveBy(mv) && mv > 0) timePassed(mv, restMode); return;
     }
     if (act === 'calset' && pick !== null) {
         var cc = cleanCalendar(cal) || {}, H = cc.hours || 24, M = cc.minutes || 60, S = cc.seconds || 60, hi = q('cal-set-h'), mi = q('cal-set-m'), h = hi ? Number(hi.value) : 0, m = mi ? Number(mi.value) : 0;
         if (!(h >= 0 && h < H && Math.floor(h) === h && m >= 0 && m < M && Math.floor(m) === m)) { toast('The hour is 0 to ' + (H - 1) + ' and the minute 0 to ' + (M - 1) + '.'); return; }
-        var t1 = pick * dayLength(cal) + (h * M + m) * S; if (moveTo(t1, 'Set')) { view = viewOf(cal, t1); pick = null; renderWin(); }
+        var t1 = pick * dayLength(cal) + (h * M + m) * S, t0 = tOf(camp); if (moveTo(t1, 'Set')) { view = viewOf(cal, t1); pick = null; if (!(t1 > t0 && timePassed(t1 - t0, restMode))) renderWin(); }   // K5: a Set forward asks (the GM's choice)
     }
 }
 function onWinChange(e) {
     var tg = e.target; if (!tg || !tg.classList) return;
     if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
     else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
+    else if (tg.classList.contains('cal-pend-tick') && tg.dataset && pend && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(pend.on, tg.dataset.char)) pend.on[tg.dataset.char] = tg.checked === true;   // K5
 }
 // [sinkcheck:calendarwin-end]
 function openWin() { var m = document.getElementById('calendarModal'); if (!m || !shown(getActiveCampaign())) return; view = null; pick = null; m.style.display = 'flex'; renderWin(); }
@@ -225,12 +281,15 @@ function refresh() {
 // Item 20 K2 (the Foundry model: a round moves world time on by the round's length): n rounds of a combat on the GM's side, forward or back
 function rounds(n) {
     if (isPlayer() || typeof n !== 'number' || !isFinite(n) || !n || !clockOn()) return false;
-    var camp = getActiveCampaign(); return moveTo(tOf(camp) + n * roundSecs(sysNow()), null);
+    var camp = getActiveCampaign(), s = n * roundSecs(sysNow()), ok = moveTo(tOf(camp) + s, null);
+    if (ok && s > 0) roundPend += s;   // K5 (the owner's answer): a fight's rounds count as activity, asked about when it ends
+    return ok;
 }
+function fightEnded() { if (isPlayer() || !(roundPend > 0)) { roundPend = 0; return false; } var s = roundPend; roundPend = 0; return timePassed(s, false); }
 (function wire() {
     var chip = document.getElementById('clockChip'); if (chip) chip.addEventListener('click', openWin);
     var m = document.getElementById('calendarModal'); if (m) { m.addEventListener('click', onWinClick); m.addEventListener('change', onWinChange); m.addEventListener('mousedown', function(e) { if (e.target === m) closeWin(); }); }
 })();
 
-window.wpCalendar = { refresh: refresh, rounds: rounds, open: openWin, close: closeWin, moveTo: moveTo };
-export { refresh, rounds, openWin, closeWin, moveTo };
+window.wpCalendar = { refresh: refresh, rounds: rounds, fightEnded: fightEnded, open: openWin, close: closeWin, moveTo: moveTo };
+export { refresh, rounds, fightEnded, openWin, closeWin, moveTo };

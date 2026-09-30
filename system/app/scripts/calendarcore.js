@@ -19,6 +19,7 @@ var LIMITS = Object.freeze({
 });
 var DAY = Object.freeze({ hours: 24, minutes: 60, seconds: 60 });   // a day's shape when the calendar says nothing
 var NOTE_ID = /^n_[a-z0-9]{8}$/;   // item 20 K3: a dated note's id
+var ACC_ID = /^[a-z]_[A-Za-z0-9_]{1,24}$/;   // K5: a character's or a rule's id (c_..., r_...): never a prototype's name
 var CTRL_RE_G = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
 
 function isObj(o) { return !!o && typeof o === 'object' && !Array.isArray(o); }
@@ -155,7 +156,50 @@ function cleanClock(v) {
         seen[n.id] = 1; var nn = { id: n.id, day: day, text: tx }; if (n.vis === 'all') nn.vis = 'all'; ns.push(nn);
     });
     if (ns.length) o.notes = ns.map(function(n, i) { return [n, i]; }).sort(function(a, b) { return a[0].day - b[0].day || a[1] - b[1]; }).map(function(x) { return x[0]; });
+    var acc = cleanAcc(v.acc); if (acc) o.acc = acc;   // K5: what each character's time rules have counted (the GM's own; never sent)
     return o;
+}
+// Item 20 K5: what each character's time rules have counted towards their next firing — { charId: { ruleId: seconds } }, ids by pattern, seconds
+// from 0 below the limit, at most 1000 characters of 50 rules; none: null
+function cleanAcc(v) {
+    if (!isObj(v)) return null;
+    var out = {}, nc = 0;
+    Object.keys(v).forEach(function(c) {
+        if (nc >= 1000 || !ACC_ID.test(c) || !isObj(v[c])) return;
+        var inner = {}, nr = 0; Object.keys(v[c]).forEach(function(r) { var x = v[c][r]; if (nr >= 50 || !ACC_ID.test(r) || typeof x !== 'number' || !isFinite(x) || x <= 0 || x >= LIMITS.time) return; inner[r] = Math.round(x * 1000) / 1000; nr++; });
+        if (nr) { out[c] = inner; nc++; }
+    });
+    return nc ? out : null;
+}
+// K5: how long a time rule's interval is, in seconds by the calendar's own day — n minutes, hours, days or weeks (a week of the calendar's week,
+// 7 days with none), or n of the system's own time units ([{ key, secs }]); 0 when it cannot be read
+function everySecs(cal, units, every) {
+    if (!isObj(every) || typeof every.n !== 'number' || !(every.n > 0)) return 0;
+    var sh = shape(cal), per = every.u === 'min' ? sh.S : every.u === 'hour' ? sh.M * sh.S : every.u === 'day' ? sh.dayLen : every.u === 'week' ? (sh.week.length || 7) * sh.dayLen : 0;
+    if (!per && typeof every.u === 'string') (Array.isArray(units) ? units : []).forEach(function(u) { if (!per && isObj(u) && typeof u.key === 'string' && u.key.toLowerCase() === every.u.toLowerCase() && typeof u.secs === 'number' && u.secs > 0) per = u.secs; });
+    return per > 0 ? every.n * per : 0;
+}
+// K5 (the owner's answer: rest adds up, activity breaks it): the time rules a stretch of time fires — rules [{ id, every }], charIds, acc (what
+// each has counted, as cleanAcc keeps it), secs (the stretch), rest (true: rest). A rule during rest only counts rest, and a stretch of activity
+// clears what it had counted; any other rule counts all time. Each full interval fires once (at most 500 a stretch) and the rest carries.
+// { fires: [{ c, r, n }], acc } — a new acc, the one given left as it was
+function ruleFires(cal, units, rules, charIds, acc, secs, rest) {
+    var out = { fires: [], acc: {} }, prev = cleanAcc(acc) || {}; Object.keys(prev).forEach(function(c) { out.acc[c] = Object.assign({}, prev[c]); });
+    if (typeof secs !== 'number' || !isFinite(secs) || !(secs > 0)) return out;
+    (Array.isArray(charIds) ? charIds : []).forEach(function(c) {
+        if (typeof c !== 'string' || !ACC_ID.test(c)) return;
+        (Array.isArray(rules) ? rules : []).forEach(function(rl) {
+            if (!isObj(rl) || typeof rl.id !== 'string' || !ACC_ID.test(rl.id)) return;
+            var per = everySecs(cal, units, rl.every); if (!(per > 0)) return;
+            var mine = Object.prototype.hasOwnProperty.call(out.acc, c) ? out.acc[c] : (out.acc[c] = {}), had = Object.prototype.hasOwnProperty.call(mine, rl.id) ? mine[rl.id] : 0;
+            if (rl.every.rest === true && !rest) { delete mine[rl.id]; if (!Object.keys(mine).length) delete out.acc[c]; return; }
+            var a = had + secs, k = Math.floor(a / per), left = a - k * per;
+            if (left > 0.0005) mine[rl.id] = Math.round(left * 1000) / 1000; else delete mine[rl.id];
+            if (!Object.keys(mine).length) delete out.acc[c];
+            if (k > 0) out.fires.push({ c: c, r: rl.id, n: Math.min(500, k) });
+        });
+    });
+    return out;
 }
 
 // The editor's starting points (fresh objects: a caller may keep and change one). 'twelve': the real-world year, a leap day in February
@@ -169,6 +213,6 @@ function preset(id) {
 
 // Names another module can import beside its own LIMITS and helpers (sheets.js)
 var CAL_LIMITS = LIMITS, calPreset = preset;
-var API = { VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, dateOf: dateOf, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
+var API = { VERSION: VERSION, LIMITS: LIMITS, DAY: DAY, PRESETS: PRESETS, cleanCalendar: cleanCalendar, cleanClock: cleanClock, cleanAcc: cleanAcc, everySecs: everySecs, ruleFires: ruleFires, dateOf: dateOf, timeOf: timeOf, periodDays: periodDays, yearDays: yearDays, dayLength: dayLength, fmtDate: fmtDate, fmtTime: fmtTime, fmtWhen: fmtWhen, fmtSpan: fmtSpan, preset: preset };
 if (typeof window !== 'undefined') window.wpCalendarCore = API;
-export { VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };
+export { VERSION, LIMITS, CAL_LIMITS, calPreset, DAY, PRESETS, cleanCalendar, cleanClock, cleanAcc, everySecs, ruleFires, dateOf, timeOf, periodDays, yearDays, dayLength, fmtDate, fmtTime, fmtWhen, fmtSpan, preset };

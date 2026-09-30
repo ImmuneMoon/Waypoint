@@ -3113,6 +3113,7 @@ function cleanCombats(c) {
         }).filter(Boolean);
         if (!rows.length) return;
         out[String(mapId).slice(0, 80)] = { mapId: String(mapId).slice(0, 80), round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
+        if (k.side === 'pc' || k.side === 'rest') out[String(mapId).slice(0, 80)].side = k.side;   // initiative O4: the side going first this round (shown to the table)
     });
     return out;
 }
@@ -3137,6 +3138,7 @@ function combatsFor(recipientId) {
         var cmb = net.combats[mapId], map = fogged && camp && camp.items[mapId];
         var drop = map && map.type === 'map' && map.fog && map.fog.on === true ? (fogDrop(camp, map, recipientId) || {}) : null, hid = combatHidden(camp, mapId);
         out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) { return combatRowOut(r, i, !!(r.tokId && ((drop && drop[r.tokId]) || hid[r.tokId]))); }) };
+        if (cmb.side === 'pc' || cmb.side === 'rest') out[mapId].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
     });
     return out;
 }
@@ -3353,9 +3355,12 @@ net.combatSet = function(mapId, combat) {
         combat.mapId = mapId;
         net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
         if (!had && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
+        if (had && typeof had.rr === 'number') net.combats[mapId].rr = had.rr;   // initiative O4: the last round the fight rolled for, and this round's side, kept through a roster edit
+        if (had && (had.side === 'pc' || had.side === 'rest')) net.combats[mapId].side = had.side;
+        if (typeof combatSides === 'function') combatSides(mapId, net.combats[mapId], !had);   // ...and each side together (a new fight rolls the sides first)
         if (!had || had.round !== net.combats[mapId].round) roundChanged(mapId, net.combats[mapId]);   // G10: the first round (a roster edit keeps its round)
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
-        toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (combat.rows[combat.turn] || combat.rows[0]).name + ' goes first.');
+        toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (net.combats[mapId].rows[net.combats[mapId].turn] || net.combats[mapId].rows[0]).name + ' goes first.');
     } else {
         if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
         if (had) { try { fxCombatEdge(mapId, had, 'resume'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks run again
@@ -3382,12 +3387,67 @@ function initIntoFight(camp, mapId, charId, pid, value) {
     var tieIF = S && S.initTie ? S.initTie(camp.system, window.wpFormula, function(r) { var tk = r && typeof r.tokId === 'string' ? map.whiteboard.find(function(w) { return w && w.id === r.tokId; }) : null; return tk && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; }) : null;   // initiative O2: the system's tie steps
     c.rows = S && S.orderByInit ? S.orderByInit(c.rows, tieIF) : c.rows;
     var at = cur ? c.rows.indexOf(cur) : 0; c.turn = at >= 0 ? at : 0;
+    if (typeof combatSideOrder === 'function') combatSideOrder(camp, mapId, c);   // initiative O4: each side stays together
     toast((row.name || 'Someone') + ' rolled initiative: ' + row.init + ', now ' + (c.rows.indexOf(row) + 1) + ' of ' + c.rows.length + '.');
     logEvent('table', (row.name || 'Someone') + ' rolled initiative on ' + mapTitleOf(mapId) + ': ' + row.init);
     broadcastCombats(); combatRefresh();
     return true;
 }
 // [netcheck:initfight-end]
+// [netcheck:initround-start]
+// Initiative O4 (docs/TURN_ORDER_PLAN.md; for sides the owner's answer, "Players vs the rest, each round"): the system's other orders,
+// combat.initiative. every: the first time the fight reaches a new round, every row whose token has a character rolls the system's initiative
+// roll again through the sheet's own roll (a card on the table, or the GM's alone where its label would tell a GM-only value) and the order
+// re-sorts with the tie steps; a row with no character keeps its number. side: the players' characters (a character token with a player) and
+// everyone else each roll the system's sides roll when the fight starts and at each new round, again while they tie; the higher side goes
+// first, each side's rows in their own order (a held row that acted keeps its place). The table sees which side is first on the strip, and
+// each roll as its card
+function initRulesOf(camp) { var s = camp && camp.system, ir = s && s.combat && typeof s.combat === 'object' ? s.combat.initiative : null; return ir && typeof ir === 'object' && !Array.isArray(ir) ? ir : null; }
+function combatPcOf(camp, mapId) {   // a row's side: the players' for a character token with a player on that map, else the rest's
+    var map = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null, pcs = Object.create(null);
+    (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (w && w.isChar && typeof w.ownerId === 'string' && w.ownerId && typeof w.id === 'string') pcs[w.id] = 1; });
+    return function(r) { return !!(r && typeof r.tokId === 'string' && pcs[r.tokId] === 1); };
+}
+function combatSideRoll(camp, mapId, c) {   // this round's side, c.side: a side alone goes first without a roll; a roll that fails keeps the side there was, or the players
+    var ir = initRulesOf(camp), S = ir && typeof ir.side === 'string' && ir.side ? SC() : null; if (!S || !S.sideFirst) return;
+    var isPc = combatPcOf(camp, mapId), nPc = c.rows.filter(isPc).length;
+    if (!nPc || nPc === c.rows.length) { c.side = nPc ? 'pc' : 'rest'; return; }
+    var why = '', label = { pc: 'Side initiative: the players', rest: 'Side initiative: the rest' };
+    var got = S.sideFirst(function(side, k) { if (why) return null; var r = net.diceRoll(ir.side, { label: label[side] + (k ? ' (again)' : '') }); if (!r || r.error || typeof r.value !== 'number') { why = (r && r.error) || 'the roll failed.'; return null; } return r.value; });
+    if (!got) { if (c.side !== 'pc' && c.side !== 'rest') c.side = 'pc'; toast('Side initiative: ' + why + ' ' + (c.side === 'pc' ? 'The players go first.' : 'The rest go first.')); return; }
+    c.side = got.first;
+    var said = 'Round ' + c.round + ' on ' + mapTitleOf(mapId) + ': the players rolled ' + got.rolls.pc.join(', then ') + ', the rest ' + got.rolls.rest.join(', then ') + '; ' + (got.first === 'pc' ? 'the players go first.' : 'the rest go first.');
+    toast(said); logEvent('table', said);
+}
+function combatSideOrder(camp, mapId, c) {   // each side together, this round's first side first, the row on turn kept; the sides gone from the system: no side
+    var ir = initRulesOf(camp); if (!ir || typeof ir.side !== 'string' || !ir.side) { delete c.side; return; }
+    var S = c.side === 'pc' || c.side === 'rest' ? SC() : null; if (!S || !S.orderBySide) return;
+    var cur = c.rows[c.turn]; c.rows = S.orderBySide(c.rows, combatPcOf(camp, mapId), c.side); var at = cur ? c.rows.indexOf(cur) : 0; c.turn = at >= 0 ? at : 0;
+}
+function combatSides(mapId, c, fresh) {   // a fight's start or a roster edit: the sides rolled if there is no side yet, then each side together (a new fight from its first)
+    var camp = getActiveCampaign(), ir = initRulesOf(camp); if (!ir || typeof ir.side !== 'string' || !ir.side) { delete c.side; return; }
+    if (c.side !== 'pc' && c.side !== 'rest') combatSideRoll(camp, mapId, c);
+    combatSideOrder(camp, mapId, c); if (fresh) c.turn = 0;
+}
+function combatNewRound(mapId, c) {   // combatStep at a new round, once per round reached (a step back and on again rolls nothing); turn 0 is the new order's first
+    var camp = getActiveCampaign(), ir = initRulesOf(camp); if (!ir || !camp) return;
+    var every = ir.every === true, side = typeof ir.side === 'string' && !!ir.side, S = every || side ? SC() : null; if (!S) return;
+    if (c.round <= (typeof c.rr === 'number' ? c.rr : 1)) return; c.rr = c.round;
+    if (every && window.wpSheets && window.wpSheets.rollInit) {
+        var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null;
+        var charOf = function(r) { var tk = r && typeof r.tokId === 'string' && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === r.tokId; }) : null; return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
+        for (var i = 0, n = 0; i < c.rows.length; i++) {
+            var ch = charOf(c.rows[i]); if (!ch) continue;
+            var rr = window.wpSheets.rollInit(ch.id); if (rr && rr.error) { toast(rr.error); break; }   // no roll, dice off: said once, the rest keep their numbers
+            if (rr && typeof rr.value === 'number' && isFinite(rr.value)) { c.rows[i].init = Math.max(-1e6, Math.min(1e6, Math.round(rr.value * 100) / 100)); c.rows[i].rolled = 1; delete c.rows[i].tb; n++; }
+        }
+        if (n && S.orderByInit) c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, charOf) : null);   // nothing rolled: the order as it was
+    }
+    c.turn = 0;
+    if (side) combatSideRoll(camp, mapId, c);
+    combatSideOrder(camp, mapId, c); c.turn = 0;
+}
+// [netcheck:initround-end]
 net.combatStep = function(mapId, dir) {
     if (net.role !== 'host') return;
     var c = net.combats[mapId]; if (!c || !c.rows.length) return;
@@ -3397,6 +3457,7 @@ net.combatStep = function(mapId, dir) {
     c.turn = t;
     if (c.round !== r0) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
+    if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
     if (c.round !== r0) roundChanged(mapId, c);   // G10
     toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
     broadcastCombats(); combatRefresh();
